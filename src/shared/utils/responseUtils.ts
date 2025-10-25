@@ -9,6 +9,11 @@ const toSnakeCase = (obj: unknown): unknown => {
     return obj;
   }
 
+  // Handle Date objects - return as-is (will be serialized to ISO string by JSON.stringify)
+  if (obj instanceof Date) {
+    return obj;
+  }
+
   if (Array.isArray(obj)) {
     return obj.map(toSnakeCase);
   }

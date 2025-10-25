@@ -7,4 +7,4 @@
 export { getDetails, updateDetails } from './handlers';
 export { getUserDetails, updateUserDetails } from './services/user-details.service';
 export { updateUserDetailsSchema } from './validations/user-details.validation';
-export { userDetailsRoutes } from './routes.config';
+export { config } from './routes.config';

@@ -1,8 +1,11 @@
-import { readdir } from 'fs/promises';
-import { join } from 'path';
 import { isEmpty, isNil } from 'es-toolkit/compat';
 import type { MiddlewareHandler } from 'hono';
+import { MODULE_REGISTRY } from './modules.generated';
 import type { AppType } from '@/shared/types/hono';
+
+// Static module registry - auto-generated at build time
+
+console.log(`📦 Loaded ${MODULE_REGISTRY.length} modules statically`);
 
 /**
  * Middleware configuration types
@@ -309,50 +312,10 @@ const registerModuleMiddleware = async (
 };
 
 /**
- * Load and mount a single module
+ * Get list of module names from static registry
  */
-const loadModule = async (app: AppType, config: ModuleConfig): Promise<void> => {
-  try {
-    const modulePath = `@/modules/${config.name}/http`;
-    const moduleApp = await import(modulePath);
-
-    if (!moduleApp.default) {
-      console.warn(`⚠️  Module ${config.name} does not export a default Hono app`);
-      return;
-    }
-
-    const mountPath = config.prefix
-      ? `/api/${config.prefix}/${config.name}`
-      : `/api/${config.name}`;
-
-    await registerModuleMiddleware(app, mountPath, config);
-    app.route(mountPath, moduleApp.default);
-
-    const middlewareInfo = config.middleware
-      ? Object.entries(config.middleware)
-        .map(([pattern, mw]) => `${pattern}: [${Array.isArray(mw) ? mw.join(', ') : ''}]`)
-        .join(', ')
-      : 'none';
-
-    console.log(`✅ Mounted module: ${config.name} at ${mountPath}`);
-    if (middlewareInfo !== 'none') {
-      console.log(`   Middleware: ${middlewareInfo}`);
-    }
-  } catch (error) {
-    console.warn(`⚠️  Failed to load module ${config.name}:`, error);
-  }
-};
-
-/**
- * Auto-discover modules by scanning the modules directory
- */
-const discoverModules = async (): Promise<string[]> => {
-  const modulesDir = join(process.cwd(), 'src', 'modules');
-  const allModules = await readdir(modulesDir);
-
-  return allModules.filter(
-    (name) => !EXCLUDED_MODULES.includes(name as (typeof EXCLUDED_MODULES)[number]) && !name.startsWith('.'),
-  );
+const getModuleNames = (): string[] => {
+  return MODULE_REGISTRY.map((m) => m.name);
 };
 
 /**
@@ -360,20 +323,19 @@ const discoverModules = async (): Promise<string[]> => {
  */
 const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
   try {
-    const configPath = `@/modules/${moduleName}/routes.config`;
-    const moduleConfig = await import(configPath);
+    const configModule = await import(`@/modules/${moduleName}/routes.config.js`);
 
-    if (moduleConfig.config) {
+    if (configModule.config) {
       // Convert old array format to new object format
-      if (Array.isArray(moduleConfig.config.middleware)) {
-        moduleConfig.config.middleware = {
-          [WILDCARD]: moduleConfig.config.middleware,
+      if (Array.isArray(configModule.config.middleware)) {
+        configModule.config.middleware = {
+          [WILDCARD]: configModule.config.middleware,
         };
       }
 
       return {
         name: moduleName,
-        ...moduleConfig.config,
+        ...configModule.config,
       };
     }
   } catch {
@@ -387,32 +349,47 @@ const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
 };
 
 /**
- * Get module configurations from each module's config file
+ * Load and mount a single module from static registry
  */
-export const getModuleConfigurations = async (): Promise<ModuleConfig[]> => {
+const loadModule = async (app: AppType, moduleName: string): Promise<void> => {
   try {
-    const moduleNames = await discoverModules();
-    return Promise.all(moduleNames.map(loadModuleConfig));
-  } catch (error) {
-    console.error('❌ Failed to scan modules directory:', error);
+    // Get module from static registry
+    const registryEntry = MODULE_REGISTRY.find((m) => m.name === moduleName);
 
-    // Fallback to hardcoded modules
-    return ['practice', 'public'].map((name) => ({
-      name,
-      middleware: name === 'public' ? { [WILDCARD]: [] } : { [WILDCARD]: ['requireAuth'] },
-    }));
+    if (!registryEntry?.http) {
+      console.warn(`⚠️  Module ${moduleName} not found in registry or missing http export`);
+      return;
+    }
+
+    const config = await loadModuleConfig(moduleName);
+
+    const mountPath = config.prefix
+      ? `/api/${config.prefix}/${moduleName}`
+      : `/api/${moduleName}`;
+
+    await registerModuleMiddleware(app, mountPath, config);
+    app.route(mountPath, registryEntry.http);
+
+    const middlewareInfo = config.middleware
+      ? Object.entries(config.middleware)
+        .map(([pattern, mw]) => `${pattern}: [${Array.isArray(mw) ? mw.join(', ') : ''}]`)
+        .join(', ')
+      : 'none';
+
+    console.log(`✅ Mounted module: ${moduleName} at ${mountPath}`);
+    if (middlewareInfo !== 'none') {
+      console.log(`   Middleware: ${middlewareInfo}`);
+    }
+  } catch (error) {
+    console.warn(`⚠️  Failed to load module ${moduleName}:`, error);
   }
 };
 
 /**
- * Simple module router - automatically discovers and mounts module routes
- *
- * Looks for modules in src/modules/*\/http.ts and mounts them at / api / { module- name}
- * Each module can define its own middleware configuration.
+ * Register all module routes
+ * Modules are statically discovered at build time
  */
 export const registerModuleRoutes = async (app: AppType): Promise<void> => {
-  const moduleConfigs = await getModuleConfigurations();
-
-  // Load all modules in parallel for better performance
-  await Promise.all(moduleConfigs.map((config) => loadModule(app, config)));
+  const modules = getModuleNames();
+  await Promise.all(modules.map((moduleName) => loadModule(app, moduleName)));
 };

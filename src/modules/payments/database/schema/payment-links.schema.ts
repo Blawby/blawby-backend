@@ -11,7 +11,7 @@ import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
-import { organizations } from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 
 export const paymentLinks = pgTable(
   'payment_links',

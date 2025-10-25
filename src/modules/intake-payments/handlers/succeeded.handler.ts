@@ -1,4 +1,4 @@
-import consola from 'consola';
+import { consola } from 'consola';
 import type Stripe from 'stripe';
 
 import { intakePaymentsRepository } from '../database/queries/intake-payments.repository';

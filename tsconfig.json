@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "allowJs": true,
@@ -38,9 +38,10 @@
       "@/types": ["./src/types"],
       "@/types/*": ["./src/types/*"],
       "@/plugins/*": ["./src/plugins/*"],
-      "@/lib/*": ["./src/lib/*"]
+      "@/lib/*": ["./src/lib/*"],
+      "@/boot": ["./src/boot"]
     }
   },
-  "include": ["src/**/*.ts", "src/worker.js"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "test", "src/modules/payments"]
 }

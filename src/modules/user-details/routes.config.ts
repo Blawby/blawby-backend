@@ -4,10 +4,10 @@
  * Route definitions for user details API endpoints
  */
 
-import { RouteMiddlewareConfig } from '@/shared/router/module-router';
+import type { ModuleConfig } from '@/shared/router/module-router';
 
-export const userDetailsRoutes: RouteMiddlewareConfig = {
-  '*': [
-    'requireAuth',
-  ],
+export const config: Partial<ModuleConfig> = {
+  middleware: {
+    '*': ['requireAuth'],
+  },
 };

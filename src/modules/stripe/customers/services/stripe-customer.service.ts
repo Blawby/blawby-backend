@@ -5,7 +5,7 @@
  * Publishes events for customer lifecycle management
  */
 
-import consola from 'consola';
+import { consola } from 'consola';
 import { customersRepository } from '../database/queries/customers.repository';
 import type {
   UserDetails,

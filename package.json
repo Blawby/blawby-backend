@@ -8,22 +8,19 @@
     "test": "test"
   },
   "scripts": {
-    "build": "pnpm run schemas:sync && tsc",
-    "dev": "pnpm run schemas:sync && tsx watch src/hono-server.ts",
+    "build": "tsx scripts/build.ts",
+    "dev": "tsx watch src/hono-server.ts",
     "dev:full": "concurrently \"ENABLE_QUEUE=true pnpm run dev\" \"pnpm run worker:dev\" --names \"API,WORKER\" --prefix-colors \"blue,green\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "schemas:sync": "tsx scripts/sync-schemas.ts",
     "format": "eslint --fix .",
     "format:check": "eslint .",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "start": "node dist/hono-server.js",
-    "start:prod": "node dist/hono-server.js",
     "test": "cross-env TS_NODE_FILES=true tap test/**/*.test.ts",
     "typecheck": "tsc -noEmit",
-    "worker": "tsc && node dist/webhook-worker.js",
     "worker:dev": "tsx watch src/workers/webhook.worker.ts"
   },
   "dependencies": {
@@ -63,26 +60,12 @@
     "oxlint": "1.23.0",
     "tap": "21.1.0",
     "ts-node": "10.9.2",
-    "tsc-alias": "^1.8.10",
+    "tsup": "^8.5.0",
     "tsx": "4.20.6",
     "typescript": "5.9.3"
   },
   "packageManager": "pnpm@10.19.0",
   "engines": {
     "node": ">=18.17.0"
-  },
-  "tsup": {
-    "entry": [
-      "src/**/*.ts"
-    ],
-    "splitting": false,
-    "sourcemap": true,
-    "clean": true,
-    "format": [
-      "cjs",
-      "esm"
-    ],
-    "legacyOutput": true,
-    "target": "es2018"
   }
 }
