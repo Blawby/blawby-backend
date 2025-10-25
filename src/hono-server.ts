@@ -4,8 +4,9 @@ import closeWithGrace from 'close-with-grace';
 
 import app from './hono-app';
 
-// Load environment variables
-config();
+if (process.env.NODE_ENV !== 'production') {
+  config();
+}
 
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.SERVER_HOSTNAME
