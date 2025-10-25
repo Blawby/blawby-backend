@@ -1,6 +1,10 @@
-import type { RouteConfig } from '@/shared/types/route-config';
+import type { ModuleConfig } from '@/shared/router/module-router';
 
-export const routeConfig: RouteConfig = {
-  // Default: all routes require authentication
-  protected: true,
+/**
+ * Onboarding Module Configuration
+ */
+export const config: Partial<ModuleConfig> = {
+  middleware: {
+    '*': ['requireAuth', 'throttle'],
+  },
 };

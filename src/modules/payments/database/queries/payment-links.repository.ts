@@ -1,10 +1,12 @@
-import { db } from '@/shared/database';
+import { eq, desc } from 'drizzle-orm';
+
 import {
   paymentLinks,
   type InsertPaymentLink,
   type SelectPaymentLink,
 } from '../schema/payment-links.schema';
-import { eq, desc } from 'drizzle-orm';
+
+import { db } from '@/shared/database';
 
 export const paymentLinksRepository = {
   create: async function create(

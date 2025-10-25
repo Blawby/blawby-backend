@@ -5,13 +5,14 @@
  */
 
 import { eq } from 'drizzle-orm';
-import { db } from '@/shared/database';
-import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
-export type SelectConnectedAccount =
-  typeof stripeConnectedAccounts.$inferSelect;
-export type InsertConnectedAccount =
-  typeof stripeConnectedAccounts.$inferInsert;
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import { db } from '@/shared/database';
+
+export type SelectConnectedAccount
+  = typeof stripeConnectedAccounts.$inferSelect;
+export type InsertConnectedAccount
+  = typeof stripeConnectedAccounts.$inferInsert;
 
 /**
  * Find connected account by Stripe account ID
@@ -22,7 +23,7 @@ export const findByStripeAccountId = async function findByStripeAccountId(
   const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
-    .where(eq(stripeConnectedAccounts.stripeAccountId, stripeAccountId))
+    .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
     .limit(1);
 
   return account;
@@ -37,7 +38,7 @@ export const findByOrganizationId = async function findByOrganizationId(
   const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
-    .where(eq(stripeConnectedAccounts.organizationId, organizationId))
+    .where(eq(stripeConnectedAccounts.organization_id, organizationId))
     .limit(1);
 
   return account;

@@ -47,7 +47,7 @@ export const createWebhookEventSchema = createInsertSchema(webhookEvents);
 export const selectWebhookEventSchema = createSelectSchema(webhookEvents);
 
 // Webhook response schema
-export const webhookResponseSchema = z.object({
+export const stripeWebhookResponseSchema = z.object({
   received: z.boolean(),
   alreadyProcessed: z.boolean().optional(),
   duplicate: z.boolean().optional(),

@@ -16,21 +16,22 @@
  * - Production: `pnpm run worker`
  */
 
-import { Worker } from 'bullmq';
-import { getRedisConnection } from '@/shared/queue/redis.client';
-import { QUEUE_NAMES } from '@/shared/queue/queue.config';
 import { config } from '@dotenvx/dotenvx';
+import { Worker } from 'bullmq';
 
-// Load environment variables
-config();
+import { processEvent as processOnboardingEvent } from '@/modules/onboarding/services/onboarding-webhooks.service';
+// import { processStripeWebhookEvent } from '@/modules/stripe/services/stripe-webhook-processor.service';
+import { QUEUE_NAMES } from '@/shared/queue/queue.config';
+import { getRedisConnection } from '@/shared/queue/redis.client';
 
 // Import webhook processing services
-import { processStripeWebhookEvent } from '@/modules/stripe/services/stripe-webhook-processor.service';
-import { processEvent as processOnboardingEvent } from '@/modules/onboarding/services/onboarding-webhooks.service';
 import {
   findWebhookById,
   existsByStripeEventId,
 } from '@/shared/repositories/stripe.webhook-events.repository';
+
+// Load environment variables
+config();
 
 /**
  * Job processing function for Stripe webhooks
@@ -50,7 +51,8 @@ async function processStripeWebhookJob(job: {
   );
 
   try {
-    await processStripeWebhookEvent(webhookId, eventId);
+    // await processStripeWebhookEvent(webhookId, eventId);
+    console.log(`⚠️ Stripe webhook processing temporarily disabled: ${eventId}`);
 
     const duration = Date.now() - startTime;
     console.log(

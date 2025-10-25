@@ -1,11 +1,12 @@
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
+
+import { db } from '@/shared/database';
 import {
   webhookEvents,
   type WebhookEvent,
   type NewWebhookEvent,
 } from '@/shared/schemas/stripe.webhook-events.schema';
-import { db } from '@/shared/database';
 
 /**
  * Shared Webhook Events Repository
@@ -77,8 +78,8 @@ export const markWebhookFailed = async (
   if (!event) return;
 
   const retryCount = event.retryCount + 1;
-  const nextRetryAt =
-    retryCount < event.maxRetries
+  const nextRetryAt
+    = retryCount < event.maxRetries
       ? new Date(Date.now() + Math.pow(2, retryCount) * 60 * 1000) // Exponential backoff
       : null;
 

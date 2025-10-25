@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Reusable validators
 export const emailValidator = z
   .email('Invalid email format')
   .min(1, 'Email is required');
@@ -11,14 +10,14 @@ export const phoneValidator = z
   .min(1, 'Phone number is required');
 
 export const urlValidator = z
-  .url('Invalid URL format')
-  .min(1, 'URL is required');
+  .url('Invalid URL format');
 
 export const uuidValidator = z.uuid('Invalid UUID format');
 
+
 export const currencyValidator = z
-  .string()
-  .regex(/^\$\d+(\.\d{2})?$/, 'Invalid currency format (use $XX.XX)');
+  .number()
+  .refine((val) => val > 0, 'Currency must be greater than 0');
 
 export const slugValidator = z
   .string()
@@ -50,14 +49,55 @@ export const idParamSchema = z.object({
   id: uuidValidator,
 });
 
+// Parameter validation schemas
+export const organizationIdParamSchema = z.object({
+  organizationId: uuidValidator,
+});
+
+export const clientIdParamSchema = z.object({
+  id: uuidValidator,
+});
+
+export const invoiceIdParamSchema = z.object({
+  id: uuidValidator,
+});
+
+export const paymentIntentIdParamSchema = z.object({
+  id: uuidValidator,
+});
+
+export const payoutIdParamSchema = z.object({
+  id: uuidValidator,
+});
+
+export const practiceIdParamSchema = z.object({
+  id: uuidValidator.refine((val) => val.length > 0, 'Invalid practice ID'),
+});
+
+export const customerIdParamSchema = z.object({
+  id: uuidValidator,
+});
+
+export const subscriptionIdParamSchema = z.object({
+  id: uuidValidator,
+});
+
+
+// Combined parameter schemas for routes with multiple parameters
+export const organizationClientParamsSchema = organizationIdParamSchema.and(clientIdParamSchema);
+
+export const organizationInvoiceParamsSchema = organizationIdParamSchema.and(invoiceIdParamSchema);
+
+export const organizationPaymentParamsSchema = organizationIdParamSchema.and(paymentIntentIdParamSchema);
+
 export const sortSchema = z.object({
   sortBy: z.string().optional(),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
 export const dateRangeSchema = z.object({
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
 });
 
 export const bulkActionSchema = z.object({
@@ -67,8 +107,8 @@ export const bulkActionSchema = z.object({
 
 // Combined common schemas
 export const paginatedQuerySchema = paginationSchema
-  .merge(searchSchema)
-  .merge(sortSchema);
+  .and(searchSchema)
+  .and(sortSchema);
 
-export const dateFilteredQuerySchema =
-  paginatedQuerySchema.merge(dateRangeSchema);
+export const dateFilteredQuerySchema
+  = paginatedQuerySchema.and(dateRangeSchema);

@@ -1,19 +1,42 @@
-import cors from '@fastify/cors';
-
-import type { FastifyCorsOptions } from '@fastify/cors';
-import fp from 'fastify-plugin';
+import type { MiddlewareHandler } from 'hono';
+import { cors as honoCors } from 'hono/cors';
 
 /**
- * @fastify/cors enables the use of CORS in a Fastify application.
+ * Hono CORS Middleware
  *
- * @see https://github.com/fastify/fastify-cors
+ * Provides CORS handling similar to Fastify's @fastify/cors.
+ * Uses Hono's built-in CORS middleware with our configuration.
  */
-export default fp<FastifyCorsOptions>(async (fastify, opts) => {
-  await fastify.register(cors, {
-    origin: true, // Allow all origins in development
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+export const cors = (): MiddlewareHandler => {
+  return honoCors({
+    origin: (origin) => {
+      // Allow same-origin requests
+      if (!origin) return origin;
+
+      // Allow localhost in development
+      if (process.env.NODE_ENV === 'development') {
+        if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+          return origin;
+        }
+      }
+
+      // In production, configure allowed origins
+      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+      if (allowedOrigins.includes(origin)) {
+        return origin;
+      }
+
+      return null;
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
     credentials: true,
-    ...opts,
+    maxAge: 86400, // 24 hours
   });
-});
+};

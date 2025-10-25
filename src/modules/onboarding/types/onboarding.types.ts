@@ -1,17 +1,8 @@
-import type { Organization } from '@/schema';
-
-// Module-specific types only - no re-exports
-export type OnboardingSummary = {
-  id: string;
-  name: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type OnboardingCreateRequest = {
-  name: string;
-};
-
-export type OnboardingUpdateRequest = {
-  name?: string;
+export type StripeConnectedAccountBase = {
+  practice_uuid: string;
+  stripe_account_id: string;
+  client_secret?: string;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+  details_submitted: boolean;
 };

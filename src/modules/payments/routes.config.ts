@@ -1,13 +1,9 @@
-import type { RouteConfig } from '@/shared/types/route-config';
-
-export const routeConfig: RouteConfig = {
+export const routeConfig = {
   protected: true, // Default: payment routes require authentication
   public: [
     // Public payment page routes (no auth required)
     '/pay/:slug',
     '/pay/:slug/status',
-  ],
-  private: [
     // CAPTCHA-protected payment APIs (no auth required)
     '/api/payment-links',
     '/api/payment-links/:ulid',

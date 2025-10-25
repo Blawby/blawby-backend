@@ -1,12 +1,13 @@
-import type Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import type Stripe from 'stripe';
+
 import {
   stripeConnectedAccounts,
   ExternalAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
-import { publishSystemEvent } from '@/shared/events/event-publisher';
+import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
+import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
 
 /**
  * Handle account.external_account.deleted webhook event
@@ -19,9 +20,9 @@ export const handleExternalAccountDeleted = async (
   externalAccount: Stripe.ExternalAccount,
 ): Promise<void> => {
   try {
-    const accountType =
-      (externalAccount as Stripe.ExternalAccount & { type?: string }).type ||
-      'unknown';
+    const accountType
+      = (externalAccount as Stripe.ExternalAccount & { type?: string }).type
+      || 'unknown';
     console.log(
       `Processing external_account.deleted: ${externalAccount.id} (${accountType}) for account: ${externalAccount.account}`,
     );
@@ -32,7 +33,7 @@ export const handleExternalAccountDeleted = async (
       .from(stripeConnectedAccounts)
       .where(
         eq(
-          stripeConnectedAccounts.stripeAccountId,
+          stripeConnectedAccounts.stripe_account_id,
           externalAccount.account as string,
         ),
       )
@@ -48,8 +49,8 @@ export const handleExternalAccountDeleted = async (
     const currentAccount = account[0];
 
     // Remove external account from JSONB field
-    const currentExternalAccounts =
-      (currentAccount.externalAccounts as Record<string, unknown>) || {};
+    const currentExternalAccounts
+      = (currentAccount.externalAccounts as Record<string, unknown>) || {};
     const updatedExternalAccounts = { ...currentExternalAccounts };
     delete updatedExternalAccounts[externalAccount.id];
 
@@ -59,21 +60,21 @@ export const handleExternalAccountDeleted = async (
       .set({
         externalAccounts:
           updatedExternalAccounts as unknown as ExternalAccounts,
-        lastRefreshedAt: new Date(),
+        last_refreshed_at: new Date(),
       })
       .where(
         eq(
-          stripeConnectedAccounts.stripeAccountId,
+          stripeConnectedAccounts.stripe_account_id,
           externalAccount.account as string,
         ),
       );
 
     // Publish external account deleted event
-    await publishSystemEvent(
+    void publishSystemEvent(
       EventType.ONBOARDING_EXTERNAL_ACCOUNT_DELETED,
       {
         stripeAccountId: externalAccount.account,
-        organizationId: currentAccount.organizationId,
+        organizationId: currentAccount.organization_id,
         externalAccountId: externalAccount.id,
         externalAccountType: accountType,
         externalAccountStatus: externalAccount.status,
@@ -83,8 +84,17 @@ export const handleExternalAccountDeleted = async (
       },
       'stripe-webhook',
       'webhook',
-      currentAccount.organizationId,
+      currentAccount.organization_id,
     );
+
+    // Publish simple external account deleted event
+    void publishSimpleEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_DELETED, 'system', currentAccount.organization_id, {
+      stripe_account_id: externalAccount.account,
+      organization_id: currentAccount.organization_id,
+      external_account_id: externalAccount.id,
+      external_account_type: accountType,
+      deleted_at: new Date().toISOString(),
+    });
 
     console.log(
       `External account deleted and event published for: ${externalAccount.id}`,

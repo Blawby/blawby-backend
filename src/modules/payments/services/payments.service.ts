@@ -5,16 +5,16 @@
  * Implements direct payment functionality (payment intents)
  */
 
-import type { FastifyInstance } from 'fastify';
 import { stripeConnectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
-import { clientsRepository } from '@/modules/clients/database/queries/clients.repository';
 import { paymentIntentsRepository } from '@/modules/payments/database/queries/payment-intents.repository';
-import { calculateFees } from '@/shared/services/fees.service';
 import type {
   InsertPaymentIntent,
   SelectPaymentIntent,
 } from '@/modules/payments/database/schema/payment-intents.schema';
-import type { Json } from 'drizzle-orm/pg-core';
+import { EventType } from '@/shared/events/enums/event-types';
+import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { calculateFees } from '@/shared/services/fees.service';
+import { stripe } from '@/shared/utils/stripe-client';
 
 export interface CreatePaymentIntentRequest {
   organizationId: string;
@@ -61,18 +61,14 @@ export interface ConfirmPaymentResponse {
  * Create payments service
  */
 export const createPaymentsService = function createPaymentsService(
-  fastify: FastifyInstance,
 ): {
   createPaymentIntent(
-    request: CreatePaymentIntentRequest,
-  ): Promise<CreatePaymentIntentResponse>;
+    request: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponse>;
   confirmPayment(
-    request: ConfirmPaymentRequest,
-  ): Promise<ConfirmPaymentResponse>;
+    request: ConfirmPaymentRequest): Promise<ConfirmPaymentResponse>;
   getPaymentIntent(
     paymentIntentId: string,
-    organizationId: string,
-  ): Promise<unknown>;
+    organizationId: string): Promise<unknown>;
   listPaymentIntents(organizationId: string, limit?: number): Promise<unknown>;
 } {
   return {
@@ -84,8 +80,8 @@ export const createPaymentsService = function createPaymentsService(
     ): Promise<CreatePaymentIntentResponse> {
       try {
         // 1. Validate organization has connected account
-        const connectedAccount =
-          await stripeConnectedAccountsRepository.findByOrganizationId(
+        const connectedAccount
+          = await stripeConnectedAccountsRepository.findByOrganizationId(
             request.organizationId,
           );
 
@@ -96,17 +92,9 @@ export const createPaymentsService = function createPaymentsService(
           };
         }
 
-        // 2. Get client if provided
-        let client = null;
-        if (request.customerId) {
-          client = await clientsRepository.findById(request.customerId);
-          if (!client) {
-            return {
-              success: false,
-              error: 'Client not found',
-            };
-          }
-        }
+        // 2. Get client if provided (optional)
+        // Note: Client lookup removed as clientsRepository doesn't exist
+        // This can be re-implemented when client management is added
 
         // 3. Calculate application fee if not provided
         let applicationFeeAmount = request.applicationFeeAmount;
@@ -117,11 +105,11 @@ export const createPaymentsService = function createPaymentsService(
         }
 
         // 4. Create payment intent on Stripe (direct charges)
-        const stripePaymentIntent = await fastify.stripe.paymentIntents.create(
+        const stripePaymentIntent = await stripe.paymentIntents.create(
           {
             amount: request.amount,
             currency: request.currency || 'usd',
-            customer: client?.stripeCustomerId,
+            customer: request.customerId,
             application_fee_amount: applicationFeeAmount,
             payment_method_types: request.paymentMethodTypes || ['card'],
             description: request.description,
@@ -132,14 +120,14 @@ export const createPaymentsService = function createPaymentsService(
             receipt_email: request.customerEmail,
           },
           {
-            stripeAccount: connectedAccount.stripeAccountId,
+            stripeAccount: connectedAccount.stripe_account_id,
           },
         );
 
         // 5. Store payment intent in database
         const paymentIntentData: InsertPaymentIntent = {
           connectedAccountId: connectedAccount.id,
-          customerId: client?.id,
+          customerId: request.customerId,
           stripePaymentIntentId: stripePaymentIntent.id,
           amount: request.amount,
           currency: request.currency || 'usd',
@@ -147,25 +135,21 @@ export const createPaymentsService = function createPaymentsService(
           status: stripePaymentIntent.status,
           customerEmail: request.customerEmail,
           customerName: request.customerName,
-          metadata: request.metadata as Json,
+          metadata: request.metadata as unknown,
         };
 
-        const paymentIntent =
-          await paymentIntentsRepository.create(paymentIntentData);
+        const paymentIntent
+          = await paymentIntentsRepository.create(paymentIntentData);
 
-        // 6. Publish event
-        await fastify.events.publish({
-          eventType: 'BILLING_PAYMENT_INTENT_CREATED',
-          eventVersion: '1.0.0',
-          actorId: request.organizationId,
-          actorType: 'organization',
-          organizationId: request.organizationId,
-          payload: {
-            paymentIntentId: paymentIntent.id,
-            amount: request.amount,
-            customerId: request.customerId,
-          },
-          metadata: fastify.events.createMetadata('api'),
+        // 6. Publish simple payment intent created event
+        void publishSimpleEvent(EventType.PAYMENT_SESSION_CREATED, 'organization', request.organizationId, {
+          payment_intent_id: paymentIntent.id,
+          stripe_payment_intent_id: stripePaymentIntent.id,
+          amount: request.amount,
+          currency: request.currency || 'usd',
+          customer_id: request.customerId,
+          application_fee_amount: applicationFeeAmount,
+          created_at: new Date().toISOString(),
         });
 
         return {
@@ -179,7 +163,7 @@ export const createPaymentsService = function createPaymentsService(
           },
         };
       } catch (error) {
-        fastify.log.error({ error }, 'Failed to create payment intent');
+        console.error({ error }, 'Failed to create payment intent');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -206,13 +190,13 @@ export const createPaymentsService = function createPaymentsService(
         }
 
         // 2. Verify organization owns this payment intent
-        const connectedAccount =
-          await stripeConnectedAccountsRepository.findById(
+        const connectedAccount
+          = await stripeConnectedAccountsRepository.findById(
             paymentIntent.connectedAccountId,
           );
         if (
-          !connectedAccount ||
-          connectedAccount.organizationId !== request.organizationId
+          !connectedAccount
+          || connectedAccount.organization_id !== request.organizationId
         ) {
           return {
             success: false,
@@ -221,13 +205,13 @@ export const createPaymentsService = function createPaymentsService(
         }
 
         // 3. Confirm payment intent on Stripe
-        const stripePaymentIntent = await fastify.stripe.paymentIntents.confirm(
+        const stripePaymentIntent = await stripe.paymentIntents.confirm(
           paymentIntent.stripePaymentIntentId,
           {
             payment_method: request.paymentMethodId,
           },
           {
-            stripeAccount: connectedAccount.stripeAccountId,
+            stripeAccount: connectedAccount.stripe_account_id,
           },
         );
 
@@ -240,19 +224,14 @@ export const createPaymentsService = function createPaymentsService(
             stripePaymentIntent.status === 'succeeded' ? new Date() : undefined,
         });
 
-        // 5. Publish event
-        await fastify.events.publish({
-          eventType: 'BILLING_PAYMENT_INTENT_CONFIRMED',
-          eventVersion: '1.0.0',
-          actorId: request.organizationId,
-          actorType: 'organization',
-          organizationId: request.organizationId,
-          payload: {
-            paymentIntentId: paymentIntent.id,
-            status: stripePaymentIntent.status,
-            amount: paymentIntent.amount,
-          },
-          metadata: fastify.events.createMetadata('api'),
+        // 5. Publish simple payment intent confirmed event
+        void publishSimpleEvent(EventType.PAYMENT_SUCCEEDED, 'organization', request.organizationId, {
+          payment_intent_id: paymentIntent.id,
+          stripe_payment_intent_id: stripePaymentIntent.id,
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          status: stripePaymentIntent.status,
+          confirmed_at: new Date().toISOString(),
         });
 
         return {
@@ -264,7 +243,7 @@ export const createPaymentsService = function createPaymentsService(
           },
         };
       } catch (error) {
-        fastify.log.error({ error }, 'Failed to confirm payment intent');
+        console.error({ error }, 'Failed to confirm payment intent');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -284,8 +263,8 @@ export const createPaymentsService = function createPaymentsService(
       error?: string;
     }> {
       try {
-        const paymentIntent =
-          await paymentIntentsRepository.findById(paymentIntentId);
+        const paymentIntent
+          = await paymentIntentsRepository.findById(paymentIntentId);
         if (!paymentIntent) {
           return {
             success: false,
@@ -294,13 +273,13 @@ export const createPaymentsService = function createPaymentsService(
         }
 
         // Verify organization owns this payment intent
-        const connectedAccount =
-          await stripeConnectedAccountsRepository.findById(
+        const connectedAccount
+          = await stripeConnectedAccountsRepository.findById(
             paymentIntent.connectedAccountId,
           );
         if (
-          !connectedAccount ||
-          connectedAccount.organizationId !== organizationId
+          !connectedAccount
+          || connectedAccount.organization_id !== organizationId
         ) {
           return {
             success: false,
@@ -313,7 +292,7 @@ export const createPaymentsService = function createPaymentsService(
           paymentIntent,
         };
       } catch (error) {
-        fastify.log.error({ error }, 'Failed to get payment intent');
+        console.error({ error }, 'Failed to get payment intent');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -335,8 +314,8 @@ export const createPaymentsService = function createPaymentsService(
     }> {
       try {
         // Get connected account
-        const connectedAccount =
-          await stripeConnectedAccountsRepository.findByOrganizationId(
+        const connectedAccount
+          = await stripeConnectedAccountsRepository.findByOrganizationId(
             organizationId,
           );
         if (!connectedAccount) {
@@ -346,8 +325,8 @@ export const createPaymentsService = function createPaymentsService(
           };
         }
 
-        const paymentIntents =
-          await paymentIntentsRepository.listByConnectedAccountId(
+        const paymentIntents
+          = await paymentIntentsRepository.listByConnectedAccountId(
             connectedAccount.id,
             limit,
             offset,
@@ -358,7 +337,7 @@ export const createPaymentsService = function createPaymentsService(
           paymentIntents,
         };
       } catch (error) {
-        fastify.log.error({ error }, 'Failed to list payment intents');
+        console.error({ error }, 'Failed to list payment intents');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -370,8 +349,7 @@ export const createPaymentsService = function createPaymentsService(
     /*
     async cancelPaymentIntent(
       paymentIntentId: string,
-      organizationId: string,
-    ): Promise<{
+      organizationId: string): Promise<{
       success: boolean;
       error?: string;
     }> {
@@ -389,11 +367,10 @@ export const createPaymentsService = function createPaymentsService(
         // 2. Verify organization owns this payment intent
         const connectedAccount =
           await stripeConnectedAccountsRepository.findById(
-            paymentIntent.connectedAccountId,
-          );
+            paymentIntent.connectedAccountId);
         if (
           !connectedAccount ||
-          connectedAccount.organizationId !== organizationId
+          connectedAccount.organization_id !== organizationId
         ) {
           return {
             success: false,
@@ -402,36 +379,30 @@ export const createPaymentsService = function createPaymentsService(
         }
 
         // 3. Cancel payment intent on Stripe
-        await fastify.stripe.paymentIntents.cancel(
+        await stripe.paymentIntents.cancel(
           paymentIntent.stripePaymentIntentId,
           {},
           {
-            stripeAccount: connectedAccount.stripeAccountId,
-          },
-        );
+            stripeAccount: connectedAccount.stripe_account_id,
+          });
 
         // 4. Update payment intent status
         await paymentIntentsRepository.update(paymentIntent.id, {
           status: 'canceled',
         });
 
-        // 5. Publish event
-        await fastify.events.publish({
-          eventType: 'BILLING_PAYMENT_INTENT_CANCELED',
-          eventVersion: '1.0.0',
-          actorId: organizationId,
-          actorType: 'organization',
-          organizationId,
-          payload: {
-            paymentIntentId: paymentIntent.id,
-            amount: paymentIntent.amount,
-          },
-          metadata: fastify.events.createMetadata('api'),
+        // 5. Publish simple payment intent canceled event
+        void publishSimpleEvent(EventType.PAYMENT_CANCELED, 'organization', organizationId, {
+          payment_intent_id: paymentIntent.id,
+          stripe_payment_intent_id: paymentIntent.stripePaymentIntentId,
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          canceled_at: new Date().toISOString(),
         });
 
         return { success: true };
       } catch (error) {
-        fastify.log.error({ error }, 'Failed to cancel payment intent');
+        console.error({ error }, 'Failed to cancel payment intent');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',

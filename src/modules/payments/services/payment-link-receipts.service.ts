@@ -1,12 +1,12 @@
-import type { FastifyInstance } from 'fastify';
-import type Stripe from 'stripe';
-import type { SelectPaymentLink } from '../database/schema/payment-links.schema';
-import { db } from '@/shared/database';
-import { organizations } from '@/schema';
 import { eq } from 'drizzle-orm';
+import type Stripe from 'stripe';
+
+import type { SelectPaymentLink } from '../database/schema/payment-links.schema';
+
+import { organizations } from '@/schema';
+import { db } from '@/shared/database';
 
 export const sendPaymentLinkReceipts = async function sendPaymentLinkReceipts(
-  fastify: FastifyInstance,
   paymentLink: SelectPaymentLink,
   charge: Stripe.Charge,
 ): Promise<void> {
@@ -17,17 +17,17 @@ export const sendPaymentLinkReceipts = async function sendPaymentLinkReceipts(
     });
 
     if (!organization) {
-      fastify.log.error('Organization not found for payment link', {
+      console.error('Organization not found for payment link', {
         paymentLinkId: paymentLink.id,
       });
       return;
     }
 
-    const customerEmail = paymentLink.metadata?.email;
-    const customerName = paymentLink.metadata?.name;
+    const customerEmail = (paymentLink.metadata as Record<string, unknown>)?.email as string;
+    const customerName = (paymentLink.metadata as Record<string, unknown>)?.name as string;
 
     if (!customerEmail) {
-      fastify.log.warn('No customer email for payment link', {
+      console.warn('No customer email for payment link', {
         paymentLinkId: paymentLink.id,
       });
       return;
@@ -52,7 +52,7 @@ export const sendPaymentLinkReceipts = async function sendPaymentLinkReceipts(
         currency: paymentLink.currency.toUpperCase(),
         receiptId: paymentLink.ulid,
         paymentDate: new Date().toLocaleDateString(),
-        onBehalfOf: paymentLink.metadata?.on_behalf_of,
+        onBehalfOf: (paymentLink.metadata as Record<string, unknown>)?.on_behalf_of as string,
       },
     };
 
@@ -68,22 +68,22 @@ export const sendPaymentLinkReceipts = async function sendPaymentLinkReceipts(
         amount: amountDollars,
         applicationFee: applicationFeeDollars,
         netAmount: (
-          (paymentLink.amount - (paymentLink.applicationFee || 0)) /
-          100
+          (paymentLink.amount - (paymentLink.applicationFee || 0))
+          / 100
         ).toFixed(2),
         currency: paymentLink.currency.toUpperCase(),
         receiptId: paymentLink.ulid,
         paymentDate: new Date().toLocaleDateString(),
-        onBehalfOf: paymentLink.metadata?.on_behalf_of,
+        onBehalfOf: (paymentLink.metadata as Record<string, unknown>)?.on_behalf_of as string,
         stripeChargeId: charge.id,
       },
     };
 
     // Send emails (implement your email service here)
-    // await fastify.emailService.send(_customerReceiptData);
-    // await fastify.emailService.send(_organizationReceiptData);
+    // await emailService.send(_customerReceiptData);
+    // await emailService.send(_organizationReceiptData);
 
-    fastify.log.info(
+    console.info(
       {
         paymentLinkId: paymentLink.id,
         customerEmail,
@@ -92,7 +92,7 @@ export const sendPaymentLinkReceipts = async function sendPaymentLinkReceipts(
       'Payment link receipts sent',
     );
   } catch (error) {
-    fastify.log.error(
+    console.error(
       {
         error,
         paymentLinkId: paymentLink.id,

@@ -5,14 +5,14 @@
  * Processes failed payment attempts
  */
 
-import type { FastifyInstance } from 'fastify';
-import { paymentIntentsRepository } from '@/modules/payments/database/queries/payment-intents.repository';
 import { connectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
+import { paymentIntentsRepository } from '@/modules/payments/database/queries/payment-intents.repository';
+import { EventType } from '@/shared/events/enums/event-types';
+import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 
-export const handlePaymentIntentFailed =
-  async function handlePaymentIntentFailed(
-    fastify: FastifyInstance,
+export const handlePaymentIntentFailed
+  = async function handlePaymentIntentFailed(
     event: BaseEvent,
   ): Promise<void> {
     try {
@@ -29,12 +29,12 @@ export const handlePaymentIntentFailed =
       };
 
       // 1. Find payment intent in database
-      const paymentIntent =
-        await paymentIntentsRepository.findByStripePaymentIntentId(
+      const paymentIntent
+        = await paymentIntentsRepository.findByStripePaymentIntentId(
           paymentIntentData.id,
         );
       if (!paymentIntent) {
-        fastify.log.warn(
+        console.warn(
           `Payment intent not found in database: ${paymentIntentData.id}`,
         );
         return;
@@ -45,7 +45,7 @@ export const handlePaymentIntentFailed =
         paymentIntent.connectedAccountId,
       );
       if (!connectedAccount) {
-        fastify.log.error(
+        console.error(
           `Connected account not found for payment intent: ${paymentIntent.id}`,
         );
         return;
@@ -56,30 +56,27 @@ export const handlePaymentIntentFailed =
         status: 'canceled', // Failed payments are marked as canceled
       });
 
-      // 4. Publish events
-      await fastify.events.publish({
-        eventType: 'PAYMENTS_PAYMENT_FAILED',
-        eventVersion: '1.0.0',
-        actorId: connectedAccount.organizationId,
-        actorType: 'system',
-        organizationId: connectedAccount.organizationId,
-        payload: {
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntentData.amount,
-          customerId: paymentIntent.customerId,
-          error: paymentIntentData.last_payment_error,
-        },
-        metadata: fastify.events.createMetadata('webhook', {
-          stripeEventId: event.eventId,
-          eventType: 'payment_intent.payment_failed',
-        }),
+      // Check if this is an intake payment and handle it
+      // TODO: Integrate with intake payment handlers when payments module is fixed
+      // await handleIntakePaymentFailed(paymentIntentData as Stripe.PaymentIntent);
+
+      // Publish simple payment failed event
+      void publishSimpleEvent(EventType.PAYMENT_FAILED, 'system', connectedAccount.organization_id, {
+        payment_intent_id: paymentIntent.id,
+        stripe_payment_intent_id: paymentIntentData.id,
+        amount: paymentIntentData.amount,
+        currency: paymentIntentData.currency,
+        customer_id: paymentIntent.customerId,
+        error_message: paymentIntentData.last_payment_error?.message,
+        error_code: paymentIntentData.last_payment_error?.code,
+        failed_at: new Date().toISOString(),
       });
 
-      fastify.log.info(
+      console.info(
         `Payment failed: ${paymentIntent.id} - $${paymentIntentData.amount / 100}`,
       );
     } catch (error) {
-      fastify.log.error(
+      console.error(
         { error, eventId: event.eventId },
         'Failed to process payment_intent.payment_failed webhook',
       );

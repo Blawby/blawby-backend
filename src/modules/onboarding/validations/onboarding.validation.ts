@@ -1,16 +1,29 @@
 import { z } from 'zod';
-import { nameValidator, paginatedQuerySchema } from '@/shared/validations/common';
 
-export const createOnboardingSchema = z.object({
-  name: nameValidator,
+import { emailValidator, organizationIdParamSchema } from '@/shared/validations/common';
+
+/**
+ * Create onboarding session validation schema
+ */
+export const createOnboardingSessionSchema = z.object({
+  practice_email: emailValidator.optional(),
 });
 
-export const updateOnboardingSchema = createOnboardingSchema.partial();
-
-export const onboardingQuerySchema = paginatedQuerySchema.extend({
-  search: z.string().optional(),
+/**
+ * Create connected account validation schema
+ */
+export const createConnectedAccountSchema = z.object({
+  practice_email: emailValidator,
+  practice_uuid: z.uuid('Invalid practice uuid'),
 });
 
-export type CreateOnboardingRequest = z.infer<typeof createOnboardingSchema>;
-export type UpdateOnboardingRequest = z.infer<typeof updateOnboardingSchema>;
-export type OnboardingQueryParams = z.infer<typeof onboardingQuerySchema>;
+/**
+ * Export the organization ID param schema for reuse
+ */
+export { organizationIdParamSchema };
+
+/**
+ * Infer types from schemas
+ */
+export type CreateOnboardingSessionRequest = z.infer<typeof createOnboardingSessionSchema>;
+export type CreateConnectedAccountRequest = z.infer<typeof createConnectedAccountSchema>;

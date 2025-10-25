@@ -1,10 +1,11 @@
 import { eq, and, desc } from 'drizzle-orm';
-import { db } from '@/shared/database';
+
 import {
   paymentIntents,
   type InsertPaymentIntent,
   type SelectPaymentIntent,
 } from '@/modules/payments/database/schema/payment-intents.schema';
+import { db } from '@/shared/database';
 
 export const paymentIntentsRepository = {
   /**

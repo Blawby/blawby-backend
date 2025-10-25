@@ -1,6 +1,7 @@
 import { Queue, QueueEvents } from 'bullmq';
-import { getRedisConnection } from './redis.client';
+
 import { QUEUE_NAMES, queueConfig } from './queue.config';
+import { getRedisConnection } from './redis.client';
 
 /**
  * Queue Manager - Functional approach for managing BullMQ queues
@@ -151,11 +152,11 @@ export const closeQueues = async function closeQueues(): Promise<void> {
 
   // Close all queue events
   await Promise.all(
-    Array.from(queueEvents.values()).map((events) => events.close()),
+    Array.from(queueEvents.values()).map(events => events.close()),
   );
 
   // Close all queues
-  await Promise.all(Array.from(queues.values()).map((q) => q.close()));
+  await Promise.all(Array.from(queues.values()).map(q => q.close()));
 
   // Close Redis connection
   const connection = getRedisConnection();

@@ -5,14 +5,16 @@
  * Processes successful direct payments
  */
 
-import type { FastifyInstance } from 'fastify';
 import { paymentIntentsRepository } from '../database/queries/payment-intents.repository';
 import { connectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
+import { EventType } from '@/shared/events/enums/event-types';
+import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { handleIntakePaymentSucceeded } from '@/modules/intake-payments/handlers/succeeded.handler';
+import type Stripe from 'stripe';
 
-export const handlePaymentIntentSucceeded =
-  async function handlePaymentIntentSucceeded(
-    fastify: FastifyInstance,
+export const handlePaymentIntentSucceeded
+  = async function handlePaymentIntentSucceeded(
     event: BaseEvent,
   ): Promise<void> {
     try {
@@ -31,12 +33,12 @@ export const handlePaymentIntentSucceeded =
       };
 
       // 1. Find payment intent in database
-      const paymentIntent =
-        await paymentIntentsRepository.findByStripePaymentIntentId(
+      const paymentIntent
+        = await paymentIntentsRepository.findByStripePaymentIntentId(
           paymentIntentData.id,
         );
       if (!paymentIntent) {
-        fastify.log.warn(
+        console.warn(
           `Payment intent not found in database: ${paymentIntentData.id}`,
         );
         return;
@@ -47,7 +49,7 @@ export const handlePaymentIntentSucceeded =
         paymentIntent.connectedAccountId,
       );
       if (!connectedAccount) {
-        fastify.log.error(
+        console.error(
           `Connected account not found for payment intent: ${paymentIntent.id}`,
         );
         return;
@@ -63,37 +65,33 @@ export const handlePaymentIntentSucceeded =
         succeededAt: new Date(),
       });
 
-      // 4. Publish events
-      await fastify.events.publish({
-        eventType: 'BILLING_PAYMENT_SUCCEEDED',
-        eventVersion: '1.0.0',
-        actorId: connectedAccount.organizationId,
-        actorType: 'system',
-        organizationId: connectedAccount.organizationId,
-        payload: {
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntentData.amount,
-          applicationFeeAmount: paymentIntent.applicationFeeAmount,
-          customerId: paymentIntent.customerId,
-          receiptUrl: charge?.receipt_url,
-        },
-        metadata: fastify.events.createMetadata('webhook', {
-          stripeEventId: event.eventId,
-          eventType: 'payment_intent.succeeded',
-        }),
+
+      // 5. Publish simple payment succeeded event
+      void publishSimpleEvent(EventType.PAYMENT_SUCCEEDED, 'system', connectedAccount.organization_id, {
+        payment_intent_id: paymentIntent.id,
+        stripe_payment_intent_id: paymentIntentData.id,
+        amount: paymentIntentData.amount,
+        currency: paymentIntentData.currency,
+        customer_id: paymentIntent.customerId,
+        application_fee_amount: paymentIntent.applicationFeeAmount,
+        receipt_url: charge?.receipt_url,
+        succeeded_at: new Date().toISOString(),
       });
 
-      // 5. Send receipt if email provided
+      // 6. Check if this is an intake payment and handle it
+      await handleIntakePaymentSucceeded(paymentIntentData as Stripe.PaymentIntent);
+
+      // 7. Send receipt if email provided
       if (paymentIntent.receiptEmail && charge?.receipt_url) {
         // TODO: Implement receipt email sending
-        fastify.log.info(`Receipt sent to: ${paymentIntent.receiptEmail}`);
+        console.info(`Receipt sent to: ${paymentIntent.receiptEmail}`);
       }
 
-      fastify.log.info(
+      console.info(
         `Payment succeeded: ${paymentIntent.id} - $${paymentIntentData.amount / 100}`,
       );
     } catch (error) {
-      fastify.log.error(
+      console.error(
         { error, eventId: event.eventId },
         'Failed to process payment_intent.succeeded webhook',
       );

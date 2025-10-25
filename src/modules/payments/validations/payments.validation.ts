@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 import { nameValidator, paginatedQuerySchema } from '@/shared/validations/common';
 
 export const createPaymentSchema = z.object({

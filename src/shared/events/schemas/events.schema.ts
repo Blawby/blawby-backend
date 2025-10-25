@@ -9,6 +9,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
+
 import { users, organizations } from '@/schema';
 
 // TypeScript types for JSON fields
@@ -30,8 +31,8 @@ export type BaseEvent = {
   organizationId?: string; // Context where the event happened
   payload: Record<string, unknown>;
   metadata: EventMetadata;
-  processed: boolean;
-  retryCount: number;
+  processed?: boolean;
+  retryCount?: number;
 };
 
 // Events table
@@ -105,11 +106,11 @@ export const createEventSubscriptionSchema = createInsertSchema(
   },
 );
 
-export const updateEventSubscriptionSchema =
-  createEventSubscriptionSchema.partial();
+export const updateEventSubscriptionSchema
+  = createEventSubscriptionSchema.partial();
 
-export const selectEventSubscriptionSchema =
-  createSelectSchema(eventSubscriptions);
+export const selectEventSubscriptionSchema
+  = createSelectSchema(eventSubscriptions);
 
 // Request/Response schemas
 export const publishEventRequestSchema = z.object({

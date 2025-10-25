@@ -1,24 +1,17 @@
-import { RouteConfig } from '@/shared/types/route-config';
+import type { ModuleConfig } from '@/shared/router/module-router';
 
-export const routeConfig: RouteConfig = {
-  // Default: all routes require authentication
-  protected: true,
-
-  // Make specific routes public
-  public: [
-    'GET /[id]', // Anyone can view a practice
-    'GET /stats', // Public statistics
-  ],
-
-  // Optional: Custom middleware
+/**
+ * Practice Module Configuration
+ *
+ * Route-level middleware using Hono patterns:
+ * - '*' - All routes
+ * - '/path' - Specific path (all methods)
+ * - 'GET /path' - Method + path
+ * - '/path/*' - Path with wildcard
+ * - '/path/:id' - Path with parameter
+ */
+export const config: Partial<ModuleConfig> = {
   middleware: {
-    'POST /': ['rateLimit'], // Rate limit practice creation
-    'DELETE /[id]': ['adminOnly'], // Custom admin check
-  },
-
-  // Optional: Role-based access
-  roles: {
-    'DELETE /[id]': ['admin', 'owner'],
-    'POST /organization': ['owner'],
+    '*': ['requireAuth'],
   },
 };

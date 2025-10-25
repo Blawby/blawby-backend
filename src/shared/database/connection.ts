@@ -5,12 +5,15 @@
  * Uses lazy initialization to ensure environment variables are loaded before connecting.
  */
 
-import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+
 import * as schema from '@/schema';
 
+const { Pool } = pg;
+
 // Connection state
-let _pool: Pool | null = null;
+let _pool: pg.Pool | null = null;
 let _db: NodePgDatabase<typeof schema> | null = null;
 let isInitialized = false;
 
@@ -51,7 +54,7 @@ export const getDb = (): NodePgDatabase<typeof schema> => {
 /**
  * Get pool instance (initializes on first call)
  */
-export const getPool = (): Pool => {
+export const getPool = (): pg.Pool => {
   if (!isInitialized) {
     initialize();
   }
@@ -68,9 +71,9 @@ export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
   },
 });
 
-export const pool = new Proxy({} as Pool, {
-  get(_, prop): Pool[keyof Pool] {
-    return getPool()[prop as keyof Pool];
+export const pool = new Proxy({} as pg.Pool, {
+  get(_, prop): pg.Pool[keyof pg.Pool] {
+    return getPool()[prop as keyof pg.Pool];
   },
 });
 

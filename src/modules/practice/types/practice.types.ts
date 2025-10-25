@@ -1,6 +1,6 @@
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
-import type { Organization, User } from '@/shared/types/better-auth';
+import type { Organization, User } from '@/shared/types/BetterAuth';
 
 // ============================================================================
 // ORGANIZATION API TYPES
@@ -29,24 +29,12 @@ export type DeleteOrganizationRequest = Parameters<
 >[0]['body'];
 
 // Using Better Auth types directly from the instance
-export type PracticeWithDetails = Organization & {
-  practice_details: Partial<PracticeDetails> | null;
-};
+export type PracticeWithDetails = Organization & Partial<PracticeDetails>;
 
 export type PracticeWithUser = {
   practice: Organization;
   user: User;
   practice_details: Partial<PracticeDetails> | null;
-};
-
-export type OrganizationListItem = {
-  id: string;
-  name: string;
-  slug: string;
-  logo: string | null;
-  createdAt: Date;
-  metadata: string | null;
-  role: string;
 };
 
 export type PracticeStats = {
@@ -77,7 +65,7 @@ export type PracticeCreateRequest = {
   metadata?: Record<string, unknown>;
   business_phone?: string;
   business_email?: string;
-  consultation_fee?: string;
+  consultation_fee?: number;
   payment_url?: string;
   calendly_url?: string;
 };
@@ -89,7 +77,7 @@ export type PracticeUpdateRequest = {
   metadata?: Record<string, unknown>;
   business_phone?: string;
   business_email?: string;
-  consultation_fee?: string;
+  consultation_fee?: number;
   payment_url?: string;
   calendly_url?: string;
 };

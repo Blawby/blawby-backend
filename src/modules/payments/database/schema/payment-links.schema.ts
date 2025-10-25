@@ -9,8 +9,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-import { organizations } from '@/schema';
+
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import { organizations } from '@/schema';
 
 export const paymentLinks = pgTable(
   'payment_links',
@@ -41,7 +42,7 @@ export const paymentLinks = pgTable(
       email: string;
       name: string;
       on_behalf_of?: string;
-    }>(),
+    } | null>(),
 
     // Security
     customerIp: text('customer_ip'),

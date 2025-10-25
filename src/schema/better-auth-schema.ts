@@ -1,3 +1,4 @@
+import { relations } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -5,7 +6,6 @@ import {
   boolean,
   integer,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -114,6 +114,13 @@ export const invitations = pgTable('invitations', {
   inviterId: text('inviter_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+});
+
+export const jwkss = pgTable('jwkss', {
+  id: text('id').primaryKey(),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at').notNull(),
 });
 
 // Define relations

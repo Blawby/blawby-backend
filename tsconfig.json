@@ -1,17 +1,31 @@
 {
-  "ts-node": {
-    "compilerOptions": {
-      "esModuleInterop": true
-    }
-  },
-  "extends": "./node_modules/fastify-tsconfig/tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
+    "allowJs": true,
     "strict": true,
     "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false,
+    "outDir": "dist",
+    "rootDir": "src",
     "baseUrl": ".",
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "removeComments": false,
     "paths": {
       "@/*": ["./src/*"],
       "@/shared/*": ["./src/shared/*"],
@@ -23,8 +37,10 @@
       "@/auth": ["./src/auth"],
       "@/types": ["./src/types"],
       "@/types/*": ["./src/types/*"],
-      "@/plugins/*": ["./src/plugins/*"]
+      "@/plugins/*": ["./src/plugins/*"],
+      "@/lib/*": ["./src/lib/*"]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/worker.js"],
+  "exclude": ["node_modules", "dist", "test", "src/modules/payments"]
 }

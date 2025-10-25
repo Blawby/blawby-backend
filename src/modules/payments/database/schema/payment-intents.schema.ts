@@ -20,7 +20,7 @@ export const paymentIntentStatusEnum = pgEnum('payment_intent_status', [
   'requires_capture',
   'canceled',
   'succeeded',
-]);
+] as const);
 
 export const paymentIntents = pgTable(
   'payment_intents',
@@ -53,7 +53,8 @@ export const paymentIntents = pgTable(
     customerName: text('customer_name'),
 
     // Metadata from Stripe
-    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    // oxlint-disable-next-line no-explicit-any
+    metadata: jsonb('metadata').$type<Record<string, any>>(),
 
     // Receipt
     receiptEmail: text('receipt_email'),

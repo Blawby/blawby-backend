@@ -1,38 +1,21 @@
-import { db } from '@/shared/database';
-import { events } from '@/shared/events/schemas/events.schema';
 import { eventBus } from './event-consumer';
+import type { EventType } from '@/shared/events/enums/event-types';
 import type {
   BaseEvent,
   EventMetadata,
 } from '@/shared/events/schemas/events.schema';
-import type { EventType } from '@/shared/events/enums/event-types';
 
-export const publishEvent = async (
-  event: Omit<BaseEvent, 'eventId' | 'timestamp' | 'processed' | 'retryCount'>,
-): Promise<BaseEvent> => {
+export const publishEvent = (
+  event: Omit<BaseEvent, 'eventId' | 'timestamp'>,
+): BaseEvent => {
   const fullEvent: BaseEvent = {
     ...event,
     eventId: crypto.randomUUID(),
     timestamp: new Date(),
-    processed: false,
-    retryCount: 0,
   };
 
-  // 1. Save to database
-  await db.insert(events).values({
-    eventId: fullEvent.eventId,
-    eventType: fullEvent.eventType,
-    eventVersion: fullEvent.eventVersion,
-    actorId: fullEvent.actorId,
-    actorType: fullEvent.actorType,
-    organizationId: fullEvent.organizationId,
-    payload: fullEvent.payload,
-    metadata: fullEvent.metadata,
-    processed: false,
-    retryCount: 0,
-  });
-
-  // 2. Emit to in-memory event bus for immediate processing
+  // Emit to in-memory event bus for immediate processing
+  // Handlers will save to database if needed
   eventBus.emit(fullEvent.eventType, fullEvent);
 
   return fullEvent;
@@ -57,13 +40,13 @@ export const createEventMetadata = (
 };
 
 // Helper function for common practice events
-export const publishPracticeEvent = async (
+export const publishPracticeEvent = (
   eventType: EventType,
   actorId: string,
   organizationId: string,
   payload: Record<string, unknown>,
   requestHeaders?: Record<string, string>,
-): Promise<BaseEvent> => {
+): BaseEvent => {
   return publishEvent({
     eventType,
     eventVersion: '1.0.0',
@@ -78,12 +61,12 @@ export const publishPracticeEvent = async (
 };
 
 // Helper function for user events
-export const publishUserEvent = async (
+export const publishUserEvent = (
   eventType: EventType,
   actorId: string,
   payload: Record<string, unknown>,
   requestHeaders?: Record<string, string>,
-): Promise<BaseEvent> => {
+): BaseEvent => {
   return publishEvent({
     eventType,
     eventVersion: '1.0.0',
@@ -97,13 +80,13 @@ export const publishUserEvent = async (
 };
 
 // Helper function for system events
-export const publishSystemEvent = async (
+export const publishSystemEvent = (
   eventType: EventType,
   payload: Record<string, unknown>,
   actorId?: string,
   actorType: string = 'system',
   organizationId?: string,
-): Promise<BaseEvent> => {
+): BaseEvent => {
   return publishEvent({
     eventType,
     eventVersion: '1.0.0',
@@ -114,3 +97,11 @@ export const publishSystemEvent = async (
     metadata: createEventMetadata('system'),
   });
 };
+
+// Super simple one-liner for any event
+export const publishSimpleEvent = (
+  eventType: EventType,
+  actorId: string,
+  organizationId: string | undefined,
+  payload: Record<string, unknown>,
+): BaseEvent => publishUserEvent(eventType, actorId, { ...payload, timestamp: new Date().toISOString() });

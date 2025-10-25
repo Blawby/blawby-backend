@@ -1,6 +1,9 @@
 export const QUEUE_NAMES = {
   STRIPE_WEBHOOKS: 'stripe-webhooks',
   ONBOARDING_WEBHOOKS: 'onboarding-webhooks',
+  EVENTS: 'events', // New: General event listeners
+  ANALYTICS: 'analytics', // New: Analytics tracking
+  EMAILS: 'emails', // New: Email processing
 } as const;
 
 export const JOB_NAMES = {

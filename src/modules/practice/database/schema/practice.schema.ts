@@ -1,5 +1,6 @@
-import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { pgTable, uuid, text, timestamp, integer } from 'drizzle-orm/pg-core';
+
 import { organizations, users } from '@/schema/better-auth-schema';
 
 // Drizzle table definition
@@ -14,7 +15,7 @@ export const practiceDetails = pgTable('practice_details', {
     .references(() => users.id, { onDelete: 'cascade' }),
   business_phone: text('business_phone'),
   business_email: text('business_email'),
-  consultation_fee: text('consultation_fee'),
+  consultation_fee: integer('consultation_fee'),
   payment_url: text('payment_url'),
   calendly_url: text('calendly_url'),
   created_at: timestamp('created_at').defaultNow().notNull(),

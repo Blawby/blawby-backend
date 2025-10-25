@@ -61,7 +61,7 @@ export type ExternalAccount = {
   currency?: string;
   default_for_currency?: boolean;
   fingerprint?: string;
-  last4?: string;
+  last_4?: string;
   metadata?: Record<string, string>;
   routing_number?: string;
   status?: string;
@@ -75,48 +75,27 @@ export type ExternalAccounts = {
 // Stripe connected accounts table
 export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: text('organization_id')
+  organization_id: text('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
-  stripeAccountId: text('account_id').notNull().unique(),
-  accountType: text('account_type').default('custom').notNull(),
+  stripe_account_id: text('account_id').notNull().unique(),
+  account_type: text('account_type').default('custom').notNull(),
   country: text('country').default('US').notNull(),
   email: text('email').notNull(),
-  chargesEnabled: boolean('charges_enabled').default(false).notNull(),
-  payoutsEnabled: boolean('payouts_enabled').default(false).notNull(),
-  detailsSubmitted: boolean('details_submitted').default(false).notNull(),
-  businessType: text('business_type'), // Stripe.Account.BusinessType
+  charges_enabled: boolean('charges_enabled').default(false).notNull(),
+  payouts_enabled: boolean('payouts_enabled').default(false).notNull(),
+  details_submitted: boolean('details_submitted').default(false).notNull(),
+  business_type: text('business_type'), // Stripe.Account.BusinessType
   company: json('company').$type<CompanyInfo>(),
   individual: json('individual').$type<IndividualInfo>(),
   requirements: json('requirements').$type<Requirements>(),
   capabilities: json('capabilities').$type<Capabilities>(),
   externalAccounts: json('external_accounts').$type<ExternalAccounts>(),
   metadata: json('metadata').$type<Record<string, string>>(),
-  onboardingCompletedAt: timestamp('onboarding_completed_at'),
-  lastRefreshedAt: timestamp('last_refreshed_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
-
-// Stripe account sessions table (normalized)
-export const stripeAccountSessions = pgTable('stripe_account_sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  stripeAccountId: text('stripe_account_id')
-    .notNull()
-    .references(() => stripeConnectedAccounts.stripeAccountId, {
-      onDelete: 'cascade',
-    }),
-  sessionType: text('session_type').notNull(), // 'onboarding', 'payments', 'payouts'
-  clientSecret: text('client_secret').notNull(),
-  expiresAt: timestamp('expires_at', {
-    withTimezone: true,
-    mode: 'date',
-  }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
-    .defaultNow()
-    .notNull(),
-  isActive: boolean('is_active').default(true).notNull(),
-  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+  onboarding_completed_at: timestamp('onboarding_completed_at'),
+  last_refreshed_at: timestamp('last_refreshed_at'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
 
 // Zod schemas for validation
@@ -125,7 +104,7 @@ export const createStripeConnectedAccountSchema = createInsertSchema(
   {
     email: z.email('Invalid email format'),
     country: z.string().length(2),
-    businessType: z
+    business_type: z
       .enum(['individual', 'company', 'non_profit', 'government_entity'])
       .optional(),
   },
@@ -134,9 +113,9 @@ export const createStripeConnectedAccountSchema = createInsertSchema(
 export const updateStripeConnectedAccountSchema = createInsertSchema(
   stripeConnectedAccounts,
   {
-    email: z.string().email().optional(),
+    email: z.email().optional(),
     country: z.string().length(2).optional(),
-    businessType: z
+    business_type: z
       .enum(['individual', 'company', 'non_profit', 'government_entity'])
       .optional(),
   },
@@ -153,46 +132,44 @@ export const createAccountRequestSchema = z.object({
 });
 
 export const createAccountResponseSchema = z.object({
-  accountId: z.string(),
-  clientSecret: z.string().optional(), // Only when sessionStatus = 'valid' or 'created'
-  expiresAt: z.union([z.number(), z.date()]).optional(),
-  sessionStatus: z.enum(['valid', 'expired', 'created']),
+  account_id: z.string(),
+  client_secret: z.string().nullable(),
+  expires_at: z.number(),
+  session_status: z.enum(['valid', 'expired', 'created']),
   status: z.object({
-    chargesEnabled: z.boolean(),
-    payoutsEnabled: z.boolean(),
-    detailsSubmitted: z.boolean(),
+    charges_enabled: z.boolean(),
+    payouts_enabled: z.boolean(),
+    details_submitted: z.boolean(),
   }),
 });
 
 export const getAccountResponseSchema = z.object({
   accountId: z.string(),
   status: z.object({
-    chargesEnabled: z.boolean(),
-    payoutsEnabled: z.boolean(),
-    detailsSubmitted: z.boolean(),
-    isActive: z.boolean(),
+    charges_enabled: z.boolean(),
+    payouts_enabled: z.boolean(),
+    details_submitted: z.boolean(),
+    is_active: z.boolean(),
   }),
   requirements: z.any().optional(),
-  onboardingCompletedAt: z.string().nullable(),
+  onboarding_completed_at: z.string().nullable(),
 });
 
 export const createSessionResponseSchema = z.object({
-  clientSecret: z.string(),
-  expiresAt: z.number(),
+  client_secret: z.string(),
+  expires_at: z.number(),
 });
 
 export const webhookResponseSchema = z.object({
   received: z.boolean(),
-  alreadyProcessed: z.boolean().optional(),
+  already_processed: z.boolean().optional(),
 });
 
 // Export types
-export type StripeConnectedAccount =
-  typeof stripeConnectedAccounts.$inferSelect;
-export type NewStripeConnectedAccount =
-  typeof stripeConnectedAccounts.$inferInsert;
-export type StripeAccountSession = typeof stripeAccountSessions.$inferSelect;
-export type NewStripeAccountSession = typeof stripeAccountSessions.$inferInsert;
+export type StripeConnectedAccount
+  = typeof stripeConnectedAccounts.$inferSelect;
+export type NewStripeConnectedAccount
+  = typeof stripeConnectedAccounts.$inferInsert;
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;
 export type CreateAccountResponse = z.infer<typeof createAccountResponseSchema>;
 export type GetAccountResponse = z.infer<typeof getAccountResponseSchema>;

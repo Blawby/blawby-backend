@@ -1,12 +1,13 @@
-import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
-import { organizations } from '@/schema/better-auth-schema';
 import { eq } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+
 import type {
   InsertPracticeDetails,
   PracticeDetails,
 } from '@/modules/practice/database/schema/practice.schema';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
 import * as schema from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
 export const createPracticeDetails = async (

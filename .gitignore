@@ -67,6 +67,7 @@ dump.rdb
 # .env file
 .env
 .envrc
+.env.docker
 
 # Eslint cache
 .eslintcache

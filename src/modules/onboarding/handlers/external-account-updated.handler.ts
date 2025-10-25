@@ -1,12 +1,13 @@
-import type Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import type Stripe from 'stripe';
+
 import {
   stripeConnectedAccounts,
   ExternalAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
-import { publishSystemEvent } from '@/shared/events/event-publisher';
+import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
+import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
 
 /**
  * Handle account.external_account.updated webhook event
@@ -19,9 +20,9 @@ export const handleExternalAccountUpdated = async (
   externalAccount: Stripe.ExternalAccount,
 ): Promise<void> => {
   try {
-    const accountType =
-      (externalAccount as Stripe.ExternalAccount & { type?: string }).type ||
-      'unknown';
+    const accountType
+      = (externalAccount as Stripe.ExternalAccount & { type?: string }).type
+      || 'unknown';
     console.log(
       `Processing external_account.updated: ${externalAccount.id} (${accountType}) for account: ${externalAccount.account}`,
     );
@@ -32,7 +33,7 @@ export const handleExternalAccountUpdated = async (
       .from(stripeConnectedAccounts)
       .where(
         eq(
-          stripeConnectedAccounts.stripeAccountId,
+          stripeConnectedAccounts.stripe_account_id,
           externalAccount.account as string,
         ),
       )
@@ -48,8 +49,8 @@ export const handleExternalAccountUpdated = async (
     const currentAccount = account[0];
 
     // Update external accounts JSONB field
-    const currentExternalAccounts =
-      (currentAccount.externalAccounts as Record<string, unknown>) || {};
+    const currentExternalAccounts
+      = (currentAccount.externalAccounts as Record<string, unknown>) || {};
     const updatedExternalAccounts = {
       ...currentExternalAccounts,
       [externalAccount.id]: {
@@ -79,21 +80,21 @@ export const handleExternalAccountUpdated = async (
       .set({
         externalAccounts:
           updatedExternalAccounts as unknown as ExternalAccounts,
-        lastRefreshedAt: new Date(),
+        last_refreshed_at: new Date(),
       })
       .where(
         eq(
-          stripeConnectedAccounts.stripeAccountId,
+          stripeConnectedAccounts.stripe_account_id,
           externalAccount.account as string,
         ),
       );
 
     // Publish external account updated event
-    await publishSystemEvent(
+    void publishSystemEvent(
       EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED,
       {
         stripeAccountId: externalAccount.account,
-        organizationId: currentAccount.organizationId,
+        organizationId: currentAccount.organization_id,
         externalAccountId: externalAccount.id,
         externalAccountType: accountType,
         externalAccountStatus: externalAccount.status,
@@ -103,8 +104,18 @@ export const handleExternalAccountUpdated = async (
       },
       'stripe-webhook',
       'webhook',
-      currentAccount.organizationId,
+      currentAccount.organization_id,
     );
+
+    // Publish simple external account updated event
+    void publishSimpleEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED, 'system', currentAccount.organization_id, {
+      stripe_account_id: externalAccount.account,
+      organization_id: currentAccount.organization_id,
+      external_account_id: externalAccount.id,
+      external_account_type: accountType,
+      external_account_status: externalAccount.status,
+      updated_at: new Date().toISOString(),
+    });
 
     console.log(
       `External account updated and event published for: ${externalAccount.id}`,

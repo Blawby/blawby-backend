@@ -1,12 +1,12 @@
-import type { FastifyInstance } from 'fastify';
 import type Stripe from 'stripe';
-import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { paymentLinksRepository } from '../database/queries/payment-links.repository';
 import { sendPaymentLinkReceipts } from '../services/payment-link-receipts.service';
-import { getStripeClient } from '@/shared/services/stripe-client.service';
+import { EventType } from '@/shared/events/enums/event-types';
+import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { stripe } from '@/shared/utils/stripe-client';
 
 export const handleChargeSucceeded = async (
-  fastify: FastifyInstance,
   event: BaseEvent,
 ): Promise<void> => {
   const charge = event.payload as unknown as Stripe.Charge;
@@ -14,7 +14,7 @@ export const handleChargeSucceeded = async (
   // Skip if this charge is not associated with a payment intent
   // (invoice payments don't use payment intents in the same way)
   if (!charge.payment_intent) {
-    fastify.log.debug(
+    console.debug(
       {
         chargeId: charge.id,
       },
@@ -29,12 +29,11 @@ export const handleChargeSucceeded = async (
   );
 
   if (!paymentLink) {
-    fastify.log.warn(`Payment link not found for charge: ${charge.id}`);
+    console.warn(`Payment link not found for charge: ${charge.id}`);
     return;
   }
 
   // Calculate application fee from actual Stripe fees
-  const stripe = getStripeClient();
   const balanceTransaction = await stripe.balanceTransactions.retrieve(
     charge.balance_transaction as string,
   );
@@ -51,10 +50,21 @@ export const handleChargeSucceeded = async (
 
   // Send receipts if payment succeeded
   if (charge.status === 'succeeded') {
-    await sendPaymentLinkReceipts(fastify, paymentLink, charge);
+    await sendPaymentLinkReceipts(paymentLink, charge);
   }
 
-  fastify.log.info(
+  // Publish simple charge succeeded event
+  void publishSimpleEvent(EventType.PAYMENT_SUCCEEDED, 'system', paymentLink.organizationId, {
+    payment_link_id: paymentLink.id,
+    stripe_charge_id: charge.id,
+    stripe_payment_intent_id: charge.payment_intent as string,
+    amount: charge.amount,
+    currency: charge.currency,
+    application_fee: applicationFee,
+    succeeded_at: new Date().toISOString(),
+  });
+
+  console.info(
     {
       paymentLinkId: paymentLink.id,
       chargeId: charge.id,
