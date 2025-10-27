@@ -151,7 +151,8 @@ const betterAuthInstance = (
       expiresIn: 60 * 60 * 24, // 24 hours
       updateAge: 60 * 60, // 1 hour
       freshAge: 60 * 60 * 24, // 24 hours
-      strategy: 'bearer',
+      strategy: 'bearer', // Use bearer tokens for cross-origin (localhost to staging)
+      cookieFallback: true, // Use cookies when same-origin (production)
     },
 
     // Email & Password settings
@@ -182,24 +183,28 @@ const betterAuthInstance = (
     // Advanced settings
     advanced: {
       database: { generateId: () => crypto.randomUUID() },
-      useSecureCookies: false, // Disable cookies for bearer token strategy
-    },
+      useSecureCookies: process.env.NODE_ENV === 'production',
 
-    // Cookie settings
-    cookies: {
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none', // Allow cross-origin cookies for localhost development
-      httpOnly: true,
-      // Only set domain in production, leave undefined for staging (allows localhost)
-      domain: process.env.NODE_ENV === 'production'
-        ? process.env.COOKIE_DOMAIN || '.blawby.com'
-        : undefined,
+      // Default cookie attributes for all auth cookies
+      defaultCookieAttributes: {
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'none',
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        path: '/',
+      },
     },
 
     // Trusted origins
     trustedOrigins: [
       process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      ...(process.env.NODE_ENV !== 'production' ? ['http://localhost', 'https://localhost'] : []),
+      ...(process.env.NODE_ENV !== 'production'
+        ? [
+          'http://localhost',
+          'https://localhost',
+          'http://127.0.0.1',
+          'https://127.0.0.1',
+        ]
+        : []),
     ],
   });
 };
