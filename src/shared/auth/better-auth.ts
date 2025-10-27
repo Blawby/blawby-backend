@@ -185,10 +185,21 @@ const betterAuthInstance = (
       useSecureCookies: false, // Disable cookies for bearer token strategy
     },
 
+    // Cookie settings
+    cookies: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // Allow cross-origin cookies for localhost development
+      httpOnly: true,
+      // Only set domain in production, leave undefined for staging (allows localhost)
+      domain: process.env.NODE_ENV === 'production'
+        ? process.env.COOKIE_DOMAIN || '.blawby.com'
+        : undefined,
+    },
+
     // Trusted origins
     trustedOrigins: [
       process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      'http://127.0.0.1:3000',
+      ...(process.env.NODE_ENV !== 'production' ? ['http://localhost', 'https://localhost'] : []),
     ],
   });
 };
