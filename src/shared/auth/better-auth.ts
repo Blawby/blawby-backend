@@ -195,6 +195,9 @@ const betterAuthInstance = (
 
         httpOnly: true,
         path: '/',
+        domain: process.env.NODE_ENV === 'production'
+          ? '.blawby.com'
+          : undefined,
       },
     },
 
