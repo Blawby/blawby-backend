@@ -3,7 +3,6 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, organization, jwt } from 'better-auth/plugins';
 import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-
 import * as schema from '@/schema';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
@@ -11,6 +10,14 @@ import { sanitizeError } from '@/shared/utils/logging';
 
 // Singleton Better Auth instance
 let authInstance: ReturnType<typeof betterAuthInstance> | null = null;
+
+const cookieConfig = {
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  path: '/',
+  domain: process.env.NODE_ENV === 'production' ? '.blawby.com' : undefined,
+  maxAge: 60 * 60 * 24,
+};
 
 /**
  * Create Better Auth instance with database connection
@@ -186,15 +193,8 @@ const betterAuthInstance = (
 
       // Cookie attributes for cross-origin support (local frontend to deployed backend)
       defaultCookieAttributes: {
-        // SameSite=None allows cross-origin cookies (localhost to deployed backend)
-        // SameSite=Lax for production same-origin
-        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'none',
-        // Secure must be true when SameSite=None (except localhost)
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        ...(process.env.NODE_ENV !== 'production' ? { path: '/' } : {}),
-        // Don't set domain to allow subdomain flexibility
-        domain: process.env.NODE_ENV === 'production' ? '.blawby.com' : undefined,
+        sameSite: 'lax',
+        ...cookieConfig,
       },
     },
 
