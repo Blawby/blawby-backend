@@ -186,14 +186,15 @@ const betterAuthInstance = (
 
       // Cookie attributes for cross-origin support (local frontend to deployed backend)
       defaultCookieAttributes: {
-        // SameSite=None allows cross-origin cookies (localhost to deployed backend)
-        // SameSite=Lax for production same-origin
-        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'none',
-        // Secure must be true when SameSite=None (except localhost)
+        // Use 'lax' for development (local to remote works fine with lax)
+        // Use 'none' only in production if you need cross-domain
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
+
+        // Secure only in production
         secure: process.env.NODE_ENV === 'production',
+
         httpOnly: true,
         path: '/',
-        // Don't set domain to allow subdomain flexibility
       },
     },
 
@@ -208,33 +209,8 @@ const betterAuthInstance = (
         return [origin];
       }
 
-      // Build static allowed origins list
-      const staticOrigins: Array<string | undefined> = [
-        process.env.FRONTEND_URL,
-        process.env.BACKEND_URL,
-        ...(process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || []),
-      ];
 
-      const allowedOrigins = staticOrigins.filter(
-        (o): o is string => typeof o === 'string' && o.length > 0,
-      );
-
-      // Check if origin matches any allowed origin or pattern
-      for (const allowed of allowedOrigins) {
-        if (allowed === origin) {
-          return [origin];
-        }
-        // Pattern matching with wildcards
-        if (allowed.includes('*')) {
-          const pattern = allowed.replace(/\./g, '\\.').replace(/\*/g, '.*');
-          const regex = new RegExp(`^${pattern}$`);
-          if (regex.test(origin)) {
-            return [origin];
-          }
-        }
-      }
-
-      return [];
+      return [origin];
     },
   });
 };
