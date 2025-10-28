@@ -151,8 +151,6 @@ const betterAuthInstance = (
       expiresIn: 60 * 60 * 24, // 24 hours
       updateAge: 60 * 60, // 1 hour
       freshAge: 60 * 60 * 24, // 24 hours
-      strategy: 'bearer', // Use bearer tokens for cross-origin (localhost to staging)
-      cookieFallback: true, // Use cookies when same-origin (production)
     },
 
     // Email & Password settings
@@ -183,29 +181,61 @@ const betterAuthInstance = (
     // Advanced settings
     advanced: {
       database: { generateId: () => crypto.randomUUID() },
+      // Always use secure cookies in production, but allow non-secure for local dev
       useSecureCookies: process.env.NODE_ENV === 'production',
 
-      // Default cookie attributes for all auth cookies
+      // Cookie attributes for cross-origin support (local frontend to deployed backend)
       defaultCookieAttributes: {
+        // SameSite=None allows cross-origin cookies (localhost to deployed backend)
+        // SameSite=Lax for production same-origin
         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'none',
+        // Secure must be true when SameSite=None (except localhost)
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         path: '/',
+        // Don't set domain to allow subdomain flexibility
       },
     },
 
-    // Trusted origins
-    trustedOrigins: [
-      process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      ...(process.env.NODE_ENV !== 'production'
-        ? [
-          'http://localhost',
-          'https://localhost',
-          'http://127.0.0.1',
-          'https://127.0.0.1',
-        ]
-        : []),
-    ],
+    // Trusted origins - include all possible frontend locations
+    trustedOrigins: (request: Request): string[] => {
+      const origin = request.headers.get('origin');
+      if (!origin) return [];
+
+      // Allow all localhost origins (any port)
+      const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+      if (localhostPattern.test(origin)) {
+        return [origin];
+      }
+
+      // Build static allowed origins list
+      const staticOrigins: Array<string | undefined> = [
+        process.env.FRONTEND_URL,
+        process.env.BACKEND_URL,
+        ...(process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || []),
+      ];
+
+      const allowedOrigins = staticOrigins.filter(
+        (o): o is string => typeof o === 'string' && o.length > 0,
+      );
+
+      // Check if origin matches any allowed origin or pattern
+      for (const allowed of allowedOrigins) {
+        if (allowed === origin) {
+          return [origin];
+        }
+        // Pattern matching with wildcards
+        if (allowed.includes('*')) {
+          const pattern = allowed.replace(/\./g, '\\.').replace(/\*/g, '.*');
+          const regex = new RegExp(`^${pattern}$`);
+          if (regex.test(origin)) {
+            return [origin];
+          }
+        }
+      }
+
+      return [];
+    },
   });
 };
 
