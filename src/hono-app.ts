@@ -3,7 +3,6 @@ import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
-import publicApp from '@/modules/public/http';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import {
@@ -25,9 +24,6 @@ const authInstance = createBetterAuthInstance(db);
 // Apply middleware (order matters!)
 app.use('*', logger());
 app.use('*', cors());
-
-// Mount public routes BEFORE auth middleware
-app.route('/api/public', publicApp);
 
 // Apply response middleware to all routes
 app.use('*', responseMiddleware());
@@ -69,23 +65,6 @@ app.get('/api/health', (c) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-  });
-});
-
-// Session endpoint (for testing auth)
-app.get('/api/session', (c) => {
-  const session = c.get('session');
-  const user = c.get('user');
-
-  if (!user) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
-
-  return c.json({
-    session,
-    user,
-    userId: c.get('userId'),
-    activeOrganizationId: c.get('activeOrganizationId'),
   });
 });
 

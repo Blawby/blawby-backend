@@ -186,18 +186,15 @@ const betterAuthInstance = (
 
       // Cookie attributes for cross-origin support (local frontend to deployed backend)
       defaultCookieAttributes: {
-        // Use 'lax' for development (local to remote works fine with lax)
-        // Use 'none' only in production if you need cross-domain
-        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
-
-        // Secure only in production
+        // SameSite=None allows cross-origin cookies (localhost to deployed backend)
+        // SameSite=Lax for production same-origin
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'none',
+        // Secure must be true when SameSite=None (except localhost)
         secure: process.env.NODE_ENV === 'production',
-
         httpOnly: true,
-        path: '/',
-        domain: process.env.NODE_ENV === 'production'
-          ? '.blawby.com'
-          : undefined,
+        ...(process.env.NODE_ENV !== 'production' ? { path: '/' } : {}),
+        // Don't set domain to allow subdomain flexibility
+        domain: process.env.NODE_ENV === 'production' ? '.blawby.com' : undefined,
       },
     },
 
