@@ -2,12 +2,19 @@ import { Hono } from 'hono';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
+
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+
 import {
-  logger, cors, responseMiddleware, notFoundHandler, errorHandler,
+  logger,
+  cors,
+  responseMiddleware,
+  notFoundHandler,
+  errorHandler,
 } from '@/shared/middleware';
+
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitize-auth-response.middleware';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import type { AppContext } from '@/shared/types/hono';
@@ -18,23 +25,20 @@ const app = new Hono<AppContext>({
   }),
 });
 
-// Create Better Auth instance
 const authInstance = createBetterAuthInstance(db);
 
-// Apply middleware (order matters!)
+// Middlewares – order is important!
 app.use('*', logger());
 app.use('*', cors());
-
-// Apply response middleware to all routes
 app.use('*', responseMiddleware());
-
-// Apply sanitize auth response middleware to all routes
 app.use('*', sanitizeAuthResponse());
 
-// Global error handler - handles all errors consistently
-app.onError(errorHandler);
+// Mount Better Auth handler
+app.on(['POST', 'GET'], '/api/auth/*', (c) => {
+  return authInstance.handler(c.req.raw);
+});
 
-// Root route for testing
+// Root route
 app.get('/', (c) => {
   return c.json({
     message: 'Hono server is running!',
@@ -43,23 +47,14 @@ app.get('/', (c) => {
   });
 });
 
-// Better Auth routes
-app.on(['POST', 'GET'], '/api/auth/*', (c) => {
-  return authInstance.handler(c.req.raw);
-});
-
-// Health check route (for testing)
+// Health check routes
 app.get('/health', (c) => {
   return c.json({
     status: 'ok',
     framework: 'hono',
     timestamp: new Date().toISOString(),
-    user: c.get('user'),
-    userId: c.get('userId'),
   });
 });
-
-// API Health check route (matches existing Fastify route)
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
@@ -68,13 +63,14 @@ app.get('/api/health', (c) => {
   });
 });
 
-// Register all module routes automatically
+// Register additional module routes
 await registerModuleRoutes(app);
 
-// Boot the application (event handlers, etc.)
+// Boot application
 void bootApplication();
 
-// Not found handler
+// Not found and error handlers
 app.notFound(notFoundHandler);
+app.onError(errorHandler);
 
 export default app;

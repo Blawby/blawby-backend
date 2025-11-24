@@ -116,13 +116,6 @@ export const invitations = pgTable('invitations', {
     .references(() => users.id, { onDelete: 'cascade' }),
 });
 
-export const jwkss = pgTable('jwkss', {
-  id: text('id').primaryKey(),
-  publicKey: text('public_key').notNull(),
-  privateKey: text('private_key').notNull(),
-  createdAt: timestamp('created_at').notNull(),
-});
-
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
