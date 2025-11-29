@@ -1,3 +1,5 @@
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { Scalar } from '@scalar/hono-api-reference';
 import { Hono } from 'hono';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
@@ -17,7 +19,11 @@ import {
 
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitize-auth-response.middleware';
 import { registerModuleRoutes } from '@/shared/router/module-router';
+import { MODULE_REGISTRY } from '@/shared/router/modules.generated';
 import type { AppContext } from '@/shared/types/hono';
+
+// Automatically collect OpenAPI routes from all OpenAPIHono modules
+// This iterates through the module registry and mounts any OpenAPIHono instances
 
 const app = new Hono<AppContext>({
   router: new SmartRouter({
@@ -65,6 +71,37 @@ app.get('/api/health', (c) => {
 
 // Register additional module routes
 await registerModuleRoutes(app);
+
+// Create OpenAPI app for documentation - collect routes from all OpenAPIHono modules
+const openApiApp = new OpenAPIHono<AppContext>({
+  router: new SmartRouter({
+    routers: [new RegExpRouter(), new TrieRouter()],
+  }),
+});
+for (const module of MODULE_REGISTRY) {
+  if (module.http instanceof OpenAPIHono) {
+    const mountPath = `/api/${module.name}`;
+    openApiApp.route(mountPath, module.http);
+  }
+}
+
+// Serve OpenAPI spec at /doc endpoint (required by Scalar)
+// Scalar needs a URL to fetch the OpenAPI JSON specification
+app.get('/doc', (c) => {
+  return c.json(
+    openApiApp.getOpenAPIDocument({
+      openapi: '3.0.0',
+      info: {
+        title: 'Blawby API',
+        version: '1.0.0',
+        description: 'API documentation for Blawby backend services',
+      },
+    }),
+  );
+});
+
+// Scalar API documentation UI - fetches OpenAPI spec from /doc endpoint
+app.get('/scalar', Scalar({ url: '/doc' }));
 
 // Boot application
 void bootApplication();

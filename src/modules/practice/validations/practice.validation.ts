@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import {
   nameValidator,
   slugValidator,
@@ -71,21 +71,126 @@ export const updatePracticeSchema = z
     },
   );
 
-// Response schemas
-export const practiceResponseSchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  slug: z.string(),
-  logo: z.string().nullable(),
-  metadata: z.record(z.string(), z.any()).nullable(),
-  business_phone: z.string().nullable(),
-  business_email: z.string().nullable(),
-  consultation_fee: z.number().nullable(),
-  payment_url: z.string().nullable(),
-  calendly_url: z.string().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-});
+// Response schemas with OpenAPI metadata
+export const practiceResponseSchema = z
+  .object({
+    id: z.string().uuid().openapi({
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    name: z.string().openapi({
+      example: 'My Practice',
+    }),
+    slug: z.string().openapi({
+      example: 'my-practice',
+    }),
+    logo: z.string().nullable().openapi({
+      example: 'https://example.com/logo.png',
+    }),
+    metadata: z.record(z.string(), z.any()).nullable().openapi({
+      example: { key: 'value' },
+    }),
+    business_phone: z.string().nullable().openapi({
+      example: '+1234567890',
+    }),
+    business_email: z.string().email().nullable().openapi({
+      example: 'contact@example.com',
+    }),
+    consultation_fee: z.number().nullable().openapi({
+      example: 100.0,
+    }),
+    payment_url: z.string().url().nullable().openapi({
+      example: 'https://payment.example.com',
+    }),
+    calendly_url: z.string().url().nullable().openapi({
+      example: 'https://calendly.com/example',
+    }),
+    created_at: z.string().datetime().openapi({
+      example: '2024-01-01T00:00:00Z',
+    }),
+    updated_at: z.string().datetime().openapi({
+      example: '2024-01-01T00:00:00Z',
+    }),
+  })
+  .openapi('PracticeResponse');
+
+export const practiceListResponseSchema = z
+  .object({
+    practices: z.array(practiceResponseSchema).openapi({
+      example: [],
+    }),
+  })
+  .openapi('PracticeListResponse');
+
+export const practiceSingleResponseSchema = z
+  .object({
+    practice: practiceResponseSchema,
+  })
+  .openapi('PracticeSingleResponse');
+
+export const setActivePracticeResponseSchema = z
+  .object({
+    result: z.object({
+      success: z.boolean().openapi({
+        example: true,
+      }),
+      message: z.string().openapi({
+        example: 'Practice set as active',
+      }),
+    }),
+  })
+  .openapi('SetActivePracticeResponse');
+
+// Error response schemas
+export const errorResponseSchema = z
+  .object({
+    error: z.string().openapi({
+      example: 'Bad Request',
+    }),
+    message: z.string().openapi({
+      example: 'Invalid request data',
+    }),
+    details: z
+      .array(
+        z.object({
+          field: z.string(),
+          message: z.string(),
+          code: z.string(),
+        }),
+      )
+      .optional()
+      .openapi({
+        example: [
+          {
+            field: 'name',
+            message: 'Invalid name',
+            code: 'invalid_string',
+          },
+        ],
+      }),
+  })
+  .openapi('ErrorResponse');
+
+export const notFoundResponseSchema = z
+  .object({
+    error: z.string().openapi({
+      example: 'Not Found',
+    }),
+    message: z.string().openapi({
+      example: 'Practice not found',
+    }),
+  })
+  .openapi('NotFoundResponse');
+
+export const internalServerErrorResponseSchema = z
+  .object({
+    error: z.string().openapi({
+      example: 'Internal Server Error',
+    }),
+    message: z.string().openapi({
+      example: 'An error occurred',
+    }),
+  })
+  .openapi('InternalServerErrorResponse');
 
 // Query schemas
 export const practiceQuerySchema = z.object({

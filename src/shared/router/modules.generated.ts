@@ -13,7 +13,7 @@ export const MODULE_REGISTRY = [
   { name: 'onboarding', http: onboardingHttp },
   { name: 'practice', http: practiceHttp },
   { name: 'public', http: publicHttp },
-  { name: 'user-details', http: userDetailsHttp }
+  { name: 'user-details', http: userDetailsHttp },
 ] as const;
 
 export type ModuleName = typeof MODULE_REGISTRY[number]['name'];

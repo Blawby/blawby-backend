@@ -1,4 +1,9 @@
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+
+import {
+  createConnectedAccountRoute,
+  getOnboardingStatusRoute,
+} from '@/modules/onboarding/routes';
 import {
   getOnboardingStatus,
   createConnectedAccount,
@@ -11,7 +16,7 @@ import { validateParams, validateJson } from '@/shared/middleware/validation';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
-const onboardingApp = new Hono<AppContext>();
+const onboardingApp = new OpenAPIHono<AppContext>();
 
 /**
  * GET /api/onboarding/organization/:organizationId/status
@@ -30,6 +35,13 @@ onboardingApp.get('/organization/:organizationId/status', validateParams(organiz
   }
 
   return response.ok(c, status);
+});
+
+// Register OpenAPI route for documentation only
+onboardingApp.openapi(getOnboardingStatusRoute, async () => {
+  // This handler is never called - it's just for OpenAPI documentation
+  // The actual route is handled by the .get() route above
+  throw new Error('This should never be called');
 });
 
 /**
@@ -52,6 +64,13 @@ onboardingApp.post('/connected-accounts', validateJson(createConnectedAccountSch
   }
 
   return response.created(c, details);
+});
+
+// Register OpenAPI route for documentation only
+onboardingApp.openapi(createConnectedAccountRoute, async () => {
+  // This handler is never called - it's just for OpenAPI documentation
+  // The actual route is handled by the .post() route above
+  throw new Error('This should never be called');
 });
 
 export default onboardingApp;

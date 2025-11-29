@@ -1,4 +1,13 @@
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+
+import {
+  createPracticeRoute,
+  deletePracticeRoute,
+  getPracticeByIdRoute,
+  listPracticesRoute,
+  setActivePracticeRoute,
+  updatePracticeRoute,
+} from '@/modules/practice/routes';
 import {
   listPractices,
   getPracticeById,
@@ -16,45 +25,67 @@ import { validateParams, validateJson, validateParamsAndJson } from '@/shared/mi
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
-const practiceApp = new Hono<AppContext>();
+const practiceApp = new OpenAPIHono<AppContext>();
 
-// GET /api/practice/list
+/**
+ * GET /api/practice/list
+ * List all practices for the authenticated user
+ */
 practiceApp.get('/list', async (c) => {
   const user = c.get('user')!; // Auth middleware guarantees user is non-null
   const practices = await listPractices(user, c.req.header() as Record<string, string>);
   return response.ok(c, { practices });
 });
 
+// Register OpenAPI route for documentation only
+practiceApp.openapi(listPracticesRoute, async () => {
+  throw new Error('This should never be called');
+});
 
-// POST /api/practice
-practiceApp.post('/',
-  validateJson(createPracticeSchema, 'Invalid Practice Data'),
-  async (c) => {
-    const user = c.get('user')!; // Auth middleware guarantees user is non-null
-    const validatedBody = c.get('validatedBody');
+/**
+ * POST /api/practice
+ * Create a new practice
+ */
+practiceApp.post('/', validateJson(createPracticeSchema, 'Invalid Practice Data'), async (c) => {
+  const user = c.get('user')!; // Auth middleware guarantees user is non-null
+  const validatedBody = c.get('validatedBody');
 
-    const practice = await createPracticeService({
-      data: validatedBody,
-      user,
-      requestHeaders: c.req.header() as Record<string, string>,
-    });
-    return response.created(c, { practice });
+  const practice = await createPracticeService({
+    data: validatedBody,
+    user,
+    requestHeaders: c.req.header() as Record<string, string>,
   });
+  return response.created(c, { practice });
+});
 
-// GET /api/practice/:id
-practiceApp.get('/:uuid',
-  validateParams(practiceIdParamSchema, 'Invalid Practice uuid'),
-  async (c) => {
-    const user = c.get('user')!; // Auth middleware guarantees user is non-null
-    const validatedParams = c.get('validatedParams');
+// Register OpenAPI route for documentation only
+practiceApp.openapi(createPracticeRoute, async () => {
+  throw new Error('This should never be called');
+});
 
-    const practice = await getPracticeById(validatedParams.uuid,
-      user,
-      c.req.header() as Record<string, string>);
-    return response.ok(c, { practice });
-  });
+/**
+ * GET /api/practice/:uuid
+ * Get practice by ID
+ */
+practiceApp.get('/:uuid', validateParams(practiceIdParamSchema, 'Invalid Practice uuid'), async (c) => {
+  const user = c.get('user')!; // Auth middleware guarantees user is non-null
+  const validatedParams = c.get('validatedParams');
 
-// PUT /api/practice/:id
+  const practice = await getPracticeById(validatedParams.uuid,
+    user,
+    c.req.header() as Record<string, string>);
+  return response.ok(c, { practice });
+});
+
+// Register OpenAPI route for documentation only
+practiceApp.openapi(getPracticeByIdRoute, async () => {
+  throw new Error('This should never be called');
+});
+
+/**
+ * PUT /api/practice/:uuid
+ * Update practice
+ */
 practiceApp.put('/:uuid', validateParamsAndJson(
   practiceIdParamSchema,
   updatePracticeSchema,
@@ -74,30 +105,47 @@ practiceApp.put('/:uuid', validateParamsAndJson(
   return response.ok(c, { practice });
 });
 
-// DELETE /api/practice/:id
-practiceApp.delete('/:uuid',
-  validateParams(practiceIdParamSchema, 'Invalid Practice ID'),
-  async (c) => {
-    const user = c.get('user')!; // Auth middleware guarantees user is non-null
-    const validatedParams = c.get('validatedParams');
+// Register OpenAPI route for documentation only
+practiceApp.openapi(updatePracticeRoute, async () => {
+  throw new Error('This should never be called');
+});
 
-    await deletePracticeService(validatedParams.uuid,
-      user,
-      c.req.header() as Record<string, string>);
-    return response.noContent(c);
-  });
+/**
+ * DELETE /api/practice/:uuid
+ * Delete practice
+ */
+practiceApp.delete('/:uuid', validateParams(practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
+  const user = c.get('user')!; // Auth middleware guarantees user is non-null
+  const validatedParams = c.get('validatedParams');
 
-// PUT /api/practice/:id/active
-practiceApp.put('/:uuid/active',
-  validateParams(practiceIdParamSchema, 'Invalid Practice ID'),
-  async (c) => {
-    const user = c.get('user')!; // Auth middleware guarantees user is non-null
-    const validatedParams = c.get('validatedParams');
+  await deletePracticeService(validatedParams.uuid,
+    user,
+    c.req.header() as Record<string, string>);
+  return response.noContent(c);
+});
 
-    const result = await setActivePractice(validatedParams.uuid,
-      user,
-      c.req.header() as Record<string, string>);
-    return response.ok(c, { result });
-  });
+// Register OpenAPI route for documentation only
+practiceApp.openapi(deletePracticeRoute, async () => {
+  throw new Error('This should never be called');
+});
+
+/**
+ * PUT /api/practice/:uuid/active
+ * Set practice as active
+ */
+practiceApp.put('/:uuid/active', validateParams(practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
+  const user = c.get('user')!; // Auth middleware guarantees user is non-null
+  const validatedParams = c.get('validatedParams');
+
+  const result = await setActivePractice(validatedParams.uuid,
+    user,
+    c.req.header() as Record<string, string>);
+  return response.ok(c, { result });
+});
+
+// Register OpenAPI route for documentation only
+practiceApp.openapi(setActivePracticeRoute, async () => {
+  throw new Error('This should never be called');
+});
 
 export default practiceApp;

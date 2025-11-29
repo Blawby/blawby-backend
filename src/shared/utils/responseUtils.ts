@@ -4,7 +4,7 @@ import type { Context } from 'hono';
 /**
  * Recursively converts object keys from camelCase to snake_case
  */
-const toSnakeCase = (obj: unknown): unknown => {
+export const toSnakeCase = (obj: unknown): unknown => {
   if (obj === null || obj === undefined) {
     return obj;
   }
