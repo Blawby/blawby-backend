@@ -20,11 +20,10 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
   return async (c, next) => {
     await next();
 
-    // Only process JSON responses from auth endpoints
-    const path = c.req.path;
+    // Only process JSON responses
     const contentType = c.res.headers.get('content-type');
 
-    if (!path.includes('/api/auth/') || !contentType?.includes('application/json')) {
+    if (!contentType?.includes('application/json')) {
       return;
     }
 

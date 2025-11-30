@@ -9,6 +9,7 @@ import {
   ulidParamSchema,
 } from './validations/intake-payments.validation';
 import type { AppContext } from '@/shared/types/hono';
+import { response } from '@/shared/utils/responseUtils';
 
 const app = new Hono<AppContext>();
 
@@ -25,10 +26,10 @@ app.get(
     const result = await intakePaymentsService.getOrganizationIntakeSettings(slug);
 
     if (!result.success) {
-      return c.json({ error: result.error }, 404);
+      return response.notFound(c, result.error || 'Organization not found');
     }
 
-    return c.json(result.data);
+    return response.ok(c, result.data);
   },
 );
 
@@ -51,10 +52,10 @@ app.post(
     });
 
     if (!result.success) {
-      return c.json({ error: result.error }, 400);
+      return response.badRequest(c, result.error || 'Failed to create payment');
     }
 
-    return c.json(result.data, 201);
+    return response.created(c, result.data);
   },
 );
 
@@ -71,10 +72,10 @@ app.put(
     const result = await intakePaymentsService.updateIntakePayment(ulid, amount);
 
     if (!result.success) {
-      return c.json({ error: result.error }, 400);
+      return response.badRequest(c, result.error || 'Failed to update payment');
     }
 
-    return c.json(result.data);
+    return response.ok(c, result.data);
   },
 );
 
@@ -88,10 +89,10 @@ app.get(
     const result = await intakePaymentsService.getIntakePaymentStatus(ulid);
 
     if (!result.success) {
-      return c.json({ error: result.error }, 404);
+      return response.notFound(c, result.error || 'Payment not found');
     }
 
-    return c.json(result.data);
+    return response.ok(c, result.data);
   },
 );
 

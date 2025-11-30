@@ -74,7 +74,7 @@ export const updatePracticeSchema = z
 // Response schemas with OpenAPI metadata
 export const practiceResponseSchema = z
   .object({
-    id: z.string().uuid().openapi({
+    id: z.uuid().openapi({
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
     name: z.string().openapi({
@@ -104,10 +104,10 @@ export const practiceResponseSchema = z
     calendly_url: z.string().url().nullable().openapi({
       example: 'https://calendly.com/example',
     }),
-    created_at: z.string().datetime().openapi({
+    created_at: z.date().openapi({
       example: '2024-01-01T00:00:00Z',
     }),
-    updated_at: z.string().datetime().openapi({
+    updated_at: z.date().openapi({
       example: '2024-01-01T00:00:00Z',
     }),
   })
@@ -197,7 +197,100 @@ export const practiceQuerySchema = z.object({
   includeDetails: z.coerce.boolean().default(true),
 });
 
+// Member validation schemas
+export const memberRoleSchema = z.enum(['owner', 'admin', 'attorney', 'paralegal', 'member']);
+
+export const updateMemberRoleSchema = z.object({
+  user_id: z.uuid().openapi({
+    description: 'User ID to update',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+  role: memberRoleSchema.openapi({
+    description: 'New role for the member',
+    example: 'admin',
+  }),
+});
+
+export const memberListItemSchema = z.object({
+  user_id: z.uuid().openapi({
+    description: 'User ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+  email: z.email().openapi({
+    description: 'User email',
+    example: 'user@example.com',
+  }),
+  name: z.string().nullable().openapi({
+    description: 'User name',
+    example: 'John Doe',
+  }),
+  role: memberRoleSchema.openapi({
+    description: 'Member role',
+    example: 'admin',
+  }),
+  joined_at: z.number().openapi({
+    description: 'Timestamp when member joined (Unix timestamp in milliseconds)',
+    example: 1704067200000,
+  }),
+});
+
+export const membersListResponseSchema = z.object({
+  members: z.array(memberListItemSchema),
+});
+
+// Invitation validation schemas
+export const createInvitationSchema = z.object({
+  email: z.email(),
+  role: memberRoleSchema,
+});
+
+export const invitationListItemSchema = z.object({
+  id: z.string().openapi({
+    description: 'Invitation ID',
+    example: 'inv_1234567890',
+  }),
+  organization_id: z.string().uuid().openapi({
+    description: 'Organization ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+  organization_name: z.string().openapi({
+    description: 'Organization name',
+    example: 'My Practice',
+  }),
+  email: z.email().openapi({
+    description: 'Invited email address',
+    example: 'user@example.com',
+  }),
+  role: memberRoleSchema.nullable().openapi({
+    description: 'Invited role',
+    example: 'admin',
+  }),
+  status: z.enum(['pending', 'accepted', 'declined']).openapi({
+    description: 'Invitation status',
+    example: 'pending',
+  }),
+  expires_at: z.number().openapi({
+    description: 'Expiration timestamp (Unix timestamp in milliseconds)',
+    example: 1704672000000,
+  }),
+  created_at: z.number().openapi({
+    description: 'Creation timestamp (Unix timestamp in milliseconds)',
+    example: 1704067200000,
+  }),
+});
+
+export const invitationsListResponseSchema = z.object({
+  invitations: z.array(invitationListItemSchema),
+});
+
+export const acceptInvitationResponseSchema = z.object({
+  success: z.boolean(),
+  organization: z.any(), // Organization object from Better Auth
+});
+
 // Infer types from schemas
 export type CreatePracticeRequest = z.infer<typeof createPracticeSchema>;
 export type UpdatePracticeRequest = z.infer<typeof updatePracticeSchema>;
 export type PracticeQueryParams = z.infer<typeof practiceQuerySchema>;
+export type UpdateMemberRoleRequest = z.infer<typeof updateMemberRoleSchema>;
+export type CreateInvitationRequest = z.infer<typeof createInvitationSchema>;

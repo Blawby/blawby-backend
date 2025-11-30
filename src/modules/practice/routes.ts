@@ -3,13 +3,17 @@ import { createRoute, z } from '@hono/zod-openapi';
 import {
   createPracticeSchema,
   updatePracticeSchema,
-  practiceIdParamSchema,
   practiceListResponseSchema,
   practiceSingleResponseSchema,
   setActivePracticeResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,
   internalServerErrorResponseSchema,
+  membersListResponseSchema,
+  updateMemberRoleSchema,
+  invitationsListResponseSchema,
+  createInvitationSchema,
+  acceptInvitationResponseSchema,
 } from '@/modules/practice/validations/practice.validation';
 
 /**
@@ -17,7 +21,6 @@ import {
  */
 const practiceUuidParamOpenAPISchema = z.object({
   uuid: z
-    .string()
     .uuid()
     .openapi({
       param: {
@@ -301,6 +304,325 @@ export const setActivePracticeRoute = createRoute({
         },
       },
       description: 'Failed to set active practice',
+    },
+  },
+});
+
+// Member routes
+
+/**
+ * GET /api/practice/:uuid/members
+ * List all members of an organization
+ */
+export const listMembersRoute = createRoute({
+  method: 'get',
+  path: '/{uuid}/members',
+  tags: ['Practice'],
+  summary: 'List practice members',
+  description: 'Retrieve all members of a practice',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: membersListResponseSchema,
+        },
+      },
+      description: 'Members retrieved successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * PATCH /api/practice/:uuid/members
+ * Update a member's role
+ */
+export const updateMemberRoleRoute = createRoute({
+  method: 'patch',
+  path: '/{uuid}/members',
+  tags: ['Practice'],
+  summary: 'Update member role',
+  description: 'Update a member\'s role in a practice',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: updateMemberRoleSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+          }),
+        },
+      },
+      description: 'Member role updated successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * DELETE /api/practice/:uuid/members/:userId
+ * Remove a member from an organization
+ */
+const userIdParamSchema = z.object({
+  uuid: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+export const removeMemberRoute = createRoute({
+  method: 'delete',
+  path: '/{uuid}/members/{userId}',
+  tags: ['Practice'],
+  summary: 'Remove member',
+  description: 'Remove a member from a practice',
+  request: {
+    params: userIdParamSchema,
+  },
+  responses: {
+    204: {
+      description: 'Member removed successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+// Invitation routes
+
+/**
+ * GET /api/practice/invitations
+ * List all pending invitations for the current user
+ */
+export const listInvitationsRoute = createRoute({
+  method: 'get',
+  path: '/invitations',
+  tags: ['Practice'],
+  summary: 'List invitations',
+  description: 'Retrieve all pending invitations for the authenticated user',
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: invitationsListResponseSchema,
+        },
+      },
+      description: 'Invitations retrieved successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * POST /api/practice/:uuid/invitations
+ * Create a new invitation for an organization
+ */
+export const createInvitationRoute = createRoute({
+  method: 'post',
+  path: '/{uuid}/invitations',
+  tags: ['Practice'],
+  summary: 'Create invitation',
+  description: 'Create a new invitation for a practice',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: createInvitationSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean().openapi({
+              description: 'Whether the invitation was created successfully',
+              example: true,
+            }),
+            invitation_id: z.uuid().openapi({
+              description: 'ID of the created invitation',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+            }),
+          }),
+        },
+      },
+      description: 'Invitation created successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * POST /api/practice/invitations/:invitationId/accept
+ * Accept a pending invitation
+ */
+const invitationIdParamSchema = z.object({
+  invitationId: z.string(),
+});
+
+export const acceptInvitationRoute = createRoute({
+  method: 'post',
+  path: '/invitations/{invitationId}/accept',
+  tags: ['Practice'],
+  summary: 'Accept invitation',
+  description: 'Accept a pending invitation',
+  request: {
+    params: invitationIdParamSchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: acceptInvitationResponseSchema,
+        },
+      },
+      description: 'Invitation accepted successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * POST /api/practice/invitations/:invitationId/decline
+ * Decline a pending invitation
+ */
+export const declineInvitationRoute = createRoute({
+  method: 'post',
+  path: '/invitations/{invitationId}/decline',
+  tags: ['Practice'],
+  summary: 'Decline invitation',
+  description: 'Decline a pending invitation',
+  request: {
+    params: invitationIdParamSchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+          }),
+        },
+      },
+      description: 'Invitation declined successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
     },
   },
 });

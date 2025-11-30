@@ -174,9 +174,14 @@ export const updatePracticeService = async (
   // Update organization in Better Auth only if there are organization fields to update
   let organization = null;
   if (Object.keys(organizationData).length > 0) {
+    // Construct UpdateOrganizationRequest with proper structure
+    const updateRequest: UpdateOrganizationRequest = {
+      organizationId,
+      data: organizationData,
+    };
     organization = await updateOrganization(
       organizationId,
-      organizationData as UpdateOrganizationRequest,
+      updateRequest,
       user,
       requestHeaders,
     );

@@ -17,7 +17,8 @@ import {
   errorHandler,
 } from '@/shared/middleware';
 
-import { sanitizeAuthResponse } from '@/shared/middleware/sanitize-auth-response.middleware';
+import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
+import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { MODULE_REGISTRY } from '@/shared/router/modules.generated';
 import type { AppContext } from '@/shared/types/hono';
@@ -37,7 +38,10 @@ const authInstance = createBetterAuthInstance(db);
 app.use('*', logger());
 app.use('*', cors());
 app.use('*', responseMiddleware());
-app.use('*', sanitizeAuthResponse());
+
+// Apply auth-specific middlewares only to auth routes
+app.use('/api/auth/*', normalizeAuthResponse()); // Normalize Better Auth responses first
+app.use('/api/auth/*', sanitizeAuthResponse()); // Then sanitize (remove token field)
 
 // Mount Better Auth handler
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
