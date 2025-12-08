@@ -29,6 +29,13 @@
       "when": 1761713264386,
       "tag": "0003_normal_terror",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1765213098599,
+      "tag": "0004_old_scourge",
+      "breakpoints": true
     }
   ]
 }

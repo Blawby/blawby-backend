@@ -10,23 +10,17 @@ import type {
   ActiveOrganization,
 } from '@/shared/types/BetterAuth';
 
-const betterAuth = createBetterAuthInstance(db);
+// Lazy initialization - only create when needed (after env vars are loaded)
+const getBetterAuth = () => createBetterAuthInstance(db);
 
 export const createOrganization = async (
   data: CreateOrganizationRequest,
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Organization | null> => {
-  if (!data.name) {
-    throw new Error('Organization name is required');
-  }
-
-  if (!data.slug) {
-    throw new Error('Organization slug is required');
-  }
-
-
   // Check if slug is available
+  // Better Auth validates name and slug, but we check slug availability first
+  const betterAuth = getBetterAuth();
   const slugCheck = await betterAuth.api.checkOrganizationSlug({
     body: { slug: data.slug },
   });
@@ -35,6 +29,7 @@ export const createOrganization = async (
     throw new Error(`Organization slug '${data.slug}' is already taken`);
   }
 
+  // Better Auth validates the data and returns the organization
   const result = await betterAuth.api.createOrganization({
     body: data,
     headers: requestHeaders,
@@ -47,24 +42,14 @@ export const listOrganizations = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Organization[]> => {
-  console.log('listOrganizations called with user:', user.id);
+  // Better Auth validates and returns the organizations array
+  const betterAuth = getBetterAuth();
+  const result = await betterAuth.api.listOrganizations({
+    headers: requestHeaders,
+  });
 
-
-  try {
-    // Try to get organizations using the session
-    const result = await betterAuth.api.listOrganizations({
-      headers: requestHeaders,
-    });
-
-
-    // Better Auth returns the organizations array directly, not as result.organizations
-    const organizations = Array.isArray(result) ? result : [];
-
-    return organizations;
-  } catch (error) {
-    console.error('Error calling Better Auth listOrganizations:', error);
-    return [];
-  }
+  // Better Auth returns the organizations array directly
+  return Array.isArray(result) ? result : [];
 };
 
 export const getFullOrganization = async (
@@ -72,6 +57,7 @@ export const getFullOrganization = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<ActiveOrganization> => {
+  const betterAuth = getBetterAuth();
   const result = await betterAuth.api.getFullOrganization({
     query: { organizationId },
     headers: requestHeaders,
@@ -85,6 +71,7 @@ export const updateOrganization = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Organization | null> => {
+  const betterAuth = getBetterAuth();
   const result = await betterAuth.api.updateOrganization({
     body: {
       organizationId,
@@ -101,6 +88,7 @@ export const deleteOrganization = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Organization | null> => {
+  const betterAuth = getBetterAuth();
   const result = await betterAuth.api.deleteOrganization({
     body: { organizationId },
     headers: requestHeaders,
@@ -115,6 +103,7 @@ export const setActiveOrganization = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<ActiveOrganization | null> => {
+  const betterAuth = getBetterAuth();
   const result = await betterAuth.api.setActiveOrganization({
     body: { organizationId },
     headers: requestHeaders,
@@ -126,6 +115,7 @@ export const setActiveOrganization = async (
 export const checkOrganizationSlug = async (
   slug: string,
 ): Promise<boolean> => {
+  const betterAuth = getBetterAuth();
   const result = await betterAuth.api.checkOrganizationSlug({
     body: { slug },
   });

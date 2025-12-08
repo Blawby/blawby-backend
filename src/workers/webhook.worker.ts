@@ -19,7 +19,13 @@
 import { config } from '@dotenvx/dotenvx';
 import { Worker } from 'bullmq';
 
+import type Stripe from 'stripe';
+
 import { processEvent as processOnboardingEvent } from '@/modules/onboarding/services/onboarding-webhooks.service';
+import {
+  processSubscriptionWebhookEvent,
+  isSubscriptionWebhookEvent,
+} from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 // import { processStripeWebhookEvent } from '@/modules/stripe/services/stripe-webhook-processor.service';
 import { QUEUE_NAMES } from '@/shared/queue/queue.config';
 import { getRedisConnection } from '@/shared/queue/redis.client';
@@ -28,6 +34,8 @@ import { getRedisConnection } from '@/shared/queue/redis.client';
 import {
   findWebhookById,
   existsByStripeEventId,
+  markWebhookProcessed,
+  markWebhookFailed,
 } from '@/shared/repositories/stripe.webhook-events.repository';
 
 // Load environment variables
@@ -51,8 +59,41 @@ async function processStripeWebhookJob(job: {
   );
 
   try {
-    // await processStripeWebhookEvent(webhookId, eventId);
-    console.log(`⚠️ Stripe webhook processing temporarily disabled: ${eventId}`);
+    // Get webhook event from database
+    const webhookEvent = await findWebhookById(webhookId);
+
+    if (!webhookEvent) {
+      console.error(`Webhook event not found: ${webhookId}`);
+      return;
+    }
+
+    if (webhookEvent.processed) {
+      console.info(`Webhook event already processed: ${eventId}`);
+      return;
+    }
+
+    const event = webhookEvent.payload as Stripe.Event;
+
+    // Route to appropriate handler based on event type
+    if (isSubscriptionWebhookEvent(event.type)) {
+      // Handle subscription-related events (product.*, price.*)
+      await processSubscriptionWebhookEvent(event);
+      // Mark as processed (subscription service doesn't do this)
+      await markWebhookProcessed(webhookId);
+    } else if (
+      event.type.startsWith('account.') ||
+      event.type.startsWith('capability.') ||
+      event.type.startsWith('account.external_account.')
+    ) {
+      // Handle onboarding-related events (marks as processed internally)
+      await processOnboardingEvent(eventId);
+    } else {
+      // Handle other Stripe webhook types (payments, etc.)
+      console.log(`Unhandled webhook event type: ${event.type}`);
+      // Mark as processed even if unhandled (to avoid retries)
+      await markWebhookProcessed(webhookId);
+      // TODO: Add payment webhook processing when ready
+    }
 
     const duration = Date.now() - startTime;
     console.log(
@@ -81,6 +122,23 @@ async function processStripeWebhookJob(job: {
     }
   } catch (error) {
     const duration = Date.now() - startTime;
+    const errorMessage
+      = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    // Mark as failed (increments retry count, sets next retry time)
+    try {
+      const webhookEvent = await findWebhookById(webhookId);
+      if (webhookEvent) {
+        await markWebhookFailed(webhookId, errorMessage, errorStack);
+      }
+    } catch (markError) {
+      console.error(
+        `Failed to mark webhook as failed: ${webhookId}`,
+        markError,
+      );
+    }
+
     console.error(
       `❌ Stripe webhook job failed: ${eventId} - Duration: ${duration}ms`,
       error,

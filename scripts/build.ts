@@ -16,7 +16,7 @@ const MODULES_DIR = join(process.cwd(), 'src/modules');
 const MODULE_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/modules.generated.ts');
 
 const EXCLUDED_MODULES = [
-  'analytics', 'subscriptions', 'billing', 'payments', 'admin',
+  'analytics', 'billing', 'payments', 'admin',
   'clients', 'customers', 'events', 'health', 'invoices',
   'payouts', 'settings', 'stripe'
 ];

@@ -1,5 +1,4 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-
 import { z } from 'zod';
 import * as routes from '@/modules/practice/routes';
 import * as invitationsService from '@/modules/practice/services/invitations.service';
@@ -141,12 +140,12 @@ practiceApp.get('/:uuid/members', validateParams(practiceValidations.practiceIdP
   const user = c.get('user')!;
   const validatedParams = c.get('validatedParams');
 
-  const members = await membersService.listPracticeMembers(
+  const result = await membersService.listPracticeMembers(
     validatedParams.uuid,
     user,
     c.req.header(),
   );
-  return response.ok(c, { members });
+  return response.ok(c, result);
 });
 
 practiceApp.openapi(routes.listMembersRoute, async () => {
@@ -169,7 +168,7 @@ practiceApp.patch('/:uuid/members', validateParamsAndJson(
 
   const result = await membersService.updatePracticeMemberRole(
     validatedParams.uuid,
-    validatedBody.user_id,
+    validatedBody.member_id,
     validatedBody.role,
     user,
     c.req.header(),
@@ -186,7 +185,7 @@ practiceApp.openapi(routes.updateMemberRoleRoute, async () => {
  * Remove a member from an organization
  */
 const userIdParamSchema = practiceValidations.practiceIdParamSchema.extend({
-  userId: z.string().uuid(),
+  userId: z.string().uuid(), // Both user ID and organization ID are UUIDs
 });
 
 practiceApp.delete('/:uuid/members/:userId', validateParams(userIdParamSchema, 'Invalid Parameters'), async (c) => {

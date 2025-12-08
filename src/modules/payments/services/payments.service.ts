@@ -15,6 +15,9 @@ import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { calculateFees } from '@/shared/services/fees.service';
 import { stripe } from '@/shared/utils/stripe-client';
+import { reportMeteredUsage } from '@/modules/subscriptions/services/meteredProducts.service';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
+import { db } from '@/shared/database';
 
 export interface CreatePaymentIntentRequest {
   organizationId: string;
@@ -151,6 +154,15 @@ export const createPaymentsService = function createPaymentsService(
           application_fee_amount: applicationFeeAmount,
           created_at: new Date().toISOString(),
         });
+
+        // 7. Report metered usage for payment processing (fire-and-forget)
+        // This will auto-attach the metered product if configured in the plan
+        void reportMeteredUsage(
+          db,
+          request.organizationId,
+          METERED_TYPES.PAYMENT_FEE,
+          1,
+        );
 
         return {
           success: true,

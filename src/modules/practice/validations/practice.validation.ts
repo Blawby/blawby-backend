@@ -18,7 +18,7 @@ export const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
 
 // Practice module specific param schemas
 export const practiceIdParamSchema = z.object({
-  uuid: z.uuid().refine((val) => val.length > 0, 'Invalid practice uuid'),
+  uuid: z.uuid().refine((val) => val.length > 0, 'Invalid practice UUID'),
 });
 
 
@@ -74,7 +74,8 @@ export const updatePracticeSchema = z
 // Response schemas with OpenAPI metadata
 export const practiceResponseSchema = z
   .object({
-    id: z.uuid().openapi({
+    id: z.string().uuid().openapi({
+      description: 'Organization ID (UUID)',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
     name: z.string().openapi({
@@ -201,9 +202,9 @@ export const practiceQuerySchema = z.object({
 export const memberRoleSchema = z.enum(['owner', 'admin', 'attorney', 'paralegal', 'member']);
 
 export const updateMemberRoleSchema = z.object({
-  user_id: z.uuid().openapi({
-    description: 'User ID to update',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+  member_id: z.uuid().openapi({
+    description: 'Member ID to update (from listMembers response)',
+    example: 'member_123e4567-e89b-12d3-a456-426614174000',
   }),
   role: memberRoleSchema.openapi({
     description: 'New role for the member',
@@ -212,6 +213,10 @@ export const updateMemberRoleSchema = z.object({
 });
 
 export const memberListItemSchema = z.object({
+  id: z.uuid().openapi({
+    description: 'Member ID (use this for updateMemberRole)',
+    example: 'member_123e4567-e89b-12d3-a456-426614174000',
+  }),
   user_id: z.uuid().openapi({
     description: 'User ID',
     example: '123e4567-e89b-12d3-a456-426614174000',
@@ -250,7 +255,7 @@ export const invitationListItemSchema = z.object({
     example: 'inv_1234567890',
   }),
   organization_id: z.string().uuid().openapi({
-    description: 'Organization ID',
+    description: 'Organization ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
   organization_name: z.string().openapi({

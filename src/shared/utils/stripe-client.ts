@@ -42,3 +42,13 @@ export const stripe = new Proxy({} as Stripe, {
     return typeof value === 'function' ? value.bind(client) : value;
   },
 });
+
+/**
+ * Get direct Stripe instance (not Proxy)
+ * Useful for libraries that need a direct Stripe instance (e.g., Better Auth Stripe plugin)
+ * Usage: import { getStripeInstance } from './stripe-client'
+ *        const stripeClient = getStripeInstance()
+ */
+export const getStripeInstance = (): Stripe => {
+  return initStripe();
+};

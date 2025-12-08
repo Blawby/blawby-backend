@@ -1,23 +1,25 @@
-import type { MemberRole, MemberListItem } from '@/modules/practice/types/members.types';
-import { isValidMemberRole } from '@/modules/practice/types/members.types';
+import type { MemberRole } from '@/modules/practice/types/members.types';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { User } from '@/shared/types/BetterAuth';
 
-const betterAuth = createBetterAuthInstance(db);
+// Lazy initialization - only create when needed (after env vars are loaded)
+const getBetterAuth = () => createBetterAuthInstance(db);
 
 /**
  * List all members of an organization
+ * Returns Better Auth's response format as-is
  */
-export const listPracticeMembers = async function listPracticeMembers(
+export const listPracticeMembers = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<MemberListItem[]> {
+): Promise<Awaited<ReturnType<ReturnType<typeof getBetterAuth>['api']['listMembers']>>> => {
   // Use Better Auth API to list members
-  const members = await betterAuth.api.listMembers({
+  const betterAuth = getBetterAuth();
+  return await betterAuth.api.listMembers({
     query: {
       organizationId,
       limit: 100,
@@ -25,39 +27,24 @@ export const listPracticeMembers = async function listPracticeMembers(
     },
     headers: requestHeaders,
   });
-
-  if (!members || !Array.isArray(members)) {
-    return [];
-  }
-
-  // Transform Better Auth member format to our expected format (snake_case for API response)
-  return members.map((member) => {
-    const role = isValidMemberRole(member.role) ? member.role : 'member';
-    return {
-      user_id: member.userId || member.memberId || '',
-      email: member.user?.email || '',
-      name: member.user?.name || null,
-      role,
-      joined_at: member.createdAt ? new Date(member.createdAt).getTime() : Date.now(),
-    };
-  });
 };
 
 /**
  * Update a member's role
  */
-export const updatePracticeMemberRole = async function updatePracticeMemberRole(
+export const updatePracticeMemberRole = async (
   organizationId: string,
-  userId: string,
+  memberId: string,
   newRole: MemberRole,
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<{ success: boolean }> {
-  // Use Better Auth API to update member role
+): Promise<{ success: boolean }> => {
+  // Use Better Auth API to update member role directly
+  const betterAuth = getBetterAuth();
   await betterAuth.api.updateMemberRole({
     body: {
       organizationId,
-      memberId: userId,
+      memberId,
       role: newRole,
     },
     headers: requestHeaders,
@@ -69,7 +56,7 @@ export const updatePracticeMemberRole = async function updatePracticeMemberRole(
     user.id,
     organizationId,
     {
-      target_user_id: userId,
+      member_id: memberId,
       new_role: newRole,
     },
   );
@@ -80,13 +67,14 @@ export const updatePracticeMemberRole = async function updatePracticeMemberRole(
 /**
  * Remove a member from an organization
  */
-export const removePracticeMember = async function removePracticeMember(
+export const removePracticeMember = async (
   organizationId: string,
   userId: string,
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean }> => {
   // Use Better Auth API to remove member
+  const betterAuth = getBetterAuth();
   await betterAuth.api.removeMember({
     body: {
       organizationId,

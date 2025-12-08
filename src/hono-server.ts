@@ -1,12 +1,12 @@
+// Load environment variables FIRST before any other imports
+// This ensures env vars are available when modules are imported
 import { config } from '@dotenvx/dotenvx';
+config();
+
 import { serve } from '@hono/node-server';
 import closeWithGrace from 'close-with-grace';
 
 import app from './hono-app';
-
-if (process.env.NODE_ENV !== 'production') {
-  config();
-}
 
 const port = Number(process.env.PORT ?? 3000);
 // Use '0.0.0.0' to listen on all network interfaces (required for ngrok/tunneling)

@@ -58,7 +58,7 @@ import { StripeService } from './services';
 
 ## Naming
 
-- Files and directories: kebab-case.
+- Files and directories: camelCase.
 - Variables, functions, methods: camelCase.
 - Environment variables: UPPERCASE.
 - Booleans start with verbs: `isX`, `hasX`, `canX`, `shouldX`.
