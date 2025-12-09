@@ -14,7 +14,7 @@ export default defineConfig({
   tsconfig: 'tsconfig.json',
   splitting: false,
   shims: true,
-  treeshake: true,
+  treeshake: false, // Disabled for backend - tree-shaking is for frontend bundle size optimization
   outExtension() {
     return {
       js: '.js',

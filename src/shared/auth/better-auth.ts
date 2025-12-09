@@ -17,11 +17,6 @@ const betterAuthInstance = (
   db: NodePgDatabase<typeof schema>,
   // oxlint-disable-next-line explicit-function-return-type
 ) => {
-  // Ensure subscriptions table is included (prevents tree-shaking in production builds)
-  if (!schema.subscriptions) {
-    throw new Error('Subscriptions schema not found');
-  }
-
   return betterAuth({
     secret: process.env.BETTER_AUTH_SECRET!,
     database: drizzleAdapter(db, {
