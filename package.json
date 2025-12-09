@@ -15,8 +15,6 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "sync:plans": "tsx src/scripts/syncSubscriptionPlans.ts",
-    "test:subscription": "tsx test-subscription-creation.ts",
-    "test:metered": "tsx test-metered-billing.ts",
     "format": "eslint --fix .",
     "format:check": "eslint .",
     "lint": "oxlint",
