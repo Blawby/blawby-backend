@@ -25,8 +25,15 @@ const createAuthorizeReference = (
   db: NodePgDatabase<typeof schema>,
 ) => async ({ user, referenceId }: {
   user: { id: string };
-  referenceId: string
+  referenceId: string | null | undefined
 }): Promise<boolean> => {
+    if (!referenceId) {
+      // If no referenceId provided, authorization fails
+      // The subscription service should handle org creation before calling Better Auth
+      return false;
+    }
+
+    // Validate authorization
     const member = await db
       .select({
         role: schema.members.role,
@@ -69,15 +76,21 @@ const createOnSubscriptionComplete = (
   };
   plan: { name: string };
 }): Promise<void> => {
-    if (subscription.referenceId && subscription.stripeCustomerId) {
-      // Update organization
-      await db
-        .update(schema.organizations)
-        .set({
-          stripeCustomerId: subscription.stripeCustomerId,
-          activeSubscriptionId: subscription.id,
-        })
-        .where(eq(schema.organizations.id, subscription.referenceId));
+    if (subscription.referenceId) {
+      // Get customer ID from subscription or Stripe subscription object
+      const customerId = subscription.stripeCustomerId
+        || (typeof stripeSubscription.customer === 'string' ? stripeSubscription.customer : null);
+
+      if (customerId) {
+        // Update organization with customer ID and subscription ID
+        await db
+          .update(schema.organizations)
+          .set({
+            stripeCustomerId: customerId,
+            activeSubscriptionId: subscription.id,
+          })
+          .where(eq(schema.organizations.id, subscription.referenceId));
+      }
 
       // Find plan in database
       const dbPlan = await findPlanByStripePriceId(db, plan.name);
@@ -101,7 +114,7 @@ const createOnSubscriptionComplete = (
       }
 
       // Log subscription created event
-      await createEvent(db, {
+      void createEvent(db, {
         subscriptionId: subscription.id,
         planId: dbPlan?.id,
         eventType: 'created',
@@ -232,6 +245,32 @@ const createOnSubscriptionCancel = (
   };
 
 /**
+ * Handle customer creation - save customer ID to organization immediately
+ * This runs when a Stripe customer is created during subscription checkout
+ */
+const createOnCustomerCreate = (
+  db: NodePgDatabase<typeof schema>,
+) => async ({
+  stripeCustomer,
+  referenceId,
+  user: _user,
+}: {
+  stripeCustomer: Stripe.Customer;
+  user: { id: string };
+  referenceId?: string | null;
+}): Promise<void> => {
+    // If customer was created for an organization, save it immediately
+    if (referenceId && stripeCustomer.id) {
+      await db
+        .update(schema.organizations)
+        .set({
+          stripeCustomerId: stripeCustomer.id,
+        })
+        .where(eq(schema.organizations.id, referenceId));
+    }
+  };
+
+/**
  * Create Stripe plugin configuration
  */
 export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> => {
@@ -239,6 +278,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
     stripeClient: getStripeInstance(),
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
     createCustomerOnSignUp: false, // Don't create customer on user signup - create per organization
+    onCustomerCreate: createOnCustomerCreate(db), // Save customer ID immediately when created
     subscription: {
       enabled: true,
       plans: fetchStripePlans, // Dynamically fetch plans from Stripe

@@ -16,6 +16,7 @@ import {
 } from '@/shared/middleware';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
+import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { MODULE_REGISTRY } from '@/shared/router/modules.generated';
 import type { AppContext } from '@/shared/types/hono';
@@ -41,6 +42,7 @@ app.use('*', responseMiddleware());
 // Apply auth-specific middlewares only to auth routes
 app.use('/api/auth/*', normalizeAuthResponse()); // Normalize Better Auth responses first
 app.use('/api/auth/*', sanitizeAuthResponse()); // Then sanitize (remove token field)
+app.use('/api/auth/*', autoCreateOrgForSubscription()); // Auto-create org for subscriptions
 
 // Mount Better Auth handler
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
