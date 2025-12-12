@@ -46,6 +46,12 @@ const betterAuthInstance = (
     session: AUTH_CONFIG.session,
     emailAndPassword: AUTH_CONFIG.emailAndPassword,
     organization: AUTH_CONFIG.organization,
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      },
+    },
     onAPIError: {
       throw: false,
       onError: (error: unknown, context?: Record<string, unknown>) => {
