@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { bearer, organization } from 'better-auth/plugins';
+import { anonymous, bearer, organization } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
@@ -31,6 +31,7 @@ const betterAuthInstance = (
         roles: organizationRoles,
       }),
       createStripePlugin(db),
+      anonymous(),
     ],
     baseURL: process.env.BETTER_AUTH_BASE_URL!,
     basePath: '/api/auth',
@@ -72,5 +73,7 @@ export const createBetterAuthInstance = (
   }
   return authInstance;
 };
+
+export const auth = betterAuthInstance;
 
 export type BetterAuthInstance = ReturnType<typeof betterAuthInstance>;
