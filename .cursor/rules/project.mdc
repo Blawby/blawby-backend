@@ -63,6 +63,66 @@ import { StripeService } from './services';
 - Environment variables: UPPERCASE.
 - Booleans start with verbs: `isX`, `hasX`, `canX`, `shouldX`.
 
+## API Naming Conventions
+
+### **CRITICAL: Use snake_case for all API requests and responses**
+
+**Database and API Consistency:**
+- **Database columns**: Always use `snake_case` (e.g., `business_phone`, `on_behalf_of`, `opposing_party`)
+- **API request fields**: Use `snake_case` in validation schemas to match database columns
+- **API response fields**: Automatically converted to `snake_case` via `toSnakeCase()` utility in `responseUtils.ts`
+- **Internal TypeScript code**: Can use `camelCase` for variables and functions, but map to/from `snake_case` when interfacing with API
+
+**Examples:**
+
+```typescript
+// ✅ CORRECT - Request validation schema uses snake_case
+export const createPracticeClientIntakeSchema = z.object({
+  slug: z.string(),
+  email: z.string().email(),
+  name: z.string(),
+  on_behalf_of: z.string().optional(),      // snake_case
+  opposing_party: z.string().optional(),     // snake_case
+  description: z.string().optional(),
+});
+
+// ✅ CORRECT - Response schema uses snake_case
+export const practiceClientIntakeStatusResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    uuid: z.uuid(),
+    stripe_charge_id: z.string().optional(),  // snake_case
+    metadata: z.object({
+      on_behalf_of: z.string().optional(),    // snake_case
+      opposing_party: z.string().optional(),   // snake_case
+    }),
+    succeeded_at: z.date().optional(),         // snake_case
+  }),
+});
+
+// ✅ CORRECT - Service maps snake_case request to camelCase for internal use
+async createPracticeClientIntake(request: CreatePracticeClientIntakeRequest) {
+  // request.on_behalf_of (snake_case from API)
+  // Map to camelCase for database metadata if needed
+  const metadata = {
+    onBehalfOf: request.on_behalf_of,  // Convert to camelCase for DB
+    opposingParty: request.opposing_party,
+  };
+}
+
+// ❌ WRONG - Don't use camelCase in request/response schemas
+export const createPracticeClientIntakeSchema = z.object({
+  onBehalfOf: z.string().optional(),   // ❌ Wrong - should be snake_case
+  opposingParty: z.string().optional(), // ❌ Wrong - should be snake_case
+});
+```
+
+**Why This Rule:**
+1. **Consistency** - Database columns are snake_case, so API should match
+2. **No transformation needed** - Direct mapping between API and database
+3. **Standard convention** - Most REST APIs use snake_case
+4. **Automatic conversion** - Response utility (`response.ok()`, `response.created()`) automatically converts to snake_case
+
 ## Functions
 
 - **Declare every function as a function expression.**
@@ -171,6 +231,7 @@ Fastify plugins for cross-cutting concerns:
 - `migrations/` - Drizzle migration files
 - Uses PostgreSQL with Drizzle ORM
 - Feature-specific schemas in `app/features/*/database/schema/`
+- **All database columns use `snake_case` naming convention**
 
 ### Error Handling
 
@@ -214,6 +275,7 @@ Basic Principles:
   - Use Drizzle Client to interact with your database.
   - Create services to manage entities and abstract database operations from the handlers.
   - Use Drizzle's schema for generating types and migrations.
+  - **Always use `snake_case` for column names** in schema definitions to match database conventions.
 - A folder for shared utilities:
   - Middleware for common request handling.
   - Global error handlers.

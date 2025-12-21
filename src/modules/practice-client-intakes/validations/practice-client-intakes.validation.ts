@@ -6,8 +6,8 @@ export const createPracticeClientIntakeSchema = z.object({
   email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
-  onBehalfOf: z.string().max(200).optional(),
-  opposingParty: z.string().max(200).optional().openapi({
+  on_behalf_of: z.string().max(200).optional(),
+  opposing_party: z.string().max(200).optional().openapi({
     description: 'Name of the opposing party in the legal matter',
     example: 'John Doe',
   }),

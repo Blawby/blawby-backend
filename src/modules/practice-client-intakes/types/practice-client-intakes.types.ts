@@ -25,8 +25,8 @@ export interface CreatePracticeClientIntakeRequest {
   email: string;
   name: string;
   phone?: string;
-  onBehalfOf?: string;
-  opposingParty?: string;
+  on_behalf_of?: string;
+  opposing_party?: string;
   description?: string;
   clientIp?: string;
   userAgent?: string;
