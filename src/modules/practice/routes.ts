@@ -14,6 +14,11 @@ import {
   invitationsListResponseSchema,
   createInvitationSchema,
   acceptInvitationResponseSchema,
+  createPracticeDetailsSchema,
+  updatePracticeDetailsSchema,
+  practiceDetailsSingleResponseSchema,
+  practiceDetailsCreateResponseSchema,
+  practiceDetailsUpdateResponseSchema,
 } from '@/modules/practice/validations/practice.validation';
 
 /**
@@ -625,6 +630,207 @@ export const declineInvitationRoute = createRoute({
         },
       },
       description: 'Internal server error',
+    },
+  },
+});
+
+// Practice Details Routes
+
+/**
+ * GET /api/practice/:uuid/details
+ * Get practice details
+ */
+export const getPracticeDetailsRoute = createRoute({
+  method: 'get',
+  path: '/{uuid}/details',
+  tags: ['Practice'],
+  summary: 'Get practice details',
+  description: 'Retrieve practice details for a specific practice',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: practiceDetailsSingleResponseSchema,
+        },
+      },
+      description: 'Practice details retrieved successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: notFoundResponseSchema,
+        },
+      },
+      description: 'Practice not found',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request parameters',
+    },
+  },
+});
+
+/**
+ * POST /api/practice/:uuid/details
+ * Create practice details
+ */
+export const createPracticeDetailsRoute = createRoute({
+  method: 'post',
+  path: '/{uuid}/details',
+  tags: ['Practice'],
+  summary: 'Create practice details',
+  description: 'Create practice details for a practice',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: createPracticeDetailsSchema,
+        },
+      },
+      description: 'Practice details data',
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: practiceDetailsCreateResponseSchema,
+        },
+      },
+      description: 'Practice details created successfully',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request data or practice details already exist',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: notFoundResponseSchema,
+        },
+      },
+      description: 'Practice not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Failed to create practice details',
+    },
+  },
+});
+
+/**
+ * PUT /api/practice/:uuid/details
+ * Update practice details
+ */
+export const updatePracticeDetailsRoute = createRoute({
+  method: 'put',
+  path: '/{uuid}/details',
+  tags: ['Practice'],
+  summary: 'Update practice details',
+  description: 'Update practice details for a practice (creates if doesn\'t exist)',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: updatePracticeDetailsSchema,
+        },
+      },
+      description: 'Practice details update data',
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: practiceDetailsUpdateResponseSchema,
+        },
+      },
+      description: 'Practice details updated successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: notFoundResponseSchema,
+        },
+      },
+      description: 'Practice not found',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request data',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Failed to update practice details',
+    },
+  },
+});
+
+/**
+ * DELETE /api/practice/:uuid/details
+ * Delete practice details
+ */
+export const deletePracticeDetailsRoute = createRoute({
+  method: 'delete',
+  path: '/{uuid}/details',
+  tags: ['Practice'],
+  summary: 'Delete practice details',
+  description: 'Delete practice details for a practice',
+  request: {
+    params: practiceUuidParamOpenAPISchema,
+  },
+  responses: {
+    204: {
+      description: 'Practice details deleted successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: notFoundResponseSchema,
+        },
+      },
+      description: 'Practice not found',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+      description: 'Invalid request parameters',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Failed to delete practice details',
     },
   },
 });

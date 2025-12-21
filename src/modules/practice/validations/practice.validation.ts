@@ -293,9 +293,68 @@ export const acceptInvitationResponseSchema = z.object({
   organization: z.any(), // Organization object from Better Auth
 });
 
+// Practice Details API schemas
+export const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
+  (data) => {
+    // At least one field must be provided
+    return (
+      data.business_phone
+      || data.business_email
+      || data.consultation_fee !== undefined
+      || data.payment_url
+      || data.calendly_url
+    );
+  },
+  {
+    message: 'At least one practice detail field must be provided',
+  },
+);
+
+export const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
+
+export const practiceDetailsResponseSchema = z
+  .object({
+    business_phone: z.string().nullable().openapi({
+      example: '+1234567890',
+    }),
+    business_email: z.string().email().nullable().openapi({
+      example: 'contact@example.com',
+    }),
+    consultation_fee: z.number().nullable().openapi({
+      example: 100.0,
+    }),
+    payment_url: z.string().url().nullable().openapi({
+      example: 'https://payment.example.com',
+    }),
+    calendly_url: z.string().url().nullable().openapi({
+      example: 'https://calendly.com/example',
+    }),
+  })
+  .openapi('PracticeDetailsResponse');
+
+export const practiceDetailsSingleResponseSchema = z
+  .object({
+    details: practiceDetailsResponseSchema.nullable(),
+  })
+  .openapi('PracticeDetailsSingleResponse');
+
+export const practiceDetailsCreateResponseSchema = z
+  .object({
+    details: practiceDetailsResponseSchema,
+  })
+  .openapi('PracticeDetailsCreateResponse');
+
+export const practiceDetailsUpdateResponseSchema = z
+  .object({
+    details: practiceDetailsResponseSchema,
+  })
+  .openapi('PracticeDetailsUpdateResponse');
+
 // Infer types from schemas
 export type CreatePracticeRequest = z.infer<typeof createPracticeSchema>;
 export type UpdatePracticeRequest = z.infer<typeof updatePracticeSchema>;
 export type PracticeQueryParams = z.infer<typeof practiceQuerySchema>;
 export type UpdateMemberRoleRequest = z.infer<typeof updateMemberRoleSchema>;
 export type CreateInvitationRequest = z.infer<typeof createInvitationSchema>;
+export type CreatePracticeDetailsRequest = z.infer<typeof createPracticeDetailsSchema>;
+export type UpdatePracticeDetailsRequest = z.infer<typeof updatePracticeDetailsSchema>;

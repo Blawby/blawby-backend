@@ -103,11 +103,11 @@ export const createPracticeService = async (params: {
   let practiceDetails = null;
   {
     const detailsPayload = {
-      business_phone,
-      business_email,
-      consultation_fee,
-      payment_url,
-      calendly_url,
+      business_phone: business_phone || null,
+      business_email: business_email || null,
+      consultation_fee: consultation_fee || null,
+      payment_url: payment_url || null,
+      calendly_url: calendly_url || null,
     };
     const hasDetails = Object.values(detailsPayload).some(Boolean);
     if (hasDetails) {

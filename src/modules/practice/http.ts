@@ -4,6 +4,7 @@ import * as routes from '@/modules/practice/routes';
 import * as invitationsService from '@/modules/practice/services/invitations.service';
 import * as membersService from '@/modules/practice/services/members.service';
 import * as practiceService from '@/modules/practice/services/practice.service';
+import * as practiceDetailsService from '@/modules/practice/services/practice-details.service';
 import * as practiceValidations from '@/modules/practice/validations/practice.validation';
 import { validateParams, validateJson, validateParamsAndJson } from '@/shared/middleware/validation';
 import type { AppContext } from '@/shared/types/hono';
@@ -272,6 +273,100 @@ practiceApp.post('/invitations/:invitationId/accept', validateParams(invitationI
 });
 
 practiceApp.openapi(routes.acceptInvitationRoute, async () => {
+  throw new Error('This should never be called');
+});
+
+/**
+ * GET /api/practice/:uuid/details
+ * Get practice details
+ */
+practiceApp.get('/:uuid/details', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice UUID'), async (c) => {
+  const user = c.get('user')!;
+  const validatedParams = c.get('validatedParams');
+
+  const details = await practiceDetailsService.getPracticeDetails(
+    validatedParams.uuid,
+    user,
+    c.req.header(),
+  );
+  return response.ok(c, { details });
+});
+
+practiceApp.openapi(routes.getPracticeDetailsRoute, async () => {
+  throw new Error('This should never be called');
+});
+
+/**
+ * POST /api/practice/:uuid/details
+ * Create practice details
+ */
+practiceApp.post('/:uuid/details', validateParamsAndJson(
+  practiceValidations.practiceIdParamSchema,
+  practiceValidations.createPracticeDetailsSchema,
+  'Invalid Practice UUID',
+  'Invalid Practice Details Data',
+), async (c) => {
+  const user = c.get('user')!;
+  const validatedParams = c.get('validatedParams');
+  const validatedBody = c.get('validatedBody');
+
+  const details = await practiceDetailsService.createPracticeDetailsService(
+    validatedParams.uuid,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+  return response.created(c, { details });
+});
+
+practiceApp.openapi(routes.createPracticeDetailsRoute, async () => {
+  throw new Error('This should never be called');
+});
+
+/**
+ * PUT /api/practice/:uuid/details
+ * Update practice details
+ */
+practiceApp.put('/:uuid/details', validateParamsAndJson(
+  practiceValidations.practiceIdParamSchema,
+  practiceValidations.updatePracticeDetailsSchema,
+  'Invalid Practice UUID',
+  'Invalid Practice Details Data',
+), async (c) => {
+  const user = c.get('user')!;
+  const validatedParams = c.get('validatedParams');
+  const validatedBody = c.get('validatedBody');
+
+  const details = await practiceDetailsService.updatePracticeDetailsService(
+    validatedParams.uuid,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+  return response.ok(c, { details });
+});
+
+practiceApp.openapi(routes.updatePracticeDetailsRoute, async () => {
+  throw new Error('This should never be called');
+});
+
+/**
+ * DELETE /api/practice/:uuid/details
+ * Delete practice details
+ */
+practiceApp.delete('/:uuid/details', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice UUID'), async (c) => {
+  const user = c.get('user')!;
+  const validatedParams = c.get('validatedParams');
+
+  await practiceDetailsService.deletePracticeDetailsService(
+    validatedParams.uuid,
+    user,
+    c.req.header(),
+  );
+  return response.noContent(c);
+});
+
+practiceApp.openapi(routes.deletePracticeDetailsRoute, async () => {
   throw new Error('This should never be called');
 });
 
