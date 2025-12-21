@@ -43,6 +43,13 @@
       "when": 1765970217641,
       "tag": "0005_needy_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1766322727343,
+      "tag": "0006_freezing_warpath",
+      "breakpoints": true
     }
   ]
 }

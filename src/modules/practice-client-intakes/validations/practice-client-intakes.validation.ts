@@ -3,10 +3,14 @@ import { z } from 'zod';
 export const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
   amount: z.number().int().min(50).max(99999999), // $0.50 to $999,999.99
-  email: z.string().email().max(255),
+  email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
   onBehalfOf: z.string().max(200).optional(),
+  opposingParty: z.string().max(200).optional().openapi({
+    description: 'Name of the opposing party in the legal matter',
+    example: 'John Doe',
+  }),
   description: z.string().max(500).optional(),
 });
 
@@ -19,7 +23,7 @@ export const slugParamSchema = z.object({
 });
 
 export const uuidParamSchema = z.object({
-  uuid: z.string().uuid(), // UUID format
+  uuid: z.uuid(), // UUID format
 });
 
 export type CreatePracticeClientIntakeRequest = z.infer<typeof createPracticeClientIntakeSchema>;
@@ -32,18 +36,18 @@ export const practiceClientIntakeSettingsResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     organization: z.object({
-      id: z.string(),
+      id: z.uuid(),
       name: z.string(),
       slug: z.string(),
       logo: z.string().optional(),
     }),
     settings: z.object({
-      paymentLinkEnabled: z.boolean(),
-      prefillAmount: z.number(),
+      payment_link_enabled: z.boolean(),
+      prefill_amount: z.number(),
     }),
-    connectedAccount: z.object({
-      id: z.string(),
-      chargesEnabled: z.boolean(),
+    connected_account: z.object({
+      id: z.uuid(),
+      charges_enabled: z.boolean(),
     }),
   }).optional(),
   error: z.string().optional(),
@@ -52,8 +56,8 @@ export const practiceClientIntakeSettingsResponseSchema = z.object({
 export const createPracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
-    uuid: z.string().uuid(),
-    clientSecret: z.string(),
+    uuid: z.uuid(),
+    client_secret: z.string(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -68,8 +72,8 @@ export const createPracticeClientIntakeResponseSchema = z.object({
 export const updatePracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
-    uuid: z.string().uuid(),
-    clientSecret: z.string(),
+    uuid: z.uuid(),
+    client_secret: z.string(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -80,20 +84,21 @@ export const updatePracticeClientIntakeResponseSchema = z.object({
 export const practiceClientIntakeStatusResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
-    uuid: z.string().uuid(),
+    uuid: z.uuid(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
-    stripeChargeId: z.string().optional(),
+    stripe_charge_id: z.string().optional(),
     metadata: z.object({
       email: z.string(),
       name: z.string(),
       phone: z.string().optional(),
-      onBehalfOf: z.string().optional(),
+      on_behalf_of: z.string().optional(),
+      opposing_party: z.string().optional(),
       description: z.string().optional(),
     }),
-    succeededAt: z.date().optional(),
-    createdAt: z.date(),
+    succeeded_at: z.date().optional(),
+    created_at: z.date(),
   }).optional(),
   error: z.string().optional(),
 });

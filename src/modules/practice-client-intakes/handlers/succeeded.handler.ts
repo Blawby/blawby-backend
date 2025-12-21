@@ -9,21 +9,21 @@ import { sanitizeError } from '@/shared/utils/logging';
 /**
  * Handle successful practice client intake
  */
-export const handlePracticeClientIntakeSucceeded = async function handlePracticeCustomerIntakeSucceeded(
+export const handlePracticeClientIntakeSucceeded = async function handlePracticeClientIntakeSucceeded(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
   try {
     // Find practice client intake by Stripe payment intent ID
-    const practiceCustomerIntake = await practiceCustomerIntakesRepository.findByStripePaymentIntentId(
+    const practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(
       paymentIntent.id,
     );
 
-    if (!practiceCustomerIntake) {
+    if (!practiceClientIntake) {
       return;
     }
 
     // Update practice client intake status
-    await practiceCustomerIntakesRepository.update(practiceCustomerIntake.id, {
+    await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       status: 'succeeded',
       stripeChargeId: paymentIntent.latest_charge as string,
       succeededAt: new Date(),
@@ -33,24 +33,24 @@ export const handlePracticeClientIntakeSucceeded = async function handlePractice
     void publishSimpleEvent(
       EventType.INTAKE_PAYMENT_SUCCEEDED,
       'organization',
-      practiceCustomerIntake.organizationId,
+      practiceClientIntake.organizationId,
       {
-        intake_payment_id: practiceCustomerIntake.id,
-        uuid: practiceCustomerIntake.id,
-        amount: practiceCustomerIntake.amount,
-        currency: practiceCustomerIntake.currency,
-        client_email: practiceCustomerIntake.metadata?.email,
-        client_name: practiceCustomerIntake.metadata?.name,
+        intake_payment_id: practiceClientIntake.id,
+        uuid: practiceClientIntake.id,
+        amount: practiceClientIntake.amount,
+        currency: practiceClientIntake.currency,
+        client_email: practiceClientIntake.metadata?.email,
+        client_name: practiceClientIntake.metadata?.name,
         stripe_charge_id: paymentIntent.latest_charge,
         succeeded_at: new Date().toISOString(),
       },
     );
 
     consola.info('Practice client intake succeeded', {
-      practiceCustomerIntakeId: practiceCustomerIntake.id,
-      uuid: practiceCustomerIntake.id,
-      amount: practiceCustomerIntake.amount,
-      clientEmail: practiceCustomerIntake.metadata?.email,
+      practiceClientIntakeId: practiceClientIntake.id,
+      uuid: practiceClientIntake.id,
+      amount: practiceClientIntake.amount,
+      clientEmail: practiceClientIntake.metadata?.email,
     });
   } catch (error) {
     consola.error('Failed to handle practice client intake succeeded', {
@@ -63,21 +63,21 @@ export const handlePracticeClientIntakeSucceeded = async function handlePractice
 /**
  * Handle failed practice client intake
  */
-export const handlePracticeCustomerIntakeFailed = async function handlePracticeCustomerIntakeFailed(
+export const handlePracticeClientIntakeFailed = async function handlePracticeClientIntakeFailed(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
   try {
     // Find practice client intake by Stripe payment intent ID
-    const practiceCustomerIntake = await practiceCustomerIntakesRepository.findByStripePaymentIntentId(
+    const practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(
       paymentIntent.id,
     );
 
-    if (!practiceCustomerIntake) {
+    if (!practiceClientIntake) {
       return; // Not a practice client intake
     }
 
     // Update practice client intake status
-    await practiceCustomerIntakesRepository.update(practiceCustomerIntake.id, {
+    await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       status: 'failed',
     });
 
@@ -85,24 +85,24 @@ export const handlePracticeCustomerIntakeFailed = async function handlePracticeC
     await publishSimpleEvent(
       EventType.INTAKE_PAYMENT_FAILED,
       'organization',
-      practiceCustomerIntake.organizationId,
+      practiceClientIntake.organizationId,
       {
-        intake_payment_id: practiceCustomerIntake.id,
-        uuid: practiceCustomerIntake.id,
-        amount: practiceCustomerIntake.amount,
-        currency: practiceCustomerIntake.currency,
-        client_email: practiceCustomerIntake.metadata?.email,
-        client_name: practiceCustomerIntake.metadata?.name,
+        intake_payment_id: practiceClientIntake.id,
+        uuid: practiceClientIntake.id,
+        amount: practiceClientIntake.amount,
+        currency: practiceClientIntake.currency,
+        client_email: practiceClientIntake.metadata?.email,
+        client_name: practiceClientIntake.metadata?.name,
         failure_reason: paymentIntent.last_payment_error?.message,
         failed_at: new Date().toISOString(),
       },
     );
 
     console.warn('Practice client intake failed', {
-      practiceCustomerIntakeId: practiceCustomerIntake.id,
-      uuid: practiceCustomerIntake.id,
-      amount: practiceCustomerIntake.amount,
-      clientEmail: practiceCustomerIntake.metadata?.email,
+      practiceClientIntakeId: practiceClientIntake.id,
+      uuid: practiceClientIntake.id,
+      amount: practiceClientIntake.amount,
+      clientEmail: practiceClientIntake.metadata?.email,
       failureReason: paymentIntent.last_payment_error?.message,
     });
   } catch (error) {
@@ -116,21 +116,21 @@ export const handlePracticeCustomerIntakeFailed = async function handlePracticeC
 /**
  * Handle canceled practice client intake
  */
-export const handlePracticeCustomerIntakeCanceled = async function handlePracticeCustomerIntakeCanceled(
+export const handlePracticeClientIntakeCanceled = async function handlePracticeClientIntakeCanceled(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
   try {
     // Find practice client intake by Stripe payment intent ID
-    const practiceCustomerIntake = await practiceCustomerIntakesRepository.findByStripePaymentIntentId(
+    const practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(
       paymentIntent.id,
     );
 
-    if (!practiceCustomerIntake) {
+    if (!practiceClientIntake) {
       return; // Not a practice client intake
     }
 
     // Update practice client intake status
-    await practiceCustomerIntakesRepository.update(practiceCustomerIntake.id, {
+    await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       status: 'canceled',
     });
 
@@ -138,23 +138,23 @@ export const handlePracticeCustomerIntakeCanceled = async function handlePractic
     await publishSimpleEvent(
       EventType.INTAKE_PAYMENT_CANCELED,
       'organization',
-      practiceCustomerIntake.organizationId,
+      practiceClientIntake.organizationId,
       {
-        intake_payment_id: practiceCustomerIntake.id,
-        uuid: practiceCustomerIntake.id,
-        amount: practiceCustomerIntake.amount,
-        currency: practiceCustomerIntake.currency,
-        client_email: practiceCustomerIntake.metadata?.email,
-        client_name: practiceCustomerIntake.metadata?.name,
+        intake_payment_id: practiceClientIntake.id,
+        uuid: practiceClientIntake.id,
+        amount: practiceClientIntake.amount,
+        currency: practiceClientIntake.currency,
+        client_email: practiceClientIntake.metadata?.email,
+        client_name: practiceClientIntake.metadata?.name,
         canceled_at: new Date().toISOString(),
       },
     );
 
     console.info('Practice client intake canceled', {
-      practiceCustomerIntakeId: practiceCustomerIntake.id,
-      uuid: practiceCustomerIntake.id,
-      amount: practiceCustomerIntake.amount,
-      clientEmail: practiceCustomerIntake.metadata?.email,
+      practiceClientIntakeId: practiceClientIntake.id,
+      uuid: practiceClientIntake.id,
+      amount: practiceClientIntake.amount,
+      clientEmail: practiceClientIntake.metadata?.email,
     });
   } catch (error) {
     console.error('Failed to handle practice client intake canceled', {

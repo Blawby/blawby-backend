@@ -12,7 +12,7 @@ import type {
   CreatePracticeClientIntakeResponse,
   UpdatePracticeClientIntakeResponse,
   PracticeClientIntakeStatus,
-} from '../types/practice-client-intakes.types';
+} from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type {
   InsertPracticeClientIntake,
@@ -161,6 +161,7 @@ export const createPracticeClientIntakesService = (
             name: request.name,
             phone: request.phone || '',
             on_behalf_of: request.onBehalfOf || '',
+            opposing_party: request.opposingParty || '',
             description: request.description || '',
             organization_id: organization.id,
           },
@@ -180,6 +181,7 @@ export const createPracticeClientIntakesService = (
             name: request.name,
             phone: request.phone,
             onBehalfOf: request.onBehalfOf,
+            opposingParty: request.opposingParty,
             description: request.description,
           },
           clientIp: request.clientIp,
@@ -323,6 +325,7 @@ export const createPracticeClientIntakesService = (
               name: string;
               phone?: string;
               onBehalfOf?: string;
+              opposingParty?: string;
               description?: string;
             },
             succeededAt: practiceClientIntake.succeededAt || undefined,

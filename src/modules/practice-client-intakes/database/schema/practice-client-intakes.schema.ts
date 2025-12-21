@@ -85,6 +85,7 @@ const practiceClientIntakeMetadataSchema = z.object({
   name: z.string().min(1),
   phone: z.string().optional(),
   onBehalfOf: z.string().optional(),
+  opposingParty: z.string().optional(),
   description: z.string().optional(),
 });
 

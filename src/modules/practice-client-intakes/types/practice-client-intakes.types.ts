@@ -26,6 +26,7 @@ export interface CreatePracticeClientIntakeRequest {
   name: string;
   phone?: string;
   onBehalfOf?: string;
+  opposingParty?: string;
   description?: string;
   clientIp?: string;
   userAgent?: string;
@@ -76,6 +77,7 @@ export interface PracticeClientIntakeStatus {
       name: string;
       phone?: string;
       onBehalfOf?: string;
+      opposingParty?: string;
       description?: string;
     };
     succeededAt?: Date;
