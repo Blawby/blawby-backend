@@ -7,9 +7,11 @@
 
 import { connectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
 import { paymentIntentsRepository } from '@/modules/payments/database/queries/payment-intents.repository';
+import { handlePracticeClientIntakeFailed } from '@/modules/practice-client-intakes/handlers/failed.handler';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import type Stripe from 'stripe';
 
 export const handlePaymentIntentFailed
   = async function handlePaymentIntentFailed(
@@ -56,9 +58,8 @@ export const handlePaymentIntentFailed
         status: 'canceled', // Failed payments are marked as canceled
       });
 
-      // Check if this is an intake payment and handle it
-      // TODO: Integrate with intake payment handlers when payments module is fixed
-      // await handleIntakePaymentFailed(paymentIntentData as Stripe.PaymentIntent);
+      // 4. Check if this is a practice client intake and handle it
+      await handlePracticeClientIntakeFailed(paymentIntentData as Stripe.PaymentIntent);
 
       // Publish simple payment failed event
       void publishSimpleEvent(EventType.PAYMENT_FAILED, 'system', connectedAccount.organization_id, {

@@ -1,22 +1,22 @@
 /**
- * Intake Payments Service
+ * Practice Client Intakes Service
  *
- * Handles intake payment creation, confirmation, and processing
+ * Handles practice client intake payment creation, confirmation, and processing
  * Implements direct payment functionality for client intake
  */
 
 import { eq } from 'drizzle-orm';
 import type {
-  OrganizationIntakeSettings,
-  CreateIntakePaymentRequest,
-  CreateIntakePaymentResponse,
-  UpdateIntakePaymentResponse,
-  IntakePaymentStatus,
-} from '../types/intake-payments.types';
-import { intakePaymentsRepository } from '@/modules/intake-payments/database/queries/intake-payments.repository';
+  PracticeClientIntakeSettings,
+  CreatePracticeClientIntakeRequest,
+  CreatePracticeClientIntakeResponse,
+  UpdatePracticeClientIntakeResponse,
+  PracticeClientIntakeStatus,
+} from '../types/practice-client-intakes.types';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type {
-  InsertIntakePayment,
-} from '@/modules/intake-payments/database/schema/intake-payments.schema';
+  InsertPracticeClientIntake,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { stripeConnectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
 import { organizations } from '@/schema';
 import { db } from '@/shared/database';
@@ -26,22 +26,22 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 
 /**
- * Create intake payments service
+ * Create practice client intakes service
  */
-export const createIntakePaymentsService = (
+export const createPracticeClientIntakesService = (
 ): {
-  getOrganizationIntakeSettings(slug: string): Promise<OrganizationIntakeSettings>;
-  createIntakePayment(request: CreateIntakePaymentRequest): Promise<CreateIntakePaymentResponse>;
-  updateIntakePayment(ulid: string, amount: number): Promise<UpdateIntakePaymentResponse>;
-  getIntakePaymentStatus(ulid: string): Promise<IntakePaymentStatus>;
+  getPracticeClientIntakeSettings(slug: string): Promise<PracticeClientIntakeSettings>;
+  createPracticeClientIntake(request: CreatePracticeClientIntakeRequest): Promise<CreatePracticeClientIntakeResponse>;
+  updatePracticeClientIntake(uuid: string, amount: number): Promise<UpdatePracticeClientIntakeResponse>;
+  getPracticeClientIntakeStatus(uuid: string): Promise<PracticeClientIntakeStatus>;
 } => {
   return {
     /**
-     * Get organization intake settings by slug
+     * Get practice client intake settings by slug
      */
-    async getOrganizationIntakeSettings(
+    async getPracticeClientIntakeSettings(
       slug: string,
-    ): Promise<OrganizationIntakeSettings> {
+    ): Promise<PracticeClientIntakeSettings> {
       try {
         // 1. Find organization by slug
         const organization = await db.query.organizations.findFirst({
@@ -112,14 +112,14 @@ export const createIntakePaymentsService = (
     },
 
     /**
-     * Create a new intake payment
+     * Create a new practice client intake
      */
-    async createIntakePayment(
-      request: CreateIntakePaymentRequest,
-    ): Promise<CreateIntakePaymentResponse> {
+    async createPracticeClientIntake(
+      request: CreatePracticeClientIntakeRequest,
+    ): Promise<CreatePracticeClientIntakeResponse> {
       try {
-        // 1. Get organization intake settings
-        const settings = await this.getOrganizationIntakeSettings(request.slug);
+        // 1. Get practice client intake settings
+        const settings = await this.getPracticeClientIntakeSettings(request.slug);
         if (!settings.success || !settings.data) {
           return {
             success: false,
@@ -167,8 +167,8 @@ export const createIntakePaymentsService = (
           receipt_email: request.email,
         });
 
-        // 5. Store intake payment in database
-        const intakePaymentData: InsertIntakePayment = {
+        // 5. Store practice client intake in database
+        const practiceClientIntakeData: InsertPracticeClientIntake = {
           organizationId: organization.id,
           connectedAccountId: connectedAccountDetails.id,
           stripePaymentIntentId: stripePaymentIntent.id,
@@ -182,28 +182,28 @@ export const createIntakePaymentsService = (
             onBehalfOf: request.onBehalfOf,
             description: request.description,
           },
-          customerIp: request.customerIp,
+          clientIp: request.clientIp,
           userAgent: request.userAgent,
         };
 
-        const intakePayment = await intakePaymentsRepository.create(intakePaymentData);
+        const practiceClientIntake = await practiceClientIntakesRepository.create(practiceClientIntakeData);
 
-        // 6. Publish intake payment created event
+        // 6. Publish practice client intake created event
         void publishSimpleEvent(EventType.INTAKE_PAYMENT_CREATED, 'organization', organization.id, {
-          intake_payment_id: intakePayment.id,
-          ulid: intakePayment.ulid,
+          intake_payment_id: practiceClientIntake.id,
+          uuid: practiceClientIntake.id,
           stripe_payment_intent_id: stripePaymentIntent.id,
           amount: request.amount,
           currency: 'usd',
-          customer_email: request.email,
-          customer_name: request.name,
+          client_email: request.email,
+          client_name: request.name,
           created_at: new Date().toISOString(),
         });
 
         return {
           success: true,
           data: {
-            ulid: intakePayment.ulid,
+            uuid: practiceClientIntake.id,
             clientSecret: stripePaymentIntent.client_secret!,
             amount: request.amount,
             currency: 'usd',
@@ -215,7 +215,7 @@ export const createIntakePaymentsService = (
           },
         };
       } catch (error) {
-        console.error({ error }, 'Failed to create intake payment');
+        console.error({ error }, 'Failed to create practice client intake');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -224,24 +224,24 @@ export const createIntakePaymentsService = (
     },
 
     /**
-     * Update intake payment amount before confirmation
+     * Update practice client intake amount before confirmation
      */
-    async updateIntakePayment(
-      ulid: string,
+    async updatePracticeClientIntake(
+      uuid: string,
       amount: number,
-    ): Promise<UpdateIntakePaymentResponse> {
+    ): Promise<UpdatePracticeClientIntakeResponse> {
       try {
-        // 1. Find intake payment by ULID
-        const intakePayment = await intakePaymentsRepository.findByUlid(ulid);
-        if (!intakePayment) {
+        // 1. Find practice client intake by UUID
+        const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
+        if (!practiceClientIntake) {
           return {
             success: false,
-            error: 'Intake payment not found',
+            error: 'Practice client intake not found',
           };
         }
 
         // 2. Validate status allows updates
-        if (intakePayment.status === 'succeeded' || intakePayment.status === 'canceled') {
+        if (practiceClientIntake.status === 'succeeded' || practiceClientIntake.status === 'canceled') {
           return {
             success: false,
             error: 'Cannot update payment that has already been processed',
@@ -250,7 +250,7 @@ export const createIntakePaymentsService = (
 
         // 3. Get connected account
         const connectedAccount = await stripeConnectedAccountsRepository.findById(
-          intakePayment.connectedAccountId,
+          practiceClientIntake.connectedAccountId,
         );
         if (!connectedAccount) {
           return {
@@ -261,7 +261,7 @@ export const createIntakePaymentsService = (
 
         // 4. Update payment intent on Stripe
         const stripePaymentIntent = await stripe.paymentIntents.update(
-          intakePayment.stripePaymentIntentId,
+          practiceClientIntake.stripePaymentIntentId,
           {
             amount,
           },
@@ -270,8 +270,8 @@ export const createIntakePaymentsService = (
           },
         );
 
-        // 5. Update intake payment in database
-        await intakePaymentsRepository.update(intakePayment.id, {
+        // 5. Update practice client intake in database
+        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
           amount,
           status: stripePaymentIntent.status,
         });
@@ -279,15 +279,15 @@ export const createIntakePaymentsService = (
         return {
           success: true,
           data: {
-            ulid: intakePayment.ulid,
+            uuid: practiceClientIntake.id,
             clientSecret: stripePaymentIntent.client_secret!,
             amount,
-            currency: intakePayment.currency,
+            currency: practiceClientIntake.currency,
             status: stripePaymentIntent.status,
           },
         };
       } catch (error) {
-        console.error({ error }, 'Failed to update intake payment');
+        console.error({ error }, 'Failed to update practice client intake');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -296,41 +296,41 @@ export const createIntakePaymentsService = (
     },
 
     /**
-     * Get intake payment status by ULID
+     * Get practice client intake status by UUID
      */
-    async getIntakePaymentStatus(
-      ulid: string,
-    ): Promise<IntakePaymentStatus> {
+    async getPracticeClientIntakeStatus(
+      uuid: string,
+    ): Promise<PracticeClientIntakeStatus> {
       try {
-        const intakePayment = await intakePaymentsRepository.findByUlid(ulid);
-        if (!intakePayment) {
+        const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
+        if (!practiceClientIntake) {
           return {
             success: false,
-            error: 'Intake payment not found',
+            error: 'Practice client intake not found',
           };
         }
 
         return {
           success: true,
           data: {
-            ulid: intakePayment.ulid,
-            amount: intakePayment.amount,
-            currency: intakePayment.currency,
-            status: intakePayment.status,
-            stripeChargeId: intakePayment.stripeChargeId || undefined,
-            metadata: intakePayment.metadata as {
+            uuid: practiceClientIntake.id,
+            amount: practiceClientIntake.amount,
+            currency: practiceClientIntake.currency,
+            status: practiceClientIntake.status,
+            stripeChargeId: practiceClientIntake.stripeChargeId || undefined,
+            metadata: practiceClientIntake.metadata as {
               email: string;
               name: string;
               phone?: string;
               onBehalfOf?: string;
               description?: string;
             },
-            succeededAt: intakePayment.succeededAt || undefined,
-            createdAt: intakePayment.createdAt,
+            succeededAt: practiceClientIntake.succeededAt || undefined,
+            createdAt: practiceClientIntake.createdAt,
           },
         };
       } catch (error) {
-        console.error({ error }, 'Failed to get intake payment status');
+        console.error({ error }, 'Failed to get practice client intake status');
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',

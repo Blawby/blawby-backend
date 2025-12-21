@@ -1,65 +1,54 @@
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 
 import {
-  intakePayments,
-  type InsertIntakePayment,
-  type SelectIntakePayment,
-} from '@/modules/intake-payments/database/schema/intake-payments.schema';
+  practiceClientIntakes,
+  type InsertPracticeClientIntake,
+  type SelectPracticeClientIntake,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 
 import { db } from '@/shared/database';
 
-export const intakePaymentsRepository = {
+export const practiceClientIntakesRepository = {
   create: async function create(
-    data: InsertIntakePayment,
-  ): Promise<SelectIntakePayment> {
-    const [intakePayment] = await db
-      .insert(intakePayments)
+    data: InsertPracticeClientIntake,
+  ): Promise<SelectPracticeClientIntake> {
+    const [practiceClientIntake] = await db
+      .insert(practiceClientIntakes)
       .values(data)
       .returning();
-    return intakePayment;
+    return practiceClientIntake;
   },
 
   findById: async function findById(
     id: string,
-  ): Promise<SelectIntakePayment | undefined> {
+  ): Promise<SelectPracticeClientIntake | undefined> {
     const [result] = await db
       .select()
-      .from(intakePayments)
-      .where(eq(intakePayments.id, id))
-      .limit(1);
-    return result;
-  },
-
-  findByUlid: async function findByUlid(
-    ulid: string,
-  ): Promise<SelectIntakePayment | undefined> {
-    const [result] = await db
-      .select()
-      .from(intakePayments)
-      .where(eq(intakePayments.ulid, ulid))
+      .from(practiceClientIntakes)
+      .where(eq(practiceClientIntakes.id, id))
       .limit(1);
     return result;
   },
 
   findByStripePaymentIntentId: async function findByStripePaymentIntentId(
     intentId: string,
-  ): Promise<SelectIntakePayment | undefined> {
+  ): Promise<SelectPracticeClientIntake | undefined> {
     const [result] = await db
       .select()
-      .from(intakePayments)
-      .where(eq(intakePayments.stripePaymentIntentId, intentId))
+      .from(practiceClientIntakes)
+      .where(eq(practiceClientIntakes.stripePaymentIntentId, intentId))
       .limit(1);
     return result;
   },
 
   update: async function update(
     id: string,
-    data: Partial<SelectIntakePayment>,
-  ): Promise<SelectIntakePayment> {
+    data: Partial<SelectPracticeClientIntake>,
+  ): Promise<SelectPracticeClientIntake> {
     const [updated] = await db
-      .update(intakePayments)
+      .update(practiceClientIntakes)
       .set({ ...data, updatedAt: new Date() })
-      .where(eq(intakePayments.id, id))
+      .where(eq(practiceClientIntakes.id, id))
       .returning();
     return updated;
   },
@@ -67,11 +56,11 @@ export const intakePaymentsRepository = {
   updateStatus: async function updateStatus(
     id: string,
     status: string,
-  ): Promise<SelectIntakePayment> {
+  ): Promise<SelectPracticeClientIntake> {
     const [updated] = await db
-      .update(intakePayments)
+      .update(practiceClientIntakes)
       .set({ status, updatedAt: new Date() })
-      .where(eq(intakePayments.id, id))
+      .where(eq(practiceClientIntakes.id, id))
       .returning();
     return updated;
   },
@@ -80,12 +69,12 @@ export const intakePaymentsRepository = {
     organizationId: string,
     limit = 100,
     offset = 0,
-  ): Promise<SelectIntakePayment[]> {
+  ): Promise<SelectPracticeClientIntake[]> {
     return await db
       .select()
-      .from(intakePayments)
-      .where(eq(intakePayments.organizationId, organizationId))
-      .orderBy(desc(intakePayments.createdAt))
+      .from(practiceClientIntakes)
+      .where(eq(practiceClientIntakes.organizationId, organizationId))
+      .orderBy(desc(practiceClientIntakes.createdAt))
       .limit(limit)
       .offset(offset);
   },
@@ -99,22 +88,22 @@ export const intakePaymentsRepository = {
     count: number;
     succeededCount: number;
   }> {
-    const conditions = [eq(intakePayments.organizationId, organizationId)];
+    const conditions = [eq(practiceClientIntakes.organizationId, organizationId)];
 
     if (startDate) {
-      conditions.push(gte(intakePayments.createdAt, startDate));
+      conditions.push(gte(practiceClientIntakes.createdAt, startDate));
     }
 
     if (endDate) {
-      conditions.push(lte(intakePayments.createdAt, endDate));
+      conditions.push(lte(practiceClientIntakes.createdAt, endDate));
     }
 
     const results = await db
       .select({
-        totalAmount: intakePayments.amount,
-        status: intakePayments.status,
+        totalAmount: practiceClientIntakes.amount,
+        status: practiceClientIntakes.status,
       })
-      .from(intakePayments)
+      .from(practiceClientIntakes)
       .where(and(...conditions));
 
     const totalAmount = results.reduce((sum, row) => sum + row.totalAmount, 0);

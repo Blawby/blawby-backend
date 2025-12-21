@@ -1,4 +1,4 @@
-export interface OrganizationIntakeSettings {
+export interface PracticeClientIntakeSettings {
   success: boolean;
   data?: {
     organization: {
@@ -19,7 +19,7 @@ export interface OrganizationIntakeSettings {
   error?: string;
 }
 
-export interface CreateIntakePaymentRequest {
+export interface CreatePracticeClientIntakeRequest {
   slug: string;
   amount: number;
   email: string;
@@ -27,14 +27,14 @@ export interface CreateIntakePaymentRequest {
   phone?: string;
   onBehalfOf?: string;
   description?: string;
-  customerIp?: string;
+  clientIp?: string;
   userAgent?: string;
 }
 
-export interface CreateIntakePaymentResponse {
+export interface CreatePracticeClientIntakeResponse {
   success: boolean;
   data?: {
-    ulid: string;
+    uuid: string;
     clientSecret: string;
     amount: number;
     currency: string;
@@ -47,14 +47,14 @@ export interface CreateIntakePaymentResponse {
   error?: string;
 }
 
-export interface UpdateIntakePaymentRequest {
+export interface UpdatePracticeClientIntakeRequest {
   amount: number;
 }
 
-export interface UpdateIntakePaymentResponse {
+export interface UpdatePracticeClientIntakeResponse {
   success: boolean;
   data?: {
-    ulid: string;
+    uuid: string;
     clientSecret: string;
     amount: number;
     currency: string;
@@ -63,10 +63,10 @@ export interface UpdateIntakePaymentResponse {
   error?: string;
 }
 
-export interface IntakePaymentStatus {
+export interface PracticeClientIntakeStatus {
   success: boolean;
   data?: {
-    ulid: string;
+    uuid: string;
     amount: number;
     currency: string;
     status: string;
@@ -84,7 +84,7 @@ export interface IntakePaymentStatus {
   error?: string;
 }
 
-export interface IntakePaymentStats {
+export interface PracticeClientIntakeStats {
   totalAmount: number;
   count: number;
   succeededCount: number;

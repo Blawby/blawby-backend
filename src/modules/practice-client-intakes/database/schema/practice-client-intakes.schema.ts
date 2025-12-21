@@ -8,17 +8,15 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { ulid } from 'ulid';
 import { z } from 'zod';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { organizations } from '@/schema';
 
-export const intakePayments = pgTable(
-  'intake_payments',
+export const practiceClientIntakes = pgTable(
+  'practice_client_intakes',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    ulid: text('ulid').notNull().unique().$defaultFn(() => ulid()),
 
     // Relations
     organizationId: text('organization_id')
@@ -38,11 +36,11 @@ export const intakePayments = pgTable(
     currency: text('currency').notNull().default('usd'),
     status: text('status').notNull(),
 
-    // Customer Data
-    metadata: jsonb('metadata').$type<IntakePaymentMetadata>(),
+    // Client Data
+    metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
 
     // Security & Tracking
-    customerIp: text('customer_ip'),
+    clientIp: text('client_ip'),
     userAgent: text('user_agent'),
 
     // Timestamps
@@ -55,35 +53,34 @@ export const intakePayments = pgTable(
       .notNull(),
   },
   (table) => [
-    index('intake_payments_org_idx').on(table.organizationId),
-    index('intake_payments_stripe_intent_idx').on(table.stripePaymentIntentId),
-    index('intake_payments_ulid_idx').on(table.ulid),
-    index('intake_payments_status_idx').on(table.status),
-    index('intake_payments_created_at_idx').on(table.createdAt),
+    index('practice_client_intakes_org_idx').on(table.organizationId),
+    index('practice_client_intakes_stripe_intent_idx').on(table.stripePaymentIntentId),
+    index('practice_client_intakes_status_idx').on(table.status),
+    index('practice_client_intakes_created_at_idx').on(table.createdAt),
   ],
 );
 
 // Define relations
-export const intakePaymentsRelations = relations(
-  intakePayments,
+export const practiceClientIntakesRelations = relations(
+  practiceClientIntakes,
   ({ one }) => ({
     organization: one(organizations, {
-      fields: [intakePayments.organizationId],
+      fields: [practiceClientIntakes.organizationId],
       references: [organizations.id],
     }),
     connectedAccount: one(stripeConnectedAccounts, {
-      fields: [intakePayments.connectedAccountId],
+      fields: [practiceClientIntakes.connectedAccountId],
       references: [stripeConnectedAccounts.id],
     }),
   }),
 );
 
 
-export type InsertIntakePayment = typeof intakePayments.$inferInsert;
-export type SelectIntakePayment = typeof intakePayments.$inferSelect;
+export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInsert;
+export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
 
 // Define metadata schema and type using Zod
-const intakePaymentMetadataSchema = z.object({
+const practiceClientIntakeMetadataSchema = z.object({
   email: z.email(),
   name: z.string().min(1),
   phone: z.string().optional(),
@@ -91,4 +88,4 @@ const intakePaymentMetadataSchema = z.object({
   description: z.string().optional(),
 });
 
-export type IntakePaymentMetadata = z.infer<typeof intakePaymentMetadataSchema>;
+export type PracticeClientIntakeMetadata = z.infer<typeof practiceClientIntakeMetadataSchema>;

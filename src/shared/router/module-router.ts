@@ -363,8 +363,10 @@ const loadModule = async (app: AppType, moduleName: string): Promise<void> => {
 
     const config = await loadModuleConfig(moduleName);
 
+    // If prefix is provided and starts with '/', use it as-is (full path)
+    // Otherwise, construct path with module name
     const mountPath = config.prefix
-      ? `/api/${config.prefix}/${moduleName}`
+      ? (config.prefix.startsWith('/') ? config.prefix : `/api/${config.prefix}/${moduleName}`)
       : `/api/${moduleName}`;
 
     await registerModuleMiddleware(app, mountPath, config);

@@ -7,6 +7,7 @@ import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { sql } from 'drizzle-orm';
 import {
   logger,
   cors,
@@ -55,24 +56,37 @@ app.get('/', (c) => {
   return c.json({
     message: 'Hono server is running!',
     timestamp: new Date().toISOString(),
-    routes: ['/health', '/api/health', '/api/session', '/docs'],
+    routes: ['/api/health', '/api/session', '/docs'],
   });
 });
 
-// Health check routes
-app.get('/health', (c) => {
-  return c.json({
-    status: 'ok',
-    framework: 'hono',
-    timestamp: new Date().toISOString(),
-  });
-});
-app.get('/api/health', (c) => {
-  return c.json({
-    status: 'ok',
+app.get('/api/health', async (c) => {
+  const health = {
+    status: 'ok' as 'ok' | 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-  });
+    database: {
+      status: 'unknown' as 'connected' | 'disconnected' | 'unknown',
+      latency: null as number | null,
+    }
+  };
+
+  // Check database connection
+  try {
+    const startTime = Date.now();
+    await db.execute(sql`SELECT 1`);
+    const latency = Date.now() - startTime;
+
+    health.database.status = 'connected';
+    health.database.latency = latency;
+  } catch {
+    health.status = 'degraded';
+    health.database.status = 'disconnected';
+    health.database.latency = null;
+  }
+
+  const statusCode = health.status === 'ok' ? 200 : 503;
+  return c.json(health, statusCode);
 });
 
 // Register additional module routes
