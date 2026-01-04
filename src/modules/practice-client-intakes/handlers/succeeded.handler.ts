@@ -9,7 +9,7 @@ import { sanitizeError } from '@/shared/utils/logging';
 /**
  * Handle successful practice client intake
  */
-export const handlePracticeClientIntakeSucceeded = async function handlePracticeClientIntakeSucceeded(
+export const handlePracticeClientIntakeSucceeded = async function handlePracticeCustomerIntakeSucceeded(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
   try {
@@ -63,7 +63,7 @@ export const handlePracticeClientIntakeSucceeded = async function handlePractice
 /**
  * Handle failed practice client intake
  */
-export const handlePracticeClientIntakeFailed = async function handlePracticeClientIntakeFailed(
+export const handlePracticeCustomerIntakeFailed = async function handlePracticeCustomerIntakeFailed(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
   try {
@@ -116,7 +116,7 @@ export const handlePracticeClientIntakeFailed = async function handlePracticeCli
 /**
  * Handle canceled practice client intake
  */
-export const handlePracticeClientIntakeCanceled = async function handlePracticeClientIntakeCanceled(
+export const handlePracticeCustomerIntakeCanceled = async function handlePracticeCustomerIntakeCanceled(
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> {
   try {

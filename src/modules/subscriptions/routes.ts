@@ -1,20 +1,15 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
 import {
+  subscriptionIdParamSchema,
   createSubscriptionSchema,
   cancelSubscriptionSchema,
-  subscriptionIdParamSchema,
-  listPlansResponseSchema,
-  getCurrentSubscriptionResponseSchema,
-  createSubscriptionResponseSchema,
-  cancelSubscriptionResponseSchema,
-  subscriptionWithDetailsResponseSchema,
-} from '@/modules/subscriptions/validations/subscription.validation';
-import {
+  subscriptionPlanResponseSchema,
+  subscriptionResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,
   internalServerErrorResponseSchema,
-} from '@/modules/subscriptions/validations/subscription.validation';
+} from './validations/subscription.validation';
 
 /**
  * GET /api/subscriptions/plans
@@ -25,24 +20,17 @@ export const listPlansRoute = createRoute({
   path: '/plans',
   tags: ['Subscriptions'],
   summary: 'List subscription plans',
-  description: 'Retrieve all available subscription plans. Requires authentication.',
-  security: [{ Bearer: [] }],
+  description: 'Get all available subscription plans (public endpoint)',
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: listPlansResponseSchema,
+          schema: z.object({
+            plans: z.array(subscriptionPlanResponseSchema),
+          }),
         },
       },
       description: 'Plans retrieved successfully',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - Authentication required',
     },
     500: {
       content: {
@@ -64,13 +52,15 @@ export const getCurrentSubscriptionRoute = createRoute({
   path: '/current',
   tags: ['Subscriptions'],
   summary: 'Get current subscription',
-  description: 'Retrieve the active subscription for the current organization. Requires authentication and active organization.',
+  description: 'Get the current organization\'s active subscription',
   security: [{ Bearer: [] }],
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: getCurrentSubscriptionResponseSchema,
+          schema: z.object({
+            subscription: subscriptionResponseSchema.nullable(),
+          }),
         },
       },
       description: 'Subscription retrieved successfully',
@@ -81,23 +71,7 @@ export const getCurrentSubscriptionRoute = createRoute({
           schema: errorResponseSchema,
         },
       },
-      description: 'Bad Request - No active organization',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - Authentication required',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: notFoundResponseSchema,
-        },
-      },
-      description: 'No active subscription found',
+      description: 'Bad request',
     },
     500: {
       content: {
@@ -119,7 +93,7 @@ export const createSubscriptionRoute = createRoute({
   path: '/create',
   tags: ['Subscriptions'],
   summary: 'Create subscription',
-  description: 'Create or upgrade a subscription for the current organization. Requires planId (UUID). Creates Stripe customer if needed and returns checkout URL. Requires authentication and active organization.',
+  description: 'Create or upgrade a subscription for the current organization',
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -128,14 +102,13 @@ export const createSubscriptionRoute = createRoute({
           schema: createSubscriptionSchema,
         },
       },
-      description: 'Subscription creation data. planId (UUID) is required, plan (name) is optional.',
     },
   },
   responses: {
     201: {
       content: {
         'application/json': {
-          schema: createSubscriptionResponseSchema,
+          schema: subscriptionResponseSchema,
         },
       },
       description: 'Subscription created successfully',
@@ -146,15 +119,7 @@ export const createSubscriptionRoute = createRoute({
           schema: errorResponseSchema,
         },
       },
-      description: 'Bad Request - Invalid request data, plan not found, plan not active, or no active organization',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - Authentication required',
+      description: 'Bad request',
     },
     500: {
       content: {
@@ -162,7 +127,7 @@ export const createSubscriptionRoute = createRoute({
           schema: internalServerErrorResponseSchema,
         },
       },
-      description: 'Failed to create subscription',
+      description: 'Internal server error',
     },
   },
 });
@@ -176,7 +141,7 @@ export const cancelSubscriptionRoute = createRoute({
   path: '/cancel',
   tags: ['Subscriptions'],
   summary: 'Cancel subscription',
-  description: 'Cancel the active subscription for the current organization. Can cancel immediately or at the end of the billing period. Requires authentication and active organization.',
+  description: 'Cancel the current organization\'s subscription',
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -185,14 +150,13 @@ export const cancelSubscriptionRoute = createRoute({
           schema: cancelSubscriptionSchema,
         },
       },
-      description: 'Cancellation data',
     },
   },
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: cancelSubscriptionResponseSchema,
+          schema: subscriptionResponseSchema,
         },
       },
       description: 'Subscription cancelled successfully',
@@ -203,15 +167,7 @@ export const cancelSubscriptionRoute = createRoute({
           schema: errorResponseSchema,
         },
       },
-      description: 'Bad Request - Invalid request or no active organization',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - Authentication required',
+      description: 'Bad request',
     },
     404: {
       content: {
@@ -227,7 +183,7 @@ export const cancelSubscriptionRoute = createRoute({
           schema: internalServerErrorResponseSchema,
         },
       },
-      description: 'Failed to cancel subscription',
+      description: 'Internal server error',
     },
   },
 });
@@ -241,7 +197,7 @@ export const getSubscriptionByIdRoute = createRoute({
   path: '/{subscriptionId}',
   tags: ['Subscriptions'],
   summary: 'Get subscription by ID',
-  description: 'Retrieve a specific subscription by its ID. The subscription must belong to the user\'s organization. Requires authentication and active organization.',
+  description: 'Get a specific subscription by its ID',
   security: [{ Bearer: [] }],
   request: {
     params: subscriptionIdParamSchema,
@@ -250,7 +206,9 @@ export const getSubscriptionByIdRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: subscriptionWithDetailsResponseSchema,
+          schema: z.object({
+            subscription: subscriptionResponseSchema.nullable(),
+          }),
         },
       },
       description: 'Subscription retrieved successfully',
@@ -261,15 +219,7 @@ export const getSubscriptionByIdRoute = createRoute({
           schema: errorResponseSchema,
         },
       },
-      description: 'Bad Request - No active organization',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - Authentication required',
+      description: 'Bad request',
     },
     404: {
       content: {

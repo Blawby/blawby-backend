@@ -13,16 +13,16 @@ export const handlePracticeClientIntakeFailed = async function handlePracticeCus
 ): Promise<void> {
   try {
     // Find practice client intake by Stripe payment intent ID
-    const practiceCustomerIntake = await practiceCustomerIntakesRepository.findByStripePaymentIntentId(
+    const practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(
       paymentIntent.id,
     );
 
-    if (!practiceCustomerIntake) {
+    if (!practiceClientIntake) {
       return; // Not a practice client intake
     }
 
     // Update practice client intake status
-    await practiceCustomerIntakesRepository.update(practiceCustomerIntake.id, {
+    await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       status: 'failed',
     });
 
@@ -30,24 +30,24 @@ export const handlePracticeClientIntakeFailed = async function handlePracticeCus
     await publishSimpleEvent(
       EventType.INTAKE_PAYMENT_FAILED,
       'organization',
-      practiceCustomerIntake.organizationId,
+      practiceClientIntake.organizationId,
       {
-        intake_payment_id: practiceCustomerIntake.id,
-        uuid: practiceCustomerIntake.id,
-        amount: practiceCustomerIntake.amount,
-        currency: practiceCustomerIntake.currency,
-        client_email: practiceCustomerIntake.metadata?.email,
-        client_name: practiceCustomerIntake.metadata?.name,
+        intake_payment_id: practiceClientIntake.id,
+        uuid: practiceClientIntake.id,
+        amount: practiceClientIntake.amount,
+        currency: practiceClientIntake.currency,
+        client_email: practiceClientIntake.metadata?.email,
+        client_name: practiceClientIntake.metadata?.name,
         failure_reason: paymentIntent.last_payment_error?.message,
         failed_at: new Date().toISOString(),
       },
     );
 
     console.warn('Practice client intake failed', {
-      practiceCustomerIntakeId: practiceCustomerIntake.id,
-      uuid: practiceCustomerIntake.id,
-      amount: practiceCustomerIntake.amount,
-      clientEmail: practiceCustomerIntake.metadata?.email,
+      practiceClientIntakeId: practiceClientIntake.id,
+      uuid: practiceClientIntake.id,
+      amount: practiceClientIntake.amount,
+      clientEmail: practiceClientIntake.metadata?.email,
       failureReason: paymentIntent.last_payment_error?.message,
     });
   } catch (error) {

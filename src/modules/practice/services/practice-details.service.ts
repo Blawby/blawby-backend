@@ -33,15 +33,11 @@ export const getPracticeDetails = async (
   requestHeaders: Record<string, string>,
 ): Promise<PracticeDetailsResponse | null> => {
   // Verify organization exists and user has access
-  const organization = await getFullOrganization(
+  await getFullOrganization(
     organizationId,
     user,
     requestHeaders,
   );
-
-  if (!organization) {
-    throw new Error('Practice not found');
-  }
 
   // Get practice details
   const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
@@ -76,15 +72,11 @@ export const createPracticeDetailsService = async (
   requestHeaders: Record<string, string>,
 ): Promise<PracticeDetailsResponse> => {
   // Verify organization exists and user has access
-  const organization = await getFullOrganization(
+  await getFullOrganization(
     organizationId,
     user,
     requestHeaders,
   );
-
-  if (!organization) {
-    throw new Error('Practice not found');
-  }
 
   // Check if practice details already exist
   const existing = await findPracticeDetailsByOrganization(organizationId);
@@ -94,6 +86,7 @@ export const createPracticeDetailsService = async (
 
   // Create practice details
   const practiceDetails = await createPracticeDetails({
+    id: crypto.randomUUID(),
     organization_id: organizationId,
     user_id: user.id,
     business_phone: data.business_phone || null,
@@ -144,15 +137,11 @@ export const updatePracticeDetailsService = async (
   requestHeaders: Record<string, string>,
 ): Promise<PracticeDetailsResponse> => {
   // Verify organization exists and user has access
-  const organization = await getFullOrganization(
+  await getFullOrganization(
     organizationId,
     user,
     requestHeaders,
   );
-
-  if (!organization) {
-    throw new Error('Practice not found');
-  }
 
   // Update practice details (upsert - creates if doesn't exist)
   const practiceDetails = await upsertPracticeDetails(organizationId, user.id, {
@@ -197,15 +186,11 @@ export const deletePracticeDetailsService = async (
   requestHeaders: Record<string, string>,
 ): Promise<void> => {
   // Verify organization exists and user has access
-  const organization = await getFullOrganization(
+  await getFullOrganization(
     organizationId,
     user,
     requestHeaders,
   );
-
-  if (!organization) {
-    throw new Error('Practice not found');
-  }
 
   // Get practice details before deletion for event
   const existing = await findPracticeDetailsByOrganization(organizationId);

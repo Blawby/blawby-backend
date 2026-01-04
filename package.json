@@ -21,8 +21,7 @@
     "lint:fix": "oxlint --fix",
     "start": "node dist/hono-server.js",
     "test": "cross-env TS_NODE_FILES=true tap test/**/*.test.ts",
-    "typecheck": "tsc -noEmit",
-    "worker:dev": "tsx watch src/workers/webhook.worker.ts"
+    "typecheck": "tsc -noEmit"
   },
   "dependencies": {
     "@better-auth/stripe": "^1.4.4",

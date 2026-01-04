@@ -105,7 +105,7 @@ export const subscriptionResponseSchema = z.object({
 export const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.extend({
   lineItems: z.array(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       stripePriceId: z.string(),
       itemType: z.string(),
       quantity: z.number(),
@@ -115,7 +115,7 @@ export const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.
   ),
   events: z.array(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       eventType: z.string(),
       toStatus: z.string().nullable(),
       triggeredByType: z.string(),
@@ -142,8 +142,8 @@ export const getCurrentSubscriptionResponseSchema = z.object({
  * Create subscription response schema
  */
 export const createSubscriptionResponseSchema = z.object({
-  subscriptionId: z.string().uuid().optional(),
-  checkoutUrl: z.string().url().optional(),
+  subscriptionId: z.uuid().optional(),
+  checkoutUrl: z.url().optional(),
   message: z.string(),
 });
 

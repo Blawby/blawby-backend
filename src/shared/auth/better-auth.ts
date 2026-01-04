@@ -47,6 +47,26 @@ const betterAuthInstance = (
     session: AUTH_CONFIG.session,
     emailAndPassword: AUTH_CONFIG.emailAndPassword,
     organization: AUTH_CONFIG.organization,
+    user: {
+      additionalFields: {
+        primaryWorkspace: {
+          type: ['client', 'practice'],
+          required: false,
+        },
+        phone: {
+          type: 'string',
+          required: false,
+        },
+        phoneCountryCode: {
+          type: 'string',
+          required: false,
+        },
+        dob: {
+          type: 'date',
+          required: false,
+        },
+      },
+    },
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID!,

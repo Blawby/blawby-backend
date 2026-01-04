@@ -40,8 +40,8 @@ export const handlePaymentIntentCanceled
         } as Record<string, unknown>,
       });
 
-      // Check if this is a practice client intake and handle it
-      await handlePracticeClientIntakeCanceled(paymentIntentData as Stripe.PaymentIntent);
+      // Check if this is a practice customer intake and handle it
+      await handlePracticeCustomerIntakeCanceled(paymentIntentData as Stripe.PaymentIntent);
 
       // Publish simple payment canceled event
       void publishSimpleEvent(EventType.PAYMENT_CANCELED, 'system', event.organizationId || 'unknown', {

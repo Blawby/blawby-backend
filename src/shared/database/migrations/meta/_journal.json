@@ -50,6 +50,20 @@
       "when": 1766322727343,
       "tag": "0006_freezing_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1767539074468,
+      "tag": "0007_flashy_exiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1767546588278,
+      "tag": "0008_violet_microbe",
+      "breakpoints": true
     }
   ]
 }

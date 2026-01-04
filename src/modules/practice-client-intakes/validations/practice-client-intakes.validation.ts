@@ -42,12 +42,12 @@ export const practiceClientIntakeSettingsResponseSchema = z.object({
       logo: z.string().optional(),
     }),
     settings: z.object({
-      payment_link_enabled: z.boolean(),
-      prefill_amount: z.number(),
+      paymentLinkEnabled: z.boolean(),
+      prefillAmount: z.number(),
     }),
-    connected_account: z.object({
+    connectedAccount: z.object({
       id: z.uuid(),
-      charges_enabled: z.boolean(),
+      chargesEnabled: z.boolean(),
     }),
   }).optional(),
   error: z.string().optional(),
