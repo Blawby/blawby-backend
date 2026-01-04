@@ -58,7 +58,7 @@ export const handlePaymentIntentFailed
         status: 'canceled', // Failed payments are marked as canceled
       });
 
-      // 4. Check if this is a practice client intake and handle it
+      // Check if this is a practice client intake and handle it
       await handlePracticeClientIntakeFailed(paymentIntentData as Stripe.PaymentIntent);
 
       // Publish simple payment failed event

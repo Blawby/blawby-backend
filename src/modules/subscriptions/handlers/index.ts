@@ -2,10 +2,10 @@
  * Subscription Webhook Handlers Exports
  */
 
-export * from './productCreated.handler';
-export * from './productUpdated.handler';
-export * from './productDeleted.handler';
-export * from './priceCreated.handler';
-export * from './priceUpdated.handler';
-export * from './priceDeleted.handler';
+export * from '@/modules/subscriptions/handlers/productCreated.handler';
+export * from '@/modules/subscriptions/handlers/productUpdated.handler';
+export * from '@/modules/subscriptions/handlers/productDeleted.handler';
+export * from '@/modules/subscriptions/handlers/priceCreated.handler';
+export * from '@/modules/subscriptions/handlers/priceUpdated.handler';
+export * from '@/modules/subscriptions/handlers/priceDeleted.handler';
 

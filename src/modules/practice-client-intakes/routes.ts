@@ -53,7 +53,7 @@ const uuidParamOpenAPISchema = z.object({
 export const getIntakeSettingsRoute = createRoute({
   method: 'get',
   path: '/{slug}/intake',
-  tags: ['Practice Client Intakes'],
+  tags: ['Practice Customer Intakes'],
   summary: 'Get intake settings',
   description: 'Public endpoint to retrieve organization details and payment settings for client intake',
   request: {
@@ -94,7 +94,7 @@ export const getIntakeSettingsRoute = createRoute({
 export const createPracticeClientIntakeRoute = createRoute({
   method: 'post',
   path: '/create',
-  tags: ['Practice Client Intakes'],
+  tags: ['Practice Customer Intakes'],
   summary: 'Create practice client intake',
   description: 'Creates a payment intent for a practice client intake',
   request: {
@@ -141,7 +141,7 @@ export const createPracticeClientIntakeRoute = createRoute({
 export const updatePracticeClientIntakeRoute = createRoute({
   method: 'put',
   path: '/{uuid}',
-  tags: ['Practice Client Intakes'],
+  tags: ['Practice Customer Intakes'],
   summary: 'Update practice client intake',
   description: 'Updates the payment amount for a practice client intake before confirmation. The UUID is obtained from the create endpoint response.',
   request: {
@@ -197,7 +197,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
 export const getPracticeClientIntakeStatusRoute = createRoute({
   method: 'get',
   path: '/{uuid}/status',
-  tags: ['Practice Client Intakes'],
+  tags: ['Practice Customer Intakes'],
   summary: 'Get practice client intake status',
   description: 'Retrieves the current status of a practice client intake payment. The UUID is obtained from the create endpoint response.',
   request: {

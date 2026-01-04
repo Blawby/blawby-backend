@@ -123,6 +123,30 @@ export const createPracticeClientIntakeSchema = z.object({
 3. **Standard convention** - Most REST APIs use snake_case
 4. **Automatic conversion** - Response utility (`response.ok()`, `response.created()`) automatically converts to snake_case
 
+### **Better Auth API Handling**
+
+**Important:** Better Auth APIs have special handling:
+
+- **Better Auth responses**: Automatically converted from `camelCase` to `snake_case` via `normalizeAuthResponse()` middleware
+- **Better Auth requests**: Better Auth SDK uses `camelCase` internally, but our middleware normalizes responses
+- **Better Auth endpoints**: All `/api/auth/*` routes are automatically normalized
+- **No manual conversion needed**: The middleware handles all Better Auth response normalization
+
+**Example:**
+
+```typescript
+// Better Auth returns camelCase internally:
+// { userId: "123", organizationId: "456" }
+
+// But our middleware automatically converts to snake_case:
+// { user_id: "123", organization_id: "456" }
+
+// This happens automatically for all Better Auth endpoints
+// No need to manually convert Better Auth responses
+```
+
+**Note:** When creating custom APIs that wrap Better Auth functionality, use `response.ok()` or `response.created()` utilities which automatically convert to snake_case, ensuring consistency with Better Auth's normalized responses.
+
 ## Functions
 
 - **Declare every function as a function expression.**

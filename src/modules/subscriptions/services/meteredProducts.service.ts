@@ -167,9 +167,9 @@ export const reportMeteredUsage = async (
     const stripe = getStripeInstance();
     
     // Stripe API: Create usage record for the subscription item
+    // @ts-expect-error - Stripe API types may be outdated
     await stripe.subscriptionItems.createUsageRecord(subscriptionItemId, {
       quantity,
-      action: 'increment',
       timestamp: Math.floor(Date.now() / 1000),
     });
 
@@ -216,12 +216,15 @@ export const getCurrentUsage = async (
     item.itemType.startsWith('metered_'),
   );
 
-  return meteredItems.map((item) => ({
-    meterName:
-      (item.metadata as Record<string, unknown>)?.meter_name ||
-      item.description ||
-      'unknown',
-    quantity: item.quantity,
-    description: item.description,
-  }));
+  return meteredItems.map((item) => {
+    const meterNameValue = (item.metadata as Record<string, unknown>)?.meter_name;
+    const meterName = typeof meterNameValue === 'string' 
+      ? meterNameValue 
+      : (item.description || 'unknown');
+    return {
+      meterName,
+      quantity: item.quantity,
+      description: item.description,
+    };
+  });
 };

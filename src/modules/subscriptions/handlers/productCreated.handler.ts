@@ -9,7 +9,7 @@ import type Stripe from 'stripe';
 
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { upsertPlan, findPlanByName } from '../database/queries/subscriptionPlans.repository';
+import { upsertPlan } from '../database/queries/subscriptionPlans.repository';
 
 /**
  * Extract plan limits from product metadata
@@ -98,19 +98,9 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
     const limits = extractLimits(metadata);
     const features = extractFeatures(metadata);
 
-    // Generate plan name - use metadata if provided, otherwise derive from product name
-    let planName = metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_');
-
-    // Check if plan with this name already exists (but different product ID)
-    const existingPlan = await findPlanByName(db, planName);
-    if (existingPlan && existingPlan.stripeProductId !== product.id) {
-      // Append product ID suffix to make it unique
-      planName = `${planName}_${product.id.slice(-8)}`;
-    }
-
     // Prepare plan data
     const planData = {
-      name: planName,
+      name: (metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_')),
       displayName: product.name,
       description: product.description || null,
       stripeProductId: product.id,

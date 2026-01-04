@@ -5,6 +5,7 @@ import {
   timestamp,
   boolean,
   integer,
+  date,
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -14,6 +15,11 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
   isAnonymous: boolean('is_anonymous').default(false).notNull(),
+  primaryWorkspace: text('primary_workspace'), // 'client' | 'practice'
+  phone: text('phone'),
+  phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
+  dob: date('dob'), // Date of birth (date only, no time)
+  stripeCustomerId: text('stripe_customer_id'), // Stripe customer ID for billing
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at')
     .defaultNow()

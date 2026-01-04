@@ -7,24 +7,27 @@
 import { eq, desc } from 'drizzle-orm';
 
 import {
-  userDetails,
-  type InsertUserDetails,
-  type UserDetails,
-  type UpdateUserDetails,
+  preferences,
+  type InsertPreferences,
+  type Preferences,
   type ProductUsage,
-} from '@/modules/user-details/schema/user-details.schema';
+} from '@/modules/preferences/schema/preferences.schema';
+import { users } from '@/schema/better-auth-schema';
 
 import { db } from '@/shared/database';
+
+// Use Drizzle's inferred update type instead of Zod-inferred type
+type UpdatePreferencesData = Partial<InsertPreferences>;
 
 export const customersRepository = {
   /**
    * Create a new customer details record
    */
   create: async function create(
-    data: InsertUserDetails,
-  ): Promise<UserDetails> {
+    data: InsertPreferences,
+  ): Promise<Preferences> {
     const [customer] = await db
-      .insert(userDetails)
+      .insert(preferences)
       .values(data)
       .returning();
     return customer;
@@ -35,27 +38,33 @@ export const customersRepository = {
    */
   findByUserId: async function findByUserId(
     userId: string,
-  ): Promise<UserDetails | undefined> {
+  ): Promise<Preferences | undefined> {
     const [result] = await db
       .select()
-      .from(userDetails)
-      .where(eq(userDetails.userId, userId))
+      .from(preferences)
+      .where(eq(preferences.userId, userId))
       .limit(1);
     return result;
   },
 
   /**
    * Find customer details by Stripe customer ID
+   * Now queries users table since stripeCustomerId moved there
    */
   findByStripeCustomerId: async function findByStripeCustomerId(
     stripeCustomerId: string,
-  ): Promise<UserDetails | undefined> {
-    const [result] = await db
-      .select()
-      .from(userDetails)
-      .where(eq(userDetails.stripeCustomerId, stripeCustomerId))
+  ): Promise<Preferences | undefined> {
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.stripeCustomerId, stripeCustomerId))
       .limit(1);
-    return result;
+
+    if (!user) {
+      return undefined;
+    }
+
+    return await this.findByUserId(user.id);
   },
 
   /**
@@ -63,12 +72,12 @@ export const customersRepository = {
    */
   update: async function update(
     id: string,
-    data: UpdateUserDetails,
-  ): Promise<UserDetails> {
+    data: UpdatePreferencesData,
+  ): Promise<Preferences> {
     const [updated] = await db
-      .update(userDetails)
+      .update(preferences)
       .set(data)
-      .where(eq(userDetails.id, id))
+      .where(eq(preferences.id, id))
       .returning();
     return updated;
   },
@@ -78,12 +87,12 @@ export const customersRepository = {
    */
   updateByUserId: async function updateByUserId(
     userId: string,
-    data: UpdateUserDetails,
-  ): Promise<UserDetails> {
+    data: UpdatePreferencesData,
+  ): Promise<Preferences> {
     const [updated] = await db
-      .update(userDetails)
+      .update(preferences)
       .set(data)
-      .where(eq(userDetails.userId, userId))
+      .where(eq(preferences.userId, userId))
       .returning();
     return updated;
   },
@@ -94,13 +103,13 @@ export const customersRepository = {
   updateProductUsage: async function updateProductUsage(
     userId: string,
     productUsage: ProductUsage[],
-  ): Promise<UserDetails> {
+  ): Promise<Preferences> {
     const [updated] = await db
-      .update(userDetails)
+      .update(preferences)
       .set({
         productUsage,
       })
-      .where(eq(userDetails.userId, userId))
+      .where(eq(preferences.userId, userId))
       .returning();
     return updated;
   },
@@ -113,8 +122,8 @@ export const customersRepository = {
   ): Promise<string[]> {
     // Get users that don't have customer details
     const usersWithoutCustomer = await db
-      .select({ userId: userDetails.userId })
-      .from(userDetails)
+      .select({ userId: preferences.userId })
+      .from(preferences)
       .limit(limit);
 
     // This is a simplified version - in practice, you'd want to join with users table
@@ -129,8 +138,8 @@ export const customersRepository = {
     id: string,
   ): Promise<void> {
     await db
-      .delete(userDetails)
-      .where(eq(userDetails.id, id));
+      .delete(preferences)
+      .where(eq(preferences.id, id));
   },
 
   /**
@@ -140,8 +149,8 @@ export const customersRepository = {
     userId: string,
   ): Promise<void> {
     await db
-      .delete(userDetails)
-      .where(eq(userDetails.userId, userId));
+      .delete(preferences)
+      .where(eq(preferences.userId, userId));
   },
 
   /**
@@ -150,11 +159,11 @@ export const customersRepository = {
   list: async function list(
     limit: number = 100,
     offset: number = 0,
-  ): Promise<UserDetails[]> {
+  ): Promise<Preferences[]> {
     return await db
       .select()
-      .from(userDetails)
-      .orderBy(desc(userDetails.createdAt))
+      .from(preferences)
+      .orderBy(desc(preferences.createdAt))
       .limit(limit)
       .offset(offset);
   },
@@ -164,8 +173,8 @@ export const customersRepository = {
    */
   count: async function count(): Promise<number> {
     const result = await db
-      .select({ count: userDetails.id })
-      .from(userDetails);
+      .select({ count: preferences.id })
+      .from(preferences);
     return result.length;
   },
 };

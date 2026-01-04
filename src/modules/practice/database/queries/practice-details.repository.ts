@@ -74,17 +74,18 @@ export const upsertPracticeDetails = async (
   userId: string,
   data: Partial<InsertPracticeDetails>,
 ): Promise<PracticeDetails> => {
+  const { id: _id, created_at: _created_at, updated_at: _updated_at, ...dataWithoutMetadata } = data;
   const [result] = await db
     .insert(practiceDetails)
     .values({
       organization_id: organizationId,
       user_id: userId,
-      ...data,
+      ...dataWithoutMetadata,
     })
     .onConflictDoUpdate({
       target: practiceDetails.organization_id,
       set: {
-        ...data,
+        ...dataWithoutMetadata,
         updated_at: new Date(),
       },
     })
@@ -98,12 +99,14 @@ export const insertOrIgnorePracticeDetails = async (
   userId: string,
   data: Partial<InsertPracticeDetails>,
 ): Promise<PracticeDetails | null> => {
+  const { id: _id, created_at: _created_at, updated_at: _updated_at, ...dataWithoutMetadata } = data;
   const [result] = await db
     .insert(practiceDetails)
     .values({
+      id: crypto.randomUUID(),
       organization_id: organizationId,
       user_id: userId,
-      ...data,
+      ...dataWithoutMetadata,
     })
     .onConflictDoNothing({
       target: practiceDetails.organization_id,

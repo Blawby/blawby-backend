@@ -6,13 +6,16 @@
  */
 
 import { consola } from 'consola';
+import { eq } from 'drizzle-orm';
 import { customersRepository } from '../database/queries/customers.repository';
 import type {
-  UserDetails,
-  InsertUserDetails,
+  Preferences,
+  InsertPreferences,
   ProductUsage,
-} from '@/modules/user-details/schema/user-details.schema';
+} from '@/modules/preferences/schema/preferences.schema';
+import { users } from '@/schema/better-auth-schema';
 
+import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { sanitizeError } from '@/shared/utils/logging';
@@ -29,8 +32,10 @@ export interface CreateStripeCustomerData {
 }
 
 export interface UpdateCustomerData {
-  phone?: string;
-  dob?: string; // Date string in YYYY-MM-DD format
+  // phone and dob are now in users table via Better Auth - use updateUser endpoint
+  // This interface kept for backward compatibility but phone/dob updates should go through Better Auth
+  phone?: string; // @deprecated - use Better Auth updateUser
+  dob?: string; // @deprecated - use Better Auth updateUser
   productUsage?: ProductUsage[];
 }
 
@@ -39,7 +44,7 @@ export interface UpdateCustomerData {
  */
 const createStripeCustomerForUser = async (
   data: CreateStripeCustomerData,
-): Promise<UserDetails | null> => {
+): Promise<Preferences | null> => {
   try {
     // 1. Check if customer already exists
     const existing = await customersRepository.findByUserId(data.userId);
@@ -64,12 +69,18 @@ const createStripeCustomerForUser = async (
 
     const stripeCustomer = await stripe.customers.create(createParams);
 
-    // 3. Save to database
-    const customerDetails: InsertUserDetails = {
+    // 3. Update users table with stripeCustomerId
+    await db
+      .update(users)
+      .set({ stripeCustomerId: stripeCustomer.id })
+      .where(eq(users.id, data.userId));
+
+    // 4. Save preferences (stripeCustomerId is now in users table)
+    const customerDetails: InsertPreferences = {
       userId: data.userId,
-      stripeCustomerId: stripeCustomer.id,
-      phone: data.phone,
-      dob: data.dob,
+      // stripeCustomerId is now in users table - don't store here
+      // phone and dob are now in users table - don't store here
+      // productUsage will be migrated to onboarding JSONB
       productUsage: data.productUsage,
     };
 
@@ -126,7 +137,7 @@ const getOrCreateStripeCustomer = async (
   userId: string,
   email: string,
   name: string,
-): Promise<UserDetails> => {
+): Promise<Preferences> => {
   // Check if customer exists
   const existing = await customersRepository.findByUserId(userId);
   if (existing) {
@@ -154,7 +165,7 @@ const getOrCreateStripeCustomer = async (
 const updateCustomerDetails = async (
   userId: string,
   updates: UpdateCustomerData,
-): Promise<UserDetails> => {
+): Promise<Preferences> => {
   try {
     // 1. Get existing customer
     const existing = await customersRepository.findByUserId(userId);
@@ -163,21 +174,47 @@ const updateCustomerDetails = async (
     }
 
     // 2. Update on Stripe
+    // Note: phone and dob should be read from users table if needed
     const updateParams: Record<string, unknown> = {
       metadata: {
-        dob: updates.dob || null,
         product_usage: JSON.stringify(updates.productUsage || []),
       },
     };
 
+    // Phone and dob updates should go through Better Auth updateUser endpoint
+    // Only update Stripe if explicitly provided (for backward compatibility)
     if (updates.phone) {
       updateParams.phone = updates.phone;
     }
+    if (updates.dob) {
+      updateParams.metadata = {
+        ...updateParams.metadata as Record<string, unknown>,
+        dob: updates.dob,
+      };
+    }
 
-    await stripe.customers.update(existing.stripeCustomerId, updateParams);
+    // Get stripeCustomerId from users table
+    const [user] = await db
+      .select({ stripeCustomerId: users.stripeCustomerId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    // 3. Update in database
-    const updated = await customersRepository.updateByUserId(userId, updates);
+    if (!user?.stripeCustomerId) {
+      throw new Error('Stripe customer ID not found for user');
+    }
+
+    await stripe.customers.update(user.stripeCustomerId, updateParams);
+
+    // 3. Update in database (only productUsage, phone/dob are in users table)
+    if (updates.productUsage) {
+      await customersRepository.updateByUserId(userId, {
+        productUsage: updates.productUsage,
+      });
+    }
+    const updated = updates.productUsage
+      ? await customersRepository.findByUserId(userId) || existing
+      : existing;
 
     // 4. Publish STRIPE_CUSTOMER_UPDATED event
     void publishSimpleEvent(
@@ -186,7 +223,7 @@ const updateCustomerDetails = async (
       userId,
       {
         user_id: userId,
-        stripe_customer_id: existing.stripeCustomerId,
+        stripe_customer_id: user.stripeCustomerId,
         updated_fields: Object.keys(updates),
         updated_at: new Date().toISOString(),
       },
@@ -231,8 +268,19 @@ const syncStripeCustomer = async (userId: string): Promise<void> => {
       throw new Error('Customer not found');
     }
 
+    // Get stripeCustomerId from users table
+    const [user] = await db
+      .select({ stripeCustomerId: users.stripeCustomerId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user?.stripeCustomerId) {
+      throw new Error('Stripe customer ID not found for user');
+    }
+
     // Get current Stripe customer data
-    const stripeCustomer = await stripe.customers.retrieve(customer.stripeCustomerId);
+    const stripeCustomer = await stripe.customers.retrieve(user.stripeCustomerId);
 
     // Check if customer is deleted
     if (stripeCustomer.deleted) {
@@ -240,15 +288,13 @@ const syncStripeCustomer = async (userId: string): Promise<void> => {
     }
 
     // Compare and sync if needed
+    // Note: phone and dob are now in users table, so we only sync productUsage here
     const needsUpdate
-      = stripeCustomer.phone !== customer.phone
-      || stripeCustomer.metadata?.dob !== customer.dob?.toString()
-      || stripeCustomer.metadata?.product_usage !== JSON.stringify(customer.productUsage || []);
+      = stripeCustomer.metadata?.product_usage !== JSON.stringify(customer.productUsage || []);
 
     if (needsUpdate) {
       await updateCustomerDetails(userId, {
-        phone: stripeCustomer.phone || undefined,
-        dob: stripeCustomer.metadata?.dob.toString(),
+        // phone and dob should be synced via Better Auth, not here
         productUsage: stripeCustomer.metadata?.product_usage
           ? JSON.parse(stripeCustomer.metadata.product_usage)
           : undefined,
@@ -275,27 +321,44 @@ const deleteStripeCustomer = async (userId: string): Promise<void> => {
       throw new Error('Customer not found');
     }
 
+    // Get stripeCustomerId from users table
+    const [user] = await db
+      .select({ stripeCustomerId: users.stripeCustomerId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user?.stripeCustomerId) {
+      throw new Error('Stripe customer ID not found for user');
+    }
+
     // Delete from Stripe
-    await stripe.customers.del(customer.stripeCustomerId);
+    await stripe.customers.del(user.stripeCustomerId);
+
+    // Clear stripeCustomerId from users table
+    await db
+      .update(users)
+      .set({ stripeCustomerId: null })
+      .where(eq(users.id, userId));
 
     // Delete from database
     await customersRepository.deleteByUserId(userId);
 
     // Publish STRIPE_CUSTOMER_DELETED event
-    await publishSimpleEvent(
+    void publishSimpleEvent(
       EventType.STRIPE_CUSTOMER_DELETED,
       'user',
       userId,
       {
         user_id: userId,
-        stripe_customer_id: customer.stripeCustomerId,
+        stripe_customer_id: user.stripeCustomerId,
         deleted_at: new Date().toISOString(),
       },
     );
 
     console.info('Stripe customer deleted successfully', {
       userId,
-      stripeCustomerId: customer.stripeCustomerId,
+      stripeCustomerId: user.stripeCustomerId,
     });
   } catch (error) {
     console.error('Failed to delete Stripe customer', {
@@ -309,14 +372,14 @@ const deleteStripeCustomer = async (userId: string): Promise<void> => {
 /**
  * Find customer by Stripe customer ID
  */
-const findByStripeCustomerId = async (stripeCustomerId: string): Promise<UserDetails | undefined> => {
+const findByStripeCustomerId = async (stripeCustomerId: string): Promise<Preferences | undefined> => {
   return await customersRepository.findByStripeCustomerId(stripeCustomerId);
 };
 
 /**
  * Find customer by user ID
  */
-const findByUserId = async (userId: string): Promise<UserDetails | undefined> => {
+const findByUserId = async (userId: string): Promise<Preferences | undefined> => {
   return await customersRepository.findByUserId(userId);
 };
 

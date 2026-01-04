@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import type { Organization, User } from '@/shared/types/BetterAuth';
@@ -7,26 +8,33 @@ import type { Organization, User } from '@/shared/types/BetterAuth';
 // ============================================================================
 
 /**
- * Organization API request types inferred from Better Auth
+ * Organization API request types inferred from Better Auth 1.4+
+ *
+ * Uses z.infer on the Zod schemas from endpoint options
  */
-export type CreateOrganizationRequest = Parameters<
-  BetterAuthInstance['api']['createOrganization']
->[0]['body'];
-export type UpdateOrganizationRequest = Parameters<
-  BetterAuthInstance['api']['updateOrganization']
->[0]['body'];
-export type SetActiveOrganizationRequest = Parameters<
-  BetterAuthInstance['api']['setActiveOrganization']
->[0]['body'];
-export type CheckOrganizationSlugRequest = Parameters<
-  BetterAuthInstance['api']['checkOrganizationSlug']
->[0]['body'];
-export type GetFullOrganizationRequest = Parameters<
-  BetterAuthInstance['api']['getFullOrganization']
->[0]['query'];
-export type DeleteOrganizationRequest = Parameters<
-  BetterAuthInstance['api']['deleteOrganization']
->[0]['body'];
+export type CreateOrganizationRequest = z.infer<
+  BetterAuthInstance['api']['createOrganization']['options']['body']
+>;
+
+export type UpdateOrganizationRequest = z.infer<
+  BetterAuthInstance['api']['updateOrganization']['options']['body']
+>;
+
+export type SetActiveOrganizationRequest = z.infer<
+  BetterAuthInstance['api']['setActiveOrganization']['options']['body']
+>;
+
+export type CheckOrganizationSlugRequest = z.infer<
+  BetterAuthInstance['api']['checkOrganizationSlug']['options']['body']
+>;
+
+export type GetFullOrganizationRequest = z.infer<
+  NonNullable<BetterAuthInstance['api']['getFullOrganization']['options']['query']>
+>;
+
+export type DeleteOrganizationRequest = z.infer<
+  BetterAuthInstance['api']['deleteOrganization']['options']['body']
+>;
 
 // Using Better Auth types directly from the instance
 export type PracticeWithDetails = Organization & Partial<PracticeDetails>;
