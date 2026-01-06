@@ -6,10 +6,11 @@ import {
   boolean,
   integer,
   date,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
@@ -28,7 +29,7 @@ export const users = pgTable('users', {
 });
 
 export const sessions = pgTable('sessions', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   expiresAt: timestamp('expires_at').notNull(),
   token: text('token').notNull().unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -38,17 +39,17 @@ export const sessions = pgTable('sessions', {
     .notNull(),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  activeOrganizationId: text('active_organization_id'),
+  activeOrganizationId: uuid('active_organization_id'),
 });
 
 export const accounts = pgTable('accounts', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   accessToken: text('access_token'),
@@ -66,7 +67,7 @@ export const accounts = pgTable('accounts', {
 });
 
 export const verifications = pgTable('verifications', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
@@ -78,7 +79,7 @@ export const verifications = pgTable('verifications', {
 });
 
 export const organizations = pgTable('organizations', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   logo: text('logo'),
@@ -89,7 +90,7 @@ export const organizations = pgTable('organizations', {
   stripeCustomerId: text('stripe_customer_id'), // Platform customer for billing
   stripePaymentMethodId: text('stripe_payment_method_id'),
   billingEmail: text('billing_email'),
-  activeSubscriptionId: text('active_subscription_id'),
+  activeSubscriptionId: uuid('active_subscription_id'),
   paymentMethodSetupAt: timestamp('payment_method_setup_at'),
 
   // Payment Links settings
@@ -98,11 +99,11 @@ export const organizations = pgTable('organizations', {
 });
 
 export const members = pgTable('members', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id')
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').default('member').notNull(),
@@ -110,15 +111,15 @@ export const members = pgTable('members', {
 });
 
 export const invitations = pgTable('invitations', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id')
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
   email: text('email').notNull(),
   role: text('role'),
   status: text('status').default('pending').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
-  inviterId: text('inviter_id')
+  inviterId: uuid('inviter_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
 });
@@ -181,9 +182,9 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
  * This table stores subscription data managed by Better Auth
  */
 export const subscriptions = pgTable('subscriptions', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   plan: text('plan').notNull(),
-  referenceId: text('reference_id'), // Organization ID or User ID
+  referenceId: uuid('reference_id'), // Organization ID or User ID
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
   status: text('status').default('incomplete').notNull(),

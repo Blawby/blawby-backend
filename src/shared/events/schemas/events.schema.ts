@@ -45,9 +45,9 @@ export const events = pgTable('events', {
   eventVersion: text('event_version').default('1.0.0').notNull(),
 
   // Actor information
-  actorId: text('actor_id'), // Who/what performed the action (user ID, system, etc.)
+  actorId: text('actor_id'), // Who/what performed the action (user ID, "system", "webhook", etc.)
   actorType: text('actor_type'), // Type of actor: 'user', 'system', 'webhook', etc.
-  organizationId: text('organization_id').references(() => organizations.id, {
+  organizationId: uuid('organization_id').references(() => organizations.id, {
     onDelete: 'set null',
   }),
 
@@ -68,7 +68,7 @@ export const events = pgTable('events', {
 // Event subscriptions table (for user preferences)
 export const eventSubscriptions = pgTable('event_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   eventType: text('event_type').notNull(),

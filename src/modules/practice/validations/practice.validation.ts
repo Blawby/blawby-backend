@@ -74,7 +74,7 @@ export const updatePracticeSchema = z
 // Response schemas with OpenAPI metadata
 export const practiceResponseSchema = z
   .object({
-    id: z.string().uuid().openapi({
+    id: z.uuid().openapi({
       description: 'Organization ID (UUID)',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
@@ -250,11 +250,11 @@ export const createInvitationSchema = z.object({
 });
 
 export const invitationListItemSchema = z.object({
-  id: z.string().openapi({
-    description: 'Invitation ID',
-    example: 'inv_1234567890',
+  id: z.uuid().openapi({
+    description: 'Invitation ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   }),
-  organization_id: z.string().uuid().openapi({
+  organization_id: z.uuid().openapi({
     description: 'Organization ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),

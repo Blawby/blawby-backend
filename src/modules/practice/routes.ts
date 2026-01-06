@@ -413,8 +413,8 @@ export const updateMemberRoleRoute = createRoute({
  * Remove a member from an organization
  */
 const userIdParamSchema = z.object({
-  uuid: z.string().uuid(), // Organization ID (UUID)
-  userId: z.string().uuid(), // User ID (UUID)
+  uuid: z.uuid(), // Organization ID (UUID)
+  userId: z.uuid(), // User ID (UUID)
 });
 
 export const removeMemberRoute = createRoute({
@@ -518,7 +518,7 @@ export const createInvitationRoute = createRoute({
               description: 'Whether the invitation was created successfully',
               example: true,
             }),
-            invitation_id: z.string().uuid().openapi({
+            invitation_id: z.uuid().openapi({
               description: 'ID of the created invitation (UUID)',
               example: '123e4567-e89b-12d3-a456-426614174000',
             }),

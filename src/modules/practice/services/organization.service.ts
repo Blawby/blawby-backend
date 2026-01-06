@@ -56,7 +56,7 @@ export const getFullOrganization = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<ActiveOrganization> => {
+): Promise<ActiveOrganization | null> => {
   const betterAuth = getBetterAuth();
   const result = await betterAuth.api.getFullOrganization({
     query: { organizationId },

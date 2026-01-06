@@ -186,7 +186,7 @@ practiceApp.openapi(routes.updateMemberRoleRoute, async () => {
  * Remove a member from an organization
  */
 const userIdParamSchema = practiceValidations.practiceIdParamSchema.extend({
-  userId: z.string().uuid(), // Both user ID and organization ID are UUIDs
+  userId: z.uuid(), // Both user ID and organization ID are UUIDs
 });
 
 practiceApp.delete('/:uuid/members/:userId', validateParams(userIdParamSchema, 'Invalid Parameters'), async (c) => {

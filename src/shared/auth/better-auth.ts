@@ -37,8 +37,8 @@ const betterAuthInstance = (
     basePath: '/api/auth',
     advanced: {
       database: {
-        // Force UUID generation to match database schema (uuid type with hyphens)
-        generateId: () => crypto.randomUUID(),
+        // Use UUID generation instead of default nanoid
+        generateId: 'uuid',
       },
       // Disable origin check in development to allow cURL and server-to-server requests
       disableOriginCheck: process.env.NODE_ENV === 'development',
