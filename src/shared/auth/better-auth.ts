@@ -37,11 +37,17 @@ const betterAuthInstance = (
     basePath: '/api/auth',
     advanced: {
       database: {
-        // Use UUID generation instead of default nanoid
         generateId: 'uuid',
       },
       // Disable origin check in development to allow cURL and server-to-server requests
       disableOriginCheck: process.env.NODE_ENV === 'development',
+      // Configure cookies for cross-origin OAuth flows
+      // Cookies are only used temporarily for OAuth state management (CSRF protection)
+      // After OAuth completes, authentication uses Bearer tokens (no cookies needed)
+      defaultCookieAttributes: {
+        sameSite: 'none',
+        secure: true,
+      },
     },
     databaseHooks: createDatabaseHooks(db),
     session: AUTH_CONFIG.session,
