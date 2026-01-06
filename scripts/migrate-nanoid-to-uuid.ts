@@ -42,49 +42,6 @@ const nanoidToUUID = (nanoid: string): string => {
   return `${hex.slice(0, 8)}-${nanoidHex.slice(0, 4)}-4${nanoidHex.slice(4, 7)}-a${nanoidHex.slice(7, 10)}-${nanoidHex.slice(10, 22)}`;
 };
 
-// Tables and their ID columns that need migration
-// Order matters - parent tables first, then child tables
-const TABLES_TO_MIGRATE = [
-  // Primary tables (no foreign key dependencies on other tables in this list)
-  { table: 'users', idColumn: 'id', type: 'primary' },
-  { table: 'organizations', idColumn: 'id', type: 'primary' },
-  { table: 'verifications', idColumn: 'id', type: 'primary' },
-
-  // Secondary tables (depend on users/organizations)
-  { table: 'sessions', idColumn: 'id', type: 'primary' },
-  { table: 'sessions', idColumn: 'user_id', type: 'foreign', references: 'users' },
-  { table: 'sessions', idColumn: 'active_organization_id', type: 'foreign', references: 'organizations' },
-
-  { table: 'accounts', idColumn: 'id', type: 'primary' },
-  { table: 'accounts', idColumn: 'user_id', type: 'foreign', references: 'users' },
-
-  { table: 'subscriptions', idColumn: 'id', type: 'primary' },
-  { table: 'subscriptions', idColumn: 'reference_id', type: 'foreign', references: 'organizations' },
-
-  { table: 'members', idColumn: 'id', type: 'primary' },
-  { table: 'members', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'members', idColumn: 'user_id', type: 'foreign', references: 'users' },
-
-  { table: 'invitations', idColumn: 'id', type: 'primary' },
-  { table: 'invitations', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'invitations', idColumn: 'inviter_id', type: 'foreign', references: 'users' },
-
-  // Update organizations.active_subscription_id after subscriptions are migrated
-  { table: 'organizations', idColumn: 'active_subscription_id', type: 'foreign', references: 'subscriptions' },
-
-  // Other tables that reference users/organizations
-  { table: 'preferences', idColumn: 'user_id', type: 'foreign', references: 'users' },
-  { table: 'customer_details', idColumn: 'user_id', type: 'foreign', references: 'users' },
-  { table: 'practice_details', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'practice_details', idColumn: 'user_id', type: 'foreign', references: 'users' },
-  { table: 'practice_client_intakes', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'payment_links', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'stripe_connected_accounts', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'events', idColumn: 'actor_id', type: 'foreign', references: 'users' },
-  { table: 'events', idColumn: 'organization_id', type: 'foreign', references: 'organizations' },
-  { table: 'event_subscriptions', idColumn: 'user_id', type: 'foreign', references: 'users' },
-];
-
 // Store the mapping of old ID -> new UUID for each table
 const idMappings: Record<string, Map<string, string>> = {};
 
@@ -103,105 +60,83 @@ const log = (message: string, verbose = false): void => {
   }
 };
 
-const migrateTable = async (
-  tableName: string,
-  idColumn: string,
-  type: 'primary' | 'foreign',
-  referencesTable?: string,
-  dryRun = false,
-): Promise<{ total: number; migrated: number }> => {
-  log(`\n📋 Processing ${tableName}.${idColumn} (${type})...`);
-
-  // Check if table exists
-  const tableExists = await db.execute(sql`
+// Check if table exists
+const tableExists = async (tableName: string): Promise<boolean> => {
+  const result = await db.execute(sql`
     SELECT EXISTS (
       SELECT FROM information_schema.tables
       WHERE table_name = ${tableName}
     ) as exists
   `);
+  return result.rows[0]?.exists === true;
+};
 
-  if (!tableExists.rows[0]?.exists) {
-    log(`  ⏭️  Table ${tableName} does not exist, skipping`, true);
-    return { total: 0, migrated: 0 };
-  }
-
-  // Check if column exists
-  const columnExists = await db.execute(sql`
+// Check if column exists
+const columnExists = async (tableName: string, columnName: string): Promise<boolean> => {
+  const result = await db.execute(sql`
     SELECT EXISTS (
       SELECT FROM information_schema.columns
-      WHERE table_name = ${tableName} AND column_name = ${idColumn}
+      WHERE table_name = ${tableName} AND column_name = ${columnName}
     ) as exists
   `);
+  return result.rows[0]?.exists === true;
+};
 
-  if (!columnExists.rows[0]?.exists) {
-    log(`  ⏭️  Column ${tableName}.${idColumn} does not exist, skipping`, true);
-    return { total: 0, migrated: 0 };
-  }
-
-  // Get all non-UUID values from the column
+// Get all non-UUID values from a column
+const getNonUuidValues = async (tableName: string, columnName: string): Promise<string[]> => {
   const result = await db.execute(sql.raw(`
-    SELECT DISTINCT "${idColumn}" as id
+    SELECT DISTINCT "${columnName}" as id
     FROM "${tableName}"
-    WHERE "${idColumn}" IS NOT NULL
-      AND "${idColumn}" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    WHERE "${columnName}" IS NOT NULL
+      AND "${columnName}" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   `));
+  return (result.rows as Array<{ id: string }>).map(row => row.id);
+};
 
-  const nonUuidIds = result.rows as Array<{ id: string }>;
-  const total = nonUuidIds.length;
+// Build mappings for all primary tables first
+const buildMappings = async (): Promise<void> => {
+  const primaryTables = [
+    { table: 'users', column: 'id' },
+    { table: 'organizations', column: 'id' },
+    { table: 'sessions', column: 'id' },
+    { table: 'accounts', column: 'id' },
+    { table: 'verifications', column: 'id' },
+    { table: 'members', column: 'id' },
+    { table: 'invitations', column: 'id' },
+    { table: 'subscriptions', column: 'id' },
+  ];
 
-  if (total === 0) {
-    log(`  ✅ All ${idColumn} values are already valid UUIDs`);
-    return { total: 0, migrated: 0 };
-  }
+  for (const { table, column } of primaryTables) {
+    if (!(await tableExists(table))) continue;
+    if (!(await columnExists(table, column))) continue;
 
-  log(`  Found ${total} non-UUID values to migrate`);
-
-  let migrated = 0;
-
-  for (const row of nonUuidIds) {
-    const oldId = row.id;
-    let newId: string;
-
-    if (type === 'primary') {
-      // For primary keys, generate new UUID and store mapping
-      newId = nanoidToUUID(oldId);
-      if (!idMappings[tableName]) {
-        idMappings[tableName] = new Map();
+    const nonUuidValues = await getNonUuidValues(table, column);
+    if (nonUuidValues.length > 0) {
+      idMappings[table] = new Map();
+      for (const oldId of nonUuidValues) {
+        const newId = nanoidToUUID(oldId);
+        idMappings[table].set(oldId, newId);
       }
-      idMappings[tableName].set(oldId, newId);
-    } else if (type === 'foreign' && referencesTable) {
-      // For foreign keys, look up the new UUID from the referenced table's mapping
-      const refMapping = idMappings[referencesTable];
-      if (!refMapping || !refMapping.has(oldId)) {
-        // The referenced ID might already be a UUID or not yet migrated
-        // Check if it's already a UUID
-        if (isValidUUID(oldId)) {
-          continue; // Already valid, skip
-        }
-        log(`  ⚠️  Warning: No mapping found for ${referencesTable}.${oldId}`, true);
-        continue;
-      }
-      newId = refMapping.get(oldId)!;
-    } else {
-      continue;
+      log(`  📝 Built mapping for ${table}: ${nonUuidValues.length} IDs`);
     }
-
-    log(`  ${oldId} -> ${newId}`, true);
-
-    if (!dryRun) {
-      // Temporarily disable foreign key checks for this update
-      await db.execute(sql.raw(`
-        UPDATE "${tableName}"
-        SET "${idColumn}" = '${newId}'
-        WHERE "${idColumn}" = '${oldId}'
-      `));
-    }
-
-    migrated++;
   }
+};
 
-  log(`  ✅ Migrated ${migrated}/${total} values${dryRun ? ' (dry run)' : ''}`);
-  return { total, migrated };
+// Update a column value
+const updateColumn = async (
+  tableName: string,
+  columnName: string,
+  oldValue: string,
+  newValue: string,
+  dryRun: boolean,
+): Promise<void> => {
+  if (!dryRun) {
+    await db.execute(sql.raw(`
+      UPDATE "${tableName}"
+      SET "${columnName}" = '${newValue}'
+      WHERE "${columnName}" = '${oldValue}'
+    `));
+  }
 };
 
 const main = async (): Promise<void> => {
@@ -213,30 +148,111 @@ const main = async (): Promise<void> => {
   console.log('');
 
   let totalMigrated = 0;
-  let totalFound = 0;
 
   try {
-    // Process tables in order
-    for (const { table, idColumn, type, references } of TABLES_TO_MIGRATE) {
-      const { total, migrated } = await migrateTable(
-        table,
-        idColumn,
-        type as 'primary' | 'foreign',
-        references,
-        dryRun,
-      );
-      totalFound += total;
-      totalMigrated += migrated;
+    // Step 1: Disable foreign key constraints
+    if (!dryRun) {
+      console.log('🔓 Disabling foreign key constraints...');
+      await db.execute(sql`SET session_replication_role = 'replica'`);
+    }
+
+    // Step 2: Build all mappings first
+    console.log('\n📋 Building ID mappings...');
+    await buildMappings();
+
+    // Step 3: Update primary keys first
+    console.log('\n🔑 Updating primary keys...');
+    for (const [tableName, mapping] of Object.entries(idMappings)) {
+      if (mapping.size === 0) continue;
+
+      log(`  Processing ${tableName}.id...`);
+      for (const [oldId, newId] of mapping) {
+        log(`    ${oldId} -> ${newId}`, true);
+        await updateColumn(tableName, 'id', oldId, newId, dryRun);
+        totalMigrated++;
+      }
+      log(`  ✅ Updated ${mapping.size} primary keys in ${tableName}`);
+    }
+
+    // Step 4: Update all foreign keys
+    console.log('\n🔗 Updating foreign keys...');
+
+    const foreignKeyUpdates = [
+      // users references
+      { table: 'sessions', column: 'user_id', refTable: 'users' },
+      { table: 'accounts', column: 'user_id', refTable: 'users' },
+      { table: 'members', column: 'user_id', refTable: 'users' },
+      { table: 'invitations', column: 'inviter_id', refTable: 'users' },
+      { table: 'preferences', column: 'user_id', refTable: 'users' },
+      { table: 'customer_details', column: 'user_id', refTable: 'users' },
+      { table: 'practice_details', column: 'user_id', refTable: 'users' },
+      { table: 'event_subscriptions', column: 'user_id', refTable: 'users' },
+
+      // organizations references
+      { table: 'sessions', column: 'active_organization_id', refTable: 'organizations' },
+      { table: 'members', column: 'organization_id', refTable: 'organizations' },
+      { table: 'invitations', column: 'organization_id', refTable: 'organizations' },
+      { table: 'practice_details', column: 'organization_id', refTable: 'organizations' },
+      { table: 'practice_client_intakes', column: 'organization_id', refTable: 'organizations' },
+      { table: 'payment_links', column: 'organization_id', refTable: 'organizations' },
+      { table: 'stripe_connected_accounts', column: 'organization_id', refTable: 'organizations' },
+      { table: 'events', column: 'organization_id', refTable: 'organizations' },
+
+      // subscriptions references
+      { table: 'organizations', column: 'active_subscription_id', refTable: 'subscriptions' },
+    ];
+
+    for (const { table, column, refTable } of foreignKeyUpdates) {
+      if (!(await tableExists(table))) {
+        log(`  ⏭️  Table ${table} does not exist, skipping`, true);
+        continue;
+      }
+      if (!(await columnExists(table, column))) {
+        log(`  ⏭️  Column ${table}.${column} does not exist, skipping`, true);
+        continue;
+      }
+
+      const refMapping = idMappings[refTable];
+      if (!refMapping || refMapping.size === 0) {
+        log(`  ⏭️  No mappings for ${refTable}, skipping ${table}.${column}`, true);
+        continue;
+      }
+
+      const nonUuidValues = await getNonUuidValues(table, column);
+      if (nonUuidValues.length === 0) {
+        log(`  ✅ ${table}.${column} - already valid UUIDs`);
+        continue;
+      }
+
+      log(`  Processing ${table}.${column}...`);
+      let updated = 0;
+      for (const oldId of nonUuidValues) {
+        const newId = refMapping.get(oldId);
+        if (newId) {
+          log(`    ${oldId} -> ${newId}`, true);
+          await updateColumn(table, column, oldId, newId, dryRun);
+          updated++;
+          totalMigrated++;
+        } else {
+          log(`    ⚠️  No mapping for ${oldId}`, true);
+        }
+      }
+      log(`  ✅ Updated ${updated}/${nonUuidValues.length} foreign keys in ${table}.${column}`);
+    }
+
+    // Step 5: Re-enable foreign key constraints
+    if (!dryRun) {
+      console.log('\n🔒 Re-enabling foreign key constraints...');
+      await db.execute(sql`SET session_replication_role = 'origin'`);
     }
 
     console.log('\n' + '='.repeat(50));
     console.log('📊 Migration Summary');
     console.log('='.repeat(50));
-    console.log(`   Total non-UUID values found: ${totalFound}`);
     console.log(`   Total values migrated: ${totalMigrated}`);
     console.log(`   Mode: ${dryRun ? 'DRY RUN' : 'LIVE'}`);
 
-    if (dryRun && totalFound > 0) {
+    if (dryRun && totalMigrated > 0) {
       console.log('\n⚠️  Run without --dry-run to apply changes');
     }
 
@@ -245,7 +261,19 @@ const main = async (): Promise<void> => {
       console.log('   You can now run the schema migration:');
       console.log('   pnpm drizzle-kit migrate');
     }
+
+    if (totalMigrated === 0) {
+      console.log('\n✅ No migration needed - all IDs are already valid UUIDs');
+    }
   } catch (error) {
+    // Make sure to re-enable FK constraints on error
+    if (!dryRun) {
+      try {
+        await db.execute(sql`SET session_replication_role = 'origin'`);
+      } catch {
+        // Ignore error in cleanup
+      }
+    }
     console.error('\n❌ Migration failed:', error);
     process.exit(1);
   }
@@ -254,4 +282,3 @@ const main = async (): Promise<void> => {
 };
 
 main();
-
