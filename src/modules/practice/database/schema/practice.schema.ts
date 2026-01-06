@@ -6,11 +6,11 @@ import { organizations, users } from '@/schema/better-auth-schema';
 // Drizzle table definition
 export const practiceDetails = pgTable('practice_details', {
   id: uuid('id').primaryKey().defaultRandom(),
-  organization_id: text('organization_id')
+  organization_id: uuid('organization_id')
     .notNull()
     .unique() // Add unique constraint for upsert
     .references(() => organizations.id, { onDelete: 'cascade' }),
-  user_id: text('user_id')
+  user_id: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   business_phone: text('business_phone'),

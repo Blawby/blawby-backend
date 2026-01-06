@@ -147,6 +147,68 @@ export const createPracticeClientIntakeSchema = z.object({
 
 **Note:** When creating custom APIs that wrap Better Auth functionality, use `response.ok()` or `response.created()` utilities which automatically convert to snake_case, ensuring consistency with Better Auth's normalized responses.
 
+## UUID and Zod Validation Rules
+
+### **CRITICAL: Always use `z.uuid()` for UUID fields - NEVER `z.string().uuid()`**
+
+**Database and Schema Consistency:**
+- **All ID fields** in Better Auth tables use PostgreSQL `uuid` type
+- **All foreign keys** referencing these tables also use `uuid` type
+- **Validation schemas** must use `z.uuid()` to enforce proper UUID format
+
+**Examples:**
+
+```typescript
+// ✅ CORRECT - Use z.uuid() directly
+export const practiceIdParamSchema = z.object({
+  uuid: z.uuid(),
+});
+
+export const userIdParamSchema = z.object({
+  userId: z.uuid(),
+});
+
+export const responseSchema = z.object({
+  id: z.uuid(),
+  user_id: z.uuid(),
+  organization_id: z.uuid(),
+});
+
+// With OpenAPI metadata
+export const subscriptionIdParamSchema = z.object({
+  subscriptionId: z.uuid().openapi({
+    param: { name: 'subscriptionId', in: 'path' },
+    description: 'Subscription ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+});
+
+// ❌ WRONG - Don't use z.string().uuid()
+export const badSchema = z.object({
+  id: z.string().uuid(),           // ❌ Wrong
+  user_id: z.string().uuid(),      // ❌ Wrong
+  organizationId: z.string().uuid(), // ❌ Wrong
+});
+```
+
+**Why This Rule:**
+1. **Type Safety** - `z.uuid()` provides stricter validation than `z.string().uuid()`
+2. **Consistency** - Matches PostgreSQL `uuid` column type in database schema
+3. **Better Auth Compatibility** - Better Auth uses UUIDs for all entity IDs
+4. **Cleaner Code** - More concise and readable
+
+**UUID Tables (Better Auth):**
+- `users.id`, `sessions.id`, `accounts.id`, `verifications.id`
+- `organizations.id`, `members.id`, `invitations.id`, `subscriptions.id`
+- All foreign key references (`user_id`, `organization_id`, `inviter_id`, etc.)
+
+**Common UUID Validators (from `@/shared/validations/common.ts`):**
+```typescript
+import { uuidValidator, idParamSchema, organizationIdParamSchema } from '@/shared/validations/common';
+
+// Use these pre-built validators instead of creating new ones
+```
+
 ## Functions
 
 - **Declare every function as a function expression.**

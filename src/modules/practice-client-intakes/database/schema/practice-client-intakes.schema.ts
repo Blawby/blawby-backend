@@ -19,7 +19,7 @@ export const practiceClientIntakes = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Relations
-    organizationId: text('organization_id')
+    organizationId: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     connectedAccountId: uuid('connected_account_id')

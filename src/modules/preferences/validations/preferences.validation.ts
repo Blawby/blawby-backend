@@ -81,8 +81,8 @@ export type UpdateUserDetailsRequest = z.infer<typeof updateUserDetailsSchema>;
 export const preferencesResponseSchema = z
   .object({
     data: z.object({
-      id: z.string().uuid(),
-      user_id: z.string(),
+      id: z.uuid(),
+      user_id: z.uuid(),
       general: generalPreferencesSchema.nullable(),
       notifications: notificationPreferencesSchema.nullable(),
       security: securityPreferencesSchema.nullable(),

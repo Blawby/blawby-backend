@@ -75,7 +75,7 @@ export type ExternalAccounts = {
 // Stripe connected accounts table
 export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  organization_id: text('organization_id')
+  organization_id: uuid('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
   stripe_account_id: text('account_id').notNull().unique(),

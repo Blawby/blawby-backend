@@ -4,7 +4,7 @@ import { z } from '@hono/zod-openapi';
  * Subscription ID parameter schema
  */
 export const subscriptionIdParamSchema = z.object({
-  subscriptionId: z.string().uuid().openapi({
+  subscriptionId: z.uuid().openapi({
     param: {
       name: 'subscriptionId',
       in: 'path',
@@ -18,7 +18,7 @@ export const subscriptionIdParamSchema = z.object({
  * Create subscription request schema
  */
 export const createSubscriptionSchema = z.object({
-  planId: z.string().uuid().openapi({
+  planId: z.uuid().openapi({
     description: 'Plan ID (UUID) - Required. The UUID of the subscription plan from the database.',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
@@ -58,7 +58,7 @@ export const cancelSubscriptionSchema = z.object({
  * Subscription plan response schema
  */
 export const subscriptionPlanResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
   displayName: z.string(),
   description: z.string().nullable(),
@@ -85,7 +85,7 @@ export const subscriptionPlanResponseSchema = z.object({
  * Subscription response schema
  */
 export const subscriptionResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   referenceId: z.string().nullable(),
   stripeCustomerId: z.string().nullable(),
   stripeSubscriptionId: z.string().nullable(),

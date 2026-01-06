@@ -20,7 +20,7 @@ export const paymentLinks = pgTable(
     ulid: text('ulid').notNull().unique(),
 
     // Relations
-    organizationId: text('organization_id')
+    organizationId: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     connectedAccountId: uuid('connected_account_id')
