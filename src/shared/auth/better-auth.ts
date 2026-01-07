@@ -40,13 +40,15 @@ const betterAuthInstance = (
         generateId: 'uuid',
       },
       // Disable origin check in development to allow cURL and server-to-server requests
-      disableOriginCheck: process.env.NODE_ENV === 'development',
+      disableOriginCheck: process.env.NODE_ENV !== 'production',
       // Configure cookies for cross-origin OAuth flows
       // Cookies are only used temporarily for OAuth state management (CSRF protection)
       // After OAuth completes, authentication uses Bearer tokens (no cookies needed)
       defaultCookieAttributes: {
         sameSite: 'none',
-        secure: true,
+        // In development, allow non-secure cookies for localhost HTTP
+        // In production, always require secure cookies
+        secure: process.env.NODE_ENV === 'production',
       },
     },
     databaseHooks: createDatabaseHooks(db),
