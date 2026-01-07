@@ -45,7 +45,7 @@ const betterAuthInstance = (
         // CRITICAL: Allow cookie sharing across subdomains
         domain: ".blawby.com",
         secure: true,
-        sameSite: "lax",
+        sameSite: "none",
       }
     },
     databaseHooks: createDatabaseHooks(db),
