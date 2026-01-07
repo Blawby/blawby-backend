@@ -39,16 +39,23 @@ const betterAuthInstance = (
       database: {
         generateId: 'uuid',
       },
+      useSecureCookies: true,
       // Disable origin check in development to allow cURL and server-to-server requests
-      disableOriginCheck: process.env.NODE_ENV !== 'production',
+      disableOriginCheck: process.env.NODE_ENV === 'development',
+      cookies: {
+        state: {
+          attributes: {
+            sameSite: "none",
+            secure: true
+          }
+        }
+      },
       // Configure cookies for cross-origin OAuth flows
       // Cookies are only used temporarily for OAuth state management (CSRF protection)
       // After OAuth completes, authentication uses Bearer tokens (no cookies needed)
       defaultCookieAttributes: {
         sameSite: 'none',
-        // In development, allow non-secure cookies for localhost HTTP
-        // In production, always require secure cookies
-        secure: process.env.NODE_ENV === 'production',
+        secure: true,
       },
     },
     databaseHooks: createDatabaseHooks(db),
@@ -79,6 +86,8 @@ const betterAuthInstance = (
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        // Required for OAuth Proxy: redirect URI registered with Google OAuth
+        redirectURI: `${process.env.BETTER_AUTH_BASE_URL}/api/auth/callback/google`,
       },
     },
     onAPIError: {
