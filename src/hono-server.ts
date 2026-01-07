@@ -1,11 +1,6 @@
-// Load environment variables FIRST before any other imports
-// This ensures env vars are available when modules are imported
-import { config } from '@dotenvx/dotenvx';
-config();
-
 import { serve } from '@hono/node-server';
 import closeWithGrace from 'close-with-grace';
-
+import './boot/env';
 import app from './hono-app';
 
 const port = Number(process.env.PORT ?? 3000);

@@ -12,7 +12,6 @@ import { sanitizeError } from '@/shared/utils/logging';
 
 let authInstance: ReturnType<typeof betterAuthInstance> | null = null;
 
-
 const betterAuthInstance = (
   db: NodePgDatabase<typeof schema>,
   // oxlint-disable-next-line explicit-function-return-type
@@ -33,30 +32,21 @@ const betterAuthInstance = (
       createStripePlugin(db),
       anonymous(),
     ],
-    baseURL: process.env.BETTER_AUTH_BASE_URL!,
+    baseURL: process.env.BASE_URL!,
     basePath: '/api/auth',
     advanced: {
       database: {
         generateId: 'uuid',
       },
-      useSecureCookies: true,
+      useSecureCookies: process.env.NODE_ENV === 'production',
       // Disable origin check in development to allow cURL and server-to-server requests
       disableOriginCheck: process.env.NODE_ENV === 'development',
-      cookies: {
-        state: {
-          attributes: {
-            sameSite: "none",
-            secure: true
-          }
-        }
-      },
-      // Configure cookies for cross-origin OAuth flows
-      // Cookies are only used temporarily for OAuth state management (CSRF protection)
-      // After OAuth completes, authentication uses Bearer tokens (no cookies needed)
-      defaultCookieAttributes: {
-        sameSite: 'none',
+      cookie: {
+        // CRITICAL: Allow cookie sharing across subdomains
+        domain: ".blawby.com",
         secure: true,
-      },
+        sameSite: "lax",
+      }
     },
     databaseHooks: createDatabaseHooks(db),
     session: AUTH_CONFIG.session,
@@ -86,8 +76,7 @@ const betterAuthInstance = (
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        // Required for OAuth Proxy: redirect URI registered with Google OAuth
-        redirectURI: `${process.env.BETTER_AUTH_BASE_URL}/api/auth/callback/google`,
+        redirectURI: process.env.GOOGLE_REDIRECT_URI,
       },
     },
     onAPIError: {
@@ -97,7 +86,7 @@ const betterAuthInstance = (
         console.error('Better Auth error:', sanitized, context);
       },
     },
-    trustedOrigins: getTrustedOrigins,
+    trustedOrigins: getTrustedOrigins
   });
 };
 
