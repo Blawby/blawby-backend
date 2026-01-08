@@ -3,13 +3,13 @@
 /**
  * Webhook Worker Process
  *
- * This is a separate Node.js process that consumes webhook jobs from the Redis queue.
+ * This is a separate Node.js process that consumes webhook jobs from PostgreSQL (Graphile Worker).
  * It runs independently from the API server and processes webhooks asynchronously.
  *
  * Architecture:
- * - API Server: Receives webhooks, saves to DB, adds jobs to queue
- * - Worker Process: Consumes jobs from queue, processes webhooks, marks complete
- * - Redis: Message broker connecting them
+ * - API Server: Receives webhooks, saves to DB, enqueues jobs to PostgreSQL
+ * - Worker Process: Consumes jobs from PostgreSQL, processes webhooks, marks complete
+ * - PostgreSQL: Job queue storage (via Graphile Worker)
  *
  * Usage:
  * - Development: `pnpm run worker:dev` (with watch mode)
@@ -17,297 +17,32 @@
  */
 
 import { config } from '@dotenvx/dotenvx';
-import { Worker } from 'bullmq';
+import { run } from 'graphile-worker';
+import { graphileWorkerConfig, TASK_NAMES } from '@/shared/queue/queue.config';
 
-import type Stripe from 'stripe';
-
-import { processEvent as processOnboardingEvent } from '@/modules/onboarding/services/onboarding-webhooks.service';
-import {
-  processSubscriptionWebhookEvent,
-  isSubscriptionWebhookEvent,
-} from '@/modules/subscriptions/services/subscriptionWebhooks.service';
-// import { processStripeWebhookEvent } from '@/modules/stripe/services/stripe-webhook-processor.service';
-import { QUEUE_NAMES } from '@/shared/queue/queue.config';
-import { getRedisConnection } from '@/shared/queue/redis.client';
-
-// Import webhook processing services
-import {
-  findWebhookById,
-  existsByStripeEventId,
-  markWebhookProcessed,
-  markWebhookFailed,
-} from '@/shared/repositories/stripe.webhook-events.repository';
+// Import tasks
+import { processStripeWebhook } from './tasks/process-stripe-webhook';
+import { processOnboardingWebhook } from './tasks/process-onboarding-webhook';
+import { processEventHandler } from './tasks/process-event-handler';
 
 // Load environment variables
 config();
 
 /**
- * Job processing function for Stripe webhooks
- */
-async function processStripeWebhookJob(job: {
-  data: {
-    webhookId: string;
-    eventId: string;
-    eventType: string;
-  };
-}): Promise<void> {
-  const { webhookId, eventId, eventType } = job.data;
-  const startTime = Date.now();
-
-  console.log(
-    `🚀 Starting Stripe webhook job: ${eventId} (${eventType}) - Job ID: ${webhookId}`,
-  );
-
-  try {
-    // Get webhook event from database
-    const webhookEvent = await findWebhookById(webhookId);
-
-    if (!webhookEvent) {
-      console.error(`Webhook event not found: ${webhookId}`);
-      return;
-    }
-
-    if (webhookEvent.processed) {
-      console.info(`Webhook event already processed: ${eventId}`);
-      return;
-    }
-
-    const event = webhookEvent.payload as Stripe.Event;
-
-    // Route to appropriate handler based on event type
-    if (isSubscriptionWebhookEvent(event.type)) {
-      // Handle subscription-related events (product.*, price.*)
-      await processSubscriptionWebhookEvent(event);
-      // Mark as processed (subscription service doesn't do this)
-      await markWebhookProcessed(webhookId);
-    } else if (
-      event.type.startsWith('account.') ||
-      event.type.startsWith('capability.') ||
-      event.type.startsWith('account.external_account.')
-    ) {
-      // Handle onboarding-related events (marks as processed internally)
-      await processOnboardingEvent(eventId);
-    } else {
-      // Handle other Stripe webhook types (payments, etc.)
-      console.log(`Unhandled webhook event type: ${event.type}`);
-      // Mark as processed even if unhandled (to avoid retries)
-      await markWebhookProcessed(webhookId);
-      // TODO: Add payment webhook processing when ready
-    }
-
-    const duration = Date.now() - startTime;
-    console.log(
-      `✅ Stripe webhook job completed successfully: ${eventId} - Duration: ${duration}ms`,
-    );
-
-    // Log database status
-    try {
-      const webhookEvent = await findWebhookById(webhookId);
-
-      if (webhookEvent) {
-        console.log(`📊 Database status for ${eventId}:`, {
-          processed: webhookEvent.processed,
-          processedAt: webhookEvent.processedAt,
-          retryCount: webhookEvent.retryCount,
-          error: webhookEvent.error || 'None',
-        });
-      } else {
-        console.warn(`⚠️  Webhook event not found in database: ${webhookId}`);
-      }
-    } catch (dbError) {
-      console.error(
-        `❌ Failed to check database status for ${eventId}:`,
-        dbError,
-      );
-    }
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage
-      = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-
-    // Mark as failed (increments retry count, sets next retry time)
-    try {
-      const webhookEvent = await findWebhookById(webhookId);
-      if (webhookEvent) {
-        await markWebhookFailed(webhookId, errorMessage, errorStack);
-      }
-    } catch (markError) {
-      console.error(
-        `Failed to mark webhook as failed: ${webhookId}`,
-        markError,
-      );
-    }
-
-    console.error(
-      `❌ Stripe webhook job failed: ${eventId} - Duration: ${duration}ms`,
-      error,
-    );
-    throw error;
-  }
-}
-
-/**
- * Job processing function for onboarding webhooks
- */
-async function processOnboardingWebhookJob(job: {
-  data: {
-    webhookId: string;
-    eventId: string;
-    eventType: string;
-  };
-}): Promise<void> {
-  const { webhookId, eventId, eventType } = job.data;
-  const startTime = Date.now();
-
-  console.log(
-    `🚀 Starting onboarding webhook job: ${eventId} (${eventType}) - Job ID: ${webhookId}`,
-  );
-
-  try {
-    await processOnboardingEvent(eventId);
-
-    const duration = Date.now() - startTime;
-    console.log(
-      `✅ Onboarding webhook job completed successfully: ${eventId} - Duration: ${duration}ms`,
-    );
-
-    // Log database status
-    try {
-      const webhookEvent = await existsByStripeEventId(eventId);
-
-      if (webhookEvent) {
-        console.log(`📊 Database status for ${eventId}:`, {
-          processed: webhookEvent.processed,
-          processedAt: webhookEvent.processedAt,
-          retryCount: webhookEvent.retryCount,
-          error: webhookEvent.error || 'None',
-        });
-      } else {
-        console.warn(`⚠️  Webhook event not found in database: ${eventId}`);
-      }
-    } catch (dbError) {
-      console.error(
-        `❌ Failed to check database status for ${eventId}:`,
-        dbError,
-      );
-    }
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(
-      `❌ Onboarding webhook job failed: ${eventId} - Duration: ${duration}ms`,
-      error,
-    );
-    throw error;
-  }
-}
-
-/**
- * Create and configure workers for both queues
- */
-const stripeWorker = new Worker(
-  QUEUE_NAMES.STRIPE_WEBHOOKS, // Listen to payment webhooks queue
-  processStripeWebhookJob, // Job processing function
-  {
-    connection: getRedisConnection(),
-    concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5,
-
-    // Job processing options
-    removeOnComplete: { count: 100 }, // Keep last 100 completed jobs
-    removeOnFail: { count: 1000 }, // Keep last 1000 failed jobs
-  },
-);
-
-const onboardingWorker = new Worker(
-  QUEUE_NAMES.ONBOARDING_WEBHOOKS, // Listen to onboarding webhooks queue
-  processOnboardingWebhookJob, // Job processing function
-  {
-    connection: getRedisConnection(),
-    concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5,
-
-    // Job processing options
-    removeOnComplete: { count: 100 }, // Keep last 100 completed jobs
-    removeOnFail: { count: 1000 }, // Keep last 1000 failed jobs
-  },
-);
-
-/**
- * Event listeners for monitoring and logging
- */
-
-// Job completed successfully
-stripeWorker.on('completed', (job, result) => {
-  console.log(
-    `✅ Stripe webhook job ${job.id} completed successfully:`,
-    result,
-  );
-});
-
-onboardingWorker.on('completed', (job, result) => {
-  console.log(
-    `✅ Onboarding webhook job ${job.id} completed successfully:`,
-    result,
-  );
-});
-
-// Job failed (after all retries)
-stripeWorker.on('failed', (job, error) => {
-  console.error(`❌ Stripe webhook job ${job?.id} failed:`, error);
-});
-
-onboardingWorker.on('failed', (job, error) => {
-  console.error(`❌ Onboarding webhook job ${job?.id} failed:`, error);
-});
-
-// Worker error (not job-specific)
-stripeWorker.on('error', (error) => {
-  console.error('🚨 Stripe webhook worker error:', error);
-});
-
-onboardingWorker.on('error', (error) => {
-  console.error('🚨 Onboarding webhook worker error:', error);
-});
-
-// Worker is ready to process jobs
-stripeWorker.on('ready', () => {
-  console.log('🚀 Stripe webhook worker ready to process jobs');
-});
-
-onboardingWorker.on('ready', () => {
-  console.log('🚀 Onboarding webhook worker ready to process jobs');
-});
-
-// Worker is closing
-stripeWorker.on('closing', () => {
-  console.log('🔄 Stripe webhook worker closing...');
-});
-
-onboardingWorker.on('closing', () => {
-  console.log('🔄 Onboarding webhook worker closing...');
-});
-
-// Worker has closed
-stripeWorker.on('closed', () => {
-  console.log('✅ Stripe webhook worker closed');
-});
-
-onboardingWorker.on('closed', () => {
-  console.log('✅ Onboarding webhook worker closed');
-});
-
-/**
  * Graceful shutdown handling
  */
+let runner: Awaited<ReturnType<typeof run>> | null = null;
+
 async function gracefulShutdown(signal: string): Promise<void> {
   console.log(`\n📡 Received ${signal}, shutting down gracefully...`);
 
   try {
-    // Close both workers
-    await Promise.all([stripeWorker.close(), onboardingWorker.close()]);
-
-    // Close Redis connection
-    const connection = getRedisConnection();
-    await connection.quit();
+    if (runner) {
+      console.log('🔌 Stopping Graphile Worker...');
+      await runner.stop();
+      runner = null;
+      console.log('✅ Graphile Worker stopped');
+    }
 
     console.log('✅ Graceful shutdown completed');
     process.exit(0);
@@ -332,16 +67,60 @@ process.on('unhandledRejection', (reason, promise) => {
   gracefulShutdown('unhandledRejection');
 });
 
-// Log startup information
-console.log('🔧 Webhook Worker Configuration:');
-console.log(`  - Queue: ${QUEUE_NAMES.STRIPE_WEBHOOKS}`);
-console.log(
-  `  - Concurrency: ${Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5}`,
-);
-console.log(`  - Redis Host: ${process.env.REDIS_HOST || 'localhost'}`);
-console.log(`  - Redis Port: ${process.env.REDIS_PORT || 6379}`);
-console.log(`  - Max Retries: ${Number(process.env.WEBHOOK_MAX_RETRIES) || 5}`);
-console.log('');
+/**
+ * Start Graphile Worker
+ */
+async function startWorker(): Promise<void> {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+
+  const schema = graphileWorkerConfig.schema;
+  const concurrency = graphileWorkerConfig.concurrency;
+
+  // Log startup information
+  const connectionInfo = connectionString.replace(/:[^:@]+@/, ':****@');
+  console.log('🔧 Webhook Worker Configuration:');
+  console.log(`  - Database: ${connectionInfo}`);
+  console.log(`  - Schema: ${schema}`);
+  console.log(`  - Tasks: ${TASK_NAMES.PROCESS_STRIPE_WEBHOOK}, ${TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK}, ${TASK_NAMES.PROCESS_EVENT_HANDLER}`);
+  console.log(`  - Concurrency: ${concurrency}`);
+  console.log(`  - Max Retries: ${graphileWorkerConfig.maxAttempts}`);
+  console.log('');
+
+  // Start Graphile Worker runner
+  console.log('🔌 Connecting to Graphile Worker...');
+
+  try {
+    // Define task list with explicit imports (required for TypeScript)
+    const taskList = {
+      [TASK_NAMES.PROCESS_STRIPE_WEBHOOK]: processStripeWebhook,
+      [TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK]: processOnboardingWebhook,
+      [TASK_NAMES.PROCESS_EVENT_HANDLER]: processEventHandler,
+    };
+
+    runner = await run({
+      connectionString,
+      schema,
+      taskList,
+      concurrency,
+      noHandleSignals: true, // We handle signals ourselves
+      pollInterval: 1000, // Poll for new jobs every second
+    });
+
+    console.log('✅ Graphile Worker connected and ready to process jobs');
+  } catch (error) {
+    console.error('❌ Graphile Worker connection error:', error);
+    throw error;
+  }
+
+  // Wait for the runner to complete (runs indefinitely until stopped)
+  await runner.promise;
+}
 
 // Start the worker
-console.log('🚀 Starting webhook worker...');
+startWorker().catch((error) => {
+  console.error('🚨 Failed to start Graphile Worker:', error);
+  process.exit(1);
+});

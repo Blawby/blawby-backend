@@ -1,48 +1,23 @@
 /**
  * Event Listener Worker
  *
- * Processes queued event listeners using BullMQ
+ * Exports registration function for event handlers.
+ * The actual processing is done by the process-event-handler Graphile Worker task.
  */
 
-import { Worker } from 'bullmq';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
-import { getRedisConnection } from '@/shared/queue/redis.client';
-
-// Store registered handlers for queued execution
-const queuedHandlers = new Map<string, (event: BaseEvent) => Promise<void | boolean>>();
+import {
+  registerQueuedHandler as registerHandler,
+} from '@/shared/events/event-handler-registry';
 
 /**
  * Register a handler for queued execution
+ * Handlers registered here will be executed by the process-event-handler task
  */
-export const registerQueuedHandler = (
-  handlerName: string,
-  handler: (event: BaseEvent) => Promise<void | boolean>,
-): void => {
-  queuedHandlers.set(handlerName, handler);
-};
+export const registerQueuedHandler = registerHandler;
 
 /**
- * Create event listener worker
+ * Note: Event listener worker is no longer a separate BullMQ worker.
+ * Event handlers are processed by the Graphile Worker task: process-event-handler
+ * The webhook worker loads all tasks including process-event-handler.
  */
-export const createEventListenerWorker = (): Worker => {
-  return new Worker('events', async (job) => {
-    const { handlerName, event } = job.data;
-
-    // Get the registered handler
-    const handler = queuedHandlers.get(handlerName);
-    if (!handler) {
-      throw new Error(`Handler '${handlerName}' not found for queued execution`);
-    }
-
-    // Execute the handler
-    const result = await handler(event);
-
-    // Log completion
-    console.info(`Queued event handler '${handlerName}' completed for event ${event.eventType}`);
-
-    return result;
-  }, {
-    connection: getRedisConnection(),
-    concurrency: 5, // Process up to 5 jobs concurrently
-  });
-};

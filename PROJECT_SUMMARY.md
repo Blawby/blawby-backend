@@ -31,6 +31,12 @@ pnpm run db:migrate   # Apply migrations
 
 # Start development server
 pnpm run dev
+
+# Start background worker (separate terminal)
+pnpm run worker:dev
+
+# Or run both together
+pnpm run dev:full
 ```
 
 ### Key Environment Variables
@@ -46,6 +52,11 @@ BETTER_AUTH_URL="http://localhost:3000"
 # Stripe
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# Graphile Worker (Background Jobs)
+GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Optional - defaults to 'graphile_worker'
+WEBHOOK_WORKER_CONCURRENCY=5  # Optional - concurrent job processing
+WEBHOOK_MAX_RETRIES=5  # Optional - max retry attempts
 
 # Application
 NODE_ENV="development"
@@ -69,6 +80,10 @@ src/
 │   │   ├── better-auth.ts # Better Auth configuration
 │   │   └── verify-auth.ts # Auth verification middleware
 │   ├── database/          # Database utilities
+│   ├── queue/             # Job queue system (Graphile Worker)
+│   │   ├── graphile-worker.client.ts # Graphile Worker client
+│   │   ├── queue.manager.ts # Job queue management
+│   │   └── queue.config.ts # Queue configuration
 │   ├── middleware/        # Fastify middleware plugins
 │   │   ├── cors.ts        # CORS configuration
 │   │   ├── helmet.ts      # Security headers
@@ -77,6 +92,12 @@ src/
 │   ├── router/            # File-based routing system
 │   ├── types/             # Global TypeScript definitions
 │   └── utils/             # Utility functions
+├── workers/                # Background worker processes
+│   ├── webhook.worker.ts  # Graphile Worker runner for webhooks
+│   └── tasks/             # Graphile Worker task definitions
+│       ├── process-stripe-webhook.ts
+│       ├── process-onboarding-webhook.ts
+│       └── process-event-handler.ts
 ├── schema/                 # Drizzle schema definitions
 │   ├── index.ts           # Schema exports
 │   └── better-auth-schema.ts # Better Auth schemas
@@ -1123,6 +1144,100 @@ export * from '../modules/settings/schemas/settings.schema';
 - Efficient request handling
 - Minimal middleware overhead
 
+## Background Job Processing (Graphile Worker)
+
+### Architecture
+
+The project uses **Graphile Worker** for reliable background job processing. Graphile Worker is a PostgreSQL-based job queue that eliminates the need for Redis, simplifying infrastructure while maintaining high reliability.
+
+**Key Benefits:**
+- ✅ **No Redis dependency** - Uses PostgreSQL for job storage
+- ✅ **Automatic schema creation** - Schema auto-creates on first worker start
+- ✅ **Built-in retries** - Automatic retry with exponential backoff
+- ✅ **Job deduplication** - Uses `jobKey` for idempotent job processing
+- ✅ **PostgreSQL-native** - Leverages existing database infrastructure
+
+### Architecture Flow
+
+```
+Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graphile Worker
+                                                                    ↓
+                                                              Process & Mark Complete
+```
+
+### Components
+
+**1. Queue Manager** (`src/shared/queue/queue.manager.ts`)
+- Enqueues jobs using Graphile Worker's `makeWorkerUtils`
+- Provides `addWebhookJob()` and `addOnboardingWebhookJob()` functions
+- Handles job deduplication via `jobKey` parameter
+
+**2. Graphile Worker Client** (`src/shared/queue/graphile-worker.client.ts`)
+- Singleton pattern for `makeWorkerUtils`
+- Manages connection lifecycle
+- Auto-initializes on first use
+
+**3. Worker Process** (`src/workers/webhook.worker.ts`)
+- Separate Node.js process that consumes jobs from PostgreSQL
+- Runs independently from API server
+- Processes webhooks and event handlers asynchronously
+
+**4. Task Definitions** (`src/workers/tasks/`)
+- `process-stripe-webhook.ts` - Processes Stripe webhook events
+- `process-onboarding-webhook.ts` - Processes Stripe Connect onboarding events
+- `process-event-handler.ts` - Processes queued event handlers
+
+### Job Processing Flow
+
+1. **Webhook Received**: API endpoint receives webhook from Stripe
+2. **Save to Database**: Webhook event saved to `webhook_events` table
+3. **Enqueue Job**: Job added to Graphile Worker queue with `jobKey` for deduplication
+4. **Worker Processes**: Background worker picks up job from PostgreSQL
+5. **Execute Task**: Task function processes the webhook event
+6. **Mark Complete**: Webhook marked as processed in database
+
+### Configuration
+
+**Environment Variables:**
+```env
+DATABASE_URL="postgresql://..."  # Required - PostgreSQL connection
+GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Optional - defaults to 'graphile_worker'
+WEBHOOK_WORKER_CONCURRENCY=5  # Optional - concurrent job processing (default: 5)
+WEBHOOK_MAX_RETRIES=5  # Optional - max retry attempts (default: 5)
+```
+
+**Package.json Scripts:**
+```bash
+pnpm run worker        # Start worker (production)
+pnpm run worker:dev    # Start worker with watch mode (development)
+```
+
+### Deployment
+
+**No Setup Required**: Graphile Worker automatically creates the `graphile_worker` schema on first run.
+
+**Deployment Steps:**
+1. Run database migrations: `pnpm run db:migrate`
+2. Start worker process: `pnpm run worker`
+3. Schema auto-creates on first worker start
+
+**Railway/Production:**
+- Run worker as separate service/container
+- Worker auto-creates schema on first start
+- No manual schema setup needed
+
+### Monitoring
+
+**Queue Statistics:**
+- Query `graphile_worker.jobs` table directly for job status
+- Use `getQueueStats()` function for programmatic access
+- Monitor waiting, active, completed, and failed jobs
+
+**Logging:**
+- Connection status logged on worker start
+- Job start/success/error events logged
+- Detailed error messages for failed jobs
+
 ## Monitoring & Logging
 
 ### Logging
@@ -1131,12 +1246,14 @@ export * from '../modules/settings/schemas/settings.schema';
 - Error tracking and reporting
 - Request/response logging
 - Performance metrics
+- Background job processing logs
 
 ### Health Checks
 
 - Health endpoint for monitoring
 - Database connection status
 - External service status
+- Graphile Worker connection status
 
 ## Deployment
 

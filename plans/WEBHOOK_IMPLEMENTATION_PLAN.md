@@ -1,12 +1,18 @@
-# Stripe Webhook Implementation - BullMQ + Redis
+# Stripe Webhook Implementation - Graphile Worker
+
+**Last Updated:** December 2024  
+**Status:** ✅ Production Ready  
+**Queue System:** Graphile Worker (PostgreSQL-based)
+
+**Note:** This project uses Graphile Worker (PostgreSQL-based) instead of BullMQ/Redis. See [GRAPHILE_WORKER_MIGRATION.md](./GRAPHILE_WORKER_MIGRATION.md) for migration details.
 
 ## Architecture Overview
 
 ```
-Stripe → Webhook Endpoint → Verify Signature → Save to DB → Queue to Redis → Return 200 OK
-                                                                      ↓
-                                                            Worker Process (async)
-                                                                      ↓
+Stripe → Webhook Endpoint → Verify Signature → Save to DB → Enqueue to PostgreSQL → Return 200 OK
+                                                                          ↓
+                                                            Graphile Worker Process (async)
+                                                                          ↓
                                                             Fetch → Process → Mark Complete
 ```
 
@@ -23,24 +29,23 @@ Stripe → Webhook Endpoint → Verify Signature → Save to DB → Queue to Red
 
 ### Install Packages
 ```bash
-pnpm add bullmq ioredis
-pnpm add -D @types/ioredis
+pnpm add graphile-worker
 ```
 
 ### Environment Variables
 ```env
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
+# Database (required for Graphile Worker)
+DATABASE_URL="postgresql://user:password@localhost:5432/blawby"
+
+# Graphile Worker (optional)
+GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Defaults to 'graphile_worker'
 
 # Stripe
 STRIPE_WEBHOOK_SECRET=whsec_...
 
 # Worker
-WEBHOOK_WORKER_CONCURRENCY=5
-WEBHOOK_MAX_RETRIES=5
+WEBHOOK_WORKER_CONCURRENCY=5  # Concurrent job processing
+WEBHOOK_MAX_RETRIES=5  # Max retry attempts
 ```
 
 ---
@@ -95,137 +100,108 @@ Implement methods:
 
 ---
 
-## Phase 3: Redis & Queue Setup
+## Phase 3: Graphile Worker Setup
 
-**Understanding BullMQ Architecture:**
+**Understanding Graphile Worker Architecture:**
 
 ```
 API Server (produces jobs)          Worker Process (consumes jobs)
        ↓                                      ↓
-   Queue.add()                          Worker.process()
+   workerUtils.addJob()              Graphile Worker.run()
        ↓                                      ↓
-       └─────────→  Redis  ←─────────────────┘
+       └─────────→  PostgreSQL  ←─────────────┘
+              (graphile_worker schema)
 ```
 
-- **Queue**: Used in API to ADD jobs (producer)
-- **Worker**: Separate process to PROCESS jobs (consumer)
-- **Redis**: Message broker connecting them
+- **WorkerUtils**: Used in API to ADD jobs (producer)
+- **Worker Runner**: Separate process to PROCESS jobs (consumer)
+- **PostgreSQL**: Job queue storage (same database as application)
 
-### Redis Connection
+### Graphile Worker Client
 
-**File:** `src/shared/queue/redis.client.ts`
+**File:** `src/shared/queue/graphile-worker.client.ts`
 
 ```typescript
-import Redis from 'ioredis';
+import { makeWorkerUtils, type WorkerUtils } from 'graphile-worker';
 
-export const redisConnection = new Redis({
-  host: process.env.REDIS_HOST,
-  port: Number(process.env.REDIS_PORT),
-  password: process.env.REDIS_PASSWORD,
-  db: Number(process.env.REDIS_DB),
-  maxRetriesPerRequest: null, // REQUIRED for BullMQ
-  enableReadyCheck: false,
-});
+let workerUtils: WorkerUtils | null = null;
+
+export const getWorkerUtils = async (): Promise<WorkerUtils> => {
+  if (!workerUtils) {
+    const connectionString = process.env.DATABASE_URL;
+    const schema = process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker';
+    
+    workerUtils = await makeWorkerUtils({
+      connectionString,
+      schema,
+    });
+  }
+  return workerUtils;
+};
 ```
 
-**Critical:** `maxRetriesPerRequest: null` is REQUIRED for BullMQ compatibility.
+**Key Points:**
+- Uses existing `DATABASE_URL` - no separate Redis needed
+- Schema auto-creates on first worker start
+- Singleton pattern ensures single connection
 
 ### Queue Configuration
 
 **File:** `src/shared/queue/queue.config.ts`
 
-Define constants and default job options:
+Define task names and configuration:
 
 ```typescript
-export const QUEUE_NAMES = {
-  STRIPE_WEBHOOKS: 'stripe-webhooks',
+export const TASK_NAMES = {
+  PROCESS_STRIPE_WEBHOOK: 'process-stripe-webhook',
+  PROCESS_ONBOARDING_WEBHOOK: 'process-onboarding-webhook',
+  PROCESS_EVENT_HANDLER: 'process-event-handler',
 } as const;
 
-export const JOB_NAMES = {
-  PROCESS_WEBHOOK: 'process-webhook',
+export const graphileWorkerConfig = {
+  maxAttempts: Number(process.env.WEBHOOK_MAX_RETRIES) || 5,
+  concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5,
+  schema: process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker',
 } as const;
-
-export const queueConfig = {
-  defaultJobOptions: {
-    attempts: Number(process.env.WEBHOOK_MAX_RETRIES) || 5,
-    backoff: {
-      type: 'exponential' as const,
-      delay: 60000, // Start with 1 minute
-    },
-    removeOnComplete: 100,  // Keep last 100 completed jobs
-    removeOnFail: 1000,     // Keep last 1000 failed jobs
-  },
-};
 ```
 
 **Retry Behavior:**
-- Retry delays: 1min → 2min → 4min → 8min → 16min
-- After 5 failed attempts, job moves to "failed" state
-- Failed jobs kept in Redis for debugging
+- Automatic retries with exponential backoff
+- Configurable `maxAttempts` per job
+- Failed jobs stored in `graphile_worker.jobs` table
 
-### BullMQ Queue Setup
+### Queue Manager
 
 **File:** `src/shared/queue/queue.manager.ts`
 
-Create a QueueManager class that initializes and manages BullMQ queues:
+Functions to enqueue jobs:
 
 ```typescript
-import { Queue } from 'bullmq';
-import { redisConnection } from './redis.client';
-import { QUEUE_NAMES, queueConfig } from './queue.config';
+import { getWorkerUtils } from './graphile-worker.client';
+import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 
-class QueueManager {
-  private queues: Map<string, Queue> = new Map();
-
-  getQueue(name: string): Queue {
-    if (!this.queues.has(name)) {
-      const queue = new Queue(name, {
-        connection: redisConnection,
-        defaultJobOptions: queueConfig.defaultJobOptions,
-      });
-      this.queues.set(name, queue);
-    }
-    return this.queues.get(name)!;
-  }
-
-  get webhookQueue(): Queue {
-    return this.getQueue(QUEUE_NAMES.STRIPE_WEBHOOKS);
-  }
-
-  async close() {
-    await Promise.all(
-      Array.from(this.queues.values()).map(q => q.close())
-    );
-    await redisConnection.quit();
-  }
-}
-
-export const queueManager = new QueueManager();
+export const addWebhookJob = async (
+  webhookId: string,
+  eventId: string,
+  eventType: string,
+): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+  
+  await workerUtils.addJob(
+    TASK_NAMES.PROCESS_STRIPE_WEBHOOK,
+    { webhookId, eventId, eventType },
+    {
+      jobKey: eventId, // Deduplication (replaces BullMQ's jobId)
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    },
+  );
+};
 ```
 
 **Key Points:**
-- The `Queue` class is used to ADD jobs to the queue (from API endpoint)
-- Separate `Worker` class will CONSUME jobs (Phase 5)
-- Both connect to same Redis instance but serve different purposes
-- Queue configuration includes retry logic and job retention
-- Singleton pattern ensures single queue instance throughout app
-
-### Fastify Plugin
-
-**File:** `src/shared/plugins/queue.plugin.ts`
-
-Decorate Fastify instance with:
-```typescript
-fastify.queue = {
-  addWebhookJob: async (webhookId, eventId, eventType) => {
-    await webhookQueue.add('process-webhook', { webhookId, eventId, eventType }, {
-      jobId: eventId, // Use Stripe event ID for deduplication
-    });
-  }
-}
-```
-
-Register in `src/app.ts` after database plugin.
+- `workerUtils.addJob()` adds jobs to PostgreSQL queue
+- `jobKey` provides deduplication (same as BullMQ's `jobId`)
+- No separate Redis connection needed
 
 ---
 
@@ -393,28 +369,60 @@ Each handler should:
 
 ---
 
-## Phase 7: Monitoring (Optional)
+## Phase 7: Monitoring
 
-### Bull Board Setup
+### Queue Statistics
 
-**File:** `src/shared/queue/bull-board.ts`
+Query Graphile Worker's `jobs` table directly:
 
-Install:
-```bash
-pnpm add @bull-board/api @bull-board/fastify @bull-board/ui
+```sql
+SELECT 
+  COUNT(*) FILTER (WHERE attempts = 0 AND locked_at IS NULL) as waiting,
+  COUNT(*) FILTER (WHERE locked_at IS NOT NULL) as active,
+  COUNT(*) FILTER (WHERE attempts > 0 AND attempts < max_attempts) as completed,
+  COUNT(*) FILTER (WHERE attempts >= max_attempts) as failed
+FROM graphile_worker.jobs
+WHERE task_identifier = 'process-stripe-webhook';
 ```
 
-Setup Bull Board and register with Fastify at `/admin/queues`.
+Or use the helper function:
 
-**Only enable in development** (check `NODE_ENV`).
+```typescript
+import { getWebhookQueueStats } from '@/shared/queue/queue.manager';
 
-Access: http://localhost:3000/admin/queues
+const stats = await getWebhookQueueStats();
+// { waiting: 0, active: 2, completed: 150, failed: 1 }
+```
 
-**Features:**
-- View all jobs (waiting, active, completed, failed)
-- Retry failed jobs manually
-- Monitor queue metrics
-- Clean old jobs
+### Logging
+
+Graphile Worker provides comprehensive logging:
+- Connection status on worker start
+- Job start/success/error events
+- Detailed error messages for debugging
+
+### Advanced Monitoring
+
+Query Graphile Worker tables directly for detailed monitoring:
+
+```sql
+-- View all jobs for a task
+SELECT * FROM graphile_worker.jobs 
+WHERE task_identifier = 'process-stripe-webhook'
+ORDER BY created_at DESC
+LIMIT 100;
+
+-- View failed jobs
+SELECT * FROM graphile_worker.jobs 
+WHERE attempts >= max_attempts
+ORDER BY created_at DESC;
+
+-- View active jobs
+SELECT * FROM graphile_worker.jobs 
+WHERE locked_at IS NOT NULL;
+```
+
+Or build a custom admin dashboard using the `getQueueStats()` function.
 
 ---
 
@@ -422,9 +430,10 @@ Access: http://localhost:3000/admin/queues
 
 ### Local Testing Setup
 
-**1. Start Redis:**
+**1. Start PostgreSQL:**
 ```bash
-docker run -p 6379:6379 redis:alpine
+# Ensure PostgreSQL is running (required for Graphile Worker)
+# Graphile Worker uses the same DATABASE_URL as the application
 ```
 
 **2. Start API Server:**
@@ -436,6 +445,8 @@ pnpm run dev
 ```bash
 pnpm run worker:dev
 ```
+
+**Note:** Graphile Worker automatically creates the `graphile_worker` schema on first start.
 
 **4. Forward Stripe Webhooks:**
 ```bash
@@ -458,25 +469,34 @@ stripe trigger capability.updated
 ```
 
 **6. Verify:**
-- Check API logs: "Webhook received"
+- Check API logs: "Webhook received" and "Webhook job queued"
 - Check database: `SELECT * FROM webhook_events`
-- Check worker logs: "Processing webhook"
-- Check Bull Board: http://localhost:3000/admin/queues
+- Check Graphile Worker jobs: `SELECT * FROM graphile_worker.jobs`
+- Check worker logs: "Starting job" and "Job completed successfully"
 
 ### Test Checklist
 
 - [ ] Webhook endpoint responds 200 OK in <100ms
 - [ ] Duplicate webhooks return `duplicate: true`
 - [ ] Webhooks saved to database before queueing
-- [ ] Jobs appear in Redis queue
+- [ ] Jobs appear in `graphile_worker.jobs` table
 - [ ] Worker processes jobs successfully
 - [ ] Database updated correctly
 - [ ] Failed jobs retry automatically
-- [ ] Bull Board shows queue stats
+- [ ] Queue statistics queryable via `getQueueStats()`
 
 ---
 
 ## Phase 9: Production Deployment
+
+### No Setup Required
+
+Graphile Worker automatically creates the schema on first run. No manual setup needed.
+
+**Deployment Steps:**
+1. Run database migrations: `pnpm run db:migrate`
+2. Start worker: `pnpm run worker`
+3. Schema auto-creates on first worker start
 
 ### Process Management (PM2)
 
@@ -495,7 +515,7 @@ module.exports = {
       name: 'blawby-worker',
       script: 'pnpm',
       args: 'run worker',
-      instances: 3,
+      instances: 1, // Graphile Worker handles concurrency internally
       exec_mode: 'fork',
     },
   ],
@@ -508,6 +528,8 @@ pm2 start ecosystem.config.js
 pm2 monit
 pm2 logs blawby-worker
 ```
+
+**Note:** Graphile Worker handles concurrency via the `concurrency` config option, so typically only one worker instance is needed.
 
 ### Stripe Webhook Configuration
 
@@ -523,14 +545,15 @@ pm2 logs blawby-worker
 ### Health Check
 
 Add to health endpoint:
-- Redis connection status
-- Unprocessed webhook count
+- Graphile Worker connection status (via database query)
+- Unprocessed webhook count (from `graphile_worker.jobs` table)
 - Return `degraded` if >1000 unprocessed
 
 Alert if:
-- Redis disconnected
+- Database connection issues
 - Unprocessed webhooks >1000
 - Worker process crashed
+- Failed jobs >100 (may indicate systemic issue)
 
 ---
 
@@ -558,6 +581,7 @@ Alert if:
 5. **Separate Worker Process**
    - Worker MUST be separate from API server
    - Can scale workers independently
+   - Graphile Worker schema auto-creates on first start
 
 ### Common Pitfalls to Avoid
 
@@ -597,7 +621,8 @@ src/
 │       └── capability-updated.handler.ts # Event handler
 ├── shared/
 │   ├── queue/
-│   │   ├── redis.client.ts              # Redis connection
+│   │   ├── graphile-worker.client.ts    # Graphile Worker client
+│   │   ├── queue.manager.ts             # Job queue management
 │   │   ├── queue.config.ts              # Queue configuration
 │   │   ├── queue.manager.ts             # Queue manager
 │   │   └── bull-board.ts                # Monitoring UI
@@ -617,18 +642,18 @@ database/migrations/
 ### Current (MVP)
 - Single API server
 - Single worker process
-- Single Redis instance
+- Single PostgreSQL database
 
 ### Medium Scale (1000+ webhooks/day)
 - 2-3 API servers (load balanced)
-- 3-5 worker processes
-- Redis with persistence
+- 2-3 worker processes (adjust concurrency per worker)
+- PostgreSQL with read replicas
 
 ### Large Scale (10,000+ webhooks/day)
 - Multiple API servers
-- 10+ worker processes on separate servers
-- Redis cluster for HA
-- Dead letter queue for failed jobs
+- Multiple worker processes on separate servers
+- PostgreSQL cluster for HA
+- Dead letter queue for failed jobs (query `graphile_worker.jobs`)
 - Webhook replay system
 
 ---
@@ -641,25 +666,26 @@ database/migrations/
 - [ ] Response time <100ms
 - [ ] Worker processes jobs asynchronously
 - [ ] Failed jobs retry automatically
-- [ ] Bull Board shows queue metrics
+- [ ] Queue statistics queryable
 - [ ] All tests pass
 - [ ] Documentation updated
 
 ✅ **Production Ready When:**
-- [ ] Redis configured with persistence
-- [ ] Worker process under PM2
+- [ ] Graphile Worker schema created (auto-creates on first start)
+- [ ] Worker process under PM2 or similar
 - [ ] Health checks implemented
 - [ ] Alerts configured
 - [ ] Stripe webhook endpoint registered
 - [ ] Tested with real Stripe events
+- [ ] Monitoring for job queue health
 
 ---
 
 ## Resources
 
-- **BullMQ Docs:** https://docs.bullmq.io/
+- **Graphile Worker Docs:** https://github.com/graphile/worker
 - **Stripe Webhooks:** https://stripe.com/docs/webhooks
-- **Bull Board:** https://github.com/felixmosh/bull-board
+- **Graphile Worker Examples:** https://github.com/graphile/worker/tree/main/examples
 - **Stripe CLI:** https://stripe.com/docs/stripe-cli
 
 ---
@@ -667,7 +693,8 @@ database/migrations/
 ## Support
 
 For questions or issues during implementation:
-1. Check BullMQ documentation
+1. Check Graphile Worker documentation
 2. Review Stripe webhook best practices
 3. Test with Stripe CLI before production
-4. Monitor Bull Board for queue health
+4. Monitor `graphile_worker.jobs` table for queue health
+5. See [GRAPHILE_WORKER_MIGRATION.md](./GRAPHILE_WORKER_MIGRATION.md) for migration details
