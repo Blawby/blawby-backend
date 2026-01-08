@@ -38,9 +38,15 @@ const betterAuthInstance = (
       database: {
         generateId: 'uuid',
       },
-      useSecureCookies: process.env.NODE_ENV === 'production',
+      useSecureCookies: true,
       // Disable origin check in development to allow cURL and server-to-server requests
       disableOriginCheck: process.env.NODE_ENV === 'development',
+      crossSubDomainCookies: {
+        enabled: true,
+        domain: ".blawby.com",
+        secure: true,
+        sameSite: "none"
+      },
       cookie: {
         // CRITICAL: Allow cookie sharing across subdomains
         domain: ".blawby.com",
