@@ -19,17 +19,24 @@ import { findPlanByStripePriceId } from '@/modules/subscriptions/database/querie
 
 /**
  * Authorize subscription reference (organization) access
- * Only owners and admins can manage subscriptions
+ * - list-subscription: Any member can view subscriptions
+ * - upgrade/cancel/restore: Only owners and admins can manage
  */
 const createAuthorizeReference = (
   db: NodePgDatabase<typeof schema>,
-) => async ({ user, referenceId }: {
+) => async ({ user, session, referenceId, action }: {
   user: { id: string };
-  referenceId: string | null | undefined
+  session?: unknown;
+  referenceId: string | null | undefined;
+  action?: string;
 }): Promise<boolean> => {
+    // If no referenceId provided, allow user to list their own subscriptions
     if (!referenceId) {
-      // If no referenceId provided, authorization fails
-      // The subscription service should handle org creation before calling Better Auth
+      // For list-subscription, allow listing user's own subscriptions
+      if (action === 'list-subscription') {
+        return true;
+      }
+      // For other actions, require referenceId
       return false;
     }
 
@@ -52,6 +59,13 @@ const createAuthorizeReference = (
     }
 
     const userRole = member[0].role;
+
+    // For list-subscription, any member can view
+    if (action === 'list-subscription') {
+      return true;
+    }
+
+    // For upgrade/cancel/restore, only owners and admins
     return userRole === 'owner' || userRole === 'admin';
   };
 
