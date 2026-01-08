@@ -1,31 +1,33 @@
 /**
  * Queue Event Handler
  *
- * Adds event handler execution to a BullMQ queue for async processing.
+ * Adds event handler execution to Graphile Worker queue for async processing.
  */
 
 import type { BaseEvent } from './schemas/events.schema';
-import { getQueue } from '@/shared/queue/queue.manager';
+import { TASK_NAMES, graphileWorkerConfig } from '@/shared/queue/queue.config';
+import { getWorkerUtils } from '@/shared/queue/graphile-worker.client';
 
 export const queueEventHandler = async (
   handlerName: string,
   event: BaseEvent,
-  queueName: string,
+  _queueName: string, // Ignored - Graphile Worker uses task names, not queue names
 ): Promise<void> => {
-  const queue = getQueue(queueName);
+  const workerUtils = await getWorkerUtils();
 
-  await queue.add(
-    handlerName, // Job name is the handler name
-    { event, handlerName }, // Job data
-    {
-      jobId: `${event.eventId}-${handlerName}`, // Unique ID for deduplication
-      attempts: 3, // Retry failed jobs
-      backoff: {
-        type: 'exponential',
-        delay: 1000, // 1s, 2s, 4s
+  try {
+    await workerUtils.addJob(
+      TASK_NAMES.PROCESS_EVENT_HANDLER,
+      { event, handlerName },
+      {
+        jobKey: `${event.eventId}-${handlerName}`, // Unique ID for deduplication
+        maxAttempts: 3, // Retry failed jobs
       },
-    },
-  );
+    );
 
-  console.info(`Event handler '${handlerName}' queued for event ${event.eventType} (Job ID: ${event.eventId}-${handlerName})`);
+    console.info(`✅ Event handler '${handlerName}' queued for event ${event.eventType} (Job ID: ${event.eventId}-${handlerName})`);
+  } catch (error) {
+    console.error(`❌ Failed to queue event handler '${handlerName}' for event ${event.eventType}:`, error);
+    throw error;
+  }
 };

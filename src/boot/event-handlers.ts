@@ -14,7 +14,7 @@ import { registerEmailEvents } from '@/shared/events/handlers/email.events';
 export const bootEventHandlers = (): void => {
   console.info('🚀 Registering event handlers...');
 
-  // Only register email events in production (requires Redis)
+  // Register email events (uses Graphile Worker for queued processing)
   if (process.env.NODE_ENV === 'production') {
     registerEmailEvents();
   }

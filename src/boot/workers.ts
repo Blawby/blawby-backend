@@ -1,29 +1,21 @@
 /**
  * Workers Boot
  *
- * Starts background workers for processing queued jobs
+ * Note: Graphile Worker runs as a separate process (via pnpm run worker:dev or pnpm run worker).
+ * This boot function is kept for backward compatibility but no longer starts workers in-process.
+ *
+ * Workers are started via:
+ * - Development: `pnpm run worker:dev` (separate terminal/process)
+ * - Production: `pnpm run worker` (separate process/container)
  */
-
-import { createEventListenerWorker } from '@/workers/event-listener.worker';
 
 /**
  * Boot background workers
- * Call this function to start all background workers for processing queued jobs
+ * 
+ * Note: With Graphile Worker, workers run as separate processes.
+ * This function is a no-op but kept for API compatibility.
  */
 export const bootWorkers = (): void => {
-  console.info('🚀 Starting background workers...');
-
-  // Start event listener worker
-  const eventWorker = createEventListenerWorker();
-
-  // Set up worker event handlers
-  eventWorker.on('completed', (job) => {
-    console.log(`Event handler ${job.data.handlerName} completed`);
-  });
-
-  eventWorker.on('failed', (job, err) => {
-    console.error(`Event handler ${job?.data?.handlerName} failed:`, err);
-  });
-
-  console.info('✅ Background workers started');
+  console.info('ℹ️  Graphile Worker runs as a separate process. Start with: pnpm run worker:dev');
+  // Workers are started via package.json scripts, not in-process
 };
