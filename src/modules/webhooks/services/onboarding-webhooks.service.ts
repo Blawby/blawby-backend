@@ -38,7 +38,9 @@ export const verifyAndStore = async (
   const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    throw new Error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is required for Connect webhooks');
+    const error = new Error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is required for Connect webhooks');
+    (error as any).code = 'STRIPE_SECRET_MISSING';
+    throw error;
   }
 
   // Verify signature using Stripe SDK
@@ -50,7 +52,9 @@ export const verifyAndStore = async (
       webhookSecret,
     );
   } catch {
-    throw new Error('Invalid signature');
+    const error = new Error('Invalid signature');
+    (error as any).code = 'INVALID_SIGNATURE';
+    throw error;
   }
 
   // Check if event already exists (idempotency)

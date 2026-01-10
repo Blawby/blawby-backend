@@ -40,8 +40,15 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
 
     return c.json({ received: true });
   } catch (err) {
-    console.error('Webhook verification failed:', err);
-    return response.badRequest(c, `Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    console.error('Webhook processing failed:', err);
+
+    const isValidationError = (err as any).code === 'INVALID_SIGNATURE' || (err as any).code === 'STRIPE_SECRET_MISSING';
+
+    if (isValidationError) {
+      return response.badRequest(c, `Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+
+    return response.internalServerError(c, 'Failed to process webhook');
   }
 });
 
