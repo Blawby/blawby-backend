@@ -1,7 +1,7 @@
 import type { ModuleConfig } from '@/shared/router/module-router';
 
 /**
- * Practice Module Configuration
+ * Webhooks Module Configuration
  *
  * Route-level middleware using Hono patterns:
  * - '*' - All routes

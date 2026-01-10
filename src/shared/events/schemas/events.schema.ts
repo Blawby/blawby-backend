@@ -95,6 +95,26 @@ export const createEventSchema = createInsertSchema(events, {
 
 export const updateEventSchema = createEventSchema.partial();
 
+export const baseEventSchema = z.object({
+  eventId: z.string(),
+  eventType: z.string(),
+  eventVersion: z.string(),
+  timestamp: z.coerce.date(),
+  actorId: z.string().optional(),
+  actorType: z.string().optional(),
+  organizationId: z.string().optional(),
+  payload: z.record(z.string(), z.any()),
+  metadata: z.object({
+    ipAddress: z.string().optional(),
+    userAgent: z.string().optional(),
+    requestId: z.string().optional(),
+    source: z.string(),
+    environment: z.string(),
+  }),
+  processed: z.boolean().optional(),
+  retryCount: z.number().optional(),
+});
+
 export const selectEventSchema = createSelectSchema(events);
 
 export const createEventSubscriptionSchema = createInsertSchema(
