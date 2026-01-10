@@ -17,6 +17,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "sync:plans": "tsx src/scripts/syncSubscriptionPlans.ts",
+    "sync:schemas": "tsx scripts/sync-schemas.ts",
     "format": "eslint --fix .",
     "format:check": "eslint .",
     "lint": "oxlint",
