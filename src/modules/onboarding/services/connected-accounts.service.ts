@@ -79,22 +79,23 @@ export const createStripeAccount = async (
 };
 
 // 3. Create onboarding session for existing account (single responsibility)
-export const createOnboardingSessionForAccount = async (
+// 3. Create account link for hosted onboarding
+export const createAccountLinkForAccount = async (
   account: StripeConnectedAccount,
+  refreshUrl: string,
+  returnUrl: string,
 ): Promise<CreateSessionResponse> => {
-  // Create session with Stripe (no database storage needed)
-  const session = await stripe.accountSessions.create({
+  // Create account link for hosted onboarding
+  const accountLink = await stripe.accountLinks.create({
     account: account.stripe_account_id,
-    components: {
-      account_onboarding: {
-        enabled: true,
-      },
-    },
+    refresh_url: refreshUrl,
+    return_url: returnUrl,
+    type: 'account_onboarding',
   });
 
   return {
-    client_secret: session.client_secret,
-    expires_at: session.expires_at,
+    url: accountLink.url,
+    expires_at: accountLink.expires_at,
   };
 };
 
@@ -102,6 +103,8 @@ export const createOnboardingSessionForAccount = async (
 export const createOrGetAccount = async (
   organizationId: string,
   email: string,
+  refreshUrl: string,
+  returnUrl: string,
 ): Promise<CreateAccountResponse> => {
   // Check if account exists
   let account = await findAccountByOrganization(organizationId);
@@ -111,13 +114,14 @@ export const createOrGetAccount = async (
     account = await createStripeAccount(organizationId, email);
   }
 
-  // Create onboarding session for the account
-  const session = await createOnboardingSessionForAccount(account);
+  // Create account link for the account
+  const accountLink = await createAccountLinkForAccount(account, refreshUrl, returnUrl);
 
   return {
     account_id: account.stripe_account_id,
-    client_secret: session.client_secret,
-    expires_at: session.expires_at,
+    url: accountLink.url!,
+    expires_at: accountLink.expires_at,
+
     session_status: 'created',
     status: {
       charges_enabled: account.charges_enabled,
@@ -125,21 +129,6 @@ export const createOrGetAccount = async (
       details_submitted: account.details_submitted,
     },
   };
-};
-
-export const createOnboardingSession = async (
-  email: string,
-  organizationId: string,
-): Promise<CreateSessionResponse> => {
-  // Get existing account (don't create new one here)
-  const account = await findAccountByOrganization(organizationId);
-
-  if (!account) {
-    throw new Error('No Stripe account found for organization. Create account first.');
-  }
-
-  // Use the single-purpose session creation function
-  return await createOnboardingSessionForAccount(account);
 };
 
 export const createPaymentsSession = async (

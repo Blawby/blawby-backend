@@ -12,6 +12,7 @@ import {
   organizationIdParamSchema,
   createConnectedAccountSchema,
 } from '@/modules/onboarding/validations/onboarding.validation';
+
 import { validateParams, validateJson } from '@/shared/middleware/validation';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
@@ -56,10 +57,12 @@ onboardingApp.post('/connected-accounts', validateJson(createConnectedAccountSch
     email: validatedBody.practice_email,
     organizationId: validatedBody.practice_uuid,
     user,
+    refreshUrl: validatedBody.refresh_url,
+    returnUrl: validatedBody.return_url,
     requestHeaders: c.req.header() as Record<string, string>,
   });
 
-  if (!details.client_secret) {
+  if (!details.url) {
     return response.internalServerError(c, 'Failed to create connected account');
   }
 
