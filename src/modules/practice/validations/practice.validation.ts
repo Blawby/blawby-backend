@@ -16,6 +16,16 @@ export const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
 export const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
 
 
+// Address schema
+export const addressSchema = z.object({
+  line1: z.string().optional().openapi({ example: '123 Main St' }),
+  line2: z.string().optional().openapi({ example: 'Suite 100' }),
+  city: z.string().optional().openapi({ example: 'New York' }),
+  state: z.string().optional().openapi({ example: 'NY' }),
+  postal_code: z.string().optional().openapi({ example: '10001' }),
+  country: z.string().optional().openapi({ example: 'US' }),
+});
+
 // Practice module specific param schemas
 export const practiceIdParamSchema = z.object({
   uuid: z.uuid().refine((val) => val.length > 0, 'Invalid practice UUID'),
@@ -29,6 +39,16 @@ export const practiceDetailsValidationSchema = z.object({
   consultation_fee: consultationFeeSchema,
   payment_url: paymentUrlSchema,
   calendly_url: calendlyUrlSchema,
+  website: urlValidator.optional().or(z.literal('')).openapi({ example: 'https://example.com' }),
+  intro_message: z.string().optional().openapi({ example: 'Welcome to our practice' }),
+  overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
+  is_public: z.boolean().optional().openapi({ example: true }),
+  services: z
+    .array(z.object({ id: z.string(), name: z.string() }))
+    .optional()
+    .openapi({ example: [{ id: '1', name: 'Service 1' }] }),
+  // Nested Address
+  address: addressSchema.optional(),
 });
 
 // Complete practice schemas
@@ -303,6 +323,12 @@ export const createPracticeDetailsSchema = practiceDetailsValidationSchema.refin
       || data.consultation_fee !== undefined
       || data.payment_url
       || data.calendly_url
+      || data.website
+      || data.intro_message
+      || data.overview
+      || data.is_public !== undefined
+      || data.services
+      || data.address
     );
   },
   {
@@ -329,6 +355,15 @@ export const practiceDetailsResponseSchema = z
     calendly_url: z.string().url().nullable().openapi({
       example: 'https://calendly.com/example',
     }),
+    website: z.string().nullable().openapi({ example: 'https://example.com' }),
+    intro_message: z.string().nullable().openapi({ example: 'Welcome' }),
+    overview: z.string().nullable().openapi({ example: 'Overview text' }),
+    is_public: z.boolean().openapi({ example: true }),
+    services: z
+      .array(z.object({ id: z.string(), name: z.string() }))
+      .nullable()
+      .openapi({ example: [{ id: '1', name: 'Service 1' }] }),
+    address: addressSchema.nullable(),
   })
   .openapi('PracticeDetailsResponse');
 

@@ -310,7 +310,7 @@ practiceApp.post('/:uuid/details', validateParamsAndJson(
   const validatedParams = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const details = await practiceDetailsService.createPracticeDetailsService(
+  const details = await practiceDetailsService.upsertPracticeDetailsService(
     validatedParams.uuid,
     validatedBody,
     user,
@@ -337,7 +337,7 @@ practiceApp.put('/:uuid/details', validateParamsAndJson(
   const validatedParams = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const details = await practiceDetailsService.updatePracticeDetailsService(
+  const details = await practiceDetailsService.upsertPracticeDetailsService(
     validatedParams.uuid,
     validatedBody,
     user,
