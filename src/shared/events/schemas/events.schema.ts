@@ -101,9 +101,9 @@ export const baseEventSchema = z.object({
   eventVersion: z.string(),
   timestamp: z.coerce.date(),
   actorId: z.string().optional(),
-  actorType: z.string().optional(),
-  organizationId: z.string().optional(),
-  payload: z.record(z.string(), z.any()),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']).optional(),
+  organizationId: z.uuid().optional(),
+  payload: z.record(z.string(), z.unknown()),
   metadata: z.object({
     ipAddress: z.string().optional(),
     userAgent: z.string().optional(),
@@ -112,7 +112,7 @@ export const baseEventSchema = z.object({
     environment: z.string(),
   }),
   processed: z.boolean().optional(),
-  retryCount: z.number().optional(),
+  retryCount: z.number().int().min(0).optional(),
 });
 
 export const selectEventSchema = createSelectSchema(events);
