@@ -7,6 +7,14 @@ import { emailValidator, organizationIdParamSchema } from '@/shared/validations/
  */
 export const createOnboardingSessionSchema = z.object({
   practice_email: emailValidator.optional(),
+  refresh_url: z.url('Invalid refresh url').openapi({
+    description: 'The URL to redirect the user to if they click the back button or refresh the page during onboarding',
+    example: 'https://app.blawby.com/onboarding/refresh',
+  }),
+  return_url: z.url('Invalid return url').openapi({
+    description: 'The URL to redirect the user to after they successfully complete the onboarding flow',
+    example: 'https://app.blawby.com/onboarding/return',
+  }),
 });
 
 /**
@@ -15,6 +23,14 @@ export const createOnboardingSessionSchema = z.object({
 export const createConnectedAccountSchema = z.object({
   practice_email: emailValidator,
   practice_uuid: z.uuid('Invalid practice uuid'),
+  refresh_url: z.string().url('Invalid refresh url').openapi({
+    description: 'The URL to redirect the user to if they click the back button or refresh the page during onboarding',
+    example: 'https://app.blawby.com/onboarding/refresh',
+  }),
+  return_url: z.string().url('Invalid return url').openapi({
+    description: 'The URL to redirect the user to after they successfully complete the onboarding flow',
+    example: 'https://app.blawby.com/onboarding/return',
+  }),
 });
 
 /**
@@ -34,9 +50,6 @@ export const onboardingStatusResponseSchema = z
     stripe_account_id: z.string().openapi({
       example: 'acct_1234567890',
     }),
-    client_secret: z.string().nullable().optional().openapi({
-      example: null,
-    }),
     charges_enabled: z.boolean().openapi({
       example: false,
     }),
@@ -45,6 +58,10 @@ export const onboardingStatusResponseSchema = z
     }),
     details_submitted: z.boolean().openapi({
       example: false,
+    }),
+    url: z.string().optional().openapi({
+      description: 'The Stripe-hosted URL to redirect the user to for onboarding (if applicable)',
+      example: 'https://connect.stripe.com/setup/s/1234567890',
     }),
   })
   .openapi('OnboardingStatusResponse');
@@ -60,9 +77,6 @@ export const createConnectedAccountResponseSchema = z
     stripe_account_id: z.string().openapi({
       example: 'acct_1234567890',
     }),
-    client_secret: z.string().optional().openapi({
-      example: 'seti_1234567890_secret_abcdef',
-    }),
     charges_enabled: z.boolean().openapi({
       example: false,
     }),
@@ -71,6 +85,10 @@ export const createConnectedAccountResponseSchema = z
     }),
     details_submitted: z.boolean().openapi({
       example: false,
+    }),
+    url: z.string().optional().openapi({
+      description: 'The Stripe-hosted URL to redirect the user to finish onboarding',
+      example: 'https://connect.stripe.com/setup/s/1234567890',
     }),
   })
   .openapi('CreateConnectedAccountResponse');

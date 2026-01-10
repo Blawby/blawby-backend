@@ -133,7 +133,7 @@ export const createAccountRequestSchema = z.object({
 
 export const createAccountResponseSchema = z.object({
   account_id: z.string(),
-  client_secret: z.string().nullable(),
+  url: z.string(),
   expires_at: z.number(),
   session_status: z.enum(['valid', 'expired', 'created']),
   status: z.object({
@@ -156,7 +156,8 @@ export const getAccountResponseSchema = z.object({
 });
 
 export const createSessionResponseSchema = z.object({
-  client_secret: z.string(),
+  url: z.string().optional(),
+  client_secret: z.string().optional(),
   expires_at: z.number(),
 });
 

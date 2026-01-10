@@ -1,4 +1,4 @@
-import { eq, and, lte } from 'drizzle-orm';
+import { eq, and, lte, or, isNull } from 'drizzle-orm';
 
 import {
   stripeConnectedAccounts,
@@ -113,7 +113,10 @@ export const getEventsToRetry = async (): Promise<WebhookEvent[]> => {
     .where(
       and(
         eq(webhookEvents.processed, false),
-        lte(webhookEvents.nextRetryAt, now),
+        or(
+          lte(webhookEvents.nextRetryAt, now),
+          isNull(webhookEvents.nextRetryAt),
+        ),
       ),
     );
 };

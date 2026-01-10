@@ -20,10 +20,10 @@ interface ProcessEventHandlerPayload {
  * Task name: process-event-handler
  */
 export const processEventHandler: Task = async (
-  payload: ProcessEventHandlerPayload,
+  payload: unknown,
   helpers,
-): Promise<void | boolean> => {
-  const { handlerName, event } = payload;
+): Promise<void> => {
+  const { handlerName, event } = payload as ProcessEventHandlerPayload;
 
   // Get the registered handler
   const handler = getQueuedHandler(handlerName);
@@ -32,13 +32,11 @@ export const processEventHandler: Task = async (
   }
 
   // Execute the handler
-  const result = await handler(event);
+  await handler(event);
 
   // Log completion
   helpers.logger.info(
     `Queued event handler '${handlerName}' completed for event ${event.eventType}`,
   );
-
-  return result;
 };
 
