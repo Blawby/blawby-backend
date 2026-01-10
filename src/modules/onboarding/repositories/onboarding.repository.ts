@@ -113,10 +113,7 @@ export const getEventsToRetry = async (): Promise<WebhookEvent[]> => {
     .where(
       and(
         eq(webhookEvents.processed, false),
-        or(
-          lte(webhookEvents.nextRetryAt, now),
-          isNull(webhookEvents.nextRetryAt),
-        ),
+        lte(webhookEvents.nextRetryAt, now),
       ),
     );
 };

@@ -14,7 +14,7 @@ const webhooksApp = new OpenAPIHono<AppContext>();
  */
 webhooksApp.post('/stripe/connected-accounts', async (c) => {
   const signature = c.req.header('stripe-signature');
-  const body = await c.req.text();
+  const body = Buffer.from(await c.req.arrayBuffer());
 
   if (!signature) {
     return response.badRequest(c, 'Missing stripe-signature header');
@@ -35,10 +35,8 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
       return c.json({ received: true });
     }
 
-    if (webhookId) {
-      // 3. Process asynchronously via Graphile Worker
-      await processWebhookAsync(event.id, webhookId, event.type);
-    }
+    // 3. Process asynchronously via Graphile Worker
+    await processWebhookAsync(event.id, webhookId, event.type);
 
     return c.json({ received: true });
   } catch (err) {

@@ -5,14 +5,15 @@
  * Executes registered event handlers asynchronously.
  */
 
+import { z } from 'zod';
 import type { Task } from 'graphile-worker';
-import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { baseEventSchema } from '@/shared/events/schemas/events.schema';
 import { getQueuedHandler } from '@/shared/events/event-handler-registry';
 
-interface ProcessEventHandlerPayload {
-  handlerName: string;
-  event: BaseEvent;
-}
+const processEventHandlerPayloadSchema = z.object({
+  handlerName: z.string(),
+  event: baseEventSchema,
+});
 
 /**
  * Process event handler
@@ -23,7 +24,15 @@ export const processEventHandler: Task = async (
   payload: unknown,
   helpers,
 ): Promise<void> => {
-  const { handlerName, event } = payload as ProcessEventHandlerPayload;
+  const result = processEventHandlerPayloadSchema.safeParse(payload);
+
+  if (!result.success) {
+    const errorMsg = `Invalid payload for process-event-handler: ${result.error.message}`;
+    helpers.logger.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  const { handlerName, event } = result.data;
 
   // Get the registered handler
   const handler = getQueuedHandler(handlerName);

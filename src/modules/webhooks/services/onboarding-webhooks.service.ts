@@ -215,6 +215,11 @@ export const retryFailedWebhooks = async (): Promise<void> => {
   console.info(`Found ${eventsToRetry.length} webhook events to retry`);
 
   for (const event of eventsToRetry) {
+    // Safety check: skip if max retries reached (should be filtered by query but good to be explicit)
+    if (event.retryCount >= event.maxRetries) {
+      continue;
+    }
+
     try {
       await processEvent(event.stripeEventId);
     } catch (error) {
@@ -253,11 +258,12 @@ export const processWebhookAsync = async (
     if (wId && type) {
       await addOnboardingWebhookJob(wId, eventId, type);
     } else {
-      console.error(`❌ Cannot queue webhook job: Missing metadata for ${eventId}`);
+      const errorMsg = `❌ Cannot queue webhook job: Missing metadata for ${eventId}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
   } catch (error) {
     console.error(`❌ Failed to queue onboarding webhook job: ${eventId}`, error);
-    // Fallback to setImmediate if queue fails in dev? 
-    // No, better to fail and let user see it if they want "close to production"
+    throw error;
   }
 };
