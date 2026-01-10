@@ -9,6 +9,8 @@ import { EventType } from '@/shared/events/enums/event-types';
 import { publishUserEvent } from '@/shared/events/event-publisher';
 import { logError } from '@/shared/middleware/logger';
 import type { User } from '@/shared/types/BetterAuth';
+import { getFullOrganization } from '@/modules/practice/services/organization.service';
+
 
 /**
  * Create onboarding session for organization
@@ -17,25 +19,39 @@ export const createOnboardingSession = async (params: {
   organizationEmail: string;
   organizationId: string;
   user: User;
+  refreshUrl: string;
+  returnUrl: string;
   requestHeaders: Record<string, string>;
 }): Promise<StripeConnectedAccountBase> => {
   const {
-    organizationEmail, organizationId, user,
+    organizationEmail, organizationId, user, refreshUrl, returnUrl, requestHeaders,
   } = params;
 
   try {
-    const result = await createOrGetAccount(organizationId, organizationEmail);
+    // Validate organization and user access using Better Auth
+    const organization = await getFullOrganization(organizationId, user, requestHeaders);
+
+    if (!organization) {
+      throw new Error(`Organization with ID ${organizationId} not found or access denied.`);
+    }
+
+    const result = await createOrGetAccount(
+      organizationId,
+      organizationEmail,
+      refreshUrl,
+      returnUrl,
+    );
 
     // Publish onboarding started event
     void publishUserEvent(EventType.ONBOARDING_STARTED, user.id, {
       organization_id: organizationId,
       organization_email: organizationEmail,
       account_id: result.account_id,
-      session_id: result.client_secret,
+      session_id: result.url,
     });
 
     return {
-      client_secret: result.client_secret ?? undefined,
+      url: result.url,
       practice_uuid: organizationId,
       stripe_account_id: result.account_id,
       charges_enabled: result.status.charges_enabled,
@@ -81,6 +97,7 @@ export const getOnboardingStatus = async (
       details_submitted: account.details_submitted,
     };
   } catch (error) {
+    console.error('Error in getOnboardingStatus:', error); // Explicit debug log
     logError(error, {
       method: 'GET',
       url: `/api/onboarding/organization/${organizationId}/status`,
@@ -102,24 +119,40 @@ export const createConnectedAccount = async (params: {
   email: string;
   organizationId: string;
   user: User;
+  refreshUrl: string;
+  returnUrl: string;
   requestHeaders: Record<string, string>;
 }): Promise<StripeConnectedAccountBase> => {
   const {
-    email, organizationId, user,
+    email, organizationId, user, refreshUrl, returnUrl, requestHeaders,
   } = params;
 
   try {
-    const result = await createOrGetAccount(organizationId, email);
+    // Validate organization and user access using Better Auth
+    const organization = await getFullOrganization(organizationId, user, requestHeaders);
+
+    if (!organization) {
+      throw new Error(`Organization with ID ${organizationId} not found or access denied.`);
+    }
+
+    const result = await createOrGetAccount(
+      organizationId,
+      email,
+      refreshUrl,
+      returnUrl,
+    );
+    console.log('SERVICE: createOrGetAccount returned', result);
 
     return {
       practice_uuid: organizationId,
-      client_secret: result.client_secret ?? undefined,
+      url: result.url,
       stripe_account_id: result.account_id,
       charges_enabled: result.status.charges_enabled,
       payouts_enabled: result.status.payouts_enabled,
       details_submitted: result.status.details_submitted,
     };
   } catch (error) {
+    console.error('Error in createConnectedAccount:', error); // Explicit debug log
     logError(error, {
       method: 'POST',
       url: '/api/onboarding/connected-accounts',

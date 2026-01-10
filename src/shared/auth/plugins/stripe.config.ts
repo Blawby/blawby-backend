@@ -491,6 +491,13 @@ const createOnEvent = (
       return;
     }
 
+    // Explicit debug logging for Connect events (User Request)
+    if (event.account) {
+      console.log(`🔌 [Connect Event] Received ${event.type} for connected account: ${event.account}`);
+    } else if (event.type.startsWith('account.') || event.type.startsWith('capability.')) {
+      console.log(`🔌 [Connect Event] Received ${event.type} (no account ID)`);
+    }
+
     // Save webhook to database (for audit/logging purposes)
     // Note: Better Auth doesn't provide headers/URL in onEvent callback,
     // so we use minimal metadata

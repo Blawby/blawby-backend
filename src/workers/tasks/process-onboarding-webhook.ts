@@ -6,7 +6,7 @@
 
 import type { Task } from 'graphile-worker';
 import { existsByStripeEventId } from '@/shared/repositories/stripe.webhook-events.repository';
-import { processEvent as processOnboardingEvent } from '@/modules/onboarding/services/onboarding-webhooks.service';
+import { processEvent as processOnboardingEvent } from '@/modules/webhooks/services/onboarding-webhooks.service';
 
 interface ProcessOnboardingWebhookPayload {
   webhookId: string;
@@ -20,10 +20,10 @@ interface ProcessOnboardingWebhookPayload {
  * Task name: process-onboarding-webhook
  */
 export const processOnboardingWebhook: Task = async (
-  payload: ProcessOnboardingWebhookPayload,
+  payload: unknown,
   helpers,
 ): Promise<void> => {
-  const { webhookId, eventId, eventType } = payload;
+  const { webhookId, eventId, eventType } = payload as ProcessOnboardingWebhookPayload;
   const startTime = Date.now();
 
   helpers.logger.info(
@@ -45,24 +45,24 @@ export const processOnboardingWebhook: Task = async (
       if (webhookEvent) {
         helpers.logger.info(`📊 Database status for ${eventId}:`, {
           processed: webhookEvent.processed,
-          processedAt: webhookEvent.processedAt,
+          processedAt: webhookEvent.processedAt?.toISOString(),
           retryCount: webhookEvent.retryCount,
           error: webhookEvent.error || 'None',
-        });
+        } as Record<string, unknown>);
       } else {
         helpers.logger.warn(`⚠️  Webhook event not found in database: ${eventId}`);
       }
     } catch (dbError) {
+      const dbErrorMsg = dbError instanceof Error ? dbError.message : String(dbError);
       helpers.logger.error(
-        `❌ Failed to check database status for ${eventId}:`,
-        dbError,
+        `❌ Failed to check database status for ${eventId}: ${dbErrorMsg}`,
       );
     }
   } catch (error) {
     const duration = Date.now() - startTime;
+    const errorMsg = error instanceof Error ? error.message : String(error);
     helpers.logger.error(
-      `❌ Onboarding webhook job failed: ${eventId} - Duration: ${duration}ms`,
-      error,
+      `❌ Onboarding webhook job failed: ${eventId} - Duration: ${duration}ms - ${errorMsg}`,
     );
     throw error;
   }
