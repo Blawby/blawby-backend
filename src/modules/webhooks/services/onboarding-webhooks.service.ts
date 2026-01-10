@@ -21,7 +21,9 @@ import {
   markWebhookFailed,
 } from '@/shared/repositories/stripe.webhook-events.repository';
 import { stripe } from '@/shared/utils/stripe-client';
+import { addOnboardingWebhookJob } from '@/shared/queue/queue.manager';
 
+// verifyAndStore restored for dedicated Connect webhook endpoint
 export const verifyAndStore = async (
   rawBody: string | Buffer,
   signature: string,
@@ -32,10 +34,13 @@ export const verifyAndStore = async (
   alreadyProcessed: boolean;
   webhookId?: string;
 }> => {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  // Use a specific secret for Connect webhooks
+  const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    throw new Error('STRIPE_WEBHOOK_SECRET environment variable is required');
+    const error = new Error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is required for Connect webhooks');
+    (error as any).code = 'STRIPE_SECRET_MISSING';
+    throw error;
   }
 
   // Verify signature using Stripe SDK
@@ -47,7 +52,9 @@ export const verifyAndStore = async (
       webhookSecret,
     );
   } catch {
-    throw new Error('Invalid signature');
+    const error = new Error('Invalid signature');
+    (error as any).code = 'INVALID_SIGNATURE';
+    throw error;
   }
 
   // Check if event already exists (idempotency)
@@ -62,6 +69,7 @@ export const verifyAndStore = async (
 
   return { event, alreadyProcessed: false, webhookId: createdWebhook.id };
 };
+
 
 export const processEvent = async (eventId: string): Promise<void> => {
   const webhookEvent = await existsByStripeEventId(eventId);
@@ -211,6 +219,11 @@ export const retryFailedWebhooks = async (): Promise<void> => {
   console.info(`Found ${eventsToRetry.length} webhook events to retry`);
 
   for (const event of eventsToRetry) {
+    // Safety check: skip if max retries reached (should be filtered by query but good to be explicit)
+    if (event.retryCount >= event.maxRetries) {
+      continue;
+    }
+
     try {
       await processEvent(event.stripeEventId);
     } catch (error) {
@@ -226,20 +239,35 @@ export const retryFailedWebhooks = async (): Promise<void> => {
   }
 };
 
-export const processWebhookAsync = async (eventId: string): Promise<void> => {
-  // Use setImmediate for async processing (Phase 1 - acceptable for current scale)
-  // Future enhancement: Replace with proper job queue in Phase 2 for better scalability
-  setImmediate(async () => {
-    try {
-      await processEvent(eventId);
-    } catch (error) {
-      console.error(
-        {
-          eventId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-        'Async webhook processing failed',
-      );
+export const processWebhookAsync = async (
+  eventId: string,
+  webhookId?: string,
+  eventType?: string,
+): Promise<void> => {
+  // Use Graphile Worker for async processing (Production-grade)
+  // This matches the platform webhook processing flow
+  try {
+    // If webhookId or eventType not provided, try to find them
+    let wId = webhookId;
+    let type = eventType;
+
+    if (!wId || !type) {
+      const webhookEvent = await existsByStripeEventId(eventId);
+      if (webhookEvent) {
+        wId = webhookEvent.id;
+        type = webhookEvent.eventType;
+      }
     }
-  });
+
+    if (wId && type) {
+      await addOnboardingWebhookJob(wId, eventId, type);
+    } else {
+      const errorMsg = `❌ Cannot queue webhook job: Missing metadata for ${eventId}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+  } catch (error) {
+    console.error(`❌ Failed to queue onboarding webhook job: ${eventId}`, error);
+    throw error;
+  }
 };

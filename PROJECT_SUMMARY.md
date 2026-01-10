@@ -620,23 +620,25 @@ erDiagram
 
 #### Billing Service (`billing.service.ts`)
 
-**Onboarding Session Creation Flow**:
+**Stripe Hosted Onboarding Flow**:
 
 ```mermaid
 graph TD
-    A[createOnboardingSession Called] --> B[Check Existing Connected Account]
-    B --> C{Account Exists?}
+    A[createConnectedAccount Called] --> B[Validate Organization (Better Auth)]
+    B --> C{Organization Exists?}
+    
+    C -->|No| D[Throw Error]
+    C -->|Yes| E[Check Existing Stripe Account]
 
-    C -->|No| D[Create New Stripe Account]
-    C -->|Yes| E[Use Existing Account]
+    E --> F{Account Found?}
+    F -->|No| G[Create New Stripe Account]
+    F -->|Yes| H[Use Existing Account]
 
-    D --> F[Save Account to Database]
-    F --> G[Create Account Session]
-    E --> G
+    G --> I[Create Account Link (Hosted Onboarding)]
+    H --> I
 
-    G --> H[Save Session to Database]
-    H --> I[Return Session Details]
-    I --> J[Client Secret + URLs]
+    I --> J[Return Onboarding URL]
+    J --> K[Frontend Redirects to Stripe]
 ```
 
 **Payment Session Creation Flow**:
@@ -722,18 +724,18 @@ erDiagram
 graph TD
     A[Billing API Routes] --> B{Route Type?}
 
-    B -->|Onboarding| C[POST /api/billing/onboarding]
-    B -->|Payment Session| D[POST /api/billing/organization/:id/payments-session]
-    B -->|Login Link| E[POST /api/billing/organization/:id/login-link]
-    B -->|Status Check| F[GET /api/billing/organization/:id/onboarding-status]
+    B -->|Onboarding| C[POST /api/onboarding/connected-accounts]
+    B -->|Webhook| D[POST /api/webhooks/stripe/connected-accounts]
+    B -->|Login Link| E[POST /api/onboarding/organization/:id/login-link]
+    B -->|Status Check| F[GET /api/onboarding/organization/:id/status]
 
-    C --> G[Create Onboarding Session]
-    D --> H[Create Payment Session]
+    C --> G[Create Connected Account & Link]
+    D --> H[Process Connect Webhook]
     E --> I[Create Login Link]
     F --> J[Get Onboarding Status]
 
-    G --> K[Return Session Details]
-    H --> L[Return Payment Details]
+    G --> K[Return Onboarding URL]
+    D --> L[Enqueued to Graphile Worker]
     I --> M[Return Login URL]
     J --> N[Return Status Info]
 ```

@@ -4,6 +4,8 @@
  * Initialize external services and connections
  */
 
+import { retryFailedWebhooks } from '@/modules/webhooks/services/onboarding-webhooks.service';
+
 /**
  * Initialize external services
  */
@@ -12,9 +14,12 @@ export const bootServices = (): void => {
 
   // Stripe client is lazy-initialized via Proxy, no explicit initialization needed
   // Future service initializations can be added here:
-  // - initializeRedis()
   // - initializeEmailService()
   // - initializeAnalytics()
+
+  // Retry any failed/stuck webhooks on boot
+  // This recovers events lost during server restarts (common in dev)
+  void retryFailedWebhooks();
 
   console.info('✅ External services initialized successfully');
 };

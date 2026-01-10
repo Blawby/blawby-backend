@@ -48,23 +48,6 @@ interface ParsedPattern {
   path: string;
 }
 
-// Constants
-const EXCLUDED_MODULES = [
-  'analytics',
-  'subscriptions',
-  'billing',
-  'payments',
-  'admin',
-  'clients',
-  'customers',
-  'events',
-  'health',
-  'invoices',
-  'payouts',
-  'settings',
-  'stripe',
-] as const;
-
 const DEFAULT_THROTTLE_RATE = 60;
 const WILDCARD = '*';
 

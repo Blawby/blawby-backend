@@ -19,7 +19,7 @@ import {
   processSubscriptionWebhookEvent,
   isSubscriptionWebhookEvent,
 } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
-import { processEvent as processOnboardingEvent } from '@/modules/onboarding/services/onboarding-webhooks.service';
+import { processEvent as processOnboardingEvent } from '@/modules/webhooks/services/onboarding-webhooks.service';
 
 interface ProcessStripeWebhookPayload {
   webhookId: string;
