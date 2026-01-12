@@ -208,6 +208,19 @@ export const createSubscription = async (
   // Better Auth will find this customer when creating the subscription via referenceId
   await ensureOrganizationCustomer(organizationId, user.email);
 
+  // Check if organization already has an active subscription
+  if (organization.activeSubscriptionId) {
+    // We could verify the status with Stripe here, but for now we trust our DB
+    // activeSubscriptionId should only be set if the subscription is active/trialing
+    // If we wanted to be 100% sure we could call getCurrentSubscription, but that might be overkill
+    // as activeSubscriptionId is managed by webhooks.
+
+    // However, let's at least double check if we can get the subscription details to be nice
+    // Reuse existing logic or just block.
+    // Blocking is safer to prevent the "double click" race condition mostly.
+    throw new Error('Organization already has an active subscription. Please manage your existing subscription.');
+  }
+
   // Create subscription via Better Auth
   // Better Auth will:
   // 1. Find or create customer (it will find our pre-created customer via referenceId lookup)
