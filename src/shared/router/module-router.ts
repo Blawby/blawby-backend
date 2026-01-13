@@ -1,6 +1,8 @@
 import { isEmpty, isNil } from 'es-toolkit/compat';
 import type { MiddlewareHandler } from 'hono';
+import { match } from 'path-to-regexp';
 import { MODULE_REGISTRY } from './modules.generated';
+import { CONFIG_REGISTRY } from './configs.generated';
 import type { AppType } from '@/shared/types/hono';
 
 // Static module registry - auto-generated at build time
@@ -15,6 +17,7 @@ export type MiddlewareConfig
   | 'requireGuest'
   | 'requireAdmin'
   | 'throttle'
+  | 'requireCaptcha'
   | 'public'
   | MiddlewareHandler;
 
@@ -55,6 +58,7 @@ const WILDCARD = '*';
 let requireAuth: () => MiddlewareHandler;
 let requireGuest: () => MiddlewareHandler;
 let requireAdmin: () => MiddlewareHandler;
+let requireCaptcha: () => MiddlewareHandler;
 let throttle: (rate: number) => MiddlewareHandler;
 
 /**
@@ -62,11 +66,13 @@ let throttle: (rate: number) => MiddlewareHandler;
  */
 const loadMiddleware = async (): Promise<void> => {
   if (isNil(requireAuth)) {
+    const captchaModule = await import('@/shared/middleware/requireCaptcha');
     const authModule = await import('@/shared/middleware/requireAuth');
     requireAuth = authModule.requireAuth;
     requireGuest = authModule.requireGuest;
     requireAdmin = authModule.requireAdmin;
     throttle = authModule.throttle;
+    requireCaptcha = captchaModule.requireCaptcha;
   }
 };
 
@@ -111,6 +117,8 @@ const resolveMiddleware = async (config: MiddlewareConfig): Promise<MiddlewareHa
       return requireGuest();
     case 'requireAdmin':
       return requireAdmin();
+    case 'requireCaptcha':
+      return requireCaptcha();
     case 'throttle':
       return throttle(DEFAULT_THROTTLE_RATE);
     case 'public':
@@ -155,10 +163,6 @@ const registerRouteItem = async (
   item: RouteMiddlewareItem,
   registeredPaths: Set<string>,
 ): Promise<void> => {
-  console.log(
-    `🔧 Registering middleware: ${item.method} ${item.path} -> [${item.middleware.join(', ')}]`,
-  );
-
   const fullPath = `${mountPath}${item.path}`;
   const resolvedMiddleware: MiddlewareHandler[] = [];
 
@@ -214,19 +218,10 @@ const registerPattern = async (
   const middlewareList = middlewareConfig as MiddlewareConfig[];
   const { method, path } = parsePattern(pattern);
 
-  console.log(`🔧 Registering middleware: ${pattern} -> method: ${method}, path: ${path}`);
-
   const fullPath = path === WILDCARD ? `${mountPath}/*` : `${mountPath}${path}`;
-
-  // Skip wildcard if specific paths already registered
-  if (path === WILDCARD && registeredPaths.size > 0) {
-    console.log(`🔧 Skipping wildcard for ${fullPath} - specific paths exist`);
-    return;
-  }
 
   // Handle empty middleware array
   if (isEmpty(middlewareList)) {
-    console.log(`🔧 Registering pass-through for: ${pattern}`);
     app.use(fullPath, async (c, next) => next());
 
     if (path !== WILDCARD) {
@@ -262,20 +257,19 @@ const registerPattern = async (
 };
 
 /**
- * Sort patterns to prioritize specific routes over wildcards
- */
-const sortPatterns = (
-  entries: [string, MiddlewareConfig[] | RouteMiddlewareItem[]][],
-): [string, MiddlewareConfig[] | RouteMiddlewareItem[]][] => {
-  return entries.sort((a, b) => {
-    if (a[0] === WILDCARD) return 1;
-    if (b[0] === WILDCARD) return -1;
-    return 0;
-  });
-};
-
-/**
  * Register module middleware
+ *
+ * Middleware respects file order - later entries override earlier ones.
+ * Earlier patterns are wrapped to skip if a later pattern matches the same route.
+ * Uses path-to-regexp (battle-tested, used by Hono internally) for pattern matching.
+ *
+ * Example:
+ *   middleware: {
+ *     '*': ['requireAuth'],           // First: wrapped to check later patterns
+ *     '/details/:slug': ['requireCaptcha'],  // Later: overrides wildcard
+ *   }
+ *
+ * Result: '/details/:slug' gets ONLY requireCaptcha (not requireAuth)
  */
 const registerModuleMiddleware = async (
   app: AppType,
@@ -286,10 +280,89 @@ const registerModuleMiddleware = async (
     return;
   }
 
-  const patterns = sortPatterns(Object.entries(config.middleware));
+  // Get entries in file order (respects config file order)
+  const patterns = Object.entries(config.middleware);
   const registeredPaths = new Set<string>();
 
-  for (const [pattern, middlewareConfig] of patterns) {
+  // Register patterns in file order
+  for (let i = 0; i < patterns.length; i++) {
+    const [pattern, middlewareConfig] = patterns[i];
+    const { method, path } = parsePattern(pattern);
+
+    // Get later patterns (that could override this one)
+    const laterPatterns = patterns.slice(i + 1).map(([p]) => {
+      const parsed = parsePattern(p);
+      return {
+        method: parsed.method,
+        path: parsed.path === WILDCARD ? '*' : parsed.path,
+      };
+    });
+
+    // Wrap middleware if it could be overridden by later patterns
+    if ((path === WILDCARD || path.includes('*')) && laterPatterns.length > 0) {
+      if (Array.isArray(middlewareConfig) && !isRouteItemArray(middlewareConfig)) {
+        try {
+          const middlewareList = middlewareConfig as MiddlewareConfig[];
+          const wrappedConfig: MiddlewareConfig[] = middlewareList.map((mwConfig) => {
+            return (async (c: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]) => {
+              try {
+                const requestPath = c.req.path;
+                const requestMethod = c.req.method;
+
+                // Remove mount path from request path for comparison
+                const relativePath = requestPath.startsWith(mountPath)
+                  ? requestPath.slice(mountPath.length) || '/'
+                  : requestPath;
+
+                // Check if any LATER pattern matches this request using path-to-regexp
+                const laterPatternMatches = laterPatterns.some(({ method: laterMethod, path: laterPath }) => {
+                  // If later pattern has a method, check it matches
+                  if (laterMethod && laterMethod !== requestMethod) {
+                    return false;
+                  }
+
+                  // Wildcard matches everything
+                  if (laterPath === '*') {
+                    return true;
+                  }
+
+                  // Use path-to-regexp to check if path matches (battle-tested, used by Hono)
+                  try {
+                    const matcher = match(laterPath, { decode: decodeURIComponent });
+                    return !!matcher(relativePath);
+                  } catch (error) {
+                    // If pattern is invalid, fall back to simple string matching
+                    console.warn(`[Middleware Override] Pattern matching failed for "${laterPath}":`, error);
+                    return laterPath === relativePath;
+                  }
+                });
+
+                // Skip this middleware if a later pattern matches (override)
+                if (laterPatternMatches) {
+                  return next();
+                }
+
+                // Otherwise, apply this middleware
+                const mw = await resolveMiddleware(mwConfig);
+                return mw(c, next);
+              } catch (error) {
+                console.error(`[Middleware Override] Error in wrapped middleware for pattern "${pattern}":`, error);
+                // On error, skip middleware to avoid blocking
+                return next();
+              }
+            }) as MiddlewareHandler;
+          });
+
+          await registerPattern(app, mountPath, pattern, wrappedConfig, registeredPaths);
+          continue;
+        } catch (error) {
+          console.error(`[Middleware Override] Failed to wrap middleware for pattern "${pattern}", falling back to normal registration:`, error);
+          // Fall through to normal registration
+        }
+      }
+    }
+
+    // For specific routes or when no later patterns exist, register normally
     await registerPattern(app, mountPath, pattern, middlewareConfig, registeredPaths);
   }
 };
@@ -305,26 +378,27 @@ const getModuleNames = (): string[] => {
  * Load module configuration or return default
  */
 const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
-  try {
-    const configModule = await import(`@/modules/${moduleName}/routes.config.js`);
+  // Use static config registry (generated at build time)
+  const configEntry = CONFIG_REGISTRY.find((entry) => entry.name === moduleName);
 
-    if (configModule.config) {
-      // Convert old array format to new object format
-      if (Array.isArray(configModule.config.middleware)) {
-        configModule.config.middleware = {
-          [WILDCARD]: configModule.config.middleware,
-        };
-      }
+  if (configEntry?.config) {
+    const config = configEntry.config as Partial<ModuleConfig>;
 
-      return {
-        name: moduleName,
-        ...configModule.config,
+    // Convert old array format to new object format
+    if (config.middleware && Array.isArray(config.middleware)) {
+      config.middleware = {
+        [WILDCARD]: config.middleware as MiddlewareConfig[],
       };
     }
-  } catch {
-    // Module doesn't have a config file, use default
-  }
 
+    const loadedConfig: ModuleConfig = {
+      name: moduleName,
+      middleware: config.middleware,
+      prefix: config.prefix,
+    };
+
+    return loadedConfig;
+  }
   return {
     name: moduleName,
     middleware: moduleName === 'public' ? { [WILDCARD]: [] } : { [WILDCARD]: ['requireAuth'] },

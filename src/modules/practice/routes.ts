@@ -835,3 +835,52 @@ export const deletePracticeDetailsRoute = createRoute({
   },
 });
 
+/**
+ * GET /api/practice/details/:slug
+ * Get practice details by slug (Public)
+ */
+export const getPracticeDetailsBySlugRoute = createRoute({
+  method: 'get',
+  path: '/details/{slug}',
+  tags: ['Practice'],
+  summary: 'Get practice details by slug',
+  description: 'Retrieve practice details by slug (Public endpoint)',
+  request: {
+    params: z.object({
+      slug: z.string().openapi({
+        param: {
+          name: 'slug',
+          in: 'path',
+        },
+        description: 'Practice Slug',
+        example: 'my-legal-practice',
+      }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: practiceDetailsSingleResponseSchema,
+        },
+      },
+      description: 'Practice details retrieved successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: notFoundResponseSchema,
+        },
+      },
+      description: 'Practice not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});

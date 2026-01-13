@@ -385,6 +385,10 @@ export const practiceDetailsUpdateResponseSchema = z
   })
   .openapi('PracticeDetailsUpdateResponse');
 
+export const slugParamSchema = z.object({
+  slug: z.string(),
+});
+
 // Infer types from schemas
 export type CreatePracticeRequest = z.infer<typeof createPracticeSchema>;
 export type UpdatePracticeRequest = z.infer<typeof updatePracticeSchema>;

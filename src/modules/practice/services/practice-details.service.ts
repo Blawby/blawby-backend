@@ -13,6 +13,7 @@ import {
 } from '@/modules/practice/database/queries/practice-details.repository';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import { db } from '@/shared/database';
+import { organizations } from '@/schema/better-auth-schema';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { User } from '@/shared/types/BetterAuth';
@@ -258,5 +259,61 @@ export const deletePracticeDetailsService = async (
       },
     );
   }
+};
+
+/**
+ * Get practice details by slug (Public)
+ */
+export const getPracticeDetailsBySlug = async (
+  slug: string,
+): Promise<PracticeDetailsResponse | null> => {
+  // Find organization by slug
+  const [organization] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.slug, slug));
+
+  if (!organization) {
+    return null;
+  }
+
+  // Get practice details
+  const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+
+  if (!practiceDetails) {
+    return null;
+  }
+
+  // Fetch address if linked
+  let addressData: AddressData | null = null;
+  if (practiceDetails.address_id) {
+    const [address] = await db
+      .select()
+      .from(addresses)
+      .where(eq(addresses.id, practiceDetails.address_id));
+
+    if (address) {
+      addressData = {
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        state: address.state,
+        postal_code: address.postal_code,
+        country: address.country,
+      };
+    }
+  }
+
+  // Clean practice details (remove internal fields)
+  return {
+    ...omit(practiceDetails, [
+      'id',
+      'organization_id',
+      'user_id',
+      'created_at',
+      'updated_at',
+    ]),
+    address: addressData,
+  };
 };
 
