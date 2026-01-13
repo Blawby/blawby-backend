@@ -370,4 +370,19 @@ practiceApp.openapi(routes.deletePracticeDetailsRoute, async () => {
   throw new Error('This should never be called');
 });
 
+
+practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSchema, 'Invalid Slug'), async (c) => {
+  const { slug } = c.get('validatedParams');
+  const details = await practiceDetailsService.getPracticeDetailsBySlug(slug);
+
+  if (!details) {
+    return response.notFound(c, 'Practice not found');
+  }
+  return response.ok(c, details);
+});
+
+practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, async () => {
+  throw new Error('This should never be called');
+});
+
 export default practiceApp;
