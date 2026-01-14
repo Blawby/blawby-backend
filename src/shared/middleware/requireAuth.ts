@@ -114,38 +114,6 @@ export const requireAdmin = (): MiddlewareHandler<{ Variables: Variables }> => {
 };
 
 /**
- * Rate Limiting Middleware
- *
- * Simple rate limiting implementation
- */
-export const throttle = (requestsPerMinute: number = 60): MiddlewareHandler => {
-  const requests = new Map<string, number[]>();
-
-  return async (c, next) => {
-    const clientId = c.req.header('x-forwarded-for')
-      || c.req.header('x-real-ip')
-      || 'unknown';
-
-    const now = Date.now();
-    const minuteAgo = now - 60000;
-
-    // Clean old requests
-    const clientRequests = requests.get(clientId) || [];
-    const recentRequests = clientRequests.filter((time) => time > minuteAgo);
-
-    if (recentRequests.length >= requestsPerMinute) {
-      return c.json({ error: 'Too Many Requests', message: 'Rate limit exceeded' }, 429);
-    }
-
-    // Add current request
-    recentRequests.push(now);
-    requests.set(clientId, recentRequests);
-
-    return next();
-  };
-};
-
-/**
  * Validate bearer token format
  *
  * Bearer tokens from set-auth-token header are typically:

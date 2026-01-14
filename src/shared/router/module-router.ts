@@ -16,9 +16,9 @@ export type MiddlewareConfig
   = | 'requireAuth'
   | 'requireGuest'
   | 'requireAdmin'
-  | 'throttle'
   | 'requireCaptcha'
   | 'public'
+  | 'rateLimit'
   | MiddlewareHandler;
 
 /**
@@ -51,7 +51,6 @@ interface ParsedPattern {
   path: string;
 }
 
-const DEFAULT_THROTTLE_RATE = 60;
 const WILDCARD = '*';
 
 // Lazy-loaded middleware functions
@@ -59,7 +58,7 @@ let requireAuth: () => MiddlewareHandler;
 let requireGuest: () => MiddlewareHandler;
 let requireAdmin: () => MiddlewareHandler;
 let requireCaptcha: () => MiddlewareHandler;
-let throttle: (rate: number) => MiddlewareHandler;
+let rateLimit: () => MiddlewareHandler;
 
 /**
  * Lazy load middleware functions to avoid circular dependencies
@@ -68,11 +67,12 @@ const loadMiddleware = async (): Promise<void> => {
   if (isNil(requireAuth)) {
     const captchaModule = await import('@/shared/middleware/requireCaptcha');
     const authModule = await import('@/shared/middleware/requireAuth');
+    const rateLimitModule = await import('@/shared/middleware/rateLimit');
     requireAuth = authModule.requireAuth;
     requireGuest = authModule.requireGuest;
     requireAdmin = authModule.requireAdmin;
-    throttle = authModule.throttle;
     requireCaptcha = captchaModule.requireCaptcha;
+    rateLimit = rateLimitModule.rateLimit;
   }
 };
 
@@ -119,8 +119,9 @@ const resolveMiddleware = async (config: MiddlewareConfig): Promise<MiddlewareHa
       return requireAdmin();
     case 'requireCaptcha':
       return requireCaptcha();
-    case 'throttle':
-      return throttle(DEFAULT_THROTTLE_RATE);
+
+    case 'rateLimit':
+      return rateLimit();
     case 'public':
       return async (c, next) => next();
     default:
@@ -381,6 +382,11 @@ const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
   // Use static config registry (generated at build time)
   const configEntry = CONFIG_REGISTRY.find((entry) => entry.name === moduleName);
 
+  // Default middleware based on module type
+  const defaultMiddleware: MiddlewareConfig[] = moduleName === 'public'
+    ? ['rateLimit'] // Public routes: rate limiting only
+    : ['requireAuth', 'rateLimit']; // Protected routes: auth + rate limiting
+
   if (configEntry?.config) {
     const config = configEntry.config as Partial<ModuleConfig>;
 
@@ -391,17 +397,51 @@ const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
       };
     }
 
+    // Merge defaults with config: ensure rateLimit is always included
+    const mergedMiddleware: RouteMiddlewareConfig = {};
+
+    if (config.middleware) {
+      for (const [pattern, middlewareConfig] of Object.entries(config.middleware)) {
+        if (Array.isArray(middlewareConfig) && !isRouteItemArray(middlewareConfig)) {
+          const middlewareList = middlewareConfig as MiddlewareConfig[];
+
+          // Always include rateLimit unless explicitly using 'public' (which means no middleware)
+          if (middlewareList.includes('public')) {
+            // 'public' means no middleware, but still add rateLimit for security
+            mergedMiddleware[pattern] = ['rateLimit'];
+          } else {
+            // Merge: start with defaults, then add any additional middleware from config
+            const merged = [...defaultMiddleware];
+            for (const mw of middlewareList) {
+              if (mw !== 'rateLimit' && !merged.includes(mw)) {
+                merged.push(mw);
+              }
+            }
+            mergedMiddleware[pattern] = merged;
+          }
+        } else {
+          // Route items - pass through as-is
+          mergedMiddleware[pattern] = middlewareConfig;
+        }
+      }
+    } else {
+      // No middleware config, use defaults
+      mergedMiddleware[WILDCARD] = defaultMiddleware;
+    }
+
     const loadedConfig: ModuleConfig = {
       name: moduleName,
-      middleware: config.middleware,
+      middleware: mergedMiddleware,
       prefix: config.prefix,
     };
 
     return loadedConfig;
   }
+
+  // No config file - use defaults
   return {
     name: moduleName,
-    middleware: moduleName === 'public' ? { [WILDCARD]: [] } : { [WILDCARD]: ['requireAuth'] },
+    middleware: { [WILDCARD]: defaultMiddleware },
   };
 };
 

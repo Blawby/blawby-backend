@@ -1,0 +1,78 @@
+/**
+ * PostgreSQL-Based Rate Limiting Middleware
+ *
+ * Uses rate-limiter-flexible with PostgreSQL storage for distributed rate limiting.
+ * Works across multiple server instances and prevents memory leaks.
+ */
+
+import { RateLimiterPostgres } from 'rate-limiter-flexible';
+import type { MiddlewareHandler } from 'hono';
+import { getPool } from '@/shared/database/connection';
+import { response } from '@/shared/utils/responseUtils';
+
+const limiters = new Map<string, RateLimiterPostgres>();
+
+const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
+  const key = `${points}:${duration}`;
+
+  if (!limiters.has(key)) {
+    limiters.set(
+      key,
+      new RateLimiterPostgres({
+        storeClient: getPool(),
+        points,
+        duration,
+        tableName: 'rate_limits',
+        keyPrefix: 'rl:',
+      })
+    );
+  }
+
+  return limiters.get(key)!;
+};
+
+export const rateLimit = (options?: {
+  points?: number;
+  duration?: number;
+  routeKey?: string;
+}): MiddlewareHandler => {
+  return async (c, next) => {
+    const userId = c.get('userId');
+
+    const ip =
+      c.req.header('x-real-ip') ??
+      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
+      'unknown';
+
+    const identifier = userId
+      ? `user:${userId}`
+      : `ip:${ip}`;
+
+    const routeKey = options?.routeKey ?? 'global';
+    const key = `${routeKey}:${identifier}`;
+
+    const points = options?.points ?? 60;
+    const duration = options?.duration ?? 60;
+
+    const limiter = getLimiter(points, duration);
+
+    try {
+      await limiter.consume(key);
+      return await next();
+    } catch (rejRes: unknown) {
+      // Rate limit exceeded - extract retry time
+      const msBeforeNext =
+        (rejRes && typeof rejRes === 'object' && 'msBeforeNext' in rejRes)
+          ? (rejRes as { msBeforeNext: number }).msBeforeNext
+          : 1000; // Default to 1 second if not provided
+
+      const retryAfter = Math.ceil(msBeforeNext / 1000) || 1;
+
+      return response.tooManyRequests(
+        c,
+        `Too many requests. Please try again in ${retryAfter} seconds.`,
+        retryAfter,
+      );
+    }
+  };
+};

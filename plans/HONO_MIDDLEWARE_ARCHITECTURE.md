@@ -278,10 +278,12 @@ export const config = {
 
 | Middleware | Purpose | Behavior |
 |------------|---------|----------|
-| `throttle` | Rate limiting | Limits requests per minute |
+| `rateLimit` | Rate limiting | PostgreSQL-based, distributed rate limiting (60 req/min default) |
 | `public` | Public routes | No-op middleware |
 | `logger` | Request logging | Logs requests and responses |
 | `cors` | CORS handling | Handles cross-origin requests |
+
+**Note**: `rateLimit` is **automatically included by default** for all modules. You don't need to add it explicitly unless you want custom limits.
 
 ### 3. Custom Middleware
 
@@ -313,9 +315,9 @@ export const config = {
 ```
 
 **Default Behavior**:
-- No config file → `middleware: ['auth']` (protected)
-- `public` module → `middleware: []` (public)
-- Other modules → `middleware: ['auth']` (protected)
+- No config file → `middleware: ['requireAuth', 'rateLimit']` (protected + rate limited)
+- `public` module → `middleware: ['rateLimit']` (public but rate limited)
+- Modules with configs → Defaults are merged automatically (rateLimit always included)
 
 ### 2. Route-Level Configuration
 
@@ -326,7 +328,8 @@ export const config = {
 practiceApp.use('*', requireAuth());
 
 // Route-level middleware (applied to specific routes)
-practiceApp.post('/', throttle(30), zValidator('json', schema), handler);
+// Note: rateLimit is applied automatically by default
+practiceApp.post('/', zValidator('json', schema), handler);
 ```
 
 ### 3. Global Configuration
