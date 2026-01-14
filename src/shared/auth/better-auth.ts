@@ -8,6 +8,7 @@ import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
+import { isDevelopment } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
 
 let authInstance: ReturnType<typeof betterAuthInstance> | null = null;
@@ -40,7 +41,7 @@ const betterAuthInstance = (
       },
       useSecureCookies: true,
       // Disable origin check in development to allow cURL and server-to-server requests
-      disableOriginCheck: process.env.NODE_ENV === 'development',
+      disableOriginCheck: isDevelopment(),
       crossSubDomainCookies: {
         enabled: true,
         domain: ".blawby.com",

@@ -4,6 +4,7 @@
  * Centralized application initialization
  */
 
+import { isProductionLike } from '@/shared/utils/env';
 import { bootEventHandlers } from './event-handlers';
 import { bootServices } from './services';
 import { bootWorkers } from './workers';
@@ -22,7 +23,8 @@ export const bootApplication = (): void => {
   bootEventHandlers();
 
   // 3. Start background workers
-  if (process.env.NODE_ENV === 'production') {
+  // Note: Workers run as separate processes, this is just for API compatibility
+  if (isProductionLike()) {
     bootWorkers();
   }
 
