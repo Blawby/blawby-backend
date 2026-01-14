@@ -10,6 +10,9 @@ import type { MiddlewareHandler } from 'hono';
 import { getPool } from '@/shared/database/connection';
 import { response } from '@/shared/utils/responseUtils';
 
+const DEFAULT_RATE_LIMIT_POINTS = 60;
+const DEFAULT_RATE_LIMIT_DURATION_SECONDS = 60;
+
 const limiters = new Map<string, RateLimiterPostgres>();
 
 const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
@@ -51,8 +54,8 @@ export const rateLimit = (options?: {
     const routeKey = options?.routeKey ?? 'global';
     const key = `${routeKey}:${identifier}`;
 
-    const points = options?.points ?? 60;
-    const duration = options?.duration ?? 60;
+    const points = options?.points ?? DEFAULT_RATE_LIMIT_POINTS;
+    const duration = options?.duration ?? DEFAULT_RATE_LIMIT_DURATION_SECONDS;
 
     const limiter = getLimiter(points, duration);
 
