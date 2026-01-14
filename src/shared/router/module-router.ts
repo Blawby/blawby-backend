@@ -295,9 +295,9 @@ const registerModuleMiddleware = async (
             try {
               mw = await resolveMiddleware(mwConfig);
             } catch (error) {
-              // Middleware resolution error (e.g., import failed) - log and skip
+              // Middleware resolution error (e.g., import failed) - fail closed for security
               console.error(`[Middleware Override] Failed to resolve middleware for pattern "${pattern}" at mount "${mountPath}":`, error);
-              return next();
+              throw error; // Let upstream handle - don't allow unauthenticated access
             }
 
             // Invoke the actual middleware - re-throw errors so upstream can handle them
@@ -377,7 +377,12 @@ const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
     const mergedMiddleware: RouteMiddlewareConfig = {};
 
     if (config.middleware) {
-      for (const [pattern, middlewareConfig] of Object.entries(config.middleware)) {
+      const entries = Object.entries(config.middleware);
+      if (entries.length === 0) {
+        // Empty middleware object - use defaults
+        mergedMiddleware[WILDCARD] = defaultMiddleware;
+      }
+      for (const [pattern, middlewareConfig] of entries) {
         // Only support string array format (MiddlewareConfig[])
         if (!Array.isArray(middlewareConfig)) {
           console.warn(
