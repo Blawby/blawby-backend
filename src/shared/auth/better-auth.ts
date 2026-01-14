@@ -35,6 +35,26 @@ const betterAuthInstance = (
     ],
     baseURL: process.env.BASE_URL!,
     basePath: '/api/auth',
+    rateLimit: {
+      enabled: true,
+      window: 60, // seconds
+      max: 100, // requests per window (default)
+      storage: 'database', // Use PostgreSQL instead of memory
+      customRules: {
+        '/sign-in/email': {
+          window: 60,
+          max: 5, // Stricter for sign-in (prevent brute force)
+        },
+        '/sign-up/email': {
+          window: 60,
+          max: 3, // Even stricter for sign-up
+        },
+        '/reset-password': {
+          window: 300, // 5 minutes
+          max: 3,
+        },
+      },
+    },
     advanced: {
       database: {
         generateId: 'uuid',
