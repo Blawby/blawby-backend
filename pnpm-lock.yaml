@@ -56,6 +56,9 @@ importers:
       pino-pretty:
         specifier: 13.1.1
         version: 13.1.1
+      rate-limiter-flexible:
+        specifier: ^9.0.1
+        version: 9.0.1
       stripe:
         specifier: ^19.1.0
         version: 19.1.0(@types/node@24.7.2)
@@ -75,9 +78,6 @@ importers:
       '@tapjs/test':
         specifier: 4.0.1
         version: 4.0.1(@tapjs/core@4.0.1(@types/node@24.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/node@24.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/busboy':
-        specifier: 1.5.4
-        version: 1.5.4
       '@types/node':
         specifier: 24.7.2
         version: 24.7.2
@@ -1213,9 +1213,6 @@ packages:
   '@tufjs/models@2.0.1':
     resolution: {integrity: sha512-92F7/SFyufn4DXsha9+QfKnN03JGqtMFMXgSHbZOo8JG59WkTni7UzAouNQDf7AuP9OAMxVOPQcqG3sB7w+kkg==}
     engines: {node: ^16.14.0 || >=18.0.0}
-
-  '@types/busboy@1.5.4':
-    resolution: {integrity: sha512-kG7WrUuAKK0NoyxfQHsVE6j1m01s6kMma64E+OZenQABMQyTJop1DumUWcLwAQ2JzpefU7PDYoRDKl8uZosFjw==}
 
   '@types/debug@4.1.12':
     resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
@@ -2992,6 +2989,9 @@ packages:
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
 
+  rate-limiter-flexible@9.0.1:
+    resolution: {integrity: sha512-sO+QdoGPCxroi4VkO2FIVjfUGuexhRkBc9ROHqu5eVEEz+oPHzQqvCc25ajFfMUBosbNGb6qpNa8xmxH9YNZsg==}
+
   react-dom@18.3.1:
     resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
     peerDependencies:
@@ -4622,10 +4622,6 @@ snapshots:
     dependencies:
       '@tufjs/canonical-json': 2.0.0
       minimatch: 9.0.5
-
-  '@types/busboy@1.5.4':
-    dependencies:
-      '@types/node': 24.7.2
 
   '@types/debug@4.1.12':
     dependencies:
@@ -6523,6 +6519,8 @@ snapshots:
   queue-lit@1.5.2: {}
 
   queue-microtask@1.2.3: {}
+
+  rate-limiter-flexible@9.0.1: {}
 
   react-dom@18.3.1(react@18.3.1):
     dependencies:
