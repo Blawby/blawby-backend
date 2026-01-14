@@ -99,12 +99,13 @@ When rate limit is exceeded:
 ```json
 {
   "error": "Too Many Requests",
-  "retryAfter": 45
+  "message": "Too many requests. Please try again in 45 seconds.",
+  "retry_after": 45
 }
 ```
 
 Headers:
-```
+```http
 Retry-After: 45
 ```
 
