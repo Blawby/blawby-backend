@@ -93,6 +93,24 @@ export const response = {
   }), 409),
 
   /**
+   * 429 Too Many Requests - Rate limit exceeded
+   * @param c - The context object
+   * @param message - Error message
+   * @param retryAfter - Optional retry after time in seconds (will set Retry-After header)
+   * @returns
+   */
+  tooManyRequests: (c: Context, message = 'Too many requests', retryAfter?: number): Response => {
+    if (retryAfter !== undefined) {
+      c.res.headers.set('Retry-After', String(retryAfter));
+    }
+    return c.json(toSnakeCase({
+      error: 'Too Many Requests',
+      message,
+      ...(retryAfter !== undefined && { retry_after: retryAfter }),
+    }), 429);
+  },
+
+  /**
    * 422 Unprocessable Entity - Validation error
    */
   unprocessableEntity: (

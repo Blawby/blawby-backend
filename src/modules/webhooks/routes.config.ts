@@ -12,6 +12,6 @@ import type { ModuleConfig } from '@/shared/router/module-router';
  */
 export const config: Partial<ModuleConfig> = {
   middleware: {
-    '*': [],
+    '*': ['public'], // Webhooks are public (no auth), but still rate-limited
   },
 };
