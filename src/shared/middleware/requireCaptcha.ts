@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { isDevelopment } from '@/shared/utils/env';
 import { validateCaptchaToken } from '@/shared/utils/captchaValidation';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -15,7 +16,7 @@ import { response } from '@/shared/utils/responseUtils';
 export const requireCaptcha = (): MiddlewareHandler => {
   return async (c, next) => {
     // Skip if in development and configured to skip (optional, but good for DX)
-    if (process.env.NODE_ENV === 'development' && process.env.SKIP_CAPTCHA === 'true') {
+    if (isDevelopment() && process.env.SKIP_CAPTCHA === 'true') {
       return next();
     }
 

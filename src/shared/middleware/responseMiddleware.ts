@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler, Next } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
+import { isProduction } from '@/shared/utils/env';
 import { logError } from './logger';
 
 /**
@@ -48,8 +49,8 @@ export const responseMiddleware = (): MiddlewareHandler => {
       const responseTime = Date.now() - startTime;
       c.set('responseTime', responseTime);
 
-      // Development-only request logging
-      if (process.env.NODE_ENV !== 'production') {
+      // Request logging (disabled in production for performance)
+      if (!isProduction()) {
         console.log(`✅ ${c.req.method} ${c.req.url} - ${responseTime}ms`);
       }
 

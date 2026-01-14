@@ -4,6 +4,7 @@
  * Registers all application event handlers using Laravel-style registration.
  */
 
+import { isProductionLike } from '@/shared/utils/env';
 import { registerStripeCustomerEvents } from '@/modules/stripe/customers/events';
 import { registerEmailEvents } from '@/shared/events/handlers/email.events';
 
@@ -15,7 +16,8 @@ export const bootEventHandlers = (): void => {
   console.info('🚀 Registering event handlers...');
 
   // Register email events (uses Graphile Worker for queued processing)
-  if (process.env.NODE_ENV === 'production') {
+  // Enable in staging and production, disable in development
+  if (isProductionLike()) {
     registerEmailEvents();
   }
 

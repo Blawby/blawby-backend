@@ -5,6 +5,8 @@
  * Can be extended to support other providers in the future.
  */
 
+import { isDevelopment } from '@/shared/utils/env';
+
 interface TurnstileVerifyResponse {
   success: boolean;
   'error-codes'?: string[];
@@ -18,8 +20,10 @@ interface TurnstileVerifyResponse {
  * @param ip Optional IP address of the user for better validation
  */
 export const validateCaptchaToken = async (token?: string, ip?: string): Promise<boolean> => {
-  // If no secret key is configured, fail securely or warn in dev
-  const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY ?? '1x0000000000000000000000000000000AA';
+  // Use test key in development, real key in staging/production
+  const secretKey = isDevelopment()
+    ? '1x0000000000000000000000000000000AA'
+    : process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
 
   if (!secretKey) {
     console.warn('⚠️  CLOUDFLARE_TURNSTILE_SECRET_KEY is not set. Captcha validation will fail.');

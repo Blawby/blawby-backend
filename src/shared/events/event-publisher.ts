@@ -1,3 +1,4 @@
+import { getAppEnv } from '@/shared/utils/env';
 import { eventBus } from './event-consumer';
 import type { EventType } from '@/shared/events/enums/event-types';
 import type {
@@ -35,7 +36,7 @@ export const createEventMetadata = (
     userAgent: request?.headers?.['user-agent'],
     requestId: request?.id,
     source,
-    environment: process.env.NODE_ENV || 'development',
+    environment: getAppEnv(),
   };
 };
 

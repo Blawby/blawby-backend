@@ -1,6 +1,7 @@
 import { consola } from 'consola';
 import type { MiddlewareHandler } from 'hono';
 import { logger as honoLogger } from 'hono/logger';
+import { isProduction } from '@/shared/utils/env';
 import {
   sanitizeError,
   categorizeError,
@@ -155,10 +156,10 @@ export const logSuccess = (message: string, data?: Record<string, unknown>): voi
 /**
  * Debug Logger
  *
- * Logs debug information (only in development)
+ * Logs debug information (disabled in production)
  */
 export const logDebug = (message: string, data?: Record<string, unknown>): void => {
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProduction()) {
     const debugInfo = {
       message,
       data: data ? sanitizeBody(data) : undefined,
