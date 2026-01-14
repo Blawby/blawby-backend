@@ -19,6 +19,13 @@ Generate code, corrections, and refactorings that comply with the basic principl
 - Prefer immutability; use `readonly` and `as const` where appropriate.
 - Use complete words (no abbrev.), except: API, URL
 - Never use deprecated methods or APIs - always use current, supported versions
+- Every module under `src/modules/<module>/` MUST include a `README.md` documenting:
+  - Purpose and boundaries
+  - Routes/endpoints (and auth requirements)
+  - Data model (tables/schemas) and repositories
+  - Services and key business logic
+  - Required environment variables
+  - Security and compliance considerations (audit logging, retention, access controls)
 
 ## Import Path Rules
 
