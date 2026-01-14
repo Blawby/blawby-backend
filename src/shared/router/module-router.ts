@@ -22,19 +22,13 @@ export type MiddlewareConfig
   | MiddlewareHandler;
 
 /**
- * Route middleware configuration item
- */
-export interface RouteMiddlewareItem {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
-  path: string;
-  middleware: MiddlewareConfig[];
-}
-
-/**
  * Route-level middleware configuration
+ *
+ * Only string arrays (MiddlewareConfig[]) are supported.
+ * Use pattern strings like '*', '/path', '/path/:id' as keys.
  */
 export interface RouteMiddlewareConfig {
-  [pattern: string]: MiddlewareConfig[] | RouteMiddlewareItem[];
+  [pattern: string]: MiddlewareConfig[];
 }
 
 /**
@@ -156,67 +150,16 @@ const createMiddlewareChain = (middlewares: MiddlewareHandler[]): MiddlewareHand
 };
 
 /**
- * Register middleware for a specific route item
- */
-const registerRouteItem = async (
-  app: AppType,
-  mountPath: string,
-  item: RouteMiddlewareItem,
-  registeredPaths: Set<string>,
-): Promise<void> => {
-  const fullPath = `${mountPath}${item.path}`;
-  const resolvedMiddleware: MiddlewareHandler[] = [];
-
-  // Resolve all middleware in parallel
-  const middlewarePromises = item.middleware.map((config) => resolveMiddleware(config));
-  const resolved = await Promise.all(middlewarePromises);
-  resolvedMiddleware.push(...resolved);
-
-  const middlewareChain = createMiddlewareChain(resolvedMiddleware);
-
-  app.use(fullPath, async (c, next) => {
-    if (c.req.method === item.method) {
-      return middlewareChain(c, next);
-    }
-    return next();
-  });
-
-  registeredPaths.add(fullPath);
-};
-
-/**
- * Check if middleware config is in object format
- */
-const isRouteItemArray = (config: unknown): config is RouteMiddlewareItem[] => {
-  return (
-    Array.isArray(config)
-    && config.length > 0
-    && typeof config[0] === 'object'
-    && 'method' in config[0]
-  );
-};
-
-/**
  * Register middleware for a pattern
  */
 const registerPattern = async (
   app: AppType,
   mountPath: string,
   pattern: string,
-  middlewareConfig: MiddlewareConfig[] | RouteMiddlewareItem[],
+  middlewareConfig: MiddlewareConfig[],
   registeredPaths: Set<string>,
 ): Promise<void> => {
-  // Handle object format
-  if (isRouteItemArray(middlewareConfig)) {
-    // Process all route items in parallel
-    await Promise.all(
-      middlewareConfig.map((item) => registerRouteItem(app, mountPath, item, registeredPaths)),
-    );
-    return;
-  }
-
-  // Handle string format
-  const middlewareList = middlewareConfig as MiddlewareConfig[];
+  const middlewareList = middlewareConfig;
   const { method, path } = parsePattern(pattern);
 
   const fullPath = path === WILDCARD ? `${mountPath}/*` : `${mountPath}${path}`;
@@ -301,7 +244,7 @@ const registerModuleMiddleware = async (
 
     // Wrap middleware if it could be overridden by later patterns
     if ((path === WILDCARD || path.includes('*')) && laterPatterns.length > 0) {
-      if (Array.isArray(middlewareConfig) && !isRouteItemArray(middlewareConfig)) {
+      if (Array.isArray(middlewareConfig)) {
         try {
           const middlewareList = middlewareConfig as MiddlewareConfig[];
           const wrappedConfig: MiddlewareConfig[] = middlewareList.map((mwConfig) => {
@@ -397,31 +340,57 @@ const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
       };
     }
 
-    // Merge defaults with config: ensure rateLimit is always included
+    /**
+     * Merge middleware configuration with module defaults
+     *
+     * Middleware from config is MERGED with defaultMiddleware, not replaced.
+     * For protected modules, defaultMiddleware is ['requireAuth', 'rateLimit'].
+     * For public modules, defaultMiddleware is ['rateLimit'].
+     *
+     * Examples:
+     * - Config: { '*': ['requireCaptcha'] }
+     *   Result: ['requireAuth', 'rateLimit', 'requireCaptcha']
+     *   (defaultMiddleware prepended, then config middleware added)
+     *
+     * - Config: { '/details/:slug': ['requireCaptcha'] }
+     *   Result: ['requireAuth', 'rateLimit', 'requireCaptcha']
+     *   (same merge behavior for specific routes)
+     *
+     * - Config: { '*': ['public'] }
+     *   Result: ['rateLimit']
+     *   (special 'public' marker opts out of auth, becomes rateLimit only)
+     *
+     * The mergedMiddleware object contains the final merged configuration.
+     * See defaultMiddleware and mergedMiddleware variables for implementation.
+     */
     const mergedMiddleware: RouteMiddlewareConfig = {};
 
     if (config.middleware) {
       for (const [pattern, middlewareConfig] of Object.entries(config.middleware)) {
-        if (Array.isArray(middlewareConfig) && !isRouteItemArray(middlewareConfig)) {
-          const middlewareList = middlewareConfig as MiddlewareConfig[];
+        // Only support string array format (MiddlewareConfig[])
+        if (!Array.isArray(middlewareConfig)) {
+          console.warn(
+            `⚠️  Unsupported middleware format for pattern "${pattern}". Only string arrays are supported.`,
+          );
+          continue;
+        }
 
-          // Always include rateLimit unless explicitly using 'public' (which means no middleware)
-          if (middlewareList.includes('public')) {
-            // 'public' means no middleware, but still add rateLimit for security
-            mergedMiddleware[pattern] = ['rateLimit'];
-          } else {
-            // Merge: start with defaults, then add any additional middleware from config
-            const merged = [...defaultMiddleware];
-            for (const mw of middlewareList) {
-              if (mw !== 'rateLimit' && !merged.includes(mw)) {
-                merged.push(mw);
-              }
-            }
-            mergedMiddleware[pattern] = merged;
-          }
+        const middlewareList = middlewareConfig as MiddlewareConfig[];
+
+        // Special 'public' marker: opts out of authentication, becomes rateLimit only
+        if (middlewareList.includes('public')) {
+          mergedMiddleware[pattern] = ['rateLimit'];
         } else {
-          // Route items - pass through as-is
-          mergedMiddleware[pattern] = middlewareConfig;
+          // Merge: start with defaults (defaultMiddleware), then add config middleware
+          // This ensures requireAuth and rateLimit are always included for protected modules
+          const merged = [...defaultMiddleware];
+          for (const mw of middlewareList) {
+            // Avoid duplicates (rateLimit is already in defaultMiddleware)
+            if (mw !== 'rateLimit' && !merged.includes(mw)) {
+              merged.push(mw);
+            }
+          }
+          mergedMiddleware[pattern] = merged;
         }
       }
     } else {

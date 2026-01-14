@@ -60,19 +60,29 @@ export const rateLimit = (options?: {
       await limiter.consume(key);
       return await next();
     } catch (rejRes: unknown) {
-      // Rate limit exceeded - extract retry time
-      const msBeforeNext =
-        (rejRes && typeof rejRes === 'object' && 'msBeforeNext' in rejRes)
-          ? (rejRes as { msBeforeNext: number }).msBeforeNext
-          : 1000; // Default to 1 second if not provided
+      // Only handle rate limit rejections - check for library-specific marker
+      // rate-limiter-flexible rejects with an object containing msBeforeNext
+      const isRateLimitRejection =
+        rejRes &&
+        typeof rejRes === 'object' &&
+        'msBeforeNext' in rejRes &&
+        typeof (rejRes as { msBeforeNext: unknown }).msBeforeNext === 'number';
 
-      const retryAfter = Math.ceil(msBeforeNext / 1000) || 1;
+      if (isRateLimitRejection) {
+        // Rate limit exceeded - extract retry time
+        const msBeforeNext = (rejRes as { msBeforeNext: number }).msBeforeNext;
+        const retryAfter = Math.ceil(msBeforeNext / 1000) || 1;
 
-      return response.tooManyRequests(
-        c,
-        `Too many requests. Please try again in ${retryAfter} seconds.`,
-        retryAfter,
-      );
+        return response.tooManyRequests(
+          c,
+          `Too many requests. Please try again in ${retryAfter} seconds.`,
+          retryAfter,
+        );
+      }
+
+      // Not a rate limit rejection - likely a DB/connection error
+      // Re-throw to be handled by global error handler
+      throw rejRes;
     }
   };
 };
