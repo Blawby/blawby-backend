@@ -19,9 +19,7 @@ interface TurnstileVerifyResponse {
  */
 export const validateCaptchaToken = async (token?: string, ip?: string): Promise<boolean> => {
   // If no secret key is configured, fail securely or warn in dev
-  const secretKey = process.env.NODE_ENV !== 'development'
-    ? process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY
-    : '1x0000000000000000000000000000000AA';
+  const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY ?? '1x0000000000000000000000000000000AA';
 
   if (!secretKey) {
     console.warn('⚠️  CLOUDFLARE_TURNSTILE_SECRET_KEY is not set. Captcha validation will fail.');
