@@ -37,7 +37,7 @@ export const cors = (): MiddlewareHandler => {
       return null;
     },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'Cookie'], // <--- ADD 'Cookie'
+    allowHeaders: ['Content-Type', 'Authorization', 'Cookie', 'x-captcha-token', 'x-turnstile-token'], // <--- ADD 'Cookie' and CAPTCHA headers
     exposeHeaders: ['Set-Cookie', 'Set-Auth-Token'], // <--- ADD 'Set-Cookie' for Better Auth
     credentials: true, // <--- CRITICAL for Cookies
     maxAge: 600, // Cache preflight requests for 10 mins
