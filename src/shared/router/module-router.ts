@@ -246,17 +246,19 @@ const registerModuleMiddleware = async (
       try {
         const wrappedConfig: MiddlewareConfig[] = middlewareConfig.map((mwConfig) => {
           return (async (c: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]) => {
+            const requestPath = c.req.path;
+            const requestMethod = c.req.method;
+
+            // Remove mount path from request path for comparison
+            const relativePath = requestPath.startsWith(mountPath)
+              ? requestPath.slice(mountPath.length) || '/'
+              : requestPath;
+
+            // Check if any LATER pattern matches this request using path-to-regexp
+            // Pattern matching errors are handled gracefully (log and continue)
+            let laterPatternMatches = false;
             try {
-              const requestPath = c.req.path;
-              const requestMethod = c.req.method;
-
-              // Remove mount path from request path for comparison
-              const relativePath = requestPath.startsWith(mountPath)
-                ? requestPath.slice(mountPath.length) || '/'
-                : requestPath;
-
-              // Check if any LATER pattern matches this request using path-to-regexp
-              const laterPatternMatches = laterPatterns.some(({ method: laterMethod, path: laterPath }) => {
+              laterPatternMatches = laterPatterns.some(({ method: laterMethod, path: laterPath }) => {
                 // If later pattern has a method, check it matches
                 if (laterMethod && laterMethod !== requestMethod) {
                   return false;
@@ -277,20 +279,30 @@ const registerModuleMiddleware = async (
                   return laterPath === relativePath;
                 }
               });
-
-              // Skip this middleware if a later pattern matches (override)
-              if (laterPatternMatches) {
-                return next();
-              }
-
-              // Otherwise, apply this middleware
-              const mw = await resolveMiddleware(mwConfig);
-              return mw(c, next);
             } catch (error) {
-              console.error(`[Middleware Override] Error in wrapped middleware for pattern "${pattern}":`, error);
-              // On error, skip middleware to avoid blocking
+              // Pattern matching logic error - log and continue (skip override check)
+              console.error(`[Middleware Override] Error checking later patterns for pattern "${pattern}" at mount "${mountPath}":`, error);
+              laterPatternMatches = false;
+            }
+
+            // Skip this middleware if a later pattern matches (override)
+            if (laterPatternMatches) {
               return next();
             }
+
+            // Resolve middleware - catch resolution errors but re-throw middleware invocation errors
+            let mw: MiddlewareHandler;
+            try {
+              mw = await resolveMiddleware(mwConfig);
+            } catch (error) {
+              // Middleware resolution error (e.g., import failed) - log and skip
+              console.error(`[Middleware Override] Failed to resolve middleware for pattern "${pattern}" at mount "${mountPath}":`, error);
+              return next();
+            }
+
+            // Invoke the actual middleware - re-throw errors so upstream can handle them
+            // This ensures security middleware errors (e.g., auth failures) are properly handled
+            return mw(c, next);
           }) as MiddlewareHandler;
         });
 
