@@ -1,5 +1,5 @@
 {
-  "id": "247c51dc-fc34-4a6d-8147-f5ac4ceae260",
+  "id": "328b0ade-ce21-4ec9-b23d-54cdd1a8b55f",
   "prevId": "4c6dde2f-1cfa-4cd0-9484-296cdcdd4a15",
   "version": "7",
   "dialect": "postgresql",
@@ -374,6 +374,13 @@
       "name": "better_auth_rate_limits",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "key": {
           "name": "key",
           "type": "text",
