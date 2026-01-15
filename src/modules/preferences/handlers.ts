@@ -11,7 +11,7 @@ import {
   updatePreferencesByCategory,
 } from './services/preferences.service';
 import { response } from '@/shared/utils/responseUtils';
-import type { PreferenceCategory } from './schema/preferences.schema';
+import type { PreferenceCategory } from '@/modules/preferences/types/preferences.types';
 
 /**
  * GET /api/preferences - Get all preferences
