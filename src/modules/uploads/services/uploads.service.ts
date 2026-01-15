@@ -124,6 +124,7 @@ export const createUploadsService = () => {
     ): Promise<PresignUploadResponse> {
       const uploadId = crypto.randomUUID();
       const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
+      const publicUrlBase = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
       if (!bucket) {
         throw new Error('CLOUDFLARE_R2_BUCKET_NAME environment variable is required');
@@ -378,7 +379,10 @@ export const createUploadsService = () => {
         });
       } else {
         // Images - use public URL
-        downloadUrl = upload.publicUrl || '';
+        if (!upload.publicUrl) {
+          throw new Error('Cloudflare Images upload missing publicUrl. The upload may not have been confirmed yet.');
+        }
+        downloadUrl = upload.publicUrl;
       }
 
       // Update last accessed
@@ -478,18 +482,14 @@ export const createUploadsService = () => {
         offset,
       };
 
-      const countOptions = {
-        matterId: query.matter_id,
-        uploadContext: query.upload_context,
-        entityId: query.entity_id,
-        status: query.status,
-        includeDeleted: query.include_deleted,
-      };
-
       // Execute count and list queries in parallel
-      const [results, total] = await Promise.all([
+      const [results, totalResults] = await Promise.all([
         uploadsRepository.listByOrganization(organizationId, listOptions),
-        uploadsRepository.countByOrganization(organizationId, countOptions),
+        uploadsRepository.listByOrganization(organizationId, {
+          ...listOptions,
+          limit: undefined,
+          offset: undefined,
+        }),
       ]);
 
       const uploads: UploadDetails[] = results.map((upload) => ({
@@ -511,6 +511,8 @@ export const createUploadsService = () => {
         verified_at: upload.verifiedAt?.toISOString() || null,
         uploaded_by: upload.uploadedBy,
       }));
+
+      const total = totalResults.length;
 
       return {
         uploads,
