@@ -140,6 +140,7 @@ export const invitations = pgTable('invitations', {
  * - rate-limiter-flexible: Rate limiting for general API routes
  */
 export const rateLimits = pgTable('better_auth_rate_limits', {
+  id: uuid('id').primaryKey().defaultRandom(),
   key: text('key').notNull(),
   count: integer('count').notNull(),
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
