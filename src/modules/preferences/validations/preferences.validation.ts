@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { PRODUCT_USAGE_OPTIONS } from '../schema/preferences.schema';
+import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
 
 // Category-specific validation schemas
 export const generalPreferencesSchema = z.object({
@@ -19,10 +19,54 @@ export const generalPreferencesSchema = z.object({
 });
 
 export const notificationPreferencesSchema = z.object({
-  responses_push: z.boolean().optional(),
-  tasks_push: z.boolean().optional(),
-  tasks_email: z.boolean().optional(),
-  messaging_push: z.boolean().optional(),
+  messages_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for messages',
+    example: true,
+  }),
+  messages_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for messages',
+    example: true,
+  }),
+  messages_mentions_only: z.boolean().optional().openapi({
+    description: 'Only notify on mentions in messages',
+    example: false,
+  }),
+  payments_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for payments',
+    example: true,
+  }),
+  payments_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for payments',
+    example: true,
+  }),
+  intakes_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for intakes',
+    example: true,
+  }),
+  intakes_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for intakes',
+    example: true,
+  }),
+  matters_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for matters',
+    example: true,
+  }),
+  matters_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for matters',
+    example: true,
+  }),
+  system_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for system events (always true, cannot be disabled)',
+    example: true,
+  }),
+  system_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for system events (always true, cannot be disabled)',
+    example: true,
+  }),
+  desktop_push_enabled: z.boolean().optional().openapi({
+    description: 'Enable desktop push notifications',
+    example: false,
+  }),
 });
 
 export const securityPreferencesSchema = z.object({

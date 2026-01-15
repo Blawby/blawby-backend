@@ -112,17 +112,31 @@ export const updateCategoryPreferencesRoute = createRoute({
   path: '/{category}',
   tags: ['Preferences'],
   summary: 'Update preferences by category',
-  description: 'Update preferences for a specific category. The request body schema varies by category.',
+  description: 'Update preferences for a specific category. The request body schema varies by category. Supports partial updates - only include fields you want to change. For notifications category, system_push and system_email are always set to true regardless of input.',
   security: [{ Bearer: [] }],
   request: {
     params: categoryParamOpenAPISchema,
     body: {
       content: {
         'application/json': {
-          schema: z.record(z.string(), z.unknown()),
+          schema: notificationPreferencesSchema.openapi({
+            description: 'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
+            example: {
+              messages_push: true,
+              messages_email: true,
+              messages_mentions_only: false,
+              payments_push: true,
+              payments_email: true,
+              intakes_push: true,
+              intakes_email: true,
+              matters_push: true,
+              matters_email: true,
+              desktop_push_enabled: false,
+            },
+          }),
         },
       },
-      description: 'Category-specific preferences data. Schema varies by category.',
+      description: 'Category-specific preferences data. Schema varies by category. For notifications: system_push and system_email are always true.',
     },
   },
   responses: {
@@ -141,84 +155,6 @@ export const updateCategoryPreferencesRoute = createRoute({
         },
       },
       description: 'Invalid category or request data',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-/**
- * GET /api/preferences/me
- * Get all preferences (legacy endpoint)
- */
-export const getPreferencesMeRoute = createRoute({
-  method: 'get',
-  path: '/me',
-  tags: ['Preferences'],
-  summary: 'Get all preferences (legacy)',
-  description: 'Legacy endpoint for retrieving all preferences. Use GET /api/preferences instead.',
-  security: [{ Bearer: [] }],
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: preferencesResponseSchema,
-        },
-      },
-      description: 'Preferences retrieved successfully',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: notFoundResponseSchema,
-        },
-      },
-      description: 'Preferences not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-/**
- * PUT /api/preferences/me
- * Update profile preferences (legacy endpoint)
- */
-export const updatePreferencesMeRoute = createRoute({
-  method: 'put',
-  path: '/me',
-  tags: ['Preferences'],
-  summary: 'Update profile preferences (legacy)',
-  description: 'Legacy endpoint for updating profile preferences. Use PUT /api/preferences/profile instead.',
-  security: [{ Bearer: [] }],
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: categoryPreferencesResponseSchema,
-        },
-      },
-      description: 'Preferences updated successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Invalid request data',
     },
     500: {
       content: {

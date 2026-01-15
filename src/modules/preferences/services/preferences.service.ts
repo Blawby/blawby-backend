@@ -7,15 +7,16 @@
 
 import { db } from '@/shared/database';
 import { preferences } from '../schema/preferences.schema';
+import type { Preferences } from '../schema/preferences.schema';
 import type {
-  Preferences,
   PreferenceCategory,
   GeneralPreferences,
   NotificationPreferences,
   SecurityPreferences,
   AccountPreferences,
   OnboardingPreferences,
-} from '../schema/preferences.schema';
+} from '../types/preferences.types';
+import { DEFAULT_NOTIFICATION_PREFERENCES } from '../types/preferences.types';
 import { eq } from 'drizzle-orm';
 
 // Profile fields (phone, dob) are now in users table via Better Auth additionalFields
@@ -27,6 +28,23 @@ export interface UpdateProfileData {
 }
 
 /**
+ * Apply default values to notification preferences
+ * Merges stored preferences with defaults, ensuring all fields are present
+ */
+const applyNotificationDefaults = (
+  stored: Record<string, unknown> | null | undefined,
+): NotificationPreferences => {
+  const storedPrefs = (stored as NotificationPreferences) || {};
+  return {
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    ...storedPrefs,
+    // Always force system fields to true
+    system_push: true,
+    system_email: true,
+  };
+};
+
+/**
  * Get all preferences for a user
  */
 export const getPreferences = async (userId: string): Promise<Preferences | undefined> => {
@@ -36,7 +54,16 @@ export const getPreferences = async (userId: string): Promise<Preferences | unde
     .where(eq(preferences.userId, userId))
     .limit(1);
 
-  return result[0];
+  if (!result[0]) {
+    return undefined;
+  }
+
+  // Apply defaults to notifications field
+  const prefs = result[0];
+  return {
+    ...prefs,
+    notifications: applyNotificationDefaults(prefs.notifications),
+  };
 };
 
 /**
@@ -60,7 +87,14 @@ export const getPreferencesByCategory = async (
     .where(eq(preferences.userId, userId))
     .limit(1);
 
-  return (result[0]?.[category] as Record<string, unknown>) || {};
+  const categoryData = (result[0]?.[category] as Record<string, unknown>) || {};
+
+  // Apply defaults for notifications category
+  if (category === 'notifications') {
+    return applyNotificationDefaults(categoryData);
+  }
+
+  return categoryData;
 };
 
 /**
@@ -77,6 +111,19 @@ export const updatePreferencesByCategory = async (
     throw new Error('Profile fields should be updated via Better Auth updateUser endpoint');
   }
 
+  // Handle notifications category with special logic
+  if (category === 'notifications') {
+    // Get existing notifications preferences
+    const existing = await getPreferencesByCategory(userId, 'notifications');
+    // Merge with incoming data (partial update)
+    const merged = { ...existing, ...data };
+    // Force system fields always true
+    merged.system_push = true;
+    merged.system_email = true;
+    // Use merged data for update
+    data = merged;
+  }
+
   const result = await db
     .update(preferences)
     .set({
@@ -88,7 +135,14 @@ export const updatePreferencesByCategory = async (
       [category]: preferences[category],
     });
 
-  return (result[0]?.[category] as Record<string, unknown>) || {};
+  const updatedData = (result[0]?.[category] as Record<string, unknown>) || {};
+
+  // Apply defaults for notifications category in response
+  if (category === 'notifications') {
+    return applyNotificationDefaults(updatedData);
+  }
+
+  return updatedData;
 };
 
 /**
@@ -108,6 +162,33 @@ export const updateProfileFields = async (
     throw new Error('Preferences not found');
   }
   return prefs;
+};
+
+/**
+ * Initialize preferences for a new user
+ * Creates preferences record with default notification settings
+ */
+export const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
+  // Check if preferences already exist
+  const existing = await getPreferences(userId);
+  if (existing) {
+    return existing;
+  }
+
+  // Create new preferences with default notification settings
+  const result = await db
+    .insert(preferences)
+    .values({
+      userId,
+      notifications: DEFAULT_NOTIFICATION_PREFERENCES,
+      general: {},
+      security: {},
+      account: {},
+      onboarding: {},
+    })
+    .returning();
+
+  return result[0]!;
 };
 
 /**
