@@ -1,7 +1,7 @@
 export type UploadContext = 'matter' | 'intake' | 'trust' | 'profile' | 'asset';
 export type UploadStatus = 'pending' | 'verified' | 'rejected';
 export type StorageProvider = 'r2' | 'images';
-export type AuditAction = 'created' | 'viewed' | 'downloaded' | 'deleted' | 'restored' | 'confirmed';
+export type AuditAction = 'created' | 'viewed' | 'downloaded' | 'deleted' | 'restored';
 
 export type SubContext = 'documents' | 'correspondence' | 'evidence';
 
