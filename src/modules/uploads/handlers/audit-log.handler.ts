@@ -45,6 +45,7 @@ export const getAuditLogHandler = async (c: Context<AppContext>) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to get audit logs';
-    return response.badRequest(c, message);
+    console.error('[Audit Log Handler] Error getting audit logs:', error);
+    return response.internalServerError(c, message);
   }
 };

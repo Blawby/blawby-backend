@@ -29,7 +29,21 @@ export const presignHandler = async (c: Context<AppContext>) => {
 
     return response.created(c, result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate presigned URL';
-    return response.badRequest(c, message);
+    // Log the full error for debugging
+    console.error('[Presign Handler] Error generating presigned URL:', error);
+
+    // Classify error: check if it's a known validation/client error
+    const isClientError = error instanceof Error && (
+      error.message.includes('validation') ||
+      error.message.includes('required') ||
+      error.message.includes('invalid')
+    );
+
+    if (isClientError) {
+      return response.badRequest(c, 'Invalid request parameters');
+    }
+
+    // For unexpected errors, return generic internal server error
+    return response.internalServerError(c, 'Internal server error');
   }
 };

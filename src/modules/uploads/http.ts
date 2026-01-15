@@ -9,7 +9,6 @@ import {
   listUploadsQuerySchema,
 } from './validations/uploads.validation';
 import type { AppContext } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
 
 import { presignHandler } from './handlers/presign.handler';
 import { confirmHandler } from './handlers/confirm.handler';
@@ -20,75 +19,94 @@ import { restoreHandler } from './handlers/restore.handler';
 import { listHandler } from './handlers/list.handler';
 import { getAuditLogHandler } from './handlers/audit-log.handler';
 
-const app = new OpenAPIHono<AppContext>();
+const uploadsApp = new OpenAPIHono<AppContext>();
 
-// POST /presign
-app.post('/presign', zValidator('json', presignUploadSchema), presignHandler);
-app.openapi(routes.presignUploadRoute, async () => {
+/**
+ * POST /api/uploads/presign
+ * Generate presigned URL for upload
+ */
+uploadsApp.post('/presign', zValidator('json', presignUploadSchema), presignHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.presignUploadRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// POST /:id/confirm
-app.post(
-  '/:id/confirm',
-  zValidator('param', uploadIdParamSchema),
-  confirmHandler,
-);
-app.openapi(routes.confirmUploadRoute, async () => {
+/**
+ * POST /api/uploads/:id/confirm
+ * Confirm upload completion
+ */
+uploadsApp.post('/:id/confirm', zValidator('param', uploadIdParamSchema), confirmHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.confirmUploadRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// GET /:id
-app.get('/:id', zValidator('param', uploadIdParamSchema), getHandler);
-app.openapi(routes.getUploadRoute, async () => {
+/**
+ * GET /api/uploads/:id
+ * Get upload details
+ */
+uploadsApp.get('/:id', zValidator('param', uploadIdParamSchema), getHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.getUploadRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// GET /:id/download
-app.get(
-  '/:id/download',
-  zValidator('param', uploadIdParamSchema),
-  downloadHandler,
-);
-app.openapi(routes.getDownloadUrlRoute, async () => {
+/**
+ * GET /api/uploads/:id/download
+ * Get download URL
+ */
+uploadsApp.get('/:id/download', zValidator('param', uploadIdParamSchema), downloadHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.getDownloadUrlRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// DELETE /:id
-app.delete(
-  '/:id',
-  zValidator('param', uploadIdParamSchema),
-  zValidator('json', deleteUploadSchema),
-  deleteHandler,
-);
-app.openapi(routes.deleteUploadRoute, async () => {
+/**
+ * DELETE /api/uploads/:id
+ * Soft delete upload
+ */
+uploadsApp.delete('/:id', zValidator('param', uploadIdParamSchema), zValidator('json', deleteUploadSchema), deleteHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.deleteUploadRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// POST /:id/restore
-app.post(
-  '/:id/restore',
-  zValidator('param', uploadIdParamSchema),
-  restoreHandler,
-);
-app.openapi(routes.restoreUploadRoute, async () => {
+/**
+ * POST /api/uploads/:id/restore
+ * Restore soft-deleted upload
+ */
+uploadsApp.post('/:id/restore', zValidator('param', uploadIdParamSchema), restoreHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.restoreUploadRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// GET /
-app.get('/', zValidator('query', listUploadsQuerySchema), listHandler);
-app.openapi(routes.listUploadsRoute, async () => {
+/**
+ * GET /api/uploads
+ * List uploads
+ */
+uploadsApp.get('/', zValidator('query', listUploadsQuerySchema), listHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.listUploadsRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// GET /:id/audit-log
-app.get(
-  '/:id/audit-log',
-  zValidator('param', uploadIdParamSchema),
-  getAuditLogHandler,
-);
-app.openapi(routes.getAuditLogRoute, async () => {
+/**
+ * GET /api/uploads/:id/audit-log
+ * Get audit log for upload
+ */
+uploadsApp.get('/:id/audit-log', zValidator('param', uploadIdParamSchema), getAuditLogHandler);
+
+// Register OpenAPI route for documentation only
+uploadsApp.openapi(routes.getAuditLogRoute, async () => {
   throw new Error('This should never be called');
 });
 
-export default app;
+export default uploadsApp;

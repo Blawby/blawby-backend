@@ -1,20 +1,16 @@
 export type UploadContext = 'matter' | 'intake' | 'trust' | 'profile' | 'asset';
 export type UploadStatus = 'pending' | 'verified' | 'rejected';
 export type StorageProvider = 'r2' | 'images';
-export type AuditAction = 'created' | 'viewed' | 'downloaded' | 'deleted' | 'restored';
+export type AuditAction = 'created' | 'viewed' | 'downloaded' | 'deleted' | 'restored' | 'confirmed';
 
 export type SubContext = 'documents' | 'correspondence' | 'evidence';
 
-export interface PresignUploadRequest {
-  file_name: string;
-  mime_type: string;
-  file_size: number;
-  upload_context: UploadContext;
-  matter_id?: string;
-  entity_id?: string;
-  sub_context?: SubContext;
-  is_privileged?: boolean;
-}
+// Re-export Zod-inferred types from validations
+export type {
+  PresignUploadRequest,
+  DeleteUploadRequest,
+  ListUploadsQuery,
+} from '@/modules/uploads/validations/uploads.validation';
 
 export interface PresignUploadResponse {
   upload_id: string;
@@ -49,20 +45,6 @@ export interface UploadDetails {
   created_at: string;
   verified_at: string | null;
   uploaded_by: string | null;
-}
-
-export interface DeleteUploadRequest {
-  reason: string;
-}
-
-export interface ListUploadsQuery {
-  matter_id?: string;
-  upload_context?: UploadContext;
-  entity_id?: string;
-  status?: UploadStatus;
-  include_deleted?: boolean;
-  page?: number;
-  limit?: number;
 }
 
 export interface ListUploadsResponse {

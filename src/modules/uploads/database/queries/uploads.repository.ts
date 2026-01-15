@@ -37,12 +37,15 @@ export const uploadsRepository = {
   update: async function update(
     id: string,
     data: Partial<SelectUpload>,
-  ): Promise<SelectUpload> {
+  ): Promise<SelectUpload | null> {
     const [updated] = await db
       .update(uploads)
       .set(data)
       .where(eq(uploads.id, id))
       .returning();
+    if (!updated) {
+      return null;
+    }
     return updated;
   },
 
@@ -132,6 +135,9 @@ export const uploadsRepository = {
       })
       .where(eq(uploads.id, id))
       .returning();
+    if (!updated) {
+      throw new Error('Upload not found');
+    }
     return updated;
   },
 
@@ -151,7 +157,7 @@ export const uploadsRepository = {
   updateLastAccessed: async function updateLastAccessed(
     id: string,
     userId: string,
-  ): Promise<SelectUpload> {
+  ): Promise<SelectUpload | null> {
     const [updated] = await db
       .update(uploads)
       .set({
@@ -160,6 +166,9 @@ export const uploadsRepository = {
       })
       .where(eq(uploads.id, id))
       .returning();
+    if (!updated) {
+      return null;
+    }
     return updated;
   },
 
