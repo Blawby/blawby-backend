@@ -29,6 +29,6 @@ export const downloadHandler = async (c: Context<AppContext>) => {
     if (message.includes('not found')) {
       return response.notFound(c, message);
     }
-    return response.badRequest(c, message);
+    return response.internalServerError(c, message);
   }
 };

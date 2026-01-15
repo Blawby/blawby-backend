@@ -1,4 +1,4 @@
-import { eq, and, desc, isNull, isNotNull, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull, lte, count } from 'drizzle-orm';
 
 import {
   uploads,
@@ -93,6 +93,46 @@ export const uploadsRepository = {
       .orderBy(desc(uploads.createdAt))
       .limit(limit)
       .offset(offset);
+  },
+
+  countByOrganization: async function countByOrganization(
+    organizationId: string,
+    options?: {
+      matterId?: string;
+      uploadContext?: string;
+      entityId?: string;
+      status?: string;
+      includeDeleted?: boolean;
+    },
+  ): Promise<number> {
+    const conditions = [eq(uploads.organizationId, organizationId)];
+
+    if (options?.matterId) {
+      conditions.push(eq(uploads.matterId, options.matterId));
+    }
+
+    if (options?.uploadContext) {
+      conditions.push(eq(uploads.uploadContext, options.uploadContext));
+    }
+
+    if (options?.entityId) {
+      conditions.push(eq(uploads.entityId, options.entityId));
+    }
+
+    if (options?.status) {
+      conditions.push(eq(uploads.status, options.status));
+    }
+
+    if (!options?.includeDeleted) {
+      conditions.push(isNull(uploads.deletedAt));
+    }
+
+    const [result] = await db
+      .select({ count: count() })
+      .from(uploads)
+      .where(and(...conditions));
+
+    return result?.count ?? 0;
   },
 
   listByMatter: async function listByMatter(
