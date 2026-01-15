@@ -8,7 +8,6 @@ import { eq } from 'drizzle-orm';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { subscribeToEvent } from '@/shared/events/event-consumer';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { logError } from '@/shared/middleware/logger';
@@ -16,7 +15,7 @@ import { logError } from '@/shared/middleware/logger';
 /**
  * Handle onboarding completion
  */
-const handleOnboardingCompleted = async (event: BaseEvent): Promise<void> => {
+export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void> => {
   const { organizationId } = event;
 
   if (!organizationId) {
@@ -51,21 +50,26 @@ const handleOnboardingCompleted = async (event: BaseEvent): Promise<void> => {
       return;
     }
 
-    // Publish onboarding completion event with organization details
-    void publishSimpleEvent(EventType.ONBOARDING_COMPLETED, 'system', organizationId, {
+    // Note: This handler processes events, so we can't use transactions
+    // Event is written directly to database for guaranteed persistence
+    void publishSimpleEvent(EventType.ONBOARDING_COMPLETED, organizationId, organizationId, {
       organization_id: organizationId,
       organization_name: org.name,
       billing_email: org.billingEmail,
       stripe_customer_id: org.stripeCustomerId,
       onboarding_completed_at: new Date().toISOString(),
+    }).catch((error) => {
+      console.error('Failed to publish ONBOARDING_COMPLETED event:', error);
     });
 
-    // Publish practice updated event (since onboarding affects practice status)
-    void publishSimpleEvent(EventType.PRACTICE_UPDATED, 'system', organizationId, {
+    // Event is written directly to database for guaranteed persistence
+    void publishSimpleEvent(EventType.PRACTICE_UPDATED, organizationId, organizationId, {
       organization_id: organizationId,
       organization_name: org.name,
       update_type: 'onboarding_completed',
       updated_at: new Date().toISOString(),
+    }).catch((error) => {
+      console.error('Failed to publish PRACTICE_UPDATED event:', error);
     });
   } catch (error) {
     logError(error, {
@@ -79,9 +83,3 @@ const handleOnboardingCompleted = async (event: BaseEvent): Promise<void> => {
   }
 };
 
-/**
- * Register onboarding event handlers
- */
-export const registerOnboardingHandlers = (): void => {
-  subscribeToEvent(EventType.ONBOARDING_COMPLETED, handleOnboardingCompleted);
-};

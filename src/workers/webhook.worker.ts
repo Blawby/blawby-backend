@@ -24,6 +24,7 @@ import { graphileWorkerConfig, TASK_NAMES } from '@/shared/queue/queue.config';
 import { processStripeWebhook } from './tasks/process-stripe-webhook';
 import { processOnboardingWebhook } from './tasks/process-onboarding-webhook';
 import { processEventHandler } from './tasks/process-event-handler';
+import { processOutboxEvent } from '@/shared/events/tasks/process-outbox-event';
 
 // Load environment variables
 config();
@@ -84,7 +85,7 @@ async function startWorker(): Promise<void> {
   console.log('🔧 Webhook Worker Configuration:');
   console.log(`  - Database: ${connectionInfo}`);
   console.log(`  - Schema: ${schema}`);
-  console.log(`  - Tasks: ${TASK_NAMES.PROCESS_STRIPE_WEBHOOK}, ${TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK}, ${TASK_NAMES.PROCESS_EVENT_HANDLER}`);
+  console.log(`  - Tasks: ${TASK_NAMES.PROCESS_STRIPE_WEBHOOK}, ${TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK}, ${TASK_NAMES.PROCESS_EVENT_HANDLER}, ${TASK_NAMES.PROCESS_OUTBOX_EVENT}`);
   console.log(`  - Concurrency: ${concurrency}`);
   console.log(`  - Max Retries: ${graphileWorkerConfig.maxAttempts}`);
   console.log('');
@@ -98,6 +99,7 @@ async function startWorker(): Promise<void> {
       [TASK_NAMES.PROCESS_STRIPE_WEBHOOK]: processStripeWebhook,
       [TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK]: processOnboardingWebhook,
       [TASK_NAMES.PROCESS_EVENT_HANDLER]: processEventHandler,
+      [TASK_NAMES.PROCESS_OUTBOX_EVENT]: processOutboxEvent,
     };
 
     runner = await run({

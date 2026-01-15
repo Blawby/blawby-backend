@@ -43,6 +43,8 @@ export const createOnboardingSession = async (params: {
     );
 
     // Publish onboarding started event
+    // Note: createOrGetAccount calls Stripe API (external), so we can't use transaction
+    // Event is still persisted via event consumer
     void publishUserEvent(EventType.ONBOARDING_STARTED, user.id, {
       organization_id: organizationId,
       organization_email: organizationEmail,

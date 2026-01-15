@@ -5,58 +5,88 @@
  * Implements direct payment functionality (payment intents)
  */
 
+import { eq } from 'drizzle-orm';
 import { stripeConnectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
 import { paymentIntentsRepository } from '@/modules/payments/database/queries/payment-intents.repository';
 import type {
-  InsertPaymentIntent,
   SelectPaymentIntent,
 } from '@/modules/payments/database/schema/payment-intents.schema';
+import { paymentIntents } from '@/modules/payments/database/schema/payment-intents.schema';
+import type {
+  CreatePaymentIntentRequest,
+  CreatePaymentIntentResponse,
+  ConfirmPaymentRequest,
+  ConfirmPaymentResponse,
+  PaymentIntentStatus,
+  PaymentIntentOwnershipResult,
+  ServiceResponse,
+} from '@/modules/payments/types/payments.types';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishEventTx } from '@/shared/events/event-publisher';
+import { ORGANIZATION_ACTOR_UUID } from '@/shared/events/constants';
 import { calculateFees } from '@/shared/services/fees.service';
+import { db } from '@/shared/database';
 import { stripe } from '@/shared/utils/stripe-client';
-import type { jsonb } from 'drizzle-orm/pg-core/columns';
 
-export interface CreatePaymentIntentRequest {
-  organizationId: string;
-  customerId?: string;
-  amount: number; // in cents
-  currency?: string;
-  applicationFeeAmount?: number; // in cents
-  paymentMethodTypes?: string[];
-  customerEmail?: string;
-  customerName?: string;
-  description?: string;
-  metadata?: Record<string, unknown>;
-}
+// Re-export types for external use
+export type {
+  CreatePaymentIntentRequest,
+  CreatePaymentIntentResponse,
+  ConfirmPaymentRequest,
+  ConfirmPaymentResponse,
+  PaymentIntentStatus,
+  ServiceResponse,
+} from '@/modules/payments/types/payments.types';
 
-export interface CreatePaymentIntentResponse {
-  success: boolean;
-  paymentIntent?: {
-    id: string;
-    stripePaymentIntentId: string;
-    clientSecret: string;
-    amount: number;
-    status: string;
+// Helper functions
+const normalizePaymentIntentStatus = (
+  status: string,
+): PaymentIntentStatus => {
+  return status as PaymentIntentStatus;
+};
+
+const verifyPaymentIntentOwnership = async (
+  paymentIntentId: string,
+  organizationId: string,
+): Promise<PaymentIntentOwnershipResult> => {
+  const paymentIntent = await paymentIntentsRepository.findById(paymentIntentId);
+  if (!paymentIntent) {
+    return {
+      success: false,
+      error: 'Payment intent not found',
+    };
+  }
+
+  const connectedAccount = await stripeConnectedAccountsRepository.findById(
+    paymentIntent.connectedAccountId,
+  );
+  if (
+    !connectedAccount
+    || connectedAccount.organization_id !== organizationId
+  ) {
+    return {
+      success: false,
+      error: 'Unauthorized access to payment intent',
+    };
+  }
+
+  return {
+    success: true,
+    paymentIntent,
+    connectedAccount,
   };
-  error?: string;
-}
+};
 
-export interface ConfirmPaymentRequest {
-  paymentIntentId: string;
-  organizationId: string;
-  paymentMethodId?: string;
-}
-
-export interface ConfirmPaymentResponse {
-  success: boolean;
-  paymentIntent?: {
-    id: string;
-    status: string;
-    chargeId?: string;
+const handleServiceError = (
+  error: unknown,
+  context: string,
+): { success: false; error: string } => {
+  console.error({ error }, `Failed to ${context}`);
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : 'Unknown error',
   };
-  error?: string;
-}
+};
 
 /**
  * Create payments service
@@ -69,8 +99,8 @@ export const createPaymentsService = function createPaymentsService(
     request: ConfirmPaymentRequest): Promise<ConfirmPaymentResponse>;
   getPaymentIntent(
     paymentIntentId: string,
-    organizationId: string): Promise<unknown>;
-  listPaymentIntents(organizationId: string, limit?: number): Promise<unknown>;
+    organizationId: string): Promise<ServiceResponse<SelectPaymentIntent>>;
+  listPaymentIntents(organizationId: string, limit?: number): Promise<ServiceResponse<SelectPaymentIntent[]>>;
 } {
   return {
     /**
@@ -125,32 +155,45 @@ export const createPaymentsService = function createPaymentsService(
           },
         );
 
-        // 5. Store payment intent in database
-        const paymentIntentData: InsertPaymentIntent = {
-          connectedAccountId: connectedAccount.id,
-          customerId: request.customerId,
-          stripePaymentIntentId: stripePaymentIntent.id,
-          amount: request.amount,
-          currency: request.currency || 'usd',
-          applicationFeeAmount,
-          status: stripePaymentIntent.status,
-          customerEmail: request.customerEmail,
-          customerName: request.customerName,
-          metadata: request.metadata,
-        };
+        // 5. Store payment intent in database within transaction with event publishing
+        // Note: Stripe API call is external, so it's outside the transaction
+        const paymentIntent = await db.transaction(async (tx) => {
+          const status = normalizePaymentIntentStatus(stripePaymentIntent.status);
 
-        const paymentIntent
-          = await paymentIntentsRepository.create(paymentIntentData);
+          const [intent] = await tx
+            .insert(paymentIntents)
+            .values({
+              connectedAccountId: connectedAccount.id,
+              customerId: request.customerId,
+              stripePaymentIntentId: stripePaymentIntent.id,
+              amount: request.amount,
+              currency: request.currency || 'usd',
+              applicationFeeAmount,
+              status,
+              customerEmail: request.customerEmail,
+              customerName: request.customerName,
+              metadata: request.metadata,
+            })
+            .returning();
 
-        // 6. Publish simple payment intent created event
-        void publishSimpleEvent(EventType.PAYMENT_SESSION_CREATED, 'organization', request.organizationId, {
-          payment_intent_id: paymentIntent.id,
-          stripe_payment_intent_id: stripePaymentIntent.id,
-          amount: request.amount,
-          currency: request.currency || 'usd',
-          customer_id: request.customerId,
-          application_fee_amount: applicationFeeAmount,
-          created_at: new Date().toISOString(),
+          // Publish payment intent created event within transaction
+          await publishEventTx(tx, {
+            type: EventType.PAYMENT_SESSION_CREATED,
+            actorId: ORGANIZATION_ACTOR_UUID,
+            actorType: 'api',
+            organizationId: request.organizationId,
+            payload: {
+              payment_intent_id: intent.id,
+              stripe_payment_intent_id: stripePaymentIntent.id,
+              amount: request.amount,
+              currency: request.currency || 'usd',
+              customer_id: request.customerId,
+              application_fee_amount: applicationFeeAmount,
+              created_at: new Date().toISOString(),
+            },
+          });
+
+          return intent;
         });
 
         return {
@@ -164,11 +207,7 @@ export const createPaymentsService = function createPaymentsService(
           },
         };
       } catch (error) {
-        console.error({ error }, 'Failed to create payment intent');
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleServiceError(error, 'create payment intent');
       }
     },
 
@@ -179,31 +218,18 @@ export const createPaymentsService = function createPaymentsService(
       request: ConfirmPaymentRequest,
     ): Promise<ConfirmPaymentResponse> {
       try {
-        // 1. Get payment intent
-        const paymentIntent = await paymentIntentsRepository.findById(
+        // 1. Verify payment intent ownership
+        const ownershipCheck = await verifyPaymentIntentOwnership(
           request.paymentIntentId,
+          request.organizationId,
         );
-        if (!paymentIntent) {
+        if (!ownershipCheck.success || !ownershipCheck.paymentIntent || !ownershipCheck.connectedAccount) {
           return {
             success: false,
-            error: 'Payment intent not found',
+            error: ownershipCheck.error || 'Payment intent not found',
           };
         }
-
-        // 2. Verify organization owns this payment intent
-        const connectedAccount
-          = await stripeConnectedAccountsRepository.findById(
-            paymentIntent.connectedAccountId,
-          );
-        if (
-          !connectedAccount
-          || connectedAccount.organization_id !== request.organizationId
-        ) {
-          return {
-            success: false,
-            error: 'Unauthorized access to payment intent',
-          };
-        }
+        const { paymentIntent, connectedAccount } = ownershipCheck;
 
         // 3. Confirm payment intent on Stripe
         const stripePaymentIntent = await stripe.paymentIntents.confirm(
@@ -216,23 +242,35 @@ export const createPaymentsService = function createPaymentsService(
           },
         );
 
-        // 4. Update payment intent status
-        await paymentIntentsRepository.update(paymentIntent.id, {
-          status: stripePaymentIntent.status,
-          paymentMethodId: stripePaymentIntent.payment_method as string,
-          stripeChargeId: stripePaymentIntent.latest_charge as string,
-          succeededAt:
-            stripePaymentIntent.status === 'succeeded' ? new Date() : undefined,
-        });
+        // 4. Update payment intent status within transaction with event publishing
+        // Note: Stripe API call is external, so it's outside the transaction
+        await db.transaction(async (tx) => {
+          const status = normalizePaymentIntentStatus(stripePaymentIntent.status);
+          await tx
+            .update(paymentIntents)
+            .set({
+              status,
+              paymentMethodId: stripePaymentIntent.payment_method as string,
+              stripeChargeId: stripePaymentIntent.latest_charge as string,
+              succeededAt: status === 'succeeded' ? new Date() : undefined,
+            })
+            .where(eq(paymentIntents.id, paymentIntent.id));
 
-        // 5. Publish simple payment intent confirmed event
-        void publishSimpleEvent(EventType.PAYMENT_SUCCEEDED, 'organization', request.organizationId, {
-          payment_intent_id: paymentIntent.id,
-          stripe_payment_intent_id: stripePaymentIntent.id,
-          amount: paymentIntent.amount,
-          currency: paymentIntent.currency,
-          status: stripePaymentIntent.status,
-          confirmed_at: new Date().toISOString(),
+          // Publish payment succeeded event within transaction
+          await publishEventTx(tx, {
+            type: EventType.PAYMENT_SUCCEEDED,
+            actorId: ORGANIZATION_ACTOR_UUID,
+            actorType: 'api',
+            organizationId: request.organizationId,
+            payload: {
+              payment_intent_id: paymentIntent.id,
+              stripe_payment_intent_id: stripePaymentIntent.id,
+              amount: paymentIntent.amount,
+              currency: paymentIntent.currency,
+              status: stripePaymentIntent.status,
+              confirmed_at: new Date().toISOString(),
+            },
+          });
         });
 
         return {
@@ -244,11 +282,7 @@ export const createPaymentsService = function createPaymentsService(
           },
         };
       } catch (error) {
-        console.error({ error }, 'Failed to confirm payment intent');
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleServiceError(error, 'confirm payment intent');
       }
     },
 
@@ -258,46 +292,22 @@ export const createPaymentsService = function createPaymentsService(
     async getPaymentIntent(
       paymentIntentId: string,
       organizationId: string,
-    ): Promise<{
-      success: boolean;
-      paymentIntent?: SelectPaymentIntent;
-      error?: string;
-    }> {
+    ): Promise<ServiceResponse<SelectPaymentIntent>> {
       try {
-        const paymentIntent
-          = await paymentIntentsRepository.findById(paymentIntentId);
-        if (!paymentIntent) {
-          return {
-            success: false,
-            error: 'Payment intent not found',
-          };
-        }
-
-        // Verify organization owns this payment intent
-        const connectedAccount
-          = await stripeConnectedAccountsRepository.findById(
-            paymentIntent.connectedAccountId,
-          );
-        if (
-          !connectedAccount
-          || connectedAccount.organization_id !== organizationId
-        ) {
-          return {
-            success: false,
-            error: 'Unauthorized access to payment intent',
-          };
+        const ownershipCheck = await verifyPaymentIntentOwnership(
+          paymentIntentId,
+          organizationId,
+        );
+        if (!ownershipCheck.success) {
+          return ownershipCheck;
         }
 
         return {
           success: true,
-          paymentIntent,
+          data: ownershipCheck.paymentIntent!,
         };
       } catch (error) {
-        console.error({ error }, 'Failed to get payment intent');
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleServiceError(error, 'get payment intent');
       }
     },
 
@@ -308,13 +318,8 @@ export const createPaymentsService = function createPaymentsService(
       organizationId: string,
       limit = 50,
       offset = 0,
-    ): Promise<{
-      success: boolean;
-      paymentIntents?: SelectPaymentIntent[];
-      error?: string;
-    }> {
+    ): Promise<ServiceResponse<SelectPaymentIntent[]>> {
       try {
-        // Get connected account
         const connectedAccount
           = await stripeConnectedAccountsRepository.findByOrganizationId(
             organizationId,
@@ -326,7 +331,7 @@ export const createPaymentsService = function createPaymentsService(
           };
         }
 
-        const paymentIntents
+        const paymentIntentsList
           = await paymentIntentsRepository.listByConnectedAccountId(
             connectedAccount.id,
             limit,
@@ -335,14 +340,10 @@ export const createPaymentsService = function createPaymentsService(
 
         return {
           success: true,
-          paymentIntents,
+          data: paymentIntentsList,
         };
       } catch (error) {
-        console.error({ error }, 'Failed to list payment intents');
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleServiceError(error, 'list payment intents');
       }
     },
 
@@ -387,18 +388,28 @@ export const createPaymentsService = function createPaymentsService(
             stripeAccount: connectedAccount.stripe_account_id,
           });
 
-        // 4. Update payment intent status
-        await paymentIntentsRepository.update(paymentIntent.id, {
-          status: 'canceled',
-        });
+        // 4. Update payment intent status within transaction with event publishing
+        // Note: Stripe API call is external, so it's outside the transaction
+        await db.transaction(async (tx) => {
+          await tx
+            .update(paymentIntents)
+            .set({ status: 'canceled' })
+            .where(eq(paymentIntents.id, paymentIntent.id));
 
-        // 5. Publish simple payment intent canceled event
-        void publishSimpleEvent(EventType.PAYMENT_CANCELED, 'organization', organizationId, {
-          payment_intent_id: paymentIntent.id,
-          stripe_payment_intent_id: paymentIntent.stripePaymentIntentId,
-          amount: paymentIntent.amount,
-          currency: paymentIntent.currency,
-          canceled_at: new Date().toISOString(),
+          // Publish payment canceled event within transaction
+          await publishEventTx(tx, {
+            type: EventType.PAYMENT_CANCELED,
+            actorId: ORGANIZATION_ACTOR_UUID,
+            actorType: 'api',
+            organizationId,
+            payload: {
+              payment_intent_id: paymentIntent.id,
+              stripe_payment_intent_id: paymentIntent.stripePaymentIntentId,
+              amount: paymentIntent.amount,
+              currency: paymentIntent.currency,
+              canceled_at: new Date().toISOString(),
+            },
+          });
         });
 
         return { success: true };

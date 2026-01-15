@@ -8,7 +8,7 @@
  * 1. Create a new *.schema.ts file in your module
  * 2. Run: pnpm run schemas:sync
  *
- * Last updated: 2026-01-16T15:11:39.065Z
+ * Last updated: 2026-01-15T18:23:11.388Z
  */
 
 // Better Auth core schemas (users, sessions, organizations, etc.)

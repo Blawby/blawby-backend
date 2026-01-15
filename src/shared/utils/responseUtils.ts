@@ -104,8 +104,8 @@ export const response = {
       c.res.headers.set('Retry-After', String(retryAfter));
     }
     return c.json(toSnakeCase({
-      error: 'Too Many Requests',
-      message,
+    error: 'Too Many Requests',
+    message,
       ...(retryAfter !== undefined && { retry_after: retryAfter }),
     }), 429);
   },

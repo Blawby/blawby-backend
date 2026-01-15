@@ -11,7 +11,7 @@ Generate code, corrections, and refactorings that comply with the basic principl
 ## General
 
 - Use English for all code and documentation.
-- Always declare explicit types for variables, parameters, and return values. Avoid `any`.
+- Always declare explicit types for variables, parameters, and return values. Avoid `any` and `as`.
 - Prefer types over interfaces for simple data structures
 - Create necessary types; do not overuse primitives.
 - One export per file.

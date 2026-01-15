@@ -29,6 +29,10 @@ eventBus.setMaxListeners(100); // Support many handlers
 // Store handlers with metadata for priority sorting
 const eventHandlers = new Map<string, HandlerMetadata[]>();
 
+// Export handlers map for worker access
+import { setEventHandlersMap } from './event-handler-registry';
+setEventHandlersMap(eventHandlers);
+
 // Subscribe to specific event types with options
 export const subscribeToEvent = (
   eventType: string,
@@ -108,7 +112,7 @@ export const saveEventToDatabase = async (event: BaseEvent): Promise<void> => {
   try {
     await db.insert(events).values({
       eventId: event.eventId,
-      eventType: event.eventType,
+      type: event.type,
       eventVersion: event.eventVersion,
       actorId: event.actorId,
       actorType: event.actorType,
