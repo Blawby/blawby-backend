@@ -56,7 +56,7 @@ export interface ListUploadsResponse {
 
 export interface DownloadUrlResponse {
   download_url: string;
-  expires_at: string;
+  expires_at: string | null;
 }
 
 export interface AuditLogEntry {

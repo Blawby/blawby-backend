@@ -177,13 +177,18 @@ export const createUploadsService = () => {
         method = 'PUT';
       }
 
+      const fileName = request.file_name;
+      const lastDotIndex = fileName.lastIndexOf('.');
+      const fileType = lastDotIndex > 0 && lastDotIndex < fileName.length - 1
+        ? fileName.slice(lastDotIndex + 1)
+        : 'unknown';
       // Create upload record
       const uploadData: InsertUpload = {
         id: uploadId,
         userId,
         organizationId,
         fileName: request.file_name,
-        fileType: request.file_name.split('.').pop() || 'unknown',
+        fileType,
         fileSize: request.file_size,
         mimeType: request.mime_type,
         storageProvider,
@@ -369,7 +374,9 @@ export const createUploadsService = () => {
       }
 
       let downloadUrl: string;
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const expiresAt = upload.storageProvider === 'r2'
+        ? new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+        : null;
 
       if (upload.storageProvider === 'r2') {
         downloadUrl = await generatePresignedDownloadUrl({
@@ -400,7 +407,7 @@ export const createUploadsService = () => {
 
       return {
         download_url: downloadUrl,
-        expires_at: expiresAt.toISOString(),
+        expires_at: expiresAt ? expiresAt.toISOString() : null,
       };
     },
 
