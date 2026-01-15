@@ -14,6 +14,6 @@ export const config: Partial<ModuleConfig> = {
   middleware: {
     '*': ['requireAuth'], // rateLimit added automatically by default
     // Specific route middleware
-    '/details/:slug': ['requireCaptcha'], // rateLimit still added automatically
+    '/details/:slug': ['public'],
   },
 };
