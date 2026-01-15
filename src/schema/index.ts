@@ -23,5 +23,7 @@ export * from './../modules/preferences/schema/preferences.schema';
 export * from './../modules/subscriptions/database/schema/subscriptionEvents.schema';
 export * from './../modules/subscriptions/database/schema/subscriptionLineItems.schema';
 export * from './../modules/subscriptions/database/schema/subscriptionPlans.schema';
+export * from './../modules/uploads/database/schema/upload-audit-logs.schema';
+export * from './../modules/uploads/database/schema/uploads.schema';
 export * from './../shared/events/schemas/events.schema';
 export * from './../shared/schemas/stripe.webhook-events.schema';
