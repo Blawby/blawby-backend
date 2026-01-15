@@ -77,7 +77,7 @@ export const uploadDetailsResponseSchema = z.object({
 
 export const downloadUrlResponseSchema = z.object({
   download_url: z.url(),
-  expires_at: z.iso.datetime(),
+  expires_at: z.iso.datetime().nullable(),
 });
 
 export const listUploadsResponseSchema = z.object({
