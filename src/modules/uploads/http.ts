@@ -1,23 +1,23 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { zValidator } from '@hono/zod-validator';
 
-import * as routes from './routes';
+import * as routes from '@/modules/uploads/routes';
 import {
   presignUploadSchema,
   uploadIdParamSchema,
   deleteUploadSchema,
   listUploadsQuerySchema,
-} from './validations/uploads.validation';
+} from '@/modules/uploads/validations/uploads.validation';
 import type { AppContext } from '@/shared/types/hono';
 
-import { presignHandler } from './handlers/presign.handler';
-import { confirmHandler } from './handlers/confirm.handler';
-import { getHandler } from './handlers/get.handler';
-import { downloadHandler } from './handlers/download.handler';
-import { deleteHandler } from './handlers/delete.handler';
-import { restoreHandler } from './handlers/restore.handler';
-import { listHandler } from './handlers/list.handler';
-import { getAuditLogHandler } from './handlers/audit-log.handler';
+import { presignHandler } from '@/modules/uploads/handlers/presign.handler';
+import { confirmHandler } from '@/modules/uploads/handlers/confirm.handler';
+import { getHandler } from '@/modules/uploads/handlers/get.handler';
+import { downloadHandler } from '@/modules/uploads/handlers/download.handler';
+import { deleteHandler } from '@/modules/uploads/handlers/delete.handler';
+import { restoreHandler } from '@/modules/uploads/handlers/restore.handler';
+import { listHandler } from '@/modules/uploads/handlers/list.handler';
+import { getAuditLogHandler } from '@/modules/uploads/handlers/audit-log.handler';
 
 const uploadsApp = new OpenAPIHono<AppContext>();
 

@@ -124,7 +124,6 @@ export const createUploadsService = () => {
     ): Promise<PresignUploadResponse> {
       const uploadId = crypto.randomUUID();
       const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
-      const publicUrlBase = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
       if (!bucket) {
         throw new Error('CLOUDFLARE_R2_BUCKET_NAME environment variable is required');
@@ -479,14 +478,18 @@ export const createUploadsService = () => {
         offset,
       };
 
+      const countOptions = {
+        matterId: query.matter_id,
+        uploadContext: query.upload_context,
+        entityId: query.entity_id,
+        status: query.status,
+        includeDeleted: query.include_deleted,
+      };
+
       // Execute count and list queries in parallel
-      const [results, totalResults] = await Promise.all([
+      const [results, total] = await Promise.all([
         uploadsRepository.listByOrganization(organizationId, listOptions),
-        uploadsRepository.listByOrganization(organizationId, {
-          ...listOptions,
-          limit: undefined,
-          offset: undefined,
-        }),
+        uploadsRepository.countByOrganization(organizationId, countOptions),
       ]);
 
       const uploads: UploadDetails[] = results.map((upload) => ({
@@ -508,8 +511,6 @@ export const createUploadsService = () => {
         verified_at: upload.verifiedAt?.toISOString() || null,
         uploaded_by: upload.uploadedBy,
       }));
-
-      const total = totalResults.length;
 
       return {
         uploads,
