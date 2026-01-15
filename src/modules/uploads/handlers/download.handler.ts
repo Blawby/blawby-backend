@@ -6,9 +6,13 @@ import { createUploadsService } from '@/modules/uploads/services/uploads.service
 export const downloadHandler = async (c: Context<AppContext>) => {
   const id = c.req.param('id');
   const userId = c.get('userId');
-  const ipAddress = c.req.header('x-forwarded-for')
-    || c.req.header('cf-connecting-ip')
-    || c.req.header('x-real-ip');
+
+  // Handle comma-separated x-forwarded-for header (take first IP)
+  const forwardedFor = c.req.header('x-forwarded-for');
+  const ipAddress = forwardedFor
+    ? forwardedFor.split(',')[0]?.trim()
+    : c.req.header('cf-connecting-ip') || c.req.header('x-real-ip');
+
   const userAgent = c.req.header('user-agent');
 
   if (!userId) {

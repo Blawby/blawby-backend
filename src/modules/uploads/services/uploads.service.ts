@@ -60,12 +60,13 @@ const generateStorageKey = (params: {
   }
 
   switch (params.uploadContext) {
-    case 'matter':
+    case 'matter': {
       if (!params.matterId) {
         throw new Error('Matter ID required for matter uploads');
       }
       const subFolder = params.subContext || 'documents';
       return `orgs/${params.organizationId}/matters/${params.matterId}/${subFolder}/${params.uploadId}_${sanitizedFileName}`;
+    }
 
     case 'intake':
       if (!params.entityId) {
@@ -259,8 +260,12 @@ export const createUploadsService = () => {
       if (upload.storageProvider === 'r2' && upload.storageKey && publicUrlBase) {
         publicUrl = `${publicUrlBase}/${upload.storageKey}`;
       } else if (upload.storageProvider === 'images' && upload.storageKey) {
+        const accountHash = process.env.CLOUDFLARE_IMAGES_ACCOUNT_HASH;
+        if (!accountHash) {
+          throw new Error('CLOUDFLARE_IMAGES_ACCOUNT_HASH environment variable is required for Cloudflare Images');
+        }
         publicUrl = getImageUrl({
-          accountHash: process.env.CLOUDFLARE_IMAGES_ACCOUNT_HASH || '',
+          accountHash,
           imageId: upload.storageKey,
         });
       }
@@ -272,11 +277,15 @@ export const createUploadsService = () => {
         publicUrl,
       });
 
+      if (!updated) {
+        throw new Error('Upload not found');
+      }
+
       // Create audit log
       await createAuditLog({
         uploadId,
         organizationId: upload.organizationId || undefined,
-        action: 'viewed',
+        action: 'confirmed',
         userId,
       });
 
@@ -460,7 +469,7 @@ export const createUploadsService = () => {
       const limit = query.limit || 20;
       const offset = (page - 1) * limit;
 
-      const results = await uploadsRepository.listByOrganization(organizationId, {
+      const listOptions = {
         matterId: query.matter_id,
         uploadContext: query.upload_context,
         entityId: query.entity_id,
@@ -468,7 +477,17 @@ export const createUploadsService = () => {
         includeDeleted: query.include_deleted,
         limit,
         offset,
-      });
+      };
+
+      // Execute count and list queries in parallel
+      const [results, totalResults] = await Promise.all([
+        uploadsRepository.listByOrganization(organizationId, listOptions),
+        uploadsRepository.listByOrganization(organizationId, {
+          ...listOptions,
+          limit: undefined,
+          offset: undefined,
+        }),
+      ]);
 
       const uploads: UploadDetails[] = results.map((upload) => ({
         upload_id: upload.id,
@@ -490,8 +509,7 @@ export const createUploadsService = () => {
         uploaded_by: upload.uploadedBy,
       }));
 
-      // TODO: Get total count (requires separate query with count)
-      const total = uploads.length; // Approximate for now
+      const total = totalResults.length;
 
       return {
         uploads,

@@ -78,11 +78,6 @@ export const generatePresignedDownloadUrl = async (params: {
   const client = getR2Client();
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default
 
-  const command = new HeadObjectCommand({
-    Bucket: params.bucket,
-    Key: params.key,
-  });
-
   // For download, we use GetObjectCommand
   const getCommand = new GetObjectCommand({
     Bucket: params.bucket,
