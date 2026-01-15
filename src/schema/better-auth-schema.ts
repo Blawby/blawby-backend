@@ -7,6 +7,7 @@ import {
   integer,
   date,
   uuid,
+  bigint,
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -123,6 +124,27 @@ export const invitations = pgTable('invitations', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
 });
+
+/**
+ * Rate Limits table for Better Auth's built-in rate limiting
+ *
+ * This table is used by Better Auth when rateLimit.storage is set to 'database'.
+ * It uses a different table name (better_auth_rate_limits) to avoid conflicts
+ * with the rate_limits table used by rate-limiter-flexible library.
+ *
+ * Better Auth uses: better_auth_rate_limits (this table)
+ * rate-limiter-flexible uses: rate_limits (auto-created, different schema)
+ *
+ * They can coexist because they use different table names and serve different purposes:
+ * - Better Auth: Rate limiting for authentication routes (/api/auth/*)
+ * - rate-limiter-flexible: Rate limiting for general API routes
+ */
+export const rateLimits = pgTable('better_auth_rate_limits', {
+  key: text('key').notNull(),
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+});
+
 
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
