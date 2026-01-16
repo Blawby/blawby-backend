@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
+import { PRODUCT_USAGE_OPTIONS, PREFERENCE_CATEGORIES } from '@/modules/preferences/types/preferences.types';
 
 // Category-specific validation schemas
 export const generalPreferencesSchema = z.object({
@@ -98,15 +98,8 @@ export const profilePreferencesSchema = z.object({
   // This schema kept for backward compatibility but is empty.
 });
 
-// Category validation
-export const preferenceCategorySchema = z.enum([
-  'general',
-  'notifications',
-  'security',
-  'account',
-  'onboarding',
-  'profile',
-]);
+// Category validation - uses PREFERENCE_CATEGORIES from types as single source of truth
+export const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 
 export type PreferenceCategory = z.infer<typeof preferenceCategorySchema>;
 

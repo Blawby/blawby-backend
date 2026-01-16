@@ -133,7 +133,21 @@ export type OnboardingPreferences = {
 };
 
 /**
+ * Preference category options
+ * Single source of truth for valid preference categories
+ */
+export const PREFERENCE_CATEGORIES = [
+  'general',
+  'notifications',
+  'security',
+  'account',
+  'onboarding',
+  'profile',
+] as const;
+
+/**
  * Preference category type
  * Valid categories for preference updates
+ * Derived from PREFERENCE_CATEGORIES constant
  */
-export type PreferenceCategory = 'general' | 'notifications' | 'security' | 'account' | 'onboarding' | 'profile';
+export type PreferenceCategory = typeof PREFERENCE_CATEGORIES[number];
