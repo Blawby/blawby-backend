@@ -6,9 +6,8 @@ import type { DeleteUploadRequest } from '@/modules/uploads/validations/uploads.
 
 export const deleteHandler = async (c: Context<AppContext>) => {
   const id = c.req.param('id');
-  // Validation happens in middleware via zValidator
-  // Type assertion is safe because validation is guaranteed
-  const body = (await c.req.json()) as DeleteUploadRequest;
+  // Use validated payload from zValidator middleware
+  const body = c.req.valid('json') as DeleteUploadRequest;
   const userId = c.get('userId');
 
   if (!userId) {

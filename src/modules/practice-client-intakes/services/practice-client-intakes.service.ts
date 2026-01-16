@@ -17,13 +17,17 @@ import type {
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type {
   InsertPracticeClientIntake,
+  PracticeClientIntakeMetadata,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import {
+  practiceClientIntakeMetadataSchema,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { stripeConnectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
 import { organizations } from '@/schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
-import { logError } from '@/shared/utils/logging';
+import { hashEmail, logError } from '@/shared/utils/logging';
 import { stripe } from '@/shared/utils/stripe-client';
 
 /**
@@ -220,7 +224,7 @@ const createPracticeClientIntake = async (
   } catch (error) {
     logError('Failed to create practice client intake', error, {
       slug: request.slug,
-      email: request.email,
+      emailHash: hashEmail(request.email),
     });
     return {
       success: false,
@@ -258,6 +262,17 @@ const getPracticeClientIntakeStatus = async (
       };
     }
 
+    // Validate and parse metadata if present
+    let metadata: PracticeClientIntakeMetadata | null = null;
+    if (practiceClientIntake.metadata) {
+      try {
+        metadata = practiceClientIntakeMetadataSchema.parse(practiceClientIntake.metadata);
+      } catch (parseError) {
+        // If metadata doesn't match schema, return null
+        metadata = null;
+      }
+    }
+
     return {
       success: true,
       data: {
@@ -266,14 +281,7 @@ const getPracticeClientIntakeStatus = async (
         currency: practiceClientIntake.currency,
         status: practiceClientIntake.status,
         stripeChargeId: practiceClientIntake.stripeChargeId || undefined,
-        metadata: practiceClientIntake.metadata as {
-          email: string;
-          name: string;
-          phone?: string;
-          onBehalfOf?: string;
-          opposingParty?: string;
-          description?: string;
-        },
+        metadata: metadata ?? undefined,
         succeededAt: practiceClientIntake.succeededAt || undefined,
         createdAt: practiceClientIntake.createdAt,
       },

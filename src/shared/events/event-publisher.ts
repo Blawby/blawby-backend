@@ -119,21 +119,25 @@ export const publishSystemEvent = (
 };
 
 // Super simple helper for common events across modules.
-// NOTE: This project historically passes actorType ('system' | 'organization') as the 2nd argument.
+// NOTE: actorType must be 'user' | 'organization' | 'system'
 export const publishSimpleEvent = (
   eventType: EventType,
-  actorType: string,
+  actorType: 'user' | 'organization' | 'system',
   organizationId: string | undefined,
   payload: Record<string, unknown>,
 ): BaseEvent => {
-  const inferredActorId = actorType === 'organization' ? organizationId : undefined;
+  const inferredActorId: string | undefined = actorType === 'organization' ? organizationId : undefined;
+  // Only set timestamp if not already present in payload
+  const payloadWithTimestamp = payload.timestamp
+    ? payload
+    : { ...payload, timestamp: new Date().toISOString() };
   return publishEvent({
     eventType,
     eventVersion: '1.0.0',
     actorId: inferredActorId,
     actorType,
     organizationId,
-    payload: { ...payload, timestamp: new Date().toISOString() },
+    payload: payloadWithTimestamp,
     metadata: createEventMetadata(actorType === 'system' ? 'system' : 'api'),
   });
 };

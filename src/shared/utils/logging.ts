@@ -3,6 +3,7 @@
  * Ensures sensitive data is not logged in production
  */
 
+import { createHash } from 'node:crypto';
 import { consola } from 'consola';
 
 const SENSITIVE_HEADERS = [
@@ -209,6 +210,14 @@ export const isStripeError = (
     && 'type' in error
     && 'code' in error
   );
+};
+
+/**
+ * Hash an email address for logging purposes (non-identifying)
+ * Uses SHA-256 to create a deterministic hash
+ */
+export const hashEmail = (email: string): string => {
+  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').substring(0, 16);
 };
 
 /**

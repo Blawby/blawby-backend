@@ -24,12 +24,19 @@ export const handlePracticeClientIntakeSucceeded = async ({
       return;
     }
 
+    // Extract latest_charge safely (can be string, Charge object, or null)
+    const stripeChargeId = paymentIntent.latest_charge
+      ? typeof paymentIntent.latest_charge === 'string'
+        ? paymentIntent.latest_charge
+        : paymentIntent.latest_charge.id
+      : undefined;
+
     // Update practice client intake status
     // Payment Links use 'completed' status, but we store as 'succeeded' for consistency
     await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       status: 'succeeded',
       stripePaymentIntentId: paymentIntent.id, // Populate from Payment Link's Payment Intent
-      stripeChargeId: paymentIntent.latest_charge as string,
+      stripeChargeId,
       succeededAt: new Date(),
     });
 
@@ -47,7 +54,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
         currency: practiceClientIntake.currency,
         client_email: practiceClientIntake.metadata?.email,
         client_name: practiceClientIntake.metadata?.name,
-        stripe_charge_id: paymentIntent.latest_charge,
+        stripe_charge_id: stripeChargeId,
         succeeded_at: new Date().toISOString(),
       },
     );

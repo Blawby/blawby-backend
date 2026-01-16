@@ -39,8 +39,8 @@ All endpoints are **public** (no authentication required). The module is mounted
       "logo": "https://..."
     },
     "settings": {
-      "paymentLinkEnabled": true,
-      "prefillAmount": 5000
+      "payment_link_enabled": true,
+      "prefill_amount": 5000
     },
     "connectedAccount": {
       "id": "uuid",
@@ -205,17 +205,17 @@ All endpoints are **public** (no authentication required). The module is mounted
 ```typescript
 {
   id: uuid (primary key)
-  organizationId: uuid (foreign key → organizations.id, cascade delete)
-  connectedAccountId: uuid (foreign key → stripe_connected_accounts.id, restrict delete)
+  organization_id: uuid (foreign key → organizations.id, cascade delete)
+  connected_account_id: uuid (foreign key → stripe_connected_accounts.id, restrict delete)
   
   // Stripe IDs
-  stripePaymentLinkId: text (unique, not null) // Stripe Payment Link ID
-  stripePaymentIntentId: text (nullable) // Created by Payment Link, populated via webhook
-  stripeChargeId: text (nullable)
+  stripe_payment_link_id: text (unique, not null) // Stripe Payment Link ID
+  stripe_payment_intent_id: text (nullable) // Created by Payment Link, populated via webhook
+  stripe_charge_id: text (nullable)
   
   // Payment Details
   amount: integer (cents, not null)
-  applicationFee: integer (cents, nullable)
+  application_fee: integer (cents, nullable)
   currency: text (default: 'usd', not null)
   status: text (not null)
   
@@ -230,20 +230,20 @@ All endpoints are **public** (no authentication required). The module is mounted
   }
   
   // Security & Tracking
-  clientIp: text (nullable)
-  userAgent: text (nullable)
+  client_ip: text (nullable)
+  user_agent: text (nullable)
   
   // Timestamps
-  succeededAt: timestamp (nullable)
-  createdAt: timestamp (default: now, not null)
-  updatedAt: timestamp (default: now, not null)
+  succeeded_at: timestamp (nullable)
+  created_at: timestamp (default: now, not null)
+  updated_at: timestamp (default: now, not null)
 }
 ```
 
 **Indexes:**
-- `organizationId` (for querying by organization)
-- `stripePaymentLinkId` (unique, for Payment Link lookups)
-- `stripePaymentIntentId` (for Stripe webhook lookups)
+- `organization_id` (for querying by organization)
+- `stripe_payment_link_id` (unique, for Payment Link lookups)
+- `stripe_payment_intent_id` (for Stripe webhook lookups)
 - `status` (for filtering by payment status)
 
 **Relations:**
