@@ -6,6 +6,7 @@ import stylistic from '@stylistic/eslint-plugin';
 export default [
   {
     files: ['src/**/*.{js,ts,tsx}'],
+    ignores: ['scripts/**/*.ts'],
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
@@ -155,6 +156,16 @@ export default [
   },
   {
     files: ['scripts/**/*.ts'],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        // Scripts are not part of the TypeScript project (rootDir is "src")
+        // They're run directly with tsx, so we don't need project-based type checking
+        project: null,
+      },
+    },
     rules: {
       // Allow console.log in scripts
       'no-console': 'off',

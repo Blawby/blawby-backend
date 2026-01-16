@@ -44,10 +44,21 @@ export type Requirements = {
   disabled_reason?: string | null;
 };
 
-export type Capabilities = {
-  card_payments?: string;
-  transfers?: string;
-  us_bank_account_ach_payments?: string;
+export type Capabilities = Record<string, string>;
+
+export type TosAcceptance = {
+  date?: number;
+  ip?: string;
+  user_agent?: string;
+};
+
+export type FutureRequirements = {
+  currently_due: string[];
+  eventually_due: string[];
+  past_due: string[];
+  pending_verification: string[];
+  current_deadline?: number | null;
+  disabled_reason?: string | null;
 };
 
 export type ExternalAccount = {
@@ -91,6 +102,8 @@ export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
   requirements: json('requirements').$type<Requirements>(),
   capabilities: json('capabilities').$type<Capabilities>(),
   externalAccounts: json('external_accounts').$type<ExternalAccounts>(),
+  futureRequirements: json('future_requirements').$type<FutureRequirements>(),
+  tosAcceptance: json('tos_acceptance').$type<TosAcceptance>(),
   metadata: json('metadata').$type<Record<string, string>>(),
   onboarding_completed_at: timestamp('onboarding_completed_at'),
   last_refreshed_at: timestamp('last_refreshed_at'),
@@ -150,8 +163,19 @@ export const getAccountResponseSchema = z.object({
     payouts_enabled: z.boolean(),
     details_submitted: z.boolean(),
     is_active: z.boolean(),
+    readiness_status: z.enum([
+      'active',
+      'requirements_due',
+      'verification_pending',
+      'disabled',
+      'inactive',
+    ]),
+    missing_requirements: z.array(z.string()),
+    disabled_reason: z.string().nullable(),
+    current_deadline: z.number().nullable(),
   }),
   requirements: z.any().optional(),
+  future_requirements: z.any().optional(),
   onboarding_completed_at: z.string().nullable(),
 });
 

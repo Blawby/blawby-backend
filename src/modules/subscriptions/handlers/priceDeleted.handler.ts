@@ -8,7 +8,7 @@
 import type Stripe from 'stripe';
 
 import { db } from '@/shared/database';
-import { findPlanByStripePriceId, upsertPlan } from '../database/queries/subscriptionPlans.repository';
+import { findPlanByStripePriceId, upsertPlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
 
 /**
  * Handle price.deleted webhook event

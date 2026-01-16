@@ -15,7 +15,7 @@
 //   console.warn(
 //     '⚠️  getRedisConnection() is deprecated. Use Graphile Worker instead.',
 //   );
-  
+
 //   if (!redisConnection) {
 //     redisConnection = new Redis({
 //       host: process.env.REDIS_HOST || 'localhost',
