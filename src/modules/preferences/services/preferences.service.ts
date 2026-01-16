@@ -6,8 +6,8 @@
  */
 
 import { db } from '@/shared/database';
-import { preferences } from '../schema/preferences.schema';
-import type { Preferences } from '../schema/preferences.schema';
+import { preferences } from '@/modules/preferences/schema/preferences.schema';
+import type { Preferences } from '@/modules/preferences/schema/preferences.schema';
 import type {
   PreferenceCategory,
   GeneralPreferences,
@@ -15,8 +15,8 @@ import type {
   SecurityPreferences,
   AccountPreferences,
   OnboardingPreferences,
-} from '../types/preferences.types';
-import { DEFAULT_NOTIFICATION_PREFERENCES } from '../types/preferences.types';
+} from '@/modules/preferences/types/preferences.types';
+import { DEFAULT_NOTIFICATION_PREFERENCES } from '@/modules/preferences/types/preferences.types';
 import { eq } from 'drizzle-orm';
 
 // Profile fields (phone, dob) are now in users table via Better Auth additionalFields
@@ -188,7 +188,11 @@ export const initializeUserPreferences = async (userId: string): Promise<Prefere
     })
     .returning();
 
-  return result[0]!;
+  const inserted = result[0];
+  if (!inserted) {
+    throw new Error(`Failed to create preferences for user ${userId}`);
+  }
+  return inserted;
 };
 
 /**

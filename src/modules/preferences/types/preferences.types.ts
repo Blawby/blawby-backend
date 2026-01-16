@@ -16,23 +16,41 @@ export const PRODUCT_USAGE_OPTIONS = [
 export type ProductUsage = typeof PRODUCT_USAGE_OPTIONS[number];
 
 /**
+ * Theme options for UI appearance
+ */
+export const THEME_OPTIONS = ['light', 'dark', 'system'] as const;
+export type Theme = typeof THEME_OPTIONS[number];
+
+/**
+ * Date format options
+ */
+export const DATE_FORMAT_OPTIONS = ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'] as const;
+export type DateFormat = typeof DATE_FORMAT_OPTIONS[number];
+
+/**
+ * Time format options
+ */
+export const TIME_FORMAT_OPTIONS = ['12h', '24h'] as const;
+export type TimeFormat = typeof TIME_FORMAT_OPTIONS[number];
+
+/**
  * General user preferences
  */
 export type GeneralPreferences = {
-  /** UI theme preference: 'light' | 'dark' | 'system' */
-  theme?: string;
+  /** UI theme preference */
+  theme?: Theme;
   /** Accent color in hex format */
   accent_color?: string;
-  /** Language code: 'en' | 'es' | etc. */
+  /** Language code (e.g., 'en', 'es', 'fr') */
   language?: string;
   /** Spoken language for voice/audio features */
   spoken_language?: string;
-  /** Timezone identifier: 'America/New_York' */
+  /** Timezone identifier (e.g., 'America/New_York') */
   timezone?: string;
-  /** Date format: 'MM/DD/YYYY' | 'DD/MM/YYYY' */
-  date_format?: string;
-  /** Time format: '12h' | '24h' */
-  time_format?: string;
+  /** Date format preference */
+  date_format?: DateFormat;
+  /** Time format preference */
+  time_format?: TimeFormat;
 };
 
 /**
