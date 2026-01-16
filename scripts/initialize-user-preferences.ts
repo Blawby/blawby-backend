@@ -15,11 +15,10 @@
 import { config } from '@dotenvx/dotenvx';
 config();
 
-import { db } from '../src/shared/database';
+import { db, pool } from '../src/shared/database';
 import { users } from '../src/schema/better-auth-schema';
 import { preferences } from '../src/modules/preferences/schema/preferences.schema';
 import { DEFAULT_NOTIFICATION_PREFERENCES } from '../src/modules/preferences/types/preferences.types';
-import { eq, notInArray, sql } from 'drizzle-orm';
 
 const parseArgs = (): { dryRun: boolean; verbose: boolean; batchSize: number } => {
   const args = process.argv.slice(2);
@@ -28,6 +27,28 @@ const parseArgs = (): { dryRun: boolean; verbose: boolean; batchSize: number } =
     verbose: args.includes('--verbose'),
     batchSize: parseInt(args.find(arg => arg.startsWith('--batch-size='))?.split('=')[1] || '100', 10),
   };
+};
+
+/**
+ * Mask email for logging to prevent PII exposure
+ * Returns only the domain portion (e.g., "****@example.com")
+ */
+const maskEmail = (email: string | null): string => {
+  if (!email) return 'no email';
+  const atIndex = email.indexOf('@');
+  if (atIndex === -1) return '****';
+  return `****${email.slice(atIndex)}`;
+};
+
+/**
+ * Close database connection gracefully
+ */
+const closeDbConnection = async (): Promise<void> => {
+  try {
+    await pool.end();
+  } catch (error) {
+    console.error('Error closing database connection:', error);
+  }
 };
 
 const main = async (): Promise<void> => {
@@ -65,7 +86,7 @@ const main = async (): Promise<void> => {
       console.log('📋 Users that would get preferences initialized:');
       if (verbose) {
         usersWithoutPreferences.forEach(user => {
-          console.log(`  - ${user.id} (${user.email || 'no email'})`);
+          console.log(`  - ${user.id} (${maskEmail(user.email)})`);
         });
       } else {
         console.log(`  (${usersWithoutPreferences.length} users - use --verbose to see details)`);
@@ -100,12 +121,12 @@ const main = async (): Promise<void> => {
 
           created++;
           if (verbose) {
-            console.log(`  ✓ Created preferences for ${user.id} (${user.email || 'no email'})`);
+            console.log(`  ✓ Created preferences for ${user.id} (${maskEmail(user.email)})`);
           }
         } catch (error) {
           errors++;
           const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(`  ✗ Failed to create preferences for ${user.id}: ${errorMessage}`);
+          console.error(`  ✗ Failed to create preferences for ${user.id} (${maskEmail(user.email)}): ${errorMessage}`);
           if (verbose) {
             console.error(`    Error details:`, error);
           }
@@ -130,11 +151,16 @@ const main = async (): Promise<void> => {
     }
   } catch (error) {
     console.error('❌ Fatal error:', error);
+    await closeDbConnection();
     process.exit(1);
   }
+
+  // Close connection on successful completion
+  await closeDbConnection();
 };
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error('❌ Unhandled error:', error);
+  await closeDbConnection();
   process.exit(1);
 });

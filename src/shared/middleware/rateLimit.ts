@@ -21,20 +21,34 @@ const limiters = new Map<string, RateLimiterPostgres>();
 // Track if rate limiter has been initialized
 let initialized = false;
 
+// Pending initialization promise to prevent concurrent initialization attempts
+let initializationPromise: Promise<void> | null = null;
+
 /**
  * Initialize the rate limiter and wait for the PostgreSQL table to be ready.
  * Call this during server boot before accepting requests.
+ *
+ * This function is idempotent - multiple concurrent calls will return the same promise.
  */
 export const initializeRateLimiter = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (initialized) {
-      resolve();
-      return;
-    }
+  // Already initialized - return immediately
+  if (initialized) {
+    return Promise.resolve();
+  }
+
+  // Initialization in progress - return the pending promise
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  // Start new initialization
+  initializationPromise = new Promise((resolve, reject) => {
+    const key = `${DEFAULT_RATE_LIMIT_POINTS}:${DEFAULT_RATE_LIMIT_DURATION_SECONDS}`;
 
     const ready = (err?: Error) => {
       if (err) {
         console.error('Failed to initialize rate limiter:', err);
+        initializationPromise = null; // Allow retry on failure
         reject(err);
       } else {
         initialized = true;
@@ -55,9 +69,10 @@ export const initializeRateLimiter = (): Promise<void> => {
       ready,
     );
 
-    const key = `${DEFAULT_RATE_LIMIT_POINTS}:${DEFAULT_RATE_LIMIT_DURATION_SECONDS}`;
     limiters.set(key, limiter);
   });
+
+  return initializationPromise;
 };
 
 const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
