@@ -9,7 +9,7 @@ import type Stripe from 'stripe';
 
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { upsertPlan } from '../database/queries/subscriptionPlans.repository';
+import { upsertPlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
 
 /**
  * Extract plan limits from product metadata

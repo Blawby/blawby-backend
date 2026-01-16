@@ -57,7 +57,7 @@ export const createPracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
-    client_secret: z.string(),
+    payment_link_url: z.url(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -73,7 +73,7 @@ export const updatePracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
-    client_secret: z.string(),
+    payment_link_url: z.url(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),

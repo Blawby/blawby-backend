@@ -11,7 +11,7 @@
 
 /**
  * Boot background workers
- * 
+ *
  * Note: With Graphile Worker, workers run as separate processes.
  * This function is a no-op but kept for API compatibility.
  */

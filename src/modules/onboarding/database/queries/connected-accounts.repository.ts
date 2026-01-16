@@ -5,7 +5,6 @@
  */
 
 import { eq } from 'drizzle-orm';
-
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 

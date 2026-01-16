@@ -27,21 +27,53 @@
     "sourceMap": true,
     "removeComments": false,
     "paths": {
-      "@/*": ["./src/*"],
-      "@/shared/*": ["./src/shared/*"],
-      "@/modules/*": ["./src/modules/*"],
-      "@/database": ["./src/database"],
-      "@/database/*": ["./src/database/*"],
-      "@/schema": ["./src/schema"],
-      "@/schema/*": ["./src/schema/*"],
-      "@/auth": ["./src/auth"],
-      "@/types": ["./src/types"],
-      "@/types/*": ["./src/types/*"],
-      "@/plugins/*": ["./src/plugins/*"],
-      "@/lib/*": ["./src/lib/*"],
-      "@/boot": ["./src/boot"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@/shared/*": [
+        "./src/shared/*"
+      ],
+      "@/modules/*": [
+        "./src/modules/*"
+      ],
+      "@/database": [
+        "./src/database"
+      ],
+      "@/database/*": [
+        "./src/database/*"
+      ],
+      "@/schema": [
+        "./src/schema"
+      ],
+      "@/schema/*": [
+        "./src/schema/*"
+      ],
+      "@/auth": [
+        "./src/auth"
+      ],
+      "@/types": [
+        "./src/types"
+      ],
+      "@/types/*": [
+        "./src/types/*"
+      ],
+      "@/plugins/*": [
+        "./src/plugins/*"
+      ],
+      "@/lib/*": [
+        "./src/lib/*"
+      ],
+      "@/boot": [
+        "./src/boot"
+      ]
     }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test", "src/modules/payments"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test"
+  ]
 }

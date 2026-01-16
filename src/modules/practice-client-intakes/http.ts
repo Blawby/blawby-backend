@@ -1,21 +1,18 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { zValidator } from '@hono/zod-validator';
 
-import { createPracticeClientIntakesService } from './services/practice-client-intakes.service';
-import * as routes from './routes';
+import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
+import * as routes from '@/modules/practice-client-intakes/routes';
 import {
   createPracticeClientIntakeSchema,
   updatePracticeClientIntakeSchema,
   slugParamSchema,
   uuidParamSchema,
-} from './validations/practice-client-intakes.validation';
+} from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
-
-// Initialize service
-const practiceClientIntakesService = createPracticeClientIntakesService();
 
 // GET /:slug/intake
 // Public intake page - returns organization details and payment settings

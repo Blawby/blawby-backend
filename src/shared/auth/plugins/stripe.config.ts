@@ -520,8 +520,7 @@ const createOnEvent = (
       event.type.startsWith('account.') ||
       event.type.startsWith('capability.') ||
       event.type.startsWith('account.external_account.') ||
-      event.type.startsWith('payment_intent.') ||
-      event.type.startsWith('charge.');
+      event.type.startsWith('payment_intent.');
 
     if (needsCustomProcessing) {
       // Queue job to Graphile Worker (fire-and-forget)

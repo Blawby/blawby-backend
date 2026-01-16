@@ -1,8 +1,7 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { Hono } from 'hono';
-import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
+import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
@@ -19,7 +18,7 @@ import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
 import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { registerModuleRoutes } from '@/shared/router/module-router';
-import { MODULE_REGISTRY } from '@/shared/router/modules.generated';
+import { createOpenApiApp } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 
@@ -93,26 +92,7 @@ app.get('/api/health', async (c) => {
 await registerModuleRoutes(app);
 
 // Create OpenAPI app for documentation - collect routes from all OpenAPIHono modules
-const openApiApp = new OpenAPIHono<AppContext>({
-  router: new SmartRouter({
-    routers: [new RegExpRouter(), new TrieRouter()],
-  }),
-});
-
-// Configure OpenAPI security scheme
-openApiApp.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
-  type: 'http',
-  scheme: 'bearer',
-  bearerFormat: 'JWT',
-  description: 'Bearer token authentication. Get token from /api/auth/sign-in/email endpoint.',
-});
-
-for (const module of MODULE_REGISTRY) {
-  if (module.http instanceof OpenAPIHono) {
-    const mountPath = `/api/${module.name}`;
-    openApiApp.route(mountPath, module.http);
-  }
-}
+const openApiApp = createOpenApiApp();
 
 // Serve OpenAPI spec at /doc endpoint (required by Scalar)
 // Scalar needs a URL to fetch the OpenAPI JSON specification

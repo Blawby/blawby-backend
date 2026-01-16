@@ -5,6 +5,8 @@ import type {
   BaseEvent,
   EventMetadata,
 } from '@/shared/events/schemas/events.schema';
+import { db } from '@/shared/database';
+import { events } from '@/shared/events/schemas/events.schema';
 
 export const publishEvent = (
   event: Omit<BaseEvent, 'eventId' | 'timestamp'>,
@@ -14,6 +16,23 @@ export const publishEvent = (
     eventId: crypto.randomUUID(),
     timestamp: new Date(),
   };
+
+  // Persist the event regardless of listeners (fire-and-forget).
+  // This makes events observable even when no in-memory handlers are registered.
+  void db.insert(events).values({
+    eventId: fullEvent.eventId,
+    eventType: fullEvent.eventType,
+    eventVersion: fullEvent.eventVersion,
+    actorId: fullEvent.actorId,
+    actorType: fullEvent.actorType,
+    organizationId: fullEvent.organizationId,
+    payload: fullEvent.payload,
+    metadata: fullEvent.metadata,
+    processed: false,
+    retryCount: 0,
+  }).catch((error: unknown) => {
+    console.error(`Failed to save event ${fullEvent.eventId} to database:`, error);
+  });
 
   // Emit to in-memory event bus for immediate processing
   // Handlers will save to database if needed
@@ -99,10 +118,22 @@ export const publishSystemEvent = (
   });
 };
 
-// Super simple one-liner for any event
+// Super simple helper for common events across modules.
+// NOTE: This project historically passes actorType ('system' | 'organization') as the 2nd argument.
 export const publishSimpleEvent = (
   eventType: EventType,
-  actorId: string,
+  actorType: string,
   organizationId: string | undefined,
   payload: Record<string, unknown>,
-): BaseEvent => publishUserEvent(eventType, actorId, { ...payload, timestamp: new Date().toISOString() });
+): BaseEvent => {
+  const inferredActorId = actorType === 'organization' ? organizationId : undefined;
+  return publishEvent({
+    eventType,
+    eventVersion: '1.0.0',
+    actorId: inferredActorId,
+    actorType,
+    organizationId,
+    payload: { ...payload, timestamp: new Date().toISOString() },
+    metadata: createEventMetadata(actorType === 'system' ? 'system' : 'api'),
+  });
+};

@@ -15,6 +15,7 @@ import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { calculateFees } from '@/shared/services/fees.service';
 import { stripe } from '@/shared/utils/stripe-client';
+import type { jsonb } from 'drizzle-orm/pg-core/columns';
 
 export interface CreatePaymentIntentRequest {
   organizationId: string;
@@ -135,7 +136,7 @@ export const createPaymentsService = function createPaymentsService(
           status: stripePaymentIntent.status,
           customerEmail: request.customerEmail,
           customerName: request.customerName,
-          metadata: request.metadata as unknown,
+          metadata: request.metadata,
         };
 
         const paymentIntent

@@ -36,7 +36,7 @@ export interface CreatePracticeClientIntakeResponse {
   success: boolean;
   data?: {
     uuid: string;
-    clientSecret: string;
+    paymentLinkUrl: string;
     amount: number;
     currency: string;
     status: string;
@@ -56,7 +56,7 @@ export interface UpdatePracticeClientIntakeResponse {
   success: boolean;
   data?: {
     uuid: string;
-    clientSecret: string;
+    paymentLinkUrl: string;
     amount: number;
     currency: string;
     status: string;
