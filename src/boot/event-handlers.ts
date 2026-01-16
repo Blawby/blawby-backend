@@ -6,6 +6,7 @@
 
 import { isProductionLike } from '@/shared/utils/env';
 import { registerStripeCustomerEvents } from '@/modules/stripe/customers/events';
+import { registerPreferencesEvents } from '@/modules/preferences/events';
 import { registerEmailEvents } from '@/shared/events/handlers/email.events';
 
 /**
@@ -23,6 +24,7 @@ export const bootEventHandlers = (): void => {
 
   // Feature-specific event handlers
   registerStripeCustomerEvents();
+  registerPreferencesEvents();
 
   console.info('✅ Event handlers registered successfully');
 };

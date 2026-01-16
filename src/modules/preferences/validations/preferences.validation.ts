@@ -5,24 +5,74 @@
  */
 
 import { z } from 'zod';
-import { PRODUCT_USAGE_OPTIONS } from '../schema/preferences.schema';
+import {
+  PRODUCT_USAGE_OPTIONS,
+  PREFERENCE_CATEGORIES,
+  THEME_OPTIONS,
+  DATE_FORMAT_OPTIONS,
+  TIME_FORMAT_OPTIONS,
+} from '@/modules/preferences/types/preferences.types';
 
 // Category-specific validation schemas
 export const generalPreferencesSchema = z.object({
-  theme: z.enum(['light', 'dark', 'system']).optional(),
+  theme: z.enum(THEME_OPTIONS).optional(),
   accent_color: z.string().optional(),
   language: z.string().optional(),
   spoken_language: z.string().optional(),
   timezone: z.string().optional(),
-  date_format: z.string().optional(),
-  time_format: z.enum(['12h', '24h']).optional(),
+  date_format: z.enum(DATE_FORMAT_OPTIONS).optional(),
+  time_format: z.enum(TIME_FORMAT_OPTIONS).optional(),
 });
 
 export const notificationPreferencesSchema = z.object({
-  responses_push: z.boolean().optional(),
-  tasks_push: z.boolean().optional(),
-  tasks_email: z.boolean().optional(),
-  messaging_push: z.boolean().optional(),
+  messages_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for messages',
+    example: true,
+  }),
+  messages_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for messages',
+    example: true,
+  }),
+  messages_mentions_only: z.boolean().optional().openapi({
+    description: 'Only notify on mentions in messages',
+    example: false,
+  }),
+  payments_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for payments',
+    example: true,
+  }),
+  payments_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for payments',
+    example: true,
+  }),
+  intakes_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for intakes',
+    example: true,
+  }),
+  intakes_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for intakes',
+    example: true,
+  }),
+  matters_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for matters',
+    example: true,
+  }),
+  matters_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for matters',
+    example: true,
+  }),
+  system_push: z.boolean().optional().openapi({
+    description: 'Enable push notifications for system events (enforced to true by server)',
+    example: true,
+  }),
+  system_email: z.boolean().optional().openapi({
+    description: 'Enable email notifications for system events (enforced to true by server)',
+    example: true,
+  }),
+  desktop_push_enabled: z.boolean().optional().openapi({
+    description: 'Enable desktop push notifications',
+    example: false,
+  }),
 });
 
 export const securityPreferencesSchema = z.object({
@@ -54,15 +104,8 @@ export const profilePreferencesSchema = z.object({
   // This schema kept for backward compatibility but is empty.
 });
 
-// Category validation
-export const preferenceCategorySchema = z.enum([
-  'general',
-  'notifications',
-  'security',
-  'account',
-  'onboarding',
-  'profile',
-]);
+// Category validation - uses PREFERENCE_CATEGORIES from types as single source of truth
+export const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 
 export type PreferenceCategory = z.infer<typeof preferenceCategorySchema>;
 
