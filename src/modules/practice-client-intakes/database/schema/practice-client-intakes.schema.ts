@@ -82,7 +82,7 @@ export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInse
 export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
 
 // Define metadata schema and type using Zod
-const practiceClientIntakeMetadataSchema = z.object({
+export const practiceClientIntakeMetadataSchema = z.object({
   email: z.email(),
   name: z.string().min(1),
   phone: z.string().optional(),

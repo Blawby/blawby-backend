@@ -9,8 +9,19 @@ BEGIN
     ALTER TABLE "events" ADD PRIMARY KEY ("event_id");
   END IF;
 END $$;--> statement-breakpoint
-ALTER TABLE "events" ALTER COLUMN "event_id" SET DATA TYPE uuid;--> statement-breakpoint
-ALTER TABLE "events" ALTER COLUMN "event_id" SET DEFAULT gen_random_uuid();--> statement-breakpoint
+-- Safe UUID conversion: create temporary column, backfill, then replace
+ALTER TABLE "events" ADD COLUMN "event_id_tmp" uuid;--> statement-breakpoint
+-- Populate temporary column: convert valid UUID strings, generate new UUIDs for invalid values
+UPDATE "events" SET "event_id_tmp" = CASE
+  WHEN "event_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN "event_id"::uuid
+  ELSE gen_random_uuid()
+END;--> statement-breakpoint
+-- Set NOT NULL and default on temporary column
+ALTER TABLE "events" ALTER COLUMN "event_id_tmp" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "events" ALTER COLUMN "event_id_tmp" SET DEFAULT gen_random_uuid();--> statement-breakpoint
+-- Drop old column and rename temporary column
+ALTER TABLE "events" DROP COLUMN "event_id";--> statement-breakpoint
+ALTER TABLE "events" RENAME COLUMN "event_id_tmp" TO "event_id";--> statement-breakpoint
 ALTER TABLE "stripe_connected_accounts" ADD COLUMN IF NOT EXISTS "future_requirements" json;--> statement-breakpoint
 ALTER TABLE "stripe_connected_accounts" ADD COLUMN IF NOT EXISTS "tos_acceptance" json;--> statement-breakpoint
 ALTER TABLE "events" DROP COLUMN IF EXISTS "id";

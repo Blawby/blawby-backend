@@ -4,7 +4,7 @@ import type Stripe from 'stripe';
 import {
   stripeConnectedAccounts,
   type ExternalAccount,
-  ExternalAccounts,
+  type ExternalAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';

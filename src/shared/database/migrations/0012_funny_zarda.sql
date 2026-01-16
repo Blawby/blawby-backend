@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS "uploads" (
 --> statement-breakpoint
 ALTER TABLE "practice_client_intakes" DROP CONSTRAINT IF EXISTS "practice_client_intakes_stripe_payment_intent_id_unique";--> statement-breakpoint
 ALTER TABLE "practice_client_intakes" ALTER COLUMN "stripe_payment_intent_id" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "practice_client_intakes" ADD COLUMN "stripe_payment_link_id" text NOT NULL;--> statement-breakpoint
+-- Add stripe_payment_link_id as nullable first (will be backfilled and made NOT NULL in a follow-up migration)
+ALTER TABLE "practice_client_intakes" ADD COLUMN "stripe_payment_link_id" text;--> statement-breakpoint
 ALTER TABLE "upload_audit_logs" ADD CONSTRAINT "upload_audit_logs_upload_id_uploads_id_fk" FOREIGN KEY ("upload_id") REFERENCES "public"."uploads"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "upload_audit_logs" ADD CONSTRAINT "upload_audit_logs_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "upload_audit_logs" ADD CONSTRAINT "upload_audit_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -62,4 +63,4 @@ CREATE INDEX "uploads_status_idx" ON "uploads" USING btree ("status");--> statem
 CREATE INDEX "uploads_matter_id_idx" ON "uploads" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "uploads_created_at_idx" ON "uploads" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "practice_client_intakes_stripe_link_idx" ON "practice_client_intakes" USING btree ("stripe_payment_link_id");--> statement-breakpoint
-ALTER TABLE "practice_client_intakes" ADD CONSTRAINT "practice_client_intakes_stripe_payment_link_id_unique" UNIQUE("stripe_payment_link_id");
+-- Note: UNIQUE constraint and NOT NULL will be added in a follow-up migration after backfill
