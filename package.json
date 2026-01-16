@@ -18,6 +18,7 @@
     "db:studio": "drizzle-kit studio",
     "sync:plans": "tsx src/scripts/syncSubscriptionPlans.ts",
     "sync:schemas": "tsx scripts/sync-schemas.ts",
+    "init:preferences": "tsx scripts/initialize-user-preferences.ts",
     "format": "eslint --fix .",
     "format:check": "eslint .",
     "lint": "oxlint",

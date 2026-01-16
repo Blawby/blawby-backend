@@ -146,8 +146,8 @@ app.get('/doc', (c) => {
 // Scalar API documentation UI - fetches OpenAPI spec from /doc endpoint
 app.get('/scalar', Scalar({ url: '/doc' }));
 
-// Boot application
-void bootApplication();
+// Boot application (wait for all services to be ready)
+await bootApplication();
 
 // Not found and error handlers
 app.notFound(notFoundHandler);

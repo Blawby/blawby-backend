@@ -11,8 +11,8 @@ import { customersRepository } from '../database/queries/customers.repository';
 import type {
   Preferences,
   InsertPreferences,
-  ProductUsage,
 } from '@/modules/preferences/schema/preferences.schema';
+import type { ProductUsage } from '@/modules/preferences/types/preferences.types';
 import { users } from '@/schema/better-auth-schema';
 
 import { db } from '@/shared/database';

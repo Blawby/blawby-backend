@@ -17,60 +17,16 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-
 import { users } from '@/schema/better-auth-schema';
-
-// Product usage options enum (kept for backward compatibility during migration)
-export const PRODUCT_USAGE_OPTIONS = [
-  'personal_legal_issue',
-  'business_legal_needs',
-  'legal_research',
-  'document_review',
-  'others',
-] as const;
-
-export type ProductUsage = typeof PRODUCT_USAGE_OPTIONS[number];
-
-// TypeScript types for JSONB columns
-export type GeneralPreferences = {
-  theme?: string; // 'light' | 'dark' | 'system'
-  accent_color?: string; // hex color
-  language?: string; // 'en' | 'es' | etc.
-  spoken_language?: string; // for voice/audio features
-  timezone?: string; // 'America/New_York'
-  date_format?: string; // 'MM/DD/YYYY' | 'DD/MM/YYYY'
-  time_format?: string; // '12h' | '24h'
-};
-
-export type NotificationPreferences = {
-  responses_push?: boolean;
-  tasks_push?: boolean;
-  tasks_email?: boolean;
-  messaging_push?: boolean;
-};
-
-export type SecurityPreferences = {
-  two_factor_enabled?: boolean;
-  email_notifications?: boolean;
-  login_alerts?: boolean;
-  session_timeout?: number; // minutes
-};
-
-export type AccountPreferences = {
-  selected_domain?: string | null;
-  custom_domains?: string | null;
-  receive_feedback_emails?: boolean;
-  marketing_emails?: boolean;
-  security_alerts?: boolean;
-};
-
-export type OnboardingPreferences = {
-  birthday?: string; // ISO date string
-  primary_use_case?: string;
-  use_case_additional_info?: string;
-  completed?: boolean;
-  product_usage?: ProductUsage[]; // Migrated from old product_usage column
-};
+import type {
+  GeneralPreferences,
+  NotificationPreferences,
+  SecurityPreferences,
+  AccountPreferences,
+  OnboardingPreferences,
+  ProductUsage,
+} from '@/modules/preferences/types/preferences.types';
+import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
 
 // Zod schema for product usage validation
 const productUsageSchema = z.array(
@@ -142,7 +98,4 @@ export const updatePreferencesSchema = insertPreferencesSchema.partial();
 export type Preferences = typeof preferences.$inferSelect;
 export type InsertPreferences = typeof preferences.$inferInsert;
 export type UpdatePreferences = z.infer<typeof updatePreferencesSchema>;
-
-// Preference category type
-export type PreferenceCategory = 'general' | 'notifications' | 'security' | 'account' | 'onboarding' | 'profile';
 

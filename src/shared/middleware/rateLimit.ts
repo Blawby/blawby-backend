@@ -3,6 +3,9 @@
  *
  * Uses rate-limiter-flexible with PostgreSQL storage for distributed rate limiting.
  * Works across multiple server instances and prevents memory leaks.
+ *
+ * Call `initializeRateLimiter()` during server boot to ensure the table is ready
+ * before accepting requests.
  */
 
 import { RateLimiterPostgres } from 'rate-limiter-flexible';
@@ -14,6 +17,63 @@ const DEFAULT_RATE_LIMIT_POINTS = 60;
 const DEFAULT_RATE_LIMIT_DURATION_SECONDS = 60;
 
 const limiters = new Map<string, RateLimiterPostgres>();
+
+// Track if rate limiter has been initialized
+let initialized = false;
+
+// Pending initialization promise to prevent concurrent initialization attempts
+let initializationPromise: Promise<void> | null = null;
+
+/**
+ * Initialize the rate limiter and wait for the PostgreSQL table to be ready.
+ * Call this during server boot before accepting requests.
+ *
+ * This function is idempotent - multiple concurrent calls will return the same promise.
+ */
+export const initializeRateLimiter = (): Promise<void> => {
+  // Already initialized - return immediately
+  if (initialized) {
+    return Promise.resolve();
+  }
+
+  // Initialization in progress - return the pending promise
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  // Start new initialization
+  initializationPromise = new Promise((resolve, reject) => {
+    const key = `${DEFAULT_RATE_LIMIT_POINTS}:${DEFAULT_RATE_LIMIT_DURATION_SECONDS}`;
+
+    const ready = (err?: Error) => {
+      if (err) {
+        console.error('Failed to initialize rate limiter:', err);
+        initializationPromise = null; // Allow retry on failure
+        reject(err);
+      } else {
+        initialized = true;
+        console.info('✅ Rate limiter initialized (PostgreSQL table ready)');
+        resolve();
+      }
+    };
+
+    // Create the default limiter and wait for table to be ready
+    const limiter = new RateLimiterPostgres(
+      {
+        storeClient: getPool(),
+        points: DEFAULT_RATE_LIMIT_POINTS,
+        duration: DEFAULT_RATE_LIMIT_DURATION_SECONDS,
+        tableName: 'rate_limits',
+        keyPrefix: 'rl:',
+      },
+      ready,
+    );
+
+    limiters.set(key, limiter);
+  });
+
+  return initializationPromise;
+};
 
 const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
   const key = `${points}:${duration}`;
@@ -27,6 +87,7 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
         duration,
         tableName: 'rate_limits',
         keyPrefix: 'rl:',
+        tableCreated: initialized, // Skip table check if already initialized
       })
     );
   }

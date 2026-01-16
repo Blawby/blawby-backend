@@ -90,16 +90,8 @@ app.openapi(routes.updateCategoryPreferencesRoute, async () => {
   throw new Error('This should never be called');
 });
 
-// Legacy endpoints for backward compatibility
-// GET /api/preferences/me - Get all preferences (legacy)
+// Legacy endpoints for backward compatibility (not documented in OpenAPI)
 app.get('/me', getDetails);
-
-// Register OpenAPI route for documentation
-app.openapi(routes.getPreferencesMeRoute, async () => {
-  throw new Error('This should never be called');
-});
-
-// PUT /api/preferences/me - Update profile preferences (legacy)
 app.put(
   '/me',
   validateJson(
@@ -108,11 +100,6 @@ app.put(
   ),
   updateDetails,
 );
-
-// Register OpenAPI route for documentation
-app.openapi(routes.updatePreferencesMeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 export default app;
 
