@@ -96,6 +96,8 @@ export const onboardingPreferencesSchema = z.object({
   use_case_additional_info: z.string().optional(),
   completed: z.boolean().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
+  welcome_modal_shown: z.boolean().optional(),
+  practice_welcome_shown: z.boolean().optional(),
 });
 
 export const profilePreferencesSchema = z.object({

@@ -148,6 +148,19 @@ export type OnboardingPreferences = {
   completed?: boolean;
   /** Product usage categories (migrated from old product_usage column) */
   product_usage?: ProductUsage[];
+  /** Whether the welcome modal has been shown */
+  welcome_modal_shown?: boolean;
+  /** Whether the practice welcome modal has been shown */
+  practice_welcome_shown?: boolean;
+};
+
+/**
+ * Default onboarding preferences
+ * Applied when user has no stored preferences
+ */
+export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
+  welcome_modal_shown: false,
+  practice_welcome_shown: false,
 };
 
 /**

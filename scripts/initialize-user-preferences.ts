@@ -18,7 +18,10 @@ config();
 import { db, pool } from '../src/shared/database';
 import { users } from '../src/schema/better-auth-schema';
 import { preferences } from '../src/modules/preferences/schema/preferences.schema';
-import { DEFAULT_NOTIFICATION_PREFERENCES } from '../src/modules/preferences/types/preferences.types';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_ONBOARDING_PREFERENCES,
+} from '../src/modules/preferences/types/preferences.types';
 
 const parseArgs = (): { dryRun: boolean; verbose: boolean; batchSize: number } => {
   const args = process.argv.slice(2);
@@ -116,7 +119,7 @@ const main = async (): Promise<void> => {
             general: {},
             security: {},
             account: {},
-            onboarding: {},
+            onboarding: DEFAULT_ONBOARDING_PREFERENCES,
           });
 
           created++;
