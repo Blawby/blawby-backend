@@ -14,6 +14,7 @@ import {
 } from '@/modules/onboarding/validations/onboarding.validation';
 
 import { validateParams, validateJson } from '@/shared/middleware/validation';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -38,12 +39,6 @@ onboardingApp.get('/organization/:organizationId/status', validateParams(organiz
   return response.ok(c, status);
 });
 
-// Register OpenAPI route for documentation only
-onboardingApp.openapi(getOnboardingStatusRoute, async () => {
-  // This handler is never called - it's just for OpenAPI documentation
-  // The actual route is handled by the .get() route above
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/onboarding/connected-accounts
@@ -69,11 +64,9 @@ onboardingApp.post('/connected-accounts', validateJson(createConnectedAccountSch
   return response.created(c, details);
 });
 
-// Register OpenAPI route for documentation only
-onboardingApp.openapi(createConnectedAccountRoute, async () => {
-  // This handler is never called - it's just for OpenAPI documentation
-  // The actual route is handled by the .post() route above
-  throw new Error('This should never be called');
-});
+registerOpenApiRoutes(onboardingApp, [
+  getOnboardingStatusRoute,
+  createConnectedAccountRoute,
+]);
 
 export default onboardingApp;

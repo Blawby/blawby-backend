@@ -1,4 +1,5 @@
 import { Scalar } from '@scalar/hono-api-reference';
+import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import { Hono } from 'hono';
 import { SmartRouter } from 'hono/router/smart-router';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
@@ -94,9 +95,7 @@ await registerModuleRoutes(app);
 // Create OpenAPI app for documentation - collect routes from all OpenAPIHono modules
 const openApiApp = createOpenApiApp();
 
-// Serve OpenAPI spec at /doc endpoint (required by Scalar)
-// Scalar needs a URL to fetch the OpenAPI JSON specification
-app.get('/doc', (c) => {
+const buildOpenApiDocument = () => {
   const doc = openApiApp.getOpenAPIDocument({
     openapi: '3.0.0',
     info: {
@@ -120,7 +119,19 @@ app.get('/doc', (c) => {
     description: 'Bearer token authentication. Get token from /api/auth/sign-in/email endpoint.',
   };
 
-  return c.json(doc);
+  return doc;
+};
+
+// Serve OpenAPI spec at /doc endpoint (required by Scalar)
+// Scalar needs a URL to fetch the OpenAPI JSON specification
+app.get('/doc', (c) => {
+  return c.json(buildOpenApiDocument());
+});
+
+// Serve LLM-friendly Markdown
+app.get('/llms.txt', async (c) => {
+  const markdown = await createMarkdownFromOpenApi(buildOpenApiDocument());
+  return c.text(markdown);
 });
 
 // Scalar API documentation UI - fetches OpenAPI spec from /doc endpoint

@@ -8,6 +8,7 @@ import {
   deleteUploadSchema,
   listUploadsQuerySchema,
 } from '@/modules/uploads/validations/uploads.validation';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 
 import { presignHandler } from '@/modules/uploads/handlers/presign.handler';
@@ -27,10 +28,6 @@ const uploadsApp = new OpenAPIHono<AppContext>();
  */
 uploadsApp.post('/presign', zValidator('json', presignUploadSchema), presignHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.presignUploadRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/uploads/:id/confirm
@@ -38,10 +35,6 @@ uploadsApp.openapi(routes.presignUploadRoute, async () => {
  */
 uploadsApp.post('/:id/confirm', zValidator('param', uploadIdParamSchema), confirmHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.confirmUploadRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/uploads/:id
@@ -49,10 +42,6 @@ uploadsApp.openapi(routes.confirmUploadRoute, async () => {
  */
 uploadsApp.get('/:id', zValidator('param', uploadIdParamSchema), getHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.getUploadRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/uploads/:id/download
@@ -60,10 +49,6 @@ uploadsApp.openapi(routes.getUploadRoute, async () => {
  */
 uploadsApp.get('/:id/download', zValidator('param', uploadIdParamSchema), downloadHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.getDownloadUrlRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * DELETE /api/uploads/:id
@@ -71,10 +56,6 @@ uploadsApp.openapi(routes.getDownloadUrlRoute, async () => {
  */
 uploadsApp.delete('/:id', zValidator('param', uploadIdParamSchema), zValidator('json', deleteUploadSchema), deleteHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.deleteUploadRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/uploads/:id/restore
@@ -82,10 +63,6 @@ uploadsApp.openapi(routes.deleteUploadRoute, async () => {
  */
 uploadsApp.post('/:id/restore', zValidator('param', uploadIdParamSchema), restoreHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.restoreUploadRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/uploads
@@ -93,10 +70,6 @@ uploadsApp.openapi(routes.restoreUploadRoute, async () => {
  */
 uploadsApp.get('/', zValidator('query', listUploadsQuerySchema), listHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.listUploadsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/uploads/:id/audit-log
@@ -104,9 +77,6 @@ uploadsApp.openapi(routes.listUploadsRoute, async () => {
  */
 uploadsApp.get('/:id/audit-log', zValidator('param', uploadIdParamSchema), getAuditLogHandler);
 
-// Register OpenAPI route for documentation only
-uploadsApp.openapi(routes.getAuditLogRoute, async () => {
-  throw new Error('This should never be called');
-});
+registerOpenApiRoutes(uploadsApp, routes);
 
 export default uploadsApp;

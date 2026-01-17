@@ -23,6 +23,7 @@ import {
   preferenceCategorySchema,
   updateUserDetailsSchema,
 } from '@/modules/preferences/validations/preferences.validation';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import { validateJson } from '@/shared/middleware/validation';
 import type { AppContext } from '@/shared/types/hono';
 
@@ -31,18 +32,8 @@ const app = new OpenAPIHono<AppContext>();
 // GET /api/preferences - Get all preferences
 app.get('/', getAllPreferences);
 
-// Register OpenAPI route for documentation
-app.openapi(routes.getAllPreferencesRoute, async () => {
-  throw new Error('This should never be called');
-});
-
 // GET /api/preferences/:category - Get preferences by category
 app.get('/:category', getCategoryPreferences);
-
-// Register OpenAPI route for documentation
-app.openapi(routes.getCategoryPreferencesRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 // PUT /api/preferences/:category - Update preferences by category
 app.put(
@@ -85,11 +76,6 @@ app.put(
   updateCategoryPreferences,
 );
 
-// Register OpenAPI route for documentation
-app.openapi(routes.updateCategoryPreferencesRoute, async () => {
-  throw new Error('This should never be called');
-});
-
 // Legacy endpoints for backward compatibility (not documented in OpenAPI)
 app.get('/me', getDetails);
 app.put(
@@ -100,6 +86,8 @@ app.put(
   ),
   updateDetails,
 );
+
+registerOpenApiRoutes(app, routes);
 
 export default app;
 
