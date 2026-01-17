@@ -134,12 +134,6 @@ app.get('/llms.txt', async (c) => {
   return c.text(markdown);
 });
 
-// Backward/typo compatibility: allow /llm.txt
-app.get('/llm.txt', async (c) => {
-  const markdown = await createMarkdownFromOpenApi(buildOpenApiDocument());
-  return c.text(markdown);
-});
-
 // Scalar API documentation UI - fetches OpenAPI spec from /doc endpoint
 app.get('/scalar', Scalar({ url: '/doc' }));
 
