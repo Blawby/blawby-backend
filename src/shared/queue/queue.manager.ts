@@ -17,11 +17,11 @@ import { db } from '@/shared/database';
 /**
  * Add a webhook processing job to the queue
  */
-export const addWebhookJob = async function addWebhookJob(
+export const addWebhookJob = async (
   webhookId: string,
   eventId: string,
   eventType: string,
-): Promise<void> {
+): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -48,11 +48,11 @@ export const addWebhookJob = async function addWebhookJob(
 /**
  * Add an onboarding webhook processing job to the queue
  */
-export const addOnboardingWebhookJob = async function addOnboardingWebhookJob(
+export const addOnboardingWebhookJob = async (
   webhookId: string,
   eventId: string,
   eventType: string,
-): Promise<void> {
+): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -80,14 +80,14 @@ export const addOnboardingWebhookJob = async function addOnboardingWebhookJob(
  * Get queue statistics for monitoring
  * Queries Graphile Worker's job tables directly
  */
-export const getQueueStats = async function getQueueStats(
+export const getQueueStats = async (
   taskName: string,
 ): Promise<{
   waiting: number;
   active: number;
   completed: number;
   failed: number;
-}> {
+}> => {
   const schema = graphileWorkerConfig.schema;
 
   // Query Graphile Worker's jobs table
@@ -127,19 +127,19 @@ export const getQueueStats = async function getQueueStats(
 /**
  * Get webhook queue statistics
  */
-export const getWebhookQueueStats = async function getWebhookQueueStats(): Promise<{
+export const getWebhookQueueStats = async (): Promise<{
   waiting: number;
   active: number;
   completed: number;
   failed: number;
-}> {
+}> => {
   return getQueueStats(TASK_NAMES.PROCESS_STRIPE_WEBHOOK);
 };
 
 /**
  * Clean up Graphile Worker connection
  */
-export const closeQueues = async function closeQueues(): Promise<void> {
+export const closeQueues = async (): Promise<void> => {
   console.log('Closing queue manager...');
   await closeWorkerUtils();
   console.log('Queue manager closed');
@@ -147,19 +147,19 @@ export const closeQueues = async function closeQueues(): Promise<void> {
 
 // Legacy exports for backward compatibility during migration
 // TODO: Remove after full migration
-export const getQueue = function getQueue(_name: string): never {
+export const getQueue = (_name: string): never => {
   throw new Error(
     'getQueue() is deprecated. Use getWorkerUtils() and addJob() directly.',
   );
 };
 
-export const getWebhookQueue = function getWebhookQueue(): never {
+export const getWebhookQueue = (): never => {
   throw new Error(
     'getWebhookQueue() is deprecated. Use addWebhookJob() directly.',
   );
 };
 
-export const getQueueEvents = function getQueueEvents(_name: string): never {
+export const getQueueEvents = (_name: string): never => {
   throw new Error(
     'getQueueEvents() is not available in Graphile Worker. Query the jobs table directly for monitoring.',
   );

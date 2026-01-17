@@ -3,7 +3,7 @@ import type Stripe from 'stripe';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishEventTx, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
 
 /**
  * Handle capability.updated webhook event
@@ -54,47 +54,36 @@ export const handleCapabilityUpdated = async (
       [capability.id]: capability.status,
     };
 
-    // Update the account capabilities in the database
-    await db
-      .update(stripeConnectedAccounts)
-      .set({
-        capabilities: updatedCapabilities,
-        last_refreshed_at: new Date(),
-      })
-      .where(
-        eq(
-          stripeConnectedAccounts.stripe_account_id,
-          stripeAccountId,
-        ),
-      );
+    // Update the account capabilities in the database within transaction with event publishing
+    await db.transaction(async (tx) => {
+      await tx
+        .update(stripeConnectedAccounts)
+        .set({
+          capabilities: updatedCapabilities,
+          last_refreshed_at: new Date(),
+        })
+        .where(
+          eq(
+            stripeConnectedAccounts.stripe_account_id,
+            capability.account as string,
+          ),
+        );
 
-    // Publish capability updated event
-    void publishSystemEvent(
-      EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED,
-      {
-        stripeAccountId: capability.account,
+      // Publish capability updated event within transaction
+      await publishEventTx(tx, {
+        type: EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED,
+        actorId: WEBHOOK_ACTOR_UUID,
+        actorType: 'webhook',
         organizationId: currentAccount.organization_id,
-        capabilityId: capability.id,
-        capabilityStatus: capability.status,
-        capabilityRequirements: capability.requirements,
-        requested: capability.requested,
-        requestedAt: capability.requested_at,
-        previousCapabilities: currentCapabilities,
-        updatedAt: new Date().toISOString(),
-      },
-      'stripe-webhook',
-      'webhook',
-      currentAccount.organization_id,
-    );
-
-    // Publish simple capability updated event
-    void publishSimpleEvent(EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED, 'system', currentAccount.organization_id, {
-      stripe_account_id: capability.account,
-      organization_id: currentAccount.organization_id,
-      capability_id: capability.id,
-      capability_status: capability.status,
-      requested: capability.requested,
-      updated_at: new Date().toISOString(),
+        payload: {
+          stripe_account_id: capability.account,
+          organization_id: currentAccount.organization_id,
+          capability_id: capability.id,
+          capability_status: capability.status,
+          requested: capability.requested,
+          updated_at: new Date().toISOString(),
+        },
+      });
     });
 
     console.log(`Capability updated and event published for: ${capability.id}`);

@@ -66,21 +66,29 @@ export const getFullOrganization = async (
 };
 
 export const updateOrganization = async (
-  organizationId: string,
   data: UpdateOrganizationRequest,
-  user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Organization | null> => {
   const betterAuth = getBetterAuth();
-  const result = await betterAuth.api.updateOrganization({
-    body: {
-      organizationId,
-      data,
-    },
-    headers: requestHeaders,
-  });
+  // UpdateOrganizationRequest already has { organizationId, data } structure
+  // so we pass it directly as the body
+  try {
+    const result = await betterAuth.api.updateOrganization({
+      body: data,
+      headers: requestHeaders,
+    });
 
-  return result;
+    return result;
+  } catch (error) {
+    console.error('[updateOrganization] Better Auth error:', error);
+    // Log minimal context to avoid PII exposure
+    console.error('[updateOrganization] Operation failed', {
+      organizationId: data.organizationId,
+      operation: 'updateOrganization',
+      errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+    });
+    throw error;
+  }
 };
 
 export const deleteOrganization = async (

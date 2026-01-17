@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 
-You are a senior TypeScript programmer with experience in the Fastify framework and a preference for clean programming and design patterns.
+You are a senior TypeScript programmer with experience in the Hono framework and a preference for clean programming and design patterns.
 
 Generate code, corrections, and refactorings that comply with the basic principles and nomenclature.
 
@@ -11,7 +11,7 @@ Generate code, corrections, and refactorings that comply with the basic principl
 ## General
 
 - Use English for all code and documentation.
-- Always declare explicit types for variables, parameters, and return values. Avoid `any`.
+- Always declare explicit types for variables, parameters, and return values. Avoid `any` and type assertions (`as SomeType`); prefer type guards and explicit narrowing. `as const` is allowed for literal narrowing.
 - Prefer types over interfaces for simple data structures
 - Create necessary types; do not overuse primitives.
 - One export per file.
@@ -282,15 +282,15 @@ Our project follows a modular, feature-based architecture with clear separation 
 
 ```
 src/
-├── app.ts                 # Main Fastify application entry point
-├── server.ts              # Server configuration and startup
+├── hono-app.ts            # Main Hono application entry point
+├── hono-server.ts         # Server configuration and startup
 ├── auth.ts                # Better Auth configuration
 ├── database/               # Database connection and migrations
-├── plugins/                # Fastify plugins (auth, cors, etc.)
+├── middleware/             # Hono middleware (auth, cors, etc.)
 ├── routes/                 # API route handlers
 ├── schema/                 # Drizzle schema definitions
 ├── types/                  # Global TypeScript type definitions
-└── app/                    # Feature-based modules
+└── modules/                # Feature-based modules
 ```
 
 ### Feature-Based Architecture (`src/app/`)
@@ -308,15 +308,15 @@ app/features/{feature-name}/
 └── index.ts                # Feature exports
 ```
 
-### Plugin System (`src/plugins/`)
+### Middleware System (`src/middleware/` or `src/shared/middleware/`)
 
-Fastify plugins for cross-cutting concerns:
+Hono middleware for cross-cutting concerns:
 
 - `auth.ts` - Better Auth integration
 - `cors.ts` - CORS configuration
-- `helmet.ts` - Security headers
-- `sensible.ts` - Error handling utilities
-- `dev-optimizations.ts` - Development-specific optimizations
+- `secureHeaders.ts` - Security headers (using `@hono/secure-headers`)
+- `logger.ts` - Request/response logging
+- `errorHandler.ts` - Global error handling
 
 ### Database Layer (`src/database/`)
 
@@ -328,8 +328,8 @@ Fastify plugins for cross-cutting concerns:
 
 ### Error Handling
 
-- Uses `@fastify/sensible` for consistent error responses
-- Global error handlers in plugins
+- Uses Hono's `HTTPException` for consistent error responses
+- Global error handlers via `app.onError()`
 - Consistent error format across all APIs (Better Auth and regular)
 
 ### Stripe Integration
@@ -343,8 +343,7 @@ Fastify plugins for cross-cutting concerns:
 ### Logging
 
 - Uses `consola` for beautiful, structured logging
-- `pino-pretty` for development console output
-- Fastify's built-in logger with custom serializers
+- Hono's built-in logger middleware for request logging
 - Development optimizations for faster startup
 
 ### Development Workflow
@@ -354,16 +353,17 @@ Fastify plugins for cross-cutting concerns:
 - `npm run db:generate` - Generate database migrations
 - `npm run db:migrate` - Apply database migrations
 
-## Specific to Fastify
+## Specific to Hono
 
 Basic Principles:
 
-- Use a modular architecture for your Fastify API.
+- Use a modular architecture for your Hono API.
 - Encapsulate the API into modules:
   - One module per domain or main route.
-  - One route for each HTTP resource, encapsulated in plugins.
+  - Use `Hono` sub-apps for each module, mounted on the main app.
   - One handler per route that deals with its business logic.
-- Use hooks (onRequest, preHandler, etc.) for request lifecycle management.
+- Use middleware for request lifecycle management (authentication, validation, logging).
+- Use `@hono/zod-openapi` for type-safe routes with automatic OpenAPI documentation.
 - Drizzle ORM:
   - Use Drizzle Client to interact with your database.
   - Create services to manage entities and abstract database operations from the handlers.
@@ -378,10 +378,45 @@ Basic Principles:
   - Use `@dotenvx/dotenvx` for environment variable management with template support.
   - Store sensitive information in environment variables (like DB_URL, STRIPE_SECRET_KEY).
 
+### Hono Route Patterns
+
+```typescript
+// Module-level Hono app (sub-app)
+import { OpenAPIHono } from '@hono/zod-openapi';
+
+const app = new OpenAPIHono();
+
+// Define routes with Zod schemas
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}',
+    request: { params: idParamSchema },
+    responses: { 200: { content: { 'application/json': { schema: responseSchema } } } },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    // Handler logic
+    return c.json({ success: true, data: result });
+  }
+);
+
+export default app;
+```
+
+### Hono Context Utilities
+
+- `c.req.valid('json')` - Get validated request body
+- `c.req.valid('param')` - Get validated path parameters
+- `c.req.valid('query')` - Get validated query parameters
+- `c.json()` - Return JSON response
+- `c.get('user')` - Get data from context (e.g., authenticated user)
+- `c.set('key', value)` - Set data in context
+
 Testing:
 
-- Use the Jest framework for unit and integration tests.
+- Use the Vitest framework for unit and integration tests.
 - Write unit tests for every service and handler.
 - Use test doubles (mocks, stubs) to simulate dependencies.
-- Write end-to-end tests using Fastify's inject method for simulating requests.
+- Write end-to-end tests using Hono's `app.request()` method for simulating requests.
 - Create a /health route for health checks or smoke tests in each module.

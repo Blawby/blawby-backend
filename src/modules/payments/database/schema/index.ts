@@ -1,1 +1,1 @@
-export * from './payment-intents.schema';
+// No schema exports yet

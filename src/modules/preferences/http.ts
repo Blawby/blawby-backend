@@ -26,6 +26,7 @@ import {
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import { validateJson } from '@/shared/middleware/validation';
 import type { AppContext } from '@/shared/types/hono';
+import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
 
@@ -43,7 +44,7 @@ app.put(
     const categoryResult = preferenceCategorySchema.safeParse(category);
 
     if (!categoryResult.success) {
-      return c.json({ error: 'Invalid category' }, 400);
+      return response.badRequest(c, 'Invalid category');
     }
 
     // Select validation schema based on category
@@ -68,7 +69,7 @@ app.put(
         schema = profilePreferencesSchema;
         break;
       default:
-        return c.json({ error: 'Invalid category' }, 400);
+        return response.badRequest(c, 'Invalid category');
     }
 
     return validateJson(schema, `Invalid ${category} preferences data`)(c as any, next);

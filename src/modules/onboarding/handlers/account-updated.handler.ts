@@ -7,7 +7,8 @@ import {
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishEventTx } from '@/shared/events/event-publisher';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
 
 /**
  * Handle account.updated webhook event
@@ -50,43 +51,29 @@ export const handleAccountUpdated = async (
       last_refreshed_at: new Date(),
     };
 
-    // Update the account in the database
-    await db
-      .update(stripeConnectedAccounts)
-      .set(updateData)
-      .where(eq(stripeConnectedAccounts.stripe_account_id, account.id));
+    // Update the account in the database within transaction with event publishing
+    await db.transaction(async (tx) => {
+      await tx
+        .update(stripeConnectedAccounts)
+        .set(updateData)
+        .where(eq(stripeConnectedAccounts.stripe_account_id, account.id));
 
-    // Publish account updated event
-    void publishSystemEvent(
-      EventType.ONBOARDING_ACCOUNT_UPDATED,
-      {
-        stripeAccountId: account.id,
+      // Publish account updated event within transaction
+      await publishEventTx(tx, {
+        type: EventType.ONBOARDING_ACCOUNT_UPDATED,
+        actorId: WEBHOOK_ACTOR_UUID,
+        actorType: 'webhook',
         organizationId: currentAccount.organization_id,
-        chargesEnabled: account.charges_enabled,
-        payoutsEnabled: account.payouts_enabled,
-        detailsSubmitted: account.details_submitted,
-        businessType: account.business_type,
-        requirements: account.requirements,
-        capabilities: account.capabilities,
-        previousChargesEnabled: currentAccount.charges_enabled,
-        previousPayoutsEnabled: currentAccount.payouts_enabled,
-        previousDetailsSubmitted: currentAccount.details_submitted,
-        updatedAt: new Date().toISOString(),
-      },
-      'stripe-webhook',
-      'webhook',
-      currentAccount.organization_id,
-    );
-
-    // Publish simple onboarding account updated event
-    void publishSimpleEvent(EventType.ONBOARDING_ACCOUNT_UPDATED, 'system', currentAccount.organization_id, {
-      stripe_account_id: account.id,
-      organization_id: currentAccount.organization_id,
-      charges_enabled: account.charges_enabled,
-      payouts_enabled: account.payouts_enabled,
-      details_submitted: account.details_submitted,
-      business_type: account.business_type,
-      updated_at: new Date().toISOString(),
+        payload: {
+          stripe_account_id: account.id,
+          organization_id: currentAccount.organization_id,
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+          business_type: account.business_type,
+          updated_at: new Date().toISOString(),
+        },
+      });
     });
 
     console.log(`Account updated and event published for: ${account.id}`);

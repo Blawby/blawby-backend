@@ -48,24 +48,6 @@ export const ANALYTICS_EVENTS = {
     },
   },
 
-  // User login tracking
-  [EventType.AUTH_USER_LOGGED_IN]: {
-    handler: async (event: BaseEvent) => {
-      await trackEvent({
-        eventName: 'User Logged In',
-        userId: event.actorId,
-        properties: {
-          loginMethod: 'email', // Could be enhanced to detect OAuth, etc.
-        },
-      });
-    },
-    options: {
-      priority: 0,
-      shouldQueue: true,
-      queue: QUEUE_NAMES.ANALYTICS,
-    },
-  },
-
   // Practice creation tracking
   [EventType.PRACTICE_CREATED]: {
     handler: async (event: BaseEvent) => {

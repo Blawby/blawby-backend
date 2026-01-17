@@ -52,6 +52,10 @@ export const cancelSubscriptionSchema = z.object({
     description: 'Reason for cancellation',
     example: 'Switching to a different plan',
   }),
+  returnUrl: z.string().optional().openapi({
+    description: 'URL to redirect to after cancellation (for Stripe Billing Portal)',
+    example: '/dashboard',
+  }),
 });
 
 /**

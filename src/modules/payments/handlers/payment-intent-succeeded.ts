@@ -2,16 +2,15 @@
  * Payment Intent Succeeded Webhook Handler
  *
  * Handles payment_intent.succeeded webhook events from Stripe
- * Only processes Payment Link payments (practice client intakes)
+ * Publishes PAYMENT_SUCCEEDED event for event-driven processing
  */
 
 import { consola } from 'consola';
 import type Stripe from 'stripe';
 
-import { handlePracticeClientIntakeSucceeded } from '@/modules/practice-client-intakes/handlers/succeeded';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishSimpleEvent, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
 import { sanitizeError } from '@/shared/utils/logging';
 
 export const handlePaymentIntentSucceeded = async ({
@@ -22,35 +21,37 @@ export const handlePaymentIntentSucceeded = async ({
   eventId: string;
 }): Promise<void> => {
   try {
+    // Check if this is a practice client intake payment
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (practiceClientIntake) {
-      await handlePracticeClientIntakeSucceeded({
-        paymentIntent,
-        eventId,
-      });
 
-      const charge = paymentIntent.latest_charge
-        ? (typeof paymentIntent.latest_charge === 'string'
-          ? paymentIntent.latest_charge
-          : paymentIntent.latest_charge.id)
-        : undefined;
+    const charge = paymentIntent.latest_charge
+      ? (typeof paymentIntent.latest_charge === 'string'
+        ? paymentIntent.latest_charge
+        : paymentIntent.latest_charge.id)
+      : undefined;
 
-      void publishSimpleEvent(EventType.PAYMENT_SUCCEEDED, 'organization', practiceClientIntake.organizationId, {
+    // Publish event - event handlers will process intake updates
+    void publishSimpleEvent(
+      EventType.PAYMENT_SUCCEEDED,
+      WEBHOOK_ACTOR_UUID,
+      practiceClientIntake?.organizationId,
+      {
         stripe_payment_intent_id: paymentIntent.id,
         stripe_charge_id: charge,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
-        intake_payment_id: practiceClientIntake.id,
+        intake_payment_id: practiceClientIntake?.id,
         succeeded_at: new Date().toISOString(),
+        event_id: eventId,
+      },
+    );
+
+    if (!practiceClientIntake) {
+      consola.warn('Payment intent not found in practice client intakes', {
+        stripePaymentIntentId: paymentIntent.id,
+        hasPaymentLink: 'payment_link' in paymentIntent && !!paymentIntent.payment_link,
       });
-
-      return;
     }
-
-    consola.warn('Payment intent not found in practice client intakes', {
-      stripePaymentIntentId: paymentIntent.id,
-      hasPaymentLink: 'payment_link' in paymentIntent && !!paymentIntent.payment_link,
-    });
   } catch (error) {
     consola.error('Failed to process payment_intent.succeeded webhook', {
       error: sanitizeError(error),

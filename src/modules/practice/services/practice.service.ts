@@ -1,11 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { omit } from 'es-toolkit/compat';
 import {
-  createPracticeDetails,
   findPracticeDetailsByOrganization,
-  upsertPracticeDetails,
-  deletePracticeDetails,
 } from '@/modules/practice/database/queries/practice-details.repository';
+import { practiceDetails as practiceDetailsTable, type PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import {
   createOrganization,
   listOrganizations,
@@ -23,7 +21,7 @@ import type {
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishSimpleEvent, publishEventTx } from '@/shared/events/event-publisher';
 import type { User, Organization } from '@/shared/types/BetterAuth';
 
 // Practice service functions (practice = organization + optional practice details)
@@ -99,8 +97,8 @@ export const createPracticeService = async (params: {
     throw new Error('Failed to create organization');
   }
 
-  // Create optional practice details if provided
-  let practiceDetails = null;
+  // Create optional practice details if provided (within transaction)
+  let practiceDetails: PracticeDetails | null = null;
   {
     const detailsPayload = {
       business_phone: business_phone || null,
@@ -111,28 +109,39 @@ export const createPracticeService = async (params: {
     };
     const hasDetails = Object.values(detailsPayload).some(Boolean);
     if (hasDetails) {
-      practiceDetails = await createPracticeDetails({
-        organization_id: organization.id,
-        user_id: user.id,
-        ...detailsPayload,
-      });
+      // Wrap practice details creation in transaction with event publishing
+      const detailsResult = await db.transaction(async (tx) => {
+        const [details] = await tx
+          .insert(practiceDetailsTable)
+          .values({
+            organization_id: organization.id,
+            user_id: user.id,
+            ...detailsPayload,
+          })
+          .returning();
 
-      // Publish practice details created event
-      void publishSimpleEvent(EventType.PRACTICE_DETAILS_CREATED, 'user', organization.id, {
-        actor_id: user.id,
-        practice_details_id: practiceDetails.id,
-        business_phone,
-        business_email,
-        consultation_fee,
-        payment_url,
-        calendly_url,
+        await publishEventTx(tx, {
+          type: EventType.PRACTICE_DETAILS_CREATED,
+          actorId: user.id,
+          actorType: 'user',
+          organizationId: organization.id,
+          payload: {
+            practice_details_id: details.id,
+            business_phone,
+            business_email,
+            consultation_fee,
+            payment_url,
+            calendly_url,
+          },
+        });
+
+        return details;
       });
+      practiceDetails = detailsResult;
     }
   }
 
-  // Publish practice created event (organization + optional details)
-  void publishSimpleEvent(EventType.PRACTICE_CREATED, 'user', organization.id, {
-    actor_id: user.id,
+  void publishSimpleEvent(EventType.PRACTICE_CREATED, user.id, organization.id, {
     organization_name: organization.name,
     organization_slug: organization.slug,
     has_practice_details: !!practiceDetails,
@@ -173,18 +182,22 @@ export const updatePracticeService = async (
     ...organizationData
   } = data;
 
+  // Filter out undefined and null values from organizationData
+  const filteredOrganizationData = Object.fromEntries(
+    Object.entries(organizationData).filter(([_, value]) => value !== undefined && value !== null),
+  ) as Partial<Pick<PracticeUpdateRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
+
   // Update organization in Better Auth only if there are organization fields to update
   let organization = null;
-  if (Object.keys(organizationData).length > 0) {
+  if (Object.keys(filteredOrganizationData).length > 0) {
     // Construct UpdateOrganizationRequest with proper structure
+    // Better Auth expects { organizationId, data: { name?, slug?, logo?, metadata? } }
     const updateRequest: UpdateOrganizationRequest = {
       organizationId,
-      data: organizationData,
+      data: filteredOrganizationData,
     };
     organization = await updateOrganization(
-      organizationId,
       updateRequest,
-      user,
       requestHeaders,
     );
 
@@ -206,7 +219,7 @@ export const updatePracticeService = async (
   }
 
 
-  let practiceDetails = null;
+  let practiceDetails: PracticeDetails | null = null;
   if (
     business_phone
     || business_email
@@ -221,26 +234,45 @@ export const updatePracticeService = async (
       payment_url,
       calendly_url,
     };
-    practiceDetails = await upsertPracticeDetails(
-      organizationId,
-      user.id,
-      practiceData,
-    );
 
-    // Publish practice details updated event
-    void publishSimpleEvent(EventType.PRACTICE_DETAILS_UPDATED, 'user', organizationId, {
-      actor_id: user.id,
-      business_phone,
-      business_email,
-      consultation_fee,
-      payment_url,
-      calendly_url,
+    // Wrap practice details update in transaction with event publishing
+    practiceDetails = await db.transaction(async (tx) => {
+      const [details] = await tx
+        .insert(practiceDetailsTable)
+        .values({
+          organization_id: organizationId,
+          user_id: user.id,
+          ...practiceData,
+        })
+        .onConflictDoUpdate({
+          target: practiceDetailsTable.organization_id,
+          set: {
+            ...practiceData,
+            updated_at: new Date(),
+          },
+        })
+        .returning();
+
+      await publishEventTx(tx, {
+        type: EventType.PRACTICE_DETAILS_UPDATED,
+        actorId: user.id,
+        actorType: 'user',
+        organizationId,
+        payload: {
+          practice_details_id: details.id,
+          business_phone,
+          business_email,
+          consultation_fee,
+          payment_url,
+          calendly_url,
+        },
+      });
+
+      return details;
     });
   }
 
-  // Publish practice updated event
-  void publishSimpleEvent(EventType.PRACTICE_UPDATED, 'user', organizationId, {
-    actor_id: user.id,
+  void publishSimpleEvent(EventType.PRACTICE_UPDATED, user.id, organizationId, {
     organization_name: organization?.name || 'Unknown',
     organization_slug: organization?.slug || 'unknown',
     has_practice_details: !!practiceDetails,
@@ -274,28 +306,39 @@ export const deletePracticeService = async (
   const existingPracticeDetails
     = await findPracticeDetailsByOrganization(organizationId);
 
-  // Delete optional practice details first
-  await deletePracticeDetails(db, organizationId);
-
-  // Publish practice details deleted event if they existed
+  // Delete optional practice details within transaction with event publishing
   if (existingPracticeDetails) {
-    void publishSimpleEvent(EventType.PRACTICE_DETAILS_DELETED, 'user', organizationId, {
-      actor_id: user.id,
-      practice_details_id: existingPracticeDetails.id,
-      business_phone: existingPracticeDetails.business_phone,
-      business_email: existingPracticeDetails.business_email,
-      consultation_fee: existingPracticeDetails.consultation_fee,
-      payment_url: existingPracticeDetails.payment_url,
-      calendly_url: existingPracticeDetails.calendly_url,
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(practiceDetailsTable)
+        .where(eq(practiceDetailsTable.organization_id, organizationId));
+
+      await publishEventTx(tx, {
+        type: EventType.PRACTICE_DETAILS_DELETED,
+        actorId: user.id,
+        actorType: 'user',
+        organizationId,
+        payload: {
+          practice_details_id: existingPracticeDetails.id,
+          business_phone: existingPracticeDetails.business_phone,
+          business_email: existingPracticeDetails.business_email,
+          consultation_fee: existingPracticeDetails.consultation_fee,
+          payment_url: existingPracticeDetails.payment_url,
+          calendly_url: existingPracticeDetails.calendly_url,
+        },
+      });
     });
+  } else {
+    // No practice details, just delete if they exist
+    await db
+      .delete(practiceDetailsTable)
+      .where(eq(practiceDetailsTable.organization_id, organizationId));
   }
 
   // Delete organization in Better Auth
   await deleteOrganization(organizationId, user, requestHeaders);
 
-  // Publish practice deleted event
-  void publishSimpleEvent(EventType.PRACTICE_DELETED, 'user', organizationId, {
-    actor_id: user.id,
+  void publishSimpleEvent(EventType.PRACTICE_DELETED, user.id, organizationId, {
     had_practice_details: !!existingPracticeDetails,
     practice_details_id: existingPracticeDetails?.id,
     user_email: user.email,
@@ -312,9 +355,9 @@ export const setActivePractice = async (
   // Forward to Better Auth org plugin
   await setActiveOrganization(organizationId, user, requestHeaders);
 
-  // Publish practice switched event
-  void publishSimpleEvent(EventType.PRACTICE_SWITCHED, 'user', organizationId, {
-    actor_id: user.id,
+  // Note: Organization switch uses Better Auth API (external), so we can't use transaction
+  // Event is written directly to database for guaranteed persistence
+  void publishSimpleEvent(EventType.PRACTICE_SWITCHED, user.id, organizationId, {
     user_email: user.email,
     switched_to_organization: organizationId,
   });

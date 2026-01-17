@@ -1,6 +1,6 @@
 {
-  "id": "62f25c30-1472-40ac-bb21-5501a5ade92d",
-  "prevId": "328b0ade-ce21-4ec9-b23d-54cdd1a8b55f",
+  "id": "6de3a8db-eb74-41d8-b873-d865a0c8acdd",
+  "prevId": "82ff83e6-7cb0-4b96-a2ab-a3ca45fc7577",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -578,6 +578,20 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
@@ -844,6 +858,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "future_requirements": {
+          "name": "future_requirements",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tos_acceptance": {
+          "name": "tos_acceptance",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
         "metadata": {
           "name": "metadata",
           "type": "json",
@@ -930,11 +956,17 @@
           "primaryKey": false,
           "notNull": true
         },
+        "stripe_payment_link_id": {
+          "name": "stripe_payment_link_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "stripe_payment_intent_id": {
           "name": "stripe_payment_intent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "stripe_charge_id": {
           "name": "stripe_charge_id",
@@ -1022,6 +1054,21 @@
           "method": "btree",
           "with": {}
         },
+        "practice_client_intakes_stripe_link_idx": {
+          "name": "practice_client_intakes_stripe_link_idx",
+          "columns": [
+            {
+              "expression": "stripe_payment_link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "practice_client_intakes_stripe_intent_idx": {
           "name": "practice_client_intakes_stripe_intent_idx",
           "columns": [
@@ -1098,11 +1145,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "practice_client_intakes_stripe_payment_intent_id_unique": {
-          "name": "practice_client_intakes_stripe_payment_intent_id_unique",
+        "practice_client_intakes_stripe_payment_link_id_unique": {
+          "name": "practice_client_intakes_stripe_payment_link_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "stripe_payment_intent_id"
+            "stripe_payment_link_id"
           ]
         }
       },
@@ -2899,302 +2946,9 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "public.payment_intents": {
-      "name": "payment_intents",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "connected_account_id": {
-          "name": "connected_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invoice_id": {
-          "name": "invoice_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stripe_payment_intent_id": {
-          "name": "stripe_payment_intent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stripe_charge_id": {
-          "name": "stripe_charge_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount": {
-          "name": "amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'usd'"
-        },
-        "application_fee_amount": {
-          "name": "application_fee_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "payment_intent_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payment_method_id": {
-          "name": "payment_method_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "payment_method_type": {
-          "name": "payment_method_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "customer_email": {
-          "name": "customer_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "customer_name": {
-          "name": "customer_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "receipt_email": {
-          "name": "receipt_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "receipt_url": {
-          "name": "receipt_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "succeeded_at": {
-          "name": "succeeded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "payment_intents_connected_account_id_idx": {
-          "name": "payment_intents_connected_account_id_idx",
-          "columns": [
-            {
-              "expression": "connected_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_org_status_idx": {
-          "name": "payment_intents_org_status_idx",
-          "columns": [
-            {
-              "expression": "connected_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_org_created_idx": {
-          "name": "payment_intents_org_created_idx",
-          "columns": [
-            {
-              "expression": "connected_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_stripe_payment_intent_id_idx": {
-          "name": "payment_intents_stripe_payment_intent_id_idx",
-          "columns": [
-            {
-              "expression": "stripe_payment_intent_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_created_at_idx": {
-          "name": "payment_intents_created_at_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_succeeded_at_idx": {
-          "name": "payment_intents_succeeded_at_idx",
-          "columns": [
-            {
-              "expression": "succeeded_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_customer_id_idx": {
-          "name": "payment_intents_customer_id_idx",
-          "columns": [
-            {
-              "expression": "customer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payment_intents_invoice_id_idx": {
-          "name": "payment_intents_invoice_id_idx",
-          "columns": [
-            {
-              "expression": "invoice_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "payment_intents_stripe_payment_intent_id_unique": {
-          "name": "payment_intents_stripe_payment_intent_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "stripe_payment_intent_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
     }
   },
-  "enums": {
-    "public.payment_intent_status": {
-      "name": "payment_intent_status",
-      "schema": "public",
-      "values": [
-        "requires_payment_method",
-        "requires_confirmation",
-        "requires_action",
-        "processing",
-        "requires_capture",
-        "canceled",
-        "succeeded"
-      ]
-    }
-  },
+  "enums": {},
   "schemas": {},
   "sequences": {},
   "roles": {},
