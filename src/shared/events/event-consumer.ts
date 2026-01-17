@@ -1,5 +1,5 @@
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
-import { setEventHandlersMap } from './event-handler-registry';
+import { setEventHandlersMap } from '@/shared/events/event-handler-registry';
 
 // Handler options interface (Laravel-style)
 export interface HandlerOptions {

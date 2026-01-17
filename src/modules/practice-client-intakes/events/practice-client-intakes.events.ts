@@ -9,6 +9,7 @@ import { consola } from 'consola';
 import type Stripe from 'stripe';
 
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
 import { EventType } from '@/shared/events/enums/event-types';
 import { subscribeToEvent } from '@/shared/events/event-consumer';
@@ -17,6 +18,7 @@ import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { sanitizeError } from '@/shared/utils/logging';
 import { stripe } from '@/shared/utils/stripe-client';
 import { db } from '@/shared/database';
+import { eq } from 'drizzle-orm';
 
 /**
  * Register all practice client intake event handlers
@@ -49,12 +51,16 @@ export const registerPracticeClientIntakeEvents = (): void => {
 
       // Update practice client intake status and publish event within transaction
       await db.transaction(async (tx) => {
-        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-          status: 'succeeded',
-          stripePaymentIntentId: paymentIntent.id,
-          stripeChargeId,
-          succeededAt: new Date(),
-        });
+        await tx
+          .update(practiceClientIntakes)
+          .set({
+            status: 'succeeded',
+            stripePaymentIntentId: paymentIntent.id,
+            stripeChargeId,
+            succeededAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
 
         // Publish intake-specific event within transaction
         await publishEventTx(tx, {
@@ -107,10 +113,14 @@ export const registerPracticeClientIntakeEvents = (): void => {
 
       // Update practice client intake status and publish event within transaction
       await db.transaction(async (tx) => {
-        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-          status: 'failed',
-          stripePaymentIntentId: paymentIntent.id,
-        });
+        await tx
+          .update(practiceClientIntakes)
+          .set({
+            status: 'failed',
+            stripePaymentIntentId: paymentIntent.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
 
         // Publish intake-specific event within transaction
         await publishEventTx(tx, {
@@ -162,10 +172,14 @@ export const registerPracticeClientIntakeEvents = (): void => {
 
       // Update practice client intake status and publish event within transaction
       await db.transaction(async (tx) => {
-        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-          status: 'canceled',
-          stripePaymentIntentId: paymentIntent.id,
-        });
+        await tx
+          .update(practiceClientIntakes)
+          .set({
+            status: 'canceled',
+            stripePaymentIntentId: paymentIntent.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
 
         // Publish intake-specific event within transaction
         // Use ORGANIZATION_ACTOR_UUID as the actor since this is triggered by webhook

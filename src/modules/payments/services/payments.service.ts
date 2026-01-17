@@ -98,10 +98,21 @@ const handleServiceError = (
   error: unknown,
   context: string,
 ): { success: false; error: string } => {
-  console.error({ error }, `Failed to ${context}`);
+  // Log full error details including stack for debugging
+  console.error(`Failed to ${context}`, {
+    error: error instanceof Error ? {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: (error as Error & { cause?: unknown }).cause,
+    } : error,
+    context,
+  });
+
+  // Return sanitized, user-friendly message
   return {
     success: false,
-    error: error instanceof Error ? error.message : 'Unknown error',
+    error: 'An internal error occurred. Please try again later.',
   };
 };
 
