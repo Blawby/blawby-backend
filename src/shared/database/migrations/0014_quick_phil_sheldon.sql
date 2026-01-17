@@ -10,8 +10,6 @@
 DO $$
 DECLARE
   unknown_count INTEGER;
-  sample_values TEXT;
-  problematic_actor_ids TEXT[];
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -28,27 +26,20 @@ BEGIN
       AND "actor_id" NOT IN ('system', 'webhook', 'cron', 'api', 'organization');
 
     IF unknown_count > 0 THEN
-      -- Get sample of problematic values for logging
-      SELECT ARRAY_AGG(DISTINCT "actor_id" ORDER BY "actor_id" LIMIT 10)
-      INTO problematic_actor_ids
-      FROM "events"
-      WHERE "actor_id" IS NOT NULL
-        AND "actor_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        AND "actor_id" NOT IN ('system', 'webhook', 'cron', 'api', 'organization');
-
-      IF problematic_actor_ids IS NOT NULL THEN
-        sample_values := ARRAY_TO_STRING(problematic_actor_ids, ', ');
-      ELSE
-        sample_values := '(unable to retrieve sample values)';
-      END IF;
-
       -- Log warning about unknown values (they will be automatically mapped to SYSTEM_ACTOR_UUID)
-      RAISE WARNING 'Found % rows with unknown actor_id values that are not valid UUIDs or known string literals. These will be automatically mapped to SYSTEM_ACTOR_UUID. Sample problematic values: %', unknown_count, sample_values;
+      RAISE WARNING 'Found % rows with unknown actor_id values that are not valid UUIDs or known string literals. These will be automatically mapped to SYSTEM_ACTOR_UUID.', unknown_count;
     END IF;
 
-    -- Update actor_id: convert string literals to UUIDs (case-insensitive UUID matching)
-    UPDATE "events" SET "actor_id" =
+    -- Drop temp table if it exists (idempotent)
+    DROP TABLE IF EXISTS events_actor_id_migration;
+
+    -- Create temporary table with transformed actor_id values for ALL rows
+    CREATE TEMP TABLE events_actor_id_migration AS
+    SELECT
+      "event_id",
       CASE
+        -- Handle NULL values: map to SYSTEM_ACTOR_UUID
+        WHEN "actor_id" IS NULL THEN '00000000-0000-0000-0000-000000000000'
         -- Already valid UUIDs (case-insensitive match)
         WHEN "actor_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN "actor_id"
         -- Known string literals mapped to constant UUIDs (see constants.ts)
@@ -57,10 +48,19 @@ BEGIN
         WHEN "actor_id" = 'cron' THEN '00000000-0000-0000-0000-000000000002'
         WHEN "actor_id" = 'api' THEN '00000000-0000-0000-0000-000000000003'
         WHEN "actor_id" = 'organization' THEN '00000000-0000-0000-0000-000000000004'
-        -- This should never be reached due to pre-validation, but kept as safety net
+        -- Unknown values automatically mapped to SYSTEM_ACTOR_UUID
         ELSE '00000000-0000-0000-0000-000000000000'
-      END
-    WHERE "actor_id" IS NOT NULL;
+      END AS transformed_actor_id
+    FROM "events";
+
+    -- Update events table with transformed values (all rows)
+    UPDATE "events" e
+    SET "actor_id" = t.transformed_actor_id
+    FROM events_actor_id_migration t
+    WHERE e."event_id" = t."event_id";
+
+    -- Drop temporary table
+    DROP TABLE events_actor_id_migration;
 
     -- Change type from text to uuid (only if still text)
     EXECUTE 'ALTER TABLE "events" ALTER COLUMN "actor_id" SET DATA TYPE uuid USING "actor_id"::uuid';
