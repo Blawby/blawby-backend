@@ -23,22 +23,23 @@ import {
 import { stripe } from '@/shared/utils/stripe-client';
 import { addOnboardingWebhookJob } from '@/shared/queue/queue.manager';
 
-// verifyAndStore restored for dedicated Connect webhook endpoint
-export const verifyAndStore = async (
+/**
+ * Generic webhook verification and storage function
+ * Accepts a webhook secret to support different webhook endpoints
+ */
+export const verifyAndStoreWithSecret = async (
   rawBody: string | Buffer,
   signature: string,
   headers: Record<string, string>,
   url: string,
+  webhookSecret: string,
 ): Promise<{
   event: Stripe.Event;
   alreadyProcessed: boolean;
   webhookId?: string;
 }> => {
-  // Use a specific secret for Connect webhooks
-  const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
-
   if (!webhookSecret) {
-    const error = new Error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is required for Connect webhooks');
+    const error = new Error('Webhook secret is required');
     (error as any).code = 'STRIPE_SECRET_MISSING';
     throw error;
   }
@@ -68,6 +69,56 @@ export const verifyAndStore = async (
   const createdWebhook = await createWebhookEvent(event, headers, url);
 
   return { event, alreadyProcessed: false, webhookId: createdWebhook.id };
+};
+
+/**
+ * Verify and store Connect webhook (for onboarding/connected accounts)
+ * Uses STRIPE_CONNECT_WEBHOOK_SECRET
+ */
+export const verifyAndStore = async (
+  rawBody: string | Buffer,
+  signature: string,
+  headers: Record<string, string>,
+  url: string,
+): Promise<{
+  event: Stripe.Event;
+  alreadyProcessed: boolean;
+  webhookId?: string;
+}> => {
+  const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+
+  if (!webhookSecret) {
+    const error = new Error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is required for Connect webhooks');
+    (error as any).code = 'STRIPE_SECRET_MISSING';
+    throw error;
+  }
+
+  return verifyAndStoreWithSecret(rawBody, signature, headers, url, webhookSecret);
+};
+
+/**
+ * Verify and store main Stripe webhook (for payments, invoices, etc.)
+ * Uses STRIPE_WEBHOOK_SECRET
+ */
+export const verifyAndStoreAccount = async (
+  rawBody: string | Buffer,
+  signature: string,
+  headers: Record<string, string>,
+  url: string,
+): Promise<{
+  event: Stripe.Event;
+  alreadyProcessed: boolean;
+  webhookId?: string;
+}> => {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!webhookSecret) {
+    const error = new Error('STRIPE_WEBHOOK_SECRET environment variable is required for main webhooks');
+    (error as any).code = 'STRIPE_SECRET_MISSING';
+    throw error;
+  }
+
+  return verifyAndStoreWithSecret(rawBody, signature, headers, url, webhookSecret);
 };
 
 

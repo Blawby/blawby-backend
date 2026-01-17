@@ -14,10 +14,11 @@ import type {
 } from '@/modules/preferences/schema/preferences.schema';
 import type { ProductUsage } from '@/modules/preferences/types/preferences.types';
 import { users } from '@/schema/better-auth-schema';
+import { preferences } from '@/modules/preferences/schema/preferences.schema';
 
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishSimpleEvent, publishEventTx } from '@/shared/events/event-publisher';
 import { sanitizeError } from '@/shared/utils/logging';
 import { stripe } from '@/shared/utils/stripe-client';
 
@@ -69,37 +70,47 @@ const createStripeCustomerForUser = async (
 
     const stripeCustomer = await stripe.customers.create(createParams);
 
-    // 3. Update users table with stripeCustomerId
-    await db
-      .update(users)
-      .set({ stripeCustomerId: stripeCustomer.id })
-      .where(eq(users.id, data.userId));
+    // 3. Wrap database operations in transaction with event publishing
+    // Note: Stripe API call is external, so it's outside the transaction
+    const savedCustomer = await db.transaction(async (tx) => {
+      // Update users table with stripeCustomerId
+      await tx
+        .update(users)
+        .set({ stripeCustomerId: stripeCustomer.id })
+        .where(eq(users.id, data.userId));
 
-    // 4. Save preferences (stripeCustomerId is now in users table)
-    const customerDetails: InsertPreferences = {
-      userId: data.userId,
-      // stripeCustomerId is now in users table - don't store here
-      // phone and dob are now in users table - don't store here
-      // productUsage will be migrated to onboarding JSONB
-      productUsage: data.productUsage,
-    };
+      // Save preferences (stripeCustomerId is now in users table)
+      const customerDetails: InsertPreferences = {
+        userId: data.userId,
+        // stripeCustomerId is now in users table - don't store here
+        // phone and dob are now in users table - don't store here
+        // productUsage will be migrated to onboarding JSONB
+        productUsage: data.productUsage,
+      };
 
-    const savedCustomer = await customersRepository.create(customerDetails);
+      const [customer] = await tx
+        .insert(preferences)
+        .values(customerDetails)
+        .returning();
 
-    // 4. Publish STRIPE_CUSTOMER_CREATED event
-    void publishSimpleEvent(
-      EventType.STRIPE_CUSTOMER_CREATED,
-      'user',
-      data.userId,
-      {
-        user_id: data.userId,
-        stripe_customer_id: stripeCustomer.id,
-        email: data.email,
-        name: data.name,
-        source: data.source || 'platform_signup',
-        created_at: new Date().toISOString(),
-      },
-    );
+      // Publish STRIPE_CUSTOMER_CREATED event within transaction
+      await publishEventTx(tx, {
+        type: EventType.STRIPE_CUSTOMER_CREATED,
+        actorId: data.userId,
+        actorType: 'user',
+        organizationId: undefined, // Stripe customers are user-level, not org-level
+        payload: {
+          user_id: data.userId,
+          stripe_customer_id: stripeCustomer.id,
+          email: data.email,
+          name: data.name,
+          source: data.source || 'platform_signup',
+          created_at: new Date().toISOString(),
+        },
+      });
+
+      return customer;
+    });
 
     console.info('Stripe customer created successfully', {
       userId: data.userId,
@@ -113,11 +124,10 @@ const createStripeCustomerForUser = async (
       userId: data.userId,
     });
 
-    // Publish failure event for monitoring
     void publishSimpleEvent(
       EventType.STRIPE_CUSTOMER_SYNC_FAILED,
-      'user',
       data.userId,
+      undefined,
       {
         user_id: data.userId,
         error_message: error instanceof Error ? error.message : 'Unknown error',
@@ -206,28 +216,46 @@ const updateCustomerDetails = async (
 
     await stripe.customers.update(user.stripeCustomerId, updateParams);
 
-    // 3. Update in database (only productUsage, phone/dob are in users table)
+    // 3. Update in database within transaction with event publishing
+    // Note: Stripe API call is external, so it's outside the transaction
+    let updated = existing;
     if (updates.productUsage) {
-      await customersRepository.updateByUserId(userId, {
-        productUsage: updates.productUsage,
-      });
-    }
-    const updated = updates.productUsage
-      ? await customersRepository.findByUserId(userId) || existing
-      : existing;
+      updated = await db.transaction(async (tx) => {
+        const [customer] = await tx
+          .update(preferences)
+          .set({ productUsage: updates.productUsage })
+          .where(eq(preferences.userId, userId))
+          .returning();
 
-    // 4. Publish STRIPE_CUSTOMER_UPDATED event
-    void publishSimpleEvent(
-      EventType.STRIPE_CUSTOMER_UPDATED,
-      'user',
-      userId,
-      {
-        user_id: userId,
-        stripe_customer_id: user.stripeCustomerId,
-        updated_fields: Object.keys(updates),
-        updated_at: new Date().toISOString(),
-      },
-    );
+        // Publish STRIPE_CUSTOMER_UPDATED event within transaction
+        await publishEventTx(tx, {
+          type: EventType.STRIPE_CUSTOMER_UPDATED,
+          actorId: userId,
+          actorType: 'user',
+          organizationId: undefined,
+          payload: {
+            user_id: userId,
+            stripe_customer_id: user.stripeCustomerId,
+            updated_fields: Object.keys(updates),
+            updated_at: new Date().toISOString(),
+          },
+        });
+
+        return customer || existing;
+      });
+    } else {
+      void publishSimpleEvent(
+        EventType.STRIPE_CUSTOMER_UPDATED,
+        userId,
+        undefined,
+        {
+          user_id: userId,
+          stripe_customer_id: user.stripeCustomerId,
+          updated_fields: Object.keys(updates),
+          updated_at: new Date().toISOString(),
+        },
+      );
+    }
 
     console.info('Customer details updated successfully', {
       userId,
@@ -241,11 +269,10 @@ const updateCustomerDetails = async (
       userId,
     });
 
-    // Publish failure event
     void publishSimpleEvent(
       EventType.STRIPE_CUSTOMER_SYNC_FAILED,
-      'user',
       userId,
+      undefined,
       {
         user_id: userId,
         error_message: error instanceof Error ? error.message : 'Unknown error',
@@ -332,29 +359,50 @@ const deleteStripeCustomer = async (userId: string): Promise<void> => {
       throw new Error('Stripe customer ID not found for user');
     }
 
-    // Delete from Stripe
-    await stripe.customers.del(user.stripeCustomerId);
+    const stripeCustomerId = user.stripeCustomerId;
 
-    // Clear stripeCustomerId from users table
-    await db
-      .update(users)
-      .set({ stripeCustomerId: null })
-      .where(eq(users.id, userId));
+    // First, start transaction to mark customer as pending deletion and publish event
+    await db.transaction(async (tx) => {
+      // Mark customer as pending deletion (clear stripeCustomerId)
+      await tx
+        .update(users)
+        .set({ stripeCustomerId: null })
+        .where(eq(users.id, userId));
 
-    // Delete from database
-    await customersRepository.deleteByUserId(userId);
+      // Delete preferences
+      await tx
+        .delete(preferences)
+        .where(eq(preferences.userId, userId));
 
-    // Publish STRIPE_CUSTOMER_DELETED event
-    void publishSimpleEvent(
-      EventType.STRIPE_CUSTOMER_DELETED,
-      'user',
-      userId,
-      {
-        user_id: userId,
-        stripe_customer_id: user.stripeCustomerId,
-        deleted_at: new Date().toISOString(),
-      },
-    );
+      // Publish STRIPE_CUSTOMER_DELETED event within transaction
+      await publishEventTx(tx, {
+        type: EventType.STRIPE_CUSTOMER_DELETED,
+        actorId: userId,
+        actorType: 'user',
+        organizationId: undefined,
+        payload: {
+          user_id: userId,
+          stripe_customer_id: stripeCustomerId,
+          deleted_at: new Date().toISOString(),
+        },
+      });
+    });
+
+    // After successful transaction, delete from Stripe (external API call)
+    try {
+      await stripe.customers.del(stripeCustomerId);
+    } catch (stripeError) {
+      // Log error but don't fail - DB transaction already succeeded
+      // Record for manual reconciliation if needed
+      console.error('Failed to delete Stripe customer after DB transaction', {
+        error: sanitizeError(stripeError),
+        userId,
+        stripeCustomerId,
+        note: 'DB transaction succeeded, but Stripe deletion failed. Manual reconciliation may be needed.',
+      });
+      // Re-throw to allow caller to handle
+      throw stripeError;
+    }
 
     console.info('Stripe customer deleted successfully', {
       userId,

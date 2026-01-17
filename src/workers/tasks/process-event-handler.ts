@@ -45,7 +45,7 @@ export const processEventHandler: Task = async (
 
   // Log completion
   helpers.logger.info(
-    `Queued event handler '${handlerName}' completed for event ${event.eventType}`,
+    `Queued event handler '${handlerName}' completed for event ${event.type}`,
   );
 };
 

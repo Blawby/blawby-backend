@@ -8,7 +8,7 @@
 import type Stripe from 'stripe';
 
 import { db } from '@/shared/database';
-import { deactivatePlan } from '../database/queries/subscriptionPlans.repository';
+import { deactivatePlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
 
 /**
  * Handle product.deleted webhook event

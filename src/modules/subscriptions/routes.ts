@@ -1,7 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
 import {
-  subscriptionIdParamSchema,
   createSubscriptionSchema,
   cancelSubscriptionSchema,
   subscriptionPlanResponseSchema,
@@ -160,58 +159,6 @@ export const cancelSubscriptionRoute = createRoute({
         },
       },
       description: 'Subscription cancelled successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: notFoundResponseSchema,
-        },
-      },
-      description: 'Subscription not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-/**
- * GET /api/subscriptions/:subscriptionId
- * Get subscription by ID
- */
-export const getSubscriptionByIdRoute = createRoute({
-  method: 'get',
-  path: '/{subscriptionId}',
-  tags: ['Subscriptions'],
-  summary: 'Get subscription by ID',
-  description: 'Get a specific subscription by its ID',
-  security: [{ Bearer: [] }],
-  request: {
-    params: subscriptionIdParamSchema,
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            subscription: subscriptionResponseSchema.nullable(),
-          }),
-        },
-      },
-      description: 'Subscription retrieved successfully',
     },
     400: {
       content: {

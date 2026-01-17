@@ -66,6 +66,7 @@ export enum EventType {
   // Onboarding events
   ONBOARDING_STARTED = 'onboarding.started',
   ONBOARDING_COMPLETED = 'onboarding.completed',
+  ONBOARDING_COMPLETED_PROCESSED = 'onboarding.completed_processed',
   ONBOARDING_FAILED = 'onboarding.failed',
   ONBOARDING_ACCOUNT_UPDATED = 'onboarding.account_updated',
   ONBOARDING_ACCOUNT_REQUIREMENTS_CHANGED = 'onboarding.account_requirements_changed',

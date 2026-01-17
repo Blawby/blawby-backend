@@ -8,16 +8,15 @@ import { eq } from 'drizzle-orm';
 import { omit } from 'es-toolkit/compat';
 import {
   findPracticeDetailsByOrganization,
-  upsertPracticeDetails,
-  deletePracticeDetails as deletePracticeDetailsQuery,
 } from '@/modules/practice/database/queries/practice-details.repository';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import { db } from '@/shared/database';
 import { organizations } from '@/schema/better-auth-schema';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishEventTx } from '@/shared/events/event-publisher';
 import type { User } from '@/shared/types/BetterAuth';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
+import { practiceDetails as practiceDetailsTable } from '@/modules/practice/database/schema/practice.schema';
 import type {
   PracticeDetailsResponse,
   UpsertPracticeDetailsRequest,
@@ -40,19 +39,19 @@ export const getPracticeDetails = async (
   );
 
   // Get practice details
-  const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
+  const fetchedDetails = await findPracticeDetailsByOrganization(organizationId);
 
-  if (!practiceDetails) {
+  if (!fetchedDetails) {
     return null;
   }
 
   // Fetch address if linked
   let addressData: AddressData | null = null;
-  if (practiceDetails.address_id) {
+  if (fetchedDetails.address_id) {
     const [address] = await db
       .select()
       .from(addresses)
-      .where(eq(addresses.id, practiceDetails.address_id));
+      .where(eq(addresses.id, fetchedDetails.address_id));
 
     if (address) {
       addressData = {
@@ -100,125 +99,140 @@ export const upsertPracticeDetailsService = async (
   const isCreate = !existing;
   let addressId = existing?.address_id;
 
-  // Handle address update/create
-  let addressResult: AddressData | null = null;
+  // Upsert practice details within transaction with event publishing
+  // Address operations are now inside the transaction to ensure atomicity
+  const practiceDetailsResult = await db.transaction(async (tx) => {
+    // Handle address update/create inside transaction
+    let addressResult: AddressData | null = null;
 
-  if (data.address && Object.keys(data.address).length > 0) {
-    const addressData = {
-      line1: data.address.line1,
-      line2: data.address.line2,
-      city: data.address.city,
-      state: data.address.state,
-      postal_code: data.address.postal_code,
-      country: data.address.country,
-    };
+    if (data.address && Object.keys(data.address).length > 0) {
+      const addressData = {
+        line1: data.address.line1,
+        line2: data.address.line2,
+        city: data.address.city,
+        state: data.address.state,
+        postal_code: data.address.postal_code,
+        country: data.address.country,
+      };
 
-    if (addressId) {
-      // Update existing address
-      const [updatedAddress] = await db
-        .update(addresses)
-        .set({ ...addressData, updated_at: new Date() })
-        .where(eq(addresses.id, addressId))
-        .returning();
+      if (addressId) {
+        // Update existing address
+        const [updatedAddress] = await tx
+          .update(addresses)
+          .set({ ...addressData, updated_at: new Date() })
+          .where(eq(addresses.id, addressId))
+          .returning();
 
-      if (updatedAddress) {
+        if (updatedAddress) {
+          addressResult = {
+            line1: updatedAddress.line1,
+            line2: updatedAddress.line2,
+            city: updatedAddress.city,
+            state: updatedAddress.state,
+            postal_code: updatedAddress.postal_code,
+            country: updatedAddress.country,
+          };
+        }
+
+      } else {
+        // Create new address
+        const [address] = await tx
+          .insert(addresses)
+          .values({
+            organization_id: organizationId,
+            type: 'practice_location',
+            ...addressData,
+          })
+          .returning();
+        addressId = address.id;
         addressResult = {
-          line1: updatedAddress.line1,
-          line2: updatedAddress.line2,
-          city: updatedAddress.city,
-          state: updatedAddress.state,
-          postal_code: updatedAddress.postal_code,
-          country: updatedAddress.country,
+          line1: address.line1,
+          line2: address.line2,
+          city: address.city,
+          state: address.state,
+          postal_code: address.postal_code,
+          country: address.country,
         };
       }
+    } else if (addressId) {
+      // If no address data provided in update but addressId exists, we return existing
+      const [fetchedAddress] = await tx
+        .select()
+        .from(addresses)
+        .where(eq(addresses.id, addressId));
 
-    } else {
-      // Create new address
-      const [address] = await db
-        .insert(addresses)
-        .values({
-          organization_id: organizationId,
-          type: 'practice_location',
-          ...addressData,
-        })
-        .returning();
-      addressId = address.id;
-      addressResult = {
-        line1: address.line1,
-        line2: address.line2,
-        city: address.city,
-        state: address.state,
-        postal_code: address.postal_code,
-        country: address.country,
-      };
+      if (fetchedAddress) {
+        addressResult = {
+          line1: fetchedAddress.line1,
+          line2: fetchedAddress.line2,
+          city: fetchedAddress.city,
+          state: fetchedAddress.state,
+          postal_code: fetchedAddress.postal_code,
+          country: fetchedAddress.country,
+        };
+      }
     }
-  } else if (addressId) {
-    // If no address data provided in update but addressId exists, we return existing
-    const [fetchedAddress] = await db
-      .select()
-      .from(addresses)
-      .where(eq(addresses.id, addressId));
 
-    if (fetchedAddress) {
-      addressResult = {
-        line1: fetchedAddress.line1,
-        line2: fetchedAddress.line2,
-        city: fetchedAddress.city,
-        state: fetchedAddress.state,
-        postal_code: fetchedAddress.postal_code,
-        country: fetchedAddress.country,
-      };
-    }
-  }
+    const [details] = await tx
+      .insert(practiceDetailsTable)
+      .values({
+        organization_id: organizationId,
+        user_id: user.id,
+        address_id: addressId,
+        business_phone: data.business_phone ?? undefined,
+        business_email: data.business_email ?? undefined,
+        consultation_fee: data.consultation_fee ?? undefined,
+        payment_url: data.payment_url ?? undefined,
+        calendly_url: data.calendly_url ?? undefined,
+        website: data.website ?? undefined,
+        intro_message: data.intro_message ?? undefined,
+        overview: data.overview ?? undefined,
+        is_public: data.is_public ?? undefined,
+        services: data.services ?? undefined,
+      })
+      .onConflictDoUpdate({
+        target: practiceDetailsTable.organization_id,
+        set: {
+          address_id: addressId,
+          business_phone: data.business_phone ?? undefined,
+          business_email: data.business_email ?? undefined,
+          consultation_fee: data.consultation_fee ?? undefined,
+          payment_url: data.payment_url ?? undefined,
+          calendly_url: data.calendly_url ?? undefined,
+          website: data.website ?? undefined,
+          intro_message: data.intro_message ?? undefined,
+          overview: data.overview ?? undefined,
+          is_public: data.is_public ?? undefined,
+          services: data.services ?? undefined,
+          updated_at: new Date(),
+        },
+      })
+      .returning();
 
-  // Upsert practice details
-  const practiceDetails = await upsertPracticeDetails(organizationId, user.id, {
-    address_id: addressId,
-    business_phone: data.business_phone ?? undefined,
-    business_email: data.business_email ?? undefined,
-    consultation_fee: data.consultation_fee ?? undefined,
-    payment_url: data.payment_url ?? undefined,
-    calendly_url: data.calendly_url ?? undefined,
-    website: data.website ?? undefined,
-    intro_message: data.intro_message ?? undefined,
-    overview: data.overview ?? undefined,
-    is_public: data.is_public ?? undefined,
-    services: data.services ?? undefined,
+    await publishEventTx(tx, {
+      type: isCreate ? EventType.PRACTICE_DETAILS_CREATED : EventType.PRACTICE_DETAILS_UPDATED,
+      actorId: user.id,
+      actorType: 'user',
+      organizationId,
+      payload: {
+        practice_details_id: details.id,
+        ...data,
+      },
+    });
+
+    return { details, addressResult };
   });
-
-  // Publish event
-  if (isCreate) {
-    void publishSimpleEvent(
-      EventType.PRACTICE_DETAILS_CREATED,
-      user.id,
-      organizationId,
-      {
-        practice_details_id: practiceDetails.id,
-        ...data,
-      },
-    );
-  } else {
-    void publishSimpleEvent(
-      EventType.PRACTICE_DETAILS_UPDATED,
-      user.id,
-      organizationId,
-      {
-        practice_details_id: practiceDetails.id,
-        ...data,
-      },
-    );
-  }
 
   // Clean and return
   return {
-    ...omit(practiceDetails, [
+    ...omit(practiceDetailsResult.details, [
       'id',
       'organization_id',
       'user_id',
       'created_at',
       'updated_at',
     ]),
-    address: addressResult,
+    address: practiceDetailsResult.addressResult,
   };
 };
 
@@ -240,24 +254,33 @@ export const deletePracticeDetailsService = async (
   // Get practice details before deletion for event
   const existing = await findPracticeDetailsByOrganization(organizationId);
 
-  // Delete practice details
-  await deletePracticeDetailsQuery(db, organizationId);
-
-  // Publish event if details existed
+  // Delete practice details within transaction with event publishing
   if (existing) {
-    void publishSimpleEvent(
-      EventType.PRACTICE_DETAILS_DELETED,
-      user.id,
-      organizationId,
-      {
-        practice_details_id: existing.id,
-        business_phone: existing.business_phone,
-        business_email: existing.business_email,
-        consultation_fee: existing.consultation_fee,
-        payment_url: existing.payment_url,
-        calendly_url: existing.calendly_url,
-      },
-    );
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(practiceDetailsTable)
+        .where(eq(practiceDetailsTable.organization_id, organizationId));
+
+      await publishEventTx(tx, {
+        type: EventType.PRACTICE_DETAILS_DELETED,
+        actorId: user.id,
+        actorType: 'user',
+        organizationId,
+        payload: {
+          practice_details_id: existing.id,
+          business_phone: existing.business_phone,
+          business_email: existing.business_email,
+          consultation_fee: existing.consultation_fee,
+          payment_url: existing.payment_url,
+          calendly_url: existing.calendly_url,
+        },
+      });
+    });
+  } else {
+    // No practice details, just delete if they exist
+    await db
+      .delete(practiceDetailsTable)
+      .where(eq(practiceDetailsTable.organization_id, organizationId));
   }
 };
 
@@ -278,19 +301,19 @@ export const getPracticeDetailsBySlug = async (
   }
 
   // Get practice details
-  const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+  const fetchedDetails = await findPracticeDetailsByOrganization(organization.id);
 
-  if (!practiceDetails) {
+  if (!fetchedDetails) {
     return null;
   }
 
   // Fetch address if linked
   let addressData: AddressData | null = null;
-  if (practiceDetails.address_id) {
+  if (fetchedDetails.address_id) {
     const [address] = await db
       .select()
       .from(addresses)
-      .where(eq(addresses.id, practiceDetails.address_id));
+      .where(eq(addresses.id, fetchedDetails.address_id));
 
     if (address) {
       addressData = {

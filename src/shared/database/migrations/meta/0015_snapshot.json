@@ -1,6 +1,6 @@
 {
-  "id": "62f25c30-1472-40ac-bb21-5501a5ade92d",
-  "prevId": "328b0ade-ce21-4ec9-b23d-54cdd1a8b55f",
+  "id": "82ff83e6-7cb0-4b96-a2ab-a3ca45fc7577",
+  "prevId": "3cff0c63-76cc-416e-9ac3-1149fc15ce4d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -578,6 +578,20 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
@@ -844,6 +858,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "future_requirements": {
+          "name": "future_requirements",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tos_acceptance": {
+          "name": "tos_acceptance",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
         "metadata": {
           "name": "metadata",
           "type": "json",
@@ -930,11 +956,17 @@
           "primaryKey": false,
           "notNull": true
         },
+        "stripe_payment_link_id": {
+          "name": "stripe_payment_link_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "stripe_payment_intent_id": {
           "name": "stripe_payment_intent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "stripe_charge_id": {
           "name": "stripe_charge_id",
@@ -1022,6 +1054,21 @@
           "method": "btree",
           "with": {}
         },
+        "practice_client_intakes_stripe_link_idx": {
+          "name": "practice_client_intakes_stripe_link_idx",
+          "columns": [
+            {
+              "expression": "stripe_payment_link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "practice_client_intakes_stripe_intent_idx": {
           "name": "practice_client_intakes_stripe_intent_idx",
           "columns": [
@@ -1098,11 +1145,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "practice_client_intakes_stripe_payment_intent_id_unique": {
-          "name": "practice_client_intakes_stripe_payment_intent_id_unique",
+        "practice_client_intakes_stripe_payment_link_id_unique": {
+          "name": "practice_client_intakes_stripe_payment_link_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "stripe_payment_intent_id"
+            "stripe_payment_link_id"
           ]
         }
       },

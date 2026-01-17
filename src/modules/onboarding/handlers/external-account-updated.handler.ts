@@ -8,7 +8,8 @@ import {
 } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishEventTx } from '@/shared/events/event-publisher';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
 
 const normalizeExternalAccounts = (input: {
@@ -105,46 +106,37 @@ export const handleExternalAccountUpdated = async (
       ],
     };
 
-    // Update the account external accounts in the database
-    await db
-      .update(stripeConnectedAccounts)
-      .set({
-        externalAccounts: updatedExternalAccounts,
-        last_refreshed_at: new Date(),
-      })
-      .where(
-        eq(
-          stripeConnectedAccounts.stripe_account_id,
-          stripeAccountId,
-        ),
-      );
+    // Update the account external accounts in the database within transaction with event publishing
+    await db.transaction(async (tx) => {
+      await tx
+        .update(stripeConnectedAccounts)
+        .set({
+          externalAccounts:
+            updatedExternalAccounts as unknown as ExternalAccounts,
+          last_refreshed_at: new Date(),
+        })
+        .where(
+          eq(
+            stripeConnectedAccounts.stripe_account_id,
+            externalAccount.account as string,
+          ),
+        );
 
-    // Publish external account updated event
-    void publishSystemEvent(
-      EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED,
-      {
-        stripeAccountId: externalAccount.account,
+      // Publish external account updated event within transaction
+      await publishEventTx(tx, {
+        type: EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED,
+        actorId: WEBHOOK_ACTOR_UUID,
+        actorType: 'webhook',
         organizationId: currentAccount.organization_id,
-        externalAccountId: externalAccount.id,
-        externalAccountType: accountType,
-        externalAccountStatus: externalAccount.status,
-        metadata: externalAccount.metadata,
-        previousExternalAccounts: currentExternalAccounts,
-        updatedAt: new Date().toISOString(),
-      },
-      'stripe-webhook',
-      'webhook',
-      currentAccount.organization_id,
-    );
-
-    // Publish simple external account updated event
-    void publishSimpleEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED, 'system', currentAccount.organization_id, {
-      stripe_account_id: externalAccount.account,
-      organization_id: currentAccount.organization_id,
-      external_account_id: externalAccount.id,
-      external_account_type: accountType,
-      external_account_status: externalAccount.status,
-      updated_at: new Date().toISOString(),
+        payload: {
+          stripe_account_id: externalAccount.account,
+          organization_id: currentAccount.organization_id,
+          external_account_id: externalAccount.id,
+          external_account_type: accountType,
+          external_account_status: externalAccount.status,
+          updated_at: new Date().toISOString(),
+        },
+      });
     });
 
     console.log(

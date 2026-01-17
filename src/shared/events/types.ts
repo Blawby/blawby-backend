@@ -4,7 +4,7 @@
  * Type definitions for the Laravel-like event system
  */
 
-import type { BaseEvent } from './schemas/events.schema';
+import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 
 /**
  * Event handler function type

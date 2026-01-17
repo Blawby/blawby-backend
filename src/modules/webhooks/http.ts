@@ -1,18 +1,34 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import {
   verifyAndStore,
-  processWebhookAsync,
+  verifyAndStoreAccount,
 } from '@/modules/webhooks/services/onboarding-webhooks.service';
+import { addWebhookJob } from '@/shared/queue/queue.manager';
+import type Stripe from 'stripe';
 
 const webhooksApp = new OpenAPIHono<AppContext>();
 
 /**
- * POST /api/webhooks/stripe/connected-accounts
- * Dedicated endpoint for Stripe Connect webhooks (using different signing secret)
+ * Shared webhook handler to reduce code duplication
+ * Uses addWebhookJob for both routes since process-stripe-webhook handles
+ * both onboarding events and account events (payments, invoices, etc.)
  */
-webhooksApp.post('/stripe/connected-accounts', async (c) => {
+const handleWebhook = async (
+  c: Context<AppContext>,
+  verifyFn: (
+    rawBody: string | Buffer,
+    signature: string,
+    headers: Record<string, string>,
+    url: string,
+  ) => Promise<{
+    event: Stripe.Event;
+    alreadyProcessed: boolean;
+    webhookId?: string;
+  }>,
+): Promise<Response> => {
   const signature = c.req.header('stripe-signature');
   const body = Buffer.from(await c.req.arrayBuffer());
 
@@ -21,9 +37,8 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
   }
 
   try {
-    // 1. Verify signature using STRIPE_CONNECT_WEBHOOK_SECRET
-    // 2. Store event in database
-    const { event, alreadyProcessed, webhookId } = await verifyAndStore(
+    // 1. Verify signature and store event in database
+    const { event, alreadyProcessed, webhookId } = await verifyFn(
       body,
       signature,
       c.req.header(),
@@ -32,13 +47,19 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
 
     if (alreadyProcessed) {
       console.log(`Webhook already processed: ${event.id}`);
-      return c.json({ received: true });
+      return response.ok(c, { received: true });
     }
 
-    // 3. Process asynchronously via Graphile Worker
-    await processWebhookAsync(event.id, webhookId, event.type);
+    if (!webhookId) {
+      console.error(`Failed to queue webhook job: Missing webhookId for ${event.id}`);
+      return response.internalServerError(c, 'Failed to queue webhook job');
+    }
 
-    return c.json({ received: true });
+    // 2. Process asynchronously via Graphile Worker
+    // process-stripe-webhook handles both onboarding events and account events
+    await addWebhookJob(webhookId, event.id, event.type);
+
+    return response.ok(c, { received: true });
   } catch (err) {
     console.error('Webhook processing failed:', err);
 
@@ -50,6 +71,23 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
 
     return response.internalServerError(c, 'Failed to process webhook');
   }
+};
+
+/**
+ * POST /api/webhooks/stripe/connected-accounts
+ * Dedicated endpoint for Stripe Connect webhooks (using different signing secret)
+ */
+webhooksApp.post('/stripe/connected-accounts', async (c) => {
+  return handleWebhook(c, verifyAndStore);
+});
+
+/**
+ * POST /api/webhooks/stripe/account
+ * Dedicated endpoint for main Stripe webhooks (payments, invoices, etc.)
+ * Uses STRIPE_WEBHOOK_SECRET for signature verification
+ */
+webhooksApp.post('/stripe/account', async (c) => {
+  return handleWebhook(c, verifyAndStoreAccount);
 });
 
 export default webhooksApp;

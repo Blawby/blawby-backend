@@ -1,4 +1,3 @@
-import type Stripe from 'stripe';
 import {
   findByOrganization,
   createStripeConnectedAccount,
@@ -26,6 +25,7 @@ export const findAccountByOrganization = async (
 export const createStripeAccount = async (
   organizationId: string,
   email: string,
+  userId?: string,
 ): Promise<StripeConnectedAccount> => {
   const stripeAccount = await stripe.accounts.create({
     country: 'US',
@@ -65,7 +65,7 @@ export const createStripeAccount = async (
 
   void publishSimpleEvent(
     EventType.STRIPE_CONNECTED_ACCOUNT_CREATED,
-    'system',
+    userId ?? 'system',
     organizationId,
     {
       account_id: stripeAccount.id,
@@ -104,13 +104,14 @@ export const createOrGetAccount = async (
   email: string,
   refreshUrl: string,
   returnUrl: string,
+  userId?: string,
 ): Promise<CreateAccountResponse> => {
   // Check if account exists
   let account = await findAccountByOrganization(organizationId);
 
   if (!account) {
     // Create new account
-    account = await createStripeAccount(organizationId, email);
+    account = await createStripeAccount(organizationId, email, userId);
   }
 
   // Create account link for the account

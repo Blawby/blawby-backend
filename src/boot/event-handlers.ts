@@ -5,9 +5,13 @@
  */
 
 import { isProductionLike } from '@/shared/utils/env';
+import { registerUserEvents } from '@/shared/auth/events/user.events';
 import { registerStripeCustomerEvents } from '@/modules/stripe/customers/events';
 import { registerPreferencesEvents } from '@/modules/preferences/events';
+import { registerOnboardingEvents } from '@/modules/onboarding/events/onboarding.events';
 import { registerEmailEvents } from '@/shared/events/handlers/email.events';
+import { registerPracticeEvents } from '@/modules/practice/events/practice.events';
+import { registerPracticeClientIntakeEvents } from '@/modules/practice-client-intakes/events/practice-client-intakes.events';
 
 /**
  * Boot event handlers
@@ -22,9 +26,13 @@ export const bootEventHandlers = (): void => {
     registerEmailEvents();
   }
 
-  // Feature-specific event handlers
+  // Core event handlers (always enabled)
+  registerUserEvents();
   registerStripeCustomerEvents();
   registerPreferencesEvents();
+  registerOnboardingEvents();
+  registerPracticeEvents();
+  registerPracticeClientIntakeEvents();
 
   console.info('✅ Event handlers registered successfully');
 };
