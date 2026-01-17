@@ -28,16 +28,6 @@ import { calculateFees } from '@/shared/services/fees.service';
 import { db } from '@/shared/database';
 import { stripe } from '@/shared/utils/stripe-client';
 
-// Re-export types for external use
-export type {
-  CreatePaymentIntentRequest,
-  CreatePaymentIntentResponse,
-  ConfirmPaymentRequest,
-  ConfirmPaymentResponse,
-  PaymentIntentStatus,
-  ServiceResponse,
-} from '@/modules/payments/types/payments.types';
-
 // Helper functions
 const normalizePaymentIntentStatus = (
   status: string,
@@ -274,12 +264,26 @@ export const createPaymentsService = function createPaymentsService(
         // Note: Stripe API call is external, so it's outside the transaction
         await db.transaction(async (tx) => {
           const status = normalizePaymentIntentStatus(stripePaymentIntent.status);
+          
+          // Extract payment method and charge IDs safely (they can be null or objects)
+          const paymentMethodId = stripePaymentIntent.payment_method
+            ? (typeof stripePaymentIntent.payment_method === 'string'
+              ? stripePaymentIntent.payment_method
+              : stripePaymentIntent.payment_method.id)
+            : null;
+          
+          const stripeChargeId = stripePaymentIntent.latest_charge
+            ? (typeof stripePaymentIntent.latest_charge === 'string'
+              ? stripePaymentIntent.latest_charge
+              : stripePaymentIntent.latest_charge.id)
+            : null;
+
           await tx
             .update(paymentIntents)
             .set({
               status,
-              paymentMethodId: stripePaymentIntent.payment_method as string,
-              stripeChargeId: stripePaymentIntent.latest_charge as string,
+              ...(paymentMethodId !== null && { paymentMethodId }),
+              ...(stripeChargeId !== null && { stripeChargeId }),
               succeededAt: status === 'succeeded' ? new Date() : undefined,
             })
             .where(eq(paymentIntents.id, paymentIntent.id));
