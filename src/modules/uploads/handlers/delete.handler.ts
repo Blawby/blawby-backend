@@ -6,6 +6,7 @@ import type { DeleteUploadRequest } from '@/modules/uploads/validations/uploads.
 
 export const deleteHandler = async (c: Context<AppContext>) => {
   const id = c.req.param('id');
+  // Use validated payload from zValidator middleware
   const body = c.req.valid('json') as DeleteUploadRequest;
   const userId = c.get('userId');
 

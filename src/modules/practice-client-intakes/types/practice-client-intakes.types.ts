@@ -36,7 +36,7 @@ export interface CreatePracticeClientIntakeResponse {
   success: boolean;
   data?: {
     uuid: string;
-    clientSecret: string;
+    paymentLinkUrl: string;
     amount: number;
     currency: string;
     status: string;
@@ -56,7 +56,7 @@ export interface UpdatePracticeClientIntakeResponse {
   success: boolean;
   data?: {
     uuid: string;
-    clientSecret: string;
+    paymentLinkUrl: string;
     amount: number;
     currency: string;
     status: string;
@@ -72,14 +72,14 @@ export interface PracticeClientIntakeStatus {
     currency: string;
     status: string;
     stripeChargeId?: string;
-    metadata: {
+    metadata?: {
       email: string;
       name: string;
       phone?: string;
       onBehalfOf?: string;
       opposingParty?: string;
       description?: string;
-    };
+    } | null;
     succeededAt?: Date;
     createdAt: Date;
   };

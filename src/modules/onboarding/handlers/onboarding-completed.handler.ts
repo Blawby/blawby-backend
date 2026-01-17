@@ -52,7 +52,7 @@ const handleOnboardingCompleted = async (event: BaseEvent): Promise<void> => {
     }
 
     // Publish onboarding completion event with organization details
-    void publishSimpleEvent(EventType.ONBOARDING_COMPLETED, organizationId, organizationId, {
+    void publishSimpleEvent(EventType.ONBOARDING_COMPLETED, 'system', organizationId, {
       organization_id: organizationId,
       organization_name: org.name,
       billing_email: org.billingEmail,
@@ -61,7 +61,7 @@ const handleOnboardingCompleted = async (event: BaseEvent): Promise<void> => {
     });
 
     // Publish practice updated event (since onboarding affects practice status)
-    void publishSimpleEvent(EventType.PRACTICE_UPDATED, organizationId, organizationId, {
+    void publishSimpleEvent(EventType.PRACTICE_UPDATED, 'system', organizationId, {
       organization_id: organizationId,
       organization_name: org.name,
       update_type: 'onboarding_completed',

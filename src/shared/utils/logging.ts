@@ -3,6 +3,9 @@
  * Ensures sensitive data is not logged in production
  */
 
+import { createHash } from 'node:crypto';
+import { consola } from 'consola';
+
 const SENSITIVE_HEADERS = [
   'authorization',
   'cookie',
@@ -192,4 +195,53 @@ export const formatResponseTime = (milliseconds: number): string => {
     return `${milliseconds.toFixed(2)}ms`;
   }
   return `${(milliseconds / 1000).toFixed(2)}s`;
+};
+
+/**
+ * Type guard to check if an error is a Stripe error
+ * Stripe errors have 'type' and 'code' properties
+ */
+export const isStripeError = (
+  error: unknown,
+): error is { type?: string; code?: string; decline_code?: string; message?: string } => {
+  return (
+    error !== null
+    && typeof error === 'object'
+    && 'type' in error
+    && 'code' in error
+  );
+};
+
+/**
+ * Hash an email address for logging purposes (non-identifying)
+ * Uses SHA-256 to create a deterministic hash
+ */
+export const hashEmail = (email: string): string => {
+  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').substring(0, 16);
+};
+
+/**
+ * Log error with appropriate prefix based on error type
+ * Stripe errors are prefixed with [STRIPE ERROR] and include additional Stripe-specific fields
+ * Application errors are prefixed with [APP ERROR]
+ */
+export const logError = (
+  message: string,
+  error: unknown,
+  context: Record<string, unknown> = {},
+): void => {
+  if (isStripeError(error)) {
+    consola.error(`[STRIPE ERROR] ${message}`, {
+      error: sanitizeError(error),
+      stripeErrorType: error.type,
+      stripeErrorCode: error.code,
+      stripeDeclineCode: error.decline_code,
+      ...context,
+    });
+  } else {
+    consola.error(`[APP ERROR] ${message}`, {
+      error: sanitizeError(error),
+      ...context,
+    });
+  }
 };

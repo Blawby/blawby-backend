@@ -30,6 +30,17 @@ export const practiceClientIntakesRepository = {
     return result;
   },
 
+  findByStripePaymentLinkId: async function findByStripePaymentLinkId(
+    linkId: string,
+  ): Promise<SelectPracticeClientIntake | undefined> {
+    const [result] = await db
+      .select()
+      .from(practiceClientIntakes)
+      .where(eq(practiceClientIntakes.stripePaymentLinkId, linkId))
+      .limit(1);
+    return result;
+  },
+
   findByStripePaymentIntentId: async function findByStripePaymentIntentId(
     intentId: string,
   ): Promise<SelectPracticeClientIntake | undefined> {

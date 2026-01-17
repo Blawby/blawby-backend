@@ -1,33 +1,31 @@
+import { consola } from 'consola';
 import type Stripe from 'stripe';
 
-import { practiceClientIntakesRepository } from '../database/queries/practice-client-intakes.repository';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { sanitizeError } from '@/shared/utils/logging';
+import { findPracticeClientIntakeByPaymentIntent } from './helpers';
 
 /**
  * Handle failed practice client intake
  */
-export const handlePracticeClientIntakeFailed = async function handlePracticeCustomerIntakeFailed(
-  paymentIntent: Stripe.PaymentIntent,
-): Promise<void> {
+export const handlePracticeClientIntakeFailed = async (paymentIntent: Stripe.PaymentIntent): Promise<void> => {
   try {
-    // Find practice client intake by Stripe payment intent ID
-    const practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(
-      paymentIntent.id,
-    );
+    const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
 
     if (!practiceClientIntake) {
-      return; // Not a practice client intake
+      return;
     }
 
     // Update practice client intake status
     await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       status: 'failed',
+      stripePaymentIntentId: paymentIntent.id, // Populate from Payment Link's Payment Intent
     });
 
     // Publish analytics event
-    await publishSimpleEvent(
+    void publishSimpleEvent(
       EventType.INTAKE_PAYMENT_FAILED,
       'organization',
       practiceClientIntake.organizationId,
@@ -43,7 +41,7 @@ export const handlePracticeClientIntakeFailed = async function handlePracticeCus
       },
     );
 
-    console.warn('Practice client intake failed', {
+    consola.warn('Practice client intake failed', {
       practiceClientIntakeId: practiceClientIntake.id,
       uuid: practiceClientIntake.id,
       amount: practiceClientIntake.amount,
@@ -51,7 +49,7 @@ export const handlePracticeClientIntakeFailed = async function handlePracticeCus
       failureReason: paymentIntent.last_payment_error?.message,
     });
   } catch (error) {
-    console.error('Failed to handle practice client intake failed', {
+    consola.error('Failed to handle practice client intake failed', {
       error: sanitizeError(error),
       paymentIntentId: paymentIntent.id,
     });

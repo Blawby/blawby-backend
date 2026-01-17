@@ -118,7 +118,8 @@ export const createPracticeService = async (params: {
       });
 
       // Publish practice details created event
-      void publishSimpleEvent(EventType.PRACTICE_DETAILS_CREATED, user.id, organization.id, {
+      void publishSimpleEvent(EventType.PRACTICE_DETAILS_CREATED, 'user', organization.id, {
+        actor_id: user.id,
         practice_details_id: practiceDetails.id,
         business_phone,
         business_email,
@@ -130,7 +131,8 @@ export const createPracticeService = async (params: {
   }
 
   // Publish practice created event (organization + optional details)
-  void publishSimpleEvent(EventType.PRACTICE_CREATED, user.id, organization.id, {
+  void publishSimpleEvent(EventType.PRACTICE_CREATED, 'user', organization.id, {
+    actor_id: user.id,
     organization_name: organization.name,
     organization_slug: organization.slug,
     has_practice_details: !!practiceDetails,
@@ -226,7 +228,8 @@ export const updatePracticeService = async (
     );
 
     // Publish practice details updated event
-    void publishSimpleEvent(EventType.PRACTICE_DETAILS_UPDATED, user.id, organizationId, {
+    void publishSimpleEvent(EventType.PRACTICE_DETAILS_UPDATED, 'user', organizationId, {
+      actor_id: user.id,
       business_phone,
       business_email,
       consultation_fee,
@@ -236,7 +239,8 @@ export const updatePracticeService = async (
   }
 
   // Publish practice updated event
-  void publishSimpleEvent(EventType.PRACTICE_UPDATED, user.id, organizationId, {
+  void publishSimpleEvent(EventType.PRACTICE_UPDATED, 'user', organizationId, {
+    actor_id: user.id,
     organization_name: organization?.name || 'Unknown',
     organization_slug: organization?.slug || 'unknown',
     has_practice_details: !!practiceDetails,
@@ -275,7 +279,8 @@ export const deletePracticeService = async (
 
   // Publish practice details deleted event if they existed
   if (existingPracticeDetails) {
-    void publishSimpleEvent(EventType.PRACTICE_DETAILS_DELETED, user.id, organizationId, {
+    void publishSimpleEvent(EventType.PRACTICE_DETAILS_DELETED, 'user', organizationId, {
+      actor_id: user.id,
       practice_details_id: existingPracticeDetails.id,
       business_phone: existingPracticeDetails.business_phone,
       business_email: existingPracticeDetails.business_email,
@@ -289,7 +294,8 @@ export const deletePracticeService = async (
   await deleteOrganization(organizationId, user, requestHeaders);
 
   // Publish practice deleted event
-  void publishSimpleEvent(EventType.PRACTICE_DELETED, user.id, organizationId, {
+  void publishSimpleEvent(EventType.PRACTICE_DELETED, 'user', organizationId, {
+    actor_id: user.id,
     had_practice_details: !!existingPracticeDetails,
     practice_details_id: existingPracticeDetails?.id,
     user_email: user.email,
@@ -307,7 +313,8 @@ export const setActivePractice = async (
   await setActiveOrganization(organizationId, user, requestHeaders);
 
   // Publish practice switched event
-  void publishSimpleEvent(EventType.PRACTICE_SWITCHED, user.id, organizationId, {
+  void publishSimpleEvent(EventType.PRACTICE_SWITCHED, 'user', organizationId, {
+    actor_id: user.id,
     user_email: user.email,
     switched_to_organization: organizationId,
   });

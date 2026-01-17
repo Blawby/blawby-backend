@@ -27,7 +27,8 @@ export const practiceClientIntakes = pgTable(
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
     // Stripe IDs
-    stripePaymentIntentId: text('stripe_payment_intent_id').notNull().unique(),
+    stripePaymentLinkId: text('stripe_payment_link_id').notNull().unique(),
+    stripePaymentIntentId: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
     stripeChargeId: text('stripe_charge_id'),
 
     // Payment Details (amounts in cents)
@@ -54,6 +55,7 @@ export const practiceClientIntakes = pgTable(
   },
   (table) => [
     index('practice_client_intakes_org_idx').on(table.organizationId),
+    index('practice_client_intakes_stripe_link_idx').on(table.stripePaymentLinkId),
     index('practice_client_intakes_stripe_intent_idx').on(table.stripePaymentIntentId),
     index('practice_client_intakes_status_idx').on(table.status),
     index('practice_client_intakes_created_at_idx').on(table.createdAt),
@@ -80,7 +82,7 @@ export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInse
 export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
 
 // Define metadata schema and type using Zod
-const practiceClientIntakeMetadataSchema = z.object({
+export const practiceClientIntakeMetadataSchema = z.object({
   email: z.email(),
   name: z.string().min(1),
   phone: z.string().optional(),

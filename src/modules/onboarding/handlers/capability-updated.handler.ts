@@ -19,6 +19,13 @@ export const handleCapabilityUpdated = async (
     console.log(
       `Processing capability.updated: ${capability.id} for account: ${capability.account}`,
     );
+    const stripeAccountId = typeof capability.account === 'string'
+      ? capability.account
+      : null;
+    if (!stripeAccountId) {
+      console.warn(`Missing Stripe account ID for capability: ${capability.id}`);
+      return;
+    }
 
     // Get current account record
     const account = await db
@@ -27,7 +34,7 @@ export const handleCapabilityUpdated = async (
       .where(
         eq(
           stripeConnectedAccounts.stripe_account_id,
-          capability.account as string,
+          stripeAccountId,
         ),
       )
       .limit(1);
@@ -41,17 +48,10 @@ export const handleCapabilityUpdated = async (
 
     const currentAccount = account[0];
 
-    // Update capabilities JSONB field
-    const currentCapabilities
-      = (currentAccount.capabilities as Record<string, unknown>) || {};
-    const updatedCapabilities = {
+    const currentCapabilities = currentAccount.capabilities ?? {};
+    const updatedCapabilities: Record<string, string> = {
       ...currentCapabilities,
-      [capability.id]: {
-        status: capability.status,
-        requirements: capability.requirements,
-        requested: capability.requested,
-        requested_at: capability.requested_at,
-      },
+      [capability.id]: capability.status,
     };
 
     // Update the account capabilities in the database
@@ -64,7 +64,7 @@ export const handleCapabilityUpdated = async (
       .where(
         eq(
           stripeConnectedAccounts.stripe_account_id,
-          capability.account as string,
+          stripeAccountId,
         ),
       );
 

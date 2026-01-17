@@ -3,11 +3,27 @@ import type Stripe from 'stripe';
 
 import {
   stripeConnectedAccounts,
+  type ExternalAccount,
   ExternalAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
+import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
+
+const normalizeExternalAccounts = (input: {
+  externalAccounts: unknown;
+}): ExternalAccounts => {
+  const { externalAccounts } = input;
+  if (stripeTypeGuards.isExternalAccountList(externalAccounts)) {
+    return externalAccounts;
+  }
+  const data = stripeTypeGuards.isRecord(externalAccounts)
+    ? Object.values(externalAccounts)
+    : [];
+  const normalizedData = data.filter(stripeTypeGuards.isExternalAccountItem);
+  return { object: 'list', data: normalizedData };
+};
 
 /**
  * Handle account.external_account.deleted webhook event
@@ -20,12 +36,20 @@ export const handleExternalAccountDeleted = async (
   externalAccount: Stripe.ExternalAccount,
 ): Promise<void> => {
   try {
-    const accountType
-      = (externalAccount as Stripe.ExternalAccount & { type?: string }).type
-      || 'unknown';
+    const accountType = externalAccount.object === 'bank_account'
+      || externalAccount.object === 'card'
+      ? externalAccount.object
+      : 'unknown';
     console.log(
       `Processing external_account.deleted: ${externalAccount.id} (${accountType}) for account: ${externalAccount.account}`,
     );
+    const stripeAccountId = typeof externalAccount.account === 'string'
+      ? externalAccount.account
+      : null;
+    if (!stripeAccountId) {
+      console.warn(`Missing Stripe account ID for external account: ${externalAccount.id}`);
+      return;
+    }
 
     // Get current account record
     const account = await db
@@ -34,7 +58,7 @@ export const handleExternalAccountDeleted = async (
       .where(
         eq(
           stripeConnectedAccounts.stripe_account_id,
-          externalAccount.account as string,
+          stripeAccountId,
         ),
       )
       .limit(1);
@@ -48,24 +72,26 @@ export const handleExternalAccountDeleted = async (
 
     const currentAccount = account[0];
 
-    // Remove external account from JSONB field
-    const currentExternalAccounts
-      = (currentAccount.externalAccounts as Record<string, unknown>) || {};
-    const updatedExternalAccounts = { ...currentExternalAccounts };
-    delete updatedExternalAccounts[externalAccount.id];
+    const currentExternalAccounts = normalizeExternalAccounts({
+      externalAccounts: currentAccount.externalAccounts,
+    });
+
+    const updatedExternalAccounts: ExternalAccounts = {
+      object: 'list',
+      data: currentExternalAccounts.data.filter((account) => account.id !== externalAccount.id),
+    };
 
     // Update the account external accounts in the database
     await db
       .update(stripeConnectedAccounts)
       .set({
-        externalAccounts:
-          updatedExternalAccounts as unknown as ExternalAccounts,
+        externalAccounts: updatedExternalAccounts,
         last_refreshed_at: new Date(),
       })
       .where(
         eq(
           stripeConnectedAccounts.stripe_account_id,
-          externalAccount.account as string,
+          stripeAccountId,
         ),
       );
 

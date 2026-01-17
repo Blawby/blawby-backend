@@ -52,9 +52,7 @@ export const paymentIntents = pgTable(
     customerEmail: text('customer_email'),
     customerName: text('customer_name'),
 
-    // Metadata from Stripe
-    // oxlint-disable-next-line no-explicit-any
-    metadata: jsonb('metadata').$type<Record<string, any>>(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 
     // Receipt
     receiptEmail: text('receipt_email'),
@@ -84,6 +82,7 @@ export const paymentIntents = pgTable(
 // Zod schemas for validation
 export const insertPaymentIntentSchema = createInsertSchema(paymentIntents, {
   currency: z.string().length(3),
+  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
 }).omit({
   id: true,
   createdAt: true,
@@ -91,7 +90,9 @@ export const insertPaymentIntentSchema = createInsertSchema(paymentIntents, {
 });
 
 // Select schemas
-export const selectPaymentIntentSchema = createSelectSchema(paymentIntents);
+export const selectPaymentIntentSchema = createSelectSchema(paymentIntents, {
+  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
+});
 
 // Type exports
 export type InsertPaymentIntent = z.infer<typeof insertPaymentIntentSchema>;
