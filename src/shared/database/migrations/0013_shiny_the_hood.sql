@@ -1,14 +1,4 @@
 ALTER TABLE "events" DROP CONSTRAINT IF EXISTS "events_event_id_unique";--> statement-breakpoint
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'events_pkey'
-    AND conrelid = 'events'::regclass
-  ) THEN
-    ALTER TABLE "events" ADD PRIMARY KEY ("event_id");
-  END IF;
-END $$;--> statement-breakpoint
 -- Safe UUID conversion: create temporary column, backfill, then replace
 ALTER TABLE "events" ADD COLUMN "event_id_tmp" uuid;--> statement-breakpoint
 -- Populate temporary column: convert valid UUID strings (case-insensitive), generate new UUIDs for invalid values
