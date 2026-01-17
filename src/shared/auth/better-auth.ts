@@ -97,6 +97,10 @@ const betterAuthInstance = (
           type: 'date',
           required: false,
         },
+        isAnonymous: {
+          type: 'boolean',
+          required: false,
+        },
       },
     },
     socialProviders: {

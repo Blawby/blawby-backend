@@ -15,7 +15,6 @@ export const PREFERENCES_EVENTS: Record<string, {
   handler: (event: BaseEvent) => Promise<void | boolean>;
   options?: Record<string, unknown>;
 }> = {
-  // User signup -> Initialize preferences with default notification settings
   [EventType.AUTH_USER_SIGNED_UP]: {
     handler: async (event: BaseEvent) => {
       const userId = event.actorId;
@@ -26,7 +25,7 @@ export const PREFERENCES_EVENTS: Record<string, {
 
       try {
         await initializeUserPreferences(userId);
-        console.info('User preferences initialized', { userId });
+        console.info('User preferences initialized with defaults', { userId });
       } catch (error) {
         console.error('Failed to initialize user preferences', {
           userId,

@@ -96,6 +96,14 @@ export const onboardingPreferencesSchema = z.object({
   use_case_additional_info: z.string().optional(),
   completed: z.boolean().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
+  welcome_modal_shown: z.boolean().optional().openapi({
+    description: 'Whether the welcome modal has been shown. Omit or false to show modal; set to true when dismissed.',
+    example: false,
+  }),
+  practice_welcome_shown: z.boolean().optional().openapi({
+    description: 'Whether the practice welcome modal has been shown. Omit or false to show modal; set to true when dismissed.',
+    example: false,
+  }),
 });
 
 export const profilePreferencesSchema = z.object({
