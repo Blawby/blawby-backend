@@ -7,6 +7,7 @@ import * as practiceService from '@/modules/practice/services/practice.service';
 import * as practiceDetailsService from '@/modules/practice/services/practice-details.service';
 import * as practiceValidations from '@/modules/practice/validations/practice.validation';
 import { validateParams, validateJson, validateParamsAndJson } from '@/shared/middleware/validation';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -22,10 +23,6 @@ practiceApp.get('/list', async (c) => {
   return response.ok(c, { practices });
 });
 
-// Register OpenAPI route for documentation only
-practiceApp.openapi(routes.listPracticesRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/practice
@@ -43,10 +40,6 @@ practiceApp.post('/', validateJson(practiceValidations.createPracticeSchema, 'In
   return response.created(c, { practice });
 });
 
-// Register OpenAPI route for documentation only
-practiceApp.openapi(routes.createPracticeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/practice/:uuid
@@ -62,10 +55,6 @@ practiceApp.get('/:uuid', validateParams(practiceValidations.practiceIdParamSche
   return response.ok(c, { practice });
 });
 
-// Register OpenAPI route for documentation only
-practiceApp.openapi(routes.getPracticeByIdRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * PUT /api/practice/:uuid
@@ -90,10 +79,6 @@ practiceApp.put('/:uuid', validateParamsAndJson(
   return response.ok(c, { practice });
 });
 
-// Register OpenAPI route for documentation only
-practiceApp.openapi(routes.updatePracticeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * DELETE /api/practice/:uuid
@@ -109,10 +94,6 @@ practiceApp.delete('/:uuid', validateParams(practiceValidations.practiceIdParamS
   return response.noContent(c);
 });
 
-// Register OpenAPI route for documentation only
-practiceApp.openapi(routes.deletePracticeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * PUT /api/practice/:uuid/active
@@ -128,10 +109,6 @@ practiceApp.put('/:uuid/active', validateParams(practiceValidations.practiceIdPa
   return response.ok(c, { result });
 });
 
-// Register OpenAPI route for documentation only
-practiceApp.openapi(routes.setActivePracticeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/practice/:uuid/members
@@ -149,9 +126,6 @@ practiceApp.get('/:uuid/members', validateParams(practiceValidations.practiceIdP
   return response.ok(c, result);
 });
 
-practiceApp.openapi(routes.listMembersRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * PATCH /api/practice/:uuid/members
@@ -177,9 +151,6 @@ practiceApp.patch('/:uuid/members', validateParamsAndJson(
   return response.ok(c, result);
 });
 
-practiceApp.openapi(routes.updateMemberRoleRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * DELETE /api/practice/:uuid/members/:userId
@@ -202,9 +173,6 @@ practiceApp.delete('/:uuid/members/:userId', validateParams(userIdParamSchema, '
   return response.noContent(c);
 });
 
-practiceApp.openapi(routes.removeMemberRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/practice/invitations
@@ -220,9 +188,6 @@ practiceApp.get('/invitations', async (c) => {
   return response.ok(c, { invitations });
 });
 
-practiceApp.openapi(routes.listInvitationsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/practice/:uuid/invitations
@@ -248,9 +213,6 @@ practiceApp.post('/:uuid/invitations', validateParamsAndJson(
   return response.created(c, result);
 });
 
-practiceApp.openapi(routes.createInvitationRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/practice/invitations/:invitationId/accept
@@ -272,9 +234,6 @@ practiceApp.post('/invitations/:invitationId/accept', validateParams(invitationI
   return response.ok(c, result);
 });
 
-practiceApp.openapi(routes.acceptInvitationRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/practice/:uuid/details
@@ -292,9 +251,6 @@ practiceApp.get('/:uuid/details', validateParams(practiceValidations.practiceIdP
   return response.ok(c, { details });
 });
 
-practiceApp.openapi(routes.getPracticeDetailsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/practice/:uuid/details
@@ -319,9 +275,6 @@ practiceApp.post('/:uuid/details', validateParamsAndJson(
   return response.created(c, { details });
 });
 
-practiceApp.openapi(routes.createPracticeDetailsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * PUT /api/practice/:uuid/details
@@ -346,9 +299,6 @@ practiceApp.put('/:uuid/details', validateParamsAndJson(
   return response.ok(c, { details });
 });
 
-practiceApp.openapi(routes.updatePracticeDetailsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * DELETE /api/practice/:uuid/details
@@ -366,9 +316,6 @@ practiceApp.delete('/:uuid/details', validateParams(practiceValidations.practice
   return response.noContent(c);
 });
 
-practiceApp.openapi(routes.deletePracticeDetailsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 
 practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSchema, 'Invalid Slug'), async (c) => {
@@ -381,8 +328,6 @@ practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSc
   return response.ok(c, details);
 });
 
-practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, async () => {
-  throw new Error('This should never be called');
-});
+registerOpenApiRoutes(practiceApp, routes);
 
 export default practiceApp;
