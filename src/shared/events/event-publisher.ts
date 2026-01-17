@@ -126,7 +126,10 @@ export const publishSimpleEvent = (
   organizationId: string | undefined,
   payload: Record<string, unknown>,
 ): BaseEvent => {
-  const inferredActorId: string | undefined = actorType === 'organization' ? organizationId : undefined;
+  // Infer actorId: for organization use organizationId, for user/system use payload.actor_id
+  const inferredActorId: string | undefined = actorType === 'organization'
+    ? organizationId
+    : (typeof payload.actor_id === 'string' ? payload.actor_id : undefined);
   // Only set timestamp if not already present in payload
   const payloadWithTimestamp = payload.timestamp
     ? payload
