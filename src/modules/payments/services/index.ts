@@ -1,1 +1,1 @@
-export * from './payments.service';
+export * from './payment-link-receipts.service';

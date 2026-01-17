@@ -1,1 +1,1 @@
-export * from './payment-intents.repository';
+// No repository exports yet
