@@ -8,7 +8,8 @@ import {
 } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
+import { publishEventTx } from '@/shared/events/event-publisher';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
 
 const normalizeExternalAccounts = (input: {

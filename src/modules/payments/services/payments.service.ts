@@ -256,9 +256,12 @@ export const createPaymentsService = function createPaymentsService(
             })
             .where(eq(paymentIntents.id, paymentIntent.id));
 
-          // Publish payment succeeded event within transaction
+          // Publish payment event within transaction based on actual status
+          const eventType = stripePaymentIntent.status === 'succeeded'
+            ? EventType.PAYMENT_SUCCEEDED
+            : EventType.PAYMENT_RECEIVED;
           await publishEventTx(tx, {
-            type: EventType.PAYMENT_SUCCEEDED,
+            type: eventType,
             actorId: ORGANIZATION_ACTOR_UUID,
             actorType: 'api',
             organizationId: request.organizationId,
@@ -346,79 +349,5 @@ export const createPaymentsService = function createPaymentsService(
         return handleServiceError(error, 'list payment intents');
       }
     },
-
-    // Commented out - not in interface
-    /*
-    async cancelPaymentIntent(
-      paymentIntentId: string,
-      organizationId: string): Promise<{
-      success: boolean;
-      error?: string;
-    }> {
-      try {
-        // 1. Get payment intent
-        const paymentIntent =
-          await paymentIntentsRepository.findById(paymentIntentId);
-        if (!paymentIntent) {
-          return {
-            success: false,
-            error: 'Payment intent not found',
-          };
-        }
-
-        // 2. Verify organization owns this payment intent
-        const connectedAccount =
-          await stripeConnectedAccountsRepository.findById(
-            paymentIntent.connectedAccountId);
-        if (
-          !connectedAccount ||
-          connectedAccount.organization_id !== organizationId
-        ) {
-          return {
-            success: false,
-            error: 'Unauthorized access to payment intent',
-          };
-        }
-
-        // 3. Cancel payment intent on Stripe
-        await stripe.paymentIntents.cancel(
-          paymentIntent.stripePaymentIntentId,
-          {},
-          {
-            stripeAccount: connectedAccount.stripe_account_id,
-          });
-
-        // 4. Update payment intent status within transaction with event publishing
-        // Note: Stripe API call is external, so it's outside the transaction
-        await db.transaction(async (tx) => {
-          await tx
-            .update(paymentIntents)
-            .set({ status: 'canceled' })
-            .where(eq(paymentIntents.id, paymentIntent.id));
-
-          // Publish payment canceled event within transaction
-          await publishEventTx(tx, {
-            type: EventType.PAYMENT_CANCELED,
-            actorId: ORGANIZATION_ACTOR_UUID,
-            actorType: 'api',
-            organizationId,
-            payload: {
-              payment_intent_id: paymentIntent.id,
-              stripe_payment_intent_id: paymentIntent.stripePaymentIntentId,
-              amount: paymentIntent.amount,
-              currency: paymentIntent.currency,
-              canceled_at: new Date().toISOString(),
-            },
-          });
-        });
-
-        return { success: true };
-      } catch (error) {
-        console.error({ error }, 'Failed to cancel payment intent');
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
-    */
   };
 };

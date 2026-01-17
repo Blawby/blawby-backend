@@ -1,7 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { getAppEnv } from '@/shared/utils/env';
 import { db } from '@/shared/database';
-import { eventBus } from './event-consumer';
 import type { EventType } from '@/shared/events/enums/event-types';
 import type {
   BaseEvent,
@@ -24,19 +23,6 @@ export {
   ORGANIZATION_ACTOR_UUID,
 };
 
-export const publishEvent = (
-  event: Omit<BaseEvent, 'eventId' | 'timestamp'>,
-): BaseEvent => {
-  const fullEvent: BaseEvent = {
-    ...event,
-    eventId: crypto.randomUUID(),
-    timestamp: new Date(),
-  };
-
-  eventBus.emit(fullEvent.type, fullEvent);
-
-  return fullEvent;
-};
 
 export const createEventMetadata = (
   source: string,
@@ -55,60 +41,110 @@ export const createEventMetadata = (
   };
 };
 
-export const publishPracticeEvent = (
+/**
+ * Publish practice event (non-transactional)
+ * Convenience wrapper that saves to DB and emits to event bus
+ */
+export const publishPracticeEvent = async (
   eventType: EventType,
   actorId: string,
   organizationId: string,
   payload: Record<string, unknown>,
   requestHeaders?: Record<string, string>,
-): BaseEvent => {
-  return publishEvent({
-    type: eventType,
-    eventVersion: '1.0.0',
-    actorId: resolveActorId(actorId),
-    actorType: 'user',
-    organizationId,
-    payload,
-    metadata: createEventMetadata('api', {
+): Promise<void> => {
+  try {
+    const eventId = crypto.randomUUID();
+    const timestamp = new Date();
+    const eventMetadata = createEventMetadata('api', {
       headers: requestHeaders,
-    }),
-  });
+    });
+
+    const baseEvent = createBaseEvent(
+      eventId,
+      eventType,
+      '1.0.0',
+      actorId,
+      'user',
+      organizationId,
+      payload,
+      eventMetadata,
+      timestamp,
+    );
+
+    await insertEventToOutbox(baseEvent);
+  } catch (error) {
+    console.error(`Failed to publish ${eventType} event:`, error);
+  }
 };
 
-export const publishUserEvent = (
+/**
+ * Publish user event (non-transactional)
+ * Convenience wrapper that saves to DB and emits to event bus
+ */
+export const publishUserEvent = async (
   eventType: EventType,
   actorId: string,
   payload: Record<string, unknown>,
   requestHeaders?: Record<string, string>,
-): BaseEvent => {
-  return publishEvent({
-    type: eventType,
-    eventVersion: '1.0.0',
-    actorId: resolveActorId(actorId),
-    actorType: 'user',
-    payload,
-    metadata: createEventMetadata('api', {
+): Promise<void> => {
+  try {
+    const eventId = crypto.randomUUID();
+    const timestamp = new Date();
+    const eventMetadata = createEventMetadata('api', {
       headers: requestHeaders,
-    }),
-  });
+    });
+
+    const baseEvent = createBaseEvent(
+      eventId,
+      eventType,
+      '1.0.0',
+      actorId,
+      'user',
+      undefined,
+      payload,
+      eventMetadata,
+      timestamp,
+    );
+
+    await insertEventToOutbox(baseEvent);
+  } catch (error) {
+    console.error(`Failed to publish ${eventType} event:`, error);
+  }
 };
 
-export const publishSystemEvent = (
+/**
+ * Publish system event (non-transactional)
+ * Convenience wrapper that saves to DB and emits to event bus
+ */
+export const publishSystemEvent = async (
   eventType: EventType,
   payload: Record<string, unknown>,
   actorId?: string,
   actorType: 'system' | 'webhook' | 'cron' | 'api' = 'system',
   organizationId?: string,
-): BaseEvent => {
-  return publishEvent({
-    type: eventType,
-    eventVersion: '1.0.0',
-    actorId: actorId ? resolveActorId(actorId) : SYSTEM_ACTOR_UUID,
-    actorType,
-    organizationId,
-    payload,
-    metadata: createEventMetadata('system'),
-  });
+): Promise<void> => {
+  try {
+    const eventId = crypto.randomUUID();
+    const timestamp = new Date();
+    const resolvedActorId = actorId ? resolveActorId(actorId) : SYSTEM_ACTOR_UUID;
+    const eventMetadata = createEventMetadata('system');
+
+    const baseEvent = createBaseEvent(
+      eventId,
+      eventType,
+      '1.0.0',
+      resolvedActorId,
+      actorType,
+      organizationId,
+      payload,
+      eventMetadata,
+      timestamp,
+    );
+
+    await insertEventToOutbox(baseEvent);
+  } catch (error) {
+    console.error(`Failed to publish ${eventType} event:`, error);
+  }
 };
 
 /**
@@ -127,34 +163,22 @@ export const publishSimpleEvent = async (
   try {
     const eventId = crypto.randomUUID();
     const timestamp = new Date();
-    const resolvedActorId = resolveActorId(actorId);
     const eventPayload = { ...payload, timestamp: timestamp.toISOString() };
     const eventMetadata = createEventMetadata('api');
 
-    await db.insert(events).values({
+    const baseEvent = createBaseEvent(
       eventId,
-      type: eventType,
-      eventVersion: '1.0.0',
-      actorId: resolvedActorId,
-      actorType: 'user',
+      eventType,
+      '1.0.0',
+      actorId,
+      'user',
       organizationId,
-      payload: eventPayload,
-      metadata: eventMetadata,
-      processed: false,
-      retryCount: 0,
-    });
-
-    eventBus.emit(eventType, {
-      eventId,
-      type: eventType,
-      eventVersion: '1.0.0',
+      eventPayload,
+      eventMetadata,
       timestamp,
-      actorId: resolvedActorId,
-      actorType: 'user',
-      organizationId,
-      payload: eventPayload,
-      metadata: eventMetadata,
-    });
+    );
+
+    await insertEventToOutbox(baseEvent);
   } catch (error) {
     console.error(`Failed to publish ${eventType} event:`, error);
   }
@@ -183,6 +207,58 @@ const resolveActorId = (actorId: string): string => {
 };
 
 /**
+ * Shared event creation logic
+ * Creates BaseEvent from parameters
+ */
+const createBaseEvent = (
+  eventId: string,
+  type: string,
+  eventVersion: string,
+  actorId: string,
+  actorType: 'user' | 'system' | 'webhook' | 'cron' | 'api',
+  organizationId: string | undefined,
+  payload: Record<string, unknown>,
+  metadata: EventMetadata,
+  timestamp: Date,
+): BaseEvent => {
+  return {
+    eventId,
+    type,
+    eventVersion,
+    timestamp,
+    actorId: resolveActorId(actorId),
+    actorType,
+    organizationId,
+    payload,
+    metadata,
+    processed: false,
+    retryCount: 0,
+  };
+};
+
+/**
+ * Shared event insertion logic
+ * Inserts BaseEvent into database (outbox pattern)
+ * Events are processed by workers via process-outbox-event task
+ */
+const insertEventToOutbox = async (
+  baseEvent: BaseEvent,
+): Promise<void> => {
+  await db.insert(events).values({
+    eventId: baseEvent.eventId,
+    type: baseEvent.type,
+    eventVersion: baseEvent.eventVersion,
+    actorId: baseEvent.actorId,
+    actorType: baseEvent.actorType,
+    organizationId: baseEvent.organizationId,
+    payload: baseEvent.payload,
+    metadata: baseEvent.metadata,
+    processed: baseEvent.processed,
+    retryCount: baseEvent.retryCount,
+  });
+};
+
+/**
  * Publish event within a database transaction (Transactional Outbox Pattern)
  *
  * This function inserts the event into the events table within the same transaction
@@ -205,17 +281,31 @@ export const publishEventTx = async (
   },
 ): Promise<void> => {
   const eventId = crypto.randomUUID();
+  const timestamp = new Date();
+  const eventMetadata = event.metadata || createEventMetadata('api');
+
+  const baseEvent = createBaseEvent(
+    eventId,
+    event.type,
+    event.version || '1.0.0',
+    event.actorId,
+    event.actorType,
+    event.organizationId,
+    event.payload,
+    eventMetadata,
+    timestamp,
+  );
 
   await tx.insert(events).values({
-    eventId,
-    type: event.type,
-    eventVersion: event.version || '1.0.0',
-    actorId: resolveActorId(event.actorId),
-    actorType: event.actorType,
-    organizationId: event.organizationId,
-    payload: event.payload,
-    metadata: event.metadata || createEventMetadata('api'),
-    processed: false,
-    retryCount: 0,
+    eventId: baseEvent.eventId,
+    type: baseEvent.type,
+    eventVersion: baseEvent.eventVersion,
+    actorId: baseEvent.actorId,
+    actorType: baseEvent.actorType,
+    organizationId: baseEvent.organizationId,
+    payload: baseEvent.payload,
+    metadata: baseEvent.metadata,
+    processed: baseEvent.processed,
+    retryCount: baseEvent.retryCount,
   });
 };

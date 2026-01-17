@@ -25,9 +25,9 @@ export const queueEventHandler = async (
       },
     );
 
-    console.info(`✅ Event handler '${handlerName}' queued for event ${event.eventType} (Job ID: ${event.eventId}-${handlerName})`);
+    console.info(`✅ Event handler '${handlerName}' queued for event ${event.type} (Job ID: ${event.eventId}-${handlerName})`);
   } catch (error) {
-    console.error(`❌ Failed to queue event handler '${handlerName}' for event ${event.eventType}:`, error);
+    console.error(`❌ Failed to queue event handler '${handlerName}' for event ${event.type}:`, error);
     throw error;
   }
 };

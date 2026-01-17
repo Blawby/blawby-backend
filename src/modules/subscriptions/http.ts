@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import * as routes from '@/modules/subscriptions/routes';
 import * as subscriptionService from '@/modules/subscriptions/services/subscription.service';
 import * as subscriptionValidations from '@/modules/subscriptions/validations/subscription.validation';
+import type { Subscription } from '@/modules/subscriptions/types/subscription.types';
 import { validateParams, validateJson } from '@/shared/middleware/validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
@@ -14,14 +15,8 @@ const subscriptionsApp = new OpenAPIHono<AppContext>();
  * List all available subscription plans (public endpoint)
  */
 subscriptionsApp.get('/plans', async (c) => {
-  try {
-    const plans = await subscriptionService.listPlans();
-    return response.ok(c, { plans });
-  } catch (error) {
-    const errorMessage
-      = error instanceof Error ? error.message : 'Failed to fetch plans';
-    return response.internalServerError(c, errorMessage);
-  }
+  const plans = await subscriptionService.listPlans();
+  return response.ok(c, { plans });
 });
 
 
@@ -40,29 +35,23 @@ subscriptionsApp.get('/current', async (c) => {
     );
   }
 
-  try {
-    const result = await subscriptionService.getCurrentSubscription(
-      organizationId,
-      user,
-      c.req.header() as Record<string, string>,
-    );
+  const result = await subscriptionService.getCurrentSubscription(
+    organizationId,
+    user,
+    c.req.header() as Record<string, string>,
+  );
 
-    if (!result.subscription) {
-      return response.ok(c, { subscription: null });
-    }
-
-    return response.ok(c, {
-      subscription: {
-        ...result.subscription,
-        lineItems: result.lineItems,
-        events: result.events,
-      },
-    });
-  } catch (error) {
-    const errorMessage
-      = error instanceof Error ? error.message : 'Failed to fetch subscription';
-    return response.internalServerError(c, errorMessage);
+  if (!result.subscription) {
+    return response.ok(c, { subscription: null });
   }
+
+  return response.ok(c, {
+    subscription: {
+      ...result.subscription,
+      lineItems: result.lineItems,
+      events: result.events,
+    },
+  });
 });
 
 
@@ -88,20 +77,14 @@ subscriptionsApp.post(
       );
     }
 
-    try {
-      const result = await subscriptionService.createSubscription(
-        organizationId,
-        validatedBody,
-        user,
-        c.req.header() as Record<string, string>,
-      );
+    const result = await subscriptionService.createSubscription(
+      organizationId,
+      validatedBody,
+      user,
+      c.req.header() as Record<string, string>,
+    );
 
-      return response.created(c, result);
-    } catch (error) {
-      const errorMessage
-        = error instanceof Error ? error.message : 'Failed to create subscription';
-      return response.badRequest(c, errorMessage);
-    }
+    return response.created(c, result);
   },
 );
 
@@ -128,86 +111,30 @@ subscriptionsApp.post(
       );
     }
 
-    try {
-      // Get current subscription to find subscription ID
-      const currentSub = await subscriptionService.getCurrentSubscription(
-        organizationId,
-        user,
-        c.req.header() as Record<string, string>,
-      );
+    // Get current subscription to find subscription ID
+    const currentSub = await subscriptionService.getCurrentSubscription(
+      organizationId,
+      user,
+      c.req.header() as Record<string, string>,
+    );
 
-      if (!currentSub.subscription) {
-        return response.notFound(c, 'No active subscription found');
-      }
-
-      // Extract subscription ID from Better Auth subscription object
-      const subscriptionId = (currentSub.subscription as { id: string }).id;
-
-      const result = await subscriptionService.cancelSubscription(
-        subscriptionId,
-        organizationId,
-        validatedBody,
-        user,
-        c.req.header() as Record<string, string>,
-      );
-
-      return response.ok(c, result);
-    } catch (error) {
-      const errorMessage
-        = error instanceof Error ? error.message : 'Failed to cancel subscription';
-      return response.badRequest(c, errorMessage);
-    }
-  },
-);
-
-
-/**
- * GET /api/subscriptions/:subscriptionId
- * Get subscription by ID
- */
-subscriptionsApp.get(
-  '/:subscriptionId',
-  validateParams(
-    subscriptionValidations.subscriptionIdParamSchema,
-    'Invalid subscription ID',
-  ),
-  async (c) => {
-    const user = c.get('user')!;
-    const organizationId = c.get('activeOrganizationId');
-    const validatedParams = c.get('validatedParams');
-
-    if (!organizationId) {
-      return response.badRequest(
-        c,
-        'No active organization. Please select an organization first.',
-      );
+    if (!currentSub.subscription) {
+      return response.notFound(c, 'No active subscription found');
     }
 
-    try {
-      const result = await subscriptionService.getSubscriptionById(
-        validatedParams.subscriptionId,
-        organizationId,
-        user,
-        c.req.header() as Record<string, string>,
-      );
+    // Extract subscription ID from Better Auth subscription object
+    const subscription = currentSub.subscription as Subscription;
+    const subscriptionId = subscription.id;
 
-      return response.ok(c, {
-        subscription: result.subscription
-          ? {
-            ...(result.subscription as Record<string, unknown>),
-            lineItems: result.lineItems,
-            events: result.events,
-          }
-          : null,
-      });
-    } catch (error) {
-      const errorMessage
-        = error instanceof Error ? error.message : 'Failed to fetch subscription';
-      if (errorMessage.includes('not found')) {
-        return response.notFound(c, errorMessage);
-      }
-      return response.internalServerError(c, errorMessage);
-    }
+    const result = await subscriptionService.cancelSubscription(
+      subscriptionId,
+      organizationId,
+      validatedBody,
+      user,
+      c.req.header() as Record<string, string>,
+    );
+
+    return response.ok(c, result);
   },
 );
 

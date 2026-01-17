@@ -20,26 +20,14 @@ export const registerUserEvents = (): void => {
     console.info('User signed up', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Welcome email, onboarding flow trigger, etc.
-  });
-
-  subscribeToEvent(EventType.AUTH_USER_LOGGED_IN, async (event: BaseEvent) => {
-    console.info('User logged in', {
-      eventId: event.eventId,
-      actorId: event.actorId,
-      organizationId: event.organizationId,
-      payload: event.payload,
-    });
-    // Future: Session tracking, analytics, etc.
   });
 
   subscribeToEvent(EventType.AUTH_USER_LOGGED_OUT, async (event: BaseEvent) => {
     console.info('User logged out', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Session cleanup, analytics, etc.
   });
@@ -48,7 +36,6 @@ export const registerUserEvents = (): void => {
     console.info('Email verified', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Send confirmation, unlock features, etc.
   });
@@ -57,7 +44,6 @@ export const registerUserEvents = (): void => {
     console.info('Password reset requested', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Send reset email, security logging, etc.
   });
@@ -66,7 +52,6 @@ export const registerUserEvents = (): void => {
     console.info('Password changed', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Security notification, invalidate sessions, etc.
   });
@@ -75,7 +60,6 @@ export const registerUserEvents = (): void => {
     console.info('Account deleted', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Data cleanup, compliance logging, etc.
   });
@@ -85,7 +69,6 @@ export const registerUserEvents = (): void => {
     console.info('User created', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Initial setup, default preferences, etc.
   });
@@ -94,7 +77,6 @@ export const registerUserEvents = (): void => {
     console.info('User updated', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Cache invalidation, sync to external services, etc.
   });
@@ -103,7 +85,6 @@ export const registerUserEvents = (): void => {
     console.info('User deleted', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Data cleanup, GDPR compliance, etc.
   });
@@ -112,7 +93,6 @@ export const registerUserEvents = (): void => {
     console.info('User profile updated', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Update search index, sync to CRM, etc.
   });
@@ -121,7 +101,6 @@ export const registerUserEvents = (): void => {
     console.info('User email changed', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Send verification email, update external services, etc.
   });
@@ -130,7 +109,6 @@ export const registerUserEvents = (): void => {
     console.info('User avatar updated', {
       eventId: event.eventId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Image processing, CDN cache invalidation, etc.
   });

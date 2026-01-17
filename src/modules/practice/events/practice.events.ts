@@ -22,7 +22,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Send welcome email, analytics tracking, etc.
   });
@@ -33,7 +32,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Analytics tracking, cache invalidation, etc.
   });
@@ -44,7 +42,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Cleanup tasks, analytics tracking, etc.
   });
@@ -55,7 +52,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
   });
 
@@ -65,7 +61,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
   });
 
@@ -75,7 +70,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
   });
 
@@ -85,7 +79,6 @@ export const registerPracticeEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Update session, analytics tracking, etc.
   });

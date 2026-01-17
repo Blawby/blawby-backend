@@ -66,21 +66,24 @@ export const getFullOrganization = async (
 };
 
 export const updateOrganization = async (
-  organizationId: string,
   data: UpdateOrganizationRequest,
-  user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Organization | null> => {
   const betterAuth = getBetterAuth();
-  const result = await betterAuth.api.updateOrganization({
-    body: {
-      organizationId,
-      data,
-    },
-    headers: requestHeaders,
-  });
+  // UpdateOrganizationRequest already has { organizationId, data } structure
+  // so we pass it directly as the body
+  try {
+    const result = await betterAuth.api.updateOrganization({
+      body: data,
+      headers: requestHeaders,
+    });
 
-  return result;
+    return result;
+  } catch (error) {
+    console.error('[updateOrganization] Better Auth error:', error);
+    console.error('[updateOrganization] Request body:', JSON.stringify(data, null, 2));
+    throw error;
+  }
 };
 
 export const deleteOrganization = async (

@@ -217,4 +217,9 @@ export const subscriptions = pgTable('subscriptions', {
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),
   trialEnd: timestamp('trial_end'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 });

@@ -8,13 +8,14 @@
  * the database within business transactions, then processed asynchronously.
  */
 
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, lt, asc } from 'drizzle-orm';
 import type { Task } from 'graphile-worker';
 import { db } from '@/shared/database';
 import { events } from '@/shared/events/schemas/events.schema';
 import { dispatchEventToHandlers } from '@/shared/events/event-handler-registry';
 
 const BATCH_SIZE = 10; // Process 10 events at a time
+const MAX_RETRIES = 5; // Maximum retry attempts before giving up
 
 /**
  * Process outbox event
@@ -31,12 +32,17 @@ export const processOutboxEvent: Task = async (
   helpers.logger.info('Processing outbox events...');
 
   try {
-    // Query for unprocessed events (processed = false)
+    // Query for unprocessed events (processed = false) that haven't exceeded max retries
     // Order by created_at to process oldest first
     const unprocessedEvents = await db
       .select()
       .from(events)
-      .where(eq(events.processed, false))
+      .where(
+        and(
+          eq(events.processed, false),
+          lt(events.retryCount, MAX_RETRIES),
+        ),
+      )
       .orderBy(asc(events.createdAt))
       .limit(BATCH_SIZE);
 
@@ -46,6 +52,8 @@ export const processOutboxEvent: Task = async (
     }
 
     helpers.logger.info(`Found ${unprocessedEvents.length} unprocessed events`);
+
+    const errors: Array<{ eventId: string; error: unknown }> = [];
 
     // Process each event
     for (const event of unprocessedEvents) {
@@ -91,12 +99,17 @@ export const processOutboxEvent: Task = async (
           })
           .where(eq(events.eventId, event.eventId));
 
-        // Re-throw to trigger Graphile Worker retry mechanism
-        throw error;
+        // Collect error to throw after batch completes
+        errors.push({ eventId: event.eventId, error });
       }
     }
 
-    helpers.logger.info(`Completed processing ${unprocessedEvents.length} events`);
+    helpers.logger.info(`Completed processing ${unprocessedEvents.length} events (${errors.length} failed)`);
+
+    // Throw aggregated error if any events failed
+    if (errors.length > 0) {
+      throw new Error(`Failed to process ${errors.length} events: ${errors.map((e) => e.eventId).join(', ')}`);
+    }
   } catch (error) {
     helpers.logger.error('Error processing outbox events:', { error });
     throw error;

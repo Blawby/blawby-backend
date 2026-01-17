@@ -109,6 +109,9 @@ async function startWorker(): Promise<void> {
       concurrency,
       noHandleSignals: true, // We handle signals ourselves
       pollInterval: 1000, // Poll for new jobs every second
+      crontab: `
+        */1 * * * * ${TASK_NAMES.PROCESS_OUTBOX_EVENT}
+      `, // Process outbox events every minute
     });
 
     console.log('✅ Graphile Worker connected and ready to process jobs');

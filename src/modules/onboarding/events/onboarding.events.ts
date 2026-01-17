@@ -22,7 +22,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Track onboarding progress, send reminders, etc.
   });
@@ -34,7 +33,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Alert support, retry logic, etc.
   });
@@ -45,7 +43,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Check completion status, update UI, etc.
   });
@@ -55,7 +52,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Notify user, update requirements UI, etc.
   });
@@ -65,7 +61,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Enable features, update permissions, etc.
   });
@@ -76,7 +71,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Verify account, enable payouts, etc.
   });
@@ -86,7 +80,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Re-verify if needed, update payout settings, etc.
   });
@@ -96,7 +89,6 @@ export const registerOnboardingEvents = (): void => {
       eventId: event.eventId,
       organizationId: event.organizationId,
       actorId: event.actorId,
-      payload: event.payload,
     });
     // Future: Disable payouts, notify user, etc.
   });
@@ -106,7 +98,6 @@ export const registerOnboardingEvents = (): void => {
     console.info('Onboarding webhook received', {
       eventId: event.eventId,
       organizationId: event.organizationId,
-      payload: event.payload,
     });
     // Future: Logging, monitoring, etc.
   });
@@ -115,7 +106,6 @@ export const registerOnboardingEvents = (): void => {
     console.info('Onboarding webhook processed', {
       eventId: event.eventId,
       organizationId: event.organizationId,
-      payload: event.payload,
     });
     // Future: Success metrics, etc.
   });
@@ -124,7 +114,6 @@ export const registerOnboardingEvents = (): void => {
     console.error('Onboarding webhook failed', {
       eventId: event.eventId,
       organizationId: event.organizationId,
-      payload: event.payload,
     });
     // Future: Alert, retry logic, etc.
   });

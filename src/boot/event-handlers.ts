@@ -11,6 +11,7 @@ import { registerPreferencesEvents } from '@/modules/preferences/events';
 import { registerOnboardingEvents } from '@/modules/onboarding/events/onboarding.events';
 import { registerEmailEvents } from '@/shared/events/handlers/email.events';
 import { registerPracticeEvents } from '@/modules/practice/events/practice.events';
+import { registerPracticeClientIntakeEvents } from '@/modules/practice-client-intakes/events/practice-client-intakes.events';
 
 /**
  * Boot event handlers
@@ -31,6 +32,7 @@ export const bootEventHandlers = (): void => {
   registerPreferencesEvents();
   registerOnboardingEvents();
   registerPracticeEvents();
+  registerPracticeClientIntakeEvents();
 
   console.info('✅ Event handlers registered successfully');
 };

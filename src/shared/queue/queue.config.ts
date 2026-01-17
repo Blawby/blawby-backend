@@ -2,7 +2,7 @@
  * Graphile Worker Task Names
  *
  * These are the task identifiers used when enqueueing jobs.
- * Must match the task file names in src/workers/tasks/
+ * Task files are located in src/workers/tasks/ and src/shared/events/tasks/
  */
 export const TASK_NAMES = {
   PROCESS_STRIPE_WEBHOOK: 'process-stripe-webhook',

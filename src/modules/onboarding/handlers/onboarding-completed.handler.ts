@@ -10,6 +10,7 @@ import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import { logError } from '@/shared/middleware/logger';
 
 /**
@@ -63,7 +64,7 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
     });
 
     // Event is written directly to database for guaranteed persistence
-    void publishSimpleEvent(EventType.PRACTICE_UPDATED, organizationId, organizationId, {
+    void publishSimpleEvent(EventType.PRACTICE_UPDATED, SYSTEM_ACTOR_UUID, organizationId, {
       organization_id: organizationId,
       organization_name: org.name,
       update_type: 'onboarding_completed',

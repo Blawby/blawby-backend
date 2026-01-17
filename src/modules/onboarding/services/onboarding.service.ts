@@ -40,6 +40,7 @@ export const createOnboardingSession = async (params: {
       organizationEmail,
       refreshUrl,
       returnUrl,
+      user.id,
     );
 
     // Publish onboarding started event
@@ -142,6 +143,7 @@ export const createConnectedAccount = async (params: {
       email,
       refreshUrl,
       returnUrl,
+      user.id,
     );
     console.log('SERVICE: createOrGetAccount returned', result);
 

@@ -182,18 +182,22 @@ export const updatePracticeService = async (
     ...organizationData
   } = data;
 
+  // Filter out undefined and null values from organizationData
+  const filteredOrganizationData = Object.fromEntries(
+    Object.entries(organizationData).filter(([_, value]) => value !== undefined && value !== null),
+  ) as Partial<Pick<PracticeUpdateRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
+
   // Update organization in Better Auth only if there are organization fields to update
   let organization = null;
-  if (Object.keys(organizationData).length > 0) {
+  if (Object.keys(filteredOrganizationData).length > 0) {
     // Construct UpdateOrganizationRequest with proper structure
+    // Better Auth expects { organizationId, data: { name?, slug?, logo?, metadata? } }
     const updateRequest: UpdateOrganizationRequest = {
       organizationId,
-      data: organizationData,
+      data: filteredOrganizationData,
     };
     organization = await updateOrganization(
-      organizationId,
       updateRequest,
-      user,
       requestHeaders,
     );
 

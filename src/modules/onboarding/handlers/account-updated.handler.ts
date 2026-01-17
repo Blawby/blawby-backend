@@ -7,8 +7,8 @@ import {
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSystemEvent, publishSimpleEvent, publishEventTx } from '@/shared/events/event-publisher';
-import { SYSTEM_ACTOR_UUID, WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
+import { publishEventTx } from '@/shared/events/event-publisher';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
 
 /**
  * Handle account.updated webhook event

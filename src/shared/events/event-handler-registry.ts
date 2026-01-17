@@ -2,7 +2,7 @@
  * Event Handler Registry
  *
  * Stores registered handlers for execution.
- * Used by both in-memory EventEmitter and Graphile Worker tasks.
+ * Used by Graphile Worker tasks via the outbox pattern.
  */
 
 import type { BaseEvent } from './schemas/events.schema';

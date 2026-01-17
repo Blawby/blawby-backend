@@ -4,7 +4,7 @@ This document describes the **event system implementation** in `src/shared/event
 
 - **Transactional Outbox Pattern**: Events are written to the `events` table within business transactions, guaranteeing zero data loss.
 - **Worker Polling**: Graphile Workers poll the `events` table for unprocessed events and dispatch them to registered handlers.
-- **Dual Mode**: Supports both in-memory EventEmitter (for immediate processing) and worker-based processing (for reliable background processing).
+- **Single Processing Path**: All events are processed asynchronously via workers for reliability, retry logic, and guaranteed delivery.
 
 ---
 
@@ -15,9 +15,7 @@ The event system provides a consistent way to:
 - Emit domain/application events (e.g. practice created, payment succeeded, onboarding completed).
 - Guarantee zero data loss by writing events within business transactions (Transactional Outbox Pattern).
 - Fan out one event to multiple handlers (email, analytics, internal projections).
-- Run handlers either:
-  - **Immediately** (async in-process via EventEmitter), or
-  - **Asynchronously** (Graphile Worker polling for retryable background processing).
+- Process all events asynchronously via Graphile Workers for reliability and retry logic.
 - Persist all events to the database for auditability, replay, and backfill.
 
 ---
@@ -50,8 +48,8 @@ Graphile Worker (polls events table)
 - **Schema**: `src/shared/events/schemas/events.schema.ts`
 - **Publisher**: `src/shared/events/event-publisher.ts`
   - `publishEventTx(tx, event)` - Transactional publishing (preferred)
-  - `publishEvent(event)` - Non-transactional publishing (for external APIs)
-- **In-memory bus + persistence hook**: `src/shared/events/event-consumer.ts`
+  - `publishSimpleEvent(eventType, actorId, organizationId, payload)` - Non-transactional publishing (for external APIs)
+- **Handler registration**: `src/shared/events/event-consumer.ts`
 - **Handler registry**: `src/shared/events/event-handler-registry.ts`
 - **Graphile Worker task**: `src/shared/events/tasks/process-outbox-event.ts`
 - **Handlers**: `src/shared/events/handlers/*.events.ts`, `src/modules/*/events/*.events.ts`
@@ -225,35 +223,30 @@ export const bootEventHandlers = (): void => {
 };
 ```
 
-### In-Memory EventEmitter (Immediate Processing)
+### Event Handler Registration
 
-Use `subscribeToEvent(eventType, handler, options?)` for immediate async processing:
+Use `subscribeToEvent(eventType, handler, options?)` to register handlers:
 
 ```typescript
 subscribeToEvent(EventType.PRACTICE_CREATED, async (event: BaseEvent) => {
   console.info('Practice created', event.payload);
-  // Handler runs immediately when event is emitted
+  // Handler will be called by outbox worker when event is processed
 });
 ```
 
-**When to use:**
-- Simple logging
-- Cache invalidation
-- Synchronous side effects that don't need retries
+**How it works:**
+1. Events are published via `publishEventTx()` or `publishSimpleEvent()`
+2. Events are stored in `events` table with `processed = false`
+3. `process-outbox-event` worker polls the table
+4. Worker dispatches events to registered handlers via `dispatchEventToHandlers()`
+5. Updates `processed = true` after successful processing
+6. Retries failed events up to `MAX_RETRIES` times
 
-### Worker-Based Processing (Reliable Background Processing)
-
-Events written via `publishEventTx()` are automatically processed by Graphile Workers:
-
-1. Worker polls `events` table for `processed = false`
-2. Dispatches events to registered handlers via `dispatchEventToHandlers()`
-3. Updates `processed`, `retry_count`, `last_error` based on handler results
-
-**When to use:**
-- Email sending
-- External API calls
-- Heavy computations
-- Operations that need retries
+**Benefits:**
+- Guaranteed delivery (events persist in database)
+- Automatic retries for failed handlers
+- Error tracking and observability
+- Can replay events for debugging
 
 ---
 
