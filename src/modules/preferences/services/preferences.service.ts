@@ -16,7 +16,10 @@ import type {
   AccountPreferences,
   OnboardingPreferences,
 } from '@/modules/preferences/types/preferences.types';
-import { DEFAULT_NOTIFICATION_PREFERENCES } from '@/modules/preferences/types/preferences.types';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_ONBOARDING_PREFERENCES,
+} from '@/modules/preferences/types/preferences.types';
 import { eq } from 'drizzle-orm';
 
 // Profile fields (phone, dob) are now in users table via Better Auth additionalFields
@@ -45,6 +48,20 @@ const applyNotificationDefaults = (
 };
 
 /**
+ * Apply default values to onboarding preferences
+ * Merges stored preferences with defaults, ensuring boolean flags default to false
+ */
+const applyOnboardingDefaults = (
+  stored: Record<string, unknown> | null | undefined,
+): OnboardingPreferences => {
+  const storedPrefs = (stored as OnboardingPreferences) || {};
+  return {
+    ...DEFAULT_ONBOARDING_PREFERENCES,
+    ...storedPrefs,
+  };
+};
+
+/**
  * Get all preferences for a user
  */
 export const getPreferences = async (userId: string): Promise<Preferences | undefined> => {
@@ -58,11 +75,12 @@ export const getPreferences = async (userId: string): Promise<Preferences | unde
     return undefined;
   }
 
-  // Apply defaults to notifications field
+  // Apply defaults to notifications and onboarding fields
   const prefs = result[0];
   return {
     ...prefs,
     notifications: applyNotificationDefaults(prefs.notifications),
+    onboarding: applyOnboardingDefaults(prefs.onboarding),
   };
 };
 
@@ -142,6 +160,11 @@ export const updatePreferencesByCategory = async (
     return applyNotificationDefaults(updatedData);
   }
 
+  // Apply defaults for onboarding category in response
+  if (category === 'onboarding') {
+    return applyOnboardingDefaults(updatedData);
+  }
+
   return updatedData;
 };
 
@@ -165,17 +188,16 @@ export const updateProfileFields = async (
 };
 
 /**
- * Initialize preferences for a new user
- * Creates preferences record with default notification settings
+ * Initialize preferences for a new user (invoked via AUTH_USER_SIGNED_UP event).
+ * Creates a preferences row with default notification and onboarding settings
+ * (e.g. welcome_modal_shown: false, practice_welcome_shown: false).
  */
 export const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
-  // Check if preferences already exist
   const existing = await getPreferences(userId);
   if (existing) {
     return existing;
   }
 
-  // Create new preferences with default notification settings
   const result = await db
     .insert(preferences)
     .values({
@@ -184,7 +206,7 @@ export const initializeUserPreferences = async (userId: string): Promise<Prefere
       general: {},
       security: {},
       account: {},
-      onboarding: {},
+      onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     })
     .returning();
 
