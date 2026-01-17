@@ -359,18 +359,17 @@ const deleteStripeCustomer = async (userId: string): Promise<void> => {
       throw new Error('Stripe customer ID not found for user');
     }
 
-    // Delete from Stripe (external API call)
-    await stripe.customers.del(user.stripeCustomerId);
+    const stripeCustomerId = user.stripeCustomerId;
 
-    // Wrap database operations in transaction with event publishing
+    // First, start transaction to mark customer as pending deletion and publish event
     await db.transaction(async (tx) => {
-      // Clear stripeCustomerId from users table
+      // Mark customer as pending deletion (clear stripeCustomerId)
       await tx
         .update(users)
         .set({ stripeCustomerId: null })
         .where(eq(users.id, userId));
 
-      // Delete from database
+      // Delete preferences
       await tx
         .delete(preferences)
         .where(eq(preferences.userId, userId));
@@ -383,11 +382,27 @@ const deleteStripeCustomer = async (userId: string): Promise<void> => {
         organizationId: undefined,
         payload: {
           user_id: userId,
-          stripe_customer_id: user.stripeCustomerId,
+          stripe_customer_id: stripeCustomerId,
           deleted_at: new Date().toISOString(),
         },
       });
     });
+
+    // After successful transaction, delete from Stripe (external API call)
+    try {
+      await stripe.customers.del(stripeCustomerId);
+    } catch (stripeError) {
+      // Log error but don't fail - DB transaction already succeeded
+      // Record for manual reconciliation if needed
+      console.error('Failed to delete Stripe customer after DB transaction', {
+        error: sanitizeError(stripeError),
+        userId,
+        stripeCustomerId,
+        note: 'DB transaction succeeded, but Stripe deletion failed. Manual reconciliation may be needed.',
+      });
+      // Re-throw to allow caller to handle
+      throw stripeError;
+    }
 
     console.info('Stripe customer deleted successfully', {
       userId,

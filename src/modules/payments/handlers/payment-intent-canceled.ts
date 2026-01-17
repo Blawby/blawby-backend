@@ -10,7 +10,7 @@ import type Stripe from 'stripe';
 
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishSimpleEvent, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
 import { sanitizeError } from '@/shared/utils/logging';
 
 export const handlePaymentIntentCanceled = async ({
@@ -27,7 +27,7 @@ export const handlePaymentIntentCanceled = async ({
     // Publish event - event handlers will process intake updates
     void publishSimpleEvent(
       EventType.PAYMENT_CANCELED,
-      'organization',
+      WEBHOOK_ACTOR_UUID,
       practiceClientIntake?.organizationId,
       {
         stripe_payment_intent_id: paymentIntent.id,

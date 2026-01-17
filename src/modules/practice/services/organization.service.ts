@@ -81,7 +81,12 @@ export const updateOrganization = async (
     return result;
   } catch (error) {
     console.error('[updateOrganization] Better Auth error:', error);
-    console.error('[updateOrganization] Request body:', JSON.stringify(data, null, 2));
+    // Log minimal context to avoid PII exposure
+    console.error('[updateOrganization] Operation failed', {
+      organizationId: data.organizationId,
+      operation: 'updateOrganization',
+      errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+    });
     throw error;
   }
 };

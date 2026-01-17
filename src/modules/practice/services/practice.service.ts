@@ -259,6 +259,7 @@ export const updatePracticeService = async (
         actorType: 'user',
         organizationId,
         payload: {
+          practice_details_id: details.id,
           business_phone,
           business_email,
           consultation_fee,

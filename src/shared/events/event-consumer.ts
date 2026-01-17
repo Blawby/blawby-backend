@@ -1,4 +1,5 @@
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { setEventHandlersMap } from './event-handler-registry';
 
 // Handler options interface (Laravel-style)
 export interface HandlerOptions {
@@ -19,7 +20,6 @@ export interface HandlerMetadata {
 const eventHandlers = new Map<string, HandlerMetadata[]>();
 
 // Export handlers map for worker access
-import { setEventHandlersMap } from './event-handler-registry';
 setEventHandlersMap(eventHandlers);
 
 // Subscribe to specific event types with options

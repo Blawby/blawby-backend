@@ -12,10 +12,11 @@ import { practiceClientIntakesRepository } from '@/modules/practice-client-intak
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
 import { EventType } from '@/shared/events/enums/event-types';
 import { subscribeToEvent } from '@/shared/events/event-consumer';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { publishSimpleEvent, publishEventTx, ORGANIZATION_ACTOR_UUID } from '@/shared/events/event-publisher';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { sanitizeError } from '@/shared/utils/logging';
 import { stripe } from '@/shared/utils/stripe-client';
+import { db } from '@/shared/database';
 
 /**
  * Register all practice client intake event handlers
@@ -46,32 +47,35 @@ export const registerPracticeClientIntakeEvents = (): void => {
           : paymentIntent.latest_charge.id
         : undefined;
 
-      // Update practice client intake status
-      await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-        status: 'succeeded',
-        stripePaymentIntentId: paymentIntent.id,
-        stripeChargeId,
-        succeededAt: new Date(),
-      });
+      // Update practice client intake status and publish event within transaction
+      await db.transaction(async (tx) => {
+        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
+          status: 'succeeded',
+          stripePaymentIntentId: paymentIntent.id,
+          stripeChargeId,
+          succeededAt: new Date(),
+        });
 
-      // Publish intake-specific event
-      void publishSimpleEvent(
-        EventType.INTAKE_PAYMENT_SUCCEEDED,
-        'organization',
-        practiceClientIntake.organizationId,
-        {
-          event_id: event.payload.event_id,
-          stripe_payment_intent_id: paymentIntent.id,
-          intake_payment_id: practiceClientIntake.id,
-          uuid: practiceClientIntake.id,
-          amount: practiceClientIntake.amount,
-          currency: practiceClientIntake.currency,
-          client_email: practiceClientIntake.metadata?.email,
-          client_name: practiceClientIntake.metadata?.name,
-          stripe_charge_id: stripeChargeId,
-          succeeded_at: new Date().toISOString(),
-        },
-      );
+        // Publish intake-specific event within transaction
+        await publishEventTx(tx, {
+          type: EventType.INTAKE_PAYMENT_SUCCEEDED,
+          actorId: ORGANIZATION_ACTOR_UUID,
+          actorType: 'api',
+          organizationId: practiceClientIntake.organizationId,
+          payload: {
+            event_id: event.payload.event_id,
+            stripe_payment_intent_id: paymentIntent.id,
+            intake_payment_id: practiceClientIntake.id,
+            uuid: practiceClientIntake.id,
+            amount: practiceClientIntake.amount,
+            currency: practiceClientIntake.currency,
+            client_email: practiceClientIntake.metadata?.email,
+            client_name: practiceClientIntake.metadata?.name,
+            stripe_charge_id: stripeChargeId,
+            succeeded_at: new Date().toISOString(),
+          },
+        });
+      });
 
       consola.info('Intake payment succeeded', {
         intakeId: practiceClientIntake.id,
@@ -94,35 +98,38 @@ export const registerPracticeClientIntakeEvents = (): void => {
       }
 
       // Fetch payment intent from Stripe to get full details
-      const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId) as Stripe.PaymentIntent;
+      const paymentIntent: Stripe.PaymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
       const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
 
       if (!practiceClientIntake) {
         return;
       }
 
-      // Update practice client intake status
-      await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-        status: 'failed',
-        stripePaymentIntentId: paymentIntent.id,
-      });
+      // Update practice client intake status and publish event within transaction
+      await db.transaction(async (tx) => {
+        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
+          status: 'failed',
+          stripePaymentIntentId: paymentIntent.id,
+        });
 
-      // Publish intake-specific event
-      void publishSimpleEvent(
-        EventType.INTAKE_PAYMENT_FAILED,
-        'organization',
-        practiceClientIntake.organizationId,
-        {
-          intake_payment_id: practiceClientIntake.id,
-          uuid: practiceClientIntake.id,
-          amount: practiceClientIntake.amount,
-          currency: practiceClientIntake.currency,
-          client_email: practiceClientIntake.metadata?.email,
-          client_name: practiceClientIntake.metadata?.name,
-          failure_reason: paymentIntent.last_payment_error?.message,
-          failed_at: new Date().toISOString(),
-        },
-      );
+        // Publish intake-specific event within transaction
+        await publishEventTx(tx, {
+          type: EventType.INTAKE_PAYMENT_FAILED,
+          actorId: ORGANIZATION_ACTOR_UUID,
+          actorType: 'api',
+          organizationId: practiceClientIntake.organizationId,
+          payload: {
+            intake_payment_id: practiceClientIntake.id,
+            uuid: practiceClientIntake.id,
+            amount: practiceClientIntake.amount,
+            currency: practiceClientIntake.currency,
+            client_email: practiceClientIntake.metadata?.email,
+            client_name: practiceClientIntake.metadata?.name,
+            failure_reason: paymentIntent.last_payment_error?.message,
+            failed_at: new Date().toISOString(),
+          },
+        });
+      });
 
       consola.warn('Intake payment failed', {
         intakeId: practiceClientIntake.id,
@@ -153,27 +160,31 @@ export const registerPracticeClientIntakeEvents = (): void => {
         return;
       }
 
-      // Update practice client intake status
-      await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-        status: 'canceled',
-        stripePaymentIntentId: paymentIntent.id,
-      });
+      // Update practice client intake status and publish event within transaction
+      await db.transaction(async (tx) => {
+        await practiceClientIntakesRepository.update(practiceClientIntake.id, {
+          status: 'canceled',
+          stripePaymentIntentId: paymentIntent.id,
+        });
 
-      // Publish intake-specific event
-      void publishSimpleEvent(
-        EventType.INTAKE_PAYMENT_CANCELED,
-        'organization',
-        practiceClientIntake.organizationId,
-        {
-          intake_payment_id: practiceClientIntake.id,
-          uuid: practiceClientIntake.id,
-          amount: practiceClientIntake.amount,
-          currency: practiceClientIntake.currency,
-          client_email: practiceClientIntake.metadata?.email,
-          client_name: practiceClientIntake.metadata?.name,
-          canceled_at: new Date().toISOString(),
-        },
-      );
+        // Publish intake-specific event within transaction
+        // Use ORGANIZATION_ACTOR_UUID as the actor since this is triggered by webhook
+        await publishEventTx(tx, {
+          type: EventType.INTAKE_PAYMENT_CANCELED,
+          actorId: ORGANIZATION_ACTOR_UUID,
+          actorType: 'api',
+          organizationId: practiceClientIntake.organizationId,
+          payload: {
+            intake_payment_id: practiceClientIntake.id,
+            uuid: practiceClientIntake.id,
+            amount: practiceClientIntake.amount,
+            currency: practiceClientIntake.currency,
+            client_email: practiceClientIntake.metadata?.email,
+            client_name: practiceClientIntake.metadata?.name,
+            canceled_at: new Date().toISOString(),
+          },
+        });
+      });
 
       consola.info('Intake payment canceled', {
         intakeId: practiceClientIntake.id,
