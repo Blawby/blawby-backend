@@ -3,8 +3,6 @@ import { createRoute, z } from '@hono/zod-openapi';
 import {
   createPracticeClientIntakeSchema,
   updatePracticeClientIntakeSchema,
-  slugParamSchema,
-  uuidParamSchema,
   practiceClientIntakeSettingsResponseSchema,
   createPracticeClientIntakeResponseSchema,
   updatePracticeClientIntakeResponseSchema,
@@ -47,15 +45,15 @@ const uuidParamOpenAPISchema = z.object({
 });
 
 /**
- * GET /:slug/intake
+ * GET /api/practice/client-intakes/:slug/intake
  * Public intake page - returns organization details and payment settings
  */
 export const getIntakeSettingsRoute = createRoute({
   method: 'get',
   path: '/{slug}/intake',
-  tags: ['Practice Customer Intakes'],
+  tags: ['Practice Client Intakes'],
   summary: 'Get intake settings',
-  description: 'Public endpoint to retrieve organization details and payment settings for client intake',
+  description: 'Public endpoint to retrieve organization details and payment settings for a practice\'s client intake form. Returns organization branding (name, logo), payment settings (enabled status, prefill amount), and connected account status. Used by frontend to display the intake form with proper branding.',
   request: {
     params: slugParamOpenAPISchema,
   },
@@ -66,7 +64,7 @@ export const getIntakeSettingsRoute = createRoute({
           schema: practiceClientIntakeSettingsResponseSchema,
         },
       },
-      description: 'Intake settings retrieved successfully',
+      description: 'Intake settings retrieved successfully. Returns organization details (id, name, slug, logo), payment settings (paymentLinkEnabled, prefillAmount), and connected account status (id, chargesEnabled).',
     },
     404: {
       content: {
@@ -89,14 +87,14 @@ export const getIntakeSettingsRoute = createRoute({
 
 /**
  * POST /api/practice/client-intakes/create
- * Creates payment intent for practice client intake
+ * Creates a Stripe Payment Link for practice client intake
  */
 export const createPracticeClientIntakeRoute = createRoute({
   method: 'post',
   path: '/create',
-  tags: ['Practice Customer Intakes'],
+  tags: ['Practice Client Intakes'],
   summary: 'Create practice client intake',
-  description: 'Creates a payment intent for a practice client intake',
+  description: 'Creates a Stripe Payment Link for a practice client intake. The client is redirected to the returned `payment_link_url` to complete payment on Stripe\'s hosted payment page. All endpoints are public (no authentication required).',
   request: {
     body: {
       content: {
@@ -113,7 +111,7 @@ export const createPracticeClientIntakeRoute = createRoute({
           schema: createPracticeClientIntakeResponseSchema,
         },
       },
-      description: 'Practice client intake created successfully',
+      description: 'Practice client intake created successfully. Returns the intake UUID, Stripe Payment Link URL (for client redirect), payment amount, currency, status, and organization branding. The `payment_link_url` should be used to redirect the client to Stripe\'s hosted payment page.',
     },
     400: {
       content: {
@@ -136,14 +134,14 @@ export const createPracticeClientIntakeRoute = createRoute({
 
 /**
  * PUT /api/practice/client-intakes/:uuid
- * Updates payment amount before confirmation
+ * Updates payment amount by creating a new Payment Link
  */
 export const updatePracticeClientIntakeRoute = createRoute({
   method: 'put',
   path: '/{uuid}',
-  tags: ['Practice Customer Intakes'],
+  tags: ['Practice Client Intakes'],
   summary: 'Update practice client intake',
-  description: 'Updates the payment amount for a practice client intake before confirmation. The UUID is obtained from the create endpoint response.',
+  description: 'Updates the payment amount for a practice client intake by creating a new Stripe Payment Link and deactivating the old one. The UUID is obtained from the create endpoint response. Only works if the payment has not been completed or expired. Returns a new `payment_link_url` for the client to complete payment with the updated amount.',
   request: {
     params: uuidParamOpenAPISchema,
     body: {
@@ -161,7 +159,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
           schema: updatePracticeClientIntakeResponseSchema,
         },
       },
-      description: 'Practice client intake updated successfully',
+      description: 'Practice client intake updated successfully. Returns the intake UUID, new Stripe Payment Link URL (old link is deactivated), updated payment amount, currency, and status. The new `payment_link_url` should be used to redirect the client to Stripe\'s hosted payment page with the updated amount.',
     },
     400: {
       content: {
@@ -197,9 +195,9 @@ export const updatePracticeClientIntakeRoute = createRoute({
 export const getPracticeClientIntakeStatusRoute = createRoute({
   method: 'get',
   path: '/{uuid}/status',
-  tags: ['Practice Customer Intakes'],
+  tags: ['Practice Client Intakes'],
   summary: 'Get practice client intake status',
-  description: 'Retrieves the current status of a practice client intake payment. The UUID is obtained from the create endpoint response.',
+  description: 'Retrieves the current status of a practice client intake payment, including payment details, client metadata, and timestamps. The UUID is obtained from the create endpoint response. Status values: `open` (awaiting payment), `completed`/`succeeded` (payment successful), `expired` (Payment Link expired), `canceled` (payment canceled), `failed` (payment failed). Used by frontend to poll for payment completion after redirecting client to Stripe\'s hosted payment page.',
   request: {
     params: uuidParamOpenAPISchema,
   },
@@ -210,7 +208,7 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
           schema: practiceClientIntakeStatusResponseSchema,
         },
       },
-      description: 'Status retrieved successfully',
+      description: 'Status retrieved successfully. Returns the intake UUID, payment amount, currency, current status, Stripe charge ID (if payment succeeded), client metadata (email, name, phone, case details), and timestamps (succeeded_at, created_at).',
     },
     404: {
       content: {

@@ -5,6 +5,8 @@ import type {
   BaseEvent,
   EventMetadata,
 } from '@/shared/events/schemas/events.schema';
+import { db } from '@/shared/database';
+import { events } from '@/shared/events/schemas/events.schema';
 
 export const publishEvent = (
   event: Omit<BaseEvent, 'eventId' | 'timestamp'>,
@@ -14,6 +16,23 @@ export const publishEvent = (
     eventId: crypto.randomUUID(),
     timestamp: new Date(),
   };
+
+  // Persist the event regardless of listeners (fire-and-forget).
+  // This makes events observable even when no in-memory handlers are registered.
+  void db.insert(events).values({
+    eventId: fullEvent.eventId,
+    eventType: fullEvent.eventType,
+    eventVersion: fullEvent.eventVersion,
+    actorId: fullEvent.actorId,
+    actorType: fullEvent.actorType,
+    organizationId: fullEvent.organizationId,
+    payload: fullEvent.payload,
+    metadata: fullEvent.metadata,
+    processed: false,
+    retryCount: 0,
+  }).catch((error: unknown) => {
+    console.error(`Failed to save event ${fullEvent.eventId} to database:`, error);
+  });
 
   // Emit to in-memory event bus for immediate processing
   // Handlers will save to database if needed
@@ -99,10 +118,29 @@ export const publishSystemEvent = (
   });
 };
 
-// Super simple one-liner for any event
+// Super simple helper for common events across modules.
+// NOTE: actorType must be 'user' | 'organization' | 'system'
 export const publishSimpleEvent = (
   eventType: EventType,
-  actorId: string,
+  actorType: 'user' | 'organization' | 'system',
   organizationId: string | undefined,
   payload: Record<string, unknown>,
-): BaseEvent => publishUserEvent(eventType, actorId, { ...payload, timestamp: new Date().toISOString() });
+): BaseEvent => {
+  // Infer actorId: for organization use organizationId, for user/system use payload.actor_id
+  const inferredActorId: string | undefined = actorType === 'organization'
+    ? organizationId
+    : (typeof payload.actor_id === 'string' ? payload.actor_id : undefined);
+  // Only set timestamp if not already present in payload
+  const payloadWithTimestamp = payload.timestamp
+    ? payload
+    : { ...payload, timestamp: new Date().toISOString() };
+  return publishEvent({
+    eventType,
+    eventVersion: '1.0.0',
+    actorId: inferredActorId,
+    actorType,
+    organizationId,
+    payload: payloadWithTimestamp,
+    metadata: createEventMetadata(actorType === 'system' ? 'system' : 'api'),
+  });
+};

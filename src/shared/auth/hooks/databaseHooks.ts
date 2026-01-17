@@ -84,7 +84,8 @@ export const createDatabaseHooks = (
     user: {
       create: {
         after: async (userData: UserData): Promise<void> => {
-          void publishSimpleEvent(EventType.AUTH_USER_SIGNED_UP, userData.id, undefined, {
+          void publishSimpleEvent(EventType.AUTH_USER_SIGNED_UP, 'user', undefined, {
+            actor_id: userData.id,
             user_id: userData.id,
             email: userData.email,
             name: userData.name,
@@ -135,9 +136,10 @@ export const createDatabaseHooks = (
 
           void publishSimpleEvent(
             EventType.AUTH_USER_LOGGED_IN,
-            session.userId,
+            'user',
             activeOrgId,
             {
+              actor_id: session.userId,
               user_id: session.userId,
               session_id: session.id,
               active_organization_id: activeOrgId,

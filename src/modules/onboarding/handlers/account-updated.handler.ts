@@ -3,12 +3,8 @@ import type Stripe from 'stripe';
 
 import {
   stripeConnectedAccounts,
-  type Requirements,
-  type Capabilities,
-  type CompanyInfo,
-  type IndividualInfo,
-  ExternalAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
+import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSystemEvent, publishSimpleEvent } from '@/shared/events/event-publisher';
@@ -43,12 +39,14 @@ export const handleAccountUpdated = async (
       payouts_enabled: account.payouts_enabled,
       details_submitted: account.details_submitted,
       business_type: account.business_type,
-      company: account.company as CompanyInfo,
-      individual: account.individual as IndividualInfo,
-      requirements: account.requirements as Requirements,
-      capabilities: account.capabilities as Capabilities,
-      external_accounts: account.external_accounts as ExternalAccounts,
-      metadata: account.metadata as Stripe.Metadata,
+      company: stripeAccountNormalizers.normalizeCompany(account.company),
+      individual: stripeAccountNormalizers.normalizeIndividual(account.individual),
+      requirements: stripeAccountNormalizers.normalizeRequirements(account.requirements),
+      capabilities: stripeAccountNormalizers.normalizeCapabilities(account.capabilities),
+      externalAccounts: stripeAccountNormalizers.normalizeExternalAccounts(account.external_accounts),
+      futureRequirements: stripeAccountNormalizers.normalizeFutureRequirements(account.future_requirements),
+      tosAcceptance: stripeAccountNormalizers.normalizeTosAcceptance(account.tos_acceptance),
+      metadata: account.metadata ?? undefined,
       last_refreshed_at: new Date(),
     };
 

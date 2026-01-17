@@ -37,10 +37,8 @@ export type BaseEvent = {
 
 // Events table
 export const events = pgTable('events', {
-  id: uuid('id').primaryKey().defaultRandom(),
-
   // Event identification
-  eventId: text('event_id').notNull().unique(),
+  eventId: uuid('event_id').primaryKey().defaultRandom(),
   eventType: text('event_type').notNull(),
   eventVersion: text('event_version').default('1.0.0').notNull(),
 

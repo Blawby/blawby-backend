@@ -78,11 +78,10 @@ export const markWebhookFailed = async (
   if (!event) return;
 
   const retryCount = event.retryCount + 1;
-  const processed = retryCount >= event.maxRetries;
-  const nextRetryAt
-    = !processed
-      ? new Date(Date.now() + Math.pow(2, retryCount) * 60 * 1000) // Exponential backoff
-      : null;
+  const hasMoreRetries = retryCount < event.maxRetries;
+  const nextRetryAt = hasMoreRetries
+    ? new Date(Date.now() + Math.pow(2, retryCount) * 60 * 1000) // Exponential backoff
+    : null;
 
   await db
     .update(webhookEvents)
@@ -91,7 +90,7 @@ export const markWebhookFailed = async (
       error,
       errorStack,
       nextRetryAt,
-      processed,
+      processed: false,
     })
     .where(eq(webhookEvents.id, id));
 };

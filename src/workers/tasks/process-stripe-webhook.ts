@@ -2,14 +2,10 @@
  * Process Stripe Webhook Task
  *
  * Graphile Worker task for processing Stripe webhook events.
- * Handles subscription-related events and routes to appropriate handlers.
  */
 
 import type Stripe from 'stripe';
 import type { Task } from 'graphile-worker';
-import { eq } from 'drizzle-orm';
-import { db } from '@/shared/database';
-import * as schema from '@/schema';
 import {
   findWebhookById,
   markWebhookProcessed,
@@ -20,6 +16,15 @@ import {
   isSubscriptionWebhookEvent,
 } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { processEvent as processOnboardingEvent } from '@/modules/webhooks/services/onboarding-webhooks.service';
+import {
+  isPaymentIntentEvent,
+  isSubscriptionEvent,
+} from '@/shared/utils/stripeGuards';
+import {
+  handlePaymentIntentSucceeded,
+  handlePaymentIntentFailed,
+  handlePaymentIntentCanceled,
+} from '@/modules/payments/handlers';
 
 interface ProcessStripeWebhookPayload {
   webhookId: string;
@@ -27,15 +32,22 @@ interface ProcessStripeWebhookPayload {
   eventType: string;
 }
 
+// --- HELPERS ---
+
 /**
- * Process Stripe webhook event
- *
- * Task name: process-stripe-webhook
+ * Checks if the event belongs to the onboarding flow
  */
-export const processStripeWebhook: Task = async (
-  payload: unknown,
-  helpers,
-): Promise<void> => {
+const isOnboardingEvent = (eventType: string): boolean => {
+  return (
+    eventType.startsWith('account.') ||
+    eventType.startsWith('capability.') ||
+    eventType.startsWith('account.external_account.')
+  );
+}
+
+// --- MAIN TASK ---
+
+export const processStripeWebhook: Task = async (payload, helpers) => {
   const { webhookId, eventId, eventType } = payload as ProcessStripeWebhookPayload;
   const startTime = Date.now();
 
@@ -44,7 +56,7 @@ export const processStripeWebhook: Task = async (
   );
 
   try {
-    // Get webhook event from database
+    // 1. Fetch & Validate
     const webhookEvent = await findWebhookById(webhookId);
 
     if (!webhookEvent) {
@@ -59,82 +71,91 @@ export const processStripeWebhook: Task = async (
 
     const event = webhookEvent.payload as Stripe.Event;
 
-    // Route to appropriate handler based on event type
+    // 2. Route & Process
     if (isSubscriptionWebhookEvent(event.type)) {
-      // Handle subscription-related events (product.*, price.*)
       await processSubscriptionWebhookEvent(event);
-      // Mark as processed (subscription service doesn't do this)
       await markWebhookProcessed(webhookId);
-    } else if (event.type.startsWith('customer.subscription.')) {
-      // Better Auth handles customer.subscription.* events automatically via callbacks
-      // (onSubscriptionComplete, onSubscriptionUpdate, onSubscriptionCancel)
-      // We just need to mark as processed since Better Auth already handled it
-      helpers.logger.info(
-        `Subscription lifecycle event handled by Better Auth: ${event.type}`,
-      );
+
+    } else if (isSubscriptionEvent(event)) {
+      helpers.logger.info(`Subscription lifecycle event handled by Better Auth: ${event.type}`);
       await markWebhookProcessed(webhookId);
-    } else if (
-      event.type.startsWith('account.') ||
-      event.type.startsWith('capability.') ||
-      event.type.startsWith('account.external_account.')
-    ) {
-      // Handle onboarding-related events (marks as processed internally)
+
+    } else if (isOnboardingEvent(event.type)) {
       await processOnboardingEvent(eventId);
-    } else {
-      // Handle other Stripe webhook types (payments, etc.)
-      helpers.logger.info(`Unhandled webhook event type: ${event.type}`);
-      // Mark as processed even if unhandled (to avoid retries)
-      await markWebhookProcessed(webhookId);
-      // TODO: Add payment webhook processing when ready
-    }
 
-    const duration = Date.now() - startTime;
-    helpers.logger.info(
-      `✅ Stripe webhook job completed successfully: ${eventId} - Duration: ${duration}ms`,
-    );
+    } else if (isPaymentIntentEvent(event)) {
+      // ✅ TYPE GUARD IN ACTION
+      // TypeScript now treats 'event' as StripeEventWithObject<Stripe.PaymentIntent>
+      // 'event.data.object' is strictly typed as Stripe.PaymentIntent
+      const paymentIntent = event.data.object;
 
-    // Log database status
-    try {
-      const updatedWebhookEvent = await findWebhookById(webhookId);
-
-      if (updatedWebhookEvent) {
-        helpers.logger.info(`📊 Database status for ${eventId}:`, {
-          processed: updatedWebhookEvent.processed,
-          processedAt: updatedWebhookEvent.processedAt?.toISOString(),
-          retryCount: updatedWebhookEvent.retryCount,
-          error: updatedWebhookEvent.error || 'None',
-        } as Record<string, unknown>);
-      } else {
-        helpers.logger.warn(`⚠️  Webhook event not found in database: ${webhookId}`);
+      switch (event.type) {
+        case 'payment_intent.succeeded':
+          await handlePaymentIntentSucceeded({
+            paymentIntent,
+            eventId: event.id,
+          });
+          break;
+        case 'payment_intent.payment_failed':
+          await handlePaymentIntentFailed({
+            paymentIntent,
+            eventId: event.id,
+          });
+          break;
+        case 'payment_intent.canceled':
+          await handlePaymentIntentCanceled({
+            paymentIntent,
+            eventId: event.id,
+          });
+          break;
+        default:
+          helpers.logger.warn(`Unhandled payment intent type: ${event.type}`);
       }
-    } catch (dbError) {
-      const dbErrorMsg = dbError instanceof Error ? dbError.message : String(dbError);
-      helpers.logger.error(
-        `❌ Failed to check database status for ${eventId}: ${dbErrorMsg}`,
-      );
+      await markWebhookProcessed(webhookId);
+
+    } else {
+      // Fallback
+      helpers.logger.info(`Unhandled webhook event type: ${event.type}`);
+      await markWebhookProcessed(webhookId);
     }
-  } catch (error) {
+
+    // 3. Success Logging
     const duration = Date.now() - startTime;
-    const errorMessage
-      = error instanceof Error ? error.message : 'Unknown error';
+    helpers.logger.info(`✅ Job completed: ${eventId} - ${duration}ms`);
+
+    // 4. Debug Status (Fail-safe)
+    // We fetch the updated status for debugging, but we don't await/block purely for logging
+    // or we catch it so it doesn't fail the whole job.
+    try {
+      const updated = await findWebhookById(webhookId);
+      if (updated) {
+        helpers.logger.info(`📊 Database status for ${eventId}:`, {
+          processed: updated.processed,
+          retryCount: updated.retryCount,
+          error: updated.error || 'None',
+        });
+      }
+    } catch (dbLogErr) {
+      helpers.logger.warn(`Failed to log final DB status: ${dbLogErr}`);
+    }
+
+  } catch (error) {
+    // 5. Error Handling
+    const duration = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
 
-    // Mark as failed (increments retry count, sets next retry time)
     try {
-      const webhookEvent = await findWebhookById(webhookId);
-      if (webhookEvent) {
-        await markWebhookFailed(webhookId, errorMessage, errorStack);
-      }
+      // Only mark failed if we actually found the webhook originally
+      // (Optimization: avoid DB call if we know ID is invalid, but safe to just call markWebhookFailed)
+      await markWebhookFailed(webhookId, errorMessage, errorStack);
     } catch (markError) {
-      const markErrorMsg = markError instanceof Error ? markError.message : String(markError);
-      helpers.logger.error(`Failed to mark webhook as failed: ${webhookId} - ${markErrorMsg}`);
+      helpers.logger.error(`CRITICAL: Failed to mark webhook as failed in DB: ${webhookId}`);
     }
 
-    const errorMsg = error instanceof Error ? error.message : String(error);
     helpers.logger.error(
-      `❌ Stripe webhook job failed: ${eventId} - Duration: ${duration}ms - ${errorMsg}`,
+      `❌ Job failed: ${eventId} - ${duration}ms - ${errorMessage}`,
     );
     throw error;
   }
 };
-
