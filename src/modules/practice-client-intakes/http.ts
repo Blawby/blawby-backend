@@ -9,6 +9,7 @@ import {
   slugParamSchema,
   uuidParamSchema,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -27,10 +28,6 @@ app.get('/:slug/intake', zValidator('param', slugParamSchema), async (c) => {
   return response.ok(c, result.data);
 });
 
-// Register OpenAPI route for documentation
-app.openapi(routes.getIntakeSettingsRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 // POST /create
 // Creates payment intent for practice client intake
@@ -55,10 +52,6 @@ app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async 
   return response.created(c, result.data);
 });
 
-// Register OpenAPI route for documentation
-app.openapi(routes.createPracticeClientIntakeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 // PUT /:uuid
 // Updates payment amount before confirmation
@@ -81,10 +74,6 @@ app.put(
   },
 );
 
-// Register OpenAPI route for documentation
-app.openapi(routes.updatePracticeClientIntakeRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 // GET /:uuid/status
 // Gets payment status
@@ -100,9 +89,6 @@ app.get('/:uuid/status', zValidator('param', uuidParamSchema), async (c) => {
   return response.ok(c, result.data);
 });
 
-// Register OpenAPI route for documentation
-app.openapi(routes.getPracticeClientIntakeStatusRoute, async () => {
-  throw new Error('This should never be called');
-});
+registerOpenApiRoutes(app, routes);
 
 export default app;

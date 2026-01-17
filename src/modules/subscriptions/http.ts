@@ -3,6 +3,7 @@ import * as routes from '@/modules/subscriptions/routes';
 import * as subscriptionService from '@/modules/subscriptions/services/subscription.service';
 import * as subscriptionValidations from '@/modules/subscriptions/validations/subscription.validation';
 import { validateParams, validateJson } from '@/shared/middleware/validation';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -23,10 +24,6 @@ subscriptionsApp.get('/plans', async (c) => {
   }
 });
 
-// Register OpenAPI route for documentation only
-subscriptionsApp.openapi(routes.listPlansRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/subscriptions/current
@@ -68,10 +65,6 @@ subscriptionsApp.get('/current', async (c) => {
   }
 });
 
-// Register OpenAPI route for documentation only
-subscriptionsApp.openapi(routes.getCurrentSubscriptionRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/subscriptions/create
@@ -112,10 +105,6 @@ subscriptionsApp.post(
   },
 );
 
-// Register OpenAPI route for documentation only
-subscriptionsApp.openapi(routes.createSubscriptionRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * POST /api/subscriptions/cancel
@@ -171,10 +160,6 @@ subscriptionsApp.post(
   },
 );
 
-// Register OpenAPI route for documentation only
-subscriptionsApp.openapi(routes.cancelSubscriptionRoute, async () => {
-  throw new Error('This should never be called');
-});
 
 /**
  * GET /api/subscriptions/:subscriptionId
@@ -226,10 +211,7 @@ subscriptionsApp.get(
   },
 );
 
-// Register OpenAPI route for documentation only
-subscriptionsApp.openapi(routes.getSubscriptionByIdRoute, async () => {
-  throw new Error('This should never be called');
-});
+registerOpenApiRoutes(subscriptionsApp, routes);
 
 export default subscriptionsApp;
 
