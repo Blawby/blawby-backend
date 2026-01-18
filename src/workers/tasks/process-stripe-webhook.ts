@@ -4,6 +4,7 @@
  * Graphile Worker task for processing Stripe webhook events.
  */
 
+import { getLogger } from '@logtape/logtape';
 import type Stripe from 'stripe';
 import type { Task } from 'graphile-worker';
 import {
@@ -21,6 +22,8 @@ import {
   isPaymentIntentEvent,
   isSubscriptionEvent,
 } from '@/shared/utils/stripeGuards';
+
+const logger = getLogger(['app', 'worker', 'stripe-webhook']);
 
 interface ProcessStripeWebhookPayload {
   webhookId: string;
@@ -47,21 +50,23 @@ export const processStripeWebhook: Task = async (payload, helpers) => {
   const { webhookId, eventId, eventType } = payload as ProcessStripeWebhookPayload;
   const startTime = Date.now();
 
-  helpers.logger.info(
-    `🚀 Starting Stripe webhook job: ${eventId} (${eventType}) - Job ID: ${webhookId}`,
-  );
+  logger.info("🚀 Starting Stripe webhook job: {eventId} ({eventType}) - Job ID: {webhookId}", {
+    eventId,
+    eventType,
+    webhookId
+  });
 
   try {
     // 1. Fetch & Validate
     const webhookEvent = await findWebhookById(webhookId);
 
     if (!webhookEvent) {
-      helpers.logger.error(`Webhook event not found: ${webhookId}`);
+      logger.error("Webhook event not found: {webhookId}", { webhookId });
       return;
     }
 
     if (webhookEvent.processed) {
-      helpers.logger.info(`Webhook event already processed: ${eventId}`);
+      logger.info("Webhook event already processed: {eventId}", { eventId });
       return;
     }
 
@@ -69,47 +74,53 @@ export const processStripeWebhook: Task = async (payload, helpers) => {
 
     // 2. Route & Process
     if (isSubscriptionWebhookEvent(event.type)) {
-      await processSubscriptionWebhookEvent(event);
+      const result = await processSubscriptionWebhookEvent(event);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
       await markWebhookProcessed(webhookId);
 
     } else if (isSubscriptionEvent(event)) {
-      helpers.logger.info(`Subscription lifecycle event handled by Better Auth: ${event.type}`);
+      logger.info("Subscription lifecycle event handled by Better Auth: {eventType}", { eventType: event.type });
       await markWebhookProcessed(webhookId);
 
     } else if (isOnboardingEvent(event.type)) {
-      await processOnboardingEvent(eventId);
+      const result = await processOnboardingEvent(eventId);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
       // Service marks as processed internally
 
     } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded') {
-      // Process practice client intake webhook events
-      // Also handle charge.succeeded as Payment Links create charges
-      await processPracticeClientIntakeEvent(eventId);
+      const result = await processPracticeClientIntakeEvent(eventId);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
       // Service marks as processed internally
 
     } else {
       // Fallback
-      helpers.logger.info(`Unhandled webhook event type: ${event.type}`);
+      logger.info("Unhandled webhook event type: {eventType}", { eventType: event.type });
       await markWebhookProcessed(webhookId);
     }
 
     // 3. Success Logging
     const duration = Date.now() - startTime;
-    helpers.logger.info(`✅ Job completed: ${eventId} - ${duration}ms`);
+    logger.info("✅ Job completed: {eventId} - {duration}ms", { eventId, duration });
 
     // 4. Debug Status (Fail-safe)
-    // We fetch the updated status for debugging, but we don't await/block purely for logging
-    // or we catch it so it doesn't fail the whole job.
     try {
       const updated = await findWebhookById(webhookId);
       if (updated) {
-        helpers.logger.info(`📊 Database status for ${eventId}:`, {
+        logger.info("📊 Database status for {eventId}:", {
+          eventId,
           processed: updated.processed,
           retryCount: updated.retryCount,
           error: updated.error || 'None',
         });
       }
     } catch (dbLogErr) {
-      helpers.logger.warn(`Failed to log final DB status: ${dbLogErr}`);
+      logger.warn("Failed to log final DB status: {error}", { error: dbLogErr });
     }
 
   } catch (error) {
@@ -120,15 +131,17 @@ export const processStripeWebhook: Task = async (payload, helpers) => {
 
     try {
       // Only mark failed if we actually found the webhook originally
-      // (Optimization: avoid DB call if we know ID is invalid, but safe to just call markWebhookFailed)
       await markWebhookFailed(webhookId, errorMessage, errorStack);
     } catch (markError) {
-      helpers.logger.error(`CRITICAL: Failed to mark webhook as failed in DB: ${webhookId}`);
+      logger.error("CRITICAL: Failed to mark webhook as failed in DB: {webhookId}", { webhookId });
     }
 
-    helpers.logger.error(
-      `❌ Job failed: ${eventId} - ${duration}ms - ${errorMessage}`,
-    );
+    logger.error("❌ Job failed: {eventId} - {duration}ms - {error}", {
+      eventId,
+      duration,
+      error: errorMessage,
+      stack: errorStack,
+    });
     throw error;
   }
 };

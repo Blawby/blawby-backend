@@ -36,10 +36,9 @@ type ValidationError = Error & {
 export const responseMiddleware = (): MiddlewareHandler => {
   return async (c: Context, next: Next) => {
     const startTime = Date.now();
-    const requestId = crypto.randomUUID();
+    const requestId = c.get('requestId');
 
     // Set request context data
-    c.set('requestId', requestId);
     c.set('startTime', startTime);
 
     try {
@@ -98,7 +97,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
           {
             error: error.message,
             message: error.message,
-            requestId,
+            request_id: requestId,
           },
           status as ContentfulStatusCode,
         );
@@ -122,7 +121,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
           {
             error: error.message,
             message: error.message,
-            requestId,
+            request_id: requestId,
           },
           error.status as ContentfulStatusCode,
         );
@@ -134,7 +133,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
           {
             error: 'Unauthorized',
             message: 'Authentication required',
-            requestId,
+            request_id: requestId,
           },
           401,
         );
@@ -158,7 +157,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
         {
           error: 'Internal Server Error',
           message: 'An unexpected error occurred',
-          requestId,
+          request_id: requestId,
         },
         500,
       );

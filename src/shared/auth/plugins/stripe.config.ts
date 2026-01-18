@@ -11,8 +11,7 @@ import { upsertLineItem } from '@/modules/subscriptions/database/queries/subscri
 import { createEvent } from '@/modules/subscriptions/database/queries/subscriptionEvents.repository';
 import { findPlanByStripePriceId } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
 import {
-  existsByStripeEventId,
-  createWebhookEvent,
+  createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
 
@@ -149,16 +148,16 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
     // Opt: Centralized Webhook Handling
     onEvent: async (event) => {
       try {
-        if (await existsByStripeEventId(event.id)) {
-          console.log(`⚠️ Skipped duplicate event: ${event.id}`);
-          return;
-        }
-
-        const webhookEvent = await createWebhookEvent(
+        const webhookEvent = await createWebhookEventIfNotExists(
           event,
           { 'stripe-event-id': event.id, 'stripe-event-type': event.type },
           '/api/auth/stripe/webhook'
         );
+
+        if (!webhookEvent) {
+          console.log(`⚠️ Skipped duplicate event: ${event.id}`);
+          return;
+        }
 
         const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.'];
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some(prefix => event.type.startsWith(prefix));

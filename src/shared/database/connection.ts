@@ -33,6 +33,9 @@ const initialize = (): void => {
   _pool = new Pool({
     connectionString,
     max: Number(process.env.PG_MAX_CLIENTS ?? 10),
+    min: Number(process.env.PG_MIN_CLIENTS ?? 2),
+    idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT ?? 30000),
+    connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT ?? 2000),
   });
 
   _db = drizzle(_pool, { schema });

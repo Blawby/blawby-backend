@@ -18,9 +18,9 @@ const practiceApp = new OpenAPIHono<AppContext>();
  * List all practices for the authenticated user
  */
 practiceApp.get('/list', async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
-  const practices = await practiceService.listPractices(user, c.req.header());
-  return response.ok(c, { practices });
+  const user = c.get('user')!;
+  const result = await practiceService.listPractices(user, c.req.header());
+  return response.fromResult(c, result);
 });
 
 
@@ -29,15 +29,15 @@ practiceApp.get('/list', async (c) => {
  * Create a new practice
  */
 practiceApp.post('/', validateJson(practiceValidations.createPracticeSchema, 'Invalid Practice Data'), async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
+  const user = c.get('user')!;
   const validatedBody = c.get('validatedBody');
 
-  const practice = await practiceService.createPracticeService({
+  const result = await practiceService.createPracticeService({
     data: validatedBody,
     user,
     requestHeaders: c.req.header(),
   });
-  return response.created(c, { practice });
+  return response.fromResult(c, result, 201);
 });
 
 
@@ -46,13 +46,11 @@ practiceApp.post('/', validateJson(practiceValidations.createPracticeSchema, 'In
  * Get practice by ID
  */
 practiceApp.get('/:uuid', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice uuid'), async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
-  const validatedParams = c.get('validatedParams');
+  const user = c.get('user')!;
+  const { uuid } = c.get('validatedParams');
 
-  const practice = await practiceService.getPracticeById(validatedParams.uuid,
-    user,
-    c.req.header());
-  return response.ok(c, { practice });
+  const result = await practiceService.getPracticeById(uuid, user, c.req.header());
+  return response.fromResult(c, result);
 });
 
 
@@ -66,17 +64,17 @@ practiceApp.put('/:uuid', validateParamsAndJson(
   'Invalid Practice ID',
   'Invalid Practice Data',
 ), async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
-  const validatedParams = c.get('validatedParams');
+  const user = c.get('user')!;
+  const { uuid } = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const practice = await practiceService.updatePracticeService(
-    validatedParams.uuid,
+  const result = await practiceService.updatePracticeService(
+    uuid,
     validatedBody,
     user,
     c.req.header(),
   );
-  return response.ok(c, { practice });
+  return response.fromResult(c, result);
 });
 
 
@@ -85,13 +83,11 @@ practiceApp.put('/:uuid', validateParamsAndJson(
  * Delete practice
  */
 practiceApp.delete('/:uuid', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
-  const validatedParams = c.get('validatedParams');
+  const user = c.get('user')!;
+  const { uuid } = c.get('validatedParams');
 
-  await practiceService.deletePracticeService(validatedParams.uuid,
-    user,
-    c.req.header());
-  return response.noContent(c);
+  const result = await practiceService.deletePracticeService(uuid, user, c.req.header());
+  return response.fromResult(c, result, 204);
 });
 
 
@@ -100,13 +96,11 @@ practiceApp.delete('/:uuid', validateParams(practiceValidations.practiceIdParamS
  * Set practice as active
  */
 practiceApp.put('/:uuid/active', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
-  const validatedParams = c.get('validatedParams');
+  const user = c.get('user')!;
+  const { uuid } = c.get('validatedParams');
 
-  const result = await practiceService.setActivePractice(validatedParams.uuid,
-    user,
-    c.req.header());
-  return response.ok(c, { result });
+  const result = await practiceService.setActivePractice(uuid, user, c.req.header());
+  return response.fromResult(c, result);
 });
 
 
@@ -116,14 +110,14 @@ practiceApp.put('/:uuid/active', validateParams(practiceValidations.practiceIdPa
  */
 practiceApp.get('/:uuid/members', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
   const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
+  const { uuid } = c.get('validatedParams');
 
   const result = await membersService.listPracticeMembers(
-    validatedParams.uuid,
+    uuid,
     user,
     c.req.header(),
   );
-  return response.ok(c, result);
+  return response.fromResult(c, result);
 });
 
 
@@ -138,17 +132,17 @@ practiceApp.patch('/:uuid/members', validateParamsAndJson(
   'Invalid Member Data',
 ), async (c) => {
   const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
+  const { uuid } = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
   const result = await membersService.updatePracticeMemberRole(
-    validatedParams.uuid,
+    uuid,
     validatedBody.member_id,
     validatedBody.role,
     user,
     c.req.header(),
   );
-  return response.ok(c, result);
+  return response.fromResult(c, result);
 });
 
 
@@ -162,15 +156,15 @@ const userIdParamSchema = practiceValidations.practiceIdParamSchema.extend({
 
 practiceApp.delete('/:uuid/members/:userId', validateParams(userIdParamSchema, 'Invalid Parameters'), async (c) => {
   const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
+  const { uuid, userId } = c.get('validatedParams');
 
-  await membersService.removePracticeMember(
-    validatedParams.uuid,
-    validatedParams.userId,
+  const result = await membersService.removePracticeMember(
+    uuid,
+    userId,
     user,
     c.req.header(),
   );
-  return response.noContent(c);
+  return response.fromResult(c, result, 204);
 });
 
 
@@ -181,11 +175,11 @@ practiceApp.delete('/:uuid/members/:userId', validateParams(userIdParamSchema, '
 practiceApp.get('/invitations', async (c) => {
   const user = c.get('user')!;
 
-  const invitations = await invitationsService.listPracticeInvitations(
+  const result = await invitationsService.listPracticeInvitations(
     user,
     c.req.header(),
   );
-  return response.ok(c, { invitations });
+  return response.fromResult(c, result);
 });
 
 
@@ -200,17 +194,17 @@ practiceApp.post('/:uuid/invitations', validateParamsAndJson(
   'Invalid Invitation Data',
 ), async (c) => {
   const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
+  const { uuid } = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
   const result = await invitationsService.createPracticeInvitation(
-    validatedParams.uuid,
+    uuid,
     validatedBody.email,
     validatedBody.role,
     user,
     c.req.header(),
   );
-  return response.created(c, result);
+  return response.fromResult(c, result, 201);
 });
 
 
@@ -224,14 +218,14 @@ const invitationIdParamSchema = z.object({
 
 practiceApp.post('/invitations/:invitationId/accept', validateParams(invitationIdParamSchema, 'Invalid Invitation ID'), async (c) => {
   const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
+  const { invitationId } = c.get('validatedParams');
 
   const result = await invitationsService.acceptPracticeInvitation(
-    validatedParams.invitationId,
+    invitationId,
     user,
     c.req.header(),
   );
-  return response.ok(c, result);
+  return response.fromResult(c, result);
 });
 
 
@@ -243,12 +237,12 @@ practiceApp.get('/:uuid/details', validateParams(practiceValidations.practiceIdP
   const user = c.get('user')!;
   const validatedParams = c.get('validatedParams');
 
-  const details = await practiceDetailsService.getPracticeDetails(
+  const result = await practiceDetailsService.getPracticeDetails(
     validatedParams.uuid,
     user,
     c.req.header(),
   );
-  return response.ok(c, { details });
+  return response.fromResult(c, result);
 });
 
 
@@ -266,13 +260,13 @@ practiceApp.post('/:uuid/details', validateParamsAndJson(
   const validatedParams = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const details = await practiceDetailsService.upsertPracticeDetailsService(
+  const result = await practiceDetailsService.upsertPracticeDetailsService(
     validatedParams.uuid,
     validatedBody,
     user,
     c.req.header(),
   );
-  return response.created(c, { details });
+  return response.fromResult(c, result, 201);
 });
 
 
@@ -290,13 +284,13 @@ practiceApp.put('/:uuid/details', validateParamsAndJson(
   const validatedParams = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const details = await practiceDetailsService.upsertPracticeDetailsService(
+  const result = await practiceDetailsService.upsertPracticeDetailsService(
     validatedParams.uuid,
     validatedBody,
     user,
     c.req.header(),
   );
-  return response.ok(c, { details });
+  return response.fromResult(c, result);
 });
 
 
@@ -308,24 +302,20 @@ practiceApp.delete('/:uuid/details', validateParams(practiceValidations.practice
   const user = c.get('user')!;
   const validatedParams = c.get('validatedParams');
 
-  await practiceDetailsService.deletePracticeDetailsService(
+  const result = await practiceDetailsService.deletePracticeDetailsService(
     validatedParams.uuid,
     user,
     c.req.header(),
   );
-  return response.noContent(c);
+  return response.fromResult(c, result, 204);
 });
 
 
 
 practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSchema, 'Invalid Slug'), async (c) => {
   const { slug } = c.get('validatedParams');
-  const details = await practiceDetailsService.getPracticeDetailsBySlug(slug);
-
-  if (!details) {
-    return response.notFound(c, 'Practice not found');
-  }
-  return response.ok(c, details);
+  const result = await practiceDetailsService.getPracticeDetailsBySlug(slug);
+  return response.fromResult(c, result);
 });
 
 registerOpenApiRoutes(practiceApp, routes);

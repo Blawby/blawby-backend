@@ -1,4 +1,4 @@
-import { consola } from 'consola';
+import { getLogger } from '@logtape/logtape';
 import type { MiddlewareHandler } from 'hono';
 import { logger as honoLogger } from 'hono/logger';
 import { isProduction } from '@/shared/utils/env';
@@ -11,6 +11,8 @@ import {
   sanitizeBody,
 } from '@/shared/utils/logging';
 
+const loggerInstance = getLogger(['app', 'api']);
+
 /**
  * Hono Logger Middleware
  *
@@ -19,8 +21,8 @@ import {
  */
 export const logger = (): MiddlewareHandler => {
   return honoLogger((message, ...rest) => {
-    // Use consola for consistent logging
-    consola.info(`[HONO] ${message}`, ...rest);
+    // Log basic request info
+    loggerInstance.info(message, { details: rest });
   });
 };
 
@@ -58,9 +60,12 @@ export const logError = (error: unknown, context?: {
     timestamp: new Date().toISOString(),
   };
 
-  // Use consola with appropriate level based on status code
-  const level = (context?.statusCode && context.statusCode >= 500) ? 'error' : 'warn';
-  consola[level]('API Error:', errorInfo);
+  // Use LogTape with appropriate level based on status code
+  if (context?.statusCode && context.statusCode >= 500) {
+    loggerInstance.error('API Error: {errorInfo}', { errorInfo });
+  } else {
+    loggerInstance.warn('API Error: {errorInfo}', { errorInfo });
+  }
 };
 
 /**
@@ -97,7 +102,7 @@ export const logRequest = (context: {
     timestamp: new Date().toISOString(),
   };
 
-  consola.info('Request:', requestInfo);
+  loggerInstance.info('Request: {requestInfo}', { requestInfo });
 };
 
 /**
@@ -133,9 +138,14 @@ export const logResponse = (context: {
     timestamp: new Date().toISOString(),
   };
 
-  // Use consola with appropriate level based on status code
-  const level = context.statusCode >= 400 ? 'error' : 'info';
-  consola[level]('Response:', responseInfo);
+  // Use LogTape with appropriate level based on status code
+  if (context.statusCode >= 500) {
+    loggerInstance.error('Response: {responseInfo}', { responseInfo });
+  } else if (context.statusCode >= 400) {
+    loggerInstance.warn('Response: {responseInfo}', { responseInfo });
+  } else {
+    loggerInstance.info('Response: {responseInfo}', { responseInfo });
+  }
 };
 
 /**
@@ -150,7 +160,7 @@ export const logSuccess = (message: string, data?: Record<string, unknown>): voi
     timestamp: new Date().toISOString(),
   };
 
-  consola.success('Success:', successInfo);
+  loggerInstance.info('Success: {successInfo}', { successInfo });
 };
 
 /**
@@ -166,7 +176,7 @@ export const logDebug = (message: string, data?: Record<string, unknown>): void 
       timestamp: new Date().toISOString(),
     };
 
-    consola.debug('Debug:', debugInfo);
+    loggerInstance.debug('Debug: {debugInfo}', { debugInfo });
   }
 };
 
@@ -182,5 +192,5 @@ export const logWarning = (message: string, data?: Record<string, unknown>): voi
     timestamp: new Date().toISOString(),
   };
 
-  consola.warn('Warning:', warningInfo);
+  loggerInstance.warn('Warning: {warningInfo}', { warningInfo });
 };

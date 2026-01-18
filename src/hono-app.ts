@@ -4,17 +4,18 @@ import { Hono } from 'hono';
 import { SmartRouter } from 'hono/router/smart-router';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { TrieRouter } from 'hono/router/trie-router';
+import { requestId } from 'hono/request-id';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { sql } from 'drizzle-orm';
 import {
-  logger,
   cors,
   responseMiddleware,
   notFoundHandler,
   errorHandler,
 } from '@/shared/middleware';
+import { honoLogger } from '@logtape/hono';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
 import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
@@ -36,7 +37,10 @@ const app = new Hono<AppContext>({
 const getAuthInstance = (): BetterAuthInstance => createBetterAuthInstance(db);
 
 // Middlewares – order is important!
-app.use('*', logger());
+app.use('*', requestId());
+app.use('*', honoLogger({
+  skip: (c) => c.req.path === '/api/health',
+}));
 app.use('*', cors());
 app.use('*', responseMiddleware());
 
