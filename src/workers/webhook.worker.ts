@@ -111,7 +111,10 @@ async function startWorker(): Promise<void> {
       pollInterval: 1000, // Poll for new jobs every second
       crontab: `
         */1 * * * * ${TASK_NAMES.PROCESS_OUTBOX_EVENT}
-      `, // Process outbox events every minute
+      `, // Process outbox events every minute (fallback)
+      // Note: Events are also processed immediately via publishSimpleEvent
+      // This cron is a fallback in case immediate enqueueing fails
+      // Graphile Worker only supports minute-level precision (no seconds)
     });
 
     console.log('✅ Graphile Worker connected and ready to process jobs');

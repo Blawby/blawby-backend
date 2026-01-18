@@ -16,15 +16,11 @@ import {
   isSubscriptionWebhookEvent,
 } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { processEvent as processOnboardingEvent } from '@/modules/webhooks/services/onboarding-webhooks.service';
+import { processEvent as processPracticeClientIntakeEvent } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
 import {
   isPaymentIntentEvent,
   isSubscriptionEvent,
 } from '@/shared/utils/stripeGuards';
-import {
-  handlePaymentIntentSucceeded,
-  handlePaymentIntentFailed,
-  handlePaymentIntentCanceled,
-} from '@/modules/payments/handlers';
 
 interface ProcessStripeWebhookPayload {
   webhookId: string;
@@ -82,36 +78,13 @@ export const processStripeWebhook: Task = async (payload, helpers) => {
 
     } else if (isOnboardingEvent(event.type)) {
       await processOnboardingEvent(eventId);
+      // Service marks as processed internally
 
-    } else if (isPaymentIntentEvent(event)) {
-      // ✅ TYPE GUARD IN ACTION
-      // TypeScript now treats 'event' as StripeEventWithObject<Stripe.PaymentIntent>
-      // 'event.data.object' is strictly typed as Stripe.PaymentIntent
-      const paymentIntent = event.data.object;
-
-      switch (event.type) {
-        case 'payment_intent.succeeded':
-          await handlePaymentIntentSucceeded({
-            paymentIntent,
-            eventId: event.id,
-          });
-          break;
-        case 'payment_intent.payment_failed':
-          await handlePaymentIntentFailed({
-            paymentIntent,
-            eventId: event.id,
-          });
-          break;
-        case 'payment_intent.canceled':
-          await handlePaymentIntentCanceled({
-            paymentIntent,
-            eventId: event.id,
-          });
-          break;
-        default:
-          helpers.logger.warn(`Unhandled payment intent type: ${event.type}`);
-      }
-      await markWebhookProcessed(webhookId);
+    } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded') {
+      // Process practice client intake webhook events
+      // Also handle charge.succeeded as Payment Links create charges
+      await processPracticeClientIntakeEvent(eventId);
+      // Service marks as processed internally
 
     } else {
       // Fallback

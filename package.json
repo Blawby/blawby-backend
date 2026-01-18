@@ -11,7 +11,7 @@
     "build": "tsx scripts/build.ts",
     "dev": "tsx watch src/hono-server.ts",
     "dev:full": "concurrently \"ENABLE_QUEUE=true pnpm run dev\" \"pnpm run worker:dev\" --names \"API,WORKER\" --prefix-colors \"blue,green\"",
-    "worker": "tsx src/workers/webhook.worker.ts",
+    "worker": "node dist/workers/webhook.worker.js",
     "worker:dev": "tsx watch src/workers/webhook.worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -24,6 +24,7 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "start": "node dist/hono-server.js",
+    "start:all": "concurrently \"pnpm start\" \"pnpm run worker\" --names \"API,WORKER\" --prefix-colors \"blue,green\"",
     "test": "cross-env TS_NODE_FILES=true tap test/**/*.test.ts",
     "typecheck": "tsc -noEmit"
   },
