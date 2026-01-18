@@ -35,7 +35,11 @@ export const registerPracticeClientIntakeEvents = (): void => {
       }
 
       // Fetch payment intent from Stripe to get full details
-      const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId) as Stripe.PaymentIntent;
+      // Expand payment_link to ensure we can find the intake by Payment Link ID
+      const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId, {
+        expand: ['payment_link'],
+      }) as Stripe.PaymentIntent;
+
       const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
 
       if (!practiceClientIntake) {

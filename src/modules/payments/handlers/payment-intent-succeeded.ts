@@ -45,13 +45,6 @@ export const handlePaymentIntentSucceeded = async ({
         event_id: eventId,
       },
     );
-
-    if (!practiceClientIntake) {
-      consola.warn('Payment intent not found in practice client intakes', {
-        stripePaymentIntentId: paymentIntent.id,
-        hasPaymentLink: 'payment_link' in paymentIntent && !!paymentIntent.payment_link,
-      });
-    }
   } catch (error) {
     consola.error('Failed to process payment_intent.succeeded webhook', {
       error: sanitizeError(error),
