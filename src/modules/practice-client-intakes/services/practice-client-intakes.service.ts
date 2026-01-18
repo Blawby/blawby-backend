@@ -5,6 +5,7 @@
  * Implements direct payment functionality for client intake
  */
 
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type {
   PracticeClientIntakeSettings,
@@ -21,13 +22,11 @@ import type {
 import {
   practiceClientIntakeMetadataSchema,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { stripeConnectedAccountsRepository } from '@/modules/onboarding/database/queries/connected-accounts.repository';
 import { organizations } from '@/schema';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx } from '@/shared/events/event-publisher';
-import { ORGANIZATION_ACTOR_UUID } from '@/shared/events/constants';
+import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { stripe } from '@/shared/utils/stripe-client';
 
 /**
@@ -127,95 +126,91 @@ const createPracticeClientIntake = async (
       };
     }
 
-    // 3. Create payment intent on Stripe with transfer_data
-    const stripePaymentIntent = await stripe.paymentIntents.create({
-      amount: request.amount,
-      currency: 'usd',
+    const intakeId: string = randomUUID();
+
+    const stripePaymentLink = await stripe.paymentLinks.create({
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Client Intake - ${organization.name}`,
+              description: request.description || 'Legal consultation payment',
+            },
+            unit_amount: request.amount,
+          },
+          quantity: 1,
+        },
+      ],
+      // Connected account appears as merchant of record
+      on_behalf_of: connectedAccountDetails.stripe_account_id,
+      // Transfer funds to connected account (destination charges)
       transfer_data: {
         destination: connectedAccountDetails.stripe_account_id,
       },
-      payment_method_types: ['card', 'us_bank_account'],
-      payment_method_options: {
-        us_bank_account: {
-          financial_connections: {
-            permissions: ['payment_method', 'balances'],
-          },
-        },
-      },
-      metadata: {
-        email: request.email,
-        name: request.name,
-        phone: request.phone || '',
-        on_behalf_of: request.on_behalf_of || '',
-        opposing_party: request.opposing_party || '',
-        description: request.description || '',
-        organization_id: organization.id,
-      },
-      receipt_email: request.email,
-    });
-
-    // 4. Store practice client intake in database within transaction with event publishing
-    // Note: Stripe API call is external, so it's outside the transaction
-    const practiceClientIntake = await db.transaction(async (tx) => {
-      // Schema requires stripePaymentLinkId, but we're using Payment Intents
-      // Use payment intent ID as a placeholder for now (schema migration needed)
-      const practiceClientIntakeData: InsertPracticeClientIntake = {
-        organizationId: organization.id,
-        connectedAccountId: connectedAccountDetails.id,
-        stripePaymentLinkId: `pi_${stripePaymentIntent.id}`, // Temporary: schema requires this
-        stripePaymentIntentId: stripePaymentIntent.id,
-        amount: request.amount,
-        currency: 'usd',
-        status: stripePaymentIntent.status as string,
+      payment_intent_data: {
         metadata: {
           email: request.email,
           name: request.name,
-          phone: request.phone,
-          onBehalfOf: request.on_behalf_of,
-          opposingParty: request.opposing_party,
-          description: request.description,
+          phone: request.phone || '',
+          on_behalf_of: request.on_behalf_of || '',
+          opposing_party: request.opposing_party || '',
+          description: request.description || '',
+          organization_id: organization.id,
+          intake_uuid: intakeId,
         },
-        clientIp: request.clientIp,
-        userAgent: request.userAgent,
-      };
-
-      const [intake] = await tx
-        .insert(practiceClientIntakes)
-        .values(practiceClientIntakeData)
-        .returning();
-
-      // Publish practice client intake created event within transaction
-      await publishEventTx(tx, {
-        type: EventType.INTAKE_PAYMENT_CREATED,
-        actorId: ORGANIZATION_ACTOR_UUID,
-        actorType: 'api',
-        organizationId: organization.id,
-        payload: {
-          intake_payment_id: intake.id,
-          uuid: intake.id,
-          stripe_payment_intent_id: stripePaymentIntent.id,
-          amount: request.amount,
-          currency: 'usd',
-          client_email: request.email,
-          client_name: request.name,
-          created_at: new Date().toISOString(),
+      },
+      after_completion: {
+        type: 'redirect',
+        redirect: {
+          url: `${process.env.FRONTEND_URL}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}`,
         },
-      });
-
-      return intake;
+      },
     });
 
-    // Return response matching the expected type structure
-    // Note: Using clientSecret for Payment Intent, but type expects paymentLinkUrl
-    // This should be updated when types are migrated to Payment Intent
+    // 4. Store practice client intake in database
+    const practiceClientIntakeData: InsertPracticeClientIntake = {
+      id: intakeId,
+      organizationId: organization.id,
+      connectedAccountId: connectedAccountDetails.id,
+      stripePaymentLinkId: stripePaymentLink.id,
+      amount: request.amount,
+      currency: 'usd',
+      status: 'open', // Payment Link status: open, completed, expired
+      metadata: {
+        email: request.email,
+        name: request.name,
+        phone: request.phone,
+        onBehalfOf: request.on_behalf_of,
+        opposingParty: request.opposing_party,
+        description: request.description,
+      },
+      clientIp: request.clientIp,
+      userAgent: request.userAgent,
+    };
+
+    const practiceClientIntake = await practiceClientIntakesRepository.create(practiceClientIntakeData);
+
+    // 6. Publish practice client intake created event
+    void publishSimpleEvent(EventType.INTAKE_PAYMENT_CREATED, 'organization', organization.id, {
+      intake_payment_id: practiceClientIntake.id,
+      uuid: practiceClientIntake.id,
+      stripe_payment_link_id: stripePaymentLink.id,
+      amount: request.amount,
+      currency: 'usd',
+      client_email: request.email,
+      client_name: request.name,
+      created_at: new Date().toISOString(),
+    });
+
     return {
       success: true,
       data: {
         uuid: practiceClientIntake.id,
-        paymentLinkUrl: '', // Payment Intent doesn't have a URL, client uses clientSecret
+        paymentLinkUrl: stripePaymentLink.url,
         amount: request.amount,
         currency: 'usd',
-        status: practiceClientIntake.status,
+        status: 'open',
         organization: {
           name: organization.name,
           logo: organization.logo,

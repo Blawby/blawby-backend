@@ -10,7 +10,7 @@ import type { SelectPracticeClientIntake } from '@/modules/practice-client-intak
 export const findPracticeClientIntakeByPaymentIntent = async (
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<SelectPracticeClientIntake | undefined> => {
-  // Try to find by Stripe payment intent ID first
+  // Try to find by Stripe payment intent ID first (if it was already stored)
   let practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(
     paymentIntent.id,
   );
@@ -33,6 +33,7 @@ export const findPracticeClientIntakeByPaymentIntent = async (
     }
   }
 
+  // Last resort: try to find by intake_uuid from metadata
   if (!practiceClientIntake && typeof paymentIntent.metadata?.intake_uuid === 'string') {
     practiceClientIntake = await practiceClientIntakesRepository.findById(
       paymentIntent.metadata.intake_uuid,
