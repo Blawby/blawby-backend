@@ -4,10 +4,8 @@
  * Centralized application initialization
  */
 
-import { isProductionLike } from '@/shared/utils/env';
 import { bootEventHandlers } from './event-handlers';
 import { bootServices } from './services';
-import { bootWorkers } from './workers';
 import { initializeRateLimiter } from '@/shared/middleware/rateLimit';
 
 /**
@@ -30,12 +28,6 @@ export const bootApplication = async (): Promise<void> => {
 
   // 3. Register event handlers
   bootEventHandlers();
-
-  // 4. Start background workers
-  // Note: Workers run as separate processes, this is just for API compatibility
-  if (isProductionLike()) {
-    bootWorkers();
-  }
 
   console.info('✅ Application boot sequence completed');
 };

@@ -4,7 +4,9 @@
  */
 
 import { createHash } from 'node:crypto';
-import { consola } from 'consola';
+import { getLogger } from '@logtape/logtape';
+
+const loggerInstance = getLogger(['app', 'utils']);
 
 const SENSITIVE_HEADERS = [
   'authorization',
@@ -231,7 +233,7 @@ export const logError = (
   context: Record<string, unknown> = {},
 ): void => {
   if (isStripeError(error)) {
-    consola.error(`[STRIPE ERROR] ${message}`, {
+    loggerInstance.error(`[STRIPE ERROR] ${message}: {error}`, {
       error: sanitizeError(error),
       stripeErrorType: error.type,
       stripeErrorCode: error.code,
@@ -239,7 +241,7 @@ export const logError = (
       ...context,
     });
   } else {
-    consola.error(`[APP ERROR] ${message}`, {
+    loggerInstance.error(`[APP ERROR] ${message}: {error}`, {
       error: sanitizeError(error),
       ...context,
     });

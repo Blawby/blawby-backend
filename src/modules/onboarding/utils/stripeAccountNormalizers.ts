@@ -10,7 +10,7 @@ import type {
   OnboardingAddress,
   Requirements,
   TosAcceptance,
-} from '@/modules/onboarding/schemas/onboarding.schema';
+} from '@/modules/onboarding/types/onboarding.types';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
 
 const normalizeAddress = (

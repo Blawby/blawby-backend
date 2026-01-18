@@ -15,23 +15,15 @@ import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
 
-// GET /:slug/intake
-// Public intake page - returns organization details and payment settings
 app.get('/:slug/intake', zValidator('param', slugParamSchema), async (c) => {
   const { slug } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeSettings(slug);
-
-  if (!result.success) {
-    return response.notFound(c, result.error || 'Organization not found');
-  }
-
-  return response.ok(c, result.data);
+  return response.fromResult(c, result);
 });
 
 
 // POST /create
 // Creates payment intent for practice client intake
-// Will be mounted at /api/practice/client-intakes/create
 app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async (c) => {
   const body = c.req.valid('json');
   const clientIp = c.req.header('x-forwarded-for')
@@ -45,17 +37,11 @@ app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async 
     userAgent,
   });
 
-  if (!result.success) {
-    return response.badRequest(c, result.error || 'Failed to create payment');
-  }
-
-  return response.created(c, result.data);
+  return response.fromResult(c, result, 201);
 });
 
 
 // PUT /:uuid
-// Updates payment amount before confirmation
-// Will be mounted at /api/practice/client-intakes/:uuid
 app.put(
   '/:uuid',
   zValidator('param', uuidParamSchema),
@@ -65,28 +51,16 @@ app.put(
     const { amount } = c.req.valid('json');
 
     const result = await practiceClientIntakesService.updatePracticeClientIntake(uuid, amount);
-
-    if (!result.success) {
-      return response.badRequest(c, result.error || 'Failed to update payment');
-    }
-
-    return response.ok(c, result.data);
+    return response.fromResult(c, result);
   },
 );
 
 
 // GET /:uuid/status
-// Gets payment status
-// Will be mounted at /api/practice/client-intakes/:uuid/status
 app.get('/:uuid/status', zValidator('param', uuidParamSchema), async (c) => {
   const { uuid } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
-
-  if (!result.success) {
-    return response.notFound(c, result.error || 'Payment not found');
-  }
-
-  return response.ok(c, result.data);
+  return response.fromResult(c, result);
 });
 
 registerOpenApiRoutes(app, routes);

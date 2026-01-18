@@ -26,6 +26,12 @@ importers:
       '@hono/zod-openapi':
         specifier: ^1.1.5
         version: 1.1.5(hono@4.10.1)(zod@4.1.12)
+      '@logtape/hono':
+        specifier: ^2.0.0
+        version: 2.0.0(@logtape/logtape@2.0.0)(hono@4.10.1)
+      '@logtape/logtape':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@scalar/hono-api-reference':
         specifier: ^0.9.25
         version: 0.9.25(hono@4.10.1)
@@ -992,6 +998,15 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@logtape/hono@2.0.0':
+    resolution: {integrity: sha512-aP/Siqat5Plo27f49xPRaZqtIjYlqlQUtXs3LqzHr4DeBAWxycdVAz9DEkUqRKU7ZsmJvB7VhoQTLjPfPnq0eQ==}
+    peerDependencies:
+      '@logtape/logtape': ^2.0.0
+      hono: ^4.0.0
+
+  '@logtape/logtape@2.0.0':
+    resolution: {integrity: sha512-z9Hp44mIRXAzgxSyQfFQiRuJ78EMnZa6g43UCxyGOO3RgHjn/7q+5OhdbhypkeHjiJRPxv6RmRsyF0S+OOYWnA==}
 
   '@noble/ciphers@1.3.0':
     resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
@@ -5994,6 +6009,13 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@logtape/hono@2.0.0(@logtape/logtape@2.0.0)(hono@4.10.1)':
+    dependencies:
+      '@logtape/logtape': 2.0.0
+      hono: 4.10.1
+
+  '@logtape/logtape@2.0.0': {}
 
   '@noble/ciphers@1.3.0': {}
 

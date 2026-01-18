@@ -1,3 +1,4 @@
+import { getLogger } from '@logtape/logtape';
 import type { MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
 import { logError } from '@/shared/middleware/logger';
@@ -83,23 +84,23 @@ export const validateJson = <T extends z.ZodTypeAny>(
           stack: JSON.stringify(validationResult.error.issues),
         });
 
-        // Log detailed validation errors for debugging
-        console.log('🔍 VALIDATION ERRORS:', validationResult.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-          code: issue.code,
-        })));
+        const logger = getLogger(['app', 'validation']);
+        logger.warn('Validation errors: {errors}', {
+          errors: validationResult.error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code,
+          }))
+        });
 
         // Return the proper response directly instead of throwing
-        return c.json({
-          error: errorMessage,
-          message: 'Please check your input data',
+        return response.badRequest(c, errorMessage, {
           details: validationResult.error.issues.map((issue) => ({
             field: issue.path.join('.'),
             message: issue.message,
             code: issue.code,
           })),
-        }, 400);
+        });
       }
 
       // Store validated body in context for use in route handler
@@ -111,7 +112,8 @@ export const validateJson = <T extends z.ZodTypeAny>(
         throw error;
       }
 
-      console.log('🔍 JSON parsing failed:', error);
+      const logger = getLogger(['app', 'validation']);
+      logger.error('JSON parsing failed: {error}', { error });
       logError(new Error(`JSON parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`), {
         method: c.req.method,
         url: c.req.url,
@@ -121,11 +123,9 @@ export const validateJson = <T extends z.ZodTypeAny>(
         stack: error instanceof Error ? error.stack : undefined,
       });
 
-      return c.json({
-        error: 'Invalid JSON',
-        message: 'Request body must be valid JSON',
+      return response.badRequest(c, 'Invalid JSON', {
         details: error instanceof Error ? error.message : 'Unknown parsing error',
-      }, 400);
+      });
     }
   };
 };
@@ -162,23 +162,23 @@ export const validateParamsAndJson = <
         stack: JSON.stringify(paramValidation.error.issues),
       });
 
-      // Log detailed validation errors for debugging
-      console.log('🔍 PARAM VALIDATION ERRORS (validateParamsAndJson):', paramValidation.error.issues.map((issue) => ({
-        field: issue.path.join('.'),
-        message: issue.message,
-        code: issue.code,
-      })));
+      const logger = getLogger(['app', 'validation']);
+      logger.warn('Param validation errors: {errors}', {
+        errors: paramValidation.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+        }))
+      });
 
       // Return the proper response directly instead of throwing
-      return c.json({
-        error: paramErrorMessage,
-        message: 'Please check your route parameters',
+      return response.badRequest(c, paramErrorMessage, {
         details: paramValidation.error.issues.map((issue) => ({
           field: issue.path.join('.'),
           message: issue.message,
           code: issue.code,
         })),
-      }, 400);
+      });
     }
 
     // Validate JSON body
@@ -208,23 +208,23 @@ export const validateParamsAndJson = <
             message: issue.message,
           })),
         };
-        // Log detailed validation errors for debugging
-        console.log('🔍 BODY VALIDATION ERRORS (validateParamsAndJson):', bodyValidation.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-          code: issue.code,
-        })));
+        const logger = getLogger(['app', 'validation']);
+        logger.warn('Body validation errors: {errors}', {
+          errors: bodyValidation.error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code,
+          }))
+        });
 
         // Return the proper response directly instead of throwing
-        return c.json({
-          error: bodyErrorMessage,
-          message: 'Please check your input data',
+        return response.badRequest(c, bodyErrorMessage, {
           details: bodyValidation.error.issues.map((issue) => ({
             field: issue.path.join('.'),
             message: issue.message,
             code: issue.code,
           })),
-        }, 400);
+        });
       }
 
       // Store validated data in context
@@ -232,11 +232,9 @@ export const validateParamsAndJson = <
       c.set('validatedBody', bodyValidation.data);
       return next();
     } catch (error) {
-      console.error(error);
-      return c.json({
-        error: 'Invalid JSON',
-        message: 'Request body must be valid JSON',
-      }, 400);
+      const logger = getLogger(['app', 'validation']);
+      logger.error('Validation failed: JSON parse error: {error}', { error });
+      return response.badRequest(c, 'Invalid JSON');
     }
   };
 };
