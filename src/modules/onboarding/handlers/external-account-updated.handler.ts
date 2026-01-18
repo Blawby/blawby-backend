@@ -1,16 +1,20 @@
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
 
 import {
   stripeConnectedAccounts,
-  type ExternalAccount,
-  type ExternalAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
+import type {
+  ExternalAccount,
+  ExternalAccounts,
+} from '@/modules/onboarding/types/onboarding.types';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx } from '@/shared/events/event-publisher';
-import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
+import { publishEventTx, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
+
+const logger = getLogger(['onboarding', 'handler', 'external-account-updated']);
 
 const normalizeExternalAccounts = (input: {
   externalAccounts: unknown;
@@ -41,16 +45,20 @@ export const handleExternalAccountUpdated = async (
       || externalAccount.object === 'card'
       ? externalAccount.object
       : 'unknown';
-    console.log(
-      `Processing external_account.updated: ${externalAccount.id} (${accountType}) for account: ${externalAccount.account}`,
-    );
+
     const stripeAccountId = typeof externalAccount.account === 'string'
       ? externalAccount.account
       : null;
+
     if (!stripeAccountId) {
-      console.warn(`Missing Stripe account ID for external account: ${externalAccount.id}`);
+      logger.warn("Missing Stripe account ID for external account: {externalAccountId}", { externalAccountId: externalAccount.id });
       return;
     }
+
+    logger.debug(
+      "Processing external_account.updated: {externalAccountId} ({accountType}) for account: {stripeAccountId}",
+      { externalAccountId: externalAccount.id, accountType, stripeAccountId }
+    );
 
     // Get current account record
     const account = await db
@@ -65,8 +73,9 @@ export const handleExternalAccountUpdated = async (
       .limit(1);
 
     if (account.length === 0) {
-      console.warn(
-        `Account not found for external account update: ${externalAccount.account}`,
+      logger.warn(
+        "Account not found for external account update: {stripeAccountId}",
+        { stripeAccountId }
       );
       return;
     }
@@ -118,7 +127,7 @@ export const handleExternalAccountUpdated = async (
         .where(
           eq(
             stripeConnectedAccounts.stripe_account_id,
-            externalAccount.account as string,
+            stripeAccountId,
           ),
         );
 
@@ -129,7 +138,7 @@ export const handleExternalAccountUpdated = async (
         actorType: 'webhook',
         organizationId: currentAccount.organization_id,
         payload: {
-          stripe_account_id: externalAccount.account,
+          stripe_account_id: stripeAccountId,
           organization_id: currentAccount.organization_id,
           external_account_id: externalAccount.id,
           external_account_type: accountType,
@@ -139,13 +148,14 @@ export const handleExternalAccountUpdated = async (
       });
     });
 
-    console.log(
-      `External account updated and event published for: ${externalAccount.id}`,
+    logger.info(
+      "External account updated and event published for: {externalAccountId}",
+      { externalAccountId: externalAccount.id }
     );
   } catch (error) {
-    console.error(
-      `Failed to update external account: ${externalAccount.id}`,
-      error,
+    logger.error(
+      "Failed to update external account: {externalAccountId} {error}",
+      { externalAccountId: externalAccount.id, error }
     );
     throw error;
   }

@@ -47,6 +47,32 @@ export const createWebhookEvent = async (
   return webhookEvent;
 };
 
+/**
+ * Creates a webhook event only if it doesn't exist yet (based on stripeEventId).
+ * Returns the event if created, or null if it already existed.
+ */
+export const createWebhookEventIfNotExists = async (
+  event: Stripe.Event,
+  headers: Record<string, string>,
+  url: string,
+): Promise<WebhookEvent | null> => {
+  const newEvent: NewWebhookEvent = {
+    stripeEventId: event.id,
+    eventType: event.type,
+    payload: event,
+    headers,
+    url,
+  };
+
+  const [webhookEvent] = await db
+    .insert(webhookEvents)
+    .values(newEvent)
+    .onConflictDoNothing({ target: webhookEvents.stripeEventId })
+    .returning();
+
+  return webhookEvent || null;
+};
+
 export const findWebhookById = async (
   id: string,
 ): Promise<WebhookEvent | null> => {
