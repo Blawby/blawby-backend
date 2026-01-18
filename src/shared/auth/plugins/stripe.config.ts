@@ -160,8 +160,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           '/api/auth/stripe/webhook'
         );
 
-        // Define which events need custom background processing
-        const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.'];
+        const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.'];
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some(prefix => event.type.startsWith(prefix));
 
         if (needsProcessing) {

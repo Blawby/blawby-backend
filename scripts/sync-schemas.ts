@@ -21,10 +21,6 @@ const findSchemaFiles = (dir: string): string[] => {
       const stat = statSync(fullPath);
 
       if (stat.isDirectory()) {
-        // Skip payments module temporarily for build
-        if (item === 'payments') {
-          continue;
-        }
         schemas.push(...findSchemaFiles(fullPath));
       } else if (item.endsWith('.schema.ts')) {
         // Get relative path from src/schema to the schema file
