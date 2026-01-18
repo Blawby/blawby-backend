@@ -1,5 +1,7 @@
 import { snakeCase } from 'es-toolkit/compat';
 import type { Context } from 'hono';
+import type { StatusCode, ContentfulStatusCode } from 'hono/utils/http-status';
+import type { Result } from '@/shared/types/result';
 
 /**
  * Recursively converts object keys from camelCase to snake_case
@@ -36,6 +38,25 @@ export const toSnakeCase = (obj: unknown): unknown => {
  */
 export const response = {
   /**
+   * Automatically convert a Result<T> to a Hono response
+   */
+  fromResult: <T>(c: Context, result: Result<T>, successCode: StatusCode = 200): Response => {
+    if (result.success) {
+      if ((successCode as number) === 204) {
+        return c.body(null, 204);
+      }
+      return c.json(toSnakeCase(result.data), successCode as ContentfulStatusCode);
+    }
+
+    const { error } = result;
+    return c.json(toSnakeCase({
+      error: error.code,
+      message: error.message,
+      details: error.details ? toSnakeCase(error.details) : undefined,
+    }), error.status as ContentfulStatusCode);
+  },
+
+  /**
    * 200 OK - Success response
    */
   ok: (c: Context, data: unknown): Response => c.json(toSnakeCase(data), 200),
@@ -57,6 +78,7 @@ export const response = {
     error: 'Bad Request',
     message,
     details: details ? toSnakeCase(details) : undefined,
+    request_id: c.get('requestId'),
   }), 400),
 
   /**
@@ -65,6 +87,7 @@ export const response = {
   unauthorized: (c: Context, message = 'Authentication required'): Response => c.json(toSnakeCase({
     error: 'Unauthorized',
     message,
+    request_id: c.get('requestId'),
   }), 401),
 
   /**
@@ -73,6 +96,7 @@ export const response = {
   forbidden: (c: Context, message = 'Access denied'): Response => c.json(toSnakeCase({
     error: 'Forbidden',
     message,
+    request_id: c.get('requestId'),
   }), 403),
 
   /**
@@ -81,6 +105,7 @@ export const response = {
   notFound: (c: Context, message = 'Resource not found'): Response => c.json(toSnakeCase({
     error: 'Not Found',
     message,
+    request_id: c.get('requestId'),
   }), 404),
 
   /**
@@ -90,6 +115,7 @@ export const response = {
     error: 'Conflict',
     message,
     details: details ? toSnakeCase(details) : undefined,
+    request_id: c.get('requestId'),
   }), 409),
 
   /**
@@ -117,11 +143,11 @@ export const response = {
     c: Context,
     message: string,
     details?: unknown,
-  ): Response => c.json({
+  ): Response => c.json(toSnakeCase({
     error: 'Unprocessable Entity',
     message,
     details: details ? toSnakeCase(details) : undefined,
-  }, 422),
+  }), 422),
 
   /**
    * 500 Internal Server Error - Server error
@@ -129,10 +155,11 @@ export const response = {
   internalServerError: (
     c: Context,
     message = 'Internal server error',
-  ): Response => c.json({
+  ): Response => c.json(toSnakeCase({
     error: 'Internal Server Error',
     message,
-  }, 500),
+    request_id: c.get('requestId'),
+  }), 500),
 
   /**
    * Paginated response

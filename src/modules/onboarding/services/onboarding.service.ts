@@ -1,4 +1,7 @@
-import { findByOrganization } from '@/modules/onboarding/repositories/onboarding.repository';
+import { getLogger } from '@logtape/logtape';
+import {
+  onboardingRepository as onboardingRepo,
+} from '@/modules/onboarding/database/queries/onboarding.repository';
 import {
   createOrGetAccount,
 } from '@/modules/onboarding/services/connected-accounts.service';
@@ -7,10 +10,11 @@ import type {
 } from '@/modules/onboarding/types/onboarding.types';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishUserEvent } from '@/shared/events/event-publisher';
-import { logError } from '@/shared/middleware/logger';
 import type { User } from '@/shared/types/BetterAuth';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
+import { Result, ok, notFound, internalError, forbidden } from '@/shared/types/result';
 
+const logger = getLogger(['onboarding', 'service']);
 
 /**
  * Create onboarding session for organization
@@ -22,18 +26,19 @@ export const createOnboardingSession = async (params: {
   refreshUrl: string;
   returnUrl: string;
   requestHeaders: Record<string, string>;
-}): Promise<StripeConnectedAccountBase> => {
+}): Promise<Result<StripeConnectedAccountBase>> => {
   const {
     organizationEmail, organizationId, user, refreshUrl, returnUrl, requestHeaders,
   } = params;
 
   try {
     // Validate organization and user access using Better Auth
-    const organization = await getFullOrganization(organizationId, user, requestHeaders);
+    const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
 
-    if (!organization) {
-      throw new Error(`Organization with ID ${organizationId} not found or access denied.`);
+    if (!orgResult.success) {
+      return orgResult;
     }
+    const organization = orgResult.data;
 
     const result = await createOrGetAccount(
       organizationId,
@@ -43,37 +48,36 @@ export const createOnboardingSession = async (params: {
       user.id,
     );
 
+    if (!result.success) return result;
+    const accountData = result.data;
+
     // Publish onboarding started event
-    // Note: createOrGetAccount calls Stripe API (external), so we can't use transaction
-    // Event is still persisted via event consumer
     void publishUserEvent(EventType.ONBOARDING_STARTED, user.id, {
       organization_id: organizationId,
       organization_email: organizationEmail,
-      account_id: result.account_id,
-      session_id: result.url,
+      account_id: accountData.account_id,
+      session_id: accountData.url,
     });
 
-    return {
-      url: result.url,
+    return ok({
+      url: accountData.url,
       practice_uuid: organizationId,
-      stripe_account_id: result.account_id,
-      charges_enabled: result.status.charges_enabled,
-      payouts_enabled: result.status.payouts_enabled,
-      details_submitted: result.status.details_submitted,
-
-    };
-  } catch (error) {
-    logError(error, {
-      method: 'POST',
-      url: '/api/onboarding/session',
-      statusCode: 500,
-      userId: user.id,
-      organizationId,
-      errorType: 'OnboardingServiceError',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      stripe_account_id: accountData.account_id,
+      charges_enabled: accountData.status.charges_enabled,
+      payouts_enabled: accountData.status.payouts_enabled,
+      details_submitted: accountData.status.details_submitted,
     });
+  } catch (error) {
+    logger.error(
+      "Failed to create onboarding session for organization {organizationId}: {error}",
+      {
+        organizationId,
+        userId: user.id,
+        error,
+      }
+    );
 
-    throw error;
+    return internalError(error instanceof Error ? error.message : 'Failed to create onboarding session');
   }
 };
 
@@ -83,35 +87,42 @@ export const createOnboardingSession = async (params: {
 export const getOnboardingStatus = async (
   organizationId: string,
   user: User,
-  _requestHeaders: Record<string, string>,
-): Promise<StripeConnectedAccountBase | null> => {
+  requestHeaders: Record<string, string>,
+): Promise<Result<StripeConnectedAccountBase>> => {
   try {
-    const account = await findByOrganization(organizationId);
+    // 1. Validate organization and user access using Better Auth
+    const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+
+    if (!orgResult.success) {
+      return orgResult;
+    }
+    const organization = orgResult.data;
+
+    // 2. Fetch the connected account
+    const account = await onboardingRepo.findByOrganizationId(organizationId);
 
     if (!account) {
-      return null;
+      return notFound(`Onboarding status not found for organization ${organizationId}`);
     }
 
-    return {
+    return ok({
       practice_uuid: organizationId,
       stripe_account_id: account.stripe_account_id,
       charges_enabled: account.charges_enabled,
       payouts_enabled: account.payouts_enabled,
       details_submitted: account.details_submitted,
-    };
-  } catch (error) {
-    console.error('Error in getOnboardingStatus:', error); // Explicit debug log
-    logError(error, {
-      method: 'GET',
-      url: `/api/onboarding/organization/${organizationId}/status`,
-      statusCode: 500,
-      userId: user.id,
-      organizationId,
-      errorType: 'OnboardingServiceError',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
     });
+  } catch (error) {
+    logger.error(
+      "Failed to get onboarding status for organization {organizationId}: {error}",
+      {
+        organizationId,
+        userId: user.id,
+        error,
+      }
+    );
 
-    throw error;
+    return internalError('Failed to get onboarding status');
   }
 };
 
@@ -125,18 +136,19 @@ export const createConnectedAccount = async (params: {
   refreshUrl: string;
   returnUrl: string;
   requestHeaders: Record<string, string>;
-}): Promise<StripeConnectedAccountBase> => {
+}): Promise<Result<StripeConnectedAccountBase>> => {
   const {
     email, organizationId, user, refreshUrl, returnUrl, requestHeaders,
   } = params;
 
   try {
     // Validate organization and user access using Better Auth
-    const organization = await getFullOrganization(organizationId, user, requestHeaders);
+    const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
 
-    if (!organization) {
-      throw new Error(`Organization with ID ${organizationId} not found or access denied.`);
+    if (!orgResult.success) {
+      return orgResult;
     }
+    const organization = orgResult.data;
 
     const result = await createOrGetAccount(
       organizationId,
@@ -145,28 +157,28 @@ export const createConnectedAccount = async (params: {
       returnUrl,
       user.id,
     );
-    console.log('SERVICE: createOrGetAccount returned', result);
 
-    return {
+    if (!result.success) return result;
+    const accountData = result.data;
+
+    return ok({
       practice_uuid: organizationId,
-      url: result.url,
-      stripe_account_id: result.account_id,
-      charges_enabled: result.status.charges_enabled,
-      payouts_enabled: result.status.payouts_enabled,
-      details_submitted: result.status.details_submitted,
-    };
-  } catch (error) {
-    console.error('Error in createConnectedAccount:', error); // Explicit debug log
-    logError(error, {
-      method: 'POST',
-      url: '/api/onboarding/connected-accounts',
-      statusCode: 500,
-      userId: user.id,
-      organizationId,
-      errorType: 'OnboardingServiceError',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      url: accountData.url,
+      stripe_account_id: accountData.account_id,
+      charges_enabled: accountData.status.charges_enabled,
+      payouts_enabled: accountData.status.payouts_enabled,
+      details_submitted: accountData.status.details_submitted,
     });
+  } catch (error) {
+    logger.error(
+      "Failed to create connected account for organization {organizationId}: {error}",
+      {
+        organizationId,
+        userId: user.id,
+        error,
+      }
+    );
 
-    throw error;
+    return internalError(error instanceof Error ? error.message : 'Failed to create connected account');
   }
 };

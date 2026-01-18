@@ -5,187 +5,53 @@
  * These events track the Stripe Connect onboarding flow for organizations.
  */
 
+import { getLogger } from '@logtape/logtape';
 import { EventType } from '@/shared/events/enums/event-types';
 import { subscribeToEvent } from '@/shared/events/event-consumer';
-import { handleOnboardingCompleted } from '@/modules/onboarding/handlers/onboarding-completed.handler';
-import type { BaseEvent } from '@/shared/events/schemas/events.schema';
-import { addEmailJob } from '@/shared/queue/queue.manager';
-import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError } from '@/shared/utils/logging';
+import onboardingHandlers from '@/modules/onboarding/handlers';
 
-const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
+const logger = getLogger(['onboarding', 'events']);
+
+const {
+  handleOnboardingStarted,
+  handleOnboardingCompleted,
+  handleOnboardingFailed,
+  handleAccountUpdatedInternal,
+  handleAccountRequirementsChanged,
+  handleCapabilitiesUpdatedInternal,
+  handleExternalAccountCreatedInternal,
+  handleExternalAccountUpdatedInternal,
+  handleExternalAccountDeletedInternal,
+  handleWebhookReceived,
+  handleWebhookProcessed,
+  handleWebhookFailed,
+} = onboardingHandlers;
 
 /**
  * Register all onboarding event handlers
  */
 export const registerOnboardingEvents = (): void => {
-  console.info('Registering onboarding event handlers...');
+  logger.info('Registering onboarding event handlers...');
 
   // Onboarding lifecycle events
-  subscribeToEvent(EventType.ONBOARDING_STARTED, async (event: BaseEvent) => {
-    console.info('Onboarding started', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Track onboarding progress, send reminders, etc.
-  });
+  subscribeToEvent(EventType.ONBOARDING_STARTED, handleOnboardingStarted);
+  subscribeToEvent(EventType.ONBOARDING_COMPLETED, handleOnboardingCompleted);
+  subscribeToEvent(EventType.ONBOARDING_FAILED, handleOnboardingFailed);
 
-  subscribeToEvent(EventType.ONBOARDING_COMPLETED, async (event: BaseEvent) => {
-    // Process onboarding completion
-    await handleOnboardingCompleted(event);
+  // Stripe Connect account events (internal side)
+  subscribeToEvent(EventType.ONBOARDING_ACCOUNT_UPDATED, handleAccountUpdatedInternal);
+  subscribeToEvent(EventType.ONBOARDING_ACCOUNT_REQUIREMENTS_CHANGED, handleAccountRequirementsChanged);
+  subscribeToEvent(EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED, handleCapabilitiesUpdatedInternal);
 
-    // Send Stripe Connect welcome email (fire and forget)
-    const payload = event.payload as Record<string, unknown>;
-    const email = typeof payload.billing_email === 'string' ? payload.billing_email : undefined;
-    const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
-
-    if (!email) {
-      logError('Skipping Connect welcome email: missing billing_email in payload', new Error('Missing billing_email'), {
-        eventId: event.eventId,
-        organizationId: event.organizationId
-      });
-      return;
-    }
-
-    void addEmailJob(
-      EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME,
-      email,
-      'Your Stripe account is connected!',
-      {
-        recipientEmail: email,
-        recipientName: name,
-        dashboardUrl: `${APP_URL}/dashboard`,
-        tutorialUrl: `${APP_URL}/docs/payments`,
-        supportUrl: 'https://blawby.com/support',
-      },
-    ).catch((error) => {
-      logError('Failed to queue Connect welcome email', error, {
-        eventId: event.eventId,
-        organizationId: event.organizationId
-      });
-    });
-  });
-
-  subscribeToEvent(EventType.ONBOARDING_FAILED, async (event: BaseEvent) => {
-    console.info('Onboarding failed', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Alert support, retry logic, etc.
-  });
-
-  // Stripe Connect account events (onboarding-related)
-  subscribeToEvent(EventType.ONBOARDING_ACCOUNT_UPDATED, async (event: BaseEvent) => {
-    console.info('Onboarding account updated', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Check completion status, update UI, etc.
-  });
-
-  subscribeToEvent(EventType.ONBOARDING_ACCOUNT_REQUIREMENTS_CHANGED, async (event: BaseEvent) => {
-    console.info('Onboarding account requirements changed', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-
-    // Send verification needed email (fire and forget)
-    const payload = event.payload as Record<string, unknown>;
-    const email = typeof payload.billing_email === 'string' ? payload.billing_email : undefined;
-    const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
-
-    if (!email) {
-      logError('Skipping Connect status email: missing billing_email in payload', new Error('Missing billing_email'), {
-        eventId: event.eventId,
-        organizationId: event.organizationId
-      });
-      return;
-    }
-
-    void addEmailJob(
-      EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS,
-      email,
-      'Action required: Verify your account information',
-      {
-        recipientEmail: email,
-        recipientName: name,
-        dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
-        tutorialUrl: `${APP_URL}/docs/verification`,
-        supportUrl: 'https://blawby.com/support',
-      },
-    ).catch((error) => {
-      logError('Failed to queue Connect status email', error, {
-        eventId: event.eventId,
-        organizationId: event.organizationId
-      });
-    });
-  });
-
-  subscribeToEvent(EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED, async (event: BaseEvent) => {
-    console.info('Onboarding account capabilities updated', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Enable features, update permissions, etc.
-  });
-
-  // External account events (bank accounts)
-  subscribeToEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_CREATED, async (event: BaseEvent) => {
-    console.info('Onboarding external account created', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Verify account, enable payouts, etc.
-  });
-
-  subscribeToEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED, async (event: BaseEvent) => {
-    console.info('Onboarding external account updated', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Re-verify if needed, update payout settings, etc.
-  });
-
-  subscribeToEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_DELETED, async (event: BaseEvent) => {
-    console.info('Onboarding external account deleted', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-      actorId: event.actorId,
-    });
-    // Future: Disable payouts, notify user, etc.
-  });
+  // External account events (internal side)
+  subscribeToEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_CREATED, handleExternalAccountCreatedInternal);
+  subscribeToEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED, handleExternalAccountUpdatedInternal);
+  subscribeToEvent(EventType.ONBOARDING_EXTERNAL_ACCOUNT_DELETED, handleExternalAccountDeletedInternal);
 
   // Webhook processing events
-  subscribeToEvent(EventType.ONBOARDING_WEBHOOK_RECEIVED, async (event: BaseEvent) => {
-    console.info('Onboarding webhook received', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-    });
-    // Future: Logging, monitoring, etc.
-  });
+  subscribeToEvent(EventType.ONBOARDING_WEBHOOK_RECEIVED, handleWebhookReceived);
+  subscribeToEvent(EventType.ONBOARDING_WEBHOOK_PROCESSED, handleWebhookProcessed);
+  subscribeToEvent(EventType.ONBOARDING_WEBHOOK_FAILED, handleWebhookFailed);
 
-  subscribeToEvent(EventType.ONBOARDING_WEBHOOK_PROCESSED, async (event: BaseEvent) => {
-    console.info('Onboarding webhook processed', {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-    });
-    // Future: Success metrics, etc.
-  });
-
-  subscribeToEvent(EventType.ONBOARDING_WEBHOOK_FAILED, async (event: BaseEvent) => {
-    logError('Onboarding webhook failed', new Error('Webhook failed'), {
-      eventId: event.eventId,
-      organizationId: event.organizationId,
-    });
-    // Future: Alert, retry logic, etc.
-  });
-
-  console.info('✅ Onboarding event handlers registered');
+  logger.info('✅ Onboarding event handlers registered successfully');
 };
