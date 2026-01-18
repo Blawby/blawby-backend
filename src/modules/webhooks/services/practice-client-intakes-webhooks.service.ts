@@ -104,6 +104,7 @@ export const processEvent = async (eventId: string): Promise<void> => {
     }
 
     console.info(`Event type ${event.type} is not a practice client intake event, skipping`);
+    await markWebhookProcessed(webhookEvent.id);
     return;
   } catch (error) {
     const errorMessage
