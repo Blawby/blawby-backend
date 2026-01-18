@@ -306,7 +306,7 @@ All endpoints are **public** (no authentication required). The module is mounted
 
 **Location:** `handlers/`
 
-The module listens to Stripe webhook events via the payments module. All handlers use object parameters for explicit naming and share a common helper for finding intakes by Payment Intent.
+The module listens to Stripe webhook events via the webhooks module. All handlers use object parameters for explicit naming and share a common helper for finding intakes by Payment Intent.
 
 **Helper Function (`helpers.ts`):**
 - `findPracticeClientIntakeByPaymentIntent(paymentIntent)`: Finds intake by Payment Intent ID or Payment Link ID (since Payment Links create Payment Intents)
@@ -383,7 +383,7 @@ The module listens to Stripe webhook events via the payments module. All handler
 ### Payment Security
 - **Stripe Integration**: All payment processing handled by Stripe
 - **Client Secrets**: Never expose server-side Stripe keys to frontend
-- **Webhook Verification**: Webhook events verified via Stripe signature (handled in payments module)
+- **Webhook Verification**: Webhook events verified via Stripe signature (handled in webhooks module)
 - **Idempotency**: Stripe Payment Intents are idempotent by design
 
 ### Access Controls
@@ -417,7 +417,7 @@ The module listens to Stripe webhook events via the payments module. All handler
 - **Stripe API**: Payment processing via Stripe Connected Accounts
 - **Organizations Module**: Organization lookup and settings
 - **Onboarding Module**: Connected accounts repository
-- **Payments Module**: Webhook event handling
+- **Webhooks Module**: Webhook event handling
 - **Events System**: Event publishing for payment lifecycle
 
 ### Frontend Integration
@@ -432,7 +432,7 @@ The module listens to Stripe webhook events via the payments module. All handler
 
 ### Webhook Flow
 1. Stripe sends webhook to `/api/webhooks/stripe`
-2. Payments module verifies signature and routes to appropriate handler
+2. Webhooks module verifies signature and routes to appropriate handler
 3. Payment handler checks if Payment Intent is from a Payment Link (via `payment_link` property)
 4. If Payment Link detected, payment handler calls practice client intake handler
 5. Intake handler uses `findPracticeClientIntakeByPaymentIntent` to locate intake record

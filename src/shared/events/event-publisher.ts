@@ -153,6 +153,8 @@ export const publishSystemEvent = async (
  * Use this when you cannot use a transaction (e.g., Better Auth hooks, error handlers).
  * Events are written directly to the database for guaranteed persistence.
  * Errors are handled internally and logged.
+ *
+ * After publishing, immediately enqueues the outbox processing task for immediate execution.
  */
 export const publishSimpleEvent = async (
   eventType: EventType,
@@ -179,6 +181,28 @@ export const publishSimpleEvent = async (
     );
 
     await insertEventToOutbox(baseEvent);
+
+    // Immediately enqueue outbox processing task for immediate execution
+    // This ensures events are processed right away instead of waiting for cron
+    try {
+      const { getWorkerUtils } = await import('@/shared/queue/graphile-worker.client');
+      const { TASK_NAMES } = await import('@/shared/queue/queue.config');
+      const workerUtils = await getWorkerUtils();
+
+      // Enqueue the outbox processing task immediately
+      // The worker polls every second, so this will be picked up almost instantly
+      await workerUtils.addJob(
+        TASK_NAMES.PROCESS_OUTBOX_EVENT,
+        {},
+        {
+          jobKey: `process-outbox-${Date.now()}`, // Unique key to allow multiple runs
+          maxAttempts: 1, // Don't retry - if it fails, cron will pick it up
+        },
+      );
+    } catch (queueError) {
+      // Don't fail event publishing if queueing fails - cron will process it eventually
+      console.warn('Failed to enqueue immediate outbox processing, will be processed by cron:', queueError);
+    }
   } catch (error) {
     console.error(`Failed to publish ${eventType} event:`, error);
   }
