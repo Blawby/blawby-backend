@@ -118,6 +118,23 @@ const syncSchemas = (): void => {
 }
 
 // ============================================================================
+// Phase 2.5: Type Checking
+// ============================================================================
+
+const typeCheck = (): void => {
+  console.log('\n🔍 Phase 2.5: Type Checking');
+  console.log('─'.repeat(50));
+
+  try {
+    execSync('tsc --noEmit', { stdio: 'inherit' });
+    console.log('✅ Type checking passed');
+  } catch (error) {
+    console.error('❌ Type checking failed. Fix errors before building.');
+    throw error;
+  }
+}
+
+// ============================================================================
 // Phase 3: TypeScript Build (with bundling)
 // ============================================================================
 
@@ -159,6 +176,9 @@ const main = async (): Promise<void> => {
 
     // Phase 2: Sync database schemas
     syncSchemas();
+
+    // Phase 2.5: Type checking (catch errors before bundling)
+    typeCheck();
 
     // Phase 3: Build TypeScript (bundled)
     buildTypeScript();
