@@ -45,7 +45,7 @@ ALTER TABLE "events" DROP COLUMN IF EXISTS "id";--> statement-breakpoint
 -- Data migration: Ensure all event_id values are valid UUIDs
 -- Generate new UUIDs for any non-UUID event_id values
 UPDATE "events" SET "event_id" = gen_random_uuid()::text
-WHERE "event_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';--> statement-breakpoint
+WHERE "event_id"::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';--> statement-breakpoint
 ALTER TABLE "events" ALTER COLUMN "event_id" SET DATA TYPE uuid USING "event_id"::uuid;--> statement-breakpoint
 ALTER TABLE "events" ALTER COLUMN "event_id" SET DEFAULT gen_random_uuid();--> statement-breakpoint
 ALTER TABLE "events" ADD PRIMARY KEY ("event_id");--> statement-breakpoint
@@ -59,14 +59,14 @@ ALTER TABLE "events" ADD PRIMARY KEY ("event_id");--> statement-breakpoint
 --   ORGANIZATION_ACTOR_UUID = '00000000-0000-0000-0000-000000000004'
 UPDATE "events" SET "actor_id" =
   CASE
-    -- Already valid UUIDs
-    WHEN "actor_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN "actor_id"
-    -- Known string literals mapped to constant UUIDs (see constants.ts)
-    WHEN "actor_id" = 'system' THEN '00000000-0000-0000-0000-000000000000'
-    WHEN "actor_id" = 'webhook' THEN '00000000-0000-0000-0000-000000000001'
-    WHEN "actor_id" = 'cron' THEN '00000000-0000-0000-0000-000000000002'
-    WHEN "actor_id" = 'api' THEN '00000000-0000-0000-0000-000000000003'
-    WHEN "actor_id" = 'organization' THEN '00000000-0000-0000-0000-000000000004'
+    -- Already valid UUIDs - cast to text for regex
+    WHEN "actor_id"::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN "actor_id"::text
+    -- Known string literals mapped to constant UUIDs (see constants.ts) - cast to text for comparison
+    WHEN "actor_id"::text = 'system' THEN '00000000-0000-0000-0000-000000000000'
+    WHEN "actor_id"::text = 'webhook' THEN '00000000-0000-0000-0000-000000000001'
+    WHEN "actor_id"::text = 'cron' THEN '00000000-0000-0000-0000-000000000002'
+    WHEN "actor_id"::text = 'api' THEN '00000000-0000-0000-0000-000000000003'
+    WHEN "actor_id"::text = 'organization' THEN '00000000-0000-0000-0000-000000000004'
     -- Default to system UUID for unknown values
     ELSE '00000000-0000-0000-0000-000000000000'
   END
