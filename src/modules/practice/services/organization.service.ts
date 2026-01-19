@@ -1,16 +1,17 @@
-import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import type {
   ActiveOrganization,
   Organization,
   User,
 } from '@/shared/types/BetterAuth';
-import { Result, forbidden, internalError, ok } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { forbidden, internalError, ok } from '@/shared/utils/result';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 
 
 // Lazy initialization - only create when needed (after env vars are loaded)
-const getBetterAuth = () => createBetterAuthInstance(db);
+const getBetterAuth = (): BetterAuthInstance => createBetterAuthInstance(db);
 const { getBetterAuthErrorMessage, isBetterAuthForbidden } = betterAuthUtils;
 
 export const createOrganization = async (

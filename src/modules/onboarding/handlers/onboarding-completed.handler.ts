@@ -56,7 +56,7 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
       stripe_customer_id: org.stripeCustomerId,
       onboarding_completed_at: new Date().toISOString(),
     }).catch((error) => {
-      logger.error("Failed to publish ONBOARDING_COMPLETED event for {organizationId}: {error}", {
+      logger.error("Failed to publish ONBOARDING_COMPLETED_PROCESSED event for {organizationId}: {error}", {
         organizationId,
         error,
       });

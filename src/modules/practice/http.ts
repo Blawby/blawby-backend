@@ -1,10 +1,10 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
 import * as routes from '@/modules/practice/routes';
-import * as invitationsService from '@/modules/practice/services/invitations.service';
-import * as membersService from '@/modules/practice/services/members.service';
-import * as practiceService from '@/modules/practice/services/practice.service';
-import * as practiceDetailsService from '@/modules/practice/services/practice-details.service';
+import invitationsService from '@/modules/practice/services/invitations.service';
+import membersService from '@/modules/practice/services/members.service';
+import practiceService from '@/modules/practice/services/practice.service';
+import practiceDetailsService from '@/modules/practice/services/practice-details.service';
 import * as practiceValidations from '@/modules/practice/validations/practice.validation';
 import { validateParams, validateJson, validateParamsAndJson } from '@/shared/middleware/validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';

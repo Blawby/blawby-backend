@@ -1,4 +1,5 @@
 import { configure, getConsoleSink } from "@logtape/logtape";
+import { getFileSink } from "@logtape/file";
 
 /**
  * Configure LogTape for structured logging across the application.
@@ -7,6 +8,9 @@ export const initializeLogging = async () => {
   await configure({
     sinks: {
       console: getConsoleSink(),
+      file: getFileSink("logs/app.log", {
+        fileNameFormat: "logs/app-{yyyy}{mm}{dd}.log",
+      }),
     },
     loggers: [
       {
@@ -16,12 +20,12 @@ export const initializeLogging = async () => {
       },
       {
         category: ["app"],
-        sinks: ["console"],
+        sinks: ["console", "file"],
         lowestLevel: (process.env.NODE_ENV === "production" ? "info" : "debug"),
       },
       {
         category: ["onboarding"],
-        sinks: ["console"],
+        sinks: ["console", "file"],
         lowestLevel: "debug",
       }
     ],

@@ -23,7 +23,7 @@ Use `LogTape` for all logging.
 
 ### 3. API Conventions
 -   **Requests/Responses**: Always `snake_case`. Use the `response` helpers.
--   **Validation**: Use `validateJson`, `validateParams` middlewares. Access data via `c.get('validatedBody')`.
+-   **Validation**: Use `validateJson`, `validateParams` middlewares. Access validated data via `c.req.valid('json')`, `c.req.valid('param')`, or `c.req.valid('query')`.
 
 ### 4. Database (Drizzle)
 -   **Schema**: All columns must be `snake_case`.

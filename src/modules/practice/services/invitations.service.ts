@@ -9,7 +9,8 @@ import { reportMeteredUsage } from '@/modules/subscriptions/services/meteredProd
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
-import { Result, ok, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['practice', 'invitations-service']);
 
@@ -17,7 +18,7 @@ const logger = getLogger(['practice', 'invitations-service']);
 const getBetterAuth = () => createBetterAuthInstance(db);
 const { getBetterAuthErrorMessage } = betterAuthUtils;
 
-export const listPracticeInvitations = async (
+const listPracticeInvitations = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvitationListItem[]>> => {
@@ -60,7 +61,7 @@ export const listPracticeInvitations = async (
   }
 };
 
-export const createPracticeInvitation = async (
+const createPracticeInvitation = async (
   organizationId: string,
   email: string,
   role: InvitationRole,
@@ -102,7 +103,7 @@ export const createPracticeInvitation = async (
   }
 };
 
-export const acceptPracticeInvitation = async (
+const acceptPracticeInvitation = async (
   invitationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -143,3 +144,14 @@ export const acceptPracticeInvitation = async (
     return internalError(getBetterAuthErrorMessage(error, 'Failed to accept invitation'));
   }
 };
+
+/**
+ * Invitations Service Object
+ */
+export const invitationsService = {
+  listPracticeInvitations,
+  createPracticeInvitation,
+  acceptPracticeInvitation,
+};
+
+export default invitationsService;

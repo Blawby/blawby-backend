@@ -1,20 +1,14 @@
+import { eq } from 'drizzle-orm';
+import { organizations } from '@/schema/better-auth-schema';
+import { db } from '@/shared/database';
+import type { Organization, NewOrganization } from '../../types/organization.types';
+
 /**
  * Organization Repository
  *
  * Centralized database operations for organizations.
  */
-
-import { eq } from 'drizzle-orm';
-import { organizations } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
-
-export type Organization = typeof organizations.$inferSelect;
-export type NewOrganization = typeof organizations.$inferInsert;
-
-/**
- * Find organization by ID
- */
-export const findById = async (id: string): Promise<Organization | null> => {
+const findById = async (id: string): Promise<Organization | null> => {
   const [organization] = await db
     .select()
     .from(organizations)
@@ -24,10 +18,7 @@ export const findById = async (id: string): Promise<Organization | null> => {
   return organization || null;
 };
 
-/**
- * Find organization by slug
- */
-export const findBySlug = async (slug: string): Promise<Organization | null> => {
+const findBySlug = async (slug: string): Promise<Organization | null> => {
   const [organization] = await db
     .select()
     .from(organizations)
@@ -37,10 +28,7 @@ export const findBySlug = async (slug: string): Promise<Organization | null> => 
   return organization || null;
 };
 
-/**
- * Update organization
- */
-export const update = async (
+const update = async (
   id: string,
   data: Partial<Omit<NewOrganization, 'id'>>,
 ): Promise<Organization | null> => {
@@ -61,3 +49,5 @@ export const organizationRepository = {
   findBySlug,
   update,
 };
+
+export default organizationRepository;

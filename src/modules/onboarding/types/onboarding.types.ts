@@ -101,7 +101,7 @@ export const CreateAccountResponseSchema = z.object({
 }).openapi('CreateAccountResponse');
 
 export const GetAccountResponseSchema = z.object({
-  accountId: z.string().openapi({ example: 'acct_1234567890' }),
+  account_id: z.string().openapi({ example: 'acct_1234567890' }),
   status: z.object({
     charges_enabled: z.boolean(),
     payouts_enabled: z.boolean(),

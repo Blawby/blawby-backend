@@ -23,7 +23,8 @@ import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent, publishEventTx } from '@/shared/events/event-publisher';
 import type { User, Organization } from '@/shared/types/BetterAuth';
-import { Result, ok, forbidden, notFound, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError } from '@/shared/utils/result';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 
 const { parseBetterAuthMetadata, getBetterAuthErrorMessage } = betterAuthUtils;
@@ -31,7 +32,7 @@ const { parseBetterAuthMetadata, getBetterAuthErrorMessage } = betterAuthUtils;
 const logger = getLogger(['practice', 'service']);
 
 // Practice service functions (practice = organization + optional practice details)
-export const listPractices = async (
+const listPractices = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<Organization[]>> => {
@@ -41,7 +42,7 @@ export const listPractices = async (
 /**
  * Get practice by ID
  */
-export const getPracticeById = async (
+const getPracticeById = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -86,7 +87,7 @@ export const getPracticeById = async (
   }
 };
 
-export const createPracticeService = async (params: {
+const createPracticeService = async (params: {
   data: PracticeCreateRequest;
   user: User;
   requestHeaders: Record<string, string>;
@@ -182,7 +183,7 @@ export const createPracticeService = async (params: {
   }
 };
 
-export const updatePracticeService = async (
+const updatePracticeService = async (
   organizationId: string,
   data: PracticeUpdateRequest,
   user: User,
@@ -307,22 +308,24 @@ export const updatePracticeService = async (
   }
 };
 
-export const deletePracticeService = async (
+const deletePracticeService = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: boolean }>> => {
   try {
     // 1. Validate organization exists and user has access via Better Auth
-    const organization = await getFullOrganization(
+    const organizationResult = await getFullOrganization(
       organizationId,
       user,
       requestHeaders,
     );
 
-    if (!organization) {
-      return forbidden(`Organization with ID ${organizationId} not found or access denied.`);
+    if (!organizationResult.success) {
+      return organizationResult;
     }
+
+
 
     // 2. Get practice details before deletion for event payload
     const existingPracticeDetails
@@ -368,7 +371,7 @@ export const deletePracticeService = async (
   }
 };
 
-export const setActivePractice = async (
+const setActivePractice = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -394,3 +397,17 @@ export const setActivePractice = async (
     return internalError('Failed to set active practice');
   }
 };
+
+/**
+ * Practice Service Object
+ */
+export const practiceService = {
+  listPractices,
+  getPracticeById,
+  createPracticeService,
+  updatePracticeService,
+  deletePracticeService,
+  setActivePractice,
+};
+
+export default practiceService;

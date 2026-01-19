@@ -12,7 +12,8 @@ import { EventType } from '@/shared/events/enums/event-types';
 import { publishUserEvent } from '@/shared/events/event-publisher';
 import type { User } from '@/shared/types/BetterAuth';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
-import { Result, ok, notFound, internalError, forbidden } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, notFound, internalError, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['onboarding', 'service']);
 
