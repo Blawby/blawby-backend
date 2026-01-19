@@ -22,8 +22,8 @@ BEGIN
     SELECT COUNT(*) INTO unknown_count
     FROM "events"
     WHERE "actor_id" IS NOT NULL
-      AND "actor_id" !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-      AND "actor_id" NOT IN ('system', 'webhook', 'cron', 'api', 'organization');
+      AND "actor_id"::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      AND "actor_id"::text NOT IN ('system', 'webhook', 'cron', 'api', 'organization');
 
     IF unknown_count > 0 THEN
       -- Log warning about unknown values (they will be automatically mapped to SYSTEM_ACTOR_UUID)
@@ -40,14 +40,14 @@ BEGIN
       CASE
         -- Handle NULL values: map to SYSTEM_ACTOR_UUID
         WHEN "actor_id" IS NULL THEN '00000000-0000-0000-0000-000000000000'
-        -- Already valid UUIDs (case-insensitive match)
-        WHEN "actor_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN "actor_id"
+        -- Already valid UUIDs (case-insensitive match) - cast to text for regex
+        WHEN "actor_id"::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN "actor_id"::text
         -- Known string literals mapped to constant UUIDs (see constants.ts)
-        WHEN "actor_id" = 'system' THEN '00000000-0000-0000-0000-000000000000'
-        WHEN "actor_id" = 'webhook' THEN '00000000-0000-0000-0000-000000000001'
-        WHEN "actor_id" = 'cron' THEN '00000000-0000-0000-0000-000000000002'
-        WHEN "actor_id" = 'api' THEN '00000000-0000-0000-0000-000000000003'
-        WHEN "actor_id" = 'organization' THEN '00000000-0000-0000-0000-000000000004'
+        WHEN "actor_id"::text = 'system' THEN '00000000-0000-0000-0000-000000000000'
+        WHEN "actor_id"::text = 'webhook' THEN '00000000-0000-0000-0000-000000000001'
+        WHEN "actor_id"::text = 'cron' THEN '00000000-0000-0000-0000-000000000002'
+        WHEN "actor_id"::text = 'api' THEN '00000000-0000-0000-0000-000000000003'
+        WHEN "actor_id"::text = 'organization' THEN '00000000-0000-0000-0000-000000000004'
         -- Unknown values automatically mapped to SYSTEM_ACTOR_UUID
         ELSE '00000000-0000-0000-0000-000000000000'
       END AS transformed_actor_id
