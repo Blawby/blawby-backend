@@ -5,7 +5,8 @@ import { createUploadsService } from '@/modules/uploads/services/uploads.service
 import type { ListUploadsQuery } from '@/modules/uploads/validations/uploads.validation';
 
 export const listHandler = async (c: Context<AppContext>) => {
-  const query = c.req.valid('query') as ListUploadsQuery;
+  // Query parameters are validated by zValidator middleware
+  const query = c.req.query() as unknown as ListUploadsQuery;
   const organizationId = c.get('activeOrganizationId');
 
   if (!organizationId) {

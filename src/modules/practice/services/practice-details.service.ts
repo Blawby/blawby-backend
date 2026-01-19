@@ -67,7 +67,7 @@ export const getPracticeDetails = async (
 
   // Clean practice details (remove internal fields)
   return {
-    ...omit(practiceDetails, [
+    ...omit(fetchedDetails, [
       'id',
       'organization_id',
       'user_id',
@@ -329,7 +329,7 @@ export const getPracticeDetailsBySlug = async (
 
   // Clean practice details (remove internal fields)
   return {
-    ...omit(practiceDetails, [
+    ...omit(fetchedDetails, [
       'id',
       'organization_id',
       'user_id',
