@@ -27,7 +27,7 @@ export const createOnboardingSessionSchema = CreateAccountRequestSchema.extend({
 
 export const createConnectedAccountSchema = z.object({
   practice_email: z.string().email().openapi({ example: 'practice@example.com' }),
-  practice_uuid: z.string().uuid().openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
+  practice_uuid: z.uuid().openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
   refresh_url: z.string().url().openapi({ example: 'https://app.blawby.com/onboarding/refresh' }),
   return_url: z.string().url().openapi({ example: 'https://app.blawby.com/onboarding/return' }),
 });

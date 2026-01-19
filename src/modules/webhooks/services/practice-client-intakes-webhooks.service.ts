@@ -8,7 +8,8 @@
 
 import { getLogger } from '@logtape/logtape';
 import type Stripe from 'stripe';
-import { type Result, ok, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, notFound, internalError } from '@/shared/utils/result';
 
 import {
   handlePracticeClientIntakeSucceeded,

@@ -18,7 +18,8 @@ import { isAccountActive } from '@/modules/onboarding/services/connected-account
 import { stripe } from '@/shared/utils/stripe-client';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
-import { Result, ok, fail, badRequest, notFound, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError, fail, badRequest, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 

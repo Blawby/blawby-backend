@@ -18,14 +18,15 @@ import type {
   UpsertPracticeDetailsRequest,
 } from '@/modules/practice/types/practice-details.types';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
-import { Result, ok, notFound, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['practice', 'details-service']);
 
 /**
  * Get practice details for an organization
  */
-export const getPracticeDetails = async (
+const getPracticeDetails = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -105,7 +106,7 @@ export const getPracticeDetails = async (
 /**
  * Upsert practice details (Create or Update)
  */
-export const upsertPracticeDetailsService = async (
+const upsertPracticeDetailsService = async (
   organizationId: string,
   data: UpsertPracticeDetailsRequest,
   user: User,
@@ -222,7 +223,7 @@ export const upsertPracticeDetailsService = async (
 /**
  * Delete practice details for an organization
  */
-export const deletePracticeDetailsService = async (
+const deletePracticeDetailsService = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -275,7 +276,7 @@ export const deletePracticeDetailsService = async (
 /**
  * Get practice details by slug (Public)
  */
-export const getPracticeDetailsBySlug = async (
+const getPracticeDetailsBySlug = async (
   slug: string,
 ): Promise<Result<PracticeDetailsResponse>> => {
   try {
@@ -332,3 +333,15 @@ export const getPracticeDetailsBySlug = async (
     return internalError('Failed to get practice details');
   }
 };
+
+/**
+ * Practice Details Service Object
+ */
+export const practiceDetailsService = {
+  getPracticeDetails,
+  upsertPracticeDetailsService,
+  deletePracticeDetailsService,
+  getPracticeDetailsBySlug,
+};
+
+export default practiceDetailsService;

@@ -8,7 +8,8 @@
 
 import { getLogger } from '@logtape/logtape';
 import Stripe from 'stripe';
-import { type Result, ok, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError } from '@/shared/utils/result';
 import onboardingHandlers from '@/modules/onboarding/handlers';
 import { getEventsToRetry } from '@/modules/onboarding/database/queries/onboarding.repository';
 import {

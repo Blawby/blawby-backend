@@ -17,6 +17,11 @@ let _pool: pg.Pool | null = null;
 let _db: NodePgDatabase<typeof schema> | null = null;
 let isInitialized = false;
 
+const DEFAULT_PG_MAX = 10;
+const DEFAULT_PG_MIN = 2;
+const DEFAULT_PG_IDLE_MS = 30000;
+const DEFAULT_PG_CONN_TIMEOUT_MS = 2000;
+
 /**
  * Initialize database connection (called automatically on first use)
  */
@@ -30,12 +35,28 @@ const initialize = (): void => {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
+  // Safe numeric parsing for pool options
+  const parseEnvInt = (val: string | undefined, defaultVal: number): number => {
+    if (val === undefined) return defaultVal;
+    const parsed = Number.parseInt(val, 10);
+    return Number.isFinite(parsed) ? parsed : defaultVal;
+  };
+
+  const max = parseEnvInt(process.env.PG_MAX_CLIENTS, DEFAULT_PG_MAX);
+  let min = parseEnvInt(process.env.PG_MIN_CLIENTS, DEFAULT_PG_MIN);
+
+  // Clamp min to max
+  min = Math.min(min, max);
+
+  const idleTimeoutMillis = parseEnvInt(process.env.PG_IDLE_TIMEOUT, DEFAULT_PG_IDLE_MS);
+  const connectionTimeoutMillis = parseEnvInt(process.env.PG_CONNECTION_TIMEOUT, DEFAULT_PG_CONN_TIMEOUT_MS);
+
   _pool = new Pool({
     connectionString,
-    max: Number(process.env.PG_MAX_CLIENTS ?? 10),
-    min: Number(process.env.PG_MIN_CLIENTS ?? 2),
-    idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT ?? 30000),
-    connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT ?? 2000),
+    max,
+    min,
+    idleTimeoutMillis,
+    connectionTimeoutMillis,
   });
 
   _db = drizzle(_pool, { schema });

@@ -15,7 +15,8 @@ import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccou
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { stripe } from '@/shared/utils/stripe-client';
-import { Result, ok, notFound, internalError } from '@/shared/types/result';
+import type { Result } from '@/shared/types/result';
+import { ok, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['onboarding', 'connected-accounts']);
 
@@ -202,7 +203,7 @@ export const getAccount = async (
     const readiness = getAccountReadiness({ account });
 
     return ok({
-      accountId: account.stripe_account_id,
+      account_id: account.stripe_account_id,
       status: {
         charges_enabled: account.charges_enabled,
         payouts_enabled: account.payouts_enabled,
@@ -226,6 +227,26 @@ export const getAccount = async (
   }
 };
 
+/**
+ * Helper to determine readiness status based on requirements and capabilities
+ */
+const deriveReadinessStatus = (params: {
+  disabledReason: string | null;
+  pendingVerification: string[];
+  missingRequirements: string[];
+  isActive: boolean;
+}): 'active' | 'requirements_due' | 'verification_pending' | 'disabled' | 'inactive' => {
+  const {
+    disabledReason, pendingVerification, missingRequirements, isActive,
+  } = params;
+
+  if (disabledReason) return 'disabled';
+  if (pendingVerification.length > 0) return 'verification_pending';
+  if (missingRequirements.length > 0) return 'requirements_due';
+  if (!isActive) return 'inactive';
+  return 'active';
+};
+
 const getAccountReadiness = (input: {
   account: StripeConnectedAccount;
 }): {
@@ -242,56 +263,31 @@ const getAccountReadiness = (input: {
   const pendingVerification = requirements?.pending_verification ?? [];
   const disabledReason = requirements?.disabled_reason ?? null;
   const currentDeadline = requirements?.current_deadline ?? null;
+
   const capabilities = account.capabilities || {};
   const hasCardPayments = capabilities.card_payments === 'active';
   const hasTransfers = capabilities.transfers === 'active';
+
   const missingRequirements = [...currentDue, ...pastDue];
   const isBaseEnabled = account.charges_enabled && account.payouts_enabled;
+
   const isActive = isBaseEnabled
     && hasCardPayments
     && hasTransfers
     && missingRequirements.length === 0
     && !disabledReason
     && pendingVerification.length === 0;
-  if (disabledReason) {
-    return {
-      isActive: false,
-      readinessStatus: 'disabled',
-      missingRequirements,
-      disabledReason,
-      currentDeadline,
-    };
-  }
-  if (pendingVerification.length > 0) {
-    return {
-      isActive: false,
-      readinessStatus: 'verification_pending',
-      missingRequirements,
-      disabledReason,
-      currentDeadline,
-    };
-  }
-  if (missingRequirements.length > 0) {
-    return {
-      isActive: false,
-      readinessStatus: 'requirements_due',
-      missingRequirements,
-      disabledReason,
-      currentDeadline,
-    };
-  }
-  if (!isActive) {
-    return {
-      isActive: false,
-      readinessStatus: 'inactive',
-      missingRequirements,
-      disabledReason,
-      currentDeadline,
-    };
-  }
+
+  const readinessStatus = deriveReadinessStatus({
+    disabledReason,
+    pendingVerification,
+    missingRequirements,
+    isActive,
+  });
+
   return {
-    isActive: true,
-    readinessStatus: 'active',
+    isActive,
+    readinessStatus,
     missingRequirements,
     disabledReason,
     currentDeadline,
@@ -317,5 +313,5 @@ export const createPaymentsSessionForOrganization = async (
     return notFound('No Stripe account found for organization');
   }
 
-  return createPaymentsSession(account.accountId);
+  return createPaymentsSession(account.account_id);
 };
