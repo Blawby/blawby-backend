@@ -12,13 +12,24 @@ interface EmailJobInput {
   payload: EmailJobPayload;
 }
 
+const isEmailJobInput = (input: unknown): input is EmailJobInput => {
+  if (typeof input !== 'object' || input === null) return false;
+  const i = input as Record<string, unknown>;
+  return typeof i.payload === 'object' && i.payload !== null;
+}
+
 /**
  * Process an email job from the queue
  */
-export const processEmail: Task = async (payload, helpers) => {
-  const { payload: emailPayload } = payload as EmailJobInput;
+export const processEmail: Task = async (input, helpers) => {
+  if (!isEmailJobInput(input)) {
+    helpers.logger.error('❌ Invalid email job input', { input });
+    return;
+  }
 
-  helpers.logger.info(`📧 Processing email: ${emailPayload.template} to ${emailPayload.to}`);
+  const { payload: emailPayload } = input;
+
+  helpers.logger.info(`📧 Processing email: ${emailPayload.template}`);
 
   try {
     const result = await sendEmail(emailPayload);

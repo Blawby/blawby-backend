@@ -10,6 +10,7 @@ import { subscribeToEvent } from '@/shared/events/event-consumer';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
+import { logError } from '@/shared/utils/logging';
 
 const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
 
@@ -40,7 +41,12 @@ export const registerUserEvents = (): void => {
         tutorialUrl: `${APP_URL}/docs/getting-started`,
         supportUrl: 'https://blawby.com/support',
       },
-    );
+    ).catch((error) => {
+      logError('Failed to queue welcome email', error, {
+        eventId: event.eventId,
+        recipientEmail: email
+      });
+    });
   });
 
   subscribeToEvent(EventType.AUTH_USER_LOGGED_OUT, async (event: BaseEvent) => {
