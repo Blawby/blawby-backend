@@ -120,6 +120,13 @@
       "when": 1768666392778,
       "tag": "0016_narrow_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1768898780216,
+      "tag": "0017_rapid_magdalene",
+      "breakpoints": true
     }
   ]
 }
