@@ -5,15 +5,13 @@
  * Handles category-based preference updates
  */
 
+import { getLogger } from '@logtape/logtape';
 import { db } from '@/shared/database';
 import { preferences } from '@/modules/preferences/schema/preferences.schema';
 import type { Preferences } from '@/modules/preferences/schema/preferences.schema';
 import type {
   PreferenceCategory,
-  GeneralPreferences,
   NotificationPreferences,
-  SecurityPreferences,
-  AccountPreferences,
   OnboardingPreferences,
 } from '@/modules/preferences/types/preferences.types';
 import {
@@ -21,9 +19,12 @@ import {
   DEFAULT_ONBOARDING_PREFERENCES,
 } from '@/modules/preferences/types/preferences.types';
 import { eq } from 'drizzle-orm';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError, notFound, badRequest } from '@/shared/utils/result';
+
+const logger = getLogger(['preferences', 'service']);
 
 // Profile fields (phone, dob) are now in users table via Better Auth additionalFields
-// This interface kept for backward compatibility
 export interface UpdateProfileData {
   phone?: string;
   phoneCountryCode?: string;
@@ -32,7 +33,6 @@ export interface UpdateProfileData {
 
 /**
  * Apply default values to notification preferences
- * Merges stored preferences with defaults, ensuring all fields are present
  */
 const applyNotificationDefaults = (
   stored: Record<string, unknown> | null | undefined,
@@ -49,7 +49,6 @@ const applyNotificationDefaults = (
 
 /**
  * Apply default values to onboarding preferences
- * Merges stored preferences with defaults, ensuring boolean flags default to false
  */
 const applyOnboardingDefaults = (
   stored: Record<string, unknown> | null | undefined,
@@ -62,164 +61,188 @@ const applyOnboardingDefaults = (
 };
 
 /**
- * Get all preferences for a user
+ * Preferences Service
  */
-export const getPreferences = async (userId: string): Promise<Preferences | undefined> => {
-  const result = await db
-    .select()
-    .from(preferences)
-    .where(eq(preferences.userId, userId))
-    .limit(1);
+export const preferencesService = {
+  /**
+   * Get all preferences for a user
+   */
+  async getPreferences(userId: string): Promise<Result<Preferences>> {
+    try {
+      const result = await db
+        .select()
+        .from(preferences)
+        .where(eq(preferences.userId, userId))
+        .limit(1);
 
-  if (!result[0]) {
-    return undefined;
-  }
+      if (!result[0]) {
+        return notFound('Preferences not found');
+      }
 
-  // Apply defaults to notifications and onboarding fields
-  const prefs = result[0];
-  return {
-    ...prefs,
-    notifications: applyNotificationDefaults(prefs.notifications),
-    onboarding: applyOnboardingDefaults(prefs.onboarding),
-  };
+      // Apply defaults to notifications and onboarding fields
+      const prefs = result[0];
+      return ok({
+        ...prefs,
+        notifications: applyNotificationDefaults(prefs.notifications),
+        onboarding: applyOnboardingDefaults(prefs.onboarding),
+      });
+    } catch (error) {
+      logger.error('Failed to get preferences for user {userId}: {error}', { userId, error });
+      return internalError('Failed to retrieve preferences');
+    }
+  },
+
+  /**
+   * Get preferences by category
+   */
+  async getPreferencesByCategory(
+    userId: string,
+    category: PreferenceCategory,
+  ): Promise<Result<Record<string, unknown>>> {
+    try {
+      if (category === 'profile') {
+        // Profile fields are now in users table via Better Auth
+        return ok({});
+      }
+
+      const result = await db
+        .select({
+          [category]: preferences[category],
+        })
+        .from(preferences)
+        .where(eq(preferences.userId, userId))
+        .limit(1);
+
+      if (!result[0]) {
+        return notFound('Preferences not found');
+      }
+
+      const categoryData = (result[0]?.[category] as Record<string, unknown>) || {};
+
+      // Apply defaults for specific categories
+      if (category === 'notifications') {
+        return ok(applyNotificationDefaults(categoryData));
+      }
+      if (category === 'onboarding') {
+        return ok(applyOnboardingDefaults(categoryData));
+      }
+
+      return ok(categoryData);
+    } catch (error) {
+      logger.error('Failed to get preferences category {category} for user {userId}: {error}', {
+        userId,
+        category,
+        error,
+      });
+      return internalError(`Failed to retrieve ${category} preferences`);
+    }
+  },
+
+  /**
+   * Update preferences by category
+   */
+  async updatePreferencesByCategory(
+    userId: string,
+    category: PreferenceCategory,
+    data: Record<string, unknown>,
+  ): Promise<Result<Record<string, unknown>>> {
+    try {
+      if (category === 'profile') {
+        return badRequest('Profile fields should be updated via Better Auth updateUser endpoint');
+      }
+
+      // Handle notifications category with special logic
+      let dataToUpdate = data;
+      if (category === 'notifications') {
+        const existingResult = await this.getPreferencesByCategory(userId, 'notifications');
+        const existing = existingResult.success ? existingResult.data : {};
+        // Merge with incoming data (partial update)
+        const merged = { ...existing, ...data };
+        // Force system fields always true
+        merged.system_push = true;
+        merged.system_email = true;
+        dataToUpdate = merged;
+      }
+
+      const result = await db
+        .update(preferences)
+        .set({
+          [category]: dataToUpdate,
+          updatedAt: new Date(),
+        })
+        .where(eq(preferences.userId, userId))
+        .returning({
+          [category]: preferences[category],
+        });
+
+      if (!result[0]) {
+        return notFound('Preferences not found');
+      }
+
+      const updatedData = (result[0]?.[category] as Record<string, unknown>) || {};
+
+      // Apply defaults in response
+      if (category === 'notifications') {
+        return ok(applyNotificationDefaults(updatedData));
+      }
+      if (category === 'onboarding') {
+        return ok(applyOnboardingDefaults(updatedData));
+      }
+
+      return ok(updatedData);
+    } catch (error) {
+      logger.error('Failed to update preferences category {category} for user {userId}: {error}', {
+        userId,
+        category,
+        error,
+      });
+      return internalError(`Failed to update ${category} preferences`);
+    }
+  },
+
+  /**
+   * Initialize preferences for a new user
+   */
+  async initializeUserPreferences(userId: string): Promise<Result<Preferences>> {
+    try {
+      const existing = await db
+        .select()
+        .from(preferences)
+        .where(eq(preferences.userId, userId))
+        .limit(1);
+
+      if (existing[0]) {
+        return ok(existing[0]);
+      }
+
+      const [inserted] = await db
+        .insert(preferences)
+        .values({
+          userId,
+          notifications: DEFAULT_NOTIFICATION_PREFERENCES,
+          general: {},
+          security: {},
+          account: {},
+          onboarding: DEFAULT_ONBOARDING_PREFERENCES,
+        })
+        .returning();
+
+      if (!inserted) {
+        return internalError(`Failed to create preferences for user ${userId}`);
+      }
+
+      return ok(inserted);
+    } catch (error) {
+      logger.error('Failed to initialize preferences for user {userId}: {error}', { userId, error });
+      return internalError('Failed to initialize preferences');
+    }
+  },
 };
 
-/**
- * Get preferences by category
- */
-export const getPreferencesByCategory = async (
-  userId: string,
-  category: PreferenceCategory,
-): Promise<Record<string, unknown>> => {
-  if (category === 'profile') {
-    // Profile fields are now in users table via Better Auth
-    // Return empty object - profile should be fetched from session/user
-    return {};
-  }
+export default preferencesService;
 
-  const result = await db
-    .select({
-      [category]: preferences[category],
-    })
-    .from(preferences)
-    .where(eq(preferences.userId, userId))
-    .limit(1);
-
-  const categoryData = (result[0]?.[category] as Record<string, unknown>) || {};
-
-  // Apply defaults for notifications category
-  if (category === 'notifications') {
-    return applyNotificationDefaults(categoryData);
-  }
-
-  return categoryData;
-};
-
-/**
- * Update preferences by category
- */
-export const updatePreferencesByCategory = async (
-  userId: string,
-  category: PreferenceCategory,
-  data: Record<string, unknown>,
-): Promise<Record<string, unknown>> => {
-  if (category === 'profile') {
-    // Profile fields are now in users table via Better Auth
-    // Updates should go through Better Auth updateUser endpoint
-    throw new Error('Profile fields should be updated via Better Auth updateUser endpoint');
-  }
-
-  // Handle notifications category with special logic
-  if (category === 'notifications') {
-    // Get existing notifications preferences
-    const existing = await getPreferencesByCategory(userId, 'notifications');
-    // Merge with incoming data (partial update)
-    const merged = { ...existing, ...data };
-    // Force system fields always true
-    merged.system_push = true;
-    merged.system_email = true;
-    // Use merged data for update
-    data = merged;
-  }
-
-  const result = await db
-    .update(preferences)
-    .set({
-      [category]: data,
-      updatedAt: new Date(),
-    })
-    .where(eq(preferences.userId, userId))
-    .returning({
-      [category]: preferences[category],
-    });
-
-  const updatedData = (result[0]?.[category] as Record<string, unknown>) || {};
-
-  // Apply defaults for notifications category in response
-  if (category === 'notifications') {
-    return applyNotificationDefaults(updatedData);
-  }
-
-  // Apply defaults for onboarding category in response
-  if (category === 'onboarding') {
-    return applyOnboardingDefaults(updatedData);
-  }
-
-  return updatedData;
-};
-
-/**
- * Update profile fields (phone, dob)
- * Legacy function - profile fields are now in users table via Better Auth
- * This function is kept for backward compatibility but should not be used
- * @deprecated Use Better Auth updateUser endpoint instead
- */
-export const updateProfileFields = async (
-  userId: string,
-  data: UpdateProfileData,
-): Promise<Preferences> => {
-  // Profile fields are now managed by Better Auth
-  // Return preferences without updating profile fields
-  const prefs = await getPreferences(userId);
-  if (!prefs) {
-    throw new Error('Preferences not found');
-  }
-  return prefs;
-};
-
-/**
- * Initialize preferences for a new user (invoked via AUTH_USER_SIGNED_UP event).
- * Creates a preferences row with default notification and onboarding settings
- * (e.g. welcome_modal_shown: false, practice_welcome_shown: false).
- */
-export const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
-  const existing = await getPreferences(userId);
-  if (existing) {
-    return existing;
-  }
-
-  const result = await db
-    .insert(preferences)
-    .values({
-      userId,
-      notifications: DEFAULT_NOTIFICATION_PREFERENCES,
-      general: {},
-      security: {},
-      account: {},
-      onboarding: DEFAULT_ONBOARDING_PREFERENCES,
-    })
-    .returning();
-
-  const inserted = result[0];
-  if (!inserted) {
-    throw new Error(`Failed to create preferences for user ${userId}`);
-  }
-  return inserted;
-};
-
-/**
- * Legacy function names for backward compatibility
- */
-export const getUserDetails = getPreferences;
-export const updateUserDetails = updateProfileFields;
-
+// Legacy exports
+export const getPreferences = preferencesService.getPreferences;
+export const getPreferencesByCategory = preferencesService.getPreferencesByCategory;
+export const updatePreferencesByCategory = preferencesService.updatePreferencesByCategory;
+export const initializeUserPreferences = preferencesService.initializeUserPreferences;

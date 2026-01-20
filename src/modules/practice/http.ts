@@ -1,10 +1,10 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
 import * as routes from '@/modules/practice/routes';
-import invitationsService from '@/modules/practice/services/invitations.service';
-import membersService from '@/modules/practice/services/members.service';
-import practiceService from '@/modules/practice/services/practice.service';
-import practiceDetailsService from '@/modules/practice/services/practice-details.service';
+import { invitationsService } from '@/modules/practice/services/invitations.service';
+import { membersService } from '@/modules/practice/services/members.service';
+import { practiceService } from '@/modules/practice/services/practice.service';
+import { practiceDetailsService } from '@/modules/practice/services/practice-details.service';
 import * as practiceValidations from '@/modules/practice/validations/practice.validation';
 import { validateParams, validateJson, validateParamsAndJson } from '@/shared/middleware/validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
@@ -32,7 +32,7 @@ practiceApp.post('/', validateJson(practiceValidations.createPracticeSchema, 'In
   const user = c.get('user')!;
   const validatedBody = c.get('validatedBody');
 
-  const result = await practiceService.createPracticeService({
+  const result = await practiceService.createPractice({
     data: validatedBody,
     user,
     requestHeaders: c.req.header(),
@@ -68,7 +68,7 @@ practiceApp.put('/:uuid', validateParamsAndJson(
   const { uuid } = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const result = await practiceService.updatePracticeService(
+  const result = await practiceService.updatePractice(
     uuid,
     validatedBody,
     user,
@@ -86,7 +86,7 @@ practiceApp.delete('/:uuid', validateParams(practiceValidations.practiceIdParamS
   const user = c.get('user')!;
   const { uuid } = c.get('validatedParams');
 
-  const result = await practiceService.deletePracticeService(uuid, user, c.req.header());
+  const result = await practiceService.deletePractice(uuid, user, c.req.header());
   return response.fromResult(c, result, 204);
 });
 
@@ -260,7 +260,7 @@ practiceApp.post('/:uuid/details', validateParamsAndJson(
   const validatedParams = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const result = await practiceDetailsService.upsertPracticeDetailsService(
+  const result = await practiceDetailsService.upsertPracticeDetails(
     validatedParams.uuid,
     validatedBody,
     user,
@@ -284,7 +284,7 @@ practiceApp.put('/:uuid/details', validateParamsAndJson(
   const validatedParams = c.get('validatedParams');
   const validatedBody = c.get('validatedBody');
 
-  const result = await practiceDetailsService.upsertPracticeDetailsService(
+  const result = await practiceDetailsService.upsertPracticeDetails(
     validatedParams.uuid,
     validatedBody,
     user,
@@ -302,7 +302,7 @@ practiceApp.delete('/:uuid/details', validateParams(practiceValidations.practice
   const user = c.get('user')!;
   const validatedParams = c.get('validatedParams');
 
-  const result = await practiceDetailsService.deletePracticeDetailsService(
+  const result = await practiceDetailsService.deletePracticeDetails(
     validatedParams.uuid,
     user,
     c.req.header(),

@@ -4,7 +4,9 @@
  * Orchestrates file upload flow with compliance features
  */
 
+import { getLogger } from '@logtape/logtape';
 import { uploadsRepository } from '@/modules/uploads/database/queries/uploads.repository';
+import { auditLogsRepository } from '@/modules/uploads/database/queries/audit-logs.repository';
 import { generatePresignedUploadUrl, verifyFileExists, generatePresignedDownloadUrl } from './cloudflare-r2.service';
 import { generateImagesUploadUrl, getImageUrl } from './cloudflare-images.service';
 import { createAuditLog } from './audit.service';
@@ -19,17 +21,20 @@ import type {
   DownloadUrlResponse,
 } from '@/modules/uploads/types/uploads.types';
 import type { InsertUpload } from '@/modules/uploads/database/schema/uploads.schema';
+import type { Result } from '@/shared/types/result';
+import { ok, badRequest, notFound, internalError, forbidden } from '@/shared/utils/result';
+
+const logger = getLogger(['uploads', 'service']);
 
 /**
  * Sanitize filename for storage
  */
 const sanitizeFileName = (fileName: string): string => {
-  // Remove path separators and dangerous characters
   return fileName
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .replace(/\.\./g, '_')
     .replace(/^\./, '_')
-    .substring(0, 255); // Limit length
+    .substring(0, 255);
 };
 
 /**
@@ -46,11 +51,7 @@ const generateStorageKey = (params: {
   subContext?: 'documents' | 'correspondence' | 'evidence';
 }): string => {
   const sanitizedFileName = sanitizeFileName(params.fileName);
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
 
-  // User profile uploads (not org-bound)
   if (params.uploadContext === 'profile' && params.userId) {
     return `users/${params.userId}/profile/${params.uploadId}_${sanitizedFileName}`;
   }
@@ -58,6 +59,10 @@ const generateStorageKey = (params: {
   if (!params.organizationId) {
     throw new Error('Organization ID required for non-profile uploads');
   }
+
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
 
   switch (params.uploadContext) {
     case 'matter': {
@@ -92,17 +97,15 @@ const calculateRetentionUntil = (
   uploadContext: 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
 ): Date | null => {
   const now = new Date();
-  const yearsToRetain = 7; // Default retention period
+  const yearsToRetain = 7;
 
   switch (uploadContext) {
     case 'matter':
     case 'intake':
     case 'trust':
-      // 7 years from now (can be updated when matter closes)
       return new Date(now.getFullYear() + yearsToRetain, now.getMonth(), now.getDate());
     case 'profile':
     case 'asset':
-      // No retention requirement
       return null;
     default:
       return null;
@@ -110,24 +113,24 @@ const calculateRetentionUntil = (
 };
 
 /**
- * Create uploads service
+ * Uploads Service
  */
-export const createUploadsService = () => {
-  return {
-    /**
-     * Generate presigned URL for upload
-     */
-    async presignUpload(
-      request: PresignUploadRequest,
-      userId: string,
-      organizationId: string,
-    ): Promise<PresignUploadResponse> {
+export const uploadsService = {
+  /**
+   * Generate presigned URL for upload
+   */
+  async presignUpload(
+    request: PresignUploadRequest,
+    userId: string,
+    organizationId: string,
+  ): Promise<Result<PresignUploadResponse>> {
+    try {
       const uploadId = crypto.randomUUID();
       const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
-      const publicUrlBase = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
       if (!bucket) {
-        throw new Error('CLOUDFLARE_R2_BUCKET_NAME environment variable is required');
+        logger.error('CLOUDFLARE_R2_BUCKET_NAME not configured');
+        return internalError('Storage configuration error');
       }
 
       // Determine storage provider based on context
@@ -135,18 +138,22 @@ export const createUploadsService = () => {
       const storageProvider = isImage && request.upload_context === 'profile' ? 'images' : 'r2';
 
       // Generate storage key
-      const storageKey = generateStorageKey({
-        organizationId,
-        userId: request.upload_context === 'profile' ? userId : undefined,
-        uploadContext: request.upload_context,
-        uploadId,
-        fileName: request.file_name,
-        matterId: request.matter_id,
-        entityId: request.entity_id,
-        subContext: request.sub_context,
-      });
+      let storageKey: string;
+      try {
+        storageKey = generateStorageKey({
+          organizationId,
+          userId: request.upload_context === 'profile' ? userId : undefined,
+          uploadContext: request.upload_context,
+          uploadId,
+          fileName: request.file_name,
+          matterId: request.matter_id,
+          entityId: request.entity_id,
+          subContext: request.sub_context,
+        });
+      } catch (err) {
+        return badRequest(err instanceof Error ? err.message : 'Invalid upload context');
+      }
 
-      // Calculate expiration (15 minutes for presigned URL, 1 hour for pending upload record)
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
       const recordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
@@ -154,11 +161,11 @@ export const createUploadsService = () => {
       let method: string;
 
       if (storageProvider === 'images') {
-        // Cloudflare Images direct upload
         const accountHash = process.env.CLOUDFLARE_IMAGES_ACCOUNT_HASH;
         const apiToken = process.env.CLOUDFLARE_IMAGES_API_TOKEN;
         if (!accountHash || !apiToken) {
-          throw new Error('Cloudflare Images credentials not configured');
+          logger.error('Cloudflare Images not configured');
+          return internalError('Image storage configuration error');
         }
         const { uploadUrl } = await generateImagesUploadUrl({
           accountHash,
@@ -167,12 +174,11 @@ export const createUploadsService = () => {
         presignedUrl = uploadUrl;
         method = 'POST';
       } else {
-        // R2 presigned URL
         presignedUrl = await generatePresignedUploadUrl({
           bucket,
           key: storageKey,
           contentType: request.mime_type,
-          expiresIn: 15 * 60, // 15 minutes
+          expiresIn: 15 * 60,
         });
         method = 'PUT';
       }
@@ -182,6 +188,7 @@ export const createUploadsService = () => {
       const fileType = lastDotIndex > 0 && lastDotIndex < fileName.length - 1
         ? fileName.slice(lastDotIndex + 1)
         : 'unknown';
+
       // Create upload record
       const uploadData: InsertUpload = {
         id: uploadId,
@@ -212,40 +219,51 @@ export const createUploadsService = () => {
         organizationId,
         action: 'created',
         userId,
-        // IP and user agent should be passed from handler
       });
 
-      return {
+      logger.info('Generated presigned URL for upload {uploadId} ({fileName})', {
+        uploadId,
+        fileName: request.file_name,
+        storageProvider,
+      });
+
+      return ok({
         upload_id: uploadId,
         presigned_url: presignedUrl,
         method,
         storage_key: storageKey,
         expires_at: expiresAt.toISOString(),
-      };
-    },
+      });
+    } catch (error) {
+      logger.error('Failed to generate presigned URL: {error}', { error });
+      return internalError('Failed to generate upload URL');
+    }
+  },
 
-    /**
-     * Confirm upload completion
-     */
-    async confirmUpload(
-      uploadId: string,
-      userId: string,
-    ): Promise<ConfirmUploadResponse> {
+  /**
+   * Confirm upload completion
+   */
+  async confirmUpload(
+    uploadId: string,
+    userId: string,
+  ): Promise<Result<ConfirmUploadResponse>> {
+    try {
       const upload = await uploadsRepository.findById(uploadId);
 
       if (!upload) {
-        throw new Error('Upload not found');
+        return notFound('Upload not found');
       }
 
       if (upload.status !== 'pending') {
-        throw new Error(`Upload already ${upload.status}`);
+        return badRequest(`Upload already ${upload.status}`);
       }
 
       const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
       const publicUrlBase = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
       if (!bucket) {
-        throw new Error('CLOUDFLARE_R2_BUCKET_NAME environment variable is required');
+        logger.error('CLOUDFLARE_R2_BUCKET_NAME not configured');
+        return internalError('Storage configuration error');
       }
 
       // Verify file exists in storage
@@ -256,7 +274,8 @@ export const createUploadsService = () => {
         });
 
         if (!exists) {
-          throw new Error('File not found in storage');
+          logger.warn('File not found in storage for upload {uploadId}', { uploadId, storageKey: upload.storageKey });
+          return badRequest('File not found in storage. Please ensure upload succeeded before confirming.');
         }
       }
 
@@ -267,7 +286,8 @@ export const createUploadsService = () => {
       } else if (upload.storageProvider === 'images' && upload.storageKey) {
         const accountHash = process.env.CLOUDFLARE_IMAGES_ACCOUNT_HASH;
         if (!accountHash) {
-          throw new Error('CLOUDFLARE_IMAGES_ACCOUNT_HASH environment variable is required for Cloudflare Images');
+          logger.error('CLOUDFLARE_IMAGES_ACCOUNT_HASH not configured');
+          return internalError('Image storage configuration error');
         }
         publicUrl = getImageUrl({
           accountHash,
@@ -283,7 +303,7 @@ export const createUploadsService = () => {
       });
 
       if (!updated) {
-        throw new Error('Upload not found');
+        return internalError('Failed to update upload status');
       }
 
       // Create audit log
@@ -294,22 +314,29 @@ export const createUploadsService = () => {
         userId,
       });
 
-      return {
+      logger.info('Confirmed upload {uploadId}', { uploadId, organizationId: upload.organizationId });
+
+      return ok({
         upload_id: uploadId,
         public_url: publicUrl || '',
         storage_key: upload.storageKey || '',
-        status: 'verified',
-      };
-    },
+        status: 'verified' as const,
+      });
+    } catch (error) {
+      logger.error('Failed to confirm upload {uploadId}: {error}', { uploadId, error });
+      return internalError('Failed to confirm upload');
+    }
+  },
 
-    /**
-     * Get upload details
-     */
-    async getUploadDetails(uploadId: string, userId: string): Promise<UploadDetails> {
+  /**
+   * Get upload details
+   */
+  async getUploadDetails(uploadId: string, userId: string): Promise<Result<UploadDetails>> {
+    try {
       const upload = await uploadsRepository.findById(uploadId);
 
       if (!upload) {
-        throw new Error('Upload not found');
+        return notFound('Upload not found');
       }
 
       // Update last accessed
@@ -323,7 +350,7 @@ export const createUploadsService = () => {
         userId,
       });
 
-      return {
+      return ok({
         upload_id: upload.id,
         file_name: upload.fileName,
         file_type: upload.fileType,
@@ -341,36 +368,41 @@ export const createUploadsService = () => {
         created_at: upload.createdAt.toISOString(),
         verified_at: upload.verifiedAt?.toISOString() || null,
         uploaded_by: upload.uploadedBy,
-      };
-    },
+      });
+    } catch (error) {
+      logger.error('Failed to get upload details for {uploadId}: {error}', { uploadId, error });
+      return internalError('Failed to retrieve upload details');
+    }
+  },
 
-    /**
-     * Get download URL (presigned)
-     */
-    async getDownloadUrl(
-      uploadId: string,
-      userId: string,
-      ipAddress?: string,
-      userAgent?: string,
-    ): Promise<DownloadUrlResponse> {
+  /**
+   * Get download URL (presigned)
+   */
+  async getDownloadUrl(
+    uploadId: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<Result<DownloadUrlResponse>> {
+    try {
       const upload = await uploadsRepository.findById(uploadId);
 
       if (!upload) {
-        throw new Error('Upload not found');
+        return notFound('Upload not found');
       }
 
       if (upload.status !== 'verified') {
-        throw new Error('Upload not verified');
+        return badRequest('Upload is not verified or confirmed');
       }
 
       if (!upload.storageKey) {
-        throw new Error('Storage key not found');
+        return internalError('Storage key missing for verified upload');
       }
 
       const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
-
-      if (!bucket) {
-        throw new Error('CLOUDFLARE_R2_BUCKET_NAME environment variable is required');
+      if (!bucket && upload.storageProvider === 'r2') {
+        logger.error('CLOUDFLARE_R2_BUCKET_NAME not configured');
+        return internalError('Storage configuration error');
       }
 
       let downloadUrl: string;
@@ -380,14 +412,14 @@ export const createUploadsService = () => {
 
       if (upload.storageProvider === 'r2') {
         downloadUrl = await generatePresignedDownloadUrl({
-          bucket,
+          bucket: bucket!,
           key: upload.storageKey,
           expiresIn: 15 * 60,
         });
       } else {
         // Images - use public URL
         if (!upload.publicUrl) {
-          throw new Error('Cloudflare Images upload missing publicUrl. The upload may not have been confirmed yet.');
+          return badRequest('Download URL not available for this image');
         }
         downloadUrl = upload.publicUrl;
       }
@@ -405,28 +437,33 @@ export const createUploadsService = () => {
         userAgent,
       });
 
-      return {
+      return ok({
         download_url: downloadUrl,
         expires_at: expiresAt ? expiresAt.toISOString() : null,
-      };
-    },
+      });
+    } catch (error) {
+      logger.error('Failed to generate download URL for {uploadId}: {error}', { uploadId, error });
+      return internalError('Failed to generate download URL');
+    }
+  },
 
-    /**
-     * Soft delete upload
-     */
-    async deleteUpload(
-      uploadId: string,
-      userId: string,
-      request: DeleteUploadRequest,
-    ): Promise<void> {
+  /**
+   * Soft delete upload
+   */
+  async deleteUpload(
+    uploadId: string,
+    userId: string,
+    request: DeleteUploadRequest,
+  ): Promise<Result<void>> {
+    try {
       const upload = await uploadsRepository.findById(uploadId);
 
       if (!upload) {
-        throw new Error('Upload not found');
+        return notFound('Upload not found');
       }
 
       if (upload.deletedAt) {
-        throw new Error('Upload already deleted');
+        return badRequest('Upload already deleted');
       }
 
       // Soft delete
@@ -440,20 +477,29 @@ export const createUploadsService = () => {
         userId,
         metadata: { reason: request.reason },
       });
-    },
 
-    /**
-     * Restore soft-deleted upload
-     */
-    async restoreUpload(uploadId: string, userId: string): Promise<void> {
+      logger.info('Soft deleted upload {uploadId}', { uploadId, userId, reason: request.reason });
+
+      return ok(undefined);
+    } catch (error) {
+      logger.error('Failed to delete upload {uploadId}: {error}', { uploadId, error });
+      return internalError('Failed to delete upload');
+    }
+  },
+
+  /**
+   * Restore soft-deleted upload
+   */
+  async restoreUpload(uploadId: string, userId: string): Promise<Result<void>> {
+    try {
       const upload = await uploadsRepository.findById(uploadId);
 
       if (!upload) {
-        throw new Error('Upload not found');
+        return notFound('Upload not found');
       }
 
       if (!upload.deletedAt) {
-        throw new Error('Upload is not deleted');
+        return badRequest('Upload is not deleted');
       }
 
       // Restore
@@ -466,15 +512,24 @@ export const createUploadsService = () => {
         action: 'restored',
         userId,
       });
-    },
 
-    /**
-     * List uploads
-     */
-    async listUploads(
-      organizationId: string,
-      query: ListUploadsQuery,
-    ): Promise<ListUploadsResponse> {
+      logger.info('Restored upload {uploadId}', { uploadId, userId });
+
+      return ok(undefined);
+    } catch (error) {
+      logger.error('Failed to restore upload {uploadId}: {error}', { uploadId, error });
+      return internalError('Failed to restore upload');
+    }
+  },
+
+  /**
+   * List uploads
+   */
+  async listUploads(
+    organizationId: string,
+    query: ListUploadsQuery,
+  ): Promise<Result<ListUploadsResponse>> {
+    try {
       const page = query.page || 1;
       const limit = query.limit || 20;
       const offset = (page - 1) * limit;
@@ -521,12 +576,58 @@ export const createUploadsService = () => {
 
       const total = totalResults.length;
 
-      return {
+      return ok({
         uploads,
         total,
         page,
         limit,
-      };
-    },
-  };
+      });
+    } catch (error) {
+      logger.error('Failed to list uploads for org {organizationId}: {error}', { organizationId, error });
+      return internalError('Failed to list uploads');
+    }
+  },
+
+  /**
+   * Get audit logs for an upload
+   */
+  async getAuditLogs(
+    uploadId: string,
+    organizationId: string,
+  ): Promise<Result<{ audit_logs: any[]; total: number }>> {
+    try {
+      const upload = await uploadsRepository.findById(uploadId);
+      if (!upload) {
+        return notFound('Upload not found');
+      }
+
+      if (upload.organizationId !== organizationId) {
+        return forbidden('Access denied');
+      }
+
+      const logs = await auditLogsRepository.findByUploadId(uploadId, 100);
+
+      const auditLogs = logs.map((log) => ({
+        id: log.id,
+        upload_id: log.uploadId,
+        action: log.action,
+        user_id: log.userId,
+        user_name: null, // TODO: Fetch from users table if needed
+        ip_address: log.ipAddress,
+        user_agent: log.userAgent,
+        metadata: log.metadata,
+        created_at: log.createdAt.toISOString(),
+      }));
+
+      return ok({
+        audit_logs: auditLogs,
+        total: auditLogs.length,
+      });
+    } catch (error) {
+      logger.error('Failed to get audit logs for {uploadId}: {error}', { uploadId, error });
+      return internalError('Failed to retrieve audit logs');
+    }
+  },
 };
+
+export default uploadsService;

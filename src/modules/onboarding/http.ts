@@ -6,8 +6,7 @@ import {
   getOnboardingStatusRoute,
 } from '@/modules/onboarding/routes';
 import {
-  getOnboardingStatus,
-  createConnectedAccount,
+  onboardingService,
 } from '@/modules/onboarding/services/onboarding.service';
 import {
   organizationIdParamSchema,
@@ -31,7 +30,7 @@ onboardingApp.get(
     const user = c.get('user')!;
     const validatedParams = c.get('validatedParams');
 
-    const result = await getOnboardingStatus(
+    const result = await onboardingService.getOnboardingStatus(
       validatedParams.organizationId,
       user,
       c.req.header() as Record<string, string>,
@@ -53,7 +52,7 @@ onboardingApp.post(
     const user = c.get('user')!;
     const validatedBody = c.get('validatedBody');
 
-    const result = await createConnectedAccount({
+    const result = await onboardingService.createConnectedAccount({
       email: validatedBody.practice_email,
       organizationId: validatedBody.practice_uuid,
       user,
