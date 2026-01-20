@@ -63,9 +63,16 @@ http.get('/emails/:filename', async (c) => {
   }
 
   const filename = c.req.param('filename');
-  const filePath = path.join(EMAILS_DIR, filename);
+  const sanitizedFilename = path.basename(filename);
 
-  if (!fs.existsSync(filePath) || !filename.endsWith('.html')) {
+  if (!sanitizedFilename.endsWith('.html')) {
+    return c.json({ error: 'Email not found' }, 404);
+  }
+
+  const filePath = path.resolve(EMAILS_DIR, sanitizedFilename);
+
+  // Ensure the resolved path is still within EMAILS_DIR
+  if (!filePath.startsWith(EMAILS_DIR) || !fs.existsSync(filePath)) {
     return c.json({ error: 'Email not found' }, 404);
   }
 

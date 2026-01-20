@@ -8,6 +8,8 @@ import {
   cardSection,
   renderMjml,
   formatCurrency,
+  escapeHtml,
+  sanitizeUrl,
   COLORS,
   INVOICE_ILLUSTRATION_URL,
 } from '../base.template';
@@ -17,7 +19,7 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
     .map(
       (item) => `
       <tr>
-        <td style="padding-bottom: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">${item.description}</td>
+        <td style="padding-bottom: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">${escapeHtml(item.description)}</td>
         <td style="text-align: right; padding-bottom: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">${formatCurrency(item.unitPrice)}</td>
       </tr>
       <tr>
@@ -33,13 +35,13 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
     ${cardSection(`
       <mj-column width="70%">
         <mj-text color="${COLORS.textMuted}" font-size="16px" font-weight="500">
-          Invoice from ${data.businessName}
+          Invoice from ${escapeHtml(data.businessName)}
         </mj-text>
         <mj-text color="${COLORS.text}" font-size="38px" font-weight="600" line-height="42px" padding-top="5px">
           ${formatCurrency(data.amountDue)}
         </mj-text>
         <mj-text color="${COLORS.textMuted}" font-size="16px" font-weight="500" padding-top="5px">
-          Due ${data.dueDate}
+          Due ${escapeHtml(data.dueDate)}
         </mj-text>
       </mj-column>
       <mj-column width="30%">
@@ -53,14 +55,14 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
         <mj-table>
           <tr>
             <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">To:</td>
-            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${data.recipientName}</td>
+            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.recipientName)}</td>
           </tr>
           <tr>
             <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">From:</td>
-            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${data.businessName}</td>
+            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.businessName)}</td>
           </tr>
         </mj-table>
-        <mj-button href="${data.paymentLink}">
+        <mj-button href="${sanitizeUrl(data.paymentLink)}">
           Pay this invoice
         </mj-button>
       </mj-column>
@@ -68,7 +70,7 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
 
     ${cardSection(`
       <mj-column>
-        <mj-text font-size="18px" font-weight="500">Invoice #${data.invoiceNumber}</mj-text>
+        <mj-text font-size="18px" font-weight="500">Invoice #${escapeHtml(data.invoiceNumber)}</mj-text>
         <mj-table>
           ${lineItemsHtml}
           <tr style="border-top: 1px solid ${COLORS.border};">
@@ -86,8 +88,8 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
         </mj-table>
         <mj-divider border-color="${COLORS.border}" />
         <mj-text color="${COLORS.textMuted}">
-          Questions? ${data.supportUrl ? `Visit <a href="${data.supportUrl}" style="color: #000000;">${data.supportUrl}</a> or ` : ''}
-          Contact us at <a href="mailto:${data.supportEmail}" style="color: #000000;">${data.supportEmail}</a>.
+          Questions? ${data.supportUrl ? `Visit <a href="${sanitizeUrl(data.supportUrl)}" style="color: #000000;">${escapeHtml(data.supportUrl)}</a> or ` : ''}
+          Contact us at <a href="mailto:${escapeHtml(data.supportEmail)}" style="color: #000000;">${escapeHtml(data.supportEmail)}</a>.
         </mj-text>
       </mj-column>
     `)}

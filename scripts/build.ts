@@ -19,7 +19,7 @@ const CONFIG_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/configs.ge
 const EXCLUDED_MODULES = [
   'analytics', 'billing', 'admin',
   'customers', 'events', 'health', 'invoices',
-  'payouts', 'settings', 'stripe'
+  'payouts', 'settings', 'stripe', 'dev'
 ];
 
 // ============================================================================

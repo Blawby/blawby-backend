@@ -8,6 +8,8 @@ import {
   cardSection,
   renderMjml,
   formatCurrency,
+  escapeHtml,
+  sanitizeUrl,
   COLORS,
   INVOICE_ILLUSTRATION_URL,
 } from '../base.template';
@@ -17,7 +19,7 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
     .map(
       (item) => `
       <tr>
-        <td style="padding-bottom: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">${item.description}</td>
+        <td style="padding-bottom: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">${escapeHtml(item.description)}</td>
         <td style="text-align: right; padding-bottom: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">${formatCurrency(item.amount)}</td>
       </tr>
       <tr>
@@ -33,13 +35,13 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
     ${cardSection(`
       <mj-column width="70%">
         <mj-text color="${COLORS.textMuted}" font-size="16px" font-weight="500">
-          Receipt from ${data.businessName}
+          Receipt from ${escapeHtml(data.businessName)}
         </mj-text>
         <mj-text color="${COLORS.text}" font-size="38px" font-weight="600" line-height="42px" padding-top="5px">
           ${formatCurrency(data.amountPaid)}
         </mj-text>
         <mj-text color="${COLORS.textMuted}" font-size="16px" font-weight="500" padding-top="5px">
-          Paid ${data.paidAt}
+          Paid ${escapeHtml(data.paidAt)}
         </mj-text>
       </mj-column>
       <mj-column width="30%">
@@ -50,20 +52,20 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
     ${cardSection(`
       <mj-column>
         <mj-divider border-color="${COLORS.border}" />
-        ${data.invoicePDFUrl ? `<mj-text><a href="${data.invoicePDFUrl}" style="color: ${COLORS.textMuted}; text-decoration: none;">📥 Download Invoice</a></mj-text>` : ''}
+        ${data.invoicePDFUrl ? `<mj-text><a href="${sanitizeUrl(data.invoicePDFUrl)}" style="color: ${COLORS.textMuted}; text-decoration: none;">📥 Download Invoice</a></mj-text>` : ''}
         <mj-table>
           <tr>
             <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">To:</td>
-            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${data.recipientName}</td>
+            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.recipientName)}</td>
           </tr>
           <tr>
             <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">From:</td>
-            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${data.businessName}</td>
+            <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.businessName)}</td>
           </tr>
           ${data.paymentMethod
         ? `<tr>
               <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">Payment method:</td>
-              <td style="font-size: 16px; font-weight: 500; padding: 4px;">${data.paymentMethod}</td>
+              <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.paymentMethod)}</td>
             </tr>`
         : ''
       }
@@ -73,7 +75,7 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
 
     ${cardSection(`
       <mj-column>
-        <mj-text font-size="18px" font-weight="500">Receipt #${data.invoiceNumber}</mj-text>
+        <mj-text font-size="18px" font-weight="500">Receipt #${escapeHtml(data.invoiceNumber)}</mj-text>
         <mj-table>
           ${lineItemsHtml}
           <tr style="border-top: 1px solid ${COLORS.border};">
@@ -87,8 +89,8 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
         </mj-table>
         <mj-divider border-color="${COLORS.border}" />
         <mj-text color="${COLORS.textMuted}">
-          Questions? ${data.supportUrl ? `Visit <a href="${data.supportUrl}" style="color: #000000;">${data.supportUrl}</a> or ` : ''}
-          Contact us at <a href="mailto:${data.supportEmail}" style="color: #000000;">${data.supportEmail}</a>.
+          Questions? ${data.supportUrl ? `Visit <a href="${sanitizeUrl(data.supportUrl)}" style="color: #000000;">${escapeHtml(data.supportUrl)}</a> or ` : ''}
+          Contact us at <a href="mailto:${escapeHtml(data.supportEmail)}" style="color: #000000;">${escapeHtml(data.supportEmail)}</a>.
         </mj-text>
       </mj-column>
     `)}

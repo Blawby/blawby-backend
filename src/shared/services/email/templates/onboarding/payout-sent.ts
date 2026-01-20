@@ -7,6 +7,8 @@ import {
   baseLayout,
   cardSection,
   renderMjml,
+  escapeHtml,
+  sanitizeUrl,
   COLORS,
   BLAWBY_LOGO_URL,
 } from '../base.template';
@@ -17,12 +19,12 @@ export const payoutSent = (data: PayoutSentData): string => {
     ${cardSection(`
       <mj-column>
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500">
-          A payout for ${data.businessName} was sent.
+          A payout for ${escapeHtml(data.businessName)} was sent.
         </mj-text>
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
           The payout will be deposited via Bank account within 1 - 7 business days.
         </mj-text>
-        <mj-button href="${data.dashboardUrl}">
+        <mj-button href="${sanitizeUrl(data.dashboardUrl)}">
           View payout
         </mj-button>
         <mj-divider border-color="${COLORS.border}" padding="30px 0" />
