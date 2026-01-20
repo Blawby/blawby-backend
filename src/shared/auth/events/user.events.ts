@@ -44,7 +44,6 @@ export const registerUserEvents = (): void => {
     ).catch((error) => {
       logError('Failed to queue welcome email', error, {
         eventId: event.eventId,
-        recipientEmail: email
       });
     });
   });
