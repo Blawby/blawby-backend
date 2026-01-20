@@ -1,0 +1,42 @@
+/**
+ * Scheduled Event Email Template
+ */
+
+import type { ScheduledEventData } from '@/shared/services/email/email.types';
+import {
+  baseLayout,
+  cardSection,
+  renderMjml,
+  COLORS,
+  BLAWBY_LOGO_URL,
+} from '@/shared/services/email/templates/base.template';
+
+export const scheduledEventTemplate = (data: ScheduledEventData): string => {
+  const mjmlContent = baseLayout(
+    `
+    ${cardSection(`
+      <mj-column>
+        <mj-text color="${COLORS.text}" font-size="16px" font-weight="500">
+          You have scheduled a consultation with ${data.teamName} team!
+        </mj-text>
+        <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
+          Please pay for your consultation before the meeting. Click the button below to proceed with the payment:
+        </mj-text>
+        <mj-button href="${data.paymentUrl}">
+          Pay Now
+        </mj-button>
+        <mj-divider border-color="${COLORS.border}" padding="30px 0" />
+        <mj-text color="${COLORS.text}" font-size="14px" color="${COLORS.textMuted}">
+          If you did not expect to receive this email, you may disregard it.
+        </mj-text>
+        <mj-text color="${COLORS.text}" font-size="14px" padding-top="10px">
+          Payments by Blawby
+        </mj-text>
+      </mj-column>
+    `)}
+  `,
+    BLAWBY_LOGO_URL,
+  );
+
+  return renderMjml(mjmlContent);
+};

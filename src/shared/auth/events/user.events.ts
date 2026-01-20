@@ -8,6 +8,10 @@
 import { EventType } from '@/shared/events/enums/event-types';
 import { subscribeToEvent } from '@/shared/events/event-consumer';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { addEmailJob } from '@/shared/queue/queue.manager';
+import { EMAIL_TEMPLATES } from '@/shared/services/email';
+
+const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
 
 /**
  * Register all user and authentication event handlers
@@ -17,11 +21,26 @@ export const registerUserEvents = (): void => {
 
   // Authentication events
   subscribeToEvent(EventType.AUTH_USER_SIGNED_UP, async (event: BaseEvent) => {
-    console.info('User signed up', {
+    console.info('User signed up, sending welcome email', {
       eventId: event.eventId,
       actorId: event.actorId,
     });
-    // Future: Welcome email, onboarding flow trigger, etc.
+
+    // Send welcome email (fire and forget)
+    const { email, name } = event.payload as { email: string; name: string };
+
+    void addEmailJob(
+      EMAIL_TEMPLATES.WELCOME,
+      email,
+      'Welcome to Blawby!',
+      {
+        recipientEmail: email,
+        recipientName: name,
+        dashboardUrl: `${APP_URL}/dashboard`,
+        tutorialUrl: `${APP_URL}/docs/getting-started`,
+        supportUrl: 'https://blawby.com/support',
+      },
+    );
   });
 
   subscribeToEvent(EventType.AUTH_USER_LOGGED_OUT, async (event: BaseEvent) => {

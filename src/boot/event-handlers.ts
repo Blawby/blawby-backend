@@ -9,7 +9,6 @@ import { registerUserEvents } from '@/shared/auth/events/user.events';
 import { registerStripeCustomerEvents } from '@/modules/stripe/customers/events';
 import { registerPreferencesEvents } from '@/modules/preferences/events';
 import { registerOnboardingEvents } from '@/modules/onboarding/events/onboarding.events';
-import { registerEmailEvents } from '@/shared/events/handlers/email.events';
 import { registerPracticeEvents } from '@/modules/practice/events/practice.events';
 import { registerPracticeClientIntakeEvents } from '@/modules/practice-client-intakes/events/practice-client-intakes.events';
 
@@ -19,12 +18,6 @@ import { registerPracticeClientIntakeEvents } from '@/modules/practice-client-in
  */
 export const bootEventHandlers = (): void => {
   console.info('🚀 Registering event handlers...');
-
-  // Register email events (uses Graphile Worker for queued processing)
-  // Enable in staging and production, disable in development
-  if (isProductionLike()) {
-    registerEmailEvents();
-  }
 
   // Core event handlers (always enabled)
   registerUserEvents();

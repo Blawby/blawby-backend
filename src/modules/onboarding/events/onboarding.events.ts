@@ -9,6 +9,10 @@ import { EventType } from '@/shared/events/enums/event-types';
 import { subscribeToEvent } from '@/shared/events/event-consumer';
 import { handleOnboardingCompleted } from '@/modules/onboarding/handlers/onboarding-completed.handler';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { addEmailJob } from '@/shared/queue/queue.manager';
+import { EMAIL_TEMPLATES } from '@/shared/services/email';
+
+const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
 
 /**
  * Register all onboarding event handlers
@@ -26,7 +30,25 @@ export const registerOnboardingEvents = (): void => {
     // Future: Track onboarding progress, send reminders, etc.
   });
 
-  subscribeToEvent(EventType.ONBOARDING_COMPLETED, handleOnboardingCompleted);
+  subscribeToEvent(EventType.ONBOARDING_COMPLETED, async (event: BaseEvent) => {
+    // Process onboarding completion
+    await handleOnboardingCompleted(event);
+
+    // Send Stripe Connect welcome email (fire and forget)
+    const { email, name } = event.payload as { email: string; name: string };
+    void addEmailJob(
+      EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME,
+      email,
+      'Your Stripe account is connected!',
+      {
+        recipientEmail: email,
+        recipientName: name,
+        dashboardUrl: `${APP_URL}/dashboard`,
+        tutorialUrl: `${APP_URL}/docs/payments`,
+        supportUrl: 'https://blawby.com/support',
+      },
+    );
+  });
 
   subscribeToEvent(EventType.ONBOARDING_FAILED, async (event: BaseEvent) => {
     console.info('Onboarding failed', {
@@ -53,7 +75,21 @@ export const registerOnboardingEvents = (): void => {
       organizationId: event.organizationId,
       actorId: event.actorId,
     });
-    // Future: Notify user, update requirements UI, etc.
+
+    // Send verification needed email (fire and forget)
+    const { email, name } = event.payload as { email: string; name: string };
+    void addEmailJob(
+      EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS,
+      email,
+      'Action required: Verify your account information',
+      {
+        recipientEmail: email,
+        recipientName: name,
+        dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
+        tutorialUrl: `${APP_URL}/docs/verification`,
+        supportUrl: 'https://blawby.com/support',
+      },
+    );
   });
 
   subscribeToEvent(EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED, async (event: BaseEvent) => {
