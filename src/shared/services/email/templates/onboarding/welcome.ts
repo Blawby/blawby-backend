@@ -25,7 +25,7 @@ export const welcomeEmail = (data: WelcomeEmailData): string => {
         </mj-button>
         <mj-divider border-color="${COLORS.border}" padding="30px 0" />
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500">
-          If you would like to build an integration, you might find our <a href="https://blawby.com/docs" style="color: #000000;">docs</a> handy.
+          If you would like to build an integration, you might find our <a href="https://blawby.com/docs" style="color: #000000;">documentation</a> handy.
         </mj-text>
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
           Once your account is connected you will be able to <a href="${sanitizeUrl(data.tutorialUrl)}" style="color: #000000;">add a client</a> and send invoices. You might find our tutorial on <a href="${sanitizeUrl(data.tutorialUrl)}" style="color: #000000;">account basics</a> useful.

@@ -25,7 +25,7 @@ export const stripeConnectStatus = (data: StripeConnectStatusData): string => {
         </mj-button>
         <mj-divider border-color="${COLORS.border}" />
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500">
-          If you would like to build an integration, you might find our <a href="https://blawby.com/docs" style="color: #000000;">docs</a> handy.
+          If you would like to build an integration, you might find our <a href="https://blawby.com/docs" style="color: #000000;">documentation</a> handy.
         </mj-text>
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
           Once you're ready to start accepting live payments, simply <a href="${sanitizeUrl(data.tutorialUrl)}" style="color: #000000;">add a client</a> and send an invoice. You might find our tutorial on <a href="${sanitizeUrl(data.tutorialUrl)}" style="color: #000000;">account basics</a> useful.

@@ -11,6 +11,7 @@ import { handleOnboardingCompleted } from '@/modules/onboarding/handlers/onboard
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
+import { logError } from '@/shared/utils/logging';
 
 const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
 
@@ -40,7 +41,10 @@ export const registerOnboardingEvents = (): void => {
     const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
 
     if (!email) {
-      console.warn('Skipping Connect welcome email: missing billing_email in payload', { eventId: event.eventId });
+      logError('Skipping Connect welcome email: missing billing_email in payload', new Error('Missing billing_email'), {
+        eventId: event.eventId,
+        organizationId: event.organizationId
+      });
       return;
     }
 
@@ -55,7 +59,12 @@ export const registerOnboardingEvents = (): void => {
         tutorialUrl: `${APP_URL}/docs/payments`,
         supportUrl: 'https://blawby.com/support',
       },
-    );
+    ).catch((error) => {
+      logError('Failed to queue Connect welcome email', error, {
+        eventId: event.eventId,
+        organizationId: event.organizationId
+      });
+    });
   });
 
   subscribeToEvent(EventType.ONBOARDING_FAILED, async (event: BaseEvent) => {
@@ -90,7 +99,10 @@ export const registerOnboardingEvents = (): void => {
     const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
 
     if (!email) {
-      console.warn('Skipping Connect status email: missing billing_email in payload', { eventId: event.eventId });
+      logError('Skipping Connect status email: missing billing_email in payload', new Error('Missing billing_email'), {
+        eventId: event.eventId,
+        organizationId: event.organizationId
+      });
       return;
     }
 
@@ -105,7 +117,12 @@ export const registerOnboardingEvents = (): void => {
         tutorialUrl: `${APP_URL}/docs/verification`,
         supportUrl: 'https://blawby.com/support',
       },
-    );
+    ).catch((error) => {
+      logError('Failed to queue Connect status email', error, {
+        eventId: event.eventId,
+        organizationId: event.organizationId
+      });
+    });
   });
 
   subscribeToEvent(EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED, async (event: BaseEvent) => {
@@ -163,7 +180,7 @@ export const registerOnboardingEvents = (): void => {
   });
 
   subscribeToEvent(EventType.ONBOARDING_WEBHOOK_FAILED, async (event: BaseEvent) => {
-    console.error('Onboarding webhook failed', {
+    logError('Onboarding webhook failed', new Error('Webhook failed'), {
       eventId: event.eventId,
       organizationId: event.organizationId,
     });

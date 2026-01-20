@@ -11,6 +11,8 @@ import { subscribeToEvent } from '@/shared/events/event-consumer';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
+import { logError } from '@/shared/utils/logging';
+import { type PaymentEventPayload, isPaymentPayload } from './practice.events.types';
 
 const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
 
@@ -93,8 +95,15 @@ export const registerPracticeEvents = (): void => {
 
   // Payment Succeeded - Send receipts to Customer and Team
   subscribeToEvent(EventType.PAYMENT_SUCCEEDED, async (event: BaseEvent) => {
-    const payload = event.payload as any;
-    const { customer, payment, items, business } = payload;
+    if (!isPaymentPayload(event.payload)) {
+      logError('Invalid PAYMENT_SUCCEEDED payload', new Error('Payload validation failed'), {
+        eventId: event.eventId,
+        payload: event.payload
+      });
+      return;
+    }
+
+    const { customer, payment, items, business } = event.payload;
 
     // 1. Send Customer Receipt (fire and forget)
     void addEmailJob(
@@ -114,7 +123,13 @@ export const registerPracticeEvents = (): void => {
         paymentMethod: payment.method,
         supportEmail: business.supportEmail,
       },
-    );
+    ).catch((error) => {
+      logError('Failed to queue customer receipt email', error, {
+        eventId: event.eventId,
+        invoiceNumber: payment.invoiceNumber,
+        recipientEmail: customer.email
+      });
+    });
 
     // 2. Send Team Notification (fire and forget)
     if (business.ownerEmail) {
@@ -133,14 +148,27 @@ export const registerPracticeEvents = (): void => {
           invoiceUrl: `${APP_URL}/dashboard/invoices/${payment.id}`,
           supportEmail: 'support@blawby.com',
         },
-      );
+      ).catch((error) => {
+        logError('Failed to queue team receipt email', error, {
+          eventId: event.eventId,
+          invoiceNumber: payment.invoiceNumber,
+          businessId: event.organizationId
+        });
+      });
     }
   });
 
   // Payment Refunded - Send confirmation to Customer
   subscribeToEvent(EventType.PAYMENT_REFUNDED, async (event: BaseEvent) => {
-    const payload = event.payload as any;
-    const { customer, payment, items, business } = payload;
+    if (!isPaymentPayload(event.payload)) {
+      logError('Invalid PAYMENT_REFUNDED payload', new Error('Payload validation failed'), {
+        eventId: event.eventId,
+        payload: event.payload
+      });
+      return;
+    }
+
+    const { customer, payment, items, business } = event.payload;
 
     // Send Refund Confirmation (fire and forget)
     void addEmailJob(
@@ -152,11 +180,16 @@ export const registerPracticeEvents = (): void => {
         recipientName: customer.name,
         businessName: business.name,
         invoiceNumber: payment.invoiceNumber,
-        amountRefunded: payment.amountRefunded,
+        amountRefunded: payment.amountRefunded || 0,
         lineItems: items,
         supportEmail: business.supportEmail,
       },
-    );
+    ).catch((error) => {
+      logError('Failed to queue refund confirmation email', error, {
+        eventId: event.eventId,
+        invoiceNumber: payment.invoiceNumber
+      });
+    });
   });
 
   console.info('✅ Practice event handlers registered');

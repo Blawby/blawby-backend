@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { config } from '@dotenvx/dotenvx';
+config();
+
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { runWorker } from '@/shared/queue/worker-runner';
 
@@ -9,8 +11,6 @@ import { processOnboardingWebhook } from '@/workers/tasks/process-onboarding-web
 import { processEventHandler } from '@/workers/tasks/process-event-handler';
 import { processOutboxEvent } from '@/shared/events/tasks/process-outbox-event';
 
-// Load environment variables before anything else
-config();
 
 // Start the worker
 void runWorker({

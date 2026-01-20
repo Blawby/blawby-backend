@@ -34,6 +34,10 @@ export const scheduledEventTemplate = (data: ScheduledEventData): string => {
         <mj-text color="${COLORS.text}" font-size="14px" padding-top="10px">
           Payments by Blawby
         </mj-text>
+        <mj-divider border-color="${COLORS.border}" padding="20px 0" />
+        <mj-text color="${COLORS.textMuted}" font-size="14px">
+          Questions? Visit <a href="${sanitizeUrl(data.supportUrl)}" style="color: #000000;">help & support</a>.
+        </mj-text>
       </mj-column>
     `)}
   `,
