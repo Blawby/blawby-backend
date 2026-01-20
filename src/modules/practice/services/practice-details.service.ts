@@ -106,7 +106,7 @@ const getPracticeDetails = async (
 /**
  * Upsert practice details (Create or Update)
  */
-const upsertPracticeDetailsService = async (
+const upsertPracticeDetails = async (
   organizationId: string,
   data: UpsertPracticeDetailsRequest,
   user: User,
@@ -223,7 +223,7 @@ const upsertPracticeDetailsService = async (
 /**
  * Delete practice details for an organization
  */
-const deletePracticeDetailsService = async (
+const deletePracticeDetails = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -339,8 +339,8 @@ const getPracticeDetailsBySlug = async (
  */
 export const practiceDetailsService = {
   getPracticeDetails,
-  upsertPracticeDetailsService,
-  deletePracticeDetailsService,
+  upsertPracticeDetails,
+  deletePracticeDetails,
   getPracticeDetailsBySlug,
 };
 

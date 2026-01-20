@@ -91,7 +91,9 @@ src/
 │   │   └── sensible.ts    # Error handling
 │   ├── router/            # File-based routing system
 │   ├── types/             # Global TypeScript definitions
+│   │   └── result.ts      # Standard Result & AppError types
 │   └── utils/             # Utility functions
+│       └── result.ts      # Internal result creation helpers (ok, fail, etc.)
 ├── workers/                # Background worker processes
 │   ├── webhook.worker.ts  # Graphile Worker runner for webhooks
 │   └── tasks/             # Graphile Worker task definitions
@@ -1032,9 +1034,12 @@ export * from '../modules/settings/schemas/settings.schema';
 
 - **Imports**: Use full path aliases (`@/`, `features/`)
 - **Functions**: Named function expressions for non-trivial functions
-- **Types**: Explicit types, avoid `any`
+- **Types**: Explicit types, avoid `any`. Every service/handler function **must** have an explicit return type.
 - **Naming**: camelCase for variables, kebab-case for files
 - **Architecture**: Feature-based modules with clear separation
+- **One Export Rule**: Every service, repository, and helper file should ideally have a single main export (documented object or default export).
+- **Result Pattern**: Use the unified `Result<T>` pattern for all service and repository operations. Types are in `@/shared/types/result` and creators in `@/shared/utils/result`.
+- **Hono Validation**: Use the canonical `c.req.valid('json')` pattern for request bodies, facilitated by `validateJson` middleware.
 
 ## Planned Features
 

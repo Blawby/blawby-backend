@@ -1,11 +1,10 @@
 import type { Context } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
-import { createUploadsService } from '@/modules/uploads/services/uploads.service';
+import { uploadsService } from '@/modules/uploads/services/uploads.service';
 import type { ListUploadsQuery } from '@/modules/uploads/validations/uploads.validation';
 
 export const listHandler = async (c: Context<AppContext>) => {
-  // Query parameters are validated by zValidator middleware
   const query = c.req.query() as unknown as ListUploadsQuery;
   const organizationId = c.get('activeOrganizationId');
 
@@ -13,13 +12,7 @@ export const listHandler = async (c: Context<AppContext>) => {
     return response.badRequest(c, 'Organization context required');
   }
 
-  try {
-    const uploadsService = createUploadsService();
-    const result = await uploadsService.listUploads(organizationId, query);
+  const result = await uploadsService.listUploads(organizationId, query);
 
-    return response.ok(c, result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to list uploads';
-    return response.badRequest(c, message);
-  }
+  return response.fromResult(c, result);
 };

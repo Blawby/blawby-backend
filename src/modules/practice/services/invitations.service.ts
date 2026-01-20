@@ -5,7 +5,7 @@ import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { Invitation, User } from '@/shared/types/BetterAuth';
-import { reportMeteredUsage } from '@/modules/subscriptions/services/meteredProducts.service';
+import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
@@ -136,7 +136,7 @@ const acceptPracticeInvitation = async (
       },
     );
 
-    void reportMeteredUsage(db, organizationId, METERED_TYPES.USER_SEAT, 1);
+    void meteredProductsService.reportMeteredUsage(db, organizationId, METERED_TYPES.USER_SEAT, 1);
 
     return ok({ success: true, organization: orgResult.success ? orgResult.data : null });
   } catch (error) {

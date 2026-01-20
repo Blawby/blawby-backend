@@ -20,213 +20,6 @@ import { ok, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['onboarding', 'connected-accounts']);
 
-// 1. Find existing account (internal helper - mostly returns data or null)
-export const findAccountByOrganization = async (
-  organizationId: string,
-): Promise<StripeConnectedAccount | null> => {
-  return await onboardingRepo.findByOrganizationId(organizationId);
-};
-
-// 2. Create new Stripe account (Single responsibility, orchestration)
-export const createStripeAccount = async (
-  organizationId: string,
-  email: string,
-  userId?: string,
-): Promise<Result<StripeConnectedAccount>> => {
-  try {
-    const stripeAccount = await stripe.accounts.create({
-      country: 'US',
-      email,
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-        us_bank_account_ach_payments: { requested: true },
-      },
-      controller: {
-        fees: { payer: 'application' },
-        stripe_dashboard: { type: 'none' },
-      },
-    });
-
-    // Save to database
-    const newAccount: NewStripeConnectedAccount = {
-      organization_id: organizationId,
-      stripe_account_id: stripeAccount.id,
-      account_type: 'custom',
-      country: 'US',
-      email,
-      charges_enabled: stripeAccount.charges_enabled,
-      payouts_enabled: stripeAccount.payouts_enabled,
-      details_submitted: stripeAccount.details_submitted,
-      business_type: stripeAccount.business_type,
-      company: stripeAccountNormalizers.normalizeCompany(stripeAccount.company),
-      individual: stripeAccountNormalizers.normalizeIndividual(stripeAccount.individual),
-      requirements: stripeAccountNormalizers.normalizeRequirements(stripeAccount.requirements),
-      capabilities: stripeAccountNormalizers.normalizeCapabilities(stripeAccount.capabilities),
-      externalAccounts: stripeAccountNormalizers.normalizeExternalAccounts(stripeAccount.external_accounts),
-      futureRequirements: stripeAccountNormalizers.normalizeFutureRequirements(stripeAccount.future_requirements),
-      tosAcceptance: stripeAccountNormalizers.normalizeTosAcceptance(stripeAccount.tos_acceptance),
-      metadata: stripeAccount.metadata ?? undefined,
-      last_refreshed_at: new Date(),
-    };
-
-    const createdAccount = await onboardingRepo.create(newAccount);
-
-    void publishSimpleEvent(
-      EventType.STRIPE_CONNECTED_ACCOUNT_CREATED,
-      userId ?? 'system',
-      organizationId,
-      {
-        account_id: stripeAccount.id,
-        email,
-        country: 'US',
-      },
-    );
-
-    return ok(createdAccount);
-  } catch (error) {
-    logger.error("Failed to create Stripe account for organization {organizationId}: {error}", {
-      error,
-      userId,
-      organizationId,
-    });
-    return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account');
-  }
-};
-
-// 3. Create account link for hosted onboarding
-export const createAccountLinkForAccount = async (
-  account: StripeConnectedAccount,
-  refreshUrl: string,
-  returnUrl: string,
-): Promise<Result<CreateSessionResponse>> => {
-  try {
-    const accountLink = await stripe.accountLinks.create({
-      account: account.stripe_account_id,
-      refresh_url: refreshUrl,
-      return_url: returnUrl,
-      type: 'account_onboarding',
-    });
-
-    return ok({
-      url: accountLink.url,
-      expires_at: accountLink.expires_at,
-    });
-  } catch (error) {
-    logger.error("Failed to create Stripe account link for organization {organizationId}: {error}", {
-      error,
-      organizationId: account.organization_id,
-    });
-    return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account link');
-  }
-};
-
-// 4. Main orchestrator function (coordinates other functions)
-export const createOrGetAccount = async (
-  organizationId: string,
-  email: string,
-  refreshUrl: string,
-  returnUrl: string,
-  userId?: string,
-): Promise<Result<CreateAccountResponse>> => {
-  // Check if account exists
-  let account = await findAccountByOrganization(organizationId);
-
-  if (!account) {
-    // Create new account
-    const result = await createStripeAccount(organizationId, email, userId);
-    if (!result.success) return result;
-    account = result.data;
-  }
-
-  // Create account link for the account
-  const linkResult = await createAccountLinkForAccount(account, refreshUrl, returnUrl);
-  if (!linkResult.success) return linkResult;
-
-  const accountLink = linkResult.data;
-
-  return ok({
-    account_id: account.stripe_account_id,
-    url: accountLink.url ?? '',
-    expires_at: accountLink.expires_at,
-
-    session_status: 'created',
-    status: {
-      charges_enabled: account.charges_enabled,
-      payouts_enabled: account.payouts_enabled,
-      details_submitted: account.details_submitted,
-    },
-  });
-};
-
-export const createPaymentsSession = async (
-  stripeAccountId: string,
-): Promise<Result<CreateSessionResponse>> => {
-  try {
-    const session = await stripe.accountSessions.create({
-      account: stripeAccountId,
-      components: {
-        payments: {
-          enabled: true,
-          features: {
-            refund_management: true,
-            dispute_management: true,
-            capture_payments: true,
-          },
-        },
-      },
-    });
-
-    return ok({
-      client_secret: session.client_secret,
-      expires_at: session.expires_at,
-    });
-  } catch (error) {
-    logger.error("Failed to create Stripe payments session for {stripeAccountId}: {error}", {
-      error,
-      stripeAccountId,
-    });
-    return internalError(error instanceof Error ? error.message : 'Failed to create Stripe payments session');
-  }
-};
-
-export const getAccount = async (
-  organizationId: string,
-): Promise<Result<GetAccountResponse | null>> => {
-  try {
-    const account = await onboardingRepo.findByOrganizationId(organizationId);
-
-    if (!account) {
-      return ok(null);
-    }
-
-    const readiness = getAccountReadiness({ account });
-
-    return ok({
-      account_id: account.stripe_account_id,
-      status: {
-        charges_enabled: account.charges_enabled,
-        payouts_enabled: account.payouts_enabled,
-        details_submitted: account.details_submitted,
-        is_active: readiness.isActive,
-        readiness_status: readiness.readinessStatus,
-        missing_requirements: readiness.missingRequirements,
-        disabled_reason: readiness.disabledReason,
-        current_deadline: readiness.currentDeadline,
-      },
-      requirements: account.requirements,
-      future_requirements: account.futureRequirements,
-      onboarding_completed_at: account.onboarding_completed_at?.toISOString() || null,
-    });
-  } catch (error) {
-    logger.error("Failed to retrieve connected account status for {organizationId}: {error}", {
-      organizationId,
-      error,
-    });
-    return internalError('Failed to retrieve connected account status');
-  }
-};
-
 /**
  * Helper to determine readiness status based on requirements and capabilities
  */
@@ -247,6 +40,9 @@ const deriveReadinessStatus = (params: {
   return 'active';
 };
 
+/**
+ * Get account readiness status details
+ */
 const getAccountReadiness = (input: {
   account: StripeConnectedAccount;
 }): {
@@ -294,24 +90,267 @@ const getAccountReadiness = (input: {
   };
 };
 
-export const isAccountActive = (account: StripeConnectedAccount): boolean => {
-  return getAccountReadiness({ account }).isActive;
-};
-
 /**
- * Create payments session for organization
+ * Connected Accounts Service
+ *
+ * Handles Stripe Connected Account management and session creation
  */
-export const createPaymentsSessionForOrganization = async (
-  organizationId: string,
-): Promise<Result<CreateSessionResponse>> => {
-  const result = await getAccount(organizationId);
-  if (!result.success) return result;
+export const connectedAccountsService = {
+  /**
+   * Find existing account for an organization
+   */
+  async findAccountByOrganization(
+    organizationId: string,
+  ): Promise<StripeConnectedAccount | null> {
+    return onboardingRepo.findByOrganizationId(organizationId);
+  },
 
-  const account = result.data;
+  /**
+   * Create new Stripe connected account
+   */
+  async createStripeAccount(
+    organizationId: string,
+    email: string,
+    userId?: string,
+  ): Promise<Result<StripeConnectedAccount>> {
+    try {
+      const stripeAccount = await stripe.accounts.create({
+        country: 'US',
+        email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+          us_bank_account_ach_payments: { requested: true },
+        },
+        controller: {
+          fees: { payer: 'application' },
+          stripe_dashboard: { type: 'none' },
+        },
+      });
 
-  if (!account) {
-    return notFound('No Stripe account found for organization');
-  }
+      // Save to database
+      const newAccount: NewStripeConnectedAccount = {
+        organization_id: organizationId,
+        stripe_account_id: stripeAccount.id,
+        account_type: 'custom',
+        country: 'US',
+        email,
+        charges_enabled: stripeAccount.charges_enabled,
+        payouts_enabled: stripeAccount.payouts_enabled,
+        details_submitted: stripeAccount.details_submitted,
+        business_type: stripeAccount.business_type,
+        company: stripeAccountNormalizers.normalizeCompany(stripeAccount.company),
+        individual: stripeAccountNormalizers.normalizeIndividual(stripeAccount.individual),
+        requirements: stripeAccountNormalizers.normalizeRequirements(stripeAccount.requirements),
+        capabilities: stripeAccountNormalizers.normalizeCapabilities(stripeAccount.capabilities),
+        externalAccounts: stripeAccountNormalizers.normalizeExternalAccounts(stripeAccount.external_accounts),
+        futureRequirements: stripeAccountNormalizers.normalizeFutureRequirements(stripeAccount.future_requirements),
+        tosAcceptance: stripeAccountNormalizers.normalizeTosAcceptance(stripeAccount.tos_acceptance),
+        metadata: stripeAccount.metadata ?? undefined,
+        last_refreshed_at: new Date(),
+      };
 
-  return createPaymentsSession(account.account_id);
+      const createdAccount = await onboardingRepo.create(newAccount);
+
+      void publishSimpleEvent(
+        EventType.STRIPE_CONNECTED_ACCOUNT_CREATED,
+        userId ?? 'system',
+        organizationId,
+        {
+          account_id: stripeAccount.id,
+          email,
+          country: 'US',
+        },
+      );
+
+      return ok(createdAccount);
+    } catch (error) {
+      logger.error('Failed to create Stripe account for organization {organizationId}: {error}', {
+        error,
+        userId,
+        organizationId,
+      });
+      return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account');
+    }
+  },
+
+  /**
+   * Create account link for hosted onboarding
+   */
+  async createAccountLinkForAccount(
+    account: StripeConnectedAccount,
+    refreshUrl: string,
+    returnUrl: string,
+  ): Promise<Result<CreateSessionResponse>> {
+    try {
+      const accountLink = await stripe.accountLinks.create({
+        account: account.stripe_account_id,
+        refresh_url: refreshUrl,
+        return_url: returnUrl,
+        type: 'account_onboarding',
+      });
+
+      return ok({
+        url: accountLink.url,
+        expires_at: accountLink.expires_at,
+      });
+    } catch (error) {
+      logger.error('Failed to create Stripe account link for organization {organizationId}: {error}', {
+        error,
+        organizationId: account.organization_id,
+      });
+      return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account link');
+    }
+  },
+
+  /**
+   * Orchestrator: Create or get account and return session URL
+   */
+  async createOrGetAccount(
+    organizationId: string,
+    email: string,
+    refreshUrl: string,
+    returnUrl: string,
+    userId?: string,
+  ): Promise<Result<CreateAccountResponse>> {
+    // Check if account exists
+    let account = await this.findAccountByOrganization(organizationId);
+
+    if (!account) {
+      // Create new account
+      const result = await this.createStripeAccount(organizationId, email, userId);
+      if (!result.success) return result;
+      account = result.data;
+    }
+
+    // Create account link for the account
+    const linkResult = await this.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+    if (!linkResult.success) return linkResult;
+
+    const accountLink = linkResult.data;
+
+    return ok({
+      account_id: account.stripe_account_id,
+      url: accountLink.url ?? '',
+      expires_at: accountLink.expires_at,
+
+      session_status: 'created',
+      status: {
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        details_submitted: account.details_submitted,
+      },
+    });
+  },
+
+  /**
+   * Create embedded payments session
+   */
+  async createPaymentsSession(
+    stripeAccountId: string,
+  ): Promise<Result<CreateSessionResponse>> {
+    try {
+      const session = await stripe.accountSessions.create({
+        account: stripeAccountId,
+        components: {
+          payments: {
+            enabled: true,
+            features: {
+              refund_management: true,
+              dispute_management: true,
+              capture_payments: true,
+            },
+          },
+        },
+      });
+
+      return ok({
+        client_secret: session.client_secret,
+        expires_at: session.expires_at,
+      });
+    } catch (error) {
+      logger.error('Failed to create Stripe payments session for {stripeAccountId}: {error}', {
+        error,
+        stripeAccountId,
+      });
+      return internalError(error instanceof Error ? error.message : 'Failed to create Stripe payments session');
+    }
+  },
+
+  /**
+   * Get account status and requirements
+   */
+  async getAccount(
+    organizationId: string,
+  ): Promise<Result<GetAccountResponse | null>> {
+    try {
+      const account = await onboardingRepo.findByOrganizationId(organizationId);
+
+      if (!account) {
+        return ok(null);
+      }
+
+      const readiness = getAccountReadiness({ account });
+
+      return ok({
+        account_id: account.stripe_account_id,
+        status: {
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+          is_active: readiness.isActive,
+          readiness_status: readiness.readinessStatus,
+          missing_requirements: readiness.missingRequirements,
+          disabled_reason: readiness.disabledReason,
+          current_deadline: readiness.currentDeadline,
+        },
+        requirements: account.requirements,
+        future_requirements: account.futureRequirements,
+        onboarding_completed_at: account.onboarding_completed_at?.toISOString() || null,
+      });
+    } catch (error) {
+      logger.error('Failed to retrieve connected account status for {organizationId}: {error}', {
+        organizationId,
+        error,
+      });
+      return internalError('Failed to retrieve connected account status');
+    }
+  },
+
+  /**
+   * Check if an account is fully active
+   */
+  async isAccountActive(account: StripeConnectedAccount): Promise<boolean> {
+    return getAccountReadiness({ account }).isActive;
+  },
+
+  /**
+   * Create payments session for organization
+   */
+  async createPaymentsSessionForOrganization(
+    organizationId: string,
+  ): Promise<Result<CreateSessionResponse>> {
+    const result = await this.getAccount(organizationId);
+    if (!result.success) return result;
+
+    const account = result.data;
+
+    if (!account) {
+      return notFound('No Stripe account found for organization');
+    }
+
+    return this.createPaymentsSession(account.account_id);
+  },
 };
+
+export default connectedAccountsService;
+
+// Legacy exports
+export const findAccountByOrganization = connectedAccountsService.findAccountByOrganization;
+export const createStripeAccount = connectedAccountsService.createStripeAccount;
+export const createAccountLinkForAccount = connectedAccountsService.createAccountLinkForAccount;
+export const createOrGetAccount = connectedAccountsService.createOrGetAccount;
+export const createPaymentsSession = connectedAccountsService.createPaymentsSession;
+export const getAccount = connectedAccountsService.getAccount;
+export const isAccountActive = connectedAccountsService.isAccountActive;
+export const createPaymentsSessionForOrganization = connectedAccountsService.createPaymentsSessionForOrganization;

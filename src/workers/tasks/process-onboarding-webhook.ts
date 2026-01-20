@@ -6,8 +6,8 @@
 
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
-import { existsByStripeEventId } from '@/shared/repositories/stripe.webhook-events.repository';
-import { processEvent as processOnboardingEvent } from '@/modules/webhooks/services/onboarding-webhooks.service';
+import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
+import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 
 const logger = getLogger(['app', 'worker', 'onboarding-webhook']);
 
@@ -29,31 +29,31 @@ export const processOnboardingWebhook: Task = async (
   const { webhookId, eventId, eventType } = payload as ProcessOnboardingWebhookPayload;
   const startTime = Date.now();
 
-  logger.info("🚀 Starting onboarding webhook job: {eventId} ({eventType}) - Job ID: {webhookId}", {
+  logger.info('🚀 Starting onboarding webhook job: {eventId} ({eventType}) - Job ID: {webhookId}', {
     eventId,
     eventType,
-    webhookId
+    webhookId,
   });
 
   try {
-    const result = await processOnboardingEvent(eventId);
+    const result = await onboardingWebhooksService.processEvent(eventId);
 
     if (!result.success) {
       throw new Error(result.error.message);
     }
 
     const duration = Date.now() - startTime;
-    logger.info("✅ Onboarding webhook job completed successfully: {eventId} - Duration: {duration}ms", {
+    logger.info('✅ Onboarding webhook job completed successfully: {eventId} - Duration: {duration}ms', {
       eventId,
-      duration
+      duration,
     });
 
     // Log database status
     try {
-      const webhookEvent = await existsByStripeEventId(eventId);
+      const webhookEvent = await stripeWebhookEventsRepository.existsByStripeEventId(eventId);
 
       if (webhookEvent) {
-        logger.info("📊 Database status for {eventId}:", {
+        logger.info('📊 Database status for {eventId}:', {
           eventId,
           processed: webhookEvent.processed,
           processedAt: webhookEvent.processedAt?.toISOString(),
@@ -61,21 +61,21 @@ export const processOnboardingWebhook: Task = async (
           error: webhookEvent.error || 'None',
         });
       } else {
-        logger.warn("⚠️  Webhook event not found in database: {eventId}", { eventId });
+        logger.warn('⚠️  Webhook event not found in database: {eventId}', { eventId });
       }
     } catch (dbError) {
-      logger.error("❌ Failed to check database status for {eventId}: {error}", {
+      logger.error('❌ Failed to check database status for {eventId}: {error}', {
         eventId,
-        error: dbError instanceof Error ? dbError.message : String(dbError)
+        error: dbError instanceof Error ? dbError.message : String(dbError),
       });
     }
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMsg = error instanceof Error ? error.message : String(error);
-    logger.error("❌ Onboarding webhook job failed: {eventId} - Duration: {duration}ms - {error}", {
+    logger.error('❌ Onboarding webhook job failed: {eventId} - Duration: {duration}ms - {error}', {
       eventId,
       duration,
-      error: errorMsg
+      error: errorMsg,
     });
     throw error;
   }

@@ -5,7 +5,7 @@
  */
 
 export { getAllPreferences, getCategoryPreferences, updateCategoryPreferences } from './handlers';
-export { getPreferences, getPreferencesByCategory, updatePreferencesByCategory } from './services/preferences.service';
+export { preferencesService } from './services/preferences.service';
 export {
   generalPreferencesSchema,
   notificationPreferencesSchema,
@@ -20,5 +20,4 @@ export { config } from './routes.config';
 
 // Legacy exports for backward compatibility
 export { getDetails, updateDetails } from './handlers';
-export { getUserDetails, updateUserDetails } from './services/preferences.service';
-
+export { preferencesService as preferences } from './services/preferences.service';

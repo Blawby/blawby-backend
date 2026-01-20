@@ -17,7 +17,7 @@ const logger = getLogger(['subscriptions', 'webhook-service']);
 /**
  * Process a Stripe webhook event for subscriptions
  */
-export const processSubscriptionWebhookEvent = async (
+const processSubscriptionWebhookEvent = async (
   event: Stripe.Event,
 ): Promise<Result<void>> => {
   try {
@@ -69,7 +69,13 @@ export const processSubscriptionWebhookEvent = async (
 /**
  * Check if an event type should be processed by subscription webhooks
  */
-export const isSubscriptionWebhookEvent = (eventType: string): boolean => {
+const isSubscriptionWebhookEvent = (eventType: string): boolean => {
   return eventType.startsWith('product.') || eventType.startsWith('price.');
 };
 
+export const subscriptionWebhooksService = {
+  processSubscriptionWebhookEvent,
+  isSubscriptionWebhookEvent,
+};
+
+export default subscriptionWebhooksService;
