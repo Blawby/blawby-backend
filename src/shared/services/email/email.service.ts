@@ -27,8 +27,8 @@ const getResendClient = (): Resend => {
 };
 
 // Default email configuration
-const DEFAULT_FROM = process.env.EMAIL_FROM_ADDRESS || 'notifications@blawby.com';
-const DEFAULT_FROM_NAME = process.env.EMAIL_FROM_NAME || 'Blawby';
+const DEFAULT_FROM = 'notifcations@blawby.com';
+const DEFAULT_FROM_NAME = 'Blawby';
 
 /**
  * Save email to local file for development preview
