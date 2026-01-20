@@ -35,7 +35,15 @@ export const registerOnboardingEvents = (): void => {
     await handleOnboardingCompleted(event);
 
     // Send Stripe Connect welcome email (fire and forget)
-    const { email, name } = event.payload as { email: string; name: string };
+    const payload = event.payload as Record<string, unknown>;
+    const email = typeof payload.billing_email === 'string' ? payload.billing_email : undefined;
+    const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
+
+    if (!email) {
+      console.warn('Skipping Connect welcome email: missing billing_email in payload', { eventId: event.eventId });
+      return;
+    }
+
     void addEmailJob(
       EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME,
       email,
@@ -77,7 +85,15 @@ export const registerOnboardingEvents = (): void => {
     });
 
     // Send verification needed email (fire and forget)
-    const { email, name } = event.payload as { email: string; name: string };
+    const payload = event.payload as Record<string, unknown>;
+    const email = typeof payload.billing_email === 'string' ? payload.billing_email : undefined;
+    const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
+
+    if (!email) {
+      console.warn('Skipping Connect status email: missing billing_email in payload', { eventId: event.eventId });
+      return;
+    }
+
     void addEmailJob(
       EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS,
       email,

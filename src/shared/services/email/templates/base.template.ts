@@ -30,6 +30,37 @@ export const formatCurrency = (amountInCents: number): string => {
 };
 
 /**
+ * Escape HTML special characters
+ */
+export const escapeHtml = (str: string): string => {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
+/**
+ * Sanitize URLs to prevent protocol-based attacks
+ */
+export const sanitizeUrl = (url: string | undefined): string => {
+  if (!url) return '#';
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
+      return '#';
+    }
+    return url;
+  } catch {
+    // If it's a relative URL or invalid, return # for safety
+    // For our use case, we usually expect absolute URLs for links
+    return '#';
+  }
+};
+
+/**
  * Wrap content in the base email layout
  */
 export const baseLayout = (content: string, headerImageUrl?: string): string => {

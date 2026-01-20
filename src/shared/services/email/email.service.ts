@@ -72,7 +72,7 @@ export const sendEmail = async (
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
   try {
     // Render the template to HTML
-    const html = renderTemplate(payload.template, payload.data);
+    const html = renderTemplate(payload.template, payload.data as any);
 
     // Development: Save to file for instant preview
     if (process.env.NODE_ENV !== 'production') {

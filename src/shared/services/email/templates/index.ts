@@ -4,8 +4,6 @@
  * Central export point for all email templates and the render function
  */
 
-import { EMAIL_TEMPLATES, type EmailTemplateName } from '../email.types';
-
 // Customer templates
 import { customerPaymentReceipt } from './customer/payment-receipt';
 import { customerPaymentRequest } from './customer/payment-request';
@@ -22,39 +20,74 @@ import { payoutSent } from './onboarding/payout-sent';
 // Event templates
 import { scheduledEventTemplate } from './scheduled-event';
 
-// Template render function type
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TemplateRenderFn = (data: any) => string;
-
-// Template registry - uses type casting to satisfy TemplateRenderFn
-const templateRegistry: Record<EmailTemplateName, TemplateRenderFn> = {
-  // Customer templates
-  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: customerPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: customerPaymentRequest as TemplateRenderFn,
-  [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: customerPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: customerPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: customerPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]: customerPaymentReceipt as TemplateRenderFn,
-
-  // Team templates
-  [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: teamPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: teamPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: teamPaymentReceipt as TemplateRenderFn,
-  [EMAIL_TEMPLATES.TEAM_INVITATION]: welcomeEmail as TemplateRenderFn,
-
-  // Onboarding templates
-  [EMAIL_TEMPLATES.WELCOME]: welcomeEmail as TemplateRenderFn,
-  [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: stripeConnectWelcome as TemplateRenderFn,
-  [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: stripeConnectStatus as TemplateRenderFn,
-  [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent as TemplateRenderFn,
-  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate as TemplateRenderFn,
-};
+import {
+  EMAIL_TEMPLATES,
+  type EmailTemplateName,
+  type CustomerPaymentReceiptData,
+  type CustomerPaymentRequestData,
+  type TeamPaymentReceiptData,
+  type WelcomeEmailData,
+  type StripeConnectWelcomeData,
+  type StripeConnectStatusData,
+  type PayoutSentData,
+  type ScheduledEventData,
+  type RefundData,
+  type TeamInvitationData,
+} from '../email.types';
 
 /**
- * Render an email template by name
+ * Mapping of email templates to their specific data types
  */
-export const renderTemplate = (templateName: EmailTemplateName, data: Record<string, unknown>): string => {
-  const templateFn = templateRegistry[templateName];
+export interface TemplateDataMap {
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: CustomerPaymentRequestData;
+  [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: RefundData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: RefundData;
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: RefundData;
+  [EMAIL_TEMPLATES.TEAM_INVITATION]: TeamInvitationData;
+  [EMAIL_TEMPLATES.WELCOME]: WelcomeEmailData;
+  [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
+  [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
+  [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
+  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: ScheduledEventData;
+}
+
+// Template registry with explicit mapping
+const templateRegistry = {
+  // Customer templates
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: customerPaymentReceipt,
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: customerPaymentRequest,
+  [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: customerPaymentReceipt, // Reusing receipt template for custom receipts
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]: customerPaymentReceipt, // Intentional reuse: notification uses receipt layout
+
+  // Team templates
+  [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: teamPaymentReceipt,
+  [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: teamPaymentReceipt, // Reusing team receipt for custom cases
+  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: teamPaymentReceipt, // Intentional reuse: notification uses team receipt layout
+  [EMAIL_TEMPLATES.TEAM_INVITATION]: welcomeEmail, // Intentional reuse: uses welcome layout for invitations
+
+  // Onboarding templates
+  [EMAIL_TEMPLATES.WELCOME]: welcomeEmail,
+  [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: stripeConnectWelcome,
+  [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: stripeConnectStatus,
+  [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent,
+  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate,
+} as const;
+
+/**
+ * Render an email template by name in a type-safe way
+ */
+export const renderTemplate = <T extends EmailTemplateName>(
+  templateName: T,
+  data: TemplateDataMap[T],
+): string => {
+  const templateFn = (templateRegistry as Record<string, Function>)[templateName];
 
   if (!templateFn) {
     throw new Error(`Unknown email template: ${templateName}`);
