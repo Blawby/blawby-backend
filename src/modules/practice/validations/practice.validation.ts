@@ -370,6 +370,12 @@ export const practiceDetailsResponseSchema = z
     logo: z.string().nullable().openapi({
       example: 'https://example.com/logo.png',
     }),
+    payment_link_enabled: z.boolean().openapi({
+      example: true,
+    }),
+    payment_link_prefill_amount: z.number().openapi({
+      example: 5000,
+    }),
   })
   .openapi('PracticeDetailsResponse');
 
