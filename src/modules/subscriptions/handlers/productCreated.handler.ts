@@ -6,10 +6,13 @@
  */
 
 import type Stripe from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { upsertPlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '../database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'product-created']);
 
 /**
  * Extract plan limits from product metadata
@@ -75,7 +78,10 @@ const extractFeatures = (metadata: Record<string, string>): string[] => {
  */
 export const handleProductCreated = async (product: Stripe.Product): Promise<void> => {
   try {
-    console.log(`Processing product.created: ${product.id} - ${product.name}`);
+    logger.info('Processing product.created: {productId} - {productName}', {
+      productId: product.id,
+      productName: product.name
+    });
 
     // Fetch all prices for this product
     const stripe = getStripeInstance();
@@ -123,12 +129,14 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
     };
 
     // Upsert plan
-    await upsertPlan(db, planData);
+    await subscriptionRepository.upsertPlan(db, planData);
 
-    console.log(`Successfully processed product.created: ${product.id}`);
+    logger.info('Successfully processed product.created: {productId}', { productId: product.id });
   } catch (error) {
-    console.error(`Failed to process product.created: ${product.id}`, error);
+    logger.error('Failed to process product.created: {productId}. Error: {error}', {
+      productId: product.id,
+      error
+    });
     throw error;
   }
 };
-

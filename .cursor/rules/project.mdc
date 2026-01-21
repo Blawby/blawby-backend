@@ -255,13 +255,19 @@ Data:
 - Use readonly for data that doesn't change.
 - Use as const for literals that don't change.
 
-Exceptions:
+## Result Pattern & Error Handling
 
-- Use exceptions to handle errors you don't expect.
-- If you catch an exception, it should be to:
-- Fix an expected problem.
-- Add context.
-- Otherwise, use a global handler.
+- **Prefer the `Result<T>` pattern** for service logic and internal business operations.
+- Avoid throwing raw errors for expected failure cases (e.g., validation failed, not found).
+- Use the `ok`, `fail`, `badRequest`, `notFound`, etc. helpers from `@/shared/types/result`.
+- Return `Result.success(data)` for success and `Result.failure(error)` (or shortcuts) for failures.
+
+**Exceptions:**
+- Use exceptions (e.g., `HTTPException`) only for truly unexpected errors or at the very edge of the API layer if not caught by `response.fromResult`.
+- If you catch an exception, add context using `LogTape` before re-throwing or converting to a `Result`.
+
+**Global Error Handler:**
+- A global error handler handles unhandled exceptions and formats them consistently using `LogTape` and `snake_case`.
 
 Testing:
 
@@ -342,9 +348,11 @@ Hono middleware for cross-cutting concerns:
 
 ### Logging
 
-- Uses `consola` for beautiful, structured logging
-- Hono's built-in logger middleware for request logging
-- Development optimizations for faster startup
+- **ALWAYS use `LogTape`** for structured, contextual logging.
+- Get a logger using `const logger = getLogger(['app', 'feature-name', 'context']);`.
+- Use template-style logging: `logger.info("User {userId} created", { userId: user.id });`.
+- **NEVER use `console.log` or `console.error`** in application code.
+- Replaced `consola` with `LogTape` as the primary logging engine.
 
 ### Development Workflow
 
@@ -406,12 +414,13 @@ export default app;
 
 ### Hono Context Utilities
 
-- `c.req.valid('json')` - Get validated request body
-- `c.req.valid('param')` - Get validated path parameters
-- `c.req.valid('query')` - Get validated query parameters
-- `c.json()` - Return JSON response
-- `c.get('user')` - Get data from context (e.g., authenticated user)
-- `c.set('key', value)` - Set data in context
+- **Standard Validation Middlewares**: Use `validateJson`, `validateParams`, and `validateParamsAndJson` from `@/shared/middleware/validation`.
+- `c.get('validatedBody')` - Get data validated via `validateJson`.
+- `c.get('validatedParams')` - Get data validated via `validateParams`.
+- **Avoid using `c.req.valid()` directly** unless using standard Hono validators for simple cases.
+- `c.json()` - Return JSON response (wrapped by `response` utility).
+- `c.get('user')` - Get authenticated user from session.
+- `response.fromResult(c, result)` - Automatically handle `Result` types and return standardized JSON.
 
 Testing:
 

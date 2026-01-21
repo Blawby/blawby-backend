@@ -9,6 +9,7 @@ export const TASK_NAMES = {
   PROCESS_ONBOARDING_WEBHOOK: 'process-onboarding-webhook',
   PROCESS_EVENT_HANDLER: 'process-event-handler',
   PROCESS_OUTBOX_EVENT: 'process-outbox-event',
+  SEND_EMAIL: 'send-email',
 } as const;
 
 /**
