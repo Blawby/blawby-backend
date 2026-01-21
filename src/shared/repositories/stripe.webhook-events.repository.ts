@@ -116,7 +116,7 @@ export const stripeWebhookEventsRepository = {
     error: string,
     errorStack?: string,
   ): Promise<void> {
-    const event = await this.findById(id);
+    const event = await stripeWebhookEventsRepository.findById(id);
     if (!event) return;
 
     const retryCount = event.retryCount + 1;
