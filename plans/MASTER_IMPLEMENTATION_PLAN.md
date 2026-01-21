@@ -1,6 +1,19 @@
 # Stripe Implementation - Master Plan
 
+**Status**: In Progress
+**Last Updated**: January 21, 2026
+**Overall Completion**: ~45%
+
 Complete implementation plan for Stripe Connect integration.
+
+---
+
+## Related Documents
+
+- **Webhook Implementation**: `WEBHOOK_IMPLEMENTATION_PLAN.md` (✅ Production Ready)
+- **Subscription System**: `STRIPE_SUBSCRIPTIONS_PLAN.md` (Platform billing - separate from Phase 3)
+- **Graphile Worker Migration**: `archive/GRAPHILE_WORKER_MIGRATION.md` (✅ Completed)
+- **Current Status Review**: `PLANS_REVIEW_2026-01-21.md`
 
 ---
 
@@ -17,71 +30,89 @@ This implementation enables organizations to:
 ## Phase Breakdown
 
 ### Phase 1: Stripe Connected Account Onboarding
-**File**: `PHASE_1_STRIPE_ONBOARDING.md`
+**Status**: ✅ ~95% Complete (Tested & Verified)
+**Reference**: `WEBHOOK_IMPLEMENTATION_PLAN.md` (Production Ready)
 
 **Goal**: Onboard organizations to Stripe Connect
 
 **Key Deliverables**:
-- Database tables: `connected_accounts`, `webhook_events`
-- API routes: `/api/onboarding/connected-accounts`, `/api/onboarding/webhooks/stripe`
-- Services: ConnectedAccountsService, WebhooksService
-- Stripe embedded onboarding component integration
+- ✅ Database tables: `connected_accounts`, `webhook_events`
+- ✅ API routes: `/api/onboarding/connected-accounts`
+- ✅ Webhook endpoint - **Tested & Verified** for:
+  - Stripe Connected Account webhooks
+  - Practice intake webhooks
+- ✅ Services: ConnectedAccountsService, WebhooksService
+- ✅ Stripe embedded onboarding component integration
+- ✅ Graphile Worker for async webhook processing (see `archive/GRAPHILE_WORKER_MIGRATION.md`)
 
-**Estimated Time**: 2-3 days
+**Completed**: December 2025
+**Verified**: January 2026
+
+**Remaining** (Optional):
+- Session refresh endpoint (if needed for UX improvement)
 
 ---
 
 ### Phase 2: Payment Processing & Invoicing
-**File**: `PHASE_2_PAYMENT_PROCESSING.md`
+**Status**: ⚠️ ~40% Complete (Custom implementation differs from original plan)
 
 **Goal**: Accept payments and create invoices
 
-**Key Deliverables**:
-- Database tables: `payments`, `invoices`, `refunds`
-- API routes: `/api/payments/*`, `/api/invoices/*`, `/api/refunds/*`
-- Services: PaymentsService, InvoicesService, RefundsService
-- PDF invoice generation
-- Payment links for invoices
+**What's Implemented**:
+- ✅ Payment intents (custom implementation)
+- ✅ Payment links (custom system)
+- ✅ Intake payments (custom flow)
+- ✅ Payment webhooks (`payment_intent.succeeded`, `charge.succeeded`, etc.)
 
-**Dependencies**: Phase 1 complete
+**Still Needed**:
+- ❌ Invoice management (create, list, send, update)
+- ❌ Invoice PDF generation
+- ❌ Refund processing
+- ❌ Standard payment intent routes (or document why custom implementation)
 
-**Estimated Time**: 3-4 days
+**Dependencies**: Phase 1 complete ✅
+
+**Note**: The codebase has a custom payment implementation that differs from the original plan.
 
 ---
 
 ### Phase 3: Subscriptions & Recurring Billing
-**File**: `PHASE_3_SUBSCRIPTIONS.md`
+**Status**: ❌ 0% (Use `STRIPE_SUBSCRIPTIONS_PLAN.md` instead)
+**Reference**: See `STRIPE_SUBSCRIPTIONS_PLAN.md` for platform billing implementation
 
-**Goal**: Manage subscription plans and recurring billing
+**Note**: This phase is for customer subscription billing (clients paying organizations).
+For **platform billing** (organizations paying Blawby), see the separate `STRIPE_SUBSCRIPTIONS_PLAN.md` document which details:
+- Platform customer + subscription creation
+- Organization billing (separate from Connect accounts)
+- IOLTA-compliant subscription system
+- Metered billing and usage tracking
 
-**Key Deliverables**:
-- Database tables: `subscription_plans`, `subscriptions`
-- API routes: `/api/subscription-plans/*`, `/api/subscriptions/*`
-- Services: SubscriptionPlansService, SubscriptionsService
-- MRR/ARR calculation
-- Subscription lifecycle management
+**Original Goal**: Manage customer subscription plans and recurring billing
 
-**Dependencies**: Phase 2 complete
+**Not Started**:
+- ❌ Database tables: `subscription_plans`, `subscriptions`
+- ❌ API routes: `/api/subscription-plans/*`, `/api/subscriptions/*`
+- ❌ Services: SubscriptionPlansService, SubscriptionsService
+- ❌ MRR/ARR calculation
+- ❌ Subscription lifecycle management
 
-**Estimated Time**: 3-4 days
+**Dependencies**: Phase 2 complete (not met)
 
 ---
 
 ### Phase 4: Payouts & Balance Management
-**File**: `PHASE_4_PAYOUTS.md`
+**Status**: ❌ 0% (Not Started)
 
 **Goal**: Track balances and manage payouts
 
-**Key Deliverables**:
-- Database tables: `payouts`, `balance_transactions`
-- API routes: `/api/balance/*`, `/api/payouts/*`, `/api/reports/*`
-- Services: BalanceService, PayoutsService
-- Financial reporting
-- Balance transaction sync
+**Not Started**:
+- ❌ Database tables: `payouts`, `balance_transactions`
+- ❌ API routes: `/api/balance/*`, `/api/payouts/*`, `/api/reports/*`
+- ❌ Services: BalanceService, PayoutsService
+- ❌ Financial reporting
+- ❌ Balance transaction sync
 
-**Dependencies**: Phase 2 complete
-
-**Estimated Time**: 2-3 days
+**Dependencies**: Phase 2 complete (not met)
 
 ---
 
