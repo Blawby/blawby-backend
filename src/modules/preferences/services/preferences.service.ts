@@ -154,7 +154,7 @@ export const preferencesService = {
       // Handle notifications category with special logic
       let dataToUpdate = data;
       if (category === 'notifications') {
-        const existingResult = await this.getPreferencesByCategory(userId, 'notifications');
+        const existingResult = await preferencesService.getPreferencesByCategory(userId, 'notifications');
         const existing = existingResult.success ? existingResult.data : {};
         // Merge with incoming data (partial update)
         const merged = { ...existing, ...data };
