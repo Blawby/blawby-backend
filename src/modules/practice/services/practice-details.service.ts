@@ -339,6 +339,8 @@ export const getPracticeDetailsBySlug = async (
     address: addressData,
     name: organization.name,
     logo: organization.logo,
+    payment_link_enabled: organization.paymentLinkEnabled ?? false,
+    payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
   };
 };
 
