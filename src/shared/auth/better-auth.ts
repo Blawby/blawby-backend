@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { anonymous, bearer, organization } from 'better-auth/plugins';
+import { anonymous, organization } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
@@ -25,7 +25,6 @@ const betterAuthInstance = (
       usePlural: true,
     }),
     plugins: [
-      bearer(),
       organization({
         ac: organizationAccessController,
         roles: organizationRoles,

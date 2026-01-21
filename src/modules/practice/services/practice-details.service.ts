@@ -337,6 +337,8 @@ export const getPracticeDetailsBySlug = async (
       'updated_at',
     ]),
     address: addressData,
+    name: organization.name,
+    logo: organization.logo,
   };
 };
 
