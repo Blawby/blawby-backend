@@ -6,28 +6,36 @@
  */
 
 import type Stripe from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { deactivatePlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '../database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'product-deleted']);
 
 /**
  * Handle product.deleted webhook event
  */
 export const handleProductDeleted = async (product: Stripe.Product): Promise<void> => {
   try {
-    console.log(`Processing product.deleted: ${product.id} - ${product.name}`);
+    logger.info('Processing product.deleted: {productId} - {productName}', {
+      productId: product.id,
+      productName: product.name
+    });
 
     // Deactivate the plan instead of hard delete
-    const deactivated = await deactivatePlan(db, product.id);
+    const deactivated = await subscriptionRepository.deactivatePlan(db, product.id);
 
     if (deactivated) {
-      console.log(`Successfully deactivated plan: ${product.id}`);
+      logger.info('Successfully deactivated plan: {productId}', { productId: product.id });
     } else {
-      console.warn(`Plan not found for deactivation: ${product.id}`);
+      logger.warn('Plan not found for deactivation: {productId}', { productId: product.id });
     }
   } catch (error) {
-    console.error(`Failed to process product.deleted: ${product.id}`, error);
+    logger.error('Failed to process product.deleted: {productId}. Error: {error}', {
+      productId: product.id,
+      error
+    });
     throw error;
   }
 };
-

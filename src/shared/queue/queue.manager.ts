@@ -77,6 +77,41 @@ export const addOnboardingWebhookJob = async (
 };
 
 /**
+ * Add an email job to the queue
+ */
+export const addEmailJob = async (
+  template: string,
+  to: string,
+  subject: string,
+  data: Record<string, unknown>,
+): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(
+      TASK_NAMES.SEND_EMAIL,
+      {
+        payload: {
+          template,
+          to,
+          subject,
+          data,
+        },
+      },
+      {
+        maxAttempts: graphileWorkerConfig.maxAttempts,
+      },
+    );
+
+    console.log(`✅ Email job queued: ${template} to ${to}`);
+  } catch (error) {
+    console.error(`❌ Failed to queue email job:`, error);
+    throw error;
+  }
+};
+
+
+/**
  * Get queue statistics for monitoring
  * Queries Graphile Worker's job tables directly
  */

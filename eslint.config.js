@@ -21,11 +21,9 @@ export default [
       '@stylistic': stylistic,
     },
     rules: {
-      // ESLint formatting rules only (oxlint handles linting)
-      // TypeScript rules (minimal - oxlint handles most linting)
-      '@typescript-eslint/no-unused-vars': 'off', // oxlint handles this
-      '@typescript-eslint/no-explicit-any': 'off', // oxlint handles this
-      '@typescript-eslint/prefer-const': 'off', // oxlint handles this
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/prefer-const': 'off',
 
       // @stylistic/eslint-plugin rules (comprehensive formatting)
       ...stylistic.configs['recommended'].rules,

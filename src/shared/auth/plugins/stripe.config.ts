@@ -7,12 +7,9 @@ import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fetchStripePlans } from './fetchStripePlans';
-import { upsertLineItem } from '@/modules/subscriptions/database/queries/subscriptionLineItems.repository';
-import { createEvent } from '@/modules/subscriptions/database/queries/subscriptionEvents.repository';
-import { findPlanByStripePriceId } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import {
-  existsByStripeEventId,
-  createWebhookEvent,
+  createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
 
@@ -79,7 +76,7 @@ const syncSubscriptionToOrg = async (
       // Use Promise.all for concurrency instead of sequential for-loop
       await Promise.all(
         stripeSubscription.items.data.map((item) =>
-          upsertLineItem(tx, {
+          subscriptionRepository.upsertLineItem(tx, {
             subscriptionId: subscriptionId,
             stripeSubscriptionItemId: item.id,
             stripePriceId: item.price.id,
@@ -94,9 +91,9 @@ const syncSubscriptionToOrg = async (
     }
 
     // C. Create Audit Log
-    const dbPlan = await findPlanByStripePriceId(tx, planName);
+    const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, planName);
 
-    await createEvent(tx, {
+    await subscriptionRepository.createEvent(tx, {
       subscriptionId: subscriptionId,
       planId: dbPlan?.id,
       eventType: eventType === 'created' ? 'created' : 'status_changed',
@@ -149,16 +146,16 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
     // Opt: Centralized Webhook Handling
     onEvent: async (event) => {
       try {
-        if (await existsByStripeEventId(event.id)) {
-          console.log(`⚠️ Skipped duplicate event: ${event.id}`);
-          return;
-        }
-
-        const webhookEvent = await createWebhookEvent(
+        const webhookEvent = await createWebhookEventIfNotExists(
           event,
           { 'stripe-event-id': event.id, 'stripe-event-type': event.type },
           '/api/auth/stripe/webhook'
         );
+
+        if (!webhookEvent) {
+          console.log(`⚠️ Skipped duplicate event: ${event.id}`);
+          return;
+        }
 
         const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.'];
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some(prefix => event.type.startsWith(prefix));
@@ -268,7 +265,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           // Update line items if available
           if (stripeSubscription?.items?.data) {
             await Promise.all(stripeSubscription.items.data.map(item =>
-              upsertLineItem(tx, {
+              subscriptionRepository.upsertLineItem(tx, {
                 subscriptionId: subscription.id,
                 stripeSubscriptionItemId: item.id,
                 stripePriceId: item.price.id,
@@ -283,8 +280,8 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
           // Log event
           if (subscription.plan) {
-            const dbPlan = await findPlanByStripePriceId(tx, subscription.plan);
-            await createEvent(tx, {
+            const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, subscription.plan);
+            await subscriptionRepository.createEvent(tx, {
               subscriptionId: subscription.id,
               planId: dbPlan?.id,
               toPlanId: dbPlan?.id,
@@ -304,7 +301,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
             .set({ activeSubscriptionId: null })
             .where(eq(schema.organizations.id, subscription.referenceId!));
 
-          await createEvent(tx, {
+          await subscriptionRepository.createEvent(tx, {
             subscriptionId: subscription.id,
             eventType: 'canceled',
             fromStatus: 'active',

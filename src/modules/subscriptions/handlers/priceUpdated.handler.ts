@@ -6,22 +6,25 @@
  */
 
 import type Stripe from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { findPlanByStripePriceId, upsertPlan } from '../database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '../database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'price-updated']);
 
 /**
  * Handle price.updated webhook event
  */
 export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => {
   try {
-    console.log(`Processing price.updated: ${price.id}`);
+    logger.info('Processing price.updated: {priceId}', { priceId: price.id });
 
     // Find the plan that uses this price
-    const plan = await findPlanByStripePriceId(db, price.id);
+    const plan = await subscriptionRepository.findPlanByStripePriceId(db, price.id);
 
     if (!plan) {
-      console.warn(`Plan not found for price.updated: ${price.id}`);
+      logger.warn('Plan not found for price.updated: {priceId}', { priceId: price.id });
       return;
     }
 
@@ -52,18 +55,17 @@ export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => 
     }
 
     if (Object.keys(updates).length > 0) {
-      await upsertPlan(db, {
+      await subscriptionRepository.upsertPlan(db, {
         ...plan,
         ...updates,
       });
 
-      console.log(`Successfully updated plan with modified price: ${price.id}`);
+      logger.info('Successfully updated plan with modified price: {priceId}', { priceId: price.id });
     } else {
-      console.log(`No updates needed for price: ${price.id}`);
+      logger.debug('No updates needed for price: {priceId}', { priceId: price.id });
     }
   } catch (error) {
-    console.error(`Failed to process price.updated: ${price.id}`, error);
+    logger.error('Failed to process price.updated: {priceId}. Error: {error}', { priceId: price.id, error });
     throw error;
   }
 };
-

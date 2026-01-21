@@ -6,23 +6,32 @@
  */
 
 import type Stripe from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { findPlanByStripeProductId, upsertPlan } from '../database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '../database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
 
 /**
  * Handle price.created webhook event
  */
 export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => {
   try {
-    console.log(`Processing price.created: ${price.id} for product ${price.product}`);
+    logger.info('Processing price.created: {priceId} for product {productId}', {
+      priceId: price.id,
+      productId: typeof price.product === 'string' ? price.product : price.product.id
+    });
 
     // Find the plan for this product
     const productId = typeof price.product === 'string' ? price.product : price.product.id;
-    const plan = await findPlanByStripeProductId(db, productId);
+    const plan = await subscriptionRepository.findPlanByStripeProductId(db, productId);
 
     if (!plan) {
-      console.warn(`Plan not found for price.created: ${price.id}, product: ${productId}`);
+      logger.warn('Plan not found for price.created: {priceId}, product: {productId}', {
+        priceId: price.id,
+        productId
+      });
       return;
     }
 
@@ -40,7 +49,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       updates.yearlyPrice = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     } else if (price.recurring && price.recurring.usage_type === 'metered') {
       // Handle metered price - add to meteredItems array
-      const meteredItems = plan.meteredItems || [];
+      const meteredItems = (plan.meteredItems as any[]) || [];
       meteredItems.push({
         priceId: price.id,
         meterName: price.nickname || 'metered',
@@ -50,18 +59,20 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
     }
 
     if (Object.keys(updates).length > 0) {
-      await upsertPlan(db, {
+      await subscriptionRepository.upsertPlan(db, {
         ...plan,
         ...updates,
       });
 
-      console.log(`Successfully updated plan with new price: ${price.id}`);
+      logger.info('Successfully updated plan with new price: {priceId}', { priceId: price.id });
     } else {
-      console.log(`No updates needed for price: ${price.id}`);
+      logger.debug('No updates needed for price: {priceId}', { priceId: price.id });
     }
   } catch (error) {
-    console.error(`Failed to process price.created: ${price.id}`, error);
+    logger.error('Failed to process price.created: {priceId}. Error: {error}', {
+      priceId: price.id,
+      error
+    });
     throw error;
   }
 };
-

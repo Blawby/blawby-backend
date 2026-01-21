@@ -1,9 +1,16 @@
-import { eq, and, lte, or, isNull } from 'drizzle-orm';
+/**
+ * Onboarding Repository
+ *
+ * Centralized database operations for connected accounts and related onboarding data.
+ */
 
+import { eq, and, lte } from 'drizzle-orm';
 import {
   stripeConnectedAccounts,
-  type StripeConnectedAccount,
-  type NewStripeConnectedAccount,
+} from '@/modules/onboarding/schemas/onboarding.schema';
+import type {
+  StripeConnectedAccount,
+  NewStripeConnectedAccount,
 } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import {
@@ -11,43 +18,47 @@ import {
   type WebhookEvent,
 } from '@/shared/schemas/stripe.webhook-events.schema';
 
-export const findByOrganization = async (
+/**
+ * Connected Account Operations
+ */
+
+export const findByOrganizationId = async (
   organizationId: string,
 ): Promise<StripeConnectedAccount | null> => {
-  const accounts = await db
+  const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
     .where(eq(stripeConnectedAccounts.organization_id, organizationId))
     .limit(1);
 
-  return accounts[0] || null;
+  return account || null;
 };
 
-export const findByStripeId = async (
+export const findByStripeAccountId = async (
   stripeAccountId: string,
 ): Promise<StripeConnectedAccount | null> => {
-  const accounts = await db
+  const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
     .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
     .limit(1);
 
-  return accounts[0] || null;
+  return account || null;
 };
 
 export const findById = async (
   id: string,
 ): Promise<StripeConnectedAccount | null> => {
-  const accounts = await db
+  const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
     .where(eq(stripeConnectedAccounts.id, id))
     .limit(1);
 
-  return accounts[0] || null;
+  return account || null;
 };
 
-export const createStripeConnectedAccount = async (
+export const create = async (
   data: NewStripeConnectedAccount,
 ): Promise<StripeConnectedAccount> => {
   const [account] = await db
@@ -61,10 +72,10 @@ export const createStripeConnectedAccount = async (
   return account;
 };
 
-export const updateStripeConnectedAccount = async (
+export const update = async (
   id: string,
   data: Partial<NewStripeConnectedAccount>,
-): Promise<StripeConnectedAccount> => {
+): Promise<StripeConnectedAccount | null> => {
   const [account] = await db
     .update(stripeConnectedAccounts)
     .set({
@@ -74,13 +85,13 @@ export const updateStripeConnectedAccount = async (
     .where(eq(stripeConnectedAccounts.id, id))
     .returning();
 
-  return account;
+  return account || null;
 };
 
-export const updateStripeConnectedAccountByStripeId = async (
+export const updateByStripeAccountId = async (
   stripeAccountId: string,
   data: Partial<NewStripeConnectedAccount>,
-): Promise<StripeConnectedAccount> => {
+): Promise<StripeConnectedAccount | null> => {
   const [account] = await db
     .update(stripeConnectedAccounts)
     .set({
@@ -90,7 +101,7 @@ export const updateStripeConnectedAccountByStripeId = async (
     .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
     .returning();
 
-  return account;
+  return account || null;
 };
 
 export const updateLastRefreshed = async (
@@ -104,6 +115,10 @@ export const updateLastRefreshed = async (
     })
     .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId));
 };
+
+/**
+ * Webhook Event Operations (Module Specific)
+ */
 
 export const getEventsToRetry = async (): Promise<WebhookEvent[]> => {
   const now = new Date();
@@ -121,11 +136,30 @@ export const getEventsToRetry = async (): Promise<WebhookEvent[]> => {
 export const findWebhookById = async (
   id: string,
 ): Promise<WebhookEvent | null> => {
-  const events = await db
+  const [event] = await db
     .select()
     .from(webhookEvents)
     .where(eq(webhookEvents.id, id))
     .limit(1);
 
-  return events[0] || null;
+  return event || null;
 };
+
+/**
+ * Repository Object Export (Matches newer patterns)
+ */
+export const onboardingRepository = {
+  findById,
+  findByOrganizationId,
+  findByStripeAccountId,
+  create,
+  update,
+  updateByStripeAccountId,
+  updateLastRefreshed,
+  getEventsToRetry,
+  findWebhookById,
+};
+
+// Aliases for compatibility during migration
+export const connectedAccountsRepository = onboardingRepository;
+export const stripeConnectedAccountsRepository = onboardingRepository;
