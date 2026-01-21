@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import {
   stripeConnectedAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
+import { organizations } from '@/schema/better-auth-schema';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
@@ -57,6 +58,14 @@ export const handleAccountUpdated = async (
         .update(stripeConnectedAccounts)
         .set(updateData)
         .where(eq(stripeConnectedAccounts.stripe_account_id, account.id));
+
+      // Auto-enable payment links if charges are enabled
+      if (account.charges_enabled && currentAccount.organization_id) {
+        await tx
+          .update(organizations)
+          .set({ paymentLinkEnabled: true })
+          .where(eq(organizations.id, currentAccount.organization_id));
+      }
 
       // Publish account updated event within transaction
       await publishEventTx(tx, {
