@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
 import type { db } from '@/shared/database';
@@ -32,7 +32,12 @@ export const upsertAddressTx = async (
     const [updatedAddress] = await tx
       .update(addresses)
       .set({ ...dataToSave, updated_at: new Date() })
-      .where(eq(addresses.id, addressId))
+      .where(
+        and(
+          eq(addresses.id, addressId),
+          eq(addresses.organization_id, organizationId)
+        )
+      )
       .returning();
 
     return updatedAddress;
