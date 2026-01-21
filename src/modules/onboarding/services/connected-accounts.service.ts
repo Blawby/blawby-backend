@@ -214,17 +214,17 @@ export const connectedAccountsService = {
     userId?: string,
   ): Promise<Result<CreateAccountResponse>> {
     // Check if account exists
-    let account = await this.findAccountByOrganization(organizationId);
+    let account = await connectedAccountsService.findAccountByOrganization(organizationId);
 
     if (!account) {
       // Create new account
-      const result = await this.createStripeAccount(organizationId, email, userId);
+      const result = await connectedAccountsService.createStripeAccount(organizationId, email, userId);
       if (!result.success) return result;
       account = result.data;
     }
 
     // Create account link for the account
-    const linkResult = await this.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+    const linkResult = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
     if (!linkResult.success) return linkResult;
 
     const accountLink = linkResult.data;
@@ -330,7 +330,7 @@ export const connectedAccountsService = {
   async createPaymentsSessionForOrganization(
     organizationId: string,
   ): Promise<Result<CreateSessionResponse>> {
-    const result = await this.getAccount(organizationId);
+    const result = await connectedAccountsService.getAccount(organizationId);
     if (!result.success) return result;
 
     const account = result.data;
@@ -339,7 +339,7 @@ export const connectedAccountsService = {
       return notFound('No Stripe account found for organization');
     }
 
-    return this.createPaymentsSession(account.account_id);
+    return connectedAccountsService.createPaymentsSession(account.account_id);
   },
 };
 
