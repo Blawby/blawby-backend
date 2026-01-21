@@ -45,13 +45,11 @@ export const validateParams = <T extends z.ZodType>(
 
 
       // Return the proper response directly instead of throwing
-      return response.badRequest(c, errorMessage, {
-        details: validationResult.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-          code: issue.code,
-        })),
-      });
+      return response.badRequest(c, errorMessage, validationResult.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+        code: issue.code,
+      })));
     }
 
     // Store validated params in context for use in route handler
@@ -94,13 +92,11 @@ export const validateJson = <T extends z.ZodTypeAny>(
         });
 
         // Return the proper response directly instead of throwing
-        return response.badRequest(c, errorMessage, {
-          details: validationResult.error.issues.map((issue) => ({
-            field: issue.path.join('.'),
-            message: issue.message,
-            code: issue.code,
-          })),
-        });
+        return response.badRequest(c, errorMessage, validationResult.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+        })));
       }
 
       // Store validated body in context for use in route handler
@@ -172,13 +168,11 @@ export const validateParamsAndJson = <
       });
 
       // Return the proper response directly instead of throwing
-      return response.badRequest(c, paramErrorMessage, {
-        details: paramValidation.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-          code: issue.code,
-        })),
-      });
+      return response.badRequest(c, paramErrorMessage, paramValidation.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+        code: issue.code,
+      })));
     }
 
     // Validate JSON body
@@ -218,13 +212,11 @@ export const validateParamsAndJson = <
         });
 
         // Return the proper response directly instead of throwing
-        return response.badRequest(c, bodyErrorMessage, {
-          details: bodyValidation.error.issues.map((issue) => ({
-            field: issue.path.join('.'),
-            message: issue.message,
-            code: issue.code,
-          })),
-        });
+        return response.badRequest(c, bodyErrorMessage, bodyValidation.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+        })));
       }
 
       // Store validated data in context

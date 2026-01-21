@@ -27,13 +27,17 @@ onboardingApp.get(
   '/organization/:organizationId/status',
   validateParams(organizationIdParamSchema, 'Invalid Organization UUID'),
   async (c) => {
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      return response.unauthorized(c, 'User not authenticated');
+    }
+
     const validatedParams = c.get('validatedParams');
 
     const result = await onboardingService.getOnboardingStatus(
       validatedParams.organizationId,
       user,
-      c.req.header() as Record<string, string>,
+      c.req.header(),
     );
 
     return response.fromResult(c, result);
@@ -49,7 +53,11 @@ onboardingApp.post(
   '/connected-accounts',
   validateJson(createConnectedAccountSchema, 'Invalid Onboarding Data'),
   async (c) => {
-    const user = c.get('user')!;
+    const user = c.get('user');
+    if (!user) {
+      return response.unauthorized(c, 'User not authenticated');
+    }
+
     const validatedBody = c.get('validatedBody');
 
     const result = await onboardingService.createConnectedAccount({
@@ -58,7 +66,7 @@ onboardingApp.post(
       user,
       refreshUrl: validatedBody.refresh_url,
       returnUrl: validatedBody.return_url,
-      requestHeaders: c.req.header() as Record<string, string>,
+      requestHeaders: c.req.header(),
     });
 
     return response.fromResult(c, result, 201);
