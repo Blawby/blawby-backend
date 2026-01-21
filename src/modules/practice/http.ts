@@ -325,7 +325,7 @@ practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSc
   if (!details) {
     return response.notFound(c, 'Practice not found');
   }
-  return response.ok(c, details);
+  return response.ok(c, { details });
 });
 
 registerOpenApiRoutes(practiceApp, routes);
