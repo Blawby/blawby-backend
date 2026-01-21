@@ -343,16 +343,16 @@ export const practiceDetailsResponseSchema = z
     business_phone: z.string().nullable().openapi({
       example: '+1234567890',
     }),
-    business_email: z.string().email().nullable().openapi({
+    business_email: z.email().nullable().openapi({
       example: 'contact@example.com',
     }),
     consultation_fee: z.number().nullable().openapi({
       example: 100.0,
     }),
-    payment_url: z.string().url().nullable().openapi({
+    payment_url: z.url().nullable().openapi({
       example: 'https://payment.example.com',
     }),
-    calendly_url: z.string().url().nullable().openapi({
+    calendly_url: z.url().nullable().openapi({
       example: 'https://calendly.com/example',
     }),
     website: z.string().nullable().openapi({ example: 'https://example.com' }),
@@ -364,12 +364,18 @@ export const practiceDetailsResponseSchema = z
       .nullable()
       .openapi({ example: [{ id: '1', name: 'Service 1' }] }),
     address: addressSchema.nullable(),
+    name: z.string().openapi({
+      example: 'My Practice',
+    }),
+    logo: z.string().nullable().openapi({
+      example: 'https://example.com/logo.png',
+    }),
   })
   .openapi('PracticeDetailsResponse');
 
 export const practiceDetailsSingleResponseSchema = z
   .object({
-    details: practiceDetailsResponseSchema.nullable(),
+    details: practiceDetailsResponseSchema,
   })
   .openapi('PracticeDetailsSingleResponse');
 
