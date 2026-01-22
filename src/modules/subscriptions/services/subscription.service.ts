@@ -149,20 +149,24 @@ const ensureOrganizationCustomer = async (
       return ok(organization.stripeCustomerId);
     }
 
-    // Create Stripe customer for organization
+    // Create Stripe customer for organization with idempotency key to prevent duplicates
     const { getStripeInstance } = await import('@/shared/utils/stripe-client');
     const stripeInstance = getStripeInstance();
+    const idempotencyKey = `org_customer_${organizationId}`;
 
-    const customer = await stripeInstance.customers.create({
-      email: organization.billingEmail || userEmail,
-      name: organization.name,
-      metadata: {
-        organization_id: organizationId,
-        iolta_compliant: 'true',
-        type: 'platform_billing',
+    const customer = await stripeInstance.customers.create(
+      {
+        email: organization.billingEmail || userEmail,
+        name: organization.name,
+        metadata: {
+          organization_id: organizationId,
+          iolta_compliant: 'true',
+          type: 'platform_billing',
+        },
+        // NO stripeAccount param = platform account (IOLTA compliant)
       },
-      // NO stripeAccount param = platform account (IOLTA compliant)
-    });
+      { idempotencyKey },
+    );
 
     // Save customer ID to organization
     await db
@@ -299,6 +303,7 @@ const cancelSubscription = async (
         referenceId: organizationId,
         customerType: 'organization',
         returnUrl: data.returnUrl || '/dashboard',
+        immediately: data.immediately ?? false,
       },
       headers: requestHeaders,
     });

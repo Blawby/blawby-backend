@@ -122,7 +122,7 @@ export const uploadsService = {
   async presignUpload(
     request: PresignUploadRequest,
     userId: string,
-    organizationId: string,
+    organizationId: string | null,
   ): Promise<Result<PresignUploadResponse>> {
     try {
       const uploadId = crypto.randomUUID();
@@ -141,7 +141,7 @@ export const uploadsService = {
       let storageKey: string;
       try {
         storageKey = generateStorageKey({
-          organizationId,
+          organizationId: organizationId ?? undefined,
           userId: request.upload_context === 'profile' ? userId : undefined,
           uploadContext: request.upload_context,
           uploadId,
@@ -216,7 +216,7 @@ export const uploadsService = {
       // Create audit log
       await createAuditLog({
         uploadId,
-        organizationId,
+        organizationId: organizationId ?? undefined,
         action: 'created',
         userId,
       });

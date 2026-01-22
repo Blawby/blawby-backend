@@ -49,7 +49,7 @@ const parseBetterAuthMetadata = <T = unknown>(metadata: unknown): T | null => {
     try {
       return JSON.parse(metadata) as T;
     } catch {
-      return metadata as unknown as T;
+      return null;
     }
   }
 

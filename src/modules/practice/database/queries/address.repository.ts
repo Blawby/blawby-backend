@@ -16,7 +16,7 @@ export const upsertAddressTx = async (
     addressId?: string | null;
     type?: string;
   }
-) => {
+): Promise<typeof addresses.$inferSelect | undefined> => {
   const { addressData, organizationId, addressId, type = 'practice_location' } = params;
 
   const dataToSave = {

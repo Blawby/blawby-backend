@@ -20,7 +20,7 @@ export const presignHandler = async (c: Context<AppContext>) => {
   const result = await uploadsService.presignUpload(
     body,
     userId,
-    organizationId || '',
+    organizationId ?? null,
   );
 
   return response.fromResult(c, result, 201);

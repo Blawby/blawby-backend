@@ -16,8 +16,8 @@ import type {
   SubscriptionEvent,
   SubscriptionEventType,
 } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
-import type { NewSubscriptionLineItem, SubscriptionLineItem } from '../schema/subscriptionLineItems.schema';
-import type { NewSubscriptionPlan, SubscriptionPlan } from '../schema/subscriptionPlans.schema';
+import type { NewSubscriptionLineItem, SubscriptionLineItem } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
+import type { NewSubscriptionPlan, SubscriptionPlan } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 
 /**
  * --- Subscription Events Operations ---
