@@ -13,7 +13,7 @@ import {
   handlePriceCreated,
   handlePriceUpdated,
   handlePriceDeleted,
-} from '../handlers';
+} from '@/modules/subscriptions/handlers/index';
 
 /**
  * Process a Stripe webhook event for subscriptions

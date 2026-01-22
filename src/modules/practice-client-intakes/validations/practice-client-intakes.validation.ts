@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const createPracticeClientIntakeSchema = z.object({
+const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
   amount: z.number().int().min(50).max(99999999), // $0.50 to $999,999.99
   email: z.email().max(255),
@@ -12,27 +12,26 @@ export const createPracticeClientIntakeSchema = z.object({
     example: 'John Doe',
   }),
   description: z.string().max(500).optional(),
+  clientIp: z.string().optional(),
+  userAgent: z.string().optional(),
 });
 
-export const updatePracticeClientIntakeSchema = z.object({
+const updatePracticeClientIntakeSchema = z.object({
   amount: z.number().int().min(50).max(99999999),
 });
 
-export const slugParamSchema = z.object({
+const slugParamSchema = z.object({
   slug: z.string().min(1).max(100),
 });
 
-export const uuidParamSchema = z.object({
+const uuidParamSchema = z.object({
   uuid: z.uuid(), // UUID format
 });
 
-export type CreatePracticeClientIntakeRequest = z.infer<typeof createPracticeClientIntakeSchema>;
-export type UpdatePracticeClientIntakeRequest = z.infer<typeof updatePracticeClientIntakeSchema>;
-export type SlugParam = z.infer<typeof slugParamSchema>;
-export type UuidParam = z.infer<typeof uuidParamSchema>;
+
 
 // Response schemas for OpenAPI
-export const practiceClientIntakeSettingsResponseSchema = z.object({
+const practiceClientIntakeSettingsResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     organization: z.object({
@@ -53,11 +52,11 @@ export const practiceClientIntakeSettingsResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-export const createPracticeClientIntakeResponseSchema = z.object({
+const createPracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
-    payment_link_url: z.url(),
+    paymentLinkUrl: z.url(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -69,11 +68,11 @@ export const createPracticeClientIntakeResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-export const updatePracticeClientIntakeResponseSchema = z.object({
+const updatePracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
-    payment_link_url: z.url(),
+    paymentLinkUrl: z.url(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -81,36 +80,50 @@ export const updatePracticeClientIntakeResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-export const practiceClientIntakeStatusResponseSchema = z.object({
+const practiceClientIntakeStatusResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
-    stripe_charge_id: z.string().optional(),
+    stripeChargeId: z.string().optional(),
     metadata: z.object({
       email: z.string(),
       name: z.string(),
       phone: z.string().optional(),
-      on_behalf_of: z.string().optional(),
-      opposing_party: z.string().optional(),
+      onBehalfOf: z.string().optional(),
+      opposingParty: z.string().optional(),
       description: z.string().optional(),
-    }),
-    succeeded_at: z.date().optional(),
-    created_at: z.date(),
+    }).optional(),
+    succeededAt: z.date().optional(),
+    createdAt: z.date(),
   }).optional(),
   error: z.string().optional(),
 });
 
-export const errorResponseSchema = z.object({
+const errorResponseSchema = z.object({
   error: z.string(),
 });
 
-export const notFoundResponseSchema = z.object({
+const notFoundResponseSchema = z.object({
   error: z.string(),
 });
 
-export const internalServerErrorResponseSchema = z.object({
+const internalServerErrorResponseSchema = z.object({
   error: z.string(),
 });
+
+export const intakeValidations = {
+  createPracticeClientIntakeSchema,
+  updatePracticeClientIntakeSchema,
+  slugParamSchema,
+  uuidParamSchema,
+  practiceClientIntakeSettingsResponseSchema,
+  createPracticeClientIntakeResponseSchema,
+  updatePracticeClientIntakeResponseSchema,
+  practiceClientIntakeStatusResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+  internalServerErrorResponseSchema,
+};

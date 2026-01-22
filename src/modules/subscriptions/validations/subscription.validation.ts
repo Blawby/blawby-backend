@@ -3,7 +3,7 @@ import { z } from '@hono/zod-openapi';
 /**
  * Subscription ID parameter schema
  */
-export const subscriptionIdParamSchema = z.object({
+const subscriptionIdParamSchema = z.object({
   subscriptionId: z.uuid().openapi({
     param: {
       name: 'subscriptionId',
@@ -17,7 +17,7 @@ export const subscriptionIdParamSchema = z.object({
 /**
  * Create subscription request schema
  */
-export const createSubscriptionSchema = z.object({
+const createSubscriptionSchema = z.object({
   planId: z.uuid().openapi({
     description: 'Plan ID (UUID) - Required. The UUID of the subscription plan from the database.',
     example: '123e4567-e89b-12d3-a456-426614174000',
@@ -26,11 +26,11 @@ export const createSubscriptionSchema = z.object({
     description: 'Plan name (optional) - Used as fallback if planId lookup fails. Example: "starter", "professional", "enterprise"',
     example: 'professional',
   }),
-  successUrl: z.string().url().optional().openapi({
+  successUrl: z.url().optional().openapi({
     description: 'URL to redirect after successful subscription',
     example: 'https://app.example.com/dashboard',
   }),
-  cancelUrl: z.string().url().optional().openapi({
+  cancelUrl: z.url().optional().openapi({
     description: 'URL to redirect if subscription is cancelled',
     example: 'https://app.example.com/pricing',
   }),
@@ -43,7 +43,7 @@ export const createSubscriptionSchema = z.object({
 /**
  * Cancel subscription request schema
  */
-export const cancelSubscriptionSchema = z.object({
+const cancelSubscriptionSchema = z.object({
   immediately: z.boolean().optional().default(false).openapi({
     description: 'Cancel immediately instead of at period end',
     example: false,
@@ -61,7 +61,7 @@ export const cancelSubscriptionSchema = z.object({
 /**
  * Subscription plan response schema
  */
-export const subscriptionPlanResponseSchema = z.object({
+const subscriptionPlanResponseSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   displayName: z.string(),
@@ -81,32 +81,32 @@ export const subscriptionPlanResponseSchema = z.object({
   isActive: z.boolean(),
   isPublic: z.boolean(),
   sortOrder: z.number(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 /**
  * Subscription response schema
  */
-export const subscriptionResponseSchema = z.object({
+const subscriptionResponseSchema = z.object({
   id: z.uuid(),
   referenceId: z.string().nullable(),
   stripeCustomerId: z.string().nullable(),
   stripeSubscriptionId: z.string().nullable(),
   status: z.string(),
   plan: subscriptionPlanResponseSchema.nullable(),
-  currentPeriodStart: z.date().nullable(),
-  currentPeriodEnd: z.date().nullable(),
+  currentPeriodStart: z.iso.datetime().nullable(),
+  currentPeriodEnd: z.iso.datetime().nullable(),
   cancelAtPeriodEnd: z.boolean(),
-  canceledAt: z.date().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  canceledAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 /**
  * Subscription with details response schema
  */
-export const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.extend({
+const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.extend({
   lineItems: z.array(
     z.object({
       id: z.uuid(),
@@ -123,7 +123,7 @@ export const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.
       eventType: z.string(),
       toStatus: z.string().nullable(),
       triggeredByType: z.string(),
-      createdAt: z.date(),
+      createdAt: z.iso.datetime(),
     }),
   ),
 });
@@ -131,21 +131,21 @@ export const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.
 /**
  * List plans response schema
  */
-export const listPlansResponseSchema = z.object({
+const listPlansResponseSchema = z.object({
   plans: z.array(subscriptionPlanResponseSchema),
 });
 
 /**
  * Get current subscription response schema
  */
-export const getCurrentSubscriptionResponseSchema = z.object({
+const getCurrentSubscriptionResponseSchema = z.object({
   subscription: subscriptionWithDetailsResponseSchema.nullable(),
 });
 
 /**
  * Create subscription response schema
  */
-export const createSubscriptionResponseSchema = z.object({
+const createSubscriptionResponseSchema = z.object({
   subscriptionId: z.uuid().optional(),
   checkoutUrl: z.url().optional(),
   message: z.string(),
@@ -154,7 +154,7 @@ export const createSubscriptionResponseSchema = z.object({
 /**
  * Cancel subscription response schema
  */
-export const cancelSubscriptionResponseSchema = z.object({
+const cancelSubscriptionResponseSchema = z.object({
   subscription: subscriptionResponseSchema,
   message: z.string(),
 });
@@ -162,7 +162,7 @@ export const cancelSubscriptionResponseSchema = z.object({
 /**
  * Common error response schemas
  */
-export const errorResponseSchema = z
+const errorResponseSchema = z
   .object({
     error: z.string(),
     message: z.string().optional(),
@@ -171,7 +171,7 @@ export const errorResponseSchema = z
     description: 'Error response',
   });
 
-export const notFoundResponseSchema = z
+const notFoundResponseSchema = z
   .object({
     error: z.string(),
     message: z.string().optional(),
@@ -180,7 +180,7 @@ export const notFoundResponseSchema = z
     description: 'Resource not found',
   });
 
-export const internalServerErrorResponseSchema = z
+const internalServerErrorResponseSchema = z
   .object({
     error: z.string(),
     message: z.string().optional(),
@@ -189,3 +189,18 @@ export const internalServerErrorResponseSchema = z
     description: 'Internal server error',
   });
 
+export const subscriptionValidations = {
+  subscriptionIdParamSchema,
+  createSubscriptionSchema,
+  cancelSubscriptionSchema,
+  subscriptionPlanResponseSchema,
+  subscriptionResponseSchema,
+  subscriptionWithDetailsResponseSchema,
+  listPlansResponseSchema,
+  getCurrentSubscriptionResponseSchema,
+  createSubscriptionResponseSchema,
+  cancelSubscriptionResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+  internalServerErrorResponseSchema,
+};

@@ -1,10 +1,11 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { createUploadsService } from '@/modules/uploads/services/uploads.service';
+import { logError } from '@/shared/middleware/logger';
+import { getUploadRoute } from '@/modules/uploads/routes';
 
-export const getHandler = async (c: Context<AppContext>) => {
-  const id = c.req.param('id');
+export const getHandler: AppRouteHandler<typeof getUploadRoute> = async (c) => {
+  const { id } = c.req.valid('param');
   const userId = c.get('userId');
 
   if (!userId) {
@@ -17,6 +18,13 @@ export const getHandler = async (c: Context<AppContext>) => {
 
     return response.ok(c, result);
   } catch (error) {
+    logError(error, {
+      method: c.req.method,
+      url: c.req.url,
+      statusCode: 400,
+      userId,
+    });
+
     const message = error instanceof Error ? error.message : 'Failed to get upload details';
     if (message.includes('not found')) {
       return response.notFound(c, message);

@@ -4,7 +4,7 @@ import {
   matterTimeEntries,
   type InsertMatterTimeEntry,
   type SelectMatterTimeEntry,
-} from '../schema/matter-time-entries.schema';
+} from '@/modules/matters/database/schema/matter-time-entries.schema';
 
 // Create matter time entry
 export const createMatterTimeEntry = async (

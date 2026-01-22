@@ -1,93 +1,48 @@
-export interface PracticeClientIntakeSettings {
-  success: boolean;
-  data?: {
-    organization: {
-      id: string;
-      name: string;
-      slug: string;
-      logo?: string;
-    };
-    settings: {
-      paymentLinkEnabled: boolean;
-      prefillAmount: number; // in cents
-    };
-    connectedAccount: {
-      id: string;
-      chargesEnabled: boolean;
-    };
-  };
-  error?: string;
-}
+import { z } from 'zod';
+import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
-export interface CreatePracticeClientIntakeRequest {
-  slug: string;
+// Inferred from Zod schemas
+export type CreatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.createPracticeClientIntakeSchema>;
+export type UpdatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>;
+export type SlugParam = z.infer<typeof intakeValidations.slugParamSchema>;
+export type UuidParam = z.infer<typeof intakeValidations.uuidParamSchema>;
+
+/**
+ * Onboarding settings for client intakes
+ */
+export type IntakeSettings = {
+  paymentLinkEnabled: boolean;
+  prefillAmount: number;
+};
+
+/**
+ * Intake data from database
+ */
+export type ClientIntake = {
+  uuid: string;
+  organization_id: string;
   amount: number;
-  email: string;
-  name: string;
-  phone?: string;
-  on_behalf_of?: string;
-  opposing_party?: string;
-  description?: string;
-  clientIp?: string;
-  userAgent?: string;
-}
+  currency: string;
+  status: string;
+  customer_email: string;
+  customer_name: string;
+  customer_phone?: string | null;
+  on_behalf_of?: string | null;
+  opposing_party?: string | null;
+  description?: string | null;
+  stripe_payment_intent_id?: string | null;
+  stripe_payment_link_id?: string | null;
+  stripe_charge_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  succeeded_at?: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
 
-export interface CreatePracticeClientIntakeResponse {
-  success: boolean;
-  data?: {
-    uuid: string;
-    paymentLinkUrl: string;
-    amount: number;
-    currency: string;
-    status: string;
-    organization: {
-      name: string;
-      logo?: string;
-    };
-  };
-  error?: string;
-}
-
-export interface UpdatePracticeClientIntakeRequest {
-  amount: number;
-}
-
-export interface UpdatePracticeClientIntakeResponse {
-  success: boolean;
-  data?: {
-    uuid: string;
-    paymentLinkUrl: string;
-    amount: number;
-    currency: string;
-    status: string;
-  };
-  error?: string;
-}
-
-export interface PracticeClientIntakeStatus {
-  success: boolean;
-  data?: {
-    uuid: string;
-    amount: number;
-    currency: string;
-    status: string;
-    stripeChargeId?: string;
-    metadata?: {
-      email: string;
-      name: string;
-      phone?: string;
-      onBehalfOf?: string;
-      opposingParty?: string;
-      description?: string;
-    } | null;
-    succeededAt?: Date;
-    createdAt: Date;
-  };
-  error?: string;
-}
-
-export interface PracticeClientIntakeStats {
-  totalAmount: number;
-  count: number;
-  succeededCount: number;
-}
+/**
+ * Response types
+ */
+export type IntakeSettingsResponse = z.infer<typeof intakeValidations.practiceClientIntakeSettingsResponseSchema>;
+export type CreateIntakeResponse = z.infer<typeof intakeValidations.createPracticeClientIntakeResponseSchema>;
+export type UpdateIntakeResponse = z.infer<typeof intakeValidations.updatePracticeClientIntakeResponseSchema>;
+export type IntakeStatusResponse = z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>;

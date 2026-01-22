@@ -1,26 +1,45 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
 
 // Matter expense validation schemas
-export const createMatterExpenseSchema = z.object({
-  description: z.string().min(1, 'Description is required').max(255, 'Description too long'),
-  amount: z.number().int().min(0, 'Amount must be positive'), // in cents
-  date: z.string().or(z.date()),
+const createMatterExpenseSchema = z.object({
+  description: z.string().min(1, 'Description is required'),
+  amount: z.number().min(0, 'Amount must be non-negative'),
+  date: z.string(),
   billable: z.boolean().default(true),
 });
 
-export const updateMatterExpenseSchema = z.object({
-  description: z.string().min(1).max(255).optional(),
-  amount: z.number().int().min(0).optional(),
-  date: z.string().or(z.date()).optional(),
+const updateMatterExpenseSchema = z.object({
+  description: z.string().min(1).optional(),
+  amount: z.number().min(0).optional(),
+  date: z.string().optional(),
   billable: z.boolean().optional(),
-});
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: 'At least one field must be provided for update' },
+);
 
-export const matterExpenseIdParamSchema = z.object({
+const matterExpenseIdParamSchema = z.object({
   uuid: uuidValidator,
   expenseId: uuidValidator,
 });
 
-// Infer types
-export type CreateMatterExpenseRequest = z.infer<typeof createMatterExpenseSchema>;
-export type UpdateMatterExpenseRequest = z.infer<typeof updateMatterExpenseSchema>;
+const expenseSchema = z.object({
+  id: z.uuid(),
+  matterId: z.uuid(),
+  description: z.string(),
+  amount: z.number().describe('Amount in cents'),
+  date: z.string(),
+  billable: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+}).openapi('Expense');
+
+
+
+export const matterExpenseValidations = {
+  createMatterExpenseSchema,
+  updateMatterExpenseSchema,
+  matterExpenseIdParamSchema,
+  expenseSchema,
+};

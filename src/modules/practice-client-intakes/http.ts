@@ -4,10 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import * as routes from '@/modules/practice-client-intakes/routes';
 import {
-  createPracticeClientIntakeSchema,
-  updatePracticeClientIntakeSchema,
-  slugParamSchema,
-  uuidParamSchema,
+  intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
@@ -17,7 +14,7 @@ const app = new OpenAPIHono<AppContext>();
 
 // GET /:slug/intake
 // Public intake page - returns organization details and payment settings
-app.get('/:slug/intake', zValidator('param', slugParamSchema), async (c) => {
+app.get('/:slug/intake', zValidator('param', intakeValidations.slugParamSchema), async (c) => {
   const { slug } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeSettings(slug);
 
@@ -32,7 +29,7 @@ app.get('/:slug/intake', zValidator('param', slugParamSchema), async (c) => {
 // POST /create
 // Creates payment intent for practice client intake
 // Will be mounted at /api/practice/client-intakes/create
-app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async (c) => {
+app.post('/create', zValidator('json', intakeValidations.createPracticeClientIntakeSchema), async (c) => {
   const body = c.req.valid('json');
   const clientIp = c.req.header('x-forwarded-for')
     || c.req.header('cf-connecting-ip')
@@ -49,7 +46,7 @@ app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async 
     return response.badRequest(c, result.error || 'Failed to create payment');
   }
 
-  return response.created(c, result.data);
+  return response.created(c, result.data as any);
 });
 
 
@@ -58,8 +55,8 @@ app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async 
 // Will be mounted at /api/practice/client-intakes/:uuid
 app.put(
   '/:uuid',
-  zValidator('param', uuidParamSchema),
-  zValidator('json', updatePracticeClientIntakeSchema),
+  zValidator('param', intakeValidations.uuidParamSchema),
+  zValidator('json', intakeValidations.updatePracticeClientIntakeSchema),
   async (c) => {
     const { uuid } = c.req.valid('param');
     const { amount } = c.req.valid('json');
@@ -70,7 +67,7 @@ app.put(
       return response.badRequest(c, result.error || 'Failed to update payment');
     }
 
-    return response.ok(c, result.data);
+    return response.ok(c, result.data as any);
   },
 );
 
@@ -78,7 +75,7 @@ app.put(
 // GET /:uuid/status
 // Gets payment status
 // Will be mounted at /api/practice/client-intakes/:uuid/status
-app.get('/:uuid/status', zValidator('param', uuidParamSchema), async (c) => {
+app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema), async (c) => {
   const { uuid } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
 

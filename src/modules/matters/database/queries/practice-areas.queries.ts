@@ -4,7 +4,7 @@ import {
   practiceAreas,
   type InsertPracticeArea,
   type SelectPracticeArea,
-} from '../schema/practice-areas.schema';
+} from '@/modules/matters/database/schema/practice-areas.schema';
 
 // Create practice area
 export const createPracticeArea = async (

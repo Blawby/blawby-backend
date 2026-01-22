@@ -1,13 +1,12 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { createUploadsService } from '@/modules/uploads/services/uploads.service';
-import type { DeleteUploadRequest } from '@/modules/uploads/validations/uploads.validation';
+import { logError } from '@/shared/middleware/logger';
+import { deleteUploadRoute } from '@/modules/uploads/routes';
 
-export const deleteHandler = async (c: Context<AppContext>) => {
-  const id = c.req.param('id');
-  // Use validated payload from zValidator middleware
-  const body = (await c.req.json()) as DeleteUploadRequest;
+export const deleteHandler: AppRouteHandler<typeof deleteUploadRoute> = async (c) => {
+  const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
   const userId = c.get('userId');
 
   if (!userId) {
@@ -20,6 +19,13 @@ export const deleteHandler = async (c: Context<AppContext>) => {
 
     return response.ok(c, { message: 'Upload deleted successfully' });
   } catch (error) {
+    logError(error, {
+      method: c.req.method,
+      url: c.req.url,
+      statusCode: 400,
+      userId,
+    });
+
     const message = error instanceof Error ? error.message : 'Failed to delete upload';
     if (message.includes('not found')) {
       return response.notFound(c, message);

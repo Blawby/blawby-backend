@@ -13,8 +13,8 @@ import {
   setActiveOrganization,
 } from '@/modules/practice/services/organization.service';
 import type {
-  PracticeCreateRequest,
-  PracticeUpdateRequest,
+  CreatePracticeRequest,
+  UpdatePracticeRequest,
   PracticeWithDetails,
   UpdateOrganizationRequest,
 } from '@/modules/practice/types/practice.types';
@@ -71,7 +71,7 @@ export const getPracticeById = async (
 };
 
 export const createPracticeService = async (params: {
-  data: PracticeCreateRequest;
+  data: CreatePracticeRequest;
   user: User;
   requestHeaders: Record<string, string>;
 }): Promise<PracticeWithDetails> => {
@@ -168,7 +168,7 @@ export const createPracticeService = async (params: {
 
 export const updatePracticeService = async (
   organizationId: string,
-  data: PracticeUpdateRequest,
+  data: UpdatePracticeRequest,
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<PracticeWithDetails | null> => {
@@ -185,7 +185,7 @@ export const updatePracticeService = async (
   // Filter out undefined and null values from organizationData
   const filteredOrganizationData = Object.fromEntries(
     Object.entries(organizationData).filter(([_, value]) => value !== undefined && value !== null),
-  ) as Partial<Pick<PracticeUpdateRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
+  ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
   // Update organization in Better Auth only if there are organization fields to update
   let organization = null;

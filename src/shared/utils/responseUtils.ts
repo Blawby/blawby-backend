@@ -38,22 +38,22 @@ export const response = {
   /**
    * 200 OK - Success response
    */
-  ok: (c: Context, data: unknown): Response => c.json(toSnakeCase(data), 200),
+  ok: (c: Context, data: unknown): any => c.json(toSnakeCase(data), 200),
 
   /**
    * 201 Created - Resource created successfully
    */
-  created: (c: Context, data: unknown): Response => c.json(toSnakeCase(data), 201),
+  created: (c: Context, data: unknown): any => c.json(toSnakeCase(data), 201),
 
   /**
    * 204 No Content - Success with no response body
    */
-  noContent: (c: Context): Response => c.body(null, 204),
+  noContent: (c: Context): any => c.body(null, 204),
 
   /**
    * 400 Bad Request - Client error
    */
-  badRequest: (c: Context, message: string, details?: unknown): Response => c.json(toSnakeCase({
+  badRequest: (c: Context, message: string, details?: unknown): any => c.json(toSnakeCase({
     error: 'Bad Request',
     message,
     details: details ? toSnakeCase(details) : undefined,
@@ -62,7 +62,7 @@ export const response = {
   /**
    * 401 Unauthorized - Authentication required
    */
-  unauthorized: (c: Context, message = 'Authentication required'): Response => c.json(toSnakeCase({
+  unauthorized: (c: Context, message = 'Authentication required'): any => c.json(toSnakeCase({
     error: 'Unauthorized',
     message,
   }), 401),
@@ -70,7 +70,7 @@ export const response = {
   /**
    * 403 Forbidden - Access denied
    */
-  forbidden: (c: Context, message = 'Access denied'): Response => c.json(toSnakeCase({
+  forbidden: (c: Context, message = 'Access denied'): any => c.json(toSnakeCase({
     error: 'Forbidden',
     message,
   }), 403),
@@ -78,7 +78,7 @@ export const response = {
   /**
    * 404 Not Found - Resource not found
    */
-  notFound: (c: Context, message = 'Resource not found'): Response => c.json(toSnakeCase({
+  notFound: (c: Context, message = 'Resource not found'): any => c.json(toSnakeCase({
     error: 'Not Found',
     message,
   }), 404),
@@ -86,7 +86,7 @@ export const response = {
   /**
    * 409 Conflict - Resource conflict
    */
-  conflict: (c: Context, message: string, details?: unknown): Response => c.json(toSnakeCase({
+  conflict: (c: Context, message: string, details?: unknown): any => c.json(toSnakeCase({
     error: 'Conflict',
     message,
     details: details ? toSnakeCase(details) : undefined,
@@ -99,7 +99,7 @@ export const response = {
    * @param retryAfter - Optional retry after time in seconds (will set Retry-After header)
    * @returns
    */
-  tooManyRequests: (c: Context, message = 'Too many requests', retryAfter?: number): Response => {
+  tooManyRequests: (c: Context, message = 'Too many requests', retryAfter?: number): any => {
     if (retryAfter !== undefined) {
       c.res.headers.set('Retry-After', String(retryAfter));
     }
@@ -117,7 +117,7 @@ export const response = {
     c: Context,
     message: string,
     details?: unknown,
-  ): Response => c.json({
+  ): any => c.json({
     error: 'Unprocessable Entity',
     message,
     details: details ? toSnakeCase(details) : undefined,
@@ -129,7 +129,7 @@ export const response = {
   internalServerError: (
     c: Context,
     message = 'Internal server error',
-  ): Response => c.json({
+  ): any => c.json({
     error: 'Internal Server Error',
     message,
   }, 500),
@@ -142,7 +142,7 @@ export const response = {
     data: unknown[],
     total: number, page: number,
     limit: number,
-  ): Response => c.json({
+  ): any => c.json({
     data: toSnakeCase(data),
     pagination: {
       total,

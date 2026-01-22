@@ -4,13 +4,14 @@
  * Handles business logic for matter time entries operations
  */
 
-import * as timeEntriesQueries from '../database/queries/matter-time-entries.queries';
+import * as timeEntriesQueries from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { getMatterById } from './matters.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterTimeEntryRequest,
   UpdateMatterTimeEntryRequest,
-} from '../validations/matter-time-entries.validation';
+} from '@/modules/matters/types/matter.types';
+import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import { logMatterActivity, ActivityAction } from './matter-activity.service';
 
 /**
@@ -96,21 +97,22 @@ export const updateMatterTimeEntry = async (
   await getMatterById(organizationId, matterId, user, requestHeaders);
 
   // Verify entry exists and belongs to matter
-  const entry = await timeEntriesQueries.findMatterTimeEntryById(entryId);
+  const entry: SelectMatterTimeEntry | undefined = await timeEntriesQueries.findMatterTimeEntryById(entryId);
   if (!entry || entry.matterId !== matterId) {
     throw new Error('Time entry not found');
   }
 
   // Recalculate duration if times changed
-  let updateData = { ...data };
-  if (data.startTime || data.endTime) {
-    const startTime = data.startTime ? new Date(data.startTime) : entry.startTime;
-    const endTime = data.endTime ? new Date(data.endTime) : entry.endTime;
-    updateData = {
-      ...updateData,
-      duration: calculateDuration(startTime, endTime),
-    };
-  }
+  const startTime = data.startTime ? new Date(data.startTime) : entry.startTime;
+  const endTime = data.endTime ? new Date(data.endTime) : entry.endTime;
+
+  const updateData: Parameters<typeof timeEntriesQueries.updateMatterTimeEntry>[1] = {
+    ...(data.startTime && { startTime }),
+    ...(data.endTime && { endTime }),
+    ...(data.description !== undefined && { description: data.description }),
+    ...(data.billable !== undefined && { billable: data.billable }),
+    ...((data.startTime || data.endTime) && { duration: calculateDuration(startTime, endTime) }),
+  };
 
   const updated = await timeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
 

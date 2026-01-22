@@ -1,13 +1,13 @@
 import { z } from 'zod';
 
 // Upload context enum
-export const uploadContextSchema = z.enum(['matter', 'intake', 'trust', 'profile', 'asset']);
+const uploadContextSchema = z.enum(['matter', 'intake', 'trust', 'profile', 'asset']);
 
 // Sub context for matter uploads
-export const subContextSchema = z.enum(['documents', 'correspondence', 'evidence']).optional();
+const subContextSchema = z.enum(['documents', 'correspondence', 'evidence']).optional();
 
 // Presign upload request schema
-export const presignUploadSchema = z.object({
+const presignUploadSchema = z.object({
   file_name: z.string().min(1).max(255),
   mime_type: z.string().min(1).max(100),
   file_size: z.number().int().min(1).max(52428800), // Max 50MB
@@ -19,17 +19,17 @@ export const presignUploadSchema = z.object({
 });
 
 // UUID param schema
-export const uploadIdParamSchema = z.object({
+const uploadIdParamSchema = z.object({
   id: z.uuid(),
 });
 
 // Delete upload request schema
-export const deleteUploadSchema = z.object({
+const deleteUploadSchema = z.object({
   reason: z.string().min(1).max(255),
 });
 
 // List uploads query schema
-export const listUploadsQuerySchema = z.object({
+const listUploadsQuerySchema = z.object({
   matter_id: z.uuid().optional(),
   upload_context: uploadContextSchema.optional(),
   entity_id: z.uuid().optional(),
@@ -40,7 +40,7 @@ export const listUploadsQuerySchema = z.object({
 });
 
 // Response schemas
-export const presignUploadResponseSchema = z.object({
+const presignUploadResponseSchema = z.object({
   upload_id: z.uuid(),
   presigned_url: z.url(),
   method: z.string(),
@@ -48,14 +48,14 @@ export const presignUploadResponseSchema = z.object({
   expires_at: z.iso.datetime(),
 });
 
-export const confirmUploadResponseSchema = z.object({
+const confirmUploadResponseSchema = z.object({
   upload_id: z.uuid(),
   public_url: z.url(),
   storage_key: z.string(),
   status: z.enum(['pending', 'verified', 'rejected']),
 });
 
-export const uploadDetailsResponseSchema = z.object({
+const uploadDetailsResponseSchema = z.object({
   upload_id: z.uuid(),
   file_name: z.string(),
   file_type: z.string(),
@@ -75,19 +75,19 @@ export const uploadDetailsResponseSchema = z.object({
   uploaded_by: z.uuid().nullable(),
 });
 
-export const downloadUrlResponseSchema = z.object({
+const downloadUrlResponseSchema = z.object({
   download_url: z.url(),
   expires_at: z.iso.datetime().nullable(),
 });
 
-export const listUploadsResponseSchema = z.object({
+const listUploadsResponseSchema = z.object({
   uploads: z.array(uploadDetailsResponseSchema),
   total: z.number(),
   page: z.number(),
   limit: z.number(),
 });
 
-export const auditLogEntrySchema = z.object({
+const auditLogEntrySchema = z.object({
   id: z.uuid(),
   upload_id: z.uuid(),
   action: z.enum(['created', 'viewed', 'downloaded', 'deleted', 'restored']),
@@ -99,25 +99,38 @@ export const auditLogEntrySchema = z.object({
   created_at: z.iso.datetime(),
 });
 
-export const auditLogResponseSchema = z.object({
+const auditLogResponseSchema = z.object({
   audit_logs: z.array(auditLogEntrySchema),
   total: z.number(),
 });
 
-export const errorResponseSchema = z.object({
+const errorResponseSchema = z.object({
   error: z.string(),
 });
 
-export const notFoundResponseSchema = z.object({
+const notFoundResponseSchema = z.object({
   error: z.string(),
 });
 
-export const internalServerErrorResponseSchema = z.object({
+const internalServerErrorResponseSchema = z.object({
   error: z.string(),
 });
 
-// Type exports
-export type PresignUploadRequest = z.infer<typeof presignUploadSchema>;
-export type UploadIdParam = z.infer<typeof uploadIdParamSchema>;
-export type DeleteUploadRequest = z.infer<typeof deleteUploadSchema>;
-export type ListUploadsQuery = z.infer<typeof listUploadsQuerySchema>;
+export const uploadValidations = {
+  presignUploadSchema,
+  uploadIdParamSchema,
+  deleteUploadSchema,
+  listUploadsQuerySchema,
+  presignUploadResponseSchema,
+  confirmUploadResponseSchema,
+  uploadDetailsResponseSchema,
+  downloadUrlResponseSchema,
+  listUploadsResponseSchema,
+  auditLogEntrySchema,
+  auditLogResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+  internalServerErrorResponseSchema,
+  uploadContextSchema,
+  subContextSchema,
+};

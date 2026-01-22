@@ -1,8 +1,8 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
 
 // Matter validation schemas
-export const createMatterSchema = z.object({
+const createMatterSchema = z.object({
   customerId: uuidValidator,
   title: z.string().min(1, 'Title is required').max(255, 'Title too long'),
   description: z.string().optional(),
@@ -40,7 +40,7 @@ export const createMatterSchema = z.object({
   },
 );
 
-export const updateMatterSchema = z.object({
+const updateMatterSchema = z.object({
   customerId: uuidValidator.optional(),
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
@@ -56,11 +56,11 @@ export const updateMatterSchema = z.object({
   assigneeIds: z.array(uuidValidator).optional(),
 });
 
-export const matterIdParamSchema = z.object({
+const matterIdParamSchema = z.object({
   uuid: uuidValidator,
 });
 
-export const listMattersQuerySchema = z.object({
+const listMattersQuerySchema = z.object({
   status: z.enum(['draft', 'active']).optional(),
   practiceAreaId: uuidValidator.optional(),
   customerId: uuidValidator.optional(),
@@ -70,7 +70,44 @@ export const listMattersQuerySchema = z.object({
   search: z.string().optional(),
 });
 
-// Infer types
-export type CreateMatterRequest = z.infer<typeof createMatterSchema>;
-export type UpdateMatterRequest = z.infer<typeof updateMatterSchema>;
-export type ListMattersQuery = z.infer<typeof listMattersQuerySchema>;
+const matterSchema = z.object({
+  id: z.uuid(),
+  organizationId: z.uuid(),
+  customerId: z.uuid().nullable(),
+  title: z.string(),
+  description: z.string().nullable(),
+  billingType: z.enum(['hourly', 'fixed', 'contingency']),
+  totalFixedPrice: z.number().nullable(),
+  contingencyPercentage: z.number().nullable(),
+  settlementAmount: z.number().nullable(),
+  practiceAreaId: z.uuid().nullable(),
+  adminHourlyRate: z.number().nullable(),
+  attorneyHourlyRate: z.number().nullable(),
+  paymentFrequency: z.enum(['project', 'milestone']).nullable(),
+  status: z.enum(['draft', 'active']),
+  deletedAt: z.iso.datetime().nullable(),
+  deletedBy: z.uuid().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+}).openapi('Matter');
+
+const activityLogSchema = z.object({
+  id: z.uuid(),
+  matterId: z.uuid(),
+  userId: z.uuid().nullable(),
+  action: z.string(),
+  description: z.string(),
+  metadata: z.any().nullable(),
+  createdAt: z.iso.datetime(),
+}).openapi('ActivityLog');
+
+
+
+export const matterValidations = {
+  createMatterSchema,
+  updateMatterSchema,
+  matterIdParamSchema,
+  listMattersQuerySchema,
+  matterSchema,
+  activityLogSchema,
+};

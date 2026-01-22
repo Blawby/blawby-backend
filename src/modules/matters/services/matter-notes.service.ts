@@ -4,13 +4,13 @@
  * Handles business logic for matter notes operations
  */
 
-import * as notesQueries from '../database/queries/matter-notes.queries';
+import * as notesQueries from '@/modules/matters/database/queries/matter-notes.queries';
 import { getMatterById } from './matters.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterNoteRequest,
   UpdateMatterNoteRequest,
-} from '../validations/matter-notes.validation';
+} from '@/modules/matters/types/matter.types';
 import { logMatterActivity, ActivityAction } from './matter-activity.service';
 
 /**

@@ -1,35 +1,47 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
 
 // Matter time entry validation schemas
-export const createMatterTimeEntrySchema = z.object({
-  startTime: z.string().datetime().or(z.date()),
-  endTime: z.string().datetime().or(z.date()),
+const createMatterTimeEntrySchema = z.object({
+  startTime: z.iso.datetime(),
+  endTime: z.iso.datetime(),
   description: z.string().optional(),
   billable: z.boolean().default(true),
-}).refine(
-  (data) => {
-    const start = new Date(data.startTime);
-    const end = new Date(data.endTime);
-    return end > start;
-  },
-  {
-    message: 'End time must be after start time',
-  },
-);
-
-export const updateMatterTimeEntrySchema = z.object({
-  startTime: z.string().datetime().or(z.date()).optional(),
-  endTime: z.string().datetime().or(z.date()).optional(),
-  description: z.string().optional(),
-  billable: z.boolean().optional(),
 });
 
-export const matterTimeEntryIdParamSchema = z.object({
+const updateMatterTimeEntrySchema = z.object({
+  startTime: z.iso.datetime().optional(),
+  endTime: z.iso.datetime().optional(),
+  description: z.string().optional(),
+  billable: z.boolean().optional(),
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: 'At least one field must be provided for update' },
+);
+
+const matterTimeEntryIdParamSchema = z.object({
   uuid: uuidValidator,
   entryId: uuidValidator,
 });
 
-// Infer types
-export type CreateMatterTimeEntryRequest = z.infer<typeof createMatterTimeEntrySchema>;
-export type UpdateMatterTimeEntryRequest = z.infer<typeof updateMatterTimeEntrySchema>;
+const timeEntrySchema = z.object({
+  id: z.uuid(),
+  matterId: z.uuid(),
+  userId: z.uuid(),
+  startTime: z.iso.datetime(),
+  endTime: z.iso.datetime(),
+  duration: z.number().describe('Duration in seconds'),
+  description: z.string().nullable(),
+  billable: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+}).openapi('TimeEntry');
+
+
+
+export const matterTimeEntryValidations = {
+  createMatterTimeEntrySchema,
+  updateMatterTimeEntrySchema,
+  matterTimeEntryIdParamSchema,
+  timeEntrySchema,
+};

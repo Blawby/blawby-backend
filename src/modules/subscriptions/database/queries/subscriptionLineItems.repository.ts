@@ -8,7 +8,7 @@ import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import * as schema from '@/schema';
-import type { NewSubscriptionLineItem, SubscriptionLineItem } from '../schema/subscriptionLineItems.schema';
+import type { NewSubscriptionLineItem, SubscriptionLineItem } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
 
 /**
  * Find all line items for a subscription

@@ -1,11 +1,12 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { auditLogsRepository } from '@/modules/uploads/database/queries/audit-logs.repository';
 import { uploadsRepository } from '@/modules/uploads/database/queries/uploads.repository';
+import { logError } from '@/shared/middleware/logger';
+import { getAuditLogRoute } from '@/modules/uploads/routes';
 
-export const getAuditLogHandler = async (c: Context<AppContext>) => {
-  const id = c.req.param('id');
+export const getAuditLogHandler: AppRouteHandler<typeof getAuditLogRoute> = async (c) => {
+  const { id } = c.req.valid('param');
   const organizationId = c.get('activeOrganizationId');
 
   if (!organizationId) {
@@ -44,8 +45,14 @@ export const getAuditLogHandler = async (c: Context<AppContext>) => {
       total: auditLogs.length,
     });
   } catch (error) {
+    logError(error, {
+      method: c.req.method,
+      url: c.req.url,
+      statusCode: 500,
+      organizationId,
+    });
+
     const message = error instanceof Error ? error.message : 'Failed to get audit logs';
-    console.error('[Audit Log Handler] Error getting audit logs:', error);
     return response.internalServerError(c, message);
   }
-};
+};;

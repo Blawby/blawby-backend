@@ -6,13 +6,6 @@ export { auditLogsRepository } from '@/modules/uploads/database/queries/audit-lo
 export { createUploadsService } from '@/modules/uploads/services/uploads.service';
 export * from '@/modules/uploads/types/uploads.types';
 export {
-  presignUploadSchema,
-  uploadIdParamSchema,
-  deleteUploadSchema,
-  listUploadsQuerySchema,
-  type PresignUploadRequest,
-  type UploadIdParam,
-  type DeleteUploadRequest,
-  type ListUploadsQuery,
+  uploadValidations,
 } from '@/modules/uploads/validations/uploads.validation';
 export { default as uploadsApp } from '@/modules/uploads/http';

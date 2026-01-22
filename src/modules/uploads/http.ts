@@ -1,13 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { zValidator } from '@hono/zod-validator';
 
 import * as routes from '@/modules/uploads/routes';
-import {
-  presignUploadSchema,
-  uploadIdParamSchema,
-  deleteUploadSchema,
-  listUploadsQuerySchema,
-} from '@/modules/uploads/validations/uploads.validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 
@@ -26,56 +19,56 @@ const uploadsApp = new OpenAPIHono<AppContext>();
  * POST /api/uploads/presign
  * Generate presigned URL for upload
  */
-uploadsApp.post('/presign', zValidator('json', presignUploadSchema), presignHandler);
+uploadsApp.openapi(routes.presignUploadRoute, presignHandler);
 
 
 /**
  * POST /api/uploads/:id/confirm
  * Confirm upload completion
  */
-uploadsApp.post('/:id/confirm', zValidator('param', uploadIdParamSchema), confirmHandler);
+uploadsApp.openapi(routes.confirmUploadRoute, confirmHandler);
 
 
 /**
  * GET /api/uploads/:id
  * Get upload details
  */
-uploadsApp.get('/:id', zValidator('param', uploadIdParamSchema), getHandler);
+uploadsApp.openapi(routes.getUploadRoute, getHandler);
 
 
 /**
  * GET /api/uploads/:id/download
  * Get download URL
  */
-uploadsApp.get('/:id/download', zValidator('param', uploadIdParamSchema), downloadHandler);
+uploadsApp.openapi(routes.getDownloadUrlRoute, downloadHandler);
 
 
 /**
  * DELETE /api/uploads/:id
  * Soft delete upload
  */
-uploadsApp.delete('/:id', zValidator('param', uploadIdParamSchema), zValidator('json', deleteUploadSchema), deleteHandler);
+uploadsApp.openapi(routes.deleteUploadRoute, deleteHandler);
 
 
 /**
  * POST /api/uploads/:id/restore
  * Restore soft-deleted upload
  */
-uploadsApp.post('/:id/restore', zValidator('param', uploadIdParamSchema), restoreHandler);
+uploadsApp.openapi(routes.restoreUploadRoute, restoreHandler);
 
 
 /**
  * GET /api/uploads
  * List uploads
  */
-uploadsApp.get('/', zValidator('query', listUploadsQuerySchema), listHandler);
+uploadsApp.openapi(routes.listUploadsRoute, listHandler);
 
 
 /**
  * GET /api/uploads/:id/audit-log
  * Get audit log for upload
  */
-uploadsApp.get('/:id/audit-log', zValidator('param', uploadIdParamSchema), getAuditLogHandler);
+uploadsApp.openapi(routes.getAuditLogRoute, getAuditLogHandler);
 
 registerOpenApiRoutes(uploadsApp, routes);
 
