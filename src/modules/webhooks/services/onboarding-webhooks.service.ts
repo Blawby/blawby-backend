@@ -129,19 +129,23 @@ export const onboardingWebhooksService = {
    * Process an onboarding webhook event
    */
   async processEvent(eventId: string): Promise<Result<void>> {
-    const webhookEvent = await stripeWebhookEventsRepository.existsByStripeEventId(eventId);
-
-    if (!webhookEvent) {
-      logger.error('Webhook event not found in database: {eventId}', { eventId });
-      return ok(undefined);
-    }
-
-    if (webhookEvent.processed) {
-      logger.info('Webhook event already marked as processed: {eventId}', { eventId });
-      return ok(undefined);
-    }
+    let webhookEvent: Awaited<
+      ReturnType<typeof stripeWebhookEventsRepository.existsByStripeEventId>
+    > | null = null;
 
     try {
+      webhookEvent = await stripeWebhookEventsRepository.existsByStripeEventId(eventId);
+
+      if (!webhookEvent) {
+        logger.error('Webhook event not found in database: {eventId}', { eventId });
+        return ok(undefined);
+      }
+
+      if (webhookEvent.processed) {
+        logger.info('Webhook event already marked as processed: {eventId}', { eventId });
+        return ok(undefined);
+      }
+
       const event = webhookEvent.payload as Stripe.Event;
 
       // Process based on event type - onboarding related events only
@@ -182,7 +186,9 @@ export const onboardingWebhooksService = {
       const errorStack = error instanceof Error ? error.stack : undefined;
 
       // Mark as failed (increments retry count, sets next retry time)
-      await stripeWebhookEventsRepository.markFailed(webhookEvent.id, errorMessage, errorStack);
+      if (webhookEvent) {
+        await stripeWebhookEventsRepository.markFailed(webhookEvent.id, errorMessage, errorStack);
+      }
 
       logger.error('Failed to process onboarding webhook event {eventId}: {error}', {
         eventId,

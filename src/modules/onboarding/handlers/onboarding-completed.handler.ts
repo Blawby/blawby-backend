@@ -55,24 +55,13 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
       billing_email: org.billingEmail,
       stripe_customer_id: org.stripeCustomerId,
       onboarding_completed_at: new Date().toISOString(),
-    }).catch((error) => {
-      logger.error("Failed to publish ONBOARDING_COMPLETED_PROCESSED event for {organizationId}: {error}", {
-        organizationId,
-        error,
-      });
     });
 
-    // Event is written directly to database for guaranteed persistence
     void publishSimpleEvent(EventType.PRACTICE_UPDATED, SYSTEM_ACTOR_UUID, organizationId, {
       organization_id: organizationId,
       organization_name: org.name,
       update_type: 'onboarding_completed',
       updated_at: new Date().toISOString(),
-    }).catch((error) => {
-      logger.error("Failed to publish PRACTICE_UPDATED event for {organizationId}: {error}", {
-        organizationId,
-        error,
-      });
     });
 
     // Send Stripe Connect welcome email (fire and forget)
