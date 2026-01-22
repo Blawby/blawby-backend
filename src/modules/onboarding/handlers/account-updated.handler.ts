@@ -58,11 +58,11 @@ export const handleAccountUpdated = async (
       organizationId = updatedRecord.organization_id;
 
       // Auto-enable payment links if charges are enabled
-      if (account.charges_enabled && currentAccount.organization_id) {
+      if (account.charges_enabled && organizationId) {
         await tx
           .update(organizations)
           .set({ paymentLinkEnabled: true })
-          .where(eq(organizations.id, currentAccount.organization_id));
+          .where(eq(organizations.id, organizationId));
       }
 
       // Publish account updated event within transaction
