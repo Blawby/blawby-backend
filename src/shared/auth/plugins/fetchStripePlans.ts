@@ -6,7 +6,19 @@
  */
 
 import { db } from '@/shared/database';
-import { findAllActivePlans } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+
+interface PlanWithPrice {
+  name: string;
+  stripeMonthlyPriceId: string | null;
+  stripeYearlyPriceId: string | null;
+  limits: {
+    users: number;
+    invoices_per_month: number;
+    storage_gb: number;
+    [key: string]: any;
+  };
+}
 
 /**
  * Fetch subscription plans from database
@@ -25,12 +37,12 @@ export const fetchStripePlans = async (): Promise<Array<{
 }>> => {
   try {
     // Fetch all active plans from database
-    const plans = await findAllActivePlans(db);
+    const plans = await subscriptionRepository.findAllActivePlans(db) as PlanWithPrice[];
 
     // Map to Better Auth format
     return plans
-      .filter((plan) => plan.stripeMonthlyPriceId) // Only include plans with monthly price
-      .map((plan) => ({
+      .filter((plan: PlanWithPrice) => plan.stripeMonthlyPriceId) // Only include plans with monthly price
+      .map((plan: PlanWithPrice) => ({
         name: plan.name,
         priceId: plan.stripeMonthlyPriceId!,
         annualDiscountPriceId: plan.stripeYearlyPriceId || undefined,

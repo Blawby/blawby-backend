@@ -1,5 +1,4 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-
 import * as routes from '@/modules/onboarding/routes';
 import * as handlers from '@/modules/onboarding/handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';

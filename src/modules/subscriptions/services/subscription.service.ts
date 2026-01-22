@@ -6,10 +6,9 @@
  */
 
 import { eq, and } from 'drizzle-orm';
+import { getLogger } from '@logtape/logtape';
 
-import { findAllActivePlans, findPlanById } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
-import { findBySubscriptionId as findLineItemsBySubscriptionId } from '@/modules/subscriptions/database/queries/subscriptionLineItems.repository';
-import { findBySubscriptionId as findEventsBySubscriptionId } from '@/modules/subscriptions/database/queries/subscriptionEvents.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import type {
   CreateSubscriptionRequest,
   CancelSubscriptionRequest,
@@ -20,103 +19,110 @@ import { organizations, subscriptions } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import type { User } from '@/shared/types/BetterAuth';
+import type { Result } from '@/shared/types/result';
+import { ok, badRequest, notFound, internalError } from '@/shared/utils/result';
+
+const logger = getLogger(['subscriptions', 'services', 'subscription']);
 
 /**
  * List all available subscription plans
  */
-export const listPlans = async (): Promise<
-  Awaited<ReturnType<typeof findAllActivePlans>>
+const listPlans = async (): Promise<
+  Result<Awaited<ReturnType<typeof subscriptionRepository.findAllActivePlans>>>
 > => {
-  return await findAllActivePlans(db);
+  try {
+    const plans = await subscriptionRepository.findAllActivePlans(db);
+    return ok(plans);
+  } catch (error) {
+    logger.error('Failed to list plans: {error}', { error });
+    return internalError('Failed to retrieve subscription plans');
+  }
 };
 
 /**
  * Get current subscription for an organization
  */
-export const getCurrentSubscription = async (
+const getCurrentSubscription = async (
   organizationId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<{
-  subscription: unknown | null;
-  lineItems: unknown[];
-  events: unknown[];
-}> => {
-  const authInstance = createBetterAuthInstance(db);
+  _user: User,
+  _requestHeaders: Record<string, string>,
+): Promise<Result<{
+  subscription: Subscription | null;
+  lineItems: any[];
+  events: any[];
+}>> => {
+  try {
+    // Get organization to find active subscription ID
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
 
-  // Get organization to find active subscription ID
-  const [organization] = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
+    if (!organization) {
+      return notFound('Organization not found');
+    }
 
-  if (!organization) {
-    throw new Error('Organization not found');
-  }
+    // If no active subscription, return null
+    if (!organization.activeSubscriptionId) {
+      return ok({
+        subscription: null,
+        lineItems: [],
+        events: [],
+      });
+    }
 
-  // If no active subscription, return null
-  if (!organization.activeSubscriptionId) {
-    return {
-      subscription: null,
-      lineItems: [],
-      events: [],
+    // Get subscription from Better Auth database
+    const [subscriptionRecord] = await db
+      .select()
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.id, organization.activeSubscriptionId),
+          eq(subscriptions.referenceId, organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!subscriptionRecord) {
+      return ok({
+        subscription: null,
+        lineItems: [],
+        events: [],
+      });
+    }
+
+    // Map database record to Subscription type
+    const subscription: Subscription = {
+      id: subscriptionRecord.id,
+      status: subscriptionRecord.status,
+      planId: subscriptionRecord.plan,
+      currentPeriodEnd: subscriptionRecord.periodEnd
+        ? Math.floor(subscriptionRecord.periodEnd.getTime() / 1000)
+        : 0,
+      cancelAtPeriodEnd: subscriptionRecord.cancelAtPeriodEnd || false,
+      referenceId: subscriptionRecord.referenceId,
     };
+
+    // Get line items and events from our database
+    const lineItems = await subscriptionRepository.findLineItemsBySubscriptionId(
+      db,
+      subscription.id,
+    );
+    const events = await subscriptionRepository.findEventsBySubscriptionId(db, subscription.id);
+
+    return ok({
+      subscription,
+      lineItems,
+      events,
+    });
+  } catch (error) {
+    logger.error('Failed to get current subscription for org {organizationId}: {error}', {
+      organizationId,
+      error
+    });
+    return internalError('Failed to retrieve current subscription');
   }
-
-  // Get subscription from Better Auth database
-  // Better Auth stores subscriptions in the subscriptions table
-  const [subscriptionRecord] = await db
-    .select()
-    .from(subscriptions)
-    .where(
-      and(
-        eq(subscriptions.id, organization.activeSubscriptionId),
-        eq(subscriptions.referenceId, organizationId),
-      ),
-    )
-    .limit(1);
-
-  if (!subscriptionRecord) {
-    return {
-      subscription: null,
-      lineItems: [],
-      events: [],
-    };
-  }
-
-  // Map database record to Subscription type
-  const subscription: Subscription = {
-    id: subscriptionRecord.id,
-    status: subscriptionRecord.status,
-    planId: subscriptionRecord.plan,
-    currentPeriodEnd: subscriptionRecord.periodEnd
-      ? Math.floor(subscriptionRecord.periodEnd.getTime() / 1000)
-      : 0,
-    cancelAtPeriodEnd: subscriptionRecord.cancelAtPeriodEnd || false,
-    referenceId: subscriptionRecord.referenceId,
-  };
-
-  if (!subscription) {
-    return {
-      subscription: null,
-      lineItems: [],
-      events: [],
-    };
-  }
-
-  // Get line items and events from our database
-  const lineItems = await findLineItemsBySubscriptionId(
-    db,
-    subscription.id,
-  );
-  const events = await findEventsBySubscriptionId(db, subscription.id);
-
-  return {
-    subscription,
-    lineItems,
-    events,
-  };
 };
 
 /**
@@ -126,186 +132,203 @@ export const getCurrentSubscription = async (
 const ensureOrganizationCustomer = async (
   organizationId: string,
   userEmail: string,
-): Promise<string> => {
-  const [organization] = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
+): Promise<Result<string>> => {
+  try {
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
 
-  if (!organization) {
-    throw new Error('Organization not found');
+    if (!organization) {
+      return notFound('Organization not found');
+    }
+
+    // If customer already exists, return it
+    if (organization.stripeCustomerId) {
+      return ok(organization.stripeCustomerId);
+    }
+
+    // Create Stripe customer for organization with idempotency key to prevent duplicates
+    const { getStripeInstance } = await import('@/shared/utils/stripe-client');
+    const stripeInstance = getStripeInstance();
+    const idempotencyKey = `org_customer_${organizationId}`;
+
+    const customer = await stripeInstance.customers.create(
+      {
+        email: organization.billingEmail || userEmail,
+        name: organization.name,
+        metadata: {
+          organization_id: organizationId,
+          iolta_compliant: 'true',
+          type: 'platform_billing',
+        },
+        // NO stripeAccount param = platform account (IOLTA compliant)
+      },
+      { idempotencyKey },
+    );
+
+    // Save customer ID to organization
+    await db
+      .update(organizations)
+      .set({
+        stripeCustomerId: customer.id,
+      })
+      .where(eq(organizations.id, organizationId));
+
+    return ok(customer.id);
+  } catch (error) {
+    logger.error('Failed to ensure organization customer for org {organizationId}: {error}', {
+      organizationId,
+      error
+    });
+    return internalError('Failed to setup billing customer');
   }
-
-  // If customer already exists, return it
-  if (organization.stripeCustomerId) {
-    return organization.stripeCustomerId;
-  }
-
-  // Create Stripe customer for organization
-  // This ensures the customer is created with organization's billing email
-  // Better Auth will find this customer when creating the subscription via referenceId
-  const { getStripeInstance } = await import('@/shared/utils/stripe-client');
-  const stripeInstance = getStripeInstance();
-
-  const customer = await stripeInstance.customers.create({
-    email: organization.billingEmail || userEmail,
-    name: organization.name,
-    metadata: {
-      organization_id: organizationId,
-      iolta_compliant: 'true',
-      type: 'platform_billing',
-    },
-    // NO stripeAccount param = platform account (IOLTA compliant)
-  });
-
-  // Save customer ID to organization
-  await db
-    .update(organizations)
-    .set({
-      stripeCustomerId: customer.id,
-    })
-    .where(eq(organizations.id, organizationId));
-
-  return customer.id;
 };
 
 /**
  * Create a new subscription for an organization
  */
-export const createSubscription = async (
+const createSubscription = async (
   organizationId: string,
   data: CreateSubscriptionRequest,
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<{
+): Promise<Result<{
   subscriptionId?: string;
   checkoutUrl?: string;
   message: string;
-}> => {
-  const authInstance = createBetterAuthInstance(db);
+}>> => {
+  try {
+    const authInstance = createBetterAuthInstance(db);
 
-  // Verify organization exists and user has access
-  const [organization] = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
+    // Verify organization exists
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
 
-  if (!organization) {
-    throw new Error('Organization not found');
+    if (!organization) {
+      return notFound('Organization not found');
+    }
+
+    // Fetch plan from database using planId
+    const plan = await subscriptionRepository.findPlanById(db, data.planId);
+
+    if (!plan) {
+      return badRequest(`Plan not found with ID: ${data.planId}`);
+    }
+
+    if (!plan.isActive) {
+      return badRequest(`Plan is not active: ${plan.name}`);
+    }
+
+    // Use plan name for Better Auth (Better Auth expects plan name, not UUID)
+    const planName = plan.name;
+
+    // Ensure Stripe customer exists for organization
+    const customerResult = await ensureOrganizationCustomer(organizationId, user.email);
+    if (!customerResult.success) {
+      return customerResult;
+    }
+
+    // Check if organization already has an active subscription
+    if (organization.activeSubscriptionId) {
+      return badRequest('Organization already has an active subscription. Please manage your existing subscription.');
+    }
+
+    // Create subscription via Better Auth
+    const api = authInstance.api as unknown as SubscriptionAPI;
+    const result = await api.upgradeSubscription({
+      body: {
+        plan: planName,
+        referenceId: organizationId,
+        customerType: 'organization',
+        successUrl: data.successUrl || '/dashboard',
+        cancelUrl: data.cancelUrl || '/pricing',
+        disableRedirect: data.disableRedirect || false,
+      },
+      headers: requestHeaders,
+    });
+
+    return ok({
+      subscriptionId: result.subscriptionId,
+      checkoutUrl: result.url,
+      message: 'Subscription created successfully',
+    });
+  } catch (error) {
+    logger.error('Failed to create subscription for org {organizationId}: {error}', {
+      organizationId,
+      error
+    });
+    return internalError('Failed to initiate subscription creation');
   }
-
-  // Fetch plan from database using planId
-  const plan = await findPlanById(db, data.planId);
-
-  if (!plan) {
-    throw new Error(`Plan not found with ID: ${data.planId}`);
-  }
-
-  if (!plan.isActive) {
-    throw new Error(`Plan is not active: ${plan.name}`);
-  }
-
-  // Use plan name for Better Auth (Better Auth expects plan name, not UUID)
-  const planName = plan.name;
-
-  // Ensure Stripe customer exists for organization
-  // This creates the customer with organization's billing email if it doesn't exist
-  // Better Auth will find this customer when creating the subscription via referenceId
-  await ensureOrganizationCustomer(organizationId, user.email);
-
-  // Check if organization already has an active subscription
-  if (organization.activeSubscriptionId) {
-    // We could verify the status with Stripe here, but for now we trust our DB
-    // activeSubscriptionId should only be set if the subscription is active/trialing
-    // If we wanted to be 100% sure we could call getCurrentSubscription, but that might be overkill
-    // as activeSubscriptionId is managed by webhooks.
-
-    // However, let's at least double check if we can get the subscription details to be nice
-    // Reuse existing logic or just block.
-    // Blocking is safer to prevent the "double click" race condition mostly.
-    throw new Error('Organization already has an active subscription. Please manage your existing subscription.');
-  }
-
-  // Create subscription via Better Auth
-  // Better Auth will:
-  // 1. Find or create customer (it will find our pre-created customer via referenceId lookup)
-  // 2. Create Stripe Checkout session
-  // 3. Return checkout URL
-  //
-  // NOTE: Unlike organization plugin methods (createOrganization, listOrganizations, etc.),
-  // Stripe plugin methods are NOT automatically typed in BetterAuthInstance['api'].
-  // This is why we need type assertion - the methods exist at runtime but TypeScript doesn't know about them.
-  // See subscription.types.ts for explanation of why we can't infer types like practice.types.ts does.
-  const api = authInstance.api as unknown as SubscriptionAPI;
-  const result = await api.upgradeSubscription({
-    body: {
-      plan: planName,
-      referenceId: organizationId,
-      customerType: 'organization',
-      successUrl: data.successUrl || '/dashboard',
-      cancelUrl: data.cancelUrl || '/pricing',
-      disableRedirect: data.disableRedirect || false,
-    },
-    headers: requestHeaders,
-  });
-
-  return {
-    subscriptionId: result.subscriptionId,
-    checkoutUrl: result.url,
-    message: 'Subscription created successfully',
-  };
 };
 
 /**
  * Cancel a subscription
  */
-export const cancelSubscription = async (
+const cancelSubscription = async (
   subscriptionId: string,
   organizationId: string,
   data: CancelSubscriptionRequest,
-  user: User,
+  _user: User,
   requestHeaders: Record<string, string>,
-): Promise<{ subscription: unknown; message: string }> => {
-  const authInstance = createBetterAuthInstance(db);
+): Promise<Result<{ subscription: unknown; message: string }>> => {
+  try {
+    const authInstance = createBetterAuthInstance(db);
 
-  // Verify organization exists
-  const [organization] = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
+    // Verify organization exists
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
 
-  if (!organization) {
-    throw new Error('Organization not found');
-  }
+    if (!organization) {
+      return notFound('Organization not found');
+    }
 
-  // Verify subscription belongs to organization
-  if (organization.activeSubscriptionId !== subscriptionId) {
-    throw new Error('Subscription does not belong to this organization');
-  }
+    // Verify subscription belongs to organization
+    if (organization.activeSubscriptionId !== subscriptionId) {
+      return badRequest('Subscription does not belong to this organization');
+    }
 
-  // Cancel subscription via Better Auth
-  // Better Auth redirects to Stripe Billing Portal for cancellation management
-  // Note: The `immediately` flag from our API is informational only
-  // Actual cancellation timing is managed through Stripe's Billing Portal
-  const subscriptionAPI = authInstance.api as unknown as SubscriptionAPI;
-  const result = await subscriptionAPI.cancelSubscription({
-    body: {
+    // Cancel subscription via Better Auth
+    const subscriptionAPI = authInstance.api as unknown as SubscriptionAPI;
+    const result = await subscriptionAPI.cancelSubscription({
+      body: {
+        subscriptionId,
+        referenceId: organizationId,
+        customerType: 'organization',
+        returnUrl: data.returnUrl || '/dashboard',
+        immediately: data.immediately ?? false,
+      },
+      headers: requestHeaders,
+    });
+
+    return ok({
+      subscription: result,
+      message: data.immediately
+        ? 'Subscription cancelled immediately'
+        : 'Subscription will be cancelled at the end of the billing period',
+    });
+  } catch (error) {
+    logger.error('Failed to cancel subscription {subscriptionId} for org {organizationId}: {error}', {
       subscriptionId,
-      referenceId: organizationId,
-      customerType: 'organization',
-      returnUrl: data.returnUrl || '/dashboard',
-    },
-    headers: requestHeaders,
-  });
-
-  return {
-    subscription: result,
-    message: data.immediately
-      ? 'Subscription cancelled immediately'
-      : 'Subscription will be cancelled at the end of the billing period',
-  };
+      organizationId,
+      error
+    });
+    return internalError('Failed to process subscription cancellation');
+  }
 };
 
+export const subscriptionService = {
+  listPlans,
+  getCurrentSubscription,
+  createSubscription,
+  cancelSubscription,
+};
+
+export default subscriptionService;

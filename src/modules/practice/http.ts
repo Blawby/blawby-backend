@@ -1,10 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import * as routes from '@/modules/practice/routes';
+import * as handlers from './handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
-
-// Handlers
-import * as handlers from './handlers';
 
 const practiceApp = new OpenAPIHono<AppContext>();
 
@@ -14,13 +12,11 @@ const practiceApp = new OpenAPIHono<AppContext>();
  */
 practiceApp.openapi(routes.listPracticesRoute, handlers.listPracticesHandler);
 
-
 /**
  * POST /api/practice
  * Create a new practice
  */
 practiceApp.openapi(routes.createPracticeRoute, handlers.createPracticeHandler);
-
 
 /**
  * GET /api/practice/:uuid
@@ -28,13 +24,11 @@ practiceApp.openapi(routes.createPracticeRoute, handlers.createPracticeHandler);
  */
 practiceApp.openapi(routes.getPracticeByIdRoute, handlers.getPracticeHandler);
 
-
 /**
  * PUT /api/practice/:uuid
  * Update practice
  */
 practiceApp.openapi(routes.updatePracticeRoute, handlers.updatePracticeHandler);
-
 
 /**
  * DELETE /api/practice/:uuid
@@ -42,13 +36,11 @@ practiceApp.openapi(routes.updatePracticeRoute, handlers.updatePracticeHandler);
  */
 practiceApp.openapi(routes.deletePracticeRoute, handlers.deletePracticeHandler);
 
-
 /**
  * PUT /api/practice/:uuid/active
  * Set practice as active
  */
 practiceApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHandler);
-
 
 /**
  * GET /api/practice/:uuid/members
@@ -56,13 +48,11 @@ practiceApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHan
  */
 practiceApp.openapi(routes.listMembersRoute, handlers.listMembersHandler);
 
-
 /**
  * PATCH /api/practice/:uuid/members
  * Update a member's role
  */
 practiceApp.openapi(routes.updateMemberRoleRoute, handlers.updateMemberRoleHandler);
-
 
 /**
  * DELETE /api/practice/:uuid/members/:userId
@@ -70,13 +60,11 @@ practiceApp.openapi(routes.updateMemberRoleRoute, handlers.updateMemberRoleHandl
  */
 practiceApp.openapi(routes.removeMemberRoute, handlers.removeMemberHandler);
 
-
 /**
  * GET /api/practice/invitations
  * List all pending invitations for the current user
  */
 practiceApp.openapi(routes.listInvitationsRoute, handlers.listInvitationsHandler);
-
 
 /**
  * POST /api/practice/:uuid/invitations
@@ -84,13 +72,11 @@ practiceApp.openapi(routes.listInvitationsRoute, handlers.listInvitationsHandler
  */
 practiceApp.openapi(routes.createInvitationRoute, handlers.createInvitationHandler);
 
-
 /**
  * POST /api/practice/invitations/:invitationId/accept
  * Accept a pending invitation
  */
 practiceApp.openapi(routes.acceptInvitationRoute, handlers.acceptInvitationHandler);
-
 
 /**
  * POST /api/practice/invitations/:invitationId/decline
@@ -98,13 +84,11 @@ practiceApp.openapi(routes.acceptInvitationRoute, handlers.acceptInvitationHandl
  */
 practiceApp.openapi(routes.declineInvitationRoute, handlers.declineInvitationHandler);
 
-
 /**
  * GET /api/practice/:uuid/details
  * Get practice details
  */
 practiceApp.openapi(routes.getPracticeDetailsRoute, handlers.getPracticeDetailsHandler);
-
 
 /**
  * POST /api/practice/:uuid/details
@@ -112,13 +96,11 @@ practiceApp.openapi(routes.getPracticeDetailsRoute, handlers.getPracticeDetailsH
  */
 practiceApp.openapi(routes.createPracticeDetailsRoute, handlers.createPracticeDetailsHandler);
 
-
 /**
  * PUT /api/practice/:uuid/details
  * Update practice details
  */
 practiceApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDetailsHandler);
-
 
 /**
  * DELETE /api/practice/:uuid/details
@@ -126,9 +108,9 @@ practiceApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDe
  */
 practiceApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDetailsHandler);
 
-
 /**
  * GET /api/practice/details/:slug
+ * Get practice details by slug
  */
 practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDetailsBySlugHandler);
 

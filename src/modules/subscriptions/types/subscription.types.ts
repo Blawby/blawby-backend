@@ -53,6 +53,7 @@ export type CancelSubscriptionBody = {
   referenceId?: string;
   customerType?: 'user' | 'organization';
   returnUrl: string;
+  immediately?: boolean;
 };
 
 export type RestoreSubscriptionBody = {

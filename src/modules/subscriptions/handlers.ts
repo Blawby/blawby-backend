@@ -1,7 +1,6 @@
 import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
-import * as subscriptionService from '@/modules/subscriptions/services/subscription.service';
-import type { Subscription } from '@/modules/subscriptions/types/subscription.types';
+import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
 import {
   listPlansRoute,
   getCurrentSubscriptionRoute,
@@ -10,8 +9,8 @@ import {
 } from '@/modules/subscriptions/routes';
 
 export const listPlansHandler: AppRouteHandler<typeof listPlansRoute> = async (c) => {
-  const plans = await subscriptionService.listPlans();
-  return response.ok(c, { plans });
+  const result = await subscriptionService.listPlans();
+  return response.fromResult(c, result);
 };
 
 export const getCurrentSubscriptionHandler: AppRouteHandler<typeof getCurrentSubscriptionRoute> = async (c) => {
@@ -28,17 +27,7 @@ export const getCurrentSubscriptionHandler: AppRouteHandler<typeof getCurrentSub
     c.req.header() as Record<string, string>,
   );
 
-  if (!result.subscription) {
-    return response.ok(c, { subscription: null });
-  }
-
-  return response.ok(c, {
-    subscription: {
-      ...result.subscription as any,
-      lineItems: result.lineItems,
-      events: result.events,
-    },
-  });
+  return response.fromResult(c, result);
 };
 
 export const createSubscriptionHandler: AppRouteHandler<typeof createSubscriptionRoute> = async (c) => {
@@ -57,7 +46,7 @@ export const createSubscriptionHandler: AppRouteHandler<typeof createSubscriptio
     c.req.header() as Record<string, string>,
   );
 
-  return response.created(c, result as any);
+  return response.fromResult(c, result, 201);
 };
 
 export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptionRoute> = async (c) => {
@@ -70,19 +59,21 @@ export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptio
   }
 
   // Get current subscription to find subscription ID
-  const currentSub = await subscriptionService.getCurrentSubscription(
+  const currentSubResult = await subscriptionService.getCurrentSubscription(
     organizationId,
     user,
     c.req.header() as Record<string, string>,
   );
 
-  if (!currentSub.subscription) {
+  if (!currentSubResult.success) {
+    return response.fromResult(c, currentSubResult);
+  }
+
+  if (!currentSubResult.data.subscription) {
     return response.notFound(c, 'No active subscription found');
   }
 
-  // Extract subscription ID from Better Auth subscription object
-  const subscription = currentSub.subscription as Subscription;
-  const subscriptionId = subscription.id;
+  const subscriptionId = currentSubResult.data.subscription.id;
 
   const result = await subscriptionService.cancelSubscription(
     subscriptionId,
@@ -92,5 +83,5 @@ export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptio
     c.req.header() as Record<string, string>,
   );
 
-  return response.ok(c, result as any);
+  return response.fromResult(c, result);
 };

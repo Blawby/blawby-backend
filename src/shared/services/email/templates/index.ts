@@ -31,8 +31,6 @@ import {
   type StripeConnectStatusData,
   type PayoutSentData,
   type ScheduledEventData,
-  type RefundData,
-  type TeamInvitationData,
 } from '../email.types';
 
 /**
@@ -42,13 +40,13 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: CustomerPaymentReceiptData;
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: CustomerPaymentRequestData;
   [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: CustomerPaymentReceiptData;
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: RefundData;
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: RefundData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: CustomerPaymentReceiptData;
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]: CustomerPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: TeamPaymentReceiptData;
-  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: RefundData;
-  [EMAIL_TEMPLATES.TEAM_INVITATION]: TeamInvitationData;
+  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_INVITATION]: WelcomeEmailData;
   [EMAIL_TEMPLATES.WELCOME]: WelcomeEmailData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;

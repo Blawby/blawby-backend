@@ -1,4 +1,5 @@
 import type { NotFoundHandler } from 'hono';
+import { response } from '@/shared/utils/responseUtils';
 
 /**
  * Not Found Handler for Hono Applications
@@ -6,10 +7,5 @@ import type { NotFoundHandler } from 'hono';
  * Handles 404 responses for routes that don't exist.
  */
 export const notFoundHandler: NotFoundHandler = (c) => {
-  return c.json({
-    error: 'Not Found',
-    message: 'The requested resource was not found',
-    path: c.req.path,
-    method: c.req.method,
-  }, 404);
+  return response.notFound(c, `The requested resource ${c.req.path} was not found`);
 };

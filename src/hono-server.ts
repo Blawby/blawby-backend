@@ -1,7 +1,10 @@
 import { serve } from '@hono/node-server';
 import closeWithGrace from 'close-with-grace';
 import './boot/env';
+import { initializeLogging } from './shared/logging/config';
 import app from './hono-app';
+
+await initializeLogging();
 
 const port = Number(process.env.PORT ?? 3000);
 // Use '0.0.0.0' to listen on all network interfaces (required for ngrok/tunneling)

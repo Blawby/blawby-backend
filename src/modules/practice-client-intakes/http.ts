@@ -17,12 +17,7 @@ const app = new OpenAPIHono<AppContext>();
 app.get('/:slug/intake', zValidator('param', intakeValidations.slugParamSchema), async (c) => {
   const { slug } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeSettings(slug);
-
-  if (!result.success) {
-    return response.notFound(c, result.error || 'Organization not found');
-  }
-
-  return response.ok(c, result.data);
+  return response.fromResult(c, result);
 });
 
 
@@ -42,17 +37,11 @@ app.post('/create', zValidator('json', intakeValidations.createPracticeClientInt
     userAgent,
   });
 
-  if (!result.success) {
-    return response.badRequest(c, result.error || 'Failed to create payment');
-  }
-
-  return response.created(c, result.data as any);
+  return response.fromResult(c, result, 201);
 });
 
 
 // PUT /:uuid
-// Updates payment amount before confirmation
-// Will be mounted at /api/practice/client-intakes/:uuid
 app.put(
   '/:uuid',
   zValidator('param', intakeValidations.uuidParamSchema),
@@ -62,12 +51,7 @@ app.put(
     const { amount } = c.req.valid('json');
 
     const result = await practiceClientIntakesService.updatePracticeClientIntake(uuid, amount);
-
-    if (!result.success) {
-      return response.badRequest(c, result.error || 'Failed to update payment');
-    }
-
-    return response.ok(c, result.data as any);
+    return response.fromResult(c, result);
   },
 );
 
@@ -78,12 +62,7 @@ app.put(
 app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema), async (c) => {
   const { uuid } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
-
-  if (!result.success) {
-    return response.notFound(c, result.error || 'Payment not found');
-  }
-
-  return response.ok(c, result.data);
+  return response.fromResult(c, result);
 });
 
 registerOpenApiRoutes(app, routes);
