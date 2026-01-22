@@ -288,6 +288,7 @@ const getPracticeDetailsBySlug = async (
     }
     const organization = slugResult;
 
+
     // 2. Get practice details
     const fetchedDetails = await findPracticeDetailsByOrganization(organization.id);
 
@@ -315,7 +316,7 @@ const getPracticeDetailsBySlug = async (
       }
     }
 
-    // 4. Return data
+    // 4. Return data with organization details
     return ok({
       ...omit(fetchedDetails, [
         'id',
@@ -327,7 +328,11 @@ const getPracticeDetailsBySlug = async (
       ]),
       address: addressData,
       services: (fetchedDetails.services || []) as any,
-    } as PracticeDetailsResponse);
+      name: organization.name,
+      logo: organization.logo,
+      payment_link_enabled: organization.paymentLinkEnabled ?? false,
+      payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
+    });
   } catch (error) {
     logger.error('Failed to get practice details for slug {slug}: {error}', { slug, error });
     return internalError('Failed to get practice details');

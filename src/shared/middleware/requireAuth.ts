@@ -16,27 +16,6 @@ import { response } from '@/shared/utils/responseUtils';
 export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => {
   return async (c, next) => {
     try {
-      // 🆕 STEP 1: Validate bearer token format
-      const authHeader = c.req.header('Authorization');
-
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-
-        // Validate token format - reject simple session tokens
-        const isValidBearerToken = validateBearerTokenFormat(token);
-
-        if (!isValidBearerToken) {
-          const logger = getLogger(['app', 'auth']);
-          logger.warn('[Auth] Rejected token: Invalid bearer token format', {
-            tokenLength: token.length,
-            tokenStart: token.substring(0, 10) + '...',
-            endpoint: c.req.path,
-          });
-
-          return response.unauthorized(c, 'Invalid bearer token format. Please use the token from set-auth-token header.');
-        }
-      }
-
       // STEP 2: Existing session validation
       const authInstance = createBetterAuthInstance(db);
 
@@ -108,42 +87,3 @@ export const requireAdmin = (): MiddlewareHandler<{ Variables: Variables }> => {
   };
 };
 
-/**
- * Validate bearer token format
- *
- * Bearer tokens from set-auth-token header are typically:
- * - Longer (usually 100+ characters)
- * - Contain special characters (dots, dashes, underscores)
- * - May be JWT format (xxx.yyy.zzz)
- *
- * Session tokens from database are typically:
- * - Shorter (32-40 characters)
- * - Simple alphanumeric only
- * - No special characters
- */
-function validateBearerTokenFormat(token: string): boolean {
-  // Check 1: Minimum length (bearer tokens are typically longer)
-  if (token.length < 40) {
-    return false;
-  }
-
-  // Check 2: Must contain at least one special character
-  // Bearer tokens typically have dots (JWTs), dashes, or underscores
-  const hasSpecialChar = /[^a-zA-Z0-9]/.test(token);
-
-  if (!hasSpecialChar) {
-    return false;
-  }
-
-  // Check 3: JWT format check (optional but recommended)
-  // JWTs have format: header.payload.signature
-  const isJWT = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/.test(token);
-
-  // If it's a JWT, it's definitely valid
-  if (isJWT) {
-    return true;
-  }
-
-  // For non-JWT bearer tokens, basic checks passed
-  return true;
-}

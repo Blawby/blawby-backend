@@ -6,6 +6,10 @@ export type PracticeDetailsResponse = Omit<
   'id' | 'organization_id' | 'user_id' | 'created_at' | 'updated_at'
 > & {
   address?: AddressData | null;
+  name?: string;
+  logo?: string | null;
+  payment_link_enabled?: boolean;
+  payment_link_prefill_amount?: number;
 };
 
 export type UpsertPracticeDetailsRequest = {

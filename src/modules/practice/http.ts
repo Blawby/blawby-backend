@@ -314,8 +314,12 @@ practiceApp.delete('/:uuid/details', validateParams(practiceValidations.practice
 
 practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSchema, 'Invalid Slug'), async (c) => {
   const { slug } = c.get('validatedParams');
-  const result = await practiceDetailsService.getPracticeDetailsBySlug(slug);
-  return response.fromResult(c, result);
+  const details = await practiceDetailsService.getPracticeDetailsBySlug(slug);
+
+  if (!details) {
+    return response.notFound(c, 'Practice not found');
+  }
+  return response.ok(c, { details });
 });
 
 registerOpenApiRoutes(practiceApp, routes);
