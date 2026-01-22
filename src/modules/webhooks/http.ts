@@ -1,14 +1,14 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { getLogger } from '@logtape/logtape';
 import type { Context } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
-import {
-  verifyAndStore,
-  verifyAndStoreAccount,
-} from '@/modules/webhooks/services/onboarding-webhooks.service';
+import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
 import type Stripe from 'stripe';
+import type { Result } from '@/shared/types/result';
 
+const logger = getLogger(['webhooks', 'http']);
 const webhooksApp = new OpenAPIHono<AppContext>();
 
 /**
@@ -23,35 +23,45 @@ const handleWebhook = async (
     signature: string,
     headers: Record<string, string>,
     url: string,
-  ) => Promise<{
+  ) => Promise<Result<{
     event: Stripe.Event;
     alreadyProcessed: boolean;
     webhookId?: string;
-  }>,
+  }>>,
 ): Promise<Response> => {
   const signature = c.req.header('stripe-signature');
   const body = Buffer.from(await c.req.arrayBuffer());
+  const url = c.req.url;
 
   if (!signature) {
+    logger.warn('Missing stripe-signature header in webhook request');
     return response.badRequest(c, 'Missing stripe-signature header');
   }
 
   try {
     // 1. Verify signature and store event in database
-    const { event, alreadyProcessed, webhookId } = await verifyFn(
+    const result = await verifyFn(
       body,
       signature,
       c.req.header(),
-      c.req.url,
+      url,
     );
 
+    if (!result.success) {
+      const { error } = result;
+      logger.error('Webhook verification failed: {error}', { error: error.message });
+      return response.fromResult(c, result);
+    }
+
+    const { event, alreadyProcessed, webhookId } = result.data;
+
     if (alreadyProcessed) {
-      console.log(`Webhook already processed: ${event.id}`);
+      logger.info('Webhook already processed: {eventId}', { eventId: event.id });
       return response.ok(c, { received: true });
     }
 
     if (!webhookId) {
-      console.error(`Failed to queue webhook job: Missing webhookId for ${event.id}`);
+      logger.error('Failed to queue webhook job: Missing webhookId for {eventId}', { eventId: event.id });
       return response.internalServerError(c, 'Failed to queue webhook job');
     }
 
@@ -59,16 +69,17 @@ const handleWebhook = async (
     // process-stripe-webhook handles both onboarding events and account events
     await addWebhookJob(webhookId, event.id, event.type);
 
+    logger.info('Webhook received and queued: {eventId} ({eventType})', {
+      eventId: event.id,
+      eventType: event.type,
+      webhookId,
+    });
+
     return response.ok(c, { received: true });
   } catch (err) {
-    console.error('Webhook processing failed:', err);
-
-    const isValidationError = (err as any).code === 'INVALID_SIGNATURE' || (err as any).code === 'STRIPE_SECRET_MISSING';
-
-    if (isValidationError) {
-      return response.badRequest(c, `Webhook Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-
+    logger.error('Unexpected error processing webhook: {error}', {
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
     return response.internalServerError(c, 'Failed to process webhook');
   }
 };
@@ -78,7 +89,9 @@ const handleWebhook = async (
  * Dedicated endpoint for Stripe Connect webhooks (using different signing secret)
  */
 webhooksApp.post('/stripe/connected-accounts', async (c) => {
-  return handleWebhook(c, verifyAndStore);
+  return handleWebhook(c, (body, sig, headers, url) =>
+    onboardingWebhooksService.verifyAndStore(body, sig, headers, url)
+  );
 });
 
 /**
@@ -87,7 +100,9 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
  * Uses STRIPE_WEBHOOK_SECRET for signature verification
  */
 webhooksApp.post('/stripe/account', async (c) => {
-  return handleWebhook(c, verifyAndStoreAccount);
+  return handleWebhook(c, (body, sig, headers, url) =>
+    onboardingWebhooksService.verifyAndStoreAccount(body, sig, headers, url)
+  );
 });
 
 export default webhooksApp;

@@ -1,7 +1,9 @@
+import { getLogger } from '@logtape/logtape';
 import type { MiddlewareHandler } from 'hono';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
+import { response } from '@/shared/utils/responseUtils';
 
 /**
  * Authentication Middleware - Sets user context and blocks unauthenticated users
@@ -32,20 +34,15 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => {
 
       // Block request if no user
       if (!session?.user) {
-        return c.json({
-          error: 'Unauthorized',
-          message: 'Authentication required',
-        }, 401);
+        return response.unauthorized(c, 'Authentication required');
       }
 
       return next();
     } catch (error) {
       // Log the error and block the request
-      console.error('Error in requireAuth middleware:', error);
-      return c.json({
-        error: 'Unauthorized',
-        message: 'Authentication required',
-      }, 401);
+      const logger = getLogger(['app', 'auth']);
+      logger.error('Error in requireAuth middleware: {error}', { error });
+      return response.unauthorized(c, 'Authentication required');
     }
   };
 };
