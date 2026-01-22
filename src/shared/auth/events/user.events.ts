@@ -5,6 +5,7 @@
  * These events are published from Better Auth hooks and other user operations.
  */
 
+import { getLogger } from '@logtape/logtape';
 import { EventType } from '@/shared/events/enums/event-types';
 import { subscribeToEvent } from '@/shared/events/event-consumer';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
@@ -12,23 +13,34 @@ import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { logError } from '@/shared/utils/logging';
 
+const logger = getLogger(['auth', 'events', 'user']);
 const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
 
 /**
  * Register all user and authentication event handlers
  */
 export const registerUserEvents = (): void => {
-  console.info('Registering user and authentication event handlers...');
+  logger.info('Registering user and authentication event handlers...');
 
   // Authentication events
   subscribeToEvent(EventType.AUTH_USER_SIGNED_UP, async (event: BaseEvent) => {
-    console.info('User signed up, sending welcome email', {
+    // Skip sending welcome email to anonymous users
+    const payload = event.payload as { email: string; name: string; is_anonymous?: boolean };
+    if (payload.is_anonymous) {
+      logger.info('Skipping welcome email for anonymous user {eventId}', {
+        eventId: event.eventId,
+        actorId: event.actorId,
+      });
+      return;
+    }
+
+    logger.info('User signed up, sending welcome email for {eventId}', {
       eventId: event.eventId,
       actorId: event.actorId,
     });
 
     // Send welcome email (fire and forget)
-    const { email, name } = event.payload as { email: string; name: string };
+    const { email, name } = payload;
 
     void addEmailJob(
       EMAIL_TEMPLATES.WELCOME,
