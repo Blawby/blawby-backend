@@ -1,9 +1,6 @@
 import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
-import {
-  getOnboardingStatus,
-  createConnectedAccount,
-} from '@/modules/onboarding/services/onboarding.service';
+import { onboardingService } from '@/modules/onboarding/services/onboarding.service';
 import {
   getOnboardingStatusRoute,
   createConnectedAccountRoute,
@@ -13,24 +10,20 @@ export const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingSta
   const user = c.get('user')!;
   const { organizationId } = c.req.valid('param');
 
-  const status = await getOnboardingStatus(
+  const result = await onboardingService.getOnboardingStatus(
     organizationId,
     user,
     c.req.header() as Record<string, string>,
   );
 
-  if (!status) {
-    return response.notFound(c, 'Onboarding status not found');
-  }
-
-  return response.ok(c, status);
+  return response.fromResult(c, result);
 };
 
 export const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccountRoute> = async (c) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
+  const user = c.get('user')!;
   const validatedBody = c.req.valid('json');
 
-  const details = await createConnectedAccount({
+  const result = await onboardingService.createConnectedAccount({
     email: validatedBody.practice_email,
     organizationId: validatedBody.practice_uuid,
     user,
@@ -39,9 +32,5 @@ export const createConnectedAccountHandler: AppRouteHandler<typeof createConnect
     requestHeaders: c.req.header() as Record<string, string>,
   });
 
-  if (!details.url) {
-    return response.internalServerError(c, 'Failed to create connected account');
-  }
-
-  return response.created(c, details);
+  return response.fromResult(c, result, 201);
 };

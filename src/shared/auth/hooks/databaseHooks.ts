@@ -55,6 +55,7 @@ type UserData = Record<string, unknown> & {
   id: string;
   email: string;
   name: string | null;
+  isAnonymous?: boolean;
 };
 
 type SessionData = Record<string, unknown> & {
@@ -90,6 +91,7 @@ export const createDatabaseHooks = (
             email: userData.email,
             name: userData.name,
             signup_method: 'email',
+            is_anonymous: userData.isAnonymous ?? false,
           });
         },
       },

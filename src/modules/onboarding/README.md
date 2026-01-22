@@ -14,8 +14,7 @@ Manages Stripe Connect onboarding for organizations. Creates connected accounts,
 - Columns: `organization_id`, `stripe_account_id`, `charges_enabled`, `payouts_enabled`, `details_submitted`,
   `business_type`, `company`, `individual`, `requirements`, `future_requirements`, `capabilities`,
   `external_accounts`, `tos_acceptance`, `metadata`, `onboarding_completed_at`, `last_refreshed_at`
-- Repository: `src/modules/onboarding/repositories/onboarding.repository.ts`
-- Connected accounts query repo: `src/modules/onboarding/database/queries/connected-accounts.repository.ts`
+- Repository: `src/modules/onboarding/database/queries/onboarding.repository.ts`
 
 ### Services and key business logic
 - `connected-accounts.service.ts`: Creates Stripe accounts, onboarding links, and computes readiness status.

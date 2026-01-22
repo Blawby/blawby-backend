@@ -6,10 +6,13 @@
  */
 
 import type Stripe from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { upsertPlan, findPlanByName } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '../database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
 
 /**
  * Extract plan limits from product metadata
@@ -75,7 +78,10 @@ const extractFeatures = (metadata: Record<string, string>): string[] => {
  */
 export const handleProductUpdated = async (product: Stripe.Product): Promise<void> => {
   try {
-    console.log(`Processing product.updated: ${product.id} - ${product.name}`);
+    logger.info('Processing product.updated: {productId} - {productName}', {
+      productId: product.id,
+      productName: product.name
+    });
 
     // Fetch all prices for this product
     const stripe = getStripeInstance();
@@ -102,7 +108,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     let planName = metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_');
 
     // Check if plan with this name already exists (but different product ID)
-    const existingPlan = await findPlanByName(db, planName);
+    const existingPlan = await subscriptionRepository.findPlanByName(db, planName);
     if (existingPlan && existingPlan.stripeProductId !== product.id) {
       // Append product ID suffix to make it unique
       planName = `${planName}_${product.id.slice(-8)}`;
@@ -133,12 +139,14 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     };
 
     // Upsert plan (will update existing)
-    await upsertPlan(db, planData);
+    await subscriptionRepository.upsertPlan(db, planData);
 
-    console.log(`Successfully processed product.updated: ${product.id}`);
+    logger.info('Successfully processed product.updated: {productId}', { productId: product.id });
   } catch (error) {
-    console.error(`Failed to process product.updated: ${product.id}`, error);
+    logger.error('Failed to process product.updated: {productId}. Error: {error}', {
+      productId: product.id,
+      error
+    });
     throw error;
   }
 };
-
