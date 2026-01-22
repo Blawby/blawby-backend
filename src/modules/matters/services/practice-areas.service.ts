@@ -10,7 +10,7 @@ import { getFullOrganization } from '@/modules/practice/services/organization.se
 import type {
   CreatePracticeAreaRequest,
   UpdatePracticeAreaRequest,
-} from '../validations/practice-areas.validation';
+} from '@/modules/matters/types/matter.types';
 
 /**
  * Create a practice area

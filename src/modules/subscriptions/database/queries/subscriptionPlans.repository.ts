@@ -8,7 +8,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import * as schema from '@/schema';
-import type { NewSubscriptionPlan, SubscriptionPlan } from '../schema/subscriptionPlans.schema';
+import type { NewSubscriptionPlan, SubscriptionPlan } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 
 /**
  * Find all active subscription plans sorted by sort order

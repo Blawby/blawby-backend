@@ -1,14 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
-
-import {
-  createSubscriptionSchema,
-  cancelSubscriptionSchema,
-  subscriptionPlanResponseSchema,
-  subscriptionResponseSchema,
-  errorResponseSchema,
-  notFoundResponseSchema,
-  internalServerErrorResponseSchema,
-} from './validations/subscription.validation';
+import { subscriptionValidations } from './validations/subscription.validation';
 
 /**
  * GET /api/subscriptions/plans
@@ -24,9 +15,7 @@ export const listPlansRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            plans: z.array(subscriptionPlanResponseSchema),
-          }),
+          schema: subscriptionValidations.listPlansResponseSchema,
         },
       },
       description: 'Plans retrieved successfully',
@@ -34,7 +23,7 @@ export const listPlansRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: subscriptionValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -57,9 +46,7 @@ export const getCurrentSubscriptionRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            subscription: subscriptionResponseSchema.nullable(),
-          }),
+          schema: subscriptionValidations.getCurrentSubscriptionResponseSchema,
         },
       },
       description: 'Subscription retrieved successfully',
@@ -67,7 +54,7 @@ export const getCurrentSubscriptionRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: subscriptionValidations.errorResponseSchema,
         },
       },
       description: 'Bad request',
@@ -75,7 +62,7 @@ export const getCurrentSubscriptionRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: subscriptionValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -98,7 +85,7 @@ export const createSubscriptionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: createSubscriptionSchema,
+          schema: subscriptionValidations.createSubscriptionSchema,
         },
       },
     },
@@ -107,7 +94,7 @@ export const createSubscriptionRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: subscriptionResponseSchema,
+          schema: subscriptionValidations.createSubscriptionResponseSchema,
         },
       },
       description: 'Subscription created successfully',
@@ -115,7 +102,7 @@ export const createSubscriptionRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: subscriptionValidations.errorResponseSchema,
         },
       },
       description: 'Bad request',
@@ -123,7 +110,7 @@ export const createSubscriptionRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: subscriptionValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -146,7 +133,7 @@ export const cancelSubscriptionRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: cancelSubscriptionSchema,
+          schema: subscriptionValidations.cancelSubscriptionSchema,
         },
       },
     },
@@ -155,7 +142,7 @@ export const cancelSubscriptionRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: subscriptionResponseSchema,
+          schema: subscriptionValidations.cancelSubscriptionResponseSchema,
         },
       },
       description: 'Subscription cancelled successfully',
@@ -163,7 +150,7 @@ export const cancelSubscriptionRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: subscriptionValidations.errorResponseSchema,
         },
       },
       description: 'Bad request',
@@ -171,7 +158,7 @@ export const cancelSubscriptionRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: subscriptionValidations.notFoundResponseSchema,
         },
       },
       description: 'Subscription not found',
@@ -179,11 +166,10 @@ export const cancelSubscriptionRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: subscriptionValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
     },
   },
 });
-

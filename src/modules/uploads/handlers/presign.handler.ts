@@ -1,13 +1,11 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { createUploadsService } from '@/modules/uploads/services/uploads.service';
-import type { PresignUploadRequest } from '@/modules/uploads/validations/uploads.validation';
+import { logError } from '@/shared/middleware/logger';
+import { presignUploadRoute } from '@/modules/uploads/routes';
 
-export const presignHandler = async (c: Context<AppContext>) => {
-  // Validation happens in middleware via zValidator
-  // Type assertion is safe because validation is guaranteed
-  const body = (await c.req.json()) as PresignUploadRequest;
+export const presignHandler: AppRouteHandler<typeof presignUploadRoute> = async (c) => {
+  const body = c.req.valid('json');
   const userId = c.get('userId');
   const organizationId = c.get('activeOrganizationId');
 
@@ -29,8 +27,13 @@ export const presignHandler = async (c: Context<AppContext>) => {
 
     return response.created(c, result);
   } catch (error) {
-    // Log the full error for debugging
-    console.error('[Presign Handler] Error generating presigned URL:', error);
+    logError(error, {
+      method: c.req.method,
+      url: c.req.url,
+      statusCode: 500,
+      userId,
+      organizationId: organizationId || undefined,
+    });
 
     // Classify error: check if it's a known validation/client error
     const isClientError = error instanceof Error && (

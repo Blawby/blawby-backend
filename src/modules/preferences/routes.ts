@@ -1,17 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
 import {
-  generalPreferencesSchema,
-  notificationPreferencesSchema,
-  securityPreferencesSchema,
-  accountPreferencesSchema,
-  onboardingPreferencesSchema,
-  profilePreferencesSchema,
-  preferencesResponseSchema,
-  categoryPreferencesResponseSchema,
-  errorResponseSchema,
-  notFoundResponseSchema,
-  internalServerErrorResponseSchema,
+  preferenceValidations,
 } from './validations/preferences.validation';
 
 /**
@@ -45,7 +35,7 @@ export const getAllPreferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: preferencesResponseSchema,
+          schema: preferenceValidations.preferencesResponseSchema,
         },
       },
       description: 'Preferences retrieved successfully',
@@ -53,7 +43,7 @@ export const getAllPreferencesRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: preferenceValidations.notFoundResponseSchema,
         },
       },
       description: 'Preferences not found',
@@ -61,7 +51,7 @@ export const getAllPreferencesRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: preferenceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -87,7 +77,7 @@ export const getCategoryPreferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: categoryPreferencesResponseSchema,
+          schema: preferenceValidations.categoryPreferencesResponseSchema,
         },
       },
       description: 'Category preferences retrieved successfully',
@@ -95,7 +85,7 @@ export const getCategoryPreferencesRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: preferenceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -119,7 +109,7 @@ export const updateCategoryPreferencesRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: notificationPreferencesSchema.openapi({
+          schema: preferenceValidations.notificationPreferencesSchema.openapi({
             description: 'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
             example: {
               messages_push: true,
@@ -143,7 +133,7 @@ export const updateCategoryPreferencesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: categoryPreferencesResponseSchema,
+          schema: preferenceValidations.categoryPreferencesResponseSchema,
         },
       },
       description: 'Preferences updated successfully',
@@ -151,7 +141,7 @@ export const updateCategoryPreferencesRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: preferenceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid category or request data',
@@ -159,7 +149,7 @@ export const updateCategoryPreferencesRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: preferenceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',

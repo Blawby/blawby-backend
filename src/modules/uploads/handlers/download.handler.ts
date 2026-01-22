@@ -1,10 +1,11 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { createUploadsService } from '@/modules/uploads/services/uploads.service';
+import { logError } from '@/shared/middleware/logger';
+import { getDownloadUrlRoute } from '@/modules/uploads/routes';
 
-export const downloadHandler = async (c: Context<AppContext>) => {
-  const id = c.req.param('id');
+export const downloadHandler: AppRouteHandler<typeof getDownloadUrlRoute> = async (c) => {
+  const { id } = c.req.valid('param');
   const userId = c.get('userId');
 
   // Handle comma-separated x-forwarded-for header (take first IP)
@@ -25,6 +26,13 @@ export const downloadHandler = async (c: Context<AppContext>) => {
 
     return response.ok(c, result);
   } catch (error) {
+    logError(error, {
+      method: c.req.method,
+      url: c.req.url,
+      statusCode: 500,
+      userId,
+    });
+
     const message = error instanceof Error ? error.message : 'Failed to get download URL';
     if (message.includes('not found')) {
       return response.notFound(c, message);

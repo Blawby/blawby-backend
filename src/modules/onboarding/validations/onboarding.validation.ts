@@ -1,12 +1,11 @@
 import { z } from '@hono/zod-openapi';
-
 import { emailValidator, organizationIdParamSchema } from '@/shared/validations/common';
 
 /**
  * Create onboarding session validation schema
  */
-export const createOnboardingSessionSchema = z.object({
-  practice_email: emailValidator.optional(),
+const createOnboardingSessionSchema = z.object({
+  practice_email: z.email().optional(),
   refresh_url: z.url('Invalid refresh url').openapi({
     description: 'The URL to redirect the user to if they click the back button or refresh the page during onboarding',
     example: 'https://app.blawby.com/onboarding/refresh',
@@ -20,29 +19,24 @@ export const createOnboardingSessionSchema = z.object({
 /**
  * Create connected account validation schema
  */
-export const createConnectedAccountSchema = z.object({
+const createConnectedAccountSchema = z.object({
   practice_email: emailValidator,
   practice_uuid: z.uuid('Invalid practice uuid'),
-  refresh_url: z.string().url('Invalid refresh url').openapi({
+  refresh_url: z.url('Invalid refresh url').openapi({
     description: 'The URL to redirect the user to if they click the back button or refresh the page during onboarding',
     example: 'https://app.blawby.com/onboarding/refresh',
   }),
-  return_url: z.string().url('Invalid return url').openapi({
+  return_url: z.url('Invalid return url').openapi({
     description: 'The URL to redirect the user to after they successfully complete the onboarding flow',
     example: 'https://app.blawby.com/onboarding/return',
   }),
 });
 
 /**
- * Export the organization ID param schema for reuse
- */
-export { organizationIdParamSchema };
-
-/**
  * Onboarding status response schema
  * Based on StripeConnectedAccountBase type
  */
-export const onboardingStatusResponseSchema = z
+const onboardingStatusResponseSchema = z
   .object({
     practice_uuid: z.uuid().openapi({
       example: '123e4567-e89b-12d3-a456-426614174000',
@@ -69,7 +63,7 @@ export const onboardingStatusResponseSchema = z
 /**
  * Create connected account response schema
  */
-export const createConnectedAccountResponseSchema = z
+const createConnectedAccountResponseSchema = z
   .object({
     practice_uuid: z.uuid().openapi({
       example: '123e4567-e89b-12d3-a456-426614174000',
@@ -96,7 +90,7 @@ export const createConnectedAccountResponseSchema = z
 /**
  * Error response schema for validation errors
  */
-export const errorResponseSchema = z
+const errorResponseSchema = z
   .object({
     error: z.string().openapi({
       example: 'Bad Request',
@@ -128,7 +122,7 @@ export const errorResponseSchema = z
 /**
  * Not found error response schema
  */
-export const notFoundResponseSchema = z
+const notFoundResponseSchema = z
   .object({
     error: z.string().openapi({
       example: 'Not Found',
@@ -142,7 +136,7 @@ export const notFoundResponseSchema = z
 /**
  * Internal server error response schema
  */
-export const internalServerErrorResponseSchema = z
+const internalServerErrorResponseSchema = z
   .object({
     error: z.string().openapi({
       example: 'Internal Server Error',
@@ -153,10 +147,15 @@ export const internalServerErrorResponseSchema = z
   })
   .openapi('InternalServerErrorResponse');
 
-/**
- * Infer types from schemas
- */
-export type CreateOnboardingSessionRequest = z.infer<typeof createOnboardingSessionSchema>;
-export type CreateConnectedAccountRequest = z.infer<typeof createConnectedAccountSchema>;
-export type OnboardingStatusResponse = z.infer<typeof onboardingStatusResponseSchema>;
-export type CreateConnectedAccountResponse = z.infer<typeof createConnectedAccountResponseSchema>;
+export const onboardingValidations = {
+  organizationIdParamSchema,
+  createOnboardingSessionSchema,
+  createConnectedAccountSchema,
+  onboardingStatusResponseSchema,
+  createConnectedAccountResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+  internalServerErrorResponseSchema,
+};
+
+

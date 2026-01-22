@@ -4,7 +4,7 @@ import {
   matterNotes,
   type InsertMatterNote,
   type SelectMatterNote,
-} from '../schema/matter-notes.schema';
+} from '@/modules/matters/database/schema/matter-notes.schema';
 
 // Create matter note
 export const createMatterNote = async (

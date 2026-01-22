@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type { RouteConfig, RouteHandler } from '@hono/zod-openapi';
 
 import type { User, Session } from '@/shared/types/BetterAuth';
 
@@ -14,3 +15,5 @@ export type AppContext = {
 };
 
 export type AppType = Hono<AppContext>;
+
+export type AppRouteHandler<R extends RouteConfig> = RouteHandler<R, AppContext>;

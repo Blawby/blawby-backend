@@ -4,13 +4,13 @@
  * Handles business logic for matter expenses operations
  */
 
-import * as expensesQueries from '../database/queries/matter-expenses.queries';
+import * as expensesQueries from '@/modules/matters/database/queries/matter-expenses.queries';
 import { getMatterById } from './matters.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterExpenseRequest,
   UpdateMatterExpenseRequest,
-} from '../validations/matter-expenses.validation';
+} from '@/modules/matters/types/matter.types';
 import { logMatterActivity, ActivityAction } from './matter-activity.service';
 
 /**
@@ -31,7 +31,7 @@ export const createMatterExpense = async (
     userId: user.id,
     description: data.description,
     amount: data.amount,
-    date: typeof data.date === 'string' ? data.date : data.date.toISOString().split('T')[0],
+    date: data.date,
     billable: data.billable,
   });
 
@@ -91,11 +91,7 @@ export const updateMatterExpense = async (
   // Convert date if provided
   const updateData = {
     ...data,
-    date: data.date
-      ? typeof data.date === 'string'
-        ? data.date
-        : data.date.toISOString().split('T')[0]
-      : undefined,
+    date: data.date,
   };
 
   const updated = await expensesQueries.updateMatterExpense(expenseId, updateData);

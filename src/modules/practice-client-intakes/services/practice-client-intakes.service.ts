@@ -8,11 +8,11 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type {
-  PracticeClientIntakeSettings,
+  IntakeSettingsResponse as PracticeClientIntakeSettings,
   CreatePracticeClientIntakeRequest,
-  CreatePracticeClientIntakeResponse,
-  UpdatePracticeClientIntakeResponse,
-  PracticeClientIntakeStatus,
+  CreateIntakeResponse as CreatePracticeClientIntakeResponse,
+  UpdateIntakeResponse as UpdatePracticeClientIntakeResponse,
+  IntakeStatusResponse as PracticeClientIntakeStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type {

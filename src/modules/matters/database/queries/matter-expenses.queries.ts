@@ -4,7 +4,7 @@ import {
   matterExpenses,
   type InsertMatterExpense,
   type SelectMatterExpense,
-} from '../schema/matter-expenses.schema';
+} from '@/modules/matters/database/schema/matter-expenses.schema';
 
 // Create matter expense
 export const createMatterExpense = async (

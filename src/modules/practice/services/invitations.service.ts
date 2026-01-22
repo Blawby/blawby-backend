@@ -148,3 +148,20 @@ export const acceptPracticeInvitation = async (
 
   return { success: true, organization: org };
 };
+
+/**
+ * Decline/Reject a pending invitation
+ */
+export const declinePracticeInvitation = async (
+  invitationId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<{ success: boolean }> => {
+  const betterAuth = getBetterAuth();
+  await betterAuth.api.rejectInvitation({
+    body: { invitationId },
+    headers: requestHeaders,
+  });
+
+  return { success: true };
+};

@@ -1,36 +1,56 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
 
 // Matter milestone validation schemas
-export const createMatterMilestoneSchema = z.object({
-  description: z.string().min(1, 'Description is required').max(255, 'Description too long'),
-  amount: z.number().int().min(0, 'Amount must be positive'), // in cents
-  dueDate: z.string().or(z.date()),
+const createMatterMilestoneSchema = z.object({
+  description: z.string().min(1, 'Description is required'),
+  amount: z.number().min(0, 'Amount must be non-negative'),
+  dueDate: z.string(),
   status: z.enum(['pending', 'in_progress', 'completed', 'overdue']).default('pending'),
   order: z.number().int().min(0).default(0),
 });
 
-export const updateMatterMilestoneSchema = z.object({
-  description: z.string().min(1).max(255).optional(),
-  amount: z.number().int().min(0).optional(),
-  dueDate: z.string().or(z.date()).optional(),
+const updateMatterMilestoneSchema = z.object({
+  description: z.string().min(1).optional(),
+  amount: z.number().min(0).optional(),
+  dueDate: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'completed', 'overdue']).optional(),
   order: z.number().int().min(0).optional(),
-});
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: 'At least one field must be provided for update' },
+);
 
-export const reorderMilestonesSchema = z.object({
+const reorderMilestonesSchema = z.object({
   milestones: z.array(z.object({
     id: uuidValidator,
     order: z.number().int().min(0),
-  })).min(1, 'At least one milestone is required'),
+  })).min(1),
 });
 
-export const matterMilestoneIdParamSchema = z.object({
+const matterMilestoneIdParamSchema = z.object({
   uuid: uuidValidator,
   milestoneId: uuidValidator,
 });
 
-// Infer types
-export type CreateMatterMilestoneRequest = z.infer<typeof createMatterMilestoneSchema>;
-export type UpdateMatterMilestoneRequest = z.infer<typeof updateMatterMilestoneSchema>;
-export type ReorderMilestonesRequest = z.infer<typeof reorderMilestonesSchema>;
+const milestoneSchema = z.object({
+  id: z.uuid(),
+  matterId: z.uuid(),
+  description: z.string(),
+  amount: z.number().describe('Amount in cents'),
+  dueDate: z.string(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'overdue']),
+  order: z.number(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+}).openapi('Milestone');
+
+
+
+export const matterMilestoneValidations = {
+  createMatterMilestoneSchema,
+  updateMatterMilestoneSchema,
+  reorderMilestonesSchema,
+  matterMilestoneIdParamSchema,
+  milestoneSchema,
+};

@@ -4,7 +4,7 @@ import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
-} from '../schema/matter-milestones.schema';
+} from '@/modules/matters/database/schema/matter-milestones.schema';
 
 // Create matter milestone
 export const createMatterMilestone = async (

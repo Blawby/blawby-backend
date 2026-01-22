@@ -3,7 +3,7 @@ import {
   createOrGetAccount,
 } from '@/modules/onboarding/services/connected-accounts.service';
 import type {
-  StripeConnectedAccountBase,
+  OnboardingStatusResponse,
 } from '@/modules/onboarding/types/onboarding.types';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishUserEvent } from '@/shared/events/event-publisher';
@@ -22,7 +22,7 @@ export const createOnboardingSession = async (params: {
   refreshUrl: string;
   returnUrl: string;
   requestHeaders: Record<string, string>;
-}): Promise<StripeConnectedAccountBase> => {
+}): Promise<OnboardingStatusResponse> => {
   const {
     organizationEmail, organizationId, user, refreshUrl, returnUrl, requestHeaders,
   } = params;
@@ -84,7 +84,7 @@ export const getOnboardingStatus = async (
   organizationId: string,
   user: User,
   _requestHeaders: Record<string, string>,
-): Promise<StripeConnectedAccountBase | null> => {
+): Promise<OnboardingStatusResponse | null> => {
   try {
     const account = await findByOrganization(organizationId);
 
@@ -125,7 +125,7 @@ export const createConnectedAccount = async (params: {
   refreshUrl: string;
   returnUrl: string;
   requestHeaders: Record<string, string>;
-}): Promise<StripeConnectedAccountBase> => {
+}): Promise<OnboardingStatusResponse> => {
   const {
     email, organizationId, user, refreshUrl, returnUrl, requestHeaders,
   } = params;

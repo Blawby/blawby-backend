@@ -4,14 +4,14 @@
  * Handles business logic for matter milestones operations
  */
 
-import * as milestonesQueries from '../database/queries/matter-milestones.queries';
+import * as milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
 import { getMatterById } from './matters.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterMilestoneRequest,
   UpdateMatterMilestoneRequest,
   ReorderMilestonesRequest,
-} from '../validations/matter-milestones.validation';
+} from '@/modules/matters/types/matter.types';
 import { logMatterActivity, ActivityAction } from './matter-activity.service';
 
 /**
@@ -31,7 +31,7 @@ export const createMatterMilestone = async (
     matterId,
     description: data.description,
     amount: data.amount,
-    dueDate: typeof data.dueDate === 'string' ? data.dueDate : data.dueDate.toISOString().split('T')[0],
+    dueDate: data.dueDate,
     status: data.status,
     order: data.order,
   });
@@ -87,11 +87,7 @@ export const updateMatterMilestone = async (
   // Convert date if provided
   const updateData = {
     ...data,
-    dueDate: data.dueDate
-      ? typeof data.dueDate === 'string'
-        ? data.dueDate
-        : data.dueDate.toISOString().split('T')[0]
-      : undefined,
+    dueDate: data.dueDate,
   };
 
   const updated = await milestonesQueries.updateMatterMilestone(milestoneId, updateData);

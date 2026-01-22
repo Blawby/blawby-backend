@@ -5,16 +5,16 @@
  */
 
 import { db } from '@/shared/database';
-import * as mattersQueries from '../database/queries/matters.queries';
-import * as milestonesQueries from '../database/queries/matter-milestones.queries';
-import { matters } from '../database/schema/matters.schema';
+import * as mattersQueries from '@/modules/matters/database/queries/matters.queries';
+import * as milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterRequest,
   UpdateMatterRequest,
   ListMattersQuery,
-} from '../validations/matters.validation';
+} from '@/modules/matters/types/matter.types';
 import { logMatterActivity, ActivityAction } from './matter-activity.service';
 
 /**
@@ -48,10 +48,9 @@ export const createMatter = async (
       await mattersQueries.addMatterAssignees(matter.id, assigneeIds);
     }
 
-    // Create milestones if provided
     if (milestones && milestones.length > 0) {
       await milestonesQueries.createMatterMilestones(
-        milestones.map((m) => ({
+        milestones.map((m: any) => ({
           matterId: matter.id,
           description: m.description,
           amount: m.amount,

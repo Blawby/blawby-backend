@@ -4,8 +4,8 @@ import {
   matters,
   type InsertMatter,
   type SelectMatter,
-} from '../schema/matters.schema';
-import { matterAssignees } from '../schema/matter-assignees.schema';
+} from '@/modules/matters/database/schema/matters.schema';
+import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { users } from '@/schema';
 
 // Create matter
@@ -83,14 +83,11 @@ export const listMattersByOrganization = async (
     );
   }
 
-  let query = db
-    .select()
-    .from(matters)
-    .where(and(...conditions));
+  let results: SelectMatter[];
 
   // Handle assignee filter separately with join
   if (filters?.assigneeId) {
-    query = db
+    results = await db
       .select({
         id: matters.id,
         organizationId: matters.organizationId,
@@ -118,13 +115,19 @@ export const listMattersByOrganization = async (
           ...conditions,
           eq(matterAssignees.userId, filters.assigneeId),
         ),
-      );
+      )
+      .orderBy(desc(matters.createdAt))
+      .limit(limit)
+      .offset(offset);
+  } else {
+    results = await db
+      .select()
+      .from(matters)
+      .where(and(...conditions))
+      .orderBy(desc(matters.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
-
-  const results = await query
-    .orderBy(desc(matters.createdAt))
-    .limit(limit)
-    .offset(offset);
 
   // Get total count
   const [countResult] = await db
@@ -133,7 +136,7 @@ export const listMattersByOrganization = async (
     .where(and(...conditions));
 
   return {
-    matters: results as SelectMatter[],
+    matters: results,
     total: Number(countResult.count),
   };
 };
