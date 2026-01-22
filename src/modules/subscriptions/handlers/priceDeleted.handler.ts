@@ -6,22 +6,25 @@
  */
 
 import type Stripe from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { findPlanByStripePriceId, upsertPlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '../database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'price-deleted']);
 
 /**
  * Handle price.deleted webhook event
  */
 export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => {
   try {
-    console.log(`Processing price.deleted: ${price.id}`);
+    logger.info('Processing price.deleted: {priceId}', { priceId: price.id });
 
     // Find the plan that uses this price
-    const plan = await findPlanByStripePriceId(db, price.id);
+    const plan = await subscriptionRepository.findPlanByStripePriceId(db, price.id);
 
     if (!plan) {
-      console.warn(`Plan not found for price.deleted: ${price.id}`);
+      logger.warn('Plan not found for price.deleted: {priceId}', { priceId: price.id });
       return;
     }
 
@@ -50,25 +53,27 @@ export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => 
 
     // Handle metered items
     if (plan.meteredItems && Array.isArray(plan.meteredItems)) {
-      const meteredItems = plan.meteredItems.filter((item) => item.priceId !== price.id);
-      if (meteredItems.length !== plan.meteredItems.length) {
+      const meteredItems = (plan.meteredItems as any[]).filter((item) => item.priceId !== price.id);
+      if (meteredItems.length !== (plan.meteredItems as any[]).length) {
         updates.meteredItems = meteredItems;
       }
     }
 
     if (Object.keys(updates).length > 0) {
-      await upsertPlan(db, {
+      await subscriptionRepository.upsertPlan(db, {
         ...plan,
         ...updates,
       });
 
-      console.log(`Successfully removed price from plan: ${price.id}`);
+      logger.info('Successfully removed price from plan: {priceId}', { priceId: price.id });
     } else {
-      console.log(`No updates needed for price deletion: ${price.id}`);
+      logger.debug('No updates needed for price deletion: {priceId}', { priceId: price.id });
     }
   } catch (error) {
-    console.error(`Failed to process price.deleted: ${price.id}`, error);
+    logger.error('Failed to process price.deleted: {priceId}. Error: {error}', {
+      priceId: price.id,
+      error
+    });
     throw error;
   }
 };
-
