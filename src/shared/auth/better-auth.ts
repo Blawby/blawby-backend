@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { anonymous, bearer, organization } from 'better-auth/plugins';
+import { anonymous, organization } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
@@ -8,7 +8,7 @@ import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
-import { isDevelopment } from '@/shared/utils/env';
+import { isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
 
 let authInstance: ReturnType<typeof betterAuthInstance> | null = null;
@@ -25,7 +25,6 @@ const betterAuthInstance = (
       usePlural: true,
     }),
     plugins: [
-      bearer(),
       organization({
         ac: organizationAccessController,
         roles: organizationRoles,
@@ -63,16 +62,16 @@ const betterAuthInstance = (
       // Disable origin check in development to allow cURL and server-to-server requests
       disableOriginCheck: isDevelopment(),
       crossSubDomainCookies: {
-        enabled: true,
-        domain: ".blawby.com",
-        secure: true,
-        sameSite: "none"
+        enabled: isProductionLike(),
+        domain: isProductionLike() ? ".blawby.com" : undefined,
+        secure: isProductionLike(),
+        sameSite: isProductionLike() ? "none" : "lax"
       },
       cookie: {
         // CRITICAL: Allow cookie sharing across subdomains
-        domain: ".blawby.com",
-        secure: true,
-        sameSite: "none",
+        domain: isProductionLike() ? ".blawby.com" : undefined,
+        secure: isProductionLike(),
+        sameSite: isProductionLike() ? "none" : "lax",
       }
     },
     databaseHooks: createDatabaseHooks(db),
