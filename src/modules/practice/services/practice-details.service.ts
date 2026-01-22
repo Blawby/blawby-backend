@@ -332,7 +332,7 @@ const getPracticeDetailsBySlug = async (
       logo: organization.logo,
       payment_link_enabled: organization.paymentLinkEnabled ?? false,
       payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
-    });
+    } as PracticeDetailsResponse);
   } catch (error) {
     logger.error('Failed to get practice details for slug {slug}: {error}', { slug, error });
     return internalError('Failed to get practice details');
