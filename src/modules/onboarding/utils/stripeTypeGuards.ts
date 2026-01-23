@@ -1,8 +1,5 @@
 import type Stripe from 'stripe';
-import {
-  ExternalAccountSchema,
-  ExternalAccountsSchema,
-} from '@/modules/onboarding/types/onboarding.types';
+import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 import type {
   ExternalAccount,
   ExternalAccounts,
@@ -18,11 +15,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 };
 
 const isExternalAccountList = (value: unknown): value is ExternalAccounts => {
-  return ExternalAccountsSchema.safeParse(value).success;
+  return onboardingValidations.externalAccountsSchema.safeParse(value).success;
 };
 
 const isExternalAccountItem = (value: unknown): value is ExternalAccount => {
-  return ExternalAccountSchema.safeParse(value).success;
+  return onboardingValidations.externalAccountSchema.safeParse(value).success;
 };
 
 const isStripeExternalAccountList = (

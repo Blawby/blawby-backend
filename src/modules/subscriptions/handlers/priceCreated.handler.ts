@@ -41,21 +41,21 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
     // Update the plan with the new price
     const updates: Record<string, unknown> = {};
 
-    if (interval === 'month' && !plan.stripeMonthlyPriceId) {
-      updates.stripeMonthlyPriceId = price.id;
-      updates.monthlyPrice = price.unit_amount ? (price.unit_amount / 100).toString() : null;
-    } else if (interval === 'year' && !plan.stripeYearlyPriceId) {
-      updates.stripeYearlyPriceId = price.id;
-      updates.yearlyPrice = price.unit_amount ? (price.unit_amount / 100).toString() : null;
+    if (interval === 'month' && !plan.stripe_monthly_price_id) {
+      updates.stripe_monthly_price_id = price.id;
+      updates.monthly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
+    } else if (interval === 'year' && !plan.stripe_yearly_price_id) {
+      updates.stripe_yearly_price_id = price.id;
+      updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     } else if (price.recurring && price.recurring.usage_type === 'metered') {
-      // Handle metered price - add to meteredItems array
-      const meteredItems = (plan.meteredItems as any[]) || [];
-      meteredItems.push({
-        priceId: price.id,
-        meterName: price.nickname || 'metered',
+      // Handle metered price - add to metered_items array
+      const metered_items = (plan.metered_items as any[]) || [];
+      metered_items.push({
+        price_id: price.id,
+        meter_name: price.nickname || 'metered',
         type: price.metadata?.meter_type || 'usage',
       });
-      updates.meteredItems = meteredItems;
+      updates.metered_items = metered_items;
     }
 
     if (Object.keys(updates).length > 0) {

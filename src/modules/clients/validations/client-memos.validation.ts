@@ -1,0 +1,26 @@
+import { z } from '@hono/zod-openapi';
+
+export const createMemoSchema = z.object({
+  content: z.string().min(1, 'Content is required'),
+  event_time: z.string().datetime().optional(),
+}).openapi('CreateMemo');
+
+export const updateMemoSchema = z.object({
+  content: z.string().min(1, 'Content is required'),
+}).openapi('UpdateMemo');
+
+export const memoParamsSchema = z.object({
+  orgId: z.uuid('Invalid organization ID'),
+  uuid: z.uuid('Invalid client ID'),
+  memoId: z.uuid('Invalid memo ID'),
+}).openapi('MemoParams');
+
+export const clientMemoSchema = z.object({
+  id: z.uuid(),
+  client_id: z.uuid(),
+  created_by: z.uuid(),
+  content: z.string(),
+  event_time: z.string().datetime().nullable(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+}).openapi('ClientMemo');

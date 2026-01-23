@@ -3,15 +3,15 @@ import { uuidValidator } from '@/shared/validations/common';
 
 // Matter time entry validation schemas
 const createMatterTimeEntrySchema = z.object({
-  startTime: z.iso.datetime(),
-  endTime: z.iso.datetime(),
+  start_time: z.iso.datetime(),
+  end_time: z.iso.datetime(),
   description: z.string().optional(),
   billable: z.boolean().default(true),
 });
 
 const updateMatterTimeEntrySchema = z.object({
-  startTime: z.iso.datetime().optional(),
-  endTime: z.iso.datetime().optional(),
+  start_time: z.iso.datetime().optional(),
+  end_time: z.iso.datetime().optional(),
   description: z.string().optional(),
   billable: z.boolean().optional(),
 }).refine(
@@ -26,15 +26,15 @@ const matterTimeEntryIdParamSchema = z.object({
 
 const timeEntrySchema = z.object({
   id: z.uuid(),
-  matterId: z.uuid(),
-  userId: z.uuid(),
-  startTime: z.iso.datetime(),
-  endTime: z.iso.datetime(),
+  matter_id: z.uuid(),
+  user_id: z.uuid(),
+  start_time: z.iso.datetime(),
+  end_time: z.iso.datetime(),
   duration: z.number().describe('Duration in seconds'),
   description: z.string().nullable(),
   billable: z.boolean(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 }).openapi('TimeEntry');
 
 

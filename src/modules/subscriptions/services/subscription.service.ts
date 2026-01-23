@@ -48,7 +48,7 @@ const getCurrentSubscription = async (
   _requestHeaders: Record<string, string>,
 ): Promise<Result<{
   subscription: Subscription | null;
-  lineItems: any[];
+  line_items: any[];
   events: any[];
 }>> => {
   try {
@@ -67,7 +67,7 @@ const getCurrentSubscription = async (
     if (!organization.activeSubscriptionId) {
       return ok({
         subscription: null,
-        lineItems: [],
+        line_items: [],
         events: [],
       });
     }
@@ -87,25 +87,33 @@ const getCurrentSubscription = async (
     if (!subscriptionRecord) {
       return ok({
         subscription: null,
-        lineItems: [],
+        line_items: [],
         events: [],
       });
     }
 
-    // Map database record to Subscription type
-    const subscription: Subscription = {
+    // Map database record to Subscription type with snake_case for API
+    const planResult = await subscriptionRepository.findPlanByName(db, subscriptionRecord.plan);
+    const subscription = {
       id: subscriptionRecord.id,
       status: subscriptionRecord.status,
-      planId: subscriptionRecord.plan,
-      currentPeriodEnd: subscriptionRecord.periodEnd
+      plan: planResult || null,
+      current_period_start: subscriptionRecord.periodStart
+        ? Math.floor(subscriptionRecord.periodStart.getTime() / 1000)
+        : null,
+      current_period_end: subscriptionRecord.periodEnd
         ? Math.floor(subscriptionRecord.periodEnd.getTime() / 1000)
-        : 0,
-      cancelAtPeriodEnd: subscriptionRecord.cancelAtPeriodEnd || false,
-      referenceId: subscriptionRecord.referenceId,
+        : null,
+      cancel_at_period_end: subscriptionRecord.cancelAtPeriodEnd || false,
+      reference_id: subscriptionRecord.referenceId,
+      stripe_customer_id: subscriptionRecord.stripeCustomerId,
+      stripe_subscription_id: subscriptionRecord.stripeSubscriptionId,
+      created_at: subscriptionRecord.createdAt.toISOString(),
+      updated_at: subscriptionRecord.updatedAt.toISOString(),
     };
 
     // Get line items and events from our database
-    const lineItems = await subscriptionRepository.findLineItemsBySubscriptionId(
+    const line_items = await subscriptionRepository.findLineItemsBySubscriptionId(
       db,
       subscription.id,
     );
@@ -113,9 +121,9 @@ const getCurrentSubscription = async (
 
     return ok({
       subscription,
-      lineItems,
-      events,
-    });
+      line_items: line_items as any[],
+      events: events as any[],
+    } as any);
   } catch (error) {
     logger.error('Failed to get current subscription for org {organizationId}: {error}', {
       organizationId,
@@ -195,8 +203,8 @@ const createSubscription = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<{
-  subscriptionId?: string;
-  checkoutUrl?: string;
+  subscription_id?: string;
+  checkout_url?: string;
   message: string;
 }>> => {
   try {
@@ -213,14 +221,14 @@ const createSubscription = async (
       return notFound('Organization not found');
     }
 
-    // Fetch plan from database using planId
-    const plan = await subscriptionRepository.findPlanById(db, data.planId);
+    // Fetch plan from database using plan_id
+    const plan = await subscriptionRepository.findPlanById(db, data.plan_id);
 
     if (!plan) {
-      return badRequest(`Plan not found with ID: ${data.planId}`);
+      return badRequest(`Plan not found with ID: ${data.plan_id}`);
     }
 
-    if (!plan.isActive) {
+    if (!plan.is_active) {
       return badRequest(`Plan is not active: ${plan.name}`);
     }
 
@@ -245,16 +253,16 @@ const createSubscription = async (
         plan: planName,
         referenceId: organizationId,
         customerType: 'organization',
-        successUrl: data.successUrl || '/dashboard',
-        cancelUrl: data.cancelUrl || '/pricing',
-        disableRedirect: data.disableRedirect || false,
+        successUrl: data.success_url || '/dashboard',
+        cancelUrl: data.cancel_url || '/pricing',
+        disableRedirect: data.disable_redirect || false,
       },
       headers: requestHeaders,
     });
 
     return ok({
-      subscriptionId: result.subscriptionId,
-      checkoutUrl: result.url,
+      subscription_id: result.subscriptionId,
+      checkout_url: result.url,
       message: 'Subscription created successfully',
     });
   } catch (error) {
@@ -302,7 +310,7 @@ const cancelSubscription = async (
         subscriptionId,
         referenceId: organizationId,
         customerType: 'organization',
-        returnUrl: data.returnUrl || '/dashboard',
+        returnUrl: data.return_url || '/dashboard',
         immediately: data.immediately ?? false,
       },
       headers: requestHeaders,

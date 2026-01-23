@@ -1,36 +1,6 @@
-import { snakeCase } from 'es-toolkit/compat';
 import type { Context } from 'hono';
 import type { StatusCode, ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Result } from '@/shared/types/result';
-
-/**
- * Recursively converts object keys from camelCase to snake_case
- */
-export const toSnakeCase = (obj: unknown): unknown => {
-  if (obj === null || obj === undefined) {
-    return obj;
-  }
-
-  // Handle Date objects - return as-is (will be serialized to ISO string by JSON.stringify)
-  if (obj instanceof Date) {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(toSnakeCase);
-  }
-
-  if (typeof obj === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      const snakeKey = snakeCase(key);
-      result[snakeKey] = toSnakeCase(value);
-    }
-    return result;
-  }
-
-  return obj;
-};
 
 /**
  * Response utilities for consistent API responses
@@ -40,31 +10,31 @@ export const response = {
   /**
    * Automatically convert a Result<T> to a Hono response
    */
-  fromResult: <T>(c: Context, result: Result<T>, successCode: StatusCode = 200): Response => {
+  fromResult: <T>(c: Context, result: Result<T>, successCode: StatusCode = 200): any => {
     if (result.success) {
       if ((successCode as number) === 204) {
         return c.body(null, 204);
       }
-      return c.json(toSnakeCase(result.data), successCode as ContentfulStatusCode);
+      return c.json(result.data, successCode as ContentfulStatusCode);
     }
 
     const { error } = result;
-    return c.json(toSnakeCase({
+    return c.json({
       error: error.code,
       message: error.message,
-      details: error.details ? toSnakeCase(error.details) : undefined,
-    }), error.status as ContentfulStatusCode);
+      details: error.details,
+    }, error.status as ContentfulStatusCode);
   },
 
   /**
    * 200 OK - Success response
    */
-  ok: (c: Context, data: unknown): any => c.json(toSnakeCase(data), 200),
+  ok: (c: Context, data: unknown): any => c.json(data, 200),
 
   /**
    * 201 Created - Resource created successfully
    */
-  created: (c: Context, data: unknown): any => c.json(toSnakeCase(data), 201),
+  created: (c: Context, data: unknown): any => c.json(data, 201),
 
   /**
    * 204 No Content - Success with no response body
@@ -74,66 +44,62 @@ export const response = {
   /**
    * 400 Bad Request - Client error
    */
-  badRequest: (c: Context, message: string, details?: unknown): any => c.json(toSnakeCase({
+  badRequest: (c: Context, message: string, details?: unknown): any => c.json({
     error: 'Bad Request',
     message,
-    details: details ? toSnakeCase(details) : undefined,
+    details,
     request_id: c.get('requestId'),
-  }), 400),
+  }, 400),
 
   /**
    * 401 Unauthorized - Authentication required
    */
-  unauthorized: (c: Context, message = 'Authentication required'): any => c.json(toSnakeCase({
+  unauthorized: (c: Context, message = 'Authentication required'): any => c.json({
     error: 'Unauthorized',
     message,
     request_id: c.get('requestId'),
-  }), 401),
+  }, 401),
 
   /**
    * 403 Forbidden - Access denied
    */
-  forbidden: (c: Context, message = 'Access denied'): any => c.json(toSnakeCase({
+  forbidden: (c: Context, message = 'Access denied'): any => c.json({
     error: 'Forbidden',
     message,
     request_id: c.get('requestId'),
-  }), 403),
+  }, 403),
 
   /**
    * 404 Not Found - Resource not found
    */
-  notFound: (c: Context, message = 'Resource not found'): any => c.json(toSnakeCase({
+  notFound: (c: Context, message = 'Resource not found'): any => c.json({
     error: 'Not Found',
     message,
     request_id: c.get('requestId'),
-  }), 404),
+  }, 404),
 
   /**
    * 409 Conflict - Resource conflict
    */
-  conflict: (c: Context, message: string, details?: unknown): any => c.json(toSnakeCase({
+  conflict: (c: Context, message: string, details?: unknown): any => c.json({
     error: 'Conflict',
     message,
-    details: details ? toSnakeCase(details) : undefined,
+    details,
     request_id: c.get('requestId'),
-  }), 409),
+  }, 409),
 
   /**
    * 429 Too Many Requests - Rate limit exceeded
-   * @param c - The context object
-   * @param message - Error message
-   * @param retryAfter - Optional retry after time in seconds (will set Retry-After header)
-   * @returns
    */
   tooManyRequests: (c: Context, message = 'Too many requests', retryAfter?: number): any => {
     if (retryAfter !== undefined) {
       c.res.headers.set('Retry-After', String(retryAfter));
     }
-    return c.json(toSnakeCase({
+    return c.json({
       error: 'Too Many Requests',
       message,
       ...(retryAfter !== undefined && { retry_after: retryAfter }),
-    }), 429);
+    }, 429);
   },
 
   /**
@@ -143,11 +109,11 @@ export const response = {
     c: Context,
     message: string,
     details?: unknown,
-  ): Response => c.json(toSnakeCase({
+  ) => c.json({
     error: 'Unprocessable Entity',
     message,
-    details: details ? toSnakeCase(details) : undefined,
-  }), 422),
+    details,
+  }, 422),
 
   /**
    * 500 Internal Server Error - Server error
@@ -155,11 +121,11 @@ export const response = {
   internalServerError: (
     c: Context,
     message = 'Internal server error',
-  ): Response => c.json(toSnakeCase({
+  ) => c.json({
     error: 'Internal Server Error',
     message,
     request_id: c.get('requestId'),
-  }), 500),
+  }, 500),
 
   /**
    * Paginated response
@@ -170,7 +136,7 @@ export const response = {
     total: number, page: number,
     limit: number,
   ): any => c.json({
-    data: toSnakeCase(data),
+    data,
     pagination: {
       total,
       page,

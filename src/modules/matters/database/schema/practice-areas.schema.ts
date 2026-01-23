@@ -14,22 +14,22 @@ export const practiceAreas = pgTable(
   'practice_areas',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: uuid('organization_id')
+    organization_id: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, {
         onDelete: 'cascade',
       }),
     name: varchar('name', { length: 100 }).notNull(),
     description: text('description'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    index('practice_areas_org_idx').on(table.organizationId),
+    index('practice_areas_org_idx').on(table.organization_id),
     index('practice_areas_name_idx').on(table.name),
   ],
 );
@@ -37,7 +37,7 @@ export const practiceAreas = pgTable(
 // Define relations
 export const practiceAreasRelations = relations(practiceAreas, ({ one }) => ({
   organization: one(organizations, {
-    fields: [practiceAreas.organizationId],
+    fields: [practiceAreas.organization_id],
     references: [organizations.id],
   }),
 }));

@@ -28,10 +28,10 @@ export const createMatterMilestone = async (
   await getMatterById(organizationId, matterId, user, requestHeaders);
 
   const milestone = await milestonesQueries.createMatterMilestone({
-    matterId,
+    matter_id: matterId,
     description: data.description,
     amount: data.amount,
-    dueDate: data.dueDate,
+    due_date: data.due_date,
     status: data.status,
     order: data.order,
   });
@@ -43,7 +43,7 @@ export const createMatterMilestone = async (
     ActivityAction.MILESTONE_CREATED,
     `${user.name || user.email} created milestone: ${data.description} ($${amountFormatted})`,
     user.id,
-    { amount: data.amount, dueDate: data.dueDate },
+    { amount: data.amount, due_date: data.due_date },
   );
 
   return milestone;
@@ -80,14 +80,14 @@ export const updateMatterMilestone = async (
 
   // Verify milestone exists and belongs to matter
   const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
-  if (!milestone || milestone.matterId !== matterId) {
+  if (!milestone || milestone.matter_id !== matterId) {
     throw new Error('Milestone not found');
   }
 
   // Convert date if provided
   const updateData = {
     ...data,
-    dueDate: data.dueDate,
+    due_date: data.due_date,
   };
 
   const updated = await milestonesQueries.updateMatterMilestone(milestoneId, updateData);
@@ -128,7 +128,7 @@ export const deleteMatterMilestone = async (
 
   // Verify milestone exists and belongs to matter
   const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
-  if (!milestone || milestone.matterId !== matterId) {
+  if (!milestone || milestone.matter_id !== matterId) {
     throw new Error('Milestone not found');
   }
 
@@ -159,7 +159,7 @@ export const reorderMilestones = async (
   // Verify all milestones belong to this matter
   for (const item of data.milestones) {
     const milestone = await milestonesQueries.findMatterMilestoneById(item.id);
-    if (!milestone || milestone.matterId !== matterId) {
+    if (!milestone || milestone.matter_id !== matterId) {
       throw new Error(`Milestone ${item.id} not found or does not belong to this matter`);
     }
   }

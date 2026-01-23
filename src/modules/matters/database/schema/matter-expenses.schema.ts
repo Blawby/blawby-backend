@@ -17,12 +17,12 @@ export const matterExpenses = pgTable(
   'matter_expenses',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    matterId: uuid('matter_id')
+    matter_id: uuid('matter_id')
       .notNull()
       .references(() => matters.id, {
         onDelete: 'cascade',
       }),
-    userId: uuid('user_id')
+    user_id: uuid('user_id')
       .notNull()
       .references(() => users.id, {
         onDelete: 'cascade',
@@ -31,16 +31,16 @@ export const matterExpenses = pgTable(
     amount: integer('amount').notNull(), // in cents
     date: date('date').notNull(),
     billable: boolean('billable').notNull().default(true),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    index('matter_expenses_matter_idx').on(table.matterId),
-    index('matter_expenses_user_idx').on(table.userId),
+    index('matter_expenses_matter_idx').on(table.matter_id),
+    index('matter_expenses_user_idx').on(table.user_id),
     index('matter_expenses_date_idx').on(table.date),
     index('matter_expenses_billable_idx').on(table.billable),
   ],
@@ -49,11 +49,11 @@ export const matterExpenses = pgTable(
 // Define relations
 export const matterExpensesRelations = relations(matterExpenses, ({ one }) => ({
   matter: one(matters, {
-    fields: [matterExpenses.matterId],
+    fields: [matterExpenses.matter_id],
     references: [matters.id],
   }),
   user: one(users, {
-    fields: [matterExpenses.userId],
+    fields: [matterExpenses.user_id],
     references: [users.id],
   }),
 }));

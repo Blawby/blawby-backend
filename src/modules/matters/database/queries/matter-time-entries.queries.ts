@@ -38,25 +38,25 @@ export const listMatterTimeEntries = async (
     endDate?: Date;
   },
 ): Promise<SelectMatterTimeEntry[]> => {
-  let conditions = [eq(matterTimeEntries.matterId, matterId)];
+  let conditions = [eq(matterTimeEntries.matter_id, matterId)];
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterTimeEntries.billable, filters.billable));
   }
 
   if (filters?.startDate) {
-    conditions.push(gte(matterTimeEntries.startTime, filters.startDate));
+    conditions.push(gte(matterTimeEntries.start_time, filters.startDate));
   }
 
   if (filters?.endDate) {
-    conditions.push(lte(matterTimeEntries.endTime, filters.endDate));
+    conditions.push(lte(matterTimeEntries.end_time, filters.endDate));
   }
 
   return await db
     .select()
     .from(matterTimeEntries)
     .where(and(...conditions))
-    .orderBy(desc(matterTimeEntries.startTime));
+    .orderBy(desc(matterTimeEntries.start_time));
 };
 
 // Update matter time entry
@@ -66,7 +66,7 @@ export const updateMatterTimeEntry = async (
 ): Promise<SelectMatterTimeEntry | undefined> => {
   const [entry] = await db
     .update(matterTimeEntries)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, updated_at: new Date() })
     .where(eq(matterTimeEntries.id, id))
     .returning();
   return entry;
@@ -88,7 +88,7 @@ export const getTotalBillableTime = async (
     .from(matterTimeEntries)
     .where(
       and(
-        eq(matterTimeEntries.matterId, matterId),
+        eq(matterTimeEntries.matter_id, matterId),
         eq(matterTimeEntries.billable, true),
       ),
     );
@@ -105,7 +105,7 @@ export const getTotalTime = async (
       total: sql<number>`COALESCE(SUM(${matterTimeEntries.duration}), 0)`,
     })
     .from(matterTimeEntries)
-    .where(eq(matterTimeEntries.matterId, matterId));
+    .where(eq(matterTimeEntries.matter_id, matterId));
 
   return Number(result.total);
 };

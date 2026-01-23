@@ -26,8 +26,8 @@ export const logMatterActivity = async (
   const [activity] = await db
     .insert(matterActivityLog)
     .values({
-      matterId,
-      userId: userId || null,
+      matter_id: matterId,
+      user_id: userId || null,
       action,
       description,
       metadata: metadata || null,
@@ -53,8 +53,8 @@ export const getMatterActivity = async (
   return await db
     .select()
     .from(matterActivityLog)
-    .where(eq(matterActivityLog.matterId, matterId))
-    .orderBy(desc(matterActivityLog.createdAt))
+    .where(eq(matterActivityLog.matter_id, matterId))
+    .orderBy(desc(matterActivityLog.created_at))
     .limit(limit)
     .offset(offset);
 };

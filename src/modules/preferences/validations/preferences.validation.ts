@@ -121,9 +121,9 @@ const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 // Note: phone and dob should be updated via Better Auth updateUser endpoint
 const updateUserDetailsSchema = z.object({
   phone: z.string().min(10).optional(),
-  phoneCountryCode: z.string().optional(), // e.g., '+1', '+44'
+  phone_country_code: z.string().optional(), // e.g., '+1', '+44'
   dob: z.coerce.date().optional(),
-  productUsage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
+  product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
 });
 
 

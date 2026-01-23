@@ -36,7 +36,7 @@ export const listPracticeAreasByOrganization = async (
   return await db
     .select()
     .from(practiceAreas)
-    .where(eq(practiceAreas.organizationId, organizationId))
+    .where(eq(practiceAreas.organization_id, organizationId))
     .orderBy(practiceAreas.name);
 };
 
@@ -47,7 +47,7 @@ export const updatePracticeArea = async (
 ): Promise<SelectPracticeArea | undefined> => {
   const [practiceArea] = await db
     .update(practiceAreas)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, updated_at: new Date() })
     .where(eq(practiceAreas.id, id))
     .returning();
   return practiceArea;
@@ -68,7 +68,7 @@ export const searchPracticeAreas = async (
     .from(practiceAreas)
     .where(
       and(
-        eq(practiceAreas.organizationId, organizationId),
+        eq(practiceAreas.organization_id, organizationId),
         like(practiceAreas.name, `%${searchTerm}%`),
       ),
     )

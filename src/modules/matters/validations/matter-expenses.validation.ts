@@ -26,13 +26,13 @@ const matterExpenseIdParamSchema = z.object({
 
 const expenseSchema = z.object({
   id: z.uuid(),
-  matterId: z.uuid(),
+  matter_id: z.uuid(),
   description: z.string(),
   amount: z.number().describe('Amount in cents'),
   date: z.string(),
   billable: z.boolean(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 }).openapi('Expense');
 
 

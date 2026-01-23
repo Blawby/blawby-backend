@@ -47,24 +47,27 @@ const getPracticeClientIntakeSettings = async (
     }
 
     // 3. Validate connected account
-    if (!isAccountActive(connectedAccount)) {
+    if (!(await isAccountActive(connectedAccount))) {
       return fail('Connected account is not ready to accept payments');
     }
 
     return ok({
-      organization: {
-        id: organization.id,
-        name: organization.name,
-        slug: organization.slug,
-        logo: organization.logo ?? '',
-      },
-      settings: {
-        payment_link_enabled: organization?.paymentLinkEnabled ?? false,
-        prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
-      },
-      connected_account: {
-        id: connectedAccount.id,
-        charges_enabled: connectedAccount.charges_enabled,
+      success: true,
+      data: {
+        organization: {
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
+          logo: organization.logo ?? undefined,
+        },
+        settings: {
+          payment_link_enabled: organization?.paymentLinkEnabled ?? false,
+          prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
+        },
+        connected_account: {
+          id: connectedAccount.id,
+          charges_enabled: connectedAccount.charges_enabled,
+        },
       },
     });
   } catch (error) {
@@ -82,9 +85,11 @@ const createPracticeClientIntake = async (
   try {
     // 1. Get practice client intake settings
     const settingsResult = await getPracticeClientIntakeSettings(request.slug);
-    if (!settingsResult.success) return settingsResult as any;
+    if (!settingsResult.success || !settingsResult.data.data) {
+      return (settingsResult as any);
+    }
 
-    const { organization } = settingsResult.data;
+    const { organization } = settingsResult.data.data;
 
     // 2. Get connected account details
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
@@ -171,14 +176,17 @@ const createPracticeClientIntake = async (
     });
 
     return ok({
-      uuid: practiceClientIntake.id,
-      payment_link_url: stripePaymentLink.url,
-      amount: request.amount,
-      currency: 'usd',
-      status: 'open',
-      organization: {
-        name: organization.name,
-        logo: organization.logo,
+      success: true,
+      data: {
+        uuid: practiceClientIntake.id,
+        payment_link_url: stripePaymentLink.url,
+        amount: request.amount,
+        currency: 'usd',
+        status: 'open',
+        organization: {
+          name: organization.name,
+          logo: organization.logo ?? undefined,
+        },
       },
     });
   } catch (error) {
@@ -222,14 +230,17 @@ const getPracticeClientIntakeStatus = async (
     }
 
     return ok({
-      uuid: practiceClientIntake.id,
-      amount: practiceClientIntake.amount,
-      currency: practiceClientIntake.currency,
-      status: practiceClientIntake.status as any,
-      stripe_charge_id: practiceClientIntake.stripeChargeId || undefined,
-      metadata: (metadata as any) ?? undefined,
-      succeeded_at: practiceClientIntake.succeededAt?.toISOString() || undefined,
-      created_at: practiceClientIntake.createdAt.toISOString(),
+      success: true,
+      data: {
+        uuid: practiceClientIntake.id,
+        amount: practiceClientIntake.amount,
+        currency: practiceClientIntake.currency,
+        status: practiceClientIntake.status,
+        stripe_charge_id: practiceClientIntake.stripeChargeId || undefined,
+        metadata: (metadata as any) ?? undefined,
+        succeeded_at: practiceClientIntake.succeededAt?.toISOString() || undefined,
+        created_at: practiceClientIntake.createdAt.toISOString(),
+      },
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });

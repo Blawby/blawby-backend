@@ -21,7 +21,7 @@ export const companyInfoSchema = z.object({
 export const individualInfoSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.email().optional(),
   dob: z.object({
     day: z.number().optional(),
     month: z.number().optional(),
@@ -73,7 +73,7 @@ export const externalAccountsSchema = z.object({
 // --- API Request/Response Schemas ---
 
 export const createAccountRequestSchema = z.object({
-  email: z.string().email().openapi({ example: 'user@example.com' }),
+  email: z.email().openapi({ example: 'user@example.com' }),
   country: z.string().length(2).default('US'),
 }).openapi('CreateAccountRequest');
 
@@ -128,21 +128,21 @@ export const webhookResponseSchema = z.object({
  */
 
 export const createOnboardingSessionSchema = createAccountRequestSchema.extend({
-  refresh_url: z.string().url().openapi({
+  refresh_url: z.url().openapi({
     description: 'The URL to redirect to if they click back/refresh',
     example: 'https://app.blawby.com/onboarding/refresh',
   }),
-  return_url: z.string().url().openapi({
+  return_url: z.url().openapi({
     description: 'The URL to redirect to after completion',
     example: 'https://app.blawby.com/onboarding/return',
   }),
 });
 
 export const createConnectedAccountSchema = z.object({
-  practice_email: z.string().email().openapi({ example: 'practice@example.com' }),
+  practice_email: z.email().openapi({ example: 'practice@example.com' }),
   practice_uuid: z.uuid().openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
-  refresh_url: z.string().url().openapi({ example: 'https://app.blawby.com/onboarding/refresh' }),
-  return_url: z.string().url().openapi({ example: 'https://app.blawby.com/onboarding/return' }),
+  refresh_url: z.url().openapi({ example: 'https://app.blawby.com/onboarding/refresh' }),
+  return_url: z.url().openapi({ example: 'https://app.blawby.com/onboarding/return' }),
 });
 
 export const onboardingStatusResponseSchema = z

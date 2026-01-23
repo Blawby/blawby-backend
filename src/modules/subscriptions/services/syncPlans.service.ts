@@ -15,7 +15,7 @@ const logger = getLogger(['subscriptions', 'services', 'sync-plans']);
 
 export interface SyncResult {
   synced: number;
-  errors: Array<{ productId: string; error: string }>;
+  errors: Array<{ product_id: string; error: string }>;
 }
 
 /**
@@ -65,7 +65,7 @@ const syncAllPlansFromStripe = async (): Promise<Result<SyncResult>> => {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         result.errors.push({
-          productId: product.id,
+          product_id: product.id,
           error: errorMessage,
         });
         logger.error('Failed to sync product {productId}: {error}', {

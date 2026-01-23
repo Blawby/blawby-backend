@@ -89,7 +89,7 @@ import { StripeService } from './services/stripe.service';
 // ✅ CORRECT - Request validation schema uses snake_case
 export const createPracticeClientIntakeSchema = z.object({
   slug: z.string(),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string(),
   on_behalf_of: z.string().optional(),      // snake_case
   opposing_party: z.string().optional(),     // snake_case
@@ -214,6 +214,7 @@ export const badSchema = z.object({
   id: z.string().uuid(),           // ❌ Wrong
   user_id: z.string().uuid(),      // ❌ Wrong
   organizationId: z.string().uuid(), // ❌ Wrong
+  email: z.string().email(), // ❌ Wrong
 });
 ```
 

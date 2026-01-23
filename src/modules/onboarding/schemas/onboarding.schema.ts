@@ -51,7 +51,7 @@ export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
 export const createStripeConnectedAccountSchema = createInsertSchema(
   stripeConnectedAccounts,
   {
-    email: z.string().email('Invalid email format'),
+    email: z.email('Invalid email format'),
     country: z.string().length(2),
     business_type: z
       .enum(['individual', 'company', 'non_profit', 'government_entity'])
@@ -62,7 +62,7 @@ export const createStripeConnectedAccountSchema = createInsertSchema(
 export const updateStripeConnectedAccountSchema = createInsertSchema(
   stripeConnectedAccounts,
   {
-    email: z.string().email().optional(),
+    email: z.email().optional(),
     country: z.string().length(2).optional(),
     business_type: z
       .enum(['individual', 'company', 'non_profit', 'government_entity'])

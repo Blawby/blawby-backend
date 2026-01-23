@@ -11,84 +11,95 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from '@/schema';
+import { practiceClientsSchema } from '@/modules/clients/database/schema/practice-clients.schema';
 import { practiceAreas } from './practice-areas.schema';
+
+const { practiceClients } = practiceClientsSchema;
 
 export const matters = pgTable(
   'matters',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: uuid('organization_id')
+    organization_id: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, {
         onDelete: 'cascade',
       }),
-    customerId: uuid('customer_id')
+    customer_id: uuid('customer_id')
       .notNull()
       .references(() => users.id, {
         onDelete: 'cascade',
       }),
+    practice_client_id: uuid('practice_client_id').references(() => practiceClients.id, {
+      onDelete: 'set null',
+    }),
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
 
     // Billing information
-    billingType: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency'
-    totalFixedPrice: integer('total_fixed_price'), // in cents, nullable
-    contingencyPercentage: real('contingency_percentage'), // float, nullable
-    settlementAmount: integer('settlement_amount'), // in cents, nullable
+    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency'
+    total_fixed_price: integer('total_fixed_price'), // in cents, nullable
+    contingency_percentage: real('contingency_percentage'), // float, nullable
+    settlement_amount: integer('settlement_amount'), // in cents, nullable
 
     // Practice area
-    practiceAreaId: uuid('practice_area_id').references(() => practiceAreas.id, {
+    practice_area_id: uuid('practice_area_id').references(() => practiceAreas.id, {
       onDelete: 'set null',
     }),
 
     // Hourly rates
-    adminHourlyRate: integer('admin_hourly_rate'), // in cents, nullable
-    attorneyHourlyRate: integer('attorney_hourly_rate'), // in cents, nullable
+    admin_hourly_rate: integer('admin_hourly_rate'), // in cents, nullable
+    attorney_hourly_rate: integer('attorney_hourly_rate'), // in cents, nullable
 
     // Payment settings
-    paymentFrequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
+    payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
     // Status
     status: varchar('status', { length: 20 }).notNull().default('draft'), // 'draft', 'active'
 
     // Soft delete
-    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
-    deletedBy: uuid('deleted_by').references(() => users.id),
+    deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    deleted_by: uuid('deleted_by').references(() => users.id),
 
     // Timestamps
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    index('matters_org_idx').on(table.organizationId),
-    index('matters_customer_idx').on(table.customerId),
+    index('matters_org_idx').on(table.organization_id),
+    index('matters_customer_idx').on(table.customer_id),
+    index('matters_client_idx').on(table.practice_client_id),
     index('matters_status_idx').on(table.status),
-    index('matters_practice_area_idx').on(table.practiceAreaId),
-    index('matters_deleted_at_idx').on(table.deletedAt),
-    index('matters_created_at_idx').on(table.createdAt),
+    index('matters_practice_area_idx').on(table.practice_area_id),
+    index('matters_deleted_at_idx').on(table.deleted_at),
+    index('matters_created_at_idx').on(table.created_at),
   ],
 );
 
 // Define relations
 export const mattersRelations = relations(matters, ({ one }) => ({
   organization: one(organizations, {
-    fields: [matters.organizationId],
+    fields: [matters.organization_id],
     references: [organizations.id],
   }),
   customer: one(users, {
-    fields: [matters.customerId],
+    fields: [matters.customer_id],
     references: [users.id],
   }),
+  practiceClient: one(practiceClients, {
+    fields: [matters.practice_client_id],
+    references: [practiceClients.id],
+  }),
   practiceArea: one(practiceAreas, {
-    fields: [matters.practiceAreaId],
+    fields: [matters.practice_area_id],
     references: [practiceAreas.id],
   }),
   deletedByUser: one(users, {
-    fields: [matters.deletedBy],
+    fields: [matters.deleted_by],
     references: [users.id],
     relationName: 'deletedBy',
   }),

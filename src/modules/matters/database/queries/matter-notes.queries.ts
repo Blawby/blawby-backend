@@ -36,8 +36,8 @@ export const listMatterNotes = async (
   return await db
     .select()
     .from(matterNotes)
-    .where(eq(matterNotes.matterId, matterId))
-    .orderBy(desc(matterNotes.createdAt));
+    .where(eq(matterNotes.matter_id, matterId))
+    .orderBy(desc(matterNotes.created_at));
 };
 
 // Update matter note
@@ -47,7 +47,7 @@ export const updateMatterNote = async (
 ): Promise<SelectMatterNote | undefined> => {
   const [note] = await db
     .update(matterNotes)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, updated_at: new Date() })
     .where(eq(matterNotes.id, id))
     .returning();
   return note;

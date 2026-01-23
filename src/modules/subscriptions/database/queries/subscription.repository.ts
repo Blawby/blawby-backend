@@ -48,8 +48,8 @@ const findEventsBySubscriptionId = async (
   return await db
     .select()
     .from(schema.subscriptionEvents)
-    .where(eq(schema.subscriptionEvents.subscriptionId, subscriptionId))
-    .orderBy(desc(schema.subscriptionEvents.createdAt));
+    .where(eq(schema.subscriptionEvents.subscription_id, subscriptionId))
+    .orderBy(desc(schema.subscriptionEvents.created_at));
 };
 
 /**
@@ -65,11 +65,11 @@ const findEventsBySubscriptionIdAndType = async (
     .from(schema.subscriptionEvents)
     .where(
       and(
-        eq(schema.subscriptionEvents.subscriptionId, subscriptionId),
-        eq(schema.subscriptionEvents.eventType, _eventType),
+        eq(schema.subscriptionEvents.subscription_id, subscriptionId),
+        eq(schema.subscriptionEvents.event_type, _eventType),
       ),
     )
-    .orderBy(desc(schema.subscriptionEvents.createdAt));
+    .orderBy(desc(schema.subscriptionEvents.created_at));
 };
 
 /**
@@ -82,8 +82,8 @@ const findLatestEvent = async (
   const events = await db
     .select()
     .from(schema.subscriptionEvents)
-    .where(eq(schema.subscriptionEvents.subscriptionId, subscriptionId))
-    .orderBy(desc(schema.subscriptionEvents.createdAt))
+    .where(eq(schema.subscriptionEvents.subscription_id, subscriptionId))
+    .orderBy(desc(schema.subscriptionEvents.created_at))
     .limit(1);
 
   return events[0];
@@ -103,7 +103,7 @@ const findLineItemsBySubscriptionId = async (
   return await db
     .select()
     .from(schema.subscriptionLineItems)
-    .where(eq(schema.subscriptionLineItems.subscriptionId, subscriptionId));
+    .where(eq(schema.subscriptionLineItems.subscription_id, subscriptionId));
 };
 
 /**
@@ -116,7 +116,7 @@ const findLineItemByStripeItemId = async (
   const items = await db
     .select()
     .from(schema.subscriptionLineItems)
-    .where(eq(schema.subscriptionLineItems.stripeSubscriptionItemId, stripeSubscriptionItemId))
+    .where(eq(schema.subscriptionLineItems.stripe_subscription_item_id, stripeSubscriptionItemId))
     .limit(1);
 
   return items[0];
@@ -130,7 +130,7 @@ const upsertLineItem = async (
   itemData: NewSubscriptionLineItem,
 ): Promise<SubscriptionLineItem> => {
   // Try to find existing item
-  const existingItem = await findLineItemByStripeItemId(db, itemData.stripeSubscriptionItemId);
+  const existingItem = await findLineItemByStripeItemId(db, itemData.stripe_subscription_item_id);
 
   if (existingItem) {
     // Update existing item
@@ -138,7 +138,7 @@ const upsertLineItem = async (
       .update(schema.subscriptionLineItems)
       .set({
         ...itemData,
-        updatedAt: new Date(),
+        updated_at: new Date(),
       })
       .where(eq(schema.subscriptionLineItems.id, existingItem.id))
       .returning();
@@ -164,7 +164,7 @@ const deleteLineItem = async (
 ): Promise<void> => {
   await db
     .delete(schema.subscriptionLineItems)
-    .where(eq(schema.subscriptionLineItems.stripeSubscriptionItemId, stripeSubscriptionItemId));
+    .where(eq(schema.subscriptionLineItems.stripe_subscription_item_id, stripeSubscriptionItemId));
 };
 
 /**
@@ -176,7 +176,7 @@ const deleteLineItemsBySubscriptionId = async (
 ): Promise<void> => {
   await db
     .delete(schema.subscriptionLineItems)
-    .where(eq(schema.subscriptionLineItems.subscriptionId, subscriptionId));
+    .where(eq(schema.subscriptionLineItems.subscription_id, subscriptionId));
 };
 
 /**
@@ -192,8 +192,8 @@ const findAllActivePlans = async (
   return await db
     .select()
     .from(schema.subscriptionPlans)
-    .where(eq(schema.subscriptionPlans.isActive, true))
-    .orderBy(schema.subscriptionPlans.sortOrder);
+    .where(eq(schema.subscriptionPlans.is_active, true))
+    .orderBy(schema.subscriptionPlans.sort_order);
 };
 
 /**
@@ -238,7 +238,7 @@ const findPlanByStripeProductId = async (
   const plans = await db
     .select()
     .from(schema.subscriptionPlans)
-    .where(eq(schema.subscriptionPlans.stripeProductId, stripeProductId))
+    .where(eq(schema.subscriptionPlans.stripe_product_id, stripeProductId))
     .limit(1);
 
   return plans[0];
@@ -256,7 +256,7 @@ const findPlanByStripePriceId = async (
     .from(schema.subscriptionPlans)
     .where(
       and(
-        eq(schema.subscriptionPlans.stripeMonthlyPriceId, stripePriceId),
+        eq(schema.subscriptionPlans.stripe_monthly_price_id, stripePriceId),
       ),
     )
     .limit(1);
@@ -271,7 +271,7 @@ const findPlanByStripePriceId = async (
     .from(schema.subscriptionPlans)
     .where(
       and(
-        eq(schema.subscriptionPlans.stripeYearlyPriceId, stripePriceId),
+        eq(schema.subscriptionPlans.stripe_yearly_price_id, stripePriceId),
       ),
     )
     .limit(1);
@@ -287,7 +287,7 @@ const upsertPlan = async (
   planData: NewSubscriptionPlan,
 ): Promise<SubscriptionPlan> => {
   // Try to find existing plan by stripe product ID
-  const existingPlan = await findPlanByStripeProductId(db, planData.stripeProductId);
+  const existingPlan = await findPlanByStripeProductId(db, planData.stripe_product_id);
 
   if (existingPlan) {
     // Update existing plan
@@ -295,7 +295,7 @@ const upsertPlan = async (
       .update(schema.subscriptionPlans)
       .set({
         ...planData,
-        updatedAt: new Date(),
+        updated_at: new Date(),
       })
       .where(eq(schema.subscriptionPlans.id, existingPlan.id))
       .returning();
@@ -322,10 +322,10 @@ const deactivatePlan = async (
   const updated = await db
     .update(schema.subscriptionPlans)
     .set({
-      isActive: false,
-      updatedAt: new Date(),
+      is_active: false,
+      updated_at: new Date(),
     })
-    .where(eq(schema.subscriptionPlans.stripeProductId, stripeProductId))
+    .where(eq(schema.subscriptionPlans.stripe_product_id, stripeProductId))
     .returning();
 
   return updated[0];
@@ -340,7 +340,7 @@ const findAllPlans = async (
   return await db
     .select()
     .from(schema.subscriptionPlans)
-    .orderBy(desc(schema.subscriptionPlans.createdAt));
+    .orderBy(desc(schema.subscriptionPlans.created_at));
 };
 
 export const subscriptionRepository = {

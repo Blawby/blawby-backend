@@ -41,12 +41,12 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
       logo: z.string().optional(),
     }),
     settings: z.object({
-      paymentLinkEnabled: z.boolean(),
-      prefillAmount: z.number(),
+      payment_link_enabled: z.boolean(),
+      prefill_amount: z.number(),
     }),
-    connectedAccount: z.object({
+    connected_account: z.object({
       id: z.uuid(),
-      chargesEnabled: z.boolean(),
+      charges_enabled: z.boolean(),
     }),
   }).optional(),
   error: z.string().optional(),
@@ -56,7 +56,7 @@ const createPracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
-    paymentLinkUrl: z.url(),
+    payment_link_url: z.url(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -72,7 +72,7 @@ const updatePracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
-    paymentLinkUrl: z.url(),
+    payment_link_url: z.url(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -87,17 +87,17 @@ const practiceClientIntakeStatusResponseSchema = z.object({
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
-    stripeChargeId: z.string().optional(),
+    stripe_charge_id: z.string().optional(),
     metadata: z.object({
       email: z.string(),
       name: z.string(),
       phone: z.string().optional(),
-      onBehalfOf: z.string().optional(),
-      opposingParty: z.string().optional(),
+      on_behalf_of: z.string().optional(),
+      opposing_party: z.string().optional(),
       description: z.string().optional(),
     }).optional(),
-    succeededAt: z.date().optional(),
-    createdAt: z.date(),
+    succeeded_at: z.string().optional(),
+    created_at: z.string(),
   }).optional(),
   error: z.string().optional(),
 });

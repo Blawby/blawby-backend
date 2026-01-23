@@ -10,8 +10,8 @@ import { subscriptionRepository } from '@/modules/subscriptions/database/queries
 
 interface PlanWithPrice {
   name: string;
-  stripeMonthlyPriceId: string | null;
-  stripeYearlyPriceId: string | null;
+  stripe_monthly_price_id: string | null;
+  stripe_yearly_price_id: string | null;
   limits: {
     users: number;
     invoices_per_month: number;
@@ -41,11 +41,11 @@ export const fetchStripePlans = async (): Promise<Array<{
 
     // Map to Better Auth format
     return plans
-      .filter((plan: PlanWithPrice) => plan.stripeMonthlyPriceId) // Only include plans with monthly price
+      .filter((plan: PlanWithPrice) => plan.stripe_monthly_price_id) // Only include plans with monthly price
       .map((plan: PlanWithPrice) => ({
         name: plan.name,
-        priceId: plan.stripeMonthlyPriceId!,
-        annualDiscountPriceId: plan.stripeYearlyPriceId || undefined,
+        priceId: plan.stripe_monthly_price_id!,
+        annualDiscountPriceId: plan.stripe_yearly_price_id || undefined,
         limits: {
           users: plan.limits.users,
           invoices_per_month: plan.limits.invoices_per_month,

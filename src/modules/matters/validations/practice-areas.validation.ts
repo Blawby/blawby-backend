@@ -21,11 +21,11 @@ const practiceAreaIdParamSchema = z.object({
 
 const practiceAreaSchema = z.object({
   id: z.uuid(),
-  organizationId: z.uuid(),
+  organization_id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 }).openapi('PracticeArea');
 
 

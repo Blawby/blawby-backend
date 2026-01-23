@@ -41,22 +41,22 @@ const sanitizeFileName = (fileName: string): string => {
  * Generate storage key based on upload context
  */
 const generateStorageKey = (params: {
-  organizationId?: string;
-  userId?: string;
-  uploadContext: 'matter' | 'intake' | 'trust' | 'profile' | 'asset';
+  organization_id?: string;
+  user_id?: string;
+  upload_context: 'matter' | 'intake' | 'trust' | 'profile' | 'asset';
   uploadId: string;
-  fileName: string;
-  matterId?: string;
-  entityId?: string;
-  subContext?: 'documents' | 'correspondence' | 'evidence';
+  file_name: string;
+  matter_id?: string;
+  entity_id?: string;
+  sub_context?: 'documents' | 'correspondence' | 'evidence';
 }): string => {
-  const sanitizedFileName = sanitizeFileName(params.fileName);
+  const sanitizedFileName = sanitizeFileName(params.file_name);
 
-  if (params.uploadContext === 'profile' && params.userId) {
-    return `users/${params.userId}/profile/${params.uploadId}_${sanitizedFileName}`;
+  if (params.upload_context === 'profile' && params.user_id) {
+    return `users/${params.user_id}/profile/${params.uploadId}_${sanitizedFileName}`;
   }
 
-  if (!params.organizationId) {
+  if (!params.organization_id) {
     throw new Error('Organization ID required for non-profile uploads');
   }
 
@@ -64,29 +64,29 @@ const generateStorageKey = (params: {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
 
-  switch (params.uploadContext) {
+  switch (params.upload_context) {
     case 'matter': {
-      if (!params.matterId) {
+      if (!params.matter_id) {
         throw new Error('Matter ID required for matter uploads');
       }
-      const subFolder = params.subContext || 'documents';
-      return `orgs/${params.organizationId}/matters/${params.matterId}/${subFolder}/${params.uploadId}_${sanitizedFileName}`;
+      const subFolder = params.sub_context || 'documents';
+      return `orgs/${params.organization_id}/matters/${params.matter_id}/${subFolder}/${params.uploadId}_${sanitizedFileName}`;
     }
 
     case 'intake':
-      if (!params.entityId) {
+      if (!params.entity_id) {
         throw new Error('Entity ID (intake ID) required for intake uploads');
       }
-      return `orgs/${params.organizationId}/intakes/${params.entityId}/${params.uploadId}_${sanitizedFileName}`;
+      return `orgs/${params.organization_id}/intakes/${params.entity_id}/${params.uploadId}_${sanitizedFileName}`;
 
     case 'trust':
-      return `orgs/${params.organizationId}/trust-accounting/${year}/${month}/${params.uploadId}_${sanitizedFileName}`;
+      return `orgs/${params.organization_id}/trust-accounting/${year}/${month}/${params.uploadId}_${sanitizedFileName}`;
 
     case 'asset':
-      return `orgs/${params.organizationId}/firm-assets/${params.uploadId}_${sanitizedFileName}`;
+      return `orgs/${params.organization_id}/firm-assets/${params.uploadId}_${sanitizedFileName}`;
 
     default:
-      return `orgs/${params.organizationId}/misc/${params.uploadId}_${sanitizedFileName}`;
+      return `orgs/${params.organization_id}/misc/${params.uploadId}_${sanitizedFileName}`;
   }
 };
 
@@ -94,12 +94,12 @@ const generateStorageKey = (params: {
  * Calculate retention date based on upload context
  */
 const calculateRetentionUntil = (
-  uploadContext: 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
+  upload_context: 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
 ): Date | null => {
   const now = new Date();
   const yearsToRetain = 7;
 
-  switch (uploadContext) {
+  switch (upload_context) {
     case 'matter':
     case 'intake':
     case 'trust':
@@ -138,24 +138,24 @@ export const uploadsService = {
       const storageProvider = isImage && request.upload_context === 'profile' ? 'images' : 'r2';
 
       // Generate storage key
-      let storageKey: string;
+      let storage_key: string;
       try {
-        storageKey = generateStorageKey({
-          organizationId: organizationId ?? undefined,
-          userId: request.upload_context === 'profile' ? userId : undefined,
-          uploadContext: request.upload_context,
+        storage_key = generateStorageKey({
+          organization_id: organizationId ?? undefined,
+          user_id: request.upload_context === 'profile' ? userId : undefined,
+          upload_context: request.upload_context,
           uploadId,
-          fileName: request.file_name,
-          matterId: request.matter_id,
-          entityId: request.entity_id,
-          subContext: request.sub_context,
+          file_name: request.file_name,
+          matter_id: request.matter_id,
+          entity_id: request.entity_id,
+          sub_context: request.sub_context,
         });
       } catch (err) {
         return badRequest(err instanceof Error ? err.message : 'Invalid upload context');
       }
 
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-      const recordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      const expires_at = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const record_expires_at = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
       let presignedUrl: string;
       let method: string;
@@ -176,49 +176,49 @@ export const uploadsService = {
       } else {
         presignedUrl = await generatePresignedUploadUrl({
           bucket,
-          key: storageKey,
+          key: storage_key,
           contentType: request.mime_type,
           expiresIn: 15 * 60,
         });
         method = 'PUT';
       }
 
-      const fileName = request.file_name;
-      const lastDotIndex = fileName.lastIndexOf('.');
-      const fileType = lastDotIndex > 0 && lastDotIndex < fileName.length - 1
-        ? fileName.slice(lastDotIndex + 1)
+      const file_name = request.file_name;
+      const lastDotIndex = file_name.lastIndexOf('.');
+      const file_type = lastDotIndex > 0 && lastDotIndex < file_name.length - 1
+        ? file_name.slice(lastDotIndex + 1)
         : 'unknown';
 
       // Create upload record
       const uploadData: InsertUpload = {
         id: uploadId,
-        userId,
-        organizationId,
-        fileName: request.file_name,
-        fileType,
-        fileSize: request.file_size,
-        mimeType: request.mime_type,
-        storageProvider,
-        storageKey,
-        uploadContext: request.upload_context,
-        matterId: request.matter_id || null,
-        entityType: request.upload_context === 'matter' ? 'matter' : request.upload_context === 'intake' ? 'intake' : null,
-        entityId: request.entity_id || null,
+        user_id: userId,
+        organization_id: organizationId,
+        file_name: request.file_name,
+        file_type: file_type,
+        file_size: request.file_size,
+        mime_type: request.mime_type,
+        storage_provider: storageProvider,
+        storage_key,
+        upload_context: request.upload_context,
+        matter_id: request.matter_id || null,
+        entity_type: request.upload_context === 'matter' ? 'matter' : request.upload_context === 'intake' ? 'intake' : null,
+        entity_id: request.entity_id || null,
         status: 'pending',
-        isPrivileged: request.is_privileged ?? true,
-        retentionUntil: calculateRetentionUntil(request.upload_context),
-        uploadedBy: userId,
-        expiresAt: recordExpiresAt,
+        is_privileged: request.is_privileged ?? true,
+        retention_until: calculateRetentionUntil(request.upload_context),
+        uploaded_by: userId,
+        expires_at: record_expires_at,
       };
 
       await uploadsRepository.create(uploadData);
 
       // Create audit log
       await createAuditLog({
-        uploadId,
-        organizationId: organizationId ?? undefined,
+        upload_id: uploadId,
+        organization_id: organizationId ?? undefined,
         action: 'created',
-        userId,
+        user_id: userId,
       });
 
       logger.info('Generated presigned URL for upload {uploadId} ({fileName})', {
@@ -231,8 +231,8 @@ export const uploadsService = {
         upload_id: uploadId,
         presigned_url: presignedUrl,
         method,
-        storage_key: storageKey,
-        expires_at: expiresAt.toISOString(),
+        storage_key: storage_key,
+        expires_at: expires_at.toISOString(),
       });
     } catch (error) {
       logger.error('Failed to generate presigned URL: {error}', { error });
@@ -267,23 +267,23 @@ export const uploadsService = {
       }
 
       // Verify file exists in storage
-      if (upload.storageProvider === 'r2' && upload.storageKey) {
+      if (upload.storage_provider === 'r2' && upload.storage_key) {
         const exists = await verifyFileExists({
           bucket,
-          key: upload.storageKey,
+          key: upload.storage_key,
         });
 
         if (!exists) {
-          logger.warn('File not found in storage for upload {uploadId}', { uploadId, storageKey: upload.storageKey });
+          logger.warn('File not found in storage for upload {uploadId}', { uploadId, storageKey: upload.storage_key });
           return badRequest('File not found in storage. Please ensure upload succeeded before confirming.');
         }
       }
 
       // Generate public URL
       let publicUrl: string | null = null;
-      if (upload.storageProvider === 'r2' && upload.storageKey && publicUrlBase) {
-        publicUrl = `${publicUrlBase}/${upload.storageKey}`;
-      } else if (upload.storageProvider === 'images' && upload.storageKey) {
+      if (upload.storage_provider === 'r2' && upload.storage_key && publicUrlBase) {
+        publicUrl = `${publicUrlBase}/${upload.storage_key}`;
+      } else if (upload.storage_provider === 'images' && upload.storage_key) {
         const accountHash = process.env.CLOUDFLARE_IMAGES_ACCOUNT_HASH;
         if (!accountHash) {
           logger.error('CLOUDFLARE_IMAGES_ACCOUNT_HASH not configured');
@@ -291,15 +291,15 @@ export const uploadsService = {
         }
         publicUrl = getImageUrl({
           accountHash,
-          imageId: upload.storageKey,
+          imageId: upload.storage_key,
         });
       }
 
       // Update upload status
       const updated = await uploadsRepository.update(uploadId, {
         status: 'verified',
-        verifiedAt: new Date(),
-        publicUrl,
+        verified_at: new Date(),
+        public_url: publicUrl,
       });
 
       if (!updated) {
@@ -308,18 +308,18 @@ export const uploadsService = {
 
       // Create audit log
       await createAuditLog({
-        uploadId,
-        organizationId: upload.organizationId || undefined,
+        upload_id: uploadId,
+        organization_id: upload.organization_id || undefined,
         action: 'confirmed',
-        userId,
+        user_id: userId,
       });
 
-      logger.info('Confirmed upload {uploadId}', { uploadId, organizationId: upload.organizationId });
+      logger.info('Confirmed upload {uploadId}', { uploadId, organizationId: upload.organization_id });
 
       return ok({
         upload_id: uploadId,
         public_url: publicUrl || '',
-        storage_key: upload.storageKey || '',
+        storage_key: upload.storage_key || '',
         status: 'verified' as const,
       });
     } catch (error) {
@@ -344,30 +344,30 @@ export const uploadsService = {
 
       // Create audit log
       await createAuditLog({
-        uploadId,
-        organizationId: upload.organizationId || undefined,
+        upload_id: uploadId,
+        organization_id: upload.organization_id || undefined,
         action: 'viewed',
-        userId,
+        user_id: userId,
       });
 
       return ok({
         upload_id: upload.id,
-        file_name: upload.fileName,
-        file_type: upload.fileType,
-        file_size: upload.fileSize,
-        mime_type: upload.mimeType,
-        storage_provider: upload.storageProvider as 'r2' | 'images',
-        storage_key: upload.storageKey || '',
-        public_url: upload.publicUrl,
-        upload_context: upload.uploadContext as 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
-        matter_id: upload.matterId,
-        entity_id: upload.entityId,
+        file_name: upload.file_name,
+        file_type: upload.file_type,
+        file_size: upload.file_size,
+        mime_type: upload.mime_type,
+        storage_provider: upload.storage_provider as 'r2' | 'images',
+        storage_key: upload.storage_key || '',
+        public_url: upload.public_url,
+        upload_context: upload.upload_context as 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
+        matter_id: upload.matter_id,
+        entity_id: upload.entity_id,
         status: upload.status as 'pending' | 'verified' | 'rejected',
-        is_privileged: upload.isPrivileged ?? true,
-        retention_until: upload.retentionUntil?.toISOString() || null,
-        created_at: upload.createdAt.toISOString(),
-        verified_at: upload.verifiedAt?.toISOString() || null,
-        uploaded_by: upload.uploadedBy,
+        is_privileged: upload.is_privileged ?? true,
+        retention_until: upload.retention_until?.toISOString() || null,
+        created_at: upload.created_at.toISOString(),
+        verified_at: upload.verified_at?.toISOString() || null,
+        uploaded_by: upload.uploaded_by,
       });
     } catch (error) {
       logger.error('Failed to get upload details for {uploadId}: {error}', { uploadId, error });
@@ -395,33 +395,33 @@ export const uploadsService = {
         return badRequest('Upload is not verified or confirmed');
       }
 
-      if (!upload.storageKey) {
+      if (!upload.storage_key) {
         return internalError('Storage key missing for verified upload');
       }
 
       const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
-      if (!bucket && upload.storageProvider === 'r2') {
+      if (!bucket && upload.storage_provider === 'r2') {
         logger.error('CLOUDFLARE_R2_BUCKET_NAME not configured');
         return internalError('Storage configuration error');
       }
 
       let downloadUrl: string;
-      const expiresAt = upload.storageProvider === 'r2'
+      const expiresAt = upload.storage_provider === 'r2'
         ? new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
         : null;
 
-      if (upload.storageProvider === 'r2') {
+      if (upload.storage_provider === 'r2') {
         downloadUrl = await generatePresignedDownloadUrl({
           bucket: bucket!,
-          key: upload.storageKey,
+          key: upload.storage_key,
           expiresIn: 15 * 60,
         });
       } else {
         // Images - use public URL
-        if (!upload.publicUrl) {
+        if (!upload.public_url) {
           return badRequest('Download URL not available for this image');
         }
-        downloadUrl = upload.publicUrl;
+        downloadUrl = upload.public_url;
       }
 
       // Update last accessed
@@ -429,12 +429,12 @@ export const uploadsService = {
 
       // Create audit log
       await createAuditLog({
-        uploadId,
-        organizationId: upload.organizationId || undefined,
+        upload_id: uploadId,
+        organization_id: upload.organization_id || undefined,
         action: 'downloaded',
-        userId,
-        ipAddress,
-        userAgent,
+        user_id: userId,
+        ip_address: ipAddress,
+        user_agent: userAgent,
       });
 
       return ok({
@@ -462,7 +462,7 @@ export const uploadsService = {
         return notFound('Upload not found');
       }
 
-      if (upload.deletedAt) {
+      if (upload.deleted_at) {
         return badRequest('Upload already deleted');
       }
 
@@ -471,10 +471,10 @@ export const uploadsService = {
 
       // Create audit log
       await createAuditLog({
-        uploadId,
-        organizationId: upload.organizationId || undefined,
+        upload_id: uploadId,
+        organization_id: upload.organization_id || undefined,
         action: 'deleted',
-        userId,
+        user_id: userId,
         metadata: { reason: request.reason },
       });
 
@@ -498,7 +498,7 @@ export const uploadsService = {
         return notFound('Upload not found');
       }
 
-      if (!upload.deletedAt) {
+      if (!upload.deleted_at) {
         return badRequest('Upload is not deleted');
       }
 
@@ -507,10 +507,10 @@ export const uploadsService = {
 
       // Create audit log
       await createAuditLog({
-        uploadId,
-        organizationId: upload.organizationId || undefined,
+        upload_id: uploadId,
+        organization_id: upload.organization_id || undefined,
         action: 'restored',
-        userId,
+        user_id: userId,
       });
 
       logger.info('Restored upload {uploadId}', { uploadId, userId });
@@ -556,22 +556,22 @@ export const uploadsService = {
 
       const uploads: UploadDetails[] = results.map((upload) => ({
         upload_id: upload.id,
-        file_name: upload.fileName,
-        file_type: upload.fileType,
-        file_size: upload.fileSize,
-        mime_type: upload.mimeType,
-        storage_provider: upload.storageProvider as 'r2' | 'images',
-        storage_key: upload.storageKey || '',
-        public_url: upload.publicUrl,
-        upload_context: upload.uploadContext as 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
-        matter_id: upload.matterId,
-        entity_id: upload.entityId,
+        file_name: upload.file_name,
+        file_type: upload.file_type,
+        file_size: upload.file_size,
+        mime_type: upload.mime_type,
+        storage_provider: upload.storage_provider as 'r2' | 'images',
+        storage_key: upload.storage_key || '',
+        public_url: upload.public_url,
+        upload_context: upload.upload_context as 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
+        matter_id: upload.matter_id,
+        entity_id: upload.entity_id,
         status: upload.status as 'pending' | 'verified' | 'rejected',
-        is_privileged: upload.isPrivileged ?? true,
-        retention_until: upload.retentionUntil?.toISOString() || null,
-        created_at: upload.createdAt.toISOString(),
-        verified_at: upload.verifiedAt?.toISOString() || null,
-        uploaded_by: upload.uploadedBy,
+        is_privileged: upload.is_privileged ?? true,
+        retention_until: upload.retention_until?.toISOString() || null,
+        created_at: upload.created_at.toISOString(),
+        verified_at: upload.verified_at?.toISOString() || null,
+        uploaded_by: upload.uploaded_by,
       }));
 
       const total = totalResults.length;
@@ -601,7 +601,7 @@ export const uploadsService = {
         return notFound('Upload not found');
       }
 
-      if (upload.organizationId !== organizationId) {
+      if (upload.organization_id !== organizationId) {
         return forbidden('Access denied');
       }
 
@@ -609,14 +609,14 @@ export const uploadsService = {
 
       const auditLogs = logs.map((log) => ({
         id: log.id,
-        upload_id: log.uploadId,
+        upload_id: log.upload_id,
         action: log.action,
-        user_id: log.userId,
+        user_id: log.user_id,
         user_name: null, // TODO: Fetch from users table if needed
-        ip_address: log.ipAddress,
-        user_agent: log.userAgent,
+        ip_address: log.ip_address,
+        user_agent: log.user_agent,
         metadata: log.metadata,
-        created_at: log.createdAt.toISOString(),
+        created_at: log.created_at.toISOString(),
       }));
 
       return ok({

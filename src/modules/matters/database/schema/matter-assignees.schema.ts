@@ -13,35 +13,35 @@ import { matters } from './matters.schema';
 export const matterAssignees = pgTable(
   'matter_assignees',
   {
-    matterId: uuid('matter_id')
+    matter_id: uuid('matter_id')
       .notNull()
       .references(() => matters.id, {
         onDelete: 'cascade',
       }),
-    userId: uuid('user_id')
+    user_id: uuid('user_id')
       .notNull()
       .references(() => users.id, {
         onDelete: 'cascade',
       }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.matterId, table.userId] }),
-    index('matter_assignees_matter_idx').on(table.matterId),
-    index('matter_assignees_user_idx').on(table.userId),
+    primaryKey({ columns: [table.matter_id, table.user_id] }),
+    index('matter_assignees_matter_idx').on(table.matter_id),
+    index('matter_assignees_user_idx').on(table.user_id),
   ],
 );
 
 // Define relations
 export const matterAssigneesRelations = relations(matterAssignees, ({ one }) => ({
   matter: one(matters, {
-    fields: [matterAssignees.matterId],
+    fields: [matterAssignees.matter_id],
     references: [matters.id],
   }),
   user: one(users, {
-    fields: [matterAssignees.userId],
+    fields: [matterAssignees.user_id],
     references: [users.id],
   }),
 }));

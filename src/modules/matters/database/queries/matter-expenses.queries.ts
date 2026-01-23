@@ -38,7 +38,7 @@ export const listMatterExpenses = async (
     endDate?: string;
   },
 ): Promise<SelectMatterExpense[]> => {
-  let conditions = [eq(matterExpenses.matterId, matterId)];
+  let conditions = [eq(matterExpenses.matter_id, matterId)];
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterExpenses.billable, filters.billable));
@@ -66,7 +66,7 @@ export const updateMatterExpense = async (
 ): Promise<SelectMatterExpense | undefined> => {
   const [expense] = await db
     .update(matterExpenses)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, updated_at: new Date() })
     .where(eq(matterExpenses.id, id))
     .returning();
   return expense;
@@ -88,7 +88,7 @@ export const getTotalBillableExpenses = async (
     .from(matterExpenses)
     .where(
       and(
-        eq(matterExpenses.matterId, matterId),
+        eq(matterExpenses.matter_id, matterId),
         eq(matterExpenses.billable, true),
       ),
     );
@@ -105,7 +105,7 @@ export const getTotalExpenses = async (
       total: sql<number>`COALESCE(SUM(${matterExpenses.amount}), 0)`,
     })
     .from(matterExpenses)
-    .where(eq(matterExpenses.matterId, matterId));
+    .where(eq(matterExpenses.matter_id, matterId));
 
   return Number(result.total);
 };

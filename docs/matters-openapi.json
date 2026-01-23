@@ -1,0 +1,1895 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Blawby Matters API",
+    "version": "1.0.0",
+    "description": "API documentation for Matters module"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "PracticeArea": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "name",
+          "description",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Matter": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customer_id": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "billing_type": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "fixed",
+              "contingency"
+            ]
+          },
+          "total_fixed_price": {
+            "type": "number",
+            "nullable": true
+          },
+          "contingency_percentage": {
+            "type": "number",
+            "nullable": true
+          },
+          "settlement_amount": {
+            "type": "number",
+            "nullable": true
+          },
+          "practice_area_id": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "admin_hourly_rate": {
+            "type": "number",
+            "nullable": true
+          },
+          "attorney_hourly_rate": {
+            "type": "number",
+            "nullable": true
+          },
+          "payment_frequency": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "project",
+              "milestone"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active"
+            ]
+          },
+          "deleted_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "deleted_by": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "customer_id",
+          "title",
+          "description",
+          "billing_type",
+          "total_fixed_price",
+          "contingency_percentage",
+          "settlement_amount",
+          "practice_area_id",
+          "admin_hourly_rate",
+          "attorney_hourly_rate",
+          "payment_frequency",
+          "status",
+          "deleted_at",
+          "deleted_by",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "NotFoundResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "message"
+        ]
+      },
+      "ActivityLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matter_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metadata": {
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "matter_id",
+          "user_id",
+          "action",
+          "description",
+          "created_at"
+        ]
+      },
+      "MatterNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matter_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "matter_id",
+          "user_id",
+          "content",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "TimeEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matter_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Duration in seconds"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "billable": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "matter_id",
+          "user_id",
+          "start_time",
+          "end_time",
+          "duration",
+          "description",
+          "billable",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "Expense": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matter_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount in cents"
+          },
+          "date": {
+            "type": "string"
+          },
+          "billable": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "matter_id",
+          "description",
+          "amount",
+          "date",
+          "billable",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "Milestone": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matter_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount in cents"
+          },
+          "due_date": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed",
+              "overdue"
+            ]
+          },
+          "order": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "matter_id",
+          "description",
+          "amount",
+          "due_date",
+          "status",
+          "order",
+          "created_at",
+          "updated_at"
+        ]
+      }
+    },
+    "parameters": {},
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "better-auth.session-token",
+        "description": "Session cookie for authentication"
+      }
+    }
+  },
+  "paths": {
+    "/api/matters/organizations/{organizationId}/practice-areas": {
+      "get": {
+        "tags": [
+          "Matters: Practice Areas"
+        ],
+        "summary": "List practice areas",
+        "description": "Get all practice areas for an organization",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)",
+              "example": "123e4567-e89b-12d3-a456-426614174000"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Practice areas retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "practiceAreas": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PracticeArea"
+                      }
+                    }
+                  },
+                  "required": [
+                    "practiceAreas"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Matters: Practice Areas"
+        ],
+        "summary": "Create practice area",
+        "description": "Create a new practice area for an organization",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)",
+              "example": "123e4567-e89b-12d3-a456-426614174000"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Practice area created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "practiceArea": {
+                      "$ref": "#/components/schemas/PracticeArea"
+                    }
+                  },
+                  "required": [
+                    "practiceArea"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters": {
+      "get": {
+        "tags": [
+          "Matters: General"
+        ],
+        "summary": "List matters",
+        "description": "Get all matters for an organization with optional filters",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)",
+              "example": "123e4567-e89b-12d3-a456-426614174000"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "active"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "practice_area_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "customer_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "assignee_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "search",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matters retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matters": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Matter"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "limit": {
+                      "type": "number"
+                    },
+                    "totalPages": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "matters",
+                    "total",
+                    "page",
+                    "limit",
+                    "totalPages"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Matters: General"
+        ],
+        "summary": "Create matter",
+        "description": "Create a new matter/case",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)",
+              "example": "123e4567-e89b-12d3-a456-426614174000"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "billing_type": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "fixed",
+                      "contingency"
+                    ]
+                  },
+                  "total_fixed_price": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "contingency_percentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "settlement_amount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "practice_area_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "admin_hourly_rate": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "attorney_hourly_rate": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "payment_frequency": {
+                    "type": "string",
+                    "enum": [
+                      "project",
+                      "milestone"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "active"
+                    ],
+                    "default": "draft"
+                  },
+                  "assignee_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "milestones": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "due_date": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "string",
+                              "format": "date"
+                            }
+                          ]
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "default": 0
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "amount",
+                        "due_date"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "customer_id",
+                  "title",
+                  "billing_type"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Matter created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matter": {
+                      "$ref": "#/components/schemas/Matter"
+                    }
+                  },
+                  "required": [
+                    "matter"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}": {
+      "get": {
+        "tags": [
+          "Matters: General"
+        ],
+        "summary": "Get matter",
+        "description": "Get a matter by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matter retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matter": {
+                      "$ref": "#/components/schemas/Matter"
+                    }
+                  },
+                  "required": [
+                    "matter"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Matter not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Matters: General"
+        ],
+        "summary": "Update matter",
+        "description": "Update a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customer_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "billing_type": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "fixed",
+                      "contingency"
+                    ]
+                  },
+                  "total_fixed_price": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "contingency_percentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "settlement_amount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "practice_area_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "admin_hourly_rate": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "attorney_hourly_rate": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "payment_frequency": {
+                    "type": "string",
+                    "enum": [
+                      "project",
+                      "milestone"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "active"
+                    ]
+                  },
+                  "assignee_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matter updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matter": {
+                      "$ref": "#/components/schemas/Matter"
+                    }
+                  },
+                  "required": [
+                    "matter"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Matter not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Matters: General"
+        ],
+        "summary": "Delete matter",
+        "description": "Soft delete a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matter deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Matter not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/activity": {
+      "get": {
+        "tags": [
+          "Matters: General"
+        ],
+        "summary": "Get activity log",
+        "description": "Get the activity log for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityLog"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/notes": {
+      "get": {
+        "tags": [
+          "Matters: Notes"
+        ],
+        "summary": "List notes",
+        "description": "Get all notes for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notes retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MatterNote"
+                      }
+                    }
+                  },
+                  "required": [
+                    "notes"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Matters: Notes"
+        ],
+        "summary": "Create note",
+        "description": "Create a note for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Note created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "$ref": "#/components/schemas/MatterNote"
+                    }
+                  },
+                  "required": [
+                    "note"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/time-entries": {
+      "get": {
+        "tags": [
+          "Matters: Time Entries"
+        ],
+        "summary": "List time entries",
+        "description": "Get all time entries for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Time entries retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "timeEntries": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TimeEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "timeEntries"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Matters: Time Entries"
+        ],
+        "summary": "Create time entry",
+        "description": "Log time for a matter (duration calculated automatically)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "billable": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "start_time",
+                  "end_time"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Time entry created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "timeEntry": {
+                      "$ref": "#/components/schemas/TimeEntry"
+                    }
+                  },
+                  "required": [
+                    "timeEntry"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/time-entries/stats": {
+      "get": {
+        "tags": [
+          "Matters: Time Entries"
+        ],
+        "summary": "Get time statistics",
+        "description": "Get total billable and non-billable time for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statistics retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalBillableSeconds": {
+                      "type": "number"
+                    },
+                    "totalSeconds": {
+                      "type": "number"
+                    },
+                    "totalBillableHours": {
+                      "type": "number"
+                    },
+                    "totalHours": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "totalBillableSeconds",
+                    "totalSeconds",
+                    "totalBillableHours",
+                    "totalHours"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/expenses": {
+      "get": {
+        "tags": [
+          "Matters: Expenses"
+        ],
+        "summary": "List expenses",
+        "description": "Get all expenses for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expenses retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expenses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Expense"
+                      }
+                    }
+                  },
+                  "required": [
+                    "expenses"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Matters: Expenses"
+        ],
+        "summary": "Create expense",
+        "description": "Add an expense to a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "billable": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "description",
+                  "amount",
+                  "date"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Expense created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expense": {
+                      "$ref": "#/components/schemas/Expense"
+                    }
+                  },
+                  "required": [
+                    "expense"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/milestones": {
+      "get": {
+        "tags": [
+          "Matters: Milestones"
+        ],
+        "summary": "List milestones",
+        "description": "Get all milestones for a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Milestones retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "milestones": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Milestone"
+                      }
+                    }
+                  },
+                  "required": [
+                    "milestones"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Matters: Milestones"
+        ],
+        "summary": "Create milestone",
+        "description": "Add a milestone to a matter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "due_date": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "in_progress",
+                      "completed",
+                      "overdue"
+                    ],
+                    "default": "pending"
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "description",
+                  "amount",
+                  "due_date"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Milestone created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "milestone": {
+                      "$ref": "#/components/schemas/Milestone"
+                    }
+                  },
+                  "required": [
+                    "milestone"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/organizations/{organizationId}/matters/{uuid}/milestones/reorder": {
+      "post": {
+        "tags": [
+          "Matters: Milestones"
+        ],
+        "summary": "Reorder milestones",
+        "description": "Reorder milestones by providing array of IDs in new order",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Organization ID (UUID)"
+            },
+            "required": true,
+            "description": "Organization ID (UUID)",
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matter ID (UUID)"
+            },
+            "required": true,
+            "description": "Matter ID (UUID)",
+            "name": "uuid",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "milestones": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "order"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "milestones"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Milestones reordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "cookieAuth": []
+    }
+  ]
+}

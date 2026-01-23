@@ -27,8 +27,8 @@ export const createMatterNote = async (
   await getMatterById(organizationId, matterId, user, requestHeaders);
 
   const note = await notesQueries.createMatterNote({
-    matterId,
-    userId: user.id,
+    matter_id: matterId,
+    user_id: user.id,
     content: data.content,
   });
 
@@ -74,7 +74,7 @@ export const updateMatterNote = async (
 
   // Verify note exists and belongs to matter
   const note = await notesQueries.findMatterNoteById(noteId);
-  if (!note || note.matterId !== matterId) {
+  if (!note || note.matter_id !== matterId) {
     throw new Error('Note not found');
   }
 
@@ -106,7 +106,7 @@ export const deleteMatterNote = async (
 
   // Verify note exists and belongs to matter
   const note = await notesQueries.findMatterNoteById(noteId);
-  if (!note || note.matterId !== matterId) {
+  if (!note || note.matter_id !== matterId) {
     throw new Error('Note not found');
   }
 

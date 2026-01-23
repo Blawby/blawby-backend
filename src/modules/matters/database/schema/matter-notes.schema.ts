@@ -14,39 +14,39 @@ export const matterNotes = pgTable(
   'matter_notes',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    matterId: uuid('matter_id')
+    matter_id: uuid('matter_id')
       .notNull()
       .references(() => matters.id, {
         onDelete: 'cascade',
       }),
-    userId: uuid('user_id')
+    user_id: uuid('user_id')
       .notNull()
       .references(() => users.id, {
         onDelete: 'cascade',
       }),
     content: text('content').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    index('matter_notes_matter_idx').on(table.matterId),
-    index('matter_notes_user_idx').on(table.userId),
-    index('matter_notes_created_at_idx').on(table.createdAt),
+    index('matter_notes_matter_idx').on(table.matter_id),
+    index('matter_notes_user_idx').on(table.user_id),
+    index('matter_notes_created_at_idx').on(table.created_at),
   ],
 );
 
 // Define relations
 export const matterNotesRelations = relations(matterNotes, ({ one }) => ({
   matter: one(matters, {
-    fields: [matterNotes.matterId],
+    fields: [matterNotes.matter_id],
     references: [matters.id],
   }),
   user: one(users, {
-    fields: [matterNotes.userId],
+    fields: [matterNotes.user_id],
     references: [users.id],
   }),
 }));
