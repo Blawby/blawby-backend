@@ -26,7 +26,7 @@ export const findMatterById = async (
   const [matter] = await db
     .select()
     .from(matters)
-    .where(and(eq(matters.id, id), isNull(matters.deletedAt)))
+    .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
     .limit(1);
   return matter;
 };
@@ -48,9 +48,9 @@ export const listMattersByOrganization = async (
   organizationId: string,
   filters?: {
     status?: string;
-    practiceAreaId?: string;
-    customerId?: string;
-    assigneeId?: string;
+    practice_area_id?: string;
+    customer_id?: string;
+    assignee_id?: string;
     search?: string;
     page?: number;
     limit?: number;
@@ -61,20 +61,20 @@ export const listMattersByOrganization = async (
   const offset = (page - 1) * limit;
 
   let conditions = [
-    eq(matters.organizationId, organizationId),
-    isNull(matters.deletedAt),
+    eq(matters.organization_id, organizationId),
+    isNull(matters.deleted_at),
   ];
 
   if (filters?.status) {
     conditions.push(eq(matters.status, filters.status));
   }
 
-  if (filters?.practiceAreaId) {
-    conditions.push(eq(matters.practiceAreaId, filters.practiceAreaId));
+  if (filters?.practice_area_id) {
+    conditions.push(eq(matters.practice_area_id, filters.practice_area_id));
   }
 
-  if (filters?.customerId) {
-    conditions.push(eq(matters.customerId, filters.customerId));
+  if (filters?.customer_id) {
+    conditions.push(eq(matters.customer_id, filters.customer_id));
   }
 
   if (filters?.search) {
@@ -86,37 +86,38 @@ export const listMattersByOrganization = async (
   let results: SelectMatter[];
 
   // Handle assignee filter separately with join
-  if (filters?.assigneeId) {
+  if (filters?.assignee_id) {
     results = await db
       .select({
         id: matters.id,
-        organizationId: matters.organizationId,
-        customerId: matters.customerId,
+        organization_id: matters.organization_id,
+        customer_id: matters.customer_id,
+        practice_client_id: matters.practice_client_id, // Added
         title: matters.title,
         description: matters.description,
-        billingType: matters.billingType,
-        totalFixedPrice: matters.totalFixedPrice,
-        contingencyPercentage: matters.contingencyPercentage,
-        settlementAmount: matters.settlementAmount,
-        practiceAreaId: matters.practiceAreaId,
-        adminHourlyRate: matters.adminHourlyRate,
-        attorneyHourlyRate: matters.attorneyHourlyRate,
-        paymentFrequency: matters.paymentFrequency,
+        billing_type: matters.billing_type,
+        total_fixed_price: matters.total_fixed_price,
+        contingency_percentage: matters.contingency_percentage,
+        settlement_amount: matters.settlement_amount,
+        practice_area_id: matters.practice_area_id,
+        admin_hourly_rate: matters.admin_hourly_rate,
+        attorney_hourly_rate: matters.attorney_hourly_rate,
+        payment_frequency: matters.payment_frequency,
         status: matters.status,
-        deletedAt: matters.deletedAt,
-        deletedBy: matters.deletedBy,
-        createdAt: matters.createdAt,
-        updatedAt: matters.updatedAt,
+        deleted_at: matters.deleted_at,
+        deleted_by: matters.deleted_by,
+        created_at: matters.created_at,
+        updated_at: matters.updated_at,
       })
       .from(matters)
-      .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matterId))
+      .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
       .where(
         and(
           ...conditions,
-          eq(matterAssignees.userId, filters.assigneeId),
+          eq(matterAssignees.user_id, filters.assignee_id),
         ),
       )
-      .orderBy(desc(matters.createdAt))
+      .orderBy(desc(matters.created_at))
       .limit(limit)
       .offset(offset);
   } else {
@@ -124,7 +125,7 @@ export const listMattersByOrganization = async (
       .select()
       .from(matters)
       .where(and(...conditions))
-      .orderBy(desc(matters.createdAt))
+      .orderBy(desc(matters.created_at))
       .limit(limit)
       .offset(offset);
   }
@@ -148,8 +149,8 @@ export const updateMatter = async (
 ): Promise<SelectMatter | undefined> => {
   const [matter] = await db
     .update(matters)
-    .set({ ...data, updatedAt: new Date() })
-    .where(and(eq(matters.id, id), isNull(matters.deletedAt)))
+    .set({ ...data, updated_at: new Date() })
+    .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
     .returning();
   return matter;
 };
@@ -162,11 +163,11 @@ export const softDeleteMatter = async (
   const [matter] = await db
     .update(matters)
     .set({
-      deletedAt: new Date(),
-      deletedBy,
-      updatedAt: new Date(),
+      deleted_at: new Date(),
+      deleted_by: deletedBy,
+      updated_at: new Date(),
     })
-    .where(and(eq(matters.id, id), isNull(matters.deletedAt)))
+    .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
     .returning();
   return matter;
 };
@@ -186,7 +187,7 @@ export const getMatterCountsByStatus = async (
       count: sql<number>`count(*)`,
     })
     .from(matters)
-    .where(and(eq(matters.organizationId, organizationId), isNull(matters.deletedAt)))
+    .where(and(eq(matters.organization_id, organizationId), isNull(matters.deleted_at)))
     .groupBy(matters.status);
 };
 
@@ -199,8 +200,8 @@ export const addMatterAssignees = async (
 
   await db.insert(matterAssignees).values(
     userIds.map((userId) => ({
-      matterId,
-      userId,
+      matter_id: matterId,
+      user_id: userId,
     })),
   ).onConflictDoNothing();
 };
@@ -216,8 +217,8 @@ export const removeMatterAssignees = async (
     .delete(matterAssignees)
     .where(
       and(
-        eq(matterAssignees.matterId, matterId),
-        inArray(matterAssignees.userId, userIds),
+        eq(matterAssignees.matter_id, matterId),
+        inArray(matterAssignees.user_id, userIds),
       ),
     );
 };
@@ -234,13 +235,13 @@ export const getMatterAssignees = async (
       image: users.image,
     })
     .from(matterAssignees)
-    .innerJoin(users, eq(matterAssignees.userId, users.id))
-    .where(eq(matterAssignees.matterId, matterId));
+    .innerJoin(users, eq(matterAssignees.user_id, users.id))
+    .where(eq(matterAssignees.matter_id, matterId));
 
   return results as typeof users.$inferSelect[];
 };
 
 // Clear all assignees from matter
 export const clearMatterAssignees = async (matterId: string): Promise<void> => {
-  await db.delete(matterAssignees).where(eq(matterAssignees.matterId, matterId));
+  await db.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };

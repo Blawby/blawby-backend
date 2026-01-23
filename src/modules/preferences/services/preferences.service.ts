@@ -72,7 +72,7 @@ export const preferencesService = {
       const result = await db
         .select()
         .from(preferences)
-        .where(eq(preferences.userId, userId))
+        .where(eq(preferences.user_id, userId))
         .limit(1);
 
       if (!result[0]) {
@@ -110,7 +110,7 @@ export const preferencesService = {
           [category]: preferences[category],
         })
         .from(preferences)
-        .where(eq(preferences.userId, userId))
+        .where(eq(preferences.user_id, userId))
         .limit(1);
 
       if (!result[0]) {
@@ -168,9 +168,9 @@ export const preferencesService = {
         .update(preferences)
         .set({
           [category]: dataToUpdate,
-          updatedAt: new Date(),
+          updated_at: new Date(),
         })
-        .where(eq(preferences.userId, userId))
+        .where(eq(preferences.user_id, userId))
         .returning({
           [category]: preferences[category],
         });
@@ -208,7 +208,7 @@ export const preferencesService = {
       const existing = await db
         .select()
         .from(preferences)
-        .where(eq(preferences.userId, userId))
+        .where(eq(preferences.user_id, userId))
         .limit(1);
 
       if (existing[0]) {
@@ -218,7 +218,7 @@ export const preferencesService = {
       const [inserted] = await db
         .insert(preferences)
         .values({
-          userId,
+          user_id: userId,
           notifications: DEFAULT_NOTIFICATION_PREFERENCES,
           general: {},
           security: {},

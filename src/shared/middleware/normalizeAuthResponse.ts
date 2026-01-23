@@ -9,7 +9,37 @@
 
 import type { MiddlewareHandler } from 'hono';
 
-import { toSnakeCase } from '@/shared/utils/responseUtils';
+import { snakeCase } from 'es-toolkit/compat';
+
+/**
+ * Recursively converts object keys from camelCase to snake_case
+ * Local implementation to avoid global overhead in other parts of the app
+ */
+const toSnakeCase = (obj: unknown): unknown => {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  // Handle Date objects - return as-is (will be serialized to ISO string by JSON.stringify)
+  if (obj instanceof Date) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(toSnakeCase);
+  }
+
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const snakeKey = snakeCase(key);
+      result[snakeKey] = toSnakeCase(value);
+    }
+    return result;
+  }
+
+  return obj;
+};
 
 /**
  * Normalizes Better Auth error response to standard format

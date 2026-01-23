@@ -30,7 +30,7 @@ export const createMatter = async (
   await getFullOrganization(organizationId, user, requestHeaders);
 
   // Extract assignees and milestones from data
-  const { assigneeIds, milestones, ...matterData } = data;
+  const { assignee_ids, milestones, ...matterData } = data;
 
   // Create matter in transaction
   return await db.transaction(async (tx) => {
@@ -38,23 +38,23 @@ export const createMatter = async (
     const [matter] = await tx
       .insert(matters)
       .values({
-        organizationId,
+        organization_id: organizationId,
         ...matterData,
       })
       .returning();
 
     // Add assignees if provided
-    if (assigneeIds && assigneeIds.length > 0) {
-      await mattersQueries.addMatterAssignees(matter.id, assigneeIds);
+    if (assignee_ids && assignee_ids.length > 0) {
+      await mattersQueries.addMatterAssignees(matter.id, assignee_ids);
     }
 
     if (milestones && milestones.length > 0) {
       await milestonesQueries.createMatterMilestones(
         milestones.map((m: any) => ({
-          matterId: matter.id,
+          matter_id: matter.id,
           description: m.description,
           amount: m.amount,
-          dueDate: typeof m.dueDate === 'string' ? m.dueDate : m.dueDate.toISOString().split('T')[0],
+          due_date: typeof m.due_date === 'string' ? m.due_date : m.due_date.toISOString().split('T')[0],
           order: m.order,
           status: 'pending' as const,
         })),
@@ -67,7 +67,7 @@ export const createMatter = async (
       ActivityAction.MATTER_CREATED,
       `Matter "${matter.title}" was created`,
       user.id,
-      { billingType: matter.billingType, status: matter.status },
+      { billing_type: matter.billing_type, status: matter.status },
     );
 
     return matter;
@@ -88,7 +88,7 @@ export const getMatterById = async (
 
   const matter = await mattersQueries.findMatterById(matterId);
 
-  if (!matter || matter.organizationId !== organizationId) {
+  if (!matter || matter.organization_id !== organizationId) {
     throw new Error('Matter not found');
   }
 
@@ -134,7 +134,7 @@ export const updateMatter = async (
   const existingMatter = await getMatterById(organizationId, matterId, user, requestHeaders);
 
   // Extract assignees from data
-  const { assigneeIds, ...matterData } = data;
+  const { assignee_ids, ...matterData } = data;
 
   return await db.transaction(async (tx) => {
     // Update the matter
@@ -145,11 +145,11 @@ export const updateMatter = async (
     }
 
     // Update assignees if provided
-    if (assigneeIds !== undefined) {
+    if (assignee_ids !== undefined) {
       // Clear existing assignees and add new ones
       await mattersQueries.clearMatterAssignees(matterId);
-      if (assigneeIds.length > 0) {
-        await mattersQueries.addMatterAssignees(matterId, assigneeIds);
+      if (assignee_ids.length > 0) {
+        await mattersQueries.addMatterAssignees(matterId, assignee_ids);
       }
     }
 

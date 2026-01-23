@@ -3,7 +3,7 @@ import type { ErrorHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import type { AppError } from '@/shared/types/result';
-import { toSnakeCase } from '@/shared/utils/responseUtils';
+import { response } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['app', 'error-handler']);
 
@@ -39,10 +39,10 @@ export const errorHandler: ErrorHandler = (error, c) => {
     }
   );
 
-  return c.json(toSnakeCase({
+  return c.json({
     error: code,
     message: status === 500 ? 'An unexpected error occurred' : message,
     details: appError.details,
     request_id: requestId,
-  }), status as ContentfulStatusCode);
+  }, status as ContentfulStatusCode);
 };

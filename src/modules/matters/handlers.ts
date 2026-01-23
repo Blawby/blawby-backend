@@ -71,7 +71,7 @@ export const createMatterHandler: AppRouteHandler<typeof createMatterRoute> = as
     organizationId,
     {
       ...validatedBody,
-      customerId: validatedBody.customerId as string,
+      customer_id: validatedBody.customer_id as string,
     },
     user,
     c.req.header(),

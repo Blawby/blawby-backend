@@ -29,7 +29,7 @@ export const uploadsRepository = {
     const [result] = await db
       .select()
       .from(uploads)
-      .where(eq(uploads.storageKey, storageKey))
+      .where(eq(uploads.storage_key, storageKey))
       .limit(1);
     return result;
   },
@@ -61,18 +61,18 @@ export const uploadsRepository = {
       offset?: number;
     },
   ): Promise<SelectUpload[]> {
-    const conditions = [eq(uploads.organizationId, organizationId)];
+    const conditions = [eq(uploads.organization_id, organizationId)];
 
     if (options?.matterId) {
-      conditions.push(eq(uploads.matterId, options.matterId));
+      conditions.push(eq(uploads.matter_id, options.matterId));
     }
 
     if (options?.uploadContext) {
-      conditions.push(eq(uploads.uploadContext, options.uploadContext));
+      conditions.push(eq(uploads.upload_context, options.uploadContext));
     }
 
     if (options?.entityId) {
-      conditions.push(eq(uploads.entityId, options.entityId));
+      conditions.push(eq(uploads.entity_id, options.entityId));
     }
 
     if (options?.status) {
@@ -80,7 +80,7 @@ export const uploadsRepository = {
     }
 
     if (!options?.includeDeleted) {
-      conditions.push(isNull(uploads.deletedAt));
+      conditions.push(isNull(uploads.deleted_at));
     }
 
     const limit = options?.limit ?? 100;
@@ -90,7 +90,7 @@ export const uploadsRepository = {
       .select()
       .from(uploads)
       .where(and(...conditions))
-      .orderBy(desc(uploads.createdAt))
+      .orderBy(desc(uploads.created_at))
       .limit(limit)
       .offset(offset);
   },
@@ -105,18 +105,18 @@ export const uploadsRepository = {
       includeDeleted?: boolean;
     },
   ): Promise<number> {
-    const conditions = [eq(uploads.organizationId, organizationId)];
+    const conditions = [eq(uploads.organization_id, organizationId)];
 
     if (options?.matterId) {
-      conditions.push(eq(uploads.matterId, options.matterId));
+      conditions.push(eq(uploads.matter_id, options.matterId));
     }
 
     if (options?.uploadContext) {
-      conditions.push(eq(uploads.uploadContext, options.uploadContext));
+      conditions.push(eq(uploads.upload_context, options.uploadContext));
     }
 
     if (options?.entityId) {
-      conditions.push(eq(uploads.entityId, options.entityId));
+      conditions.push(eq(uploads.entity_id, options.entityId));
     }
 
     if (options?.status) {
@@ -124,7 +124,7 @@ export const uploadsRepository = {
     }
 
     if (!options?.includeDeleted) {
-      conditions.push(isNull(uploads.deletedAt));
+      conditions.push(isNull(uploads.deleted_at));
     }
 
     const [result] = await db
@@ -143,10 +143,10 @@ export const uploadsRepository = {
       offset?: number;
     },
   ): Promise<SelectUpload[]> {
-    const conditions = [eq(uploads.matterId, matterId)];
+    const conditions = [eq(uploads.matter_id, matterId)];
 
     if (!options?.includeDeleted) {
-      conditions.push(isNull(uploads.deletedAt));
+      conditions.push(isNull(uploads.deleted_at));
     }
 
     const limit = options?.limit ?? 100;
@@ -156,7 +156,7 @@ export const uploadsRepository = {
       .select()
       .from(uploads)
       .where(and(...conditions))
-      .orderBy(desc(uploads.createdAt))
+      .orderBy(desc(uploads.created_at))
       .limit(limit)
       .offset(offset);
   },
@@ -169,9 +169,9 @@ export const uploadsRepository = {
     const [updated] = await db
       .update(uploads)
       .set({
-        deletedAt: new Date(),
-        deletedBy,
-        deletionReason: reason,
+        deleted_at: new Date(),
+        deleted_by: deletedBy,
+        deletion_reason: reason,
       })
       .where(eq(uploads.id, id))
       .returning();
@@ -185,9 +185,9 @@ export const uploadsRepository = {
     const [updated] = await db
       .update(uploads)
       .set({
-        deletedAt: null,
-        deletedBy: null,
-        deletionReason: null,
+        deleted_at: null,
+        deleted_by: null,
+        deletion_reason: null,
       })
       .where(eq(uploads.id, id))
       .returning();
@@ -201,8 +201,8 @@ export const uploadsRepository = {
     const [updated] = await db
       .update(uploads)
       .set({
-        lastAccessedAt: new Date(),
-        lastAccessedBy: userId,
+        last_accessed_at: new Date(),
+        last_accessed_by: userId,
       })
       .where(eq(uploads.id, id))
       .returning();
@@ -221,8 +221,8 @@ export const uploadsRepository = {
       .where(
         and(
           eq(uploads.status, 'pending'),
-          isNotNull(uploads.expiresAt),
-          lte(uploads.expiresAt, beforeDate),
+          isNotNull(uploads.expires_at),
+          lte(uploads.expires_at, beforeDate),
         ),
       );
   },
@@ -235,9 +235,9 @@ export const uploadsRepository = {
       .from(uploads)
       .where(
         and(
-          isNotNull(uploads.retentionUntil),
-          lte(uploads.retentionUntil, beforeDate),
-          isNull(uploads.deletedAt),
+          isNotNull(uploads.retention_until),
+          lte(uploads.retention_until, beforeDate),
+          isNull(uploads.deleted_at),
         ),
       );
   },

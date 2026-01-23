@@ -3,7 +3,7 @@ import { response } from '@/shared/utils/responseUtils';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
 import { getDownloadUrlRoute } from '@/modules/uploads/routes';
 
-export const getDownloadUrlHandler: AppRouteHandler<typeof getDownloadUrlRoute> = async (c) => {
+export const downloadHandler: AppRouteHandler<typeof getDownloadUrlRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const userId = c.get('userId');
   const ipAddress = c.req.header('x-forwarded-for') || c.req.header('remote-addr');

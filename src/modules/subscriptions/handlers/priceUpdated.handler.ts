@@ -31,12 +31,12 @@ export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => 
     // Update the plan with the new price amount
     const updates: Record<string, unknown> = {};
 
-    if (plan.stripeMonthlyPriceId === price.id) {
-      updates.monthlyPrice = price.unit_amount ? (price.unit_amount / 100).toString() : null;
+    if (plan.stripe_monthly_price_id === price.id) {
+      updates.monthly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     }
 
-    if (plan.stripeYearlyPriceId === price.id) {
-      updates.yearlyPrice = price.unit_amount ? (price.unit_amount / 100).toString() : null;
+    if (plan.stripe_yearly_price_id === price.id) {
+      updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     }
 
     // Update currency if changed
@@ -47,10 +47,10 @@ export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => 
     // Update active status
     if (price.active !== undefined) {
       // If this is the only price and it's deactivated, deactivate the plan
-      if (!price.active && plan.stripeMonthlyPriceId === price.id && !plan.stripeYearlyPriceId) {
-        updates.isActive = false;
-      } else if (!price.active && plan.stripeYearlyPriceId === price.id && !plan.stripeMonthlyPriceId) {
-        updates.isActive = false;
+      if (!price.active && plan.stripe_monthly_price_id === price.id && !plan.stripe_yearly_price_id) {
+        updates.is_active = false;
+      } else if (!price.active && plan.stripe_yearly_price_id === price.id && !plan.stripe_monthly_price_id) {
+        updates.is_active = false;
       }
     }
 

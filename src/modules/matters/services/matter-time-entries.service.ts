@@ -34,15 +34,15 @@ export const createMatterTimeEntry = async (
   // Verify user has access to matter
   await getMatterById(organizationId, matterId, user, requestHeaders);
 
-  const startTime = new Date(data.startTime);
-  const endTime = new Date(data.endTime);
+  const startTime = new Date(data.start_time);
+  const endTime = new Date(data.end_time);
   const duration = calculateDuration(startTime, endTime);
 
   const entry = await timeEntriesQueries.createMatterTimeEntry({
-    matterId,
-    userId: user.id,
-    startTime,
-    endTime,
+    matter_id: matterId,
+    user_id: user.id,
+    start_time: startTime,
+    end_time: endTime,
     duration,
     description: data.description,
     billable: data.billable,
@@ -98,20 +98,20 @@ export const updateMatterTimeEntry = async (
 
   // Verify entry exists and belongs to matter
   const entry: SelectMatterTimeEntry | undefined = await timeEntriesQueries.findMatterTimeEntryById(entryId);
-  if (!entry || entry.matterId !== matterId) {
+  if (!entry || entry.matter_id !== matterId) {
     throw new Error('Time entry not found');
   }
 
   // Recalculate duration if times changed
-  const startTime = data.startTime ? new Date(data.startTime) : entry.startTime;
-  const endTime = data.endTime ? new Date(data.endTime) : entry.endTime;
+  const startTime = data.start_time ? new Date(data.start_time) : entry.start_time;
+  const endTime = data.end_time ? new Date(data.end_time) : entry.end_time;
 
   const updateData: Parameters<typeof timeEntriesQueries.updateMatterTimeEntry>[1] = {
-    ...(data.startTime && { startTime }),
-    ...(data.endTime && { endTime }),
+    ...(data.start_time && { start_time: startTime }),
+    ...(data.end_time && { end_time: endTime }),
     ...(data.description !== undefined && { description: data.description }),
     ...(data.billable !== undefined && { billable: data.billable }),
-    ...((data.startTime || data.endTime) && { duration: calculateDuration(startTime, endTime) }),
+    ...((data.start_time || data.end_time) && { duration: calculateDuration(startTime, endTime) }),
   };
 
   const updated = await timeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
@@ -142,7 +142,7 @@ export const deleteMatterTimeEntry = async (
 
   // Verify entry exists and belongs to matter
   const entry = await timeEntriesQueries.findMatterTimeEntryById(entryId);
-  if (!entry || entry.matterId !== matterId) {
+  if (!entry || entry.matter_id !== matterId) {
     throw new Error('Time entry not found');
   }
 

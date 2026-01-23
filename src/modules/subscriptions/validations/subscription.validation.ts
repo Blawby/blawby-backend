@@ -4,9 +4,9 @@ import { z } from '@hono/zod-openapi';
  * Subscription ID parameter schema
  */
 const subscriptionIdParamSchema = z.object({
-  subscriptionId: z.uuid().openapi({
+  subscription_id: z.uuid().openapi({
     param: {
-      name: 'subscriptionId',
+      name: 'subscription_id',
       in: 'path',
     },
     description: 'Subscription ID (UUID)',
@@ -18,7 +18,7 @@ const subscriptionIdParamSchema = z.object({
  * Create subscription request schema
  */
 const createSubscriptionSchema = z.object({
-  planId: z.uuid().openapi({
+  plan_id: z.uuid().openapi({
     description: 'Plan ID (UUID) - Required. The UUID of the subscription plan from the database.',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
@@ -26,15 +26,15 @@ const createSubscriptionSchema = z.object({
     description: 'Plan name (optional) - Used as fallback if planId lookup fails. Example: "starter", "professional", "enterprise"',
     example: 'professional',
   }),
-  successUrl: z.url().optional().openapi({
+  success_url: z.url().optional().openapi({
     description: 'URL to redirect after successful subscription',
     example: 'https://app.example.com/dashboard',
   }),
-  cancelUrl: z.url().optional().openapi({
+  cancel_url: z.url().optional().openapi({
     description: 'URL to redirect if subscription is cancelled',
     example: 'https://app.example.com/pricing',
   }),
-  disableRedirect: z.boolean().optional().default(false).openapi({
+  disable_redirect: z.boolean().optional().default(false).openapi({
     description: 'Disable redirect and return checkout URL in response',
     example: false,
   }),
@@ -52,7 +52,7 @@ const cancelSubscriptionSchema = z.object({
     description: 'Reason for cancellation',
     example: 'Switching to a different plan',
   }),
-  returnUrl: z.string().optional().openapi({
+  return_url: z.string().optional().openapi({
     description: 'URL to redirect to after cancellation (for Stripe Billing Portal)',
     example: '/dashboard',
   }),
@@ -64,13 +64,13 @@ const cancelSubscriptionSchema = z.object({
 const subscriptionPlanResponseSchema = z.object({
   id: z.uuid(),
   name: z.string(),
-  displayName: z.string(),
+  display_name: z.string(),
   description: z.string().nullable(),
-  stripeProductId: z.string(),
-  stripeMonthlyPriceId: z.string().nullable(),
-  stripeYearlyPriceId: z.string().nullable(),
-  monthlyPrice: z.string().nullable(),
-  yearlyPrice: z.string().nullable(),
+  stripe_product_id: z.string(),
+  stripe_monthly_price_id: z.string().nullable(),
+  stripe_yearly_price_id: z.string().nullable(),
+  monthly_price: z.string().nullable(),
+  yearly_price: z.string().nullable(),
   currency: z.string(),
   features: z.array(z.string()),
   limits: z.object({
@@ -78,11 +78,11 @@ const subscriptionPlanResponseSchema = z.object({
     invoices_per_month: z.number(),
     storage_gb: z.number(),
   }),
-  isActive: z.boolean(),
-  isPublic: z.boolean(),
-  sortOrder: z.number(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  is_active: z.boolean(),
+  is_public: z.boolean(),
+  sort_order: z.number(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 
 /**
@@ -90,40 +90,40 @@ const subscriptionPlanResponseSchema = z.object({
  */
 const subscriptionResponseSchema = z.object({
   id: z.uuid(),
-  referenceId: z.string().nullable(),
-  stripeCustomerId: z.string().nullable(),
-  stripeSubscriptionId: z.string().nullable(),
+  reference_id: z.string().nullable(),
+  stripe_customer_id: z.string().nullable(),
+  stripe_subscription_id: z.string().nullable(),
   status: z.string(),
   plan: subscriptionPlanResponseSchema.nullable(),
-  currentPeriodStart: z.iso.datetime().nullable(),
-  currentPeriodEnd: z.iso.datetime().nullable(),
-  cancelAtPeriodEnd: z.boolean(),
-  canceledAt: z.iso.datetime().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  current_period_start: z.string().nullable(),
+  current_period_end: z.string().nullable(),
+  cancel_at_period_end: z.boolean(),
+  canceled_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 
 /**
  * Subscription with details response schema
  */
 const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.extend({
-  lineItems: z.array(
+  line_items: z.array(
     z.object({
       id: z.uuid(),
-      stripePriceId: z.string(),
-      itemType: z.string(),
+      stripe_price_id: z.string(),
+      item_type: z.string(),
       quantity: z.number(),
-      unitAmount: z.string().nullable(),
+      unit_amount: z.string().nullable(),
       description: z.string().nullable(),
     }),
   ),
   events: z.array(
     z.object({
       id: z.uuid(),
-      eventType: z.string(),
-      toStatus: z.string().nullable(),
-      triggeredByType: z.string(),
-      createdAt: z.iso.datetime(),
+      event_type: z.string(),
+      to_status: z.string().nullable(),
+      triggered_by_type: z.string(),
+      created_at: z.string(),
     }),
   ),
 });
@@ -146,8 +146,8 @@ const getCurrentSubscriptionResponseSchema = z.object({
  * Create subscription response schema
  */
 const createSubscriptionResponseSchema = z.object({
-  subscriptionId: z.uuid().optional(),
-  checkoutUrl: z.url().optional(),
+  subscription_id: z.uuid().optional(),
+  checkout_url: z.url().optional(),
   message: z.string(),
 });
 

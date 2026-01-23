@@ -25,7 +25,7 @@ export const createPracticeArea = async (
   await getFullOrganization(organizationId, user, requestHeaders);
 
   return await practiceAreasQueries.createPracticeArea({
-    organizationId,
+    organization_id: organizationId,
     ...data,
   });
 };
@@ -44,7 +44,7 @@ export const getPracticeAreaById = async (
 
   const practiceArea = await practiceAreasQueries.findPracticeAreaById(practiceAreaId);
 
-  if (!practiceArea || practiceArea.organizationId !== organizationId) {
+  if (!practiceArea || practiceArea.organization_id !== organizationId) {
     throw new Error('Practice area not found');
   }
 

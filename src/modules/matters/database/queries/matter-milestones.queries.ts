@@ -48,8 +48,8 @@ export const listMatterMilestones = async (
   return await db
     .select()
     .from(matterMilestones)
-    .where(eq(matterMilestones.matterId, matterId))
-    .orderBy(asc(matterMilestones.order), asc(matterMilestones.dueDate));
+    .where(eq(matterMilestones.matter_id, matterId))
+    .orderBy(asc(matterMilestones.order), asc(matterMilestones.due_date));
 };
 
 // Update matter milestone
@@ -59,7 +59,7 @@ export const updateMatterMilestone = async (
 ): Promise<SelectMatterMilestone | undefined> => {
   const [milestone] = await db
     .update(matterMilestones)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, updated_at: new Date() })
     .where(eq(matterMilestones.id, id))
     .returning();
   return milestone;
@@ -80,7 +80,7 @@ export const reorderMilestones = async (
     for (const update of updates) {
       await tx
         .update(matterMilestones)
-        .set({ order: update.order, updatedAt: new Date() })
+        .set({ order: update.order, updated_at: new Date() })
         .where(eq(matterMilestones.id, update.id));
     }
   });
@@ -109,7 +109,7 @@ export const getMilestoneStats = async (
       completedAmount: sql<number>`COALESCE(SUM(CASE WHEN ${matterMilestones.status} = 'completed' THEN ${matterMilestones.amount} ELSE 0 END), 0)`,
     })
     .from(matterMilestones)
-    .where(eq(matterMilestones.matterId, matterId));
+    .where(eq(matterMilestones.matter_id, matterId));
 
   return {
     total: Number(stats.total),

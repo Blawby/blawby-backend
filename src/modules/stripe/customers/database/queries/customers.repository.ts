@@ -42,7 +42,7 @@ export const customersRepository = {
     const [result] = await db
       .select()
       .from(preferences)
-      .where(eq(preferences.userId, userId))
+      .where(eq(preferences.user_id, userId))
       .limit(1);
     return result;
   },
@@ -92,7 +92,7 @@ export const customersRepository = {
     const [updated] = await db
       .update(preferences)
       .set(data)
-      .where(eq(preferences.userId, userId))
+      .where(eq(preferences.user_id, userId))
       .returning();
     return updated;
   },
@@ -107,9 +107,9 @@ export const customersRepository = {
     const [updated] = await db
       .update(preferences)
       .set({
-        productUsage,
+        product_usage: productUsage,
       })
-      .where(eq(preferences.userId, userId))
+      .where(eq(preferences.user_id, userId))
       .returning();
     return updated;
   },
@@ -122,7 +122,7 @@ export const customersRepository = {
   ): Promise<string[]> {
     // Get users that don't have customer details
     const usersWithoutCustomer = await db
-      .select({ userId: preferences.userId })
+      .select({ userId: preferences.user_id })
       .from(preferences)
       .limit(limit);
 
@@ -150,7 +150,7 @@ export const customersRepository = {
   ): Promise<void> {
     await db
       .delete(preferences)
-      .where(eq(preferences.userId, userId));
+      .where(eq(preferences.user_id, userId));
   },
 
   /**
@@ -163,7 +163,7 @@ export const customersRepository = {
     return await db
       .select()
       .from(preferences)
-      .orderBy(desc(preferences.createdAt))
+      .orderBy(desc(preferences.created_at))
       .limit(limit)
       .offset(offset);
   },

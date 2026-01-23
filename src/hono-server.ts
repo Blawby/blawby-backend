@@ -22,7 +22,7 @@ const server = serve({
   console.log(`🔥 Hono server running on http://${displayHost}:${info.port}`);
   console.log(`📚 API Docs: http://${displayHost}:${info.port}/docs`);
   if (host === '0.0.0.0') {
-    console.log('🌐 Server listening on all interfaces (accessible via ngrok)');
+    console.log('🌐 Server listening on all interfaces');
   }
 });
 

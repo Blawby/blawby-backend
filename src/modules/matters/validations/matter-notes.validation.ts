@@ -17,11 +17,11 @@ const matterNoteIdParamSchema = z.object({
 
 const matterNoteSchema = z.object({
   id: z.uuid(),
-  matterId: z.uuid(),
-  userId: z.uuid(),
+  matter_id: z.uuid(),
+  user_id: z.uuid(),
   content: z.string(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 }).openapi('MatterNote');
 
 

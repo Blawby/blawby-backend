@@ -27,8 +27,8 @@ export const createMatterExpense = async (
   await getMatterById(organizationId, matterId, user, requestHeaders);
 
   const expense = await expensesQueries.createMatterExpense({
-    matterId,
-    userId: user.id,
+    matter_id: matterId,
+    user_id: user.id,
     description: data.description,
     amount: data.amount,
     date: data.date,
@@ -84,7 +84,7 @@ export const updateMatterExpense = async (
 
   // Verify expense exists and belongs to matter
   const expense = await expensesQueries.findMatterExpenseById(expenseId);
-  if (!expense || expense.matterId !== matterId) {
+  if (!expense || expense.matter_id !== matterId) {
     throw new Error('Expense not found');
   }
 
@@ -122,7 +122,7 @@ export const deleteMatterExpense = async (
 
   // Verify expense exists and belongs to matter
   const expense = await expensesQueries.findMatterExpenseById(expenseId);
-  if (!expense || expense.matterId !== matterId) {
+  if (!expense || expense.matter_id !== matterId) {
     throw new Error('Expense not found');
   }
 

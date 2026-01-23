@@ -5,7 +5,7 @@ import { uuidValidator } from '@/shared/validations/common';
 const createMatterMilestoneSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   amount: z.number().min(0, 'Amount must be non-negative'),
-  dueDate: z.string(),
+  due_date: z.string(),
   status: z.enum(['pending', 'in_progress', 'completed', 'overdue']).default('pending'),
   order: z.number().int().min(0).default(0),
 });
@@ -13,7 +13,7 @@ const createMatterMilestoneSchema = z.object({
 const updateMatterMilestoneSchema = z.object({
   description: z.string().min(1).optional(),
   amount: z.number().min(0).optional(),
-  dueDate: z.string().optional(),
+  due_date: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'completed', 'overdue']).optional(),
   order: z.number().int().min(0).optional(),
 }).refine(
@@ -35,14 +35,14 @@ const matterMilestoneIdParamSchema = z.object({
 
 const milestoneSchema = z.object({
   id: z.uuid(),
-  matterId: z.uuid(),
+  matter_id: z.uuid(),
   description: z.string(),
   amount: z.number().describe('Amount in cents'),
-  dueDate: z.string(),
+  due_date: z.string(),
   status: z.enum(['pending', 'in_progress', 'completed', 'overdue']),
   order: z.number(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 }).openapi('Milestone');
 
 

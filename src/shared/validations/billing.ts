@@ -7,7 +7,7 @@ export const createOnboardingSessionSchema = z.object({
     .string()
     .min(1, 'Organization name is required')
     .optional(),
-  organizationEmail: z.string().email('Invalid email format').optional(),
+  organizationEmail: z.email('Invalid email format').optional(),
   country: z
     .string()
     .min(2, 'Country code must be at least 2 characters')
@@ -24,7 +24,7 @@ export const createConnectedAccountSchema = z.object({
     .string()
     .min(2, 'Country code must be at least 2 characters')
     .optional(),
-  email: z.string().email('Invalid email format').optional(),
+  email: z.email('Invalid email format').optional(),
 });
 
 // Billing payment session schema
@@ -36,14 +36,14 @@ export const createPaymentSessionSchema = z.object({
     .length(3, 'Currency must be 3 characters')
     .default('usd'),
   description: z.string().optional(),
-  successUrl: z.string().url('Invalid success URL'),
-  cancelUrl: z.string().url('Invalid cancel URL'),
+  successUrl: z.url('Invalid success URL'),
+  cancelUrl: z.url('Invalid cancel URL'),
 });
 
 // Billing login link schema
 export const createLoginLinkSchema = z.object({
   organizationId: z.string().min(1, 'Organization ID is required'),
-  redirectUrl: z.string().url('Invalid redirect URL').optional(),
+  redirectUrl: z.url('Invalid redirect URL').optional(),
 });
 
 // Export inferred types
