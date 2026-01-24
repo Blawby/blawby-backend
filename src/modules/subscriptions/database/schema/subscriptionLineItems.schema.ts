@@ -34,38 +34,38 @@ export const subscriptionLineItems = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Link to Better Auth subscription
-    subscriptionId: text('subscription_id').notNull(),
+    subscription_id: text('subscription_id').notNull(),
 
     // Stripe IDs
-    stripeSubscriptionItemId: text('stripe_subscription_item_id').notNull().unique(),
-    stripePriceId: text('stripe_price_id').notNull(),
+    stripe_subscription_item_id: text('stripe_subscription_item_id').notNull().unique(),
+    stripe_price_id: text('stripe_price_id').notNull(),
 
     // Item details
-    itemType: text('item_type').$type<SubscriptionItemType>().notNull(),
+    item_type: text('item_type').$type<SubscriptionItemType>().notNull(),
     description: text('description'),
     quantity: integer('quantity').default(1).notNull(),
-    unitAmount: decimal('unit_amount', { precision: 10, scale: 2 }),
+    unit_amount: decimal('unit_amount', { precision: 10, scale: 2 }),
 
     // Additional metadata
     metadata: jsonb('metadata').$type<Record<string, string>>().default({}),
 
     // Timestamps
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    created_at: timestamp('created_at').defaultNow().notNull(),
+    updated_at: timestamp('updated_at')
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [
-    index('subscription_line_items_subscription_idx').on(table.subscriptionId),
-    index('subscription_line_items_stripe_item_idx').on(table.stripeSubscriptionItemId),
+    index('subscription_line_items_subscription_idx').on(table.subscription_id),
+    index('subscription_line_items_stripe_item_idx').on(table.stripe_subscription_item_id),
   ],
 );
 
 export const subscriptionLineItemsRelations = relations(subscriptionLineItems, ({ one }) => ({
   plan: one(subscriptionPlans, {
-    fields: [subscriptionLineItems.stripePriceId],
-    references: [subscriptionPlans.stripeMonthlyPriceId],
+    fields: [subscriptionLineItems.stripe_price_id],
+    references: [subscriptionPlans.stripe_monthly_price_id],
   }),
 }));
 

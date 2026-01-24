@@ -16,21 +16,21 @@ export const auditService = {
    * Create a new audit log entry
    */
   async createAuditLog(params: {
-    uploadId: string;
-    organizationId?: string;
+    upload_id: string;
+    organization_id?: string;
     action: AuditAction;
-    userId?: string;
-    ipAddress?: string;
-    userAgent?: string;
+    user_id?: string;
+    ip_address?: string;
+    user_agent?: string;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     const auditLog: InsertUploadAuditLog = {
-      uploadId: params.uploadId,
-      organizationId: params.organizationId,
+      upload_id: params.upload_id,
+      organization_id: params.organization_id,
       action: params.action,
-      userId: params.userId,
-      ipAddress: params.ipAddress,
-      userAgent: params.userAgent,
+      user_id: params.user_id,
+      ip_address: params.ip_address,
+      user_agent: params.user_agent,
       metadata: params.metadata || null,
     };
 

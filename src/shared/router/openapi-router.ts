@@ -33,11 +33,11 @@ export const createOpenApiApp = (): OpenAPIHono<AppContext> => {
   });
 
   // Configure OpenAPI security scheme
-  openApiApp.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'JWT',
-    description: 'Bearer token authentication. Get token from /api/auth/sign-in/email endpoint.',
+  openApiApp.openAPIRegistry.registerComponent('securitySchemes', 'cookieAuth', {
+    type: 'apiKey',
+    in: 'cookie',
+    name: 'better-auth.session-token',
+    description: 'Session cookie for authentication',
   });
 
   // Mount all OpenAPIHono modules with correct paths

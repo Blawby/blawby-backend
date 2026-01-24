@@ -4,10 +4,11 @@
  * Centralized application initialization
  */
 
-import { bootEventHandlers } from './event-handlers';
-import { bootServices } from './services';
-import { bootWorkers } from './workers';
+import { bootEventHandlers } from '@/boot/event-handlers';
+import { bootServices } from '@/boot/services';
+import { bootWorkers } from '@/boot/workers';
 import { initializeRateLimiter } from '@/shared/middleware/rateLimit';
+import { initializeLogging } from '@/shared/logging/config';
 
 /**
  * Core Boot
@@ -29,6 +30,9 @@ export const bootCore = (): void => {
  */
 export const bootApplication = async (): Promise<void> => {
   console.info('🚀 Starting application boot sequence...');
+
+  // 0. Initialize logging system
+  await initializeLogging();
 
   // 1. Core initialization (Services & Events)
   bootCore();

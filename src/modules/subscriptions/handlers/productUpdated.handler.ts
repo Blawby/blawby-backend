@@ -109,7 +109,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
 
     // Check if plan with this name already exists (but different product ID)
     const existingPlan = await subscriptionRepository.findPlanByName(db, planName);
-    if (existingPlan && existingPlan.stripeProductId !== product.id) {
+    if (existingPlan && existingPlan.stripe_product_id !== product.id) {
       // Append product ID suffix to make it unique
       planName = `${planName}_${product.id.slice(-8)}`;
     }
@@ -117,24 +117,24 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     // Prepare plan data
     const planData = {
       name: planName,
-      displayName: product.name,
+      display_name: product.name,
       description: product.description || null,
-      stripeProductId: product.id,
-      stripeMonthlyPriceId: monthlyPrice?.id || null,
-      stripeYearlyPriceId: yearlyPrice?.id || null,
-      monthlyPrice: monthlyPrice?.unit_amount
+      stripe_product_id: product.id,
+      stripe_monthly_price_id: monthlyPrice?.id || null,
+      stripe_yearly_price_id: yearlyPrice?.id || null,
+      monthly_price: monthlyPrice?.unit_amount
         ? (monthlyPrice.unit_amount / 100).toString()
         : null,
-      yearlyPrice: yearlyPrice?.unit_amount
+      yearly_price: yearlyPrice?.unit_amount
         ? (yearlyPrice.unit_amount / 100).toString()
         : null,
       currency: monthlyPrice?.currency || yearlyPrice?.currency || 'usd',
       features,
       limits,
-      meteredItems: [], // Preserve existing metered items
-      isActive: product.active,
-      isPublic: metadata.is_public !== 'false',
-      sortOrder: parseInt(metadata.sort_order || '0', 10),
+      metered_items: existingPlan?.metered_items || [], // Preserve existing metered items
+      is_active: product.active,
+      is_public: metadata.is_public !== 'false',
+      sort_order: parseInt(metadata.sort_order || '0', 10),
       metadata,
     };
 

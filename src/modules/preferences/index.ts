@@ -4,20 +4,13 @@
  * Exports for the preferences module
  */
 
-export { getAllPreferences, getCategoryPreferences, updateCategoryPreferences } from './handlers';
-export { preferencesService } from './services/preferences.service';
+export { getAllPreferences, getCategoryPreferences, updateCategoryPreferences } from '@/modules/preferences/handlers';
+export { preferencesService } from '@/modules/preferences/services/preferences.service';
 export {
-  generalPreferencesSchema,
-  notificationPreferencesSchema,
-  securityPreferencesSchema,
-  accountPreferencesSchema,
-  onboardingPreferencesSchema,
-  profilePreferencesSchema,
-  preferenceCategorySchema,
-  updateUserDetailsSchema,
-} from './validations/preferences.validation';
-export { config } from './routes.config';
+  preferenceValidations,
+} from '@/modules/preferences/validations/preferences.validation';
+export { config } from '@/modules/preferences/routes.config';
 
 // Legacy exports for backward compatibility
-export { getDetails, updateDetails } from './handlers';
-export { preferencesService as preferences } from './services/preferences.service';
+export { getDetails, updateDetails } from '@/modules/preferences/handlers';
+export { preferencesService as preferences } from '@/modules/preferences/services/preferences.service';

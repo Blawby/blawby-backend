@@ -4,8 +4,6 @@ import './boot/env';
 import { initializeLogging } from './shared/logging/config';
 import app from './hono-app';
 
-await initializeLogging();
-
 const port = Number(process.env.PORT ?? 3000);
 // Use '0.0.0.0' to listen on all network interfaces (required for ngrok/tunneling)
 const host = process.env.SERVER_HOSTNAME
@@ -22,7 +20,7 @@ const server = serve({
   console.log(`🔥 Hono server running on http://${displayHost}:${info.port}`);
   console.log(`📚 API Docs: http://${displayHost}:${info.port}/docs`);
   if (host === '0.0.0.0') {
-    console.log('🌐 Server listening on all interfaces (accessible via ngrok)');
+    console.log('🌐 Server listening on all interfaces');
   }
 });
 

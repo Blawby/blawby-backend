@@ -86,8 +86,8 @@ export const stripeCustomerService = {
 
         // Save preferences
         const customerDetails: InsertPreferences = {
-          userId: data.userId,
-          productUsage: data.productUsage,
+          user_id: data.userId,
+          product_usage: data.productUsage,
         };
 
         const [customer] = await tx
@@ -207,8 +207,8 @@ export const stripeCustomerService = {
         updated = await db.transaction(async (tx) => {
           const [customer] = await tx
             .update(preferences)
-            .set({ productUsage: updates.productUsage })
-            .where(eq(preferences.userId, userId))
+            .set({ product_usage: updates.productUsage })
+            .where(eq(preferences.user_id, userId))
             .returning();
 
           await publishEventTx(tx, {
@@ -296,7 +296,7 @@ export const stripeCustomerService = {
       }
 
       const needsUpdate =
-        stripeCustomer.metadata?.product_usage !== JSON.stringify(customer.productUsage || []);
+        stripeCustomer.metadata?.product_usage !== JSON.stringify(customer.product_usage || []);
 
       if (needsUpdate) {
         await this.updateCustomerDetails(userId, {
@@ -346,7 +346,7 @@ export const stripeCustomerService = {
           .set({ stripeCustomerId: null })
           .where(eq(users.id, userId));
 
-        await tx.delete(preferences).where(eq(preferences.userId, userId));
+        await tx.delete(preferences).where(eq(preferences.user_id, userId));
 
         await publishEventTx(tx, {
           type: EventType.STRIPE_CUSTOMER_DELETED,

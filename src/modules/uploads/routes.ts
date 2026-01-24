@@ -1,19 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
 import {
-  presignUploadSchema,
-  uploadIdParamSchema,
-  deleteUploadSchema,
-  listUploadsQuerySchema,
-  presignUploadResponseSchema,
-  confirmUploadResponseSchema,
-  uploadDetailsResponseSchema,
-  downloadUrlResponseSchema,
-  listUploadsResponseSchema,
-  auditLogResponseSchema,
-  errorResponseSchema,
-  notFoundResponseSchema,
-  internalServerErrorResponseSchema,
+  uploadValidations
 } from '@/modules/uploads/validations/uploads.validation';
 
 /**
@@ -46,7 +34,7 @@ export const presignUploadRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: presignUploadSchema,
+          schema: uploadValidations.presignUploadSchema,
         },
       },
     },
@@ -55,7 +43,7 @@ export const presignUploadRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: presignUploadResponseSchema,
+          schema: uploadValidations.presignUploadResponseSchema,
         },
       },
       description: 'Presigned URL generated successfully',
@@ -63,7 +51,7 @@ export const presignUploadRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - validation failed',
@@ -71,7 +59,7 @@ export const presignUploadRoute = createRoute({
     401: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Unauthorized',
@@ -79,7 +67,7 @@ export const presignUploadRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -104,7 +92,7 @@ export const confirmUploadRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: confirmUploadResponseSchema,
+          schema: uploadValidations.confirmUploadResponseSchema,
         },
       },
       description: 'Upload confirmed successfully',
@@ -112,7 +100,7 @@ export const confirmUploadRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - upload not found or already confirmed',
@@ -120,7 +108,7 @@ export const confirmUploadRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: uploadValidations.notFoundResponseSchema,
         },
       },
       description: 'Upload not found',
@@ -128,7 +116,7 @@ export const confirmUploadRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -153,7 +141,7 @@ export const getUploadRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: uploadDetailsResponseSchema,
+          schema: uploadValidations.uploadDetailsResponseSchema,
         },
       },
       description: 'Upload details retrieved successfully',
@@ -161,7 +149,7 @@ export const getUploadRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: uploadValidations.notFoundResponseSchema,
         },
       },
       description: 'Upload not found',
@@ -169,7 +157,7 @@ export const getUploadRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -194,7 +182,7 @@ export const getDownloadUrlRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: downloadUrlResponseSchema,
+          schema: uploadValidations.downloadUrlResponseSchema,
         },
       },
       description: 'Download URL generated successfully',
@@ -202,7 +190,7 @@ export const getDownloadUrlRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - upload not verified',
@@ -210,7 +198,7 @@ export const getDownloadUrlRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: uploadValidations.notFoundResponseSchema,
         },
       },
       description: 'Upload not found',
@@ -218,7 +206,7 @@ export const getDownloadUrlRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -241,7 +229,7 @@ export const deleteUploadRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: deleteUploadSchema,
+          schema: uploadValidations.deleteUploadSchema,
         },
       },
     },
@@ -260,7 +248,7 @@ export const deleteUploadRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - validation failed or upload already deleted',
@@ -268,7 +256,7 @@ export const deleteUploadRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: uploadValidations.notFoundResponseSchema,
         },
       },
       description: 'Upload not found',
@@ -276,7 +264,7 @@ export const deleteUploadRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -311,7 +299,7 @@ export const restoreUploadRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - upload not deleted',
@@ -319,7 +307,7 @@ export const restoreUploadRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: uploadValidations.notFoundResponseSchema,
         },
       },
       description: 'Upload not found',
@@ -327,7 +315,7 @@ export const restoreUploadRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -346,13 +334,13 @@ export const listUploadsRoute = createRoute({
   summary: 'List uploads',
   description: 'Lists uploads for the current organization with optional filters',
   request: {
-    query: listUploadsQuerySchema,
+    query: uploadValidations.listUploadsQuerySchema,
   },
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: listUploadsResponseSchema,
+          schema: uploadValidations.listUploadsResponseSchema,
         },
       },
       description: 'Uploads retrieved successfully',
@@ -360,7 +348,7 @@ export const listUploadsRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: uploadValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - validation failed',
@@ -368,7 +356,7 @@ export const listUploadsRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -393,7 +381,7 @@ export const getAuditLogRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: auditLogResponseSchema,
+          schema: uploadValidations.auditLogResponseSchema,
         },
       },
       description: 'Audit log retrieved successfully',
@@ -401,7 +389,7 @@ export const getAuditLogRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: uploadValidations.notFoundResponseSchema,
         },
       },
       description: 'Upload not found',
@@ -409,7 +397,7 @@ export const getAuditLogRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: uploadValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',

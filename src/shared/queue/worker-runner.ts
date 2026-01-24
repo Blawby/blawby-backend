@@ -13,12 +13,14 @@ interface WorkerOptions {
   name: string;
   taskList: TaskList;
   concurrency?: number;
+  crontab?: string;
 }
 
 /**
  * Run a worker with standardized boot and shutdown handling
  */
-export const runWorker = async ({ name, taskList, concurrency }: WorkerOptions): Promise<void> => {
+export const runWorker = async (options: WorkerOptions): Promise<void> => {
+  const { name, taskList, concurrency } = options;
   // 1. Ensure the application environment is ready (Events, Services, etc.)
   // This is the "Everything should be ready" part
   bootCore();
@@ -42,6 +44,7 @@ export const runWorker = async ({ name, taskList, concurrency }: WorkerOptions):
       taskList,
       concurrency: workerConcurrency,
       pollInterval: 1000,
+      crontab: options.crontab,
     });
 
     console.log(`✅ ${name} is ready and processing jobs.`);

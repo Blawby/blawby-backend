@@ -1,326 +1,120 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { z } from 'zod';
 import * as routes from '@/modules/practice/routes';
-import { invitationsService } from '@/modules/practice/services/invitations.service';
-import { membersService } from '@/modules/practice/services/members.service';
-import { practiceService } from '@/modules/practice/services/practice.service';
-import { practiceDetailsService } from '@/modules/practice/services/practice-details.service';
-import * as practiceValidations from '@/modules/practice/validations/practice.validation';
-import { validateParams, validateJson, validateParamsAndJson } from '@/shared/middleware/validation';
+import * as handlers from '@/modules/practice/handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
 
-const practiceApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const practiceApp = createHonoApp();
 
 /**
  * GET /api/practice/list
  * List all practices for the authenticated user
  */
-practiceApp.get('/list', async (c) => {
-  const user = c.get('user')!;
-  const result = await practiceService.listPractices(user, c.req.header());
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.listPracticesRoute, handlers.listPracticesHandler);
 
 /**
  * POST /api/practice
  * Create a new practice
  */
-practiceApp.post('/', validateJson(practiceValidations.createPracticeSchema, 'Invalid Practice Data'), async (c) => {
-  const user = c.get('user')!;
-  const validatedBody = c.get('validatedBody');
-
-  const result = await practiceService.createPractice({
-    data: validatedBody,
-    user,
-    requestHeaders: c.req.header(),
-  });
-  return response.fromResult(c, result, 201);
-});
-
+practiceApp.openapi(routes.createPracticeRoute, handlers.createPracticeHandler);
 
 /**
  * GET /api/practice/:uuid
  * Get practice by ID
  */
-practiceApp.get('/:uuid', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice uuid'), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-
-  const result = await practiceService.getPracticeById(uuid, user, c.req.header());
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.getPracticeByIdRoute, handlers.getPracticeHandler);
 
 /**
  * PUT /api/practice/:uuid
  * Update practice
  */
-practiceApp.put('/:uuid', validateParamsAndJson(
-  practiceValidations.practiceIdParamSchema,
-  practiceValidations.updatePracticeSchema,
-  'Invalid Practice ID',
-  'Invalid Practice Data',
-), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-  const validatedBody = c.get('validatedBody');
-
-  const result = await practiceService.updatePractice(
-    uuid,
-    validatedBody,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.updatePracticeRoute, handlers.updatePracticeHandler);
 
 /**
  * DELETE /api/practice/:uuid
  * Delete practice
  */
-practiceApp.delete('/:uuid', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-
-  const result = await practiceService.deletePractice(uuid, user, c.req.header());
-  return response.fromResult(c, result, 204);
-});
-
+practiceApp.openapi(routes.deletePracticeRoute, handlers.deletePracticeHandler);
 
 /**
  * PUT /api/practice/:uuid/active
  * Set practice as active
  */
-practiceApp.put('/:uuid/active', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-
-  const result = await practiceService.setActivePractice(uuid, user, c.req.header());
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHandler);
 
 /**
  * GET /api/practice/:uuid/members
  * List all members of an organization
  */
-practiceApp.get('/:uuid/members', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice ID'), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-
-  const result = await membersService.listPracticeMembers(
-    uuid,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.listMembersRoute, handlers.listMembersHandler);
 
 /**
  * PATCH /api/practice/:uuid/members
  * Update a member's role
  */
-practiceApp.patch('/:uuid/members', validateParamsAndJson(
-  practiceValidations.practiceIdParamSchema,
-  practiceValidations.updateMemberRoleSchema,
-  'Invalid Practice ID',
-  'Invalid Member Data',
-), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-  const validatedBody = c.get('validatedBody');
-
-  const result = await membersService.updatePracticeMemberRole(
-    uuid,
-    validatedBody.member_id,
-    validatedBody.role,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.updateMemberRoleRoute, handlers.updateMemberRoleHandler);
 
 /**
  * DELETE /api/practice/:uuid/members/:userId
  * Remove a member from an organization
  */
-const userIdParamSchema = practiceValidations.practiceIdParamSchema.extend({
-  userId: z.uuid(), // Both user ID and organization ID are UUIDs
-});
-
-practiceApp.delete('/:uuid/members/:userId', validateParams(userIdParamSchema, 'Invalid Parameters'), async (c) => {
-  const user = c.get('user')!;
-  const { uuid, userId } = c.get('validatedParams');
-
-  const result = await membersService.removePracticeMember(
-    uuid,
-    userId,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result, 204);
-});
-
+practiceApp.openapi(routes.removeMemberRoute, handlers.removeMemberHandler);
 
 /**
  * GET /api/practice/invitations
  * List all pending invitations for the current user
  */
-practiceApp.get('/invitations', async (c) => {
-  const user = c.get('user')!;
-
-  const result = await invitationsService.listPracticeInvitations(
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.listInvitationsRoute, handlers.listInvitationsHandler);
 
 /**
  * POST /api/practice/:uuid/invitations
  * Create a new invitation for an organization
  */
-practiceApp.post('/:uuid/invitations', validateParamsAndJson(
-  practiceValidations.practiceIdParamSchema,
-  practiceValidations.createInvitationSchema,
-  'Invalid Practice ID',
-  'Invalid Invitation Data',
-), async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.get('validatedParams');
-  const validatedBody = c.get('validatedBody');
-
-  const result = await invitationsService.createPracticeInvitation(
-    uuid,
-    validatedBody.email,
-    validatedBody.role,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result, 201);
-});
-
+practiceApp.openapi(routes.createInvitationRoute, handlers.createInvitationHandler);
 
 /**
  * POST /api/practice/invitations/:invitationId/accept
  * Accept a pending invitation
  */
-const invitationIdParamSchema = z.object({
-  invitationId: z.string(),
-});
+practiceApp.openapi(routes.acceptInvitationRoute, handlers.acceptInvitationHandler);
 
-practiceApp.post('/invitations/:invitationId/accept', validateParams(invitationIdParamSchema, 'Invalid Invitation ID'), async (c) => {
-  const user = c.get('user')!;
-  const { invitationId } = c.get('validatedParams');
-
-  const result = await invitationsService.acceptPracticeInvitation(
-    invitationId,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+/**
+ * POST /api/practice/invitations/:invitationId/decline
+ * Decline a pending invitation
+ */
+practiceApp.openapi(routes.declineInvitationRoute, handlers.declineInvitationHandler);
 
 /**
  * GET /api/practice/:uuid/details
  * Get practice details
  */
-practiceApp.get('/:uuid/details', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice UUID'), async (c) => {
-  const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
-
-  const result = await practiceDetailsService.getPracticeDetails(
-    validatedParams.uuid,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.getPracticeDetailsRoute, handlers.getPracticeDetailsHandler);
 
 /**
  * POST /api/practice/:uuid/details
  * Create practice details
  */
-practiceApp.post('/:uuid/details', validateParamsAndJson(
-  practiceValidations.practiceIdParamSchema,
-  practiceValidations.createPracticeDetailsSchema,
-  'Invalid Practice UUID',
-  'Invalid Practice Details Data',
-), async (c) => {
-  const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
-  const validatedBody = c.get('validatedBody');
-
-  const result = await practiceDetailsService.upsertPracticeDetails(
-    validatedParams.uuid,
-    validatedBody,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result, 201);
-});
-
+practiceApp.openapi(routes.createPracticeDetailsRoute, handlers.createPracticeDetailsHandler);
 
 /**
  * PUT /api/practice/:uuid/details
  * Update practice details
  */
-practiceApp.put('/:uuid/details', validateParamsAndJson(
-  practiceValidations.practiceIdParamSchema,
-  practiceValidations.updatePracticeDetailsSchema,
-  'Invalid Practice UUID',
-  'Invalid Practice Details Data',
-), async (c) => {
-  const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
-  const validatedBody = c.get('validatedBody');
-
-  const result = await practiceDetailsService.upsertPracticeDetails(
-    validatedParams.uuid,
-    validatedBody,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result);
-});
-
+practiceApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDetailsHandler);
 
 /**
  * DELETE /api/practice/:uuid/details
  * Delete practice details
  */
-practiceApp.delete('/:uuid/details', validateParams(practiceValidations.practiceIdParamSchema, 'Invalid Practice UUID'), async (c) => {
-  const user = c.get('user')!;
-  const validatedParams = c.get('validatedParams');
+practiceApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDetailsHandler);
 
-  const result = await practiceDetailsService.deletePracticeDetails(
-    validatedParams.uuid,
-    user,
-    c.req.header(),
-  );
-  return response.fromResult(c, result, 204);
-});
-
-
-
-practiceApp.get('/details/:slug', validateParams(practiceValidations.slugParamSchema, 'Invalid Slug'), async (c) => {
-  const { slug } = c.get('validatedParams');
-  const details = await practiceDetailsService.getPracticeDetailsBySlug(slug);
-
-  if (!details) {
-    return response.notFound(c, 'Practice not found');
-  }
-  return response.ok(c, { details });
-});
+/**
+ * GET /api/practice/details/:slug
+ * Get practice details by slug
+ */
+practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDetailsBySlugHandler);
 
 registerOpenApiRoutes(practiceApp, routes);
 

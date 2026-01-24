@@ -35,8 +35,8 @@ const main = async (): Promise<void> => {
 
     if (errors.length > 0) {
       console.log('\n❌ Errors:');
-      errors.forEach((error: { productId: string; error: string }) => {
-        console.log(`   - ${error.productId}: ${error.error}`);
+      errors.forEach((error: { product_id: string; error: string }) => {
+        console.log(`   - ${error.product_id}: ${error.error}`);
       });
       process.exit(1);
     }

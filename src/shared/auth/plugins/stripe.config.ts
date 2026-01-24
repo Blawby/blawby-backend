@@ -77,13 +77,13 @@ const syncSubscriptionToOrg = async (
       await Promise.all(
         stripeSubscription.items.data.map((item) =>
           subscriptionRepository.upsertLineItem(tx, {
-            subscriptionId: subscriptionId,
-            stripeSubscriptionItemId: item.id,
-            stripePriceId: item.price.id,
-            itemType: 'base_fee',
+            subscription_id: subscriptionId,
+            stripe_subscription_item_id: item.id,
+            stripe_price_id: item.price.id,
+            item_type: 'base_fee',
             description: item.price.nickname || item.price.product?.toString(),
             quantity: item.quantity || 1,
-            unitAmount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
+            unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
             metadata: {},
           })
         )
@@ -94,11 +94,11 @@ const syncSubscriptionToOrg = async (
     const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, planName);
 
     await subscriptionRepository.createEvent(tx, {
-      subscriptionId: subscriptionId,
-      planId: dbPlan?.id,
-      eventType: eventType === 'created' ? 'created' : 'status_changed',
-      toStatus: 'active',
-      triggeredByType: trigger,
+      subscription_id: subscriptionId,
+      plan_id: dbPlan?.id,
+      event_type: eventType === 'created' ? 'created' : 'status_changed',
+      to_status: 'active',
+      triggered_by_type: trigger,
       metadata: {
         plan_name: planName,
         stripe_subscription_id: stripeSubscription.id,
@@ -266,13 +266,13 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           if (stripeSubscription?.items?.data) {
             await Promise.all(stripeSubscription.items.data.map(item =>
               subscriptionRepository.upsertLineItem(tx, {
-                subscriptionId: subscription.id,
-                stripeSubscriptionItemId: item.id,
-                stripePriceId: item.price.id,
-                itemType: 'base_fee',
+                subscription_id: subscription.id,
+                stripe_subscription_item_id: item.id,
+                stripe_price_id: item.price.id,
+                item_type: 'base_fee',
                 description: item.price.nickname || item.price.product?.toString(),
                 quantity: item.quantity || 1,
-                unitAmount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
+                unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
                 metadata: {},
               })
             ));
@@ -282,11 +282,11 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           if (subscription.plan) {
             const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, subscription.plan);
             await subscriptionRepository.createEvent(tx, {
-              subscriptionId: subscription.id,
-              planId: dbPlan?.id,
-              toPlanId: dbPlan?.id,
-              eventType: 'plan_changed',
-              triggeredByType: 'webhook', // usually webhook for updates
+              subscription_id: subscription.id,
+              plan_id: dbPlan?.id,
+              to_plan_id: dbPlan?.id,
+              event_type: 'plan_changed',
+              triggered_by_type: 'webhook', // usually webhook for updates
               metadata: { plan_name: subscription.plan },
             });
           }
@@ -302,11 +302,11 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
             .where(eq(schema.organizations.id, subscription.referenceId!));
 
           await subscriptionRepository.createEvent(tx, {
-            subscriptionId: subscription.id,
-            eventType: 'canceled',
-            fromStatus: 'active',
-            toStatus: 'canceled',
-            triggeredByType: 'user',
+            subscription_id: subscription.id,
+            event_type: 'canceled',
+            from_status: 'active',
+            to_status: 'canceled',
+            triggered_by_type: 'user',
             metadata: { plan_name: subscription.plan || '' },
           });
         });

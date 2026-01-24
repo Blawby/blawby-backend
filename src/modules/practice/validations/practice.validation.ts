@@ -9,15 +9,15 @@ import {
 } from '@/shared/validations/common';
 
 // Practice details validation schemas
-export const businessPhoneSchema = phoneValidator.optional();
-export const businessEmailSchema = emailValidator.optional();
-export const consultationFeeSchema = currencyValidator.optional();
-export const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
-export const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
+const businessPhoneSchema = phoneValidator.optional();
+const businessEmailSchema = z.email().optional();
+const consultationFeeSchema = currencyValidator.optional();
+const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
+const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
 
 
 // Address schema
-export const addressSchema = z.object({
+const addressSchema = z.object({
   line1: z.string().optional().openapi({ example: '123 Main St' }),
   line2: z.string().optional().openapi({ example: 'Suite 100' }),
   city: z.string().optional().openapi({ example: 'New York' }),
@@ -27,13 +27,13 @@ export const addressSchema = z.object({
 });
 
 // Practice module specific param schemas
-export const practiceIdParamSchema = z.object({
+const practiceIdParamSchema = z.object({
   uuid: z.uuid().refine((val) => val.length > 0, 'Invalid practice UUID'),
 });
 
 
 // Combined practice details schema
-export const practiceDetailsValidationSchema = z.object({
+const practiceDetailsValidationSchema = z.object({
   business_phone: businessPhoneSchema,
   business_email: businessEmailSchema,
   consultation_fee: consultationFeeSchema,
@@ -52,7 +52,7 @@ export const practiceDetailsValidationSchema = z.object({
 });
 
 // Complete practice schemas
-export const createPracticeSchema = z.object({
+const createPracticeSchema = z.object({
   // Organization fields (required)
   name: nameValidator,
   slug: slugValidator,
@@ -63,7 +63,7 @@ export const createPracticeSchema = z.object({
   ...practiceDetailsValidationSchema.shape,
 });
 
-export const updatePracticeSchema = z
+const updatePracticeSchema = z
   .object({
     // Organization fields (all optional for updates)
     name: nameValidator.optional(),
@@ -81,9 +81,15 @@ export const updatePracticeSchema = z
       const hasPracticeField
         = data.business_phone
         || data.business_email
-        || data.consultation_fee
+        || data.consultation_fee !== undefined
         || data.payment_url
-        || data.calendly_url;
+        || data.calendly_url
+        || data.website
+        || data.intro_message
+        || data.overview
+        || data.is_public !== undefined
+        || data.services
+        || data.address;
       return hasOrgField || hasPracticeField;
     },
     {
@@ -92,7 +98,7 @@ export const updatePracticeSchema = z
   );
 
 // Response schemas with OpenAPI metadata
-export const practiceResponseSchema = z
+const practiceResponseSchema = z
   .object({
     id: z.uuid().openapi({
       description: 'Organization ID (UUID)',
@@ -113,28 +119,28 @@ export const practiceResponseSchema = z
     business_phone: z.string().nullable().openapi({
       example: '+1234567890',
     }),
-    business_email: z.string().email().nullable().openapi({
+    business_email: z.email().nullable().openapi({
       example: 'contact@example.com',
     }),
     consultation_fee: z.number().nullable().openapi({
       example: 100.0,
     }),
-    payment_url: z.string().url().nullable().openapi({
+    payment_url: z.url().nullable().openapi({
       example: 'https://payment.example.com',
     }),
-    calendly_url: z.string().url().nullable().openapi({
+    calendly_url: z.url().nullable().openapi({
       example: 'https://calendly.com/example',
     }),
-    created_at: z.date().openapi({
+    created_at: z.iso.datetime().openapi({
       example: '2024-01-01T00:00:00Z',
     }),
-    updated_at: z.date().openapi({
+    updated_at: z.iso.datetime().openapi({
       example: '2024-01-01T00:00:00Z',
     }),
   })
   .openapi('PracticeResponse');
 
-export const practiceListResponseSchema = z
+const practiceListResponseSchema = z
   .object({
     practices: z.array(practiceResponseSchema).openapi({
       example: [],
@@ -142,13 +148,13 @@ export const practiceListResponseSchema = z
   })
   .openapi('PracticeListResponse');
 
-export const practiceSingleResponseSchema = z
+const practiceSingleResponseSchema = z
   .object({
     practice: practiceResponseSchema,
   })
   .openapi('PracticeSingleResponse');
 
-export const setActivePracticeResponseSchema = z
+const setActivePracticeResponseSchema = z
   .object({
     result: z.object({
       success: z.boolean().openapi({
@@ -162,7 +168,7 @@ export const setActivePracticeResponseSchema = z
   .openapi('SetActivePracticeResponse');
 
 // Error response schemas
-export const errorResponseSchema = z
+const errorResponseSchema = z
   .object({
     error: z.string().openapi({
       example: 'Bad Request',
@@ -191,7 +197,7 @@ export const errorResponseSchema = z
   })
   .openapi('ErrorResponse');
 
-export const notFoundResponseSchema = z
+const notFoundResponseSchema = z
   .object({
     error: z.string().openapi({
       example: 'Not Found',
@@ -202,7 +208,7 @@ export const notFoundResponseSchema = z
   })
   .openapi('NotFoundResponse');
 
-export const internalServerErrorResponseSchema = z
+const internalServerErrorResponseSchema = z
   .object({
     error: z.string().openapi({
       example: 'Internal Server Error',
@@ -214,14 +220,14 @@ export const internalServerErrorResponseSchema = z
   .openapi('InternalServerErrorResponse');
 
 // Query schemas
-export const practiceQuerySchema = z.object({
+const practiceQuerySchema = z.object({
   includeDetails: z.coerce.boolean().default(true),
 });
 
 // Member validation schemas
-export const memberRoleSchema = z.enum(['owner', 'admin', 'attorney', 'paralegal', 'member']);
+const memberRoleSchema = z.enum(['owner', 'admin', 'attorney', 'paralegal', 'member']);
 
-export const updateMemberRoleSchema = z.object({
+const updateMemberRoleSchema = z.object({
   member_id: z.uuid().openapi({
     description: 'Member ID to update (from listMembers response)',
     example: 'member_123e4567-e89b-12d3-a456-426614174000',
@@ -232,7 +238,7 @@ export const updateMemberRoleSchema = z.object({
   }),
 });
 
-export const memberListItemSchema = z.object({
+const memberListItemSchema = z.object({
   id: z.uuid().openapi({
     description: 'Member ID (use this for updateMemberRole)',
     example: 'member_123e4567-e89b-12d3-a456-426614174000',
@@ -259,17 +265,17 @@ export const memberListItemSchema = z.object({
   }),
 });
 
-export const membersListResponseSchema = z.object({
+const membersListResponseSchema = z.object({
   members: z.array(memberListItemSchema),
 });
 
 // Invitation validation schemas
-export const createInvitationSchema = z.object({
+const createInvitationSchema = z.object({
   email: z.email(),
   role: memberRoleSchema,
 });
 
-export const invitationListItemSchema = z.object({
+const invitationListItemSchema = z.object({
   id: z.uuid().openapi({
     description: 'Invitation ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
@@ -304,17 +310,17 @@ export const invitationListItemSchema = z.object({
   }),
 });
 
-export const invitationsListResponseSchema = z.object({
+const invitationsListResponseSchema = z.object({
   invitations: z.array(invitationListItemSchema),
 });
 
-export const acceptInvitationResponseSchema = z.object({
+const acceptInvitationResponseSchema = z.object({
   success: z.boolean(),
   organization: z.any(), // Organization object from Better Auth
 });
 
 // Practice Details API schemas
-export const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
+const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
   (data) => {
     // At least one field must be provided
     return (
@@ -336,9 +342,9 @@ export const createPracticeDetailsSchema = practiceDetailsValidationSchema.refin
   },
 );
 
-export const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
+const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
 
-export const practiceDetailsResponseSchema = z
+const practiceDetailsResponseSchema = z
   .object({
     business_phone: z.string().nullable().openapi({
       example: '+1234567890',
@@ -367,7 +373,7 @@ export const practiceDetailsResponseSchema = z
     name: z.string().openapi({
       example: 'My Practice',
     }),
-    logo: z.string().nullable().openapi({
+    logo: z.url().nullable().openapi({
       example: 'https://example.com/logo.png',
     }),
     payment_link_enabled: z.boolean().openapi({
@@ -379,33 +385,56 @@ export const practiceDetailsResponseSchema = z
   })
   .openapi('PracticeDetailsResponse');
 
-export const practiceDetailsSingleResponseSchema = z
+const practiceDetailsSingleResponseSchema = z
   .object({
     details: practiceDetailsResponseSchema,
   })
   .openapi('PracticeDetailsSingleResponse');
 
-export const practiceDetailsCreateResponseSchema = z
+const practiceDetailsCreateResponseSchema = z
   .object({
     details: practiceDetailsResponseSchema,
   })
   .openapi('PracticeDetailsCreateResponse');
 
-export const practiceDetailsUpdateResponseSchema = z
+const practiceDetailsUpdateResponseSchema = z
   .object({
     details: practiceDetailsResponseSchema,
   })
   .openapi('PracticeDetailsUpdateResponse');
 
-export const slugParamSchema = z.object({
+const slugParamSchema = z.object({
   slug: z.string(),
 });
 
-// Infer types from schemas
-export type CreatePracticeRequest = z.infer<typeof createPracticeSchema>;
-export type UpdatePracticeRequest = z.infer<typeof updatePracticeSchema>;
-export type PracticeQueryParams = z.infer<typeof practiceQuerySchema>;
-export type UpdateMemberRoleRequest = z.infer<typeof updateMemberRoleSchema>;
-export type CreateInvitationRequest = z.infer<typeof createInvitationSchema>;
-export type CreatePracticeDetailsRequest = z.infer<typeof createPracticeDetailsSchema>;
-export type UpdatePracticeDetailsRequest = z.infer<typeof updatePracticeDetailsSchema>;
+
+
+export const practiceValidations = {
+  createPracticeSchema,
+  updatePracticeSchema,
+  practiceIdParamSchema,
+  practiceDetailsValidationSchema,
+  practiceResponseSchema,
+  practiceListResponseSchema,
+  practiceSingleResponseSchema,
+  setActivePracticeResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+  internalServerErrorResponseSchema,
+  practiceQuerySchema,
+  updateMemberRoleSchema,
+  memberRoleSchema,
+  memberListItemSchema,
+  membersListResponseSchema,
+  createInvitationSchema,
+  invitationListItemSchema,
+  invitationsListResponseSchema,
+  acceptInvitationResponseSchema,
+  createPracticeDetailsSchema,
+  updatePracticeDetailsSchema,
+  practiceDetailsResponseSchema,
+  practiceDetailsSingleResponseSchema,
+  practiceDetailsCreateResponseSchema,
+  practiceDetailsUpdateResponseSchema,
+  slugParamSchema,
+};

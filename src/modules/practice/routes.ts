@@ -1,24 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
 import {
-  createPracticeSchema,
-  updatePracticeSchema,
-  practiceListResponseSchema,
-  practiceSingleResponseSchema,
-  setActivePracticeResponseSchema,
-  errorResponseSchema,
-  notFoundResponseSchema,
-  internalServerErrorResponseSchema,
-  membersListResponseSchema,
-  updateMemberRoleSchema,
-  invitationsListResponseSchema,
-  createInvitationSchema,
-  acceptInvitationResponseSchema,
-  createPracticeDetailsSchema,
-  updatePracticeDetailsSchema,
-  practiceDetailsSingleResponseSchema,
-  practiceDetailsCreateResponseSchema,
-  practiceDetailsUpdateResponseSchema,
+  practiceValidations,
 } from '@/modules/practice/validations/practice.validation';
 
 /**
@@ -52,7 +35,7 @@ export const listPracticesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceListResponseSchema,
+          schema: practiceValidations.practiceListResponseSchema,
         },
       },
       description: 'Practices retrieved successfully',
@@ -60,7 +43,7 @@ export const listPracticesRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -68,7 +51,7 @@ export const listPracticesRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -90,7 +73,7 @@ export const createPracticeRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: createPracticeSchema,
+          schema: practiceValidations.createPracticeSchema,
         },
       },
       description: 'Practice creation data',
@@ -100,7 +83,7 @@ export const createPracticeRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: practiceSingleResponseSchema,
+          schema: practiceValidations.practiceSingleResponseSchema,
         },
       },
       description: 'Practice created successfully',
@@ -108,7 +91,7 @@ export const createPracticeRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request data',
@@ -116,7 +99,7 @@ export const createPracticeRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to create practice',
@@ -141,7 +124,7 @@ export const getPracticeByIdRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceSingleResponseSchema,
+          schema: practiceValidations.practiceSingleResponseSchema,
         },
       },
       description: 'Practice retrieved successfully',
@@ -149,7 +132,7 @@ export const getPracticeByIdRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -157,7 +140,7 @@ export const getPracticeByIdRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request parameters',
@@ -180,7 +163,7 @@ export const updatePracticeRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: updatePracticeSchema,
+          schema: practiceValidations.updatePracticeSchema,
         },
       },
       description: 'Practice update data',
@@ -190,7 +173,7 @@ export const updatePracticeRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceSingleResponseSchema,
+          schema: practiceValidations.practiceSingleResponseSchema,
         },
       },
       description: 'Practice updated successfully',
@@ -198,7 +181,7 @@ export const updatePracticeRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -206,7 +189,7 @@ export const updatePracticeRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request data',
@@ -214,7 +197,7 @@ export const updatePracticeRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to update practice',
@@ -242,7 +225,7 @@ export const deletePracticeRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -250,7 +233,7 @@ export const deletePracticeRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request parameters',
@@ -258,7 +241,7 @@ export const deletePracticeRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to delete practice',
@@ -283,7 +266,7 @@ export const setActivePracticeRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: setActivePracticeResponseSchema,
+          schema: practiceValidations.setActivePracticeResponseSchema,
         },
       },
       description: 'Practice set as active successfully',
@@ -291,7 +274,7 @@ export const setActivePracticeRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -299,7 +282,7 @@ export const setActivePracticeRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request parameters',
@@ -307,7 +290,7 @@ export const setActivePracticeRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to set active practice',
@@ -334,7 +317,7 @@ export const listMembersRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: membersListResponseSchema,
+          schema: practiceValidations.membersListResponseSchema,
         },
       },
       description: 'Members retrieved successfully',
@@ -342,7 +325,7 @@ export const listMembersRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -350,7 +333,7 @@ export const listMembersRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -373,7 +356,7 @@ export const updateMemberRoleRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: updateMemberRoleSchema,
+          schema: practiceValidations.updateMemberRoleSchema,
         },
       },
     },
@@ -392,7 +375,7 @@ export const updateMemberRoleRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -400,7 +383,7 @@ export const updateMemberRoleRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -433,7 +416,7 @@ export const removeMemberRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -441,7 +424,7 @@ export const removeMemberRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -465,7 +448,7 @@ export const listInvitationsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: invitationsListResponseSchema,
+          schema: practiceValidations.invitationsListResponseSchema,
         },
       },
       description: 'Invitations retrieved successfully',
@@ -473,7 +456,7 @@ export const listInvitationsRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -481,7 +464,7 @@ export const listInvitationsRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -504,7 +487,7 @@ export const createInvitationRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: createInvitationSchema,
+          schema: practiceValidations.createInvitationSchema,
         },
       },
     },
@@ -530,7 +513,7 @@ export const createInvitationRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -538,7 +521,7 @@ export const createInvitationRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -567,7 +550,7 @@ export const acceptInvitationRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: acceptInvitationResponseSchema,
+          schema: practiceValidations.acceptInvitationResponseSchema,
         },
       },
       description: 'Invitation accepted successfully',
@@ -575,7 +558,7 @@ export const acceptInvitationRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -583,7 +566,7 @@ export const acceptInvitationRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -618,7 +601,7 @@ export const declineInvitationRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request',
@@ -626,7 +609,7 @@ export const declineInvitationRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -653,7 +636,7 @@ export const getPracticeDetailsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceDetailsSingleResponseSchema,
+          schema: practiceValidations.practiceDetailsSingleResponseSchema,
         },
       },
       description: 'Practice details retrieved successfully',
@@ -661,7 +644,7 @@ export const getPracticeDetailsRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -669,7 +652,7 @@ export const getPracticeDetailsRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request parameters',
@@ -692,7 +675,7 @@ export const createPracticeDetailsRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: createPracticeDetailsSchema,
+          schema: practiceValidations.createPracticeDetailsSchema,
         },
       },
       description: 'Practice details data',
@@ -702,7 +685,7 @@ export const createPracticeDetailsRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: practiceDetailsCreateResponseSchema,
+          schema: practiceValidations.practiceDetailsCreateResponseSchema,
         },
       },
       description: 'Practice details created successfully',
@@ -710,7 +693,7 @@ export const createPracticeDetailsRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request data or practice details already exist',
@@ -718,7 +701,7 @@ export const createPracticeDetailsRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -726,7 +709,7 @@ export const createPracticeDetailsRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to create practice details',
@@ -749,7 +732,7 @@ export const updatePracticeDetailsRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: updatePracticeDetailsSchema,
+          schema: practiceValidations.updatePracticeDetailsSchema,
         },
       },
       description: 'Practice details update data',
@@ -759,7 +742,7 @@ export const updatePracticeDetailsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceDetailsUpdateResponseSchema,
+          schema: practiceValidations.practiceDetailsUpdateResponseSchema,
         },
       },
       description: 'Practice details updated successfully',
@@ -767,7 +750,7 @@ export const updatePracticeDetailsRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -775,7 +758,7 @@ export const updatePracticeDetailsRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request data',
@@ -783,7 +766,7 @@ export const updatePracticeDetailsRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to update practice details',
@@ -811,7 +794,7 @@ export const deletePracticeDetailsRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -819,7 +802,7 @@ export const deletePracticeDetailsRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: practiceValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request parameters',
@@ -827,7 +810,7 @@ export const deletePracticeDetailsRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to delete practice details',
@@ -861,7 +844,7 @@ export const getPracticeDetailsBySlugRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceDetailsSingleResponseSchema,
+          schema: practiceValidations.practiceDetailsSingleResponseSchema,
         },
       },
       description: 'Practice details retrieved successfully',
@@ -869,7 +852,7 @@ export const getPracticeDetailsBySlugRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: practiceValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice not found',
@@ -877,7 +860,7 @@ export const getPracticeDetailsBySlugRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: practiceValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',

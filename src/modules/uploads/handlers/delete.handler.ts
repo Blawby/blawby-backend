@@ -1,19 +1,17 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import type { DeleteUploadRequest } from '@/modules/uploads/validations/uploads.validation';
+import { deleteUploadRoute } from '@/modules/uploads/routes';
 
-export const deleteHandler = async (c: Context<AppContext>) => {
-  const id = c.req.param('id');
-  const body = (await c.req.json()) as DeleteUploadRequest;
+export const deleteHandler: AppRouteHandler<typeof deleteUploadRoute> = async (c) => {
+  const { id } = c.req.valid('param');
   const userId = c.get('userId');
+  const validatedBody = c.req.valid('json');
 
   if (!userId) {
     return response.unauthorized(c, 'Authentication required');
   }
 
-  const result = await uploadsService.deleteUpload(id, userId, body);
-
+  const result = await uploadsService.deleteUpload(id, userId, validatedBody);
   return response.fromResult(c, result);
 };

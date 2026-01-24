@@ -20,7 +20,7 @@ const initStripe = (): Stripe => {
     }
 
     _stripeInstance = new Stripe(apiKey, {
-      apiVersion: '2025-09-30.clover',
+      apiVersion: '2025-12-15.clover',
     });
   }
 

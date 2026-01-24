@@ -38,23 +38,26 @@ Generate code, corrections, and refactorings that comply with the basic principl
 import { db } from '@/database';
 import { auth } from '@/auth';
 import { organization } from '@/schema';
-import { PracticeService } from 'features/practice/services';
-import { StripeService } from 'features/stripe/services';
+// For modules, use the full path alias starting with @/
+import { PracticeService } from '@/modules/practice/services/practice.service';
+import { StripeService } from '@/modules/subscriptions/services/stripe.service';
 
-// ❌ WRONG - Don't use relative paths
-import { db } from '@db';
+// ❌ WRONG - Don't use relative paths (including ./ and ../)
+import { db } from '../../../../database';
 import { auth } from '../../../../auth';
-import { organization } from '../../../schema';
-import { PracticeService } from '../services';
-import { StripeService } from './services';
+import { PracticeService } from '../services/practice.service';
+import { StripeService } from './services/stripe.service';
 ```
 
 ### **Available Aliases:**
 
+- `@/*` - Root source directory (maps to `src/*`)
 - `@/database` and `@/database/*` - Database imports
 - `@/auth` - Auth imports
 - `@/schema` and `@/schema/*` - Schema imports
-- `features/*` - Cross-feature imports
+
+> [!IMPORTANT]
+> **ABSOLUTE RULE**: Never use `./` or `../` for imports even if the file is in the same directory. Always use the `@/` prefix to ensure absolute clarity and refactoring safety.
 
 ### **Why This Rule Exists:**
 
@@ -86,7 +89,7 @@ import { StripeService } from './services';
 // ✅ CORRECT - Request validation schema uses snake_case
 export const createPracticeClientIntakeSchema = z.object({
   slug: z.string(),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string(),
   on_behalf_of: z.string().optional(),      // snake_case
   opposing_party: z.string().optional(),     // snake_case
@@ -154,6 +157,22 @@ export const createPracticeClientIntakeSchema = z.object({
 
 **Note:** When creating custom APIs that wrap Better Auth functionality, use `response.ok()` or `response.created()` utilities which automatically convert to snake_case, ensuring consistency with Better Auth's normalized responses.
 
+## Validation and Type Patterns
+
+### **CRITICAL: Modular Validation and Typing Pattern**
+
+To ensure full TypeScript inference and synchronization with OpenAPI, follow this pattern for all modules:
+
+1.  **Group Validations**: In `src/modules/[module]/validations/[module].validation.ts`, group all Zod schemas into a single `[module]Validations` object and export it.
+2.  **Dedicated Types**: In `src/modules/[module]/types/[module].types.ts`, use `z.infer<typeof ...>` to define types. This file should import schemas from the validation file.
+3.  **AppRouteHandler**: Use the `AppRouteHandler` type for all handlers, passing the route definition as the generic parameter.
+4.  **OpenAPI Integration**: Use `app.openapi(route, handler)` in the module's `http.ts` file instead of `app.get` or `app.post` with `zValidator` where possible.
+
+**Why This Pattern:**
+- **Inference**: Handlers automatically inherit types for params, query, and body.
+- **Maintenance**: Changes to the schema automatically update all related types throughout the application.
+- **Consistency**: All modules follow the same predictable structure.
+
 ## UUID and Zod Validation Rules
 
 ### **CRITICAL: Always use `z.uuid()` for UUID fields - NEVER `z.string().uuid()`**
@@ -195,6 +214,7 @@ export const badSchema = z.object({
   id: z.string().uuid(),           // ❌ Wrong
   user_id: z.string().uuid(),      // ❌ Wrong
   organizationId: z.string().uuid(), // ❌ Wrong
+  email: z.string().email(), // ❌ Wrong
 });
 ```
 

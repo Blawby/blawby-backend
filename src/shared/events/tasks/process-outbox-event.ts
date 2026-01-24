@@ -29,25 +29,53 @@ export const processOutboxEvent: Task = async (
   payload: unknown,
   helpers,
 ): Promise<void> => {
-  helpers.logger.info('Processing outbox events...');
+  const { eventId } = (payload as { eventId?: string }) || {};
+
+  if (eventId) {
+    helpers.logger.info(`Processing specific outbox event: ${eventId}`);
+  } else {
+    helpers.logger.info('Processing outbox events (batch mode)...');
+  }
 
   try {
-    // Query for unprocessed events (processed = false) that haven't exceeded max retries
-    // Order by created_at to process oldest first
-    const unprocessedEvents = await db
-      .select()
-      .from(events)
-      .where(
-        and(
-          eq(events.processed, false),
-          lt(events.retryCount, MAX_RETRIES),
-        ),
-      )
-      .orderBy(asc(events.createdAt))
-      .limit(BATCH_SIZE);
+    let unprocessedEvents;
+
+    if (eventId) {
+      // Process specific event request
+      unprocessedEvents = await db
+        .select()
+        .from(events)
+        .where(
+          and(
+            eq(events.eventId, eventId),
+            eq(events.processed, false), // Only process if still pending
+            lt(events.retryCount, MAX_RETRIES),
+          ),
+        )
+        .limit(1);
+    } else {
+      // Batch processing (Cron / Recovery)
+      // Query for unprocessed events (processed = false) that haven't exceeded max retries
+      // Order by created_at to process oldest first
+      unprocessedEvents = await db
+        .select()
+        .from(events)
+        .where(
+          and(
+            eq(events.processed, false),
+            lt(events.retryCount, MAX_RETRIES),
+          ),
+        )
+        .orderBy(asc(events.createdAt))
+        .limit(BATCH_SIZE);
+    }
 
     if (unprocessedEvents.length === 0) {
-      helpers.logger.info('No unprocessed events found');
+      if (eventId) {
+        helpers.logger.info(`Event ${eventId} not found or already processed`);
+      } else {
+        helpers.logger.info('No unprocessed events found');
+      }
       return;
     }
 

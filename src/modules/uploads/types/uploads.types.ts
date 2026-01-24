@@ -1,77 +1,23 @@
-export type UploadContext = 'matter' | 'intake' | 'trust' | 'profile' | 'asset';
-export type UploadStatus = 'pending' | 'verified' | 'rejected';
+import { z } from 'zod';
+import { uploadValidations } from '@/modules/uploads/validations/uploads.validation';
+
+export type UploadContext = z.infer<typeof uploadValidations.uploadContextSchema>;
+export type UploadStatus = 'pending' | 'verified' | 'rejected'; // Keep manual as it's used in and out of zod
 export type StorageProvider = 'r2' | 'images';
 export type AuditAction = 'created' | 'viewed' | 'downloaded' | 'deleted' | 'restored' | 'confirmed';
 
-export type SubContext = 'documents' | 'correspondence' | 'evidence';
+export type SubContext = z.infer<typeof uploadValidations.subContextSchema>;
 
-// Re-export Zod-inferred types from validations
-export type {
-  PresignUploadRequest,
-  DeleteUploadRequest,
-  ListUploadsQuery,
-} from '@/modules/uploads/validations/uploads.validation';
+// Inferred from Zod schemas
+export type PresignUploadRequest = z.infer<typeof uploadValidations.presignUploadSchema>;
+export type UploadIdParam = z.infer<typeof uploadValidations.uploadIdParamSchema>;
+export type DeleteUploadRequest = z.infer<typeof uploadValidations.deleteUploadSchema>;
+export type ListUploadsQuery = z.infer<typeof uploadValidations.listUploadsQuerySchema>;
 
-export interface PresignUploadResponse {
-  upload_id: string;
-  presigned_url: string;
-  method: string;
-  storage_key: string;
-  expires_at: string;
-}
-
-export interface ConfirmUploadResponse {
-  upload_id: string;
-  public_url: string;
-  storage_key: string;
-  status: UploadStatus;
-}
-
-export interface UploadDetails {
-  upload_id: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  mime_type: string;
-  storage_provider: StorageProvider;
-  storage_key: string;
-  public_url: string | null;
-  upload_context: UploadContext;
-  matter_id: string | null;
-  entity_id: string | null;
-  status: UploadStatus;
-  is_privileged: boolean;
-  retention_until: string | null;
-  created_at: string;
-  verified_at: string | null;
-  uploaded_by: string | null;
-}
-
-export interface ListUploadsResponse {
-  uploads: UploadDetails[];
-  total: number;
-  page: number;
-  limit: number;
-}
-
-export interface DownloadUrlResponse {
-  download_url: string;
-  expires_at: string | null;
-}
-
-export interface AuditLogEntry {
-  id: string;
-  upload_id: string;
-  action: AuditAction;
-  user_id: string | null;
-  user_name: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
-
-export interface AuditLogResponse {
-  audit_logs: AuditLogEntry[];
-  total: number;
-}
+export type PresignUploadResponse = z.infer<typeof uploadValidations.presignUploadResponseSchema>;
+export type ConfirmUploadResponse = z.infer<typeof uploadValidations.confirmUploadResponseSchema>;
+export type UploadDetails = z.infer<typeof uploadValidations.uploadDetailsResponseSchema>;
+export type ListUploadsResponse = z.infer<typeof uploadValidations.listUploadsResponseSchema>;
+export type DownloadUrlResponse = z.infer<typeof uploadValidations.downloadUrlResponseSchema>;
+export type AuditLogEntry = z.infer<typeof uploadValidations.auditLogEntrySchema>;
+export type AuditLogResponse = z.infer<typeof uploadValidations.auditLogResponseSchema>;

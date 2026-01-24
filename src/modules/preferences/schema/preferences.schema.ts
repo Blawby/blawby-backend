@@ -37,7 +37,7 @@ export const preferences = pgTable(
   'preferences',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    user_id: uuid('user_id')
       .notNull()
       .unique()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -50,20 +50,20 @@ export const preferences = pgTable(
     onboarding: jsonb('onboarding').$type<OnboardingPreferences>().default({}),
 
     // Old field (temporary - will be removed after data migration)
-    productUsage: jsonb('product_usage').$type<ProductUsage[]>(),
+    product_usage: jsonb('product_usage').$type<ProductUsage[]>(),
 
     // Metadata
-    createdAt: timestamp('created_at')
+    created_at: timestamp('created_at')
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at')
+    updated_at: timestamp('updated_at')
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('preferences_user_idx').on(table.userId),
-    index('preferences_created_at_idx').on(table.createdAt),
+    index('preferences_user_idx').on(table.user_id),
+    index('preferences_created_at_idx').on(table.created_at),
   ],
 );
 
@@ -72,7 +72,7 @@ export const preferencesRelations = relations(
   preferences,
   ({ one }) => ({
     user: one(users, {
-      fields: [preferences.userId],
+      fields: [preferences.user_id],
       references: [users.id],
     }),
   }),
@@ -81,14 +81,14 @@ export const preferencesRelations = relations(
 // Zod schemas for validation
 export const insertPreferencesSchema = createInsertSchema(preferences).omit({
   id: true,
-  createdAt: true,
-  updatedAt: true,
+  created_at: true,
+  updated_at: true,
 }).extend({
-  productUsage: productUsageSchema.optional(),
+  product_usage: productUsageSchema.optional(),
 });
 
 export const selectPreferencesSchema = createSelectSchema(preferences).extend({
-  productUsage: productUsageSchema.optional(),
+  product_usage: productUsageSchema.optional(),
 });
 
 // Update schema (all fields optional except id)

@@ -7,7 +7,7 @@ import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { Invitation, User } from '@/shared/types/BetterAuth';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
-import { getFullOrganization } from '@/modules/practice/services/organization.service';
+import { organizationService } from '@/modules/practice/services/organization.service';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
@@ -32,13 +32,13 @@ const listPracticeInvitations = async (
       return ok([]);
     }
 
-    const userInvitations = invitations.filter(
+    const userInvitations = (invitations as Invitation[]).filter(
       (inv) => inv.email === user.email && inv.status === 'pending',
     );
 
     const invitationsWithOrgNames = await Promise.all(
       userInvitations.map(async (inv: Invitation) => {
-        const orgResult = await getFullOrganization(inv.organizationId, user, requestHeaders);
+        const orgResult = await organizationService.getFullOrganization(inv.organizationId, user, requestHeaders);
         const orgName = orgResult.success ? orgResult.data.name : 'Unknown Organization';
 
         return {
@@ -46,7 +46,7 @@ const listPracticeInvitations = async (
           organization_id: inv.organizationId,
           organization_name: orgName,
           email: inv.email,
-          role: inv.role || null,
+          role: (inv.role as any) || null,
           status: inv.status || 'pending',
           expires_at: inv.expiresAt ? new Date(inv.expiresAt).getTime() : Date.now() + 7 * 24 * 60 * 60 * 1000,
           created_at: Date.now(),
@@ -125,7 +125,7 @@ const acceptPracticeInvitation = async (
       return internalError('Organization ID not found in invitation result');
     }
 
-    const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+    const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
     void publishSimpleEvent(
       EventType.PRACTICE_MEMBER_JOINED,
@@ -145,6 +145,25 @@ const acceptPracticeInvitation = async (
   }
 };
 
+const declinePracticeInvitation = async (
+  invitationId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<{ success: boolean }>> => {
+  try {
+    const betterAuth = getBetterAuth();
+    await betterAuth.api.rejectInvitation({
+      body: { invitationId },
+      headers: requestHeaders,
+    });
+
+    return ok({ success: true });
+  } catch (error) {
+    logger.error('Failed to reject invitation {invitationId}: {error}', { invitationId, error });
+    return internalError(getBetterAuthErrorMessage(error, 'Failed to reject invitation'));
+  }
+};
+
 /**
  * Invitations Service Object
  */
@@ -152,6 +171,7 @@ export const invitationsService = {
   listPracticeInvitations,
   createPracticeInvitation,
   acceptPracticeInvitation,
+  declinePracticeInvitation,
 };
 
 export default invitationsService;

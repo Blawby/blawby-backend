@@ -23,8 +23,8 @@ export const auditLogsRepository = {
     return await db
       .select()
       .from(uploadAuditLogs)
-      .where(eq(uploadAuditLogs.uploadId, uploadId))
-      .orderBy(desc(uploadAuditLogs.createdAt))
+      .where(eq(uploadAuditLogs.upload_id, uploadId))
+      .orderBy(desc(uploadAuditLogs.created_at))
       .limit(limit);
   },
 
@@ -38,10 +38,10 @@ export const auditLogsRepository = {
       offset?: number;
     },
   ): Promise<SelectUploadAuditLog[]> {
-    const conditions = [eq(uploadAuditLogs.organizationId, organizationId)];
+    const conditions = [eq(uploadAuditLogs.organization_id, organizationId)];
 
     if (options?.uploadId) {
-      conditions.push(eq(uploadAuditLogs.uploadId, options.uploadId));
+      conditions.push(eq(uploadAuditLogs.upload_id, options.uploadId));
     }
 
     if (options?.action) {
@@ -49,7 +49,7 @@ export const auditLogsRepository = {
     }
 
     if (options?.userId) {
-      conditions.push(eq(uploadAuditLogs.userId, options.userId));
+      conditions.push(eq(uploadAuditLogs.user_id, options.userId));
     }
 
     const limit = options?.limit ?? 100;
@@ -59,7 +59,7 @@ export const auditLogsRepository = {
       .select()
       .from(uploadAuditLogs)
       .where(and(...conditions))
-      .orderBy(desc(uploadAuditLogs.createdAt))
+      .orderBy(desc(uploadAuditLogs.created_at))
       .limit(limit)
       .offset(offset);
   },
@@ -74,7 +74,7 @@ export const auditLogsRepository = {
     return await db
       .select()
       .from(uploadAuditLogs)
-      .where(inArray(uploadAuditLogs.uploadId, uploadIds))
-      .orderBy(desc(uploadAuditLogs.createdAt));
+      .where(inArray(uploadAuditLogs.upload_id, uploadIds))
+      .orderBy(desc(uploadAuditLogs.created_at));
   },
 };

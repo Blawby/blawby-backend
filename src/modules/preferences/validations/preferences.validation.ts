@@ -14,7 +14,7 @@ import {
 } from '@/modules/preferences/types/preferences.types';
 
 // Category-specific validation schemas
-export const generalPreferencesSchema = z.object({
+const generalPreferencesSchema = z.object({
   theme: z.enum(THEME_OPTIONS).optional(),
   accent_color: z.string().optional(),
   language: z.string().optional(),
@@ -24,7 +24,7 @@ export const generalPreferencesSchema = z.object({
   time_format: z.enum(TIME_FORMAT_OPTIONS).optional(),
 });
 
-export const notificationPreferencesSchema = z.object({
+const notificationPreferencesSchema = z.object({
   messages_push: z.boolean().optional().openapi({
     description: 'Enable push notifications for messages',
     example: true,
@@ -75,14 +75,14 @@ export const notificationPreferencesSchema = z.object({
   }),
 });
 
-export const securityPreferencesSchema = z.object({
+const securityPreferencesSchema = z.object({
   two_factor_enabled: z.boolean().optional(),
   email_notifications: z.boolean().optional(),
   login_alerts: z.boolean().optional(),
   session_timeout: z.number().int().positive().optional(),
 });
 
-export const accountPreferencesSchema = z.object({
+const accountPreferencesSchema = z.object({
   selected_domain: z.string().nullable().optional(),
   custom_domains: z.string().nullable().optional(),
   receive_feedback_emails: z.boolean().optional(),
@@ -90,7 +90,7 @@ export const accountPreferencesSchema = z.object({
   security_alerts: z.boolean().optional(),
 });
 
-export const onboardingPreferencesSchema = z.object({
+const onboardingPreferencesSchema = z.object({
   birthday: z.string().optional(), // ISO date string
   primary_use_case: z.string().optional(),
   use_case_additional_info: z.string().optional(),
@@ -106,30 +106,30 @@ export const onboardingPreferencesSchema = z.object({
   }),
 });
 
-export const profilePreferencesSchema = z.object({
+const profilePreferencesSchema = z.object({
   // Profile fields (phone, phoneCountryCode, dob) are now in users table
   // via Better Auth additionalFields. Use Better Auth updateUser endpoint.
   // This schema kept for backward compatibility but is empty.
 });
 
 // Category validation - uses PREFERENCE_CATEGORIES from types as single source of truth
-export const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
+const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 
-export type PreferenceCategory = z.infer<typeof preferenceCategorySchema>;
+
 
 // Legacy schema (for backward compatibility during migration)
 // Note: phone and dob should be updated via Better Auth updateUser endpoint
-export const updateUserDetailsSchema = z.object({
+const updateUserDetailsSchema = z.object({
   phone: z.string().min(10).optional(),
-  phoneCountryCode: z.string().optional(), // e.g., '+1', '+44'
+  phone_country_code: z.string().optional(), // e.g., '+1', '+44'
   dob: z.coerce.date().optional(),
-  productUsage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
+  product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
 });
 
-export type UpdateUserDetailsRequest = z.infer<typeof updateUserDetailsSchema>;
+
 
 // Response schemas for OpenAPI documentation
-export const preferencesResponseSchema = z
+const preferencesResponseSchema = z
   .object({
     data: z.object({
       id: z.uuid(),
@@ -146,13 +146,13 @@ export const preferencesResponseSchema = z
   })
   .openapi('PreferencesResponse');
 
-export const categoryPreferencesResponseSchema = z
+const categoryPreferencesResponseSchema = z
   .object({
     data: z.record(z.string(), z.unknown()),
   })
   .openapi('CategoryPreferencesResponse');
 
-export const errorResponseSchema = z
+const errorResponseSchema = z
   .object({
     error: z.string(),
     message: z.string().optional(),
@@ -164,15 +164,31 @@ export const errorResponseSchema = z
   })
   .openapi('ErrorResponse');
 
-export const notFoundResponseSchema = z
+const notFoundResponseSchema = z
   .object({
     error: z.string(),
   })
   .openapi('NotFoundResponse');
 
-export const internalServerErrorResponseSchema = z
+const internalServerErrorResponseSchema = z
   .object({
     error: z.string(),
   })
   .openapi('InternalServerErrorResponse');
+
+export const preferenceValidations = {
+  generalPreferencesSchema,
+  notificationPreferencesSchema,
+  securityPreferencesSchema,
+  accountPreferencesSchema,
+  onboardingPreferencesSchema,
+  profilePreferencesSchema,
+  preferenceCategorySchema,
+  updateUserDetailsSchema,
+  preferencesResponseSchema,
+  categoryPreferencesResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+  internalServerErrorResponseSchema,
+};
 

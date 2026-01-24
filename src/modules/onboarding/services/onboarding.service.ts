@@ -6,7 +6,7 @@ import {
   connectedAccountsService,
 } from '@/modules/onboarding/services/connected-accounts.service';
 import type {
-  StripeConnectedAccountBase,
+  OnboardingStatusResponse,
 } from '@/modules/onboarding/types/onboarding.types';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishUserEvent } from '@/shared/events/event-publisher';
@@ -31,7 +31,7 @@ export const onboardingService = {
     refreshUrl: string;
     returnUrl: string;
     requestHeaders: Record<string, string>;
-  }): Promise<Result<StripeConnectedAccountBase>> {
+  }): Promise<Result<OnboardingStatusResponse>> {
     const {
       organizationEmail, organizationId, user, refreshUrl, returnUrl, requestHeaders,
     } = params;
@@ -41,7 +41,7 @@ export const onboardingService = {
       const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
       if (!orgResult.success) {
-        return orgResult;
+        return orgResult as any;
       }
 
       const result = await connectedAccountsService.createOrGetAccount(
@@ -52,7 +52,7 @@ export const onboardingService = {
         user.id,
       );
 
-      if (!result.success) return result;
+      if (!result.success) return result as any;
       const accountData = result.data;
 
       // Publish onboarding started event
@@ -92,13 +92,13 @@ export const onboardingService = {
     organizationId: string,
     user: User,
     requestHeaders: Record<string, string>,
-  ): Promise<Result<StripeConnectedAccountBase>> {
+  ): Promise<Result<OnboardingStatusResponse>> {
     try {
       // 1. Validate organization and user access using Better Auth
       const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
       if (!orgResult.success) {
-        return orgResult;
+        return orgResult as any;
       }
 
       // 2. Fetch the connected account
@@ -139,7 +139,7 @@ export const onboardingService = {
     refreshUrl: string;
     returnUrl: string;
     requestHeaders: Record<string, string>;
-  }): Promise<Result<StripeConnectedAccountBase>> {
+  }): Promise<Result<OnboardingStatusResponse>> {
     const {
       email, organizationId, user, refreshUrl, returnUrl, requestHeaders,
     } = params;
@@ -149,7 +149,7 @@ export const onboardingService = {
       const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
       if (!orgResult.success) {
-        return orgResult;
+        return orgResult as any;
       }
 
       const result = await connectedAccountsService.createOrGetAccount(
@@ -160,7 +160,7 @@ export const onboardingService = {
         user.id,
       );
 
-      if (!result.success) return result;
+      if (!result.success) return result as any;
       const accountData = result.data;
 
       return ok({

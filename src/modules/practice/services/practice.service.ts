@@ -7,8 +7,8 @@ import {
 import { practiceDetails as practiceDetailsTable, type PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import type {
-  PracticeCreateRequest,
-  PracticeUpdateRequest,
+  CreatePracticeRequest,
+  UpdatePracticeRequest,
   PracticeWithDetails,
   UpdateOrganizationRequest,
 } from '@/modules/practice/types/practice.types';
@@ -36,8 +36,10 @@ export const practiceService = {
   async listPractices(
     user: User,
     requestHeaders: Record<string, string>,
-  ): Promise<Result<Organization[]>> {
-    return organizationService.listOrganizations(user, requestHeaders);
+  ): Promise<Result<{ organizations: Organization[] }>> {
+    const result = await organizationService.listOrganizations(user, requestHeaders);
+    if (!result.success) return result as any;
+    return ok({ organizations: result.data });
   },
 
   /**
@@ -57,13 +59,12 @@ export const practiceService = {
       );
 
       if (!orgResult.success) {
-        return orgResult;
+        return orgResult as any;
       }
       const organization = orgResult.data;
 
       // 2. Get optional practice details
-      const practiceDetails
-        = await findPracticeDetailsByOrganization(organizationId);
+      const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
 
       // 3. Clean and combine data
       const cleanPracticeDetails = practiceDetails
@@ -79,7 +80,6 @@ export const practiceService = {
       return ok({
         ...organization,
         ...cleanPracticeDetails,
-        // Metadata needs careful casting as it's often stringified JSON in better-auth
         metadata: parseBetterAuthMetadata(organization.metadata),
       } as unknown as PracticeWithDetails);
     } catch (error) {
@@ -92,7 +92,7 @@ export const practiceService = {
    * Create a new practice
    */
   async createPractice(params: {
-    data: PracticeCreateRequest;
+    data: CreatePracticeRequest;
     user: User;
     requestHeaders: Record<string, string>;
   }): Promise<Result<PracticeWithDetails>> {
@@ -116,7 +116,7 @@ export const practiceService = {
       );
 
       if (!createResult.success) {
-        return createResult;
+        return createResult as any;
       }
       const organization = createResult.data;
 
@@ -192,7 +192,7 @@ export const practiceService = {
    */
   async updatePractice(
     organizationId: string,
-    data: PracticeUpdateRequest,
+    data: UpdatePracticeRequest,
     user: User,
     requestHeaders: Record<string, string>,
   ): Promise<Result<PracticeWithDetails>> {
@@ -209,7 +209,7 @@ export const practiceService = {
 
       const filteredOrganizationData = Object.fromEntries(
         Object.entries(organizationData).filter(([_, value]) => value !== undefined && value !== null),
-      ) as Partial<Pick<PracticeUpdateRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
+      ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
       // 2. Update organization in Better Auth
       let organization: Organization;
@@ -224,14 +224,14 @@ export const practiceService = {
         );
 
         if (!updateResult.success) {
-          return updateResult;
+          return updateResult as any;
         }
         organization = updateResult.data;
       } else {
         // Just fetch existing
         const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
         if (!orgResult.success) {
-          return orgResult;
+          return orgResult as any;
         }
         organization = orgResult.data;
       }
@@ -332,12 +332,11 @@ export const practiceService = {
       );
 
       if (!organizationResult.success) {
-        return organizationResult;
+        return organizationResult as any;
       }
 
       // 2. Get practice details before deletion for event payload
-      const existingPracticeDetails
-        = await findPracticeDetailsByOrganization(organizationId);
+      const existingPracticeDetails = await findPracticeDetailsByOrganization(organizationId);
 
       // 3. Delete optional practice details
       if (existingPracticeDetails) {
@@ -392,7 +391,7 @@ export const practiceService = {
       const activeResult = await organizationService.setActiveOrganization(organizationId, user, requestHeaders);
 
       if (!activeResult.success) {
-        return activeResult;
+        return activeResult as any;
       }
 
       void publishSimpleEvent(EventType.PRACTICE_SWITCHED, user.id, organizationId, {
@@ -409,3 +408,11 @@ export const practiceService = {
 };
 
 export default practiceService;
+
+// Legacy exports
+export const listPractices = practiceService.listPractices;
+export const getPracticeById = practiceService.getPracticeById;
+export const createPracticeService = practiceService.createPractice;
+export const updatePracticeService = practiceService.updatePractice;
+export const deletePracticeService = practiceService.deletePractice;
+export const setActivePractice = practiceService.setActivePractice;

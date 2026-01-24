@@ -99,6 +99,12 @@ export enum EventType {
   SUBSCRIPTION_RENEWED = 'subscription.renewed',
   SUBSCRIPTION_PAYMENT_FAILED = 'subscription.payment_failed',
 
+  // Client events
+  CLIENT_CREATED = 'client.created',
+  CLIENT_UPDATED = 'client.updated',
+  CLIENT_DELETED = 'client.deleted',
+  CLIENT_STATUS_CHANGED = 'client.status_changed',
+
   // System events
   SYSTEM_HEALTH_CHECK_PERFORMED = 'system.health_check_performed',
   SYSTEM_ERROR_OCCURRED = 'system.error_occurred',
@@ -124,6 +130,7 @@ export const getEventTypeByDomain = (domain: string): EventType[] => {
 export const EVENT_DOMAINS = {
   AUTH: 'auth',
   USER: 'user',
+  CLIENT: 'client',
   PRACTICE: 'practice',
   SETTINGS: 'settings',
   ONBOARDING: 'onboarding',

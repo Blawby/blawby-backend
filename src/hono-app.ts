@@ -116,12 +116,27 @@ const buildOpenApiDocument = () => {
   if (!doc.components.securitySchemes) {
     doc.components.securitySchemes = {};
   }
-  doc.components.securitySchemes.Bearer = {
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'JWT',
-    description: 'Bearer token authentication. Get token from /api/auth/sign-in/email endpoint.',
+  doc.components.securitySchemes.cookieAuth = {
+    type: 'apiKey',
+    in: 'cookie',
+    name: 'better-auth.session-token',
+    description: 'Session cookie for authentication',
   };
+
+  // Add tag groups for better organization in documentation UI
+  (doc as any)['x-tag-groups'] = [
+    {
+      name: 'Matters Management',
+      tags: [
+        'Matters: General',
+        'Matters: Practice Areas',
+        'Matters: Notes',
+        'Matters: Time Entries',
+        'Matters: Expenses',
+        'Matters: Milestones',
+      ],
+    },
+  ];
 
   return doc;
 };
