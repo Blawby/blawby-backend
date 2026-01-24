@@ -94,22 +94,15 @@ export const getMatterById = async (
     throw new Error(orgResult.error.message || 'Organization not found or access denied');
   }
 
-  const matter = await mattersQueries.findMatterById(matterId);
+  const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
 
   if (!matter || matter.organization_id !== organizationId) {
     throw new Error('Matter not found');
   }
 
-  // Get assignees
-  const assignees = await mattersQueries.getMatterAssignees(matterId);
-
-  // Get milestones
-  const milestones = await milestonesQueries.listMatterMilestones(matterId);
-
   return {
     ...matter,
-    assignees,
-    milestones,
+    assignees: matter.assignees.map((a: any) => a.user),
   };
 };
 

@@ -13,7 +13,6 @@ mattersApp.openapi(routes.listPracticeAreasRoute, handlers.listPracticeAreasHand
 mattersApp.openapi(routes.createPracticeAreaRoute, handlers.createPracticeAreaHandler);
 
 // ==================== MATTERS ====================
-mattersApp.openapi(routes.listMattersRoute, handlers.listMattersHandler);
 mattersApp.openapi(routes.createMatterRoute, handlers.createMatterHandler);
 mattersApp.openapi(routes.getMatterRoute, handlers.getMatterHandler);
 mattersApp.openapi(routes.updateMatterRoute, handlers.updateMatterHandler);

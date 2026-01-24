@@ -62,6 +62,7 @@ const matterIdParamSchema = z.object({
 });
 
 const listMattersQuerySchema = z.object({
+  matter_uuid: uuidValidator.optional(),
   status: z.enum(['draft', 'active']).optional(),
   practice_area_id: uuidValidator.optional(),
   practice_client_id: uuidValidator.optional(),
@@ -90,6 +91,8 @@ const matterSchema = z.object({
   deleted_by: z.uuid().nullable(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
+  assignees: z.array(z.any()).optional(),
+  milestones: z.array(z.any()).optional(),
 }).openapi('Matter');
 
 const activityLogSchema = z.object({

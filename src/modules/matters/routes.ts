@@ -43,7 +43,7 @@ const matterUuidParamSchema = z.object({
 
 export const listPracticeAreasRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/practice-areas',
+  path: '/{organizationId}/practice-areas',
   tags: ['Matters: Practice Areas'],
   summary: 'List practice areas',
   description: 'Get all practice areas for an organization',
@@ -59,7 +59,7 @@ export const listPracticeAreasRoute = createRoute({
 
 export const createPracticeAreaRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/practice-areas',
+  path: '/{organizationId}/practice-areas',
   tags: ['Matters: Practice Areas'],
   summary: 'Create practice area',
   description: 'Create a new practice area for an organization',
@@ -75,35 +75,11 @@ export const createPracticeAreaRoute = createRoute({
 
 // ==================== MATTERS ====================
 
-export const listMattersRoute = createRoute({
-  method: 'get',
-  path: '/organizations/{organizationId}/matters',
-  tags: ['Matters: General'],
-  summary: 'List matters',
-  description: 'Get all matters for an organization with optional filters',
-  request: { params: organizationIdParamSchema, query: matterValidations.listMattersQuerySchema },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            matters: z.array(matterValidations.matterSchema),
-            total: z.number(),
-            page: z.number(),
-            limit: z.number(),
-            totalPages: z.number(),
-          }),
-        },
-      },
-      description: 'Matters retrieved successfully',
-    },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-  },
-});
+// [REMOVED listMattersRoute - Consolidated into getMatterRoute]
 
 export const createMatterRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/matters',
+  path: '/{organizationId}/matters',
   tags: ['Matters: General'],
   summary: 'Create matter',
   description: 'Create a new matter/case',
@@ -125,20 +101,40 @@ export const createMatterRoute = createRoute({
 
 export const getMatterRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}',
+  path: '/{organizationId}/matters',
   tags: ['Matters: General'],
-  summary: 'Get matter',
-  description: 'Get a matter by ID',
-  request: { params: matterUuidParamSchema },
+  summary: 'Get matter(s)',
+  description: 'Get all matters or a single matter if matter_uuid query param is provided',
+  request: {
+    params: organizationIdParamSchema,
+    query: matterValidations.listMattersQuerySchema,
+  },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ matter: matterValidations.matterSchema }) } }, description: 'Matter retrieved' },
+    200: {
+      content: {
+        'application/json': {
+          schema: z.union([
+            z.object({ matter: matterValidations.matterSchema }),
+            z.object({
+              matters: z.array(matterValidations.matterSchema),
+              total: z.number(),
+              page: z.number(),
+              limit: z.number(),
+              totalPages: z.number(),
+            }),
+          ]),
+        },
+      },
+      description: 'Matter(s) retrieved successfully',
+    },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Matter not found' },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
   },
 });
 
 export const updateMatterRoute = createRoute({
   method: 'put',
-  path: '/organizations/{organizationId}/matters/{uuid}',
+  path: '/{organizationId}/matters/{uuid}',
   tags: ['Matters: General'],
   summary: 'Update matter',
   description: 'Update a matter',
@@ -160,7 +156,7 @@ export const updateMatterRoute = createRoute({
 
 export const deleteMatterRoute = createRoute({
   method: 'delete',
-  path: '/organizations/{organizationId}/matters/{uuid}',
+  path: '/{organizationId}/matters/{uuid}',
   tags: ['Matters: General'],
   summary: 'Delete matter',
   description: 'Soft delete a matter',
@@ -175,7 +171,7 @@ export const deleteMatterRoute = createRoute({
 
 export const listMatterNotesRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}/notes',
+  path: '/{organizationId}/matters/{uuid}/notes',
   tags: ['Matters: Notes'],
   summary: 'List notes',
   description: 'Get all notes for a matter',
@@ -187,7 +183,7 @@ export const listMatterNotesRoute = createRoute({
 
 export const createMatterNoteRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/matters/{uuid}/notes',
+  path: '/{organizationId}/matters/{uuid}/notes',
   tags: ['Matters: Notes'],
   summary: 'Create note',
   description: 'Create a note for a matter',
@@ -204,7 +200,7 @@ export const createMatterNoteRoute = createRoute({
 
 export const listTimeEntriesRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}/time-entries',
+  path: '/{organizationId}/matters/{uuid}/time-entries',
   tags: ['Matters: Time Entries'],
   summary: 'List time entries',
   description: 'Get all time entries for a matter',
@@ -216,7 +212,7 @@ export const listTimeEntriesRoute = createRoute({
 
 export const createTimeEntryRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/matters/{uuid}/time-entries',
+  path: '/{organizationId}/matters/{uuid}/time-entries',
   tags: ['Matters: Time Entries'],
   summary: 'Create time entry',
   description: 'Log time for a matter (duration calculated automatically)',
@@ -237,7 +233,7 @@ export const createTimeEntryRoute = createRoute({
 
 export const getTimeEntryStatsRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}/time-entries/stats',
+  path: '/{organizationId}/matters/{uuid}/time-entries/stats',
   tags: ['Matters: Time Entries'],
   summary: 'Get time statistics',
   description: 'Get total billable and non-billable time for a matter',
@@ -263,7 +259,7 @@ export const getTimeEntryStatsRoute = createRoute({
 
 export const listExpensesRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}/expenses',
+  path: '/{organizationId}/matters/{uuid}/expenses',
   tags: ['Matters: Expenses'],
   summary: 'List expenses',
   description: 'Get all expenses for a matter',
@@ -275,7 +271,7 @@ export const listExpensesRoute = createRoute({
 
 export const createExpenseRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/matters/{uuid}/expenses',
+  path: '/{organizationId}/matters/{uuid}/expenses',
   tags: ['Matters: Expenses'],
   summary: 'Create expense',
   description: 'Add an expense to a matter',
@@ -298,7 +294,7 @@ export const createExpenseRoute = createRoute({
 
 export const listMilestonesRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}/milestones',
+  path: '/{organizationId}/matters/{uuid}/milestones',
   tags: ['Matters: Milestones'],
   summary: 'List milestones',
   description: 'Get all milestones for a matter',
@@ -310,7 +306,7 @@ export const listMilestonesRoute = createRoute({
 
 export const createMilestoneRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/matters/{uuid}/milestones',
+  path: '/{organizationId}/matters/{uuid}/milestones',
   tags: ['Matters: Milestones'],
   summary: 'Create milestone',
   description: 'Add a milestone to a matter',
@@ -331,7 +327,7 @@ export const createMilestoneRoute = createRoute({
 
 export const reorderMilestonesRoute = createRoute({
   method: 'post',
-  path: '/organizations/{organizationId}/matters/{uuid}/milestones/reorder',
+  path: '/{organizationId}/matters/{uuid}/milestones/reorder',
   tags: ['Matters: Milestones'],
   summary: 'Reorder milestones',
   description: 'Reorder milestones by providing array of IDs in new order',
@@ -354,7 +350,7 @@ export const reorderMilestonesRoute = createRoute({
 
 export const getMatterActivityRoute = createRoute({
   method: 'get',
-  path: '/organizations/{organizationId}/matters/{uuid}/activity',
+  path: '/{organizationId}/matters/{uuid}/activity',
   tags: ['Matters: General'],
   summary: 'Get activity log',
   description: 'Get the activity log for a matter',
