@@ -1,15 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
 import {
-  createPracticeClientIntakeSchema,
-  updatePracticeClientIntakeSchema,
-  practiceClientIntakeSettingsResponseSchema,
-  createPracticeClientIntakeResponseSchema,
-  updatePracticeClientIntakeResponseSchema,
-  practiceClientIntakeStatusResponseSchema,
-  errorResponseSchema,
-  notFoundResponseSchema,
-  internalServerErrorResponseSchema,
+  intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
 /**
@@ -61,7 +53,7 @@ export const getIntakeSettingsRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceClientIntakeSettingsResponseSchema,
+          schema: intakeValidations.practiceClientIntakeSettingsResponseSchema,
         },
       },
       description: 'Intake settings retrieved successfully. Returns organization details (id, name, slug, logo), payment settings (paymentLinkEnabled, prefillAmount), and connected account status (id, chargesEnabled).',
@@ -69,7 +61,7 @@ export const getIntakeSettingsRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: intakeValidations.notFoundResponseSchema,
         },
       },
       description: 'Organization not found',
@@ -77,7 +69,7 @@ export const getIntakeSettingsRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: intakeValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -99,7 +91,7 @@ export const createPracticeClientIntakeRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: createPracticeClientIntakeSchema,
+          schema: intakeValidations.createPracticeClientIntakeSchema,
         },
       },
     },
@@ -108,7 +100,7 @@ export const createPracticeClientIntakeRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: createPracticeClientIntakeResponseSchema,
+          schema: intakeValidations.createPracticeClientIntakeResponseSchema,
         },
       },
       description: 'Practice client intake created successfully. Returns the intake UUID, Stripe Payment Link URL (for client redirect), payment amount, currency, status, and organization branding. The `payment_link_url` should be used to redirect the client to Stripe\'s hosted payment page.',
@@ -116,7 +108,7 @@ export const createPracticeClientIntakeRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: intakeValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - validation failed',
@@ -124,7 +116,7 @@ export const createPracticeClientIntakeRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: intakeValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -147,7 +139,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: updatePracticeClientIntakeSchema,
+          schema: intakeValidations.updatePracticeClientIntakeSchema,
         },
       },
     },
@@ -156,7 +148,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: updatePracticeClientIntakeResponseSchema,
+          schema: intakeValidations.updatePracticeClientIntakeResponseSchema,
         },
       },
       description: 'Practice client intake updated successfully. Returns the intake UUID, new Stripe Payment Link URL (old link is deactivated), updated payment amount, currency, and status. The new `payment_link_url` should be used to redirect the client to Stripe\'s hosted payment page with the updated amount.',
@@ -164,7 +156,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: intakeValidations.errorResponseSchema,
         },
       },
       description: 'Bad request - validation failed or payment already processed',
@@ -172,7 +164,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: intakeValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice client intake not found',
@@ -180,7 +172,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: intakeValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',
@@ -205,7 +197,7 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: practiceClientIntakeStatusResponseSchema,
+          schema: intakeValidations.practiceClientIntakeStatusResponseSchema,
         },
       },
       description: 'Status retrieved successfully. Returns the intake UUID, payment amount, currency, current status, Stripe charge ID (if payment succeeded), client metadata (email, name, phone, case details), and timestamps (succeeded_at, created_at).',
@@ -213,7 +205,7 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
     404: {
       content: {
         'application/json': {
-          schema: notFoundResponseSchema,
+          schema: intakeValidations.notFoundResponseSchema,
         },
       },
       description: 'Practice client intake not found',
@@ -221,7 +213,7 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: intakeValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Internal server error',

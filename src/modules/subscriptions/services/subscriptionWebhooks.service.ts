@@ -10,7 +10,7 @@ import {
   handlePriceCreated,
   handlePriceUpdated,
   handlePriceDeleted,
-} from '../handlers';
+} from '@/modules/subscriptions/handlers/index';
 
 const logger = getLogger(['subscriptions', 'webhook-service']);
 

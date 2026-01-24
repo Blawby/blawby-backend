@@ -58,15 +58,15 @@ const ensureMeteredProduct = async (
     );
 
     const existingItem = lineItems.find(
-      (item) => item.stripePriceId === meteredItem.priceId,
+      (item) => item.stripe_price_id === meteredItem.price_id,
     );
 
     if (existingItem) {
       logger.debug('Metered product already attached: {meterName} (org: {organizationId})', {
-        meterName: meteredItem.meterName,
+        meterName: meteredItem.meter_name,
         organizationId
       });
-      return ok(existingItem.stripeSubscriptionItemId);
+      return ok(existingItem.stripe_subscription_item_id);
     }
 
     // 3. Get Stripe subscription ID from Better Auth subscriptions table
@@ -84,9 +84,9 @@ const ensureMeteredProduct = async (
     const stripe = getStripeInstance();
     const subscriptionItem = await stripe.subscriptionItems.create({
       subscription: betterAuthSub.stripeSubscriptionId,
-      price: meteredItem.priceId,
+      price: meteredItem.price_id,
       metadata: {
-        meter_name: meteredItem.meterName,
+        meter_name: meteredItem.meter_name,
         item_type: meteredItem.type,
         organization_id: organizationId,
       },
@@ -94,34 +94,34 @@ const ensureMeteredProduct = async (
 
     // 5. Save subscription item to database
     await subscriptionRepository.upsertLineItem(db, {
-      subscriptionId: org.activeSubscriptionId,
-      stripeSubscriptionItemId: subscriptionItem.id,
-      stripePriceId: meteredItem.priceId,
-      itemType: meteredItem.type as
+      subscription_id: org.activeSubscriptionId,
+      stripe_subscription_item_id: subscriptionItem.id,
+      stripe_price_id: meteredItem.price_id,
+      item_type: meteredItem.type as
         | 'metered_invoice_fee'
         | 'metered_users'
         | 'metered_custom_payment_fee'
         | 'metered_payout_fee',
       quantity: 0, // Metered items start at 0
-      unitAmount: subscriptionItem.price.unit_amount
+      unit_amount: subscriptionItem.price.unit_amount
         ? (subscriptionItem.price.unit_amount / 100).toString()
         : null,
-      description: meteredItem.meterName,
+      description: meteredItem.meter_name,
       metadata: {
-        meter_name: meteredItem.meterName,
+        meter_name: meteredItem.meter_name,
         auto_attached: 'true',
         attached_at: new Date().toISOString(),
       },
     });
 
     logger.info('Attached metered product: {meterName} to organization {organizationId}', {
-      meterName: meteredItem.meterName,
+      meterName: meteredItem.meter_name,
       organizationId
     });
     return ok(subscriptionItem.id);
   } catch (error) {
     logger.error('Failed to ensure metered product {meterName} for org {organizationId}: {error}', {
-      meterName: meteredItem.meterName,
+      meterName: meteredItem.meter_name,
       organizationId,
       error
     });
@@ -186,7 +186,7 @@ const reportMeteredUsage = async (
     });
 
     logger.info('Usage reported: {meterName} +{quantity} (org: {organizationId})', {
-      meterName: meteredItem.meterName,
+      meterName: meteredItem.meter_name,
       quantity,
       organizationId
     });
@@ -209,7 +209,7 @@ const getCurrentUsage = async (
   db: NodePgDatabase<typeof schema>,
   organizationId: string,
 ): Promise<Result<
-  Array<{ meterName: string; quantity: number; description: string | null }>
+  Array<{ meter_name: string; quantity: number; description: string | null }>
 >> => {
   try {
     // Get organization's subscription
@@ -230,16 +230,16 @@ const getCurrentUsage = async (
     );
 
     const meteredItems = lineItems.filter((item) =>
-      item.itemType.startsWith('metered_'),
+      item.item_type.startsWith('metered_'),
     );
 
     const summary = meteredItems.map((item) => {
       const meterNameValue = (item.metadata as Record<string, unknown>)?.meter_name;
-      const meterName = typeof meterNameValue === 'string'
+      const meter_name = typeof meterNameValue === 'string'
         ? meterNameValue
         : (item.description || 'unknown');
       return {
-        meterName,
+        meter_name,
         quantity: item.quantity,
         description: item.description,
       };

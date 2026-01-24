@@ -31,31 +31,31 @@ export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => 
     // Remove the price from the plan
     const updates: Record<string, unknown> = {};
 
-    if (plan.stripeMonthlyPriceId === price.id) {
-      updates.stripeMonthlyPriceId = null;
-      updates.monthlyPrice = null;
+    if (plan.stripe_monthly_price_id === price.id) {
+      updates.stripe_monthly_price_id = null;
+      updates.monthly_price = null;
 
       // If this was the only price, deactivate the plan
-      if (!plan.stripeYearlyPriceId) {
-        updates.isActive = false;
+      if (!plan.stripe_yearly_price_id) {
+        updates.is_active = false;
       }
     }
 
-    if (plan.stripeYearlyPriceId === price.id) {
-      updates.stripeYearlyPriceId = null;
-      updates.yearlyPrice = null;
+    if (plan.stripe_yearly_price_id === price.id) {
+      updates.stripe_yearly_price_id = null;
+      updates.yearly_price = null;
 
       // If this was the only price, deactivate the plan
-      if (!plan.stripeMonthlyPriceId) {
-        updates.isActive = false;
+      if (!plan.stripe_monthly_price_id) {
+        updates.is_active = false;
       }
     }
 
     // Handle metered items
-    if (plan.meteredItems && Array.isArray(plan.meteredItems)) {
-      const meteredItems = (plan.meteredItems as any[]).filter((item) => item.priceId !== price.id);
-      if (meteredItems.length !== (plan.meteredItems as any[]).length) {
-        updates.meteredItems = meteredItems;
+    if (plan.metered_items && Array.isArray(plan.metered_items)) {
+      const metered_items = (plan.metered_items as any[]).filter((item) => item.price_id !== price.id);
+      if (metered_items.length !== (plan.metered_items as any[]).length) {
+        updates.metered_items = metered_items;
       }
     }
 

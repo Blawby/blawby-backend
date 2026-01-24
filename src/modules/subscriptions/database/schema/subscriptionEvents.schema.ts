@@ -41,48 +41,48 @@ export const subscriptionEvents = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Link to Better Auth subscription
-    subscriptionId: text('subscription_id').notNull(),
+    subscription_id: text('subscription_id').notNull(),
 
     // Link to plan (optional, for plan changes)
-    planId: uuid('plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
+    plan_id: uuid('plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
 
     // Event details
-    eventType: text('event_type').$type<SubscriptionEventType>().notNull(),
-    fromStatus: text('from_status'),
-    toStatus: text('to_status'),
-    fromPlanId: uuid('from_plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
-    toPlanId: uuid('to_plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
+    event_type: text('event_type').$type<SubscriptionEventType>().notNull(),
+    from_status: text('from_status'),
+    to_status: text('to_status'),
+    from_plan_id: uuid('from_plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
+    to_plan_id: uuid('to_plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
 
     // Audit fields
-    triggeredBy: text('triggered_by'), // User ID
-    triggeredByType: text('triggered_by_type').$type<SubscriptionTriggeredByType>(),
+    triggered_by: text('triggered_by'), // User ID
+    triggered_by_type: text('triggered_by_type').$type<SubscriptionTriggeredByType>(),
 
     // Additional context
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
-    errorMessage: text('error_message'),
+    error_message: text('error_message'),
 
     // Timestamp
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('subscription_events_subscription_idx').on(table.subscriptionId),
-    index('subscription_events_type_idx').on(table.eventType),
-    index('subscription_events_created_at_idx').on(table.createdAt),
-    index('subscription_events_plan_idx').on(table.planId),
+    index('subscription_events_subscription_idx').on(table.subscription_id),
+    index('subscription_events_type_idx').on(table.event_type),
+    index('subscription_events_created_at_idx').on(table.created_at),
+    index('subscription_events_plan_idx').on(table.plan_id),
   ],
 );
 
 export const subscriptionEventsRelations = relations(subscriptionEvents, ({ one }) => ({
   plan: one(subscriptionPlans, {
-    fields: [subscriptionEvents.planId],
+    fields: [subscriptionEvents.plan_id],
     references: [subscriptionPlans.id],
   }),
   fromPlan: one(subscriptionPlans, {
-    fields: [subscriptionEvents.fromPlanId],
+    fields: [subscriptionEvents.from_plan_id],
     references: [subscriptionPlans.id],
   }),
   toPlan: one(subscriptionPlans, {
-    fields: [subscriptionEvents.toPlanId],
+    fields: [subscriptionEvents.to_plan_id],
     references: [subscriptionPlans.id],
   }),
 }));

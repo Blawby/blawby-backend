@@ -14,8 +14,8 @@ import * as schema from '@/schema';
  * Metered item from database
  */
 export type MeteredItem = {
-  priceId: string;
-  meterName: string;
+  price_id: string;
+  meter_name: string;
   type: string;
 };
 
@@ -77,7 +77,7 @@ export const getMeteredItemsForOrganization = async (
   }
 
   // 4. Return metered items from plan (default to empty array if not set)
-  const meteredItems = (plan.meteredItems || []) as MeteredItem[];
+  const meteredItems = (plan.metered_items || []) as MeteredItem[];
   return meteredItems;
 };
 

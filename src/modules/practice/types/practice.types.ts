@@ -1,7 +1,8 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import type { Organization, User } from '@/shared/types/BetterAuth';
+import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 
 // ============================================================================
 // ORGANIZATION API TYPES
@@ -9,8 +10,6 @@ import type { Organization, User } from '@/shared/types/BetterAuth';
 
 /**
  * Organization API request types inferred from Better Auth 1.4+
- *
- * Uses z.infer on the Zod schemas from endpoint options
  */
 export type CreateOrganizationRequest = z.infer<
   BetterAuthInstance['api']['createOrganization']['options']['body']
@@ -52,40 +51,17 @@ export type PracticeStats = {
   activeSubscriptions: number;
 };
 
-export type PracticeSummary = {
-  id: string;
-  name: string;
-  slug: string;
-  logo: string | null;
-  businessPhone: string | null;
-  businessEmail: string | null;
-  consultationFee: string | null;
-  paymentUrl: string | null;
-  calendlyUrl: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
+// Inferred from Zod schemas
+export type CreatePracticeRequest = z.infer<typeof practiceValidations.createPracticeSchema>;
+export type UpdatePracticeRequest = z.infer<typeof practiceValidations.updatePracticeSchema>;
+export type PracticeQueryParams = z.infer<typeof practiceValidations.practiceQuerySchema>;
+export type UpdateMemberRoleRequest = z.infer<typeof practiceValidations.updateMemberRoleSchema>;
+export type CreateInvitationRequest = z.infer<typeof practiceValidations.createInvitationSchema>;
+export type CreatePracticeDetailsRequest = z.infer<typeof practiceValidations.createPracticeDetailsSchema>;
+export type UpdatePracticeDetailsRequest = z.infer<typeof practiceValidations.updatePracticeDetailsSchema>;
 
-export type PracticeCreateRequest = {
-  name: string;
-  slug: string;
-  logo?: string;
-  metadata?: Record<string, unknown>;
-  business_phone?: string;
-  business_email?: string;
-  consultation_fee?: number;
-  payment_url?: string;
-  calendly_url?: string;
-};
-
-export type PracticeUpdateRequest = {
-  name?: string;
-  slug?: string;
-  logo?: string;
-  metadata?: Record<string, unknown>;
-  business_phone?: string;
-  business_email?: string;
-  consultation_fee?: number;
-  payment_url?: string;
-  calendly_url?: string;
-};
+export type PracticeResponse = z.infer<typeof practiceValidations.practiceResponseSchema>;
+export type PracticeListResponse = z.infer<typeof practiceValidations.practiceListResponseSchema>;
+export type PracticeDetailsResponse = z.infer<typeof practiceValidations.practiceDetailsResponseSchema>;
+export type MemberListItem = z.infer<typeof practiceValidations.memberListItemSchema>;
+export type InvitationListItem = z.infer<typeof practiceValidations.invitationListItemSchema>;

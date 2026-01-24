@@ -1,81 +1,28 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { validateParams, validateJson } from '@/shared/middleware/validation';
-
-import {
-  createConnectedAccountRoute,
-  getOnboardingStatusRoute,
-} from '@/modules/onboarding/routes';
-import {
-  onboardingService,
-} from '@/modules/onboarding/services/onboarding.service';
-import {
-  organizationIdParamSchema,
-  createConnectedAccountSchema,
-} from '@/modules/onboarding/validations/onboarding.validation';
-
+import * as routes from '@/modules/onboarding/routes';
+import * as handlers from '@/modules/onboarding/http.handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
 
-const onboardingApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const onboardingApp = createHonoApp();
 
 /**
  * GET /api/onboarding/organization/:organizationId/status
  * Get onboarding status for organization
  */
-onboardingApp.get(
-  '/organization/:organizationId/status',
-  validateParams(organizationIdParamSchema, 'Invalid Organization UUID'),
-  async (c) => {
-    const user = c.get('user');
-    if (!user) {
-      return response.unauthorized(c, 'User not authenticated');
-    }
-
-    const validatedParams = c.get('validatedParams');
-
-    const result = await onboardingService.getOnboardingStatus(
-      validatedParams.organizationId,
-      user,
-      c.req.header(),
-    );
-
-    return response.fromResult(c, result);
-  },
-);
-
+onboardingApp.openapi(routes.getOnboardingStatusRoute, handlers.getOnboardingStatusHandler);
 
 /**
  * POST /api/onboarding/connected-accounts
  * Create connected account for organization (includes session creation)
  */
-onboardingApp.post(
-  '/connected-accounts',
-  validateJson(createConnectedAccountSchema, 'Invalid Onboarding Data'),
-  async (c) => {
-    const user = c.get('user');
-    if (!user) {
-      return response.unauthorized(c, 'User not authenticated');
-    }
-
-    const validatedBody = c.get('validatedBody');
-
-    const result = await onboardingService.createConnectedAccount({
-      email: validatedBody.practice_email,
-      organizationId: validatedBody.practice_uuid,
-      user,
-      refreshUrl: validatedBody.refresh_url,
-      returnUrl: validatedBody.return_url,
-      requestHeaders: c.req.header(),
-    });
-
-    return response.fromResult(c, result, 201);
-  },
-);
+onboardingApp.openapi(routes.createConnectedAccountRoute, handlers.createConnectedAccountHandler);
 
 registerOpenApiRoutes(onboardingApp, [
-  getOnboardingStatusRoute,
-  createConnectedAccountRoute,
+  routes.getOnboardingStatusRoute,
+  routes.createConnectedAccountRoute,
 ]);
 
 export default onboardingApp;

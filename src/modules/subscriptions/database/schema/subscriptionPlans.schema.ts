@@ -23,17 +23,17 @@ export const subscriptionPlans = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull().unique(),
-    displayName: text('display_name').notNull(),
+    display_name: text('display_name').notNull(),
     description: text('description'),
 
     // Stripe IDs
-    stripeProductId: text('stripe_product_id').notNull().unique(),
-    stripeMonthlyPriceId: text('stripe_monthly_price_id'),
-    stripeYearlyPriceId: text('stripe_yearly_price_id'),
+    stripe_product_id: text('stripe_product_id').notNull().unique(),
+    stripe_monthly_price_id: text('stripe_monthly_price_id'),
+    stripe_yearly_price_id: text('stripe_yearly_price_id'),
 
     // Pricing
-    monthlyPrice: decimal('monthly_price', { precision: 10, scale: 2 }),
-    yearlyPrice: decimal('yearly_price', { precision: 10, scale: 2 }),
+    monthly_price: decimal('monthly_price', { precision: 10, scale: 2 }),
+    yearly_price: decimal('yearly_price', { precision: 10, scale: 2 }),
     currency: text('currency').default('usd').notNull(),
 
     // Features and Limits
@@ -48,37 +48,37 @@ export const subscriptionPlans = pgTable(
       .default({ users: -1, invoices_per_month: -1, storage_gb: 10 }),
 
     // Metered items configuration
-    meteredItems: jsonb('metered_items')
+    metered_items: jsonb('metered_items')
       .$type<
         Array<{
-          priceId: string;
-          meterName: string;
+          price_id: string;
+          meter_name: string;
           type: string;
         }>
       >()
       .default([]),
 
     // Display settings
-    isActive: boolean('is_active').default(true).notNull(),
-    isPublic: boolean('is_public').default(true).notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
+    is_active: boolean('is_active').default(true).notNull(),
+    is_public: boolean('is_public').default(true).notNull(),
+    sort_order: integer('sort_order').default(0).notNull(),
 
     // Additional metadata from Stripe
     metadata: jsonb('metadata').$type<Record<string, string>>().default({}),
 
     // Timestamps
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    created_at: timestamp('created_at').defaultNow().notNull(),
+    updated_at: timestamp('updated_at')
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [
     index('subscription_plans_name_idx').on(table.name),
-    index('subscription_plans_active_sort_idx').on(table.isActive, table.sortOrder),
-    index('subscription_plans_stripe_product_idx').on(table.stripeProductId),
-    uniqueIndex('subscription_plans_stripe_monthly_price_idx').on(table.stripeMonthlyPriceId),
-    uniqueIndex('subscription_plans_stripe_yearly_price_idx').on(table.stripeYearlyPriceId),
+    index('subscription_plans_active_sort_idx').on(table.is_active, table.sort_order),
+    index('subscription_plans_stripe_product_idx').on(table.stripe_product_id),
+    uniqueIndex('subscription_plans_stripe_monthly_price_idx').on(table.stripe_monthly_price_id),
+    uniqueIndex('subscription_plans_stripe_yearly_price_idx').on(table.stripe_yearly_price_id),
   ],
 );
 

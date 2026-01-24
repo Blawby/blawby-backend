@@ -1,10 +1,10 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
+import { getAuditLogRoute } from '@/modules/uploads/routes';
 
-export const getAuditLogHandler = async (c: Context<AppContext>) => {
-  const id = c.req.param('id');
+export const getAuditLogHandler: AppRouteHandler<typeof getAuditLogRoute> = async (c) => {
+  const { id } = c.req.valid('param');
   const organizationId = c.get('activeOrganizationId');
 
   if (!organizationId) {
@@ -12,6 +12,5 @@ export const getAuditLogHandler = async (c: Context<AppContext>) => {
   }
 
   const result = await uploadsService.getAuditLogs(id, organizationId);
-
   return response.fromResult(c, result);
 };

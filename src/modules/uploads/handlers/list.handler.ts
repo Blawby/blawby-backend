@@ -1,18 +1,16 @@
-import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import type { ListUploadsQuery } from '@/modules/uploads/validations/uploads.validation';
+import { listUploadsRoute } from '@/modules/uploads/routes';
 
-export const listHandler = async (c: Context<AppContext>) => {
-  const query = c.req.query() as unknown as ListUploadsQuery;
+export const listHandler: AppRouteHandler<typeof listUploadsRoute> = async (c) => {
   const organizationId = c.get('activeOrganizationId');
+  const query = c.req.valid('query');
 
   if (!organizationId) {
     return response.badRequest(c, 'Organization context required');
   }
 
   const result = await uploadsService.listUploads(organizationId, query);
-
   return response.fromResult(c, result);
 };

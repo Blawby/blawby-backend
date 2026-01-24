@@ -1,12 +1,9 @@
-import type { z } from 'zod';
-import type { BetterAuthInstance } from '@/shared/auth/better-auth';
-import {
-  createSubscriptionSchema,
-  cancelSubscriptionSchema,
-} from '@/modules/subscriptions/validations/subscription.validation';
+import { z } from 'zod';
+import { subscriptionValidations } from '@/modules/subscriptions/validations/subscription.validation';
 
-export type CreateSubscriptionRequest = z.infer<typeof createSubscriptionSchema>;
-export type CancelSubscriptionRequest = z.infer<typeof cancelSubscriptionSchema>;
+// Inferred from Zod schemas
+export type CreateSubscriptionRequest = z.infer<typeof subscriptionValidations.createSubscriptionSchema>;
+export type CancelSubscriptionRequest = z.infer<typeof subscriptionValidations.cancelSubscriptionSchema>;
 
 // ============================================================================
 // WHY WE CAN'T INFER TYPES (like practice.types.ts does)
@@ -18,20 +15,6 @@ export type CancelSubscriptionRequest = z.infer<typeof cancelSubscriptionSchema>
  * Unlike organization plugin methods (createOrganization, listOrganizations, etc.),
  * the Stripe plugin methods (upgradeSubscription, cancelSubscription, etc.) are NOT
  * automatically typed in BetterAuthInstance['api'].
- *
- * This means we CANNOT do:
- *   type UpgradeSubscriptionBody = z.infer<
- *     BetterAuthInstance['api']['upgradeSubscription']['options']['body']
- *   >
- *
- * Because TypeScript error: Property 'upgradeSubscription' does not exist on type 'InferAPI<...>'
- *
- * REASON: The Stripe plugin adds methods at runtime but doesn't export proper TypeScript types
- * for Better Auth's type inference system. The methods exist at runtime, but TypeScript
- * doesn't know about them.
- *
- * SOLUTION: We define the types manually based on Better Auth documentation.
- * This is why we need `as unknown as SubscriptionAPI` in the service code.
  */
 
 // ============================================================================
@@ -104,16 +87,6 @@ export type UpgradeSubscriptionResponse = {
 
 /**
  * Subscription API method signatures for Better Auth Stripe plugin
- *
- * These methods exist at runtime (added by the Stripe plugin) but are NOT typed
- * in BetterAuthInstance['api'], which is why we define them manually here.
- *
- * Compare with practice.types.ts which can infer types:
- *   BetterAuthInstance['api']['createOrganization']['options']['body']
- *
- * But we cannot do:
- *   BetterAuthInstance['api']['upgradeSubscription']['options']['body']
- *   ❌ TypeScript error: Property 'upgradeSubscription' does not exist
  */
 export type SubscriptionAPI = {
   listActiveSubscriptions: (args: {
@@ -134,3 +107,11 @@ export type SubscriptionAPI = {
   }) => Promise<unknown>;
 };
 
+// Response schemas inferred types
+export type SubscriptionPlanResponse = z.infer<typeof subscriptionValidations.subscriptionPlanResponseSchema>;
+export type SubscriptionResponse = z.infer<typeof subscriptionValidations.subscriptionResponseSchema>;
+export type SubscriptionWithDetailsResponse = z.infer<typeof subscriptionValidations.subscriptionWithDetailsResponseSchema>;
+export type ListPlansResponse = z.infer<typeof subscriptionValidations.listPlansResponseSchema>;
+export type CreateSubscriptionResponse = z.infer<typeof subscriptionValidations.createSubscriptionResponseSchema>;
+export type CancelSubscriptionResponse = z.infer<typeof subscriptionValidations.cancelSubscriptionResponseSchema>;
+export type GetCurrentSubscriptionResponse = z.infer<typeof subscriptionValidations.getCurrentSubscriptionResponseSchema>;

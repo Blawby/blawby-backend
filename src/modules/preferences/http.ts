@@ -14,14 +14,7 @@ import {
 } from '@/modules/preferences/handlers';
 import * as routes from '@/modules/preferences/routes';
 import {
-  generalPreferencesSchema,
-  notificationPreferencesSchema,
-  securityPreferencesSchema,
-  accountPreferencesSchema,
-  onboardingPreferencesSchema,
-  profilePreferencesSchema,
-  preferenceCategorySchema,
-  updateUserDetailsSchema,
+  preferenceValidations,
 } from '@/modules/preferences/validations/preferences.validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import { validateJson } from '@/shared/middleware/validation';
@@ -41,7 +34,7 @@ app.put(
   '/:category',
   async (c, next) => {
     const category = c.req.param('category');
-    const categoryResult = preferenceCategorySchema.safeParse(category);
+    const categoryResult = preferenceValidations.preferenceCategorySchema.safeParse(category);
 
     if (!categoryResult.success) {
       return response.badRequest(c, 'Invalid category');
@@ -51,22 +44,22 @@ app.put(
     let schema;
     switch (categoryResult.data) {
       case 'general':
-        schema = generalPreferencesSchema;
+        schema = preferenceValidations.generalPreferencesSchema;
         break;
       case 'notifications':
-        schema = notificationPreferencesSchema;
+        schema = preferenceValidations.notificationPreferencesSchema;
         break;
       case 'security':
-        schema = securityPreferencesSchema;
+        schema = preferenceValidations.securityPreferencesSchema;
         break;
       case 'account':
-        schema = accountPreferencesSchema;
+        schema = preferenceValidations.accountPreferencesSchema;
         break;
       case 'onboarding':
-        schema = onboardingPreferencesSchema;
+        schema = preferenceValidations.onboardingPreferencesSchema;
         break;
       case 'profile':
-        schema = profilePreferencesSchema;
+        schema = preferenceValidations.profilePreferencesSchema;
         break;
       default:
         return response.badRequest(c, 'Invalid category');
@@ -82,7 +75,7 @@ app.get('/me', getDetails);
 app.put(
   '/me',
   validateJson(
-    updateUserDetailsSchema,
+    preferenceValidations.updateUserDetailsSchema,
     'Invalid preferences data',
   ),
   updateDetails,

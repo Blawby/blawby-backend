@@ -107,24 +107,24 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
     // Prepare plan data
     const planData = {
       name: (metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_')),
-      displayName: product.name,
+      display_name: product.name,
       description: product.description || null,
-      stripeProductId: product.id,
-      stripeMonthlyPriceId: monthlyPrice?.id || null,
-      stripeYearlyPriceId: yearlyPrice?.id || null,
-      monthlyPrice: monthlyPrice?.unit_amount
+      stripe_product_id: product.id,
+      stripe_monthly_price_id: monthlyPrice?.id || null,
+      stripe_yearly_price_id: yearlyPrice?.id || null,
+      monthly_price: monthlyPrice?.unit_amount
         ? (monthlyPrice.unit_amount / 100).toString()
         : null,
-      yearlyPrice: yearlyPrice?.unit_amount
+      yearly_price: yearlyPrice?.unit_amount
         ? (yearlyPrice.unit_amount / 100).toString()
         : null,
       currency: monthlyPrice?.currency || yearlyPrice?.currency || 'usd',
       features,
       limits,
-      meteredItems: [], // Will be handled by price.created events
-      isActive: product.active,
-      isPublic: metadata.is_public !== 'false',
-      sortOrder: parseInt(metadata.sort_order || '0', 10),
+      metered_items: [], // Will be handled by price.created events
+      is_active: product.active,
+      is_public: metadata.is_public !== 'false',
+      sort_order: parseInt(metadata.sort_order || '0', 10),
       metadata,
     };
 

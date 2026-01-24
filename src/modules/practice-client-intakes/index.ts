@@ -4,11 +4,6 @@ export { practiceClientIntakesRepository } from '@/modules/practice-client-intak
 export { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 export * from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 export {
-  createPracticeClientIntakeSchema,
-  updatePracticeClientIntakeSchema,
-  slugParamSchema,
-  uuidParamSchema,
-  type SlugParam,
-  type UuidParam,
+  intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 export { default as practiceClientIntakesApp } from '@/modules/practice-client-intakes/http';

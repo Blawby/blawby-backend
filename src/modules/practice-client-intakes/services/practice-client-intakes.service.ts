@@ -1,8 +1,10 @@
 import { getLogger } from '@logtape/logtape';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import type {
+  IntakeSettingsResponse as PracticeClientIntakeSettings,
   CreatePracticeClientIntakeRequest,
+  CreateIntakeResponse as CreatePracticeClientIntakeResponse,
+  IntakeStatusResponse as PracticeClientIntakeStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type {
@@ -19,16 +21,18 @@ import { stripe } from '@/shared/utils/stripe-client';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, fail, badRequest, notFound } from '@/shared/utils/result';
+import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
+
+const { ok, internalError, fail, badRequest, notFound, forbidden } = result;
 
 /**
  * Get practice client intake settings by slug
  */
 const getPracticeClientIntakeSettings = async (
   slug: string,
-): Promise<Result<any>> => {
+): Promise<Result<PracticeClientIntakeSettings>> => {
   try {
     // 1. Find organization by slug
     const organization = await organizationRepository.findBySlug(slug);
@@ -37,32 +41,39 @@ const getPracticeClientIntakeSettings = async (
       return notFound(`Organization with slug '${slug}' not found`);
     }
 
+    if (!organization.activeSubscriptionId) {
+      return forbidden('Organization does not have an active subscription');
+    }
+
     // 2. Get connected account
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
 
     if (!connectedAccount) {
-      return fail('Organization does not have a connected Stripe account');
+      return forbidden('Organization does not have a connected Stripe account');
     }
 
     // 3. Validate connected account
-    if (!isAccountActive(connectedAccount)) {
-      return fail('Connected account is not ready to accept payments');
+    if (!(await isAccountActive(connectedAccount))) {
+      return forbidden('Connected account is not ready to accept payments');
     }
 
     return ok({
-      organization: {
-        id: organization.id,
-        name: organization.name,
-        slug: organization.slug,
-        logo: organization.logo ?? '',
-      },
-      settings: {
-        paymentLinkEnabled: organization?.paymentLinkEnabled ?? false,
-        prefillAmount: organization?.paymentLinkPrefillAmount ?? 0,
-      },
-      connectedAccount: {
-        id: connectedAccount.id,
-        chargesEnabled: connectedAccount.charges_enabled,
+      success: true,
+      data: {
+        organization: {
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
+          logo: organization.logo ?? undefined,
+        },
+        settings: {
+          payment_link_enabled: organization?.paymentLinkEnabled ?? false,
+          prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
+        },
+        connected_account: {
+          id: connectedAccount.id,
+          charges_enabled: connectedAccount.charges_enabled,
+        },
       },
     });
   } catch (error) {
@@ -75,14 +86,15 @@ const getPracticeClientIntakeSettings = async (
  * Create a new practice client intake
  */
 const createPracticeClientIntake = async (
-  request: CreatePracticeClientIntakeRequest,
-): Promise<Result<any>> => {
+  request: CreatePracticeClientIntakeRequest & { clientIp?: string; userAgent?: string },
+): Promise<Result<CreatePracticeClientIntakeResponse | PracticeClientIntakeSettings>> => {
   try {
-    // 1. Get practice client intake settings
     const settingsResult = await getPracticeClientIntakeSettings(request.slug);
-    if (!settingsResult.success) return settingsResult;
+    if (!settingsResult.success || !settingsResult.data.data) {
+      return settingsResult;
+    }
 
-    const { organization } = settingsResult.data;
+    const { organization } = settingsResult.data.data;
 
     // 2. Get connected account details
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
@@ -169,14 +181,17 @@ const createPracticeClientIntake = async (
     });
 
     return ok({
-      uuid: practiceClientIntake.id,
-      paymentLinkUrl: stripePaymentLink.url,
-      amount: request.amount,
-      currency: 'usd',
-      status: 'open',
-      organization: {
-        name: organization.name,
-        logo: organization.logo,
+      success: true,
+      data: {
+        uuid: practiceClientIntake.id,
+        payment_link_url: stripePaymentLink.url,
+        amount: request.amount,
+        currency: 'usd',
+        status: 'open',
+        organization: {
+          name: organization.name,
+          logo: organization.logo ?? undefined,
+        },
       },
     });
   } catch (error) {
@@ -201,7 +216,7 @@ const updatePracticeClientIntake = async (
  */
 const getPracticeClientIntakeStatus = async (
   uuid: string,
-): Promise<Result<any>> => {
+): Promise<Result<PracticeClientIntakeStatus>> => {
   try {
     const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
     if (!practiceClientIntake) {
@@ -220,14 +235,17 @@ const getPracticeClientIntakeStatus = async (
     }
 
     return ok({
-      uuid: practiceClientIntake.id,
-      amount: practiceClientIntake.amount,
-      currency: practiceClientIntake.currency,
-      status: practiceClientIntake.status,
-      stripeChargeId: practiceClientIntake.stripeChargeId || undefined,
-      metadata: metadata ?? undefined,
-      succeededAt: practiceClientIntake.succeededAt || undefined,
-      createdAt: practiceClientIntake.createdAt,
+      success: true,
+      data: {
+        uuid: practiceClientIntake.id,
+        amount: practiceClientIntake.amount,
+        currency: practiceClientIntake.currency,
+        status: practiceClientIntake.status,
+        stripe_charge_id: practiceClientIntake.stripeChargeId || undefined,
+        metadata: (metadata as any) ?? undefined,
+        succeeded_at: practiceClientIntake.succeededAt?.toISOString() || undefined,
+        created_at: practiceClientIntake.createdAt.toISOString(),
+      },
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
