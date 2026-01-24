@@ -4,7 +4,9 @@ import type { AppContext } from '@/shared/types/hono';
 import * as routes from '@/modules/clients/routes';
 import * as handlers from '@/modules/clients/handlers';
 
-const clientsApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const clientsApp = createHonoApp();
 
 // Clients
 clientsApp.openapi(routes.listClientsRoute, handlers.listClientsHandler);

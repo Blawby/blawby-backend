@@ -21,9 +21,11 @@ import { stripe } from '@/shared/utils/stripe-client';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, fail, badRequest, notFound } from '@/shared/utils/result';
+import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
+
+const { ok, internalError, fail, badRequest, notFound, forbidden } = result;
 
 /**
  * Get practice client intake settings by slug
@@ -39,16 +41,20 @@ const getPracticeClientIntakeSettings = async (
       return notFound(`Organization with slug '${slug}' not found`);
     }
 
+    if (!organization.activeSubscriptionId) {
+      return forbidden('Organization does not have an active subscription');
+    }
+
     // 2. Get connected account
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
 
     if (!connectedAccount) {
-      return fail('Organization does not have a connected Stripe account');
+      return forbidden('Organization does not have a connected Stripe account');
     }
 
     // 3. Validate connected account
     if (!(await isAccountActive(connectedAccount))) {
-      return fail('Connected account is not ready to accept payments');
+      return forbidden('Connected account is not ready to accept payments');
     }
 
     return ok({
@@ -81,12 +87,11 @@ const getPracticeClientIntakeSettings = async (
  */
 const createPracticeClientIntake = async (
   request: CreatePracticeClientIntakeRequest & { clientIp?: string; userAgent?: string },
-): Promise<Result<CreatePracticeClientIntakeResponse>> => {
+): Promise<Result<CreatePracticeClientIntakeResponse | PracticeClientIntakeSettings>> => {
   try {
-    // 1. Get practice client intake settings
     const settingsResult = await getPracticeClientIntakeSettings(request.slug);
     if (!settingsResult.success || !settingsResult.data.data) {
-      return (settingsResult as any);
+      return settingsResult;
     }
 
     const { organization } = settingsResult.data.data;

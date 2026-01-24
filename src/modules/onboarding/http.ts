@@ -4,7 +4,9 @@ import * as handlers from '@/modules/onboarding/http.handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 
-const onboardingApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const onboardingApp = createHonoApp();
 
 /**
  * GET /api/onboarding/organization/:organizationId/status

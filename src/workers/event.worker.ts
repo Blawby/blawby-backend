@@ -21,4 +21,8 @@ void runWorker({
     [TASK_NAMES.PROCESS_EVENT_HANDLER]: processEventHandler,
     [TASK_NAMES.PROCESS_OUTBOX_EVENT]: processOutboxEvent,
   },
+  // Run outbox processing every minute to catch any missed events
+  crontab: `
+    * * * * * ${TASK_NAMES.PROCESS_OUTBOX_EVENT}
+  `,
 });

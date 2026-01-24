@@ -66,24 +66,20 @@ export const createMatterHandler: AppRouteHandler<typeof createMatterRoute> = as
   const { organizationId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
 
-  // Explicitly mapping to ensure type compatibility
   const matter = await mattersService.createMatter(
     organizationId,
-    {
-      ...validatedBody,
-      customer_id: validatedBody.customer_id as string,
-    },
+    validatedBody,
     user,
     c.req.header(),
   );
-  return response.created(c, { matter });
+  return response.created(c, matter);
 };
 
 export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c) => {
   const user = c.get('user')!;
   const { organizationId, uuid } = c.req.valid('param');
   const matter = await mattersService.getMatterById(organizationId, uuid, user, c.req.header());
-  return response.ok(c, { matter });
+  return response.ok(c, matter);
 };
 
 export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = async (c) => {
@@ -91,7 +87,7 @@ export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = as
   const { organizationId, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const matter = await mattersService.updateMatter(organizationId, uuid, validatedBody, user, c.req.header());
-  return response.ok(c, { matter });
+  return response.ok(c, matter);
 };
 
 export const deleteMatterHandler: AppRouteHandler<typeof deleteMatterRoute> = async (c) => {
@@ -113,7 +109,7 @@ export const listMatterNotesHandler: AppRouteHandler<typeof listMatterNotesRoute
   const user = c.get('user')!;
   const { organizationId, uuid } = c.req.valid('param');
   const notes = await notesService.listMatterNotes(organizationId, uuid, user, c.req.header());
-  return response.ok(c, { notes });
+  return response.ok(c, notes);
 };
 
 export const createMatterNoteHandler: AppRouteHandler<typeof createMatterNoteRoute> = async (c) => {
@@ -121,14 +117,14 @@ export const createMatterNoteHandler: AppRouteHandler<typeof createMatterNoteRou
   const { organizationId, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const note = await notesService.createMatterNote(organizationId, uuid, validatedBody, user, c.req.header());
-  return response.created(c, { note });
+  return response.created(c, note);
 };
 
 export const listTimeEntriesHandler: AppRouteHandler<typeof listTimeEntriesRoute> = async (c) => {
   const user = c.get('user')!;
   const { organizationId, uuid } = c.req.valid('param');
   const timeEntries = await timeEntriesService.listMatterTimeEntries(organizationId, uuid, user, c.req.header());
-  return response.ok(c, { timeEntries });
+  return response.ok(c, timeEntries);
 };
 
 export const createTimeEntryHandler: AppRouteHandler<typeof createTimeEntryRoute> = async (c) => {
@@ -136,7 +132,7 @@ export const createTimeEntryHandler: AppRouteHandler<typeof createTimeEntryRoute
   const { organizationId, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const timeEntry = await timeEntriesService.createMatterTimeEntry(organizationId, uuid, validatedBody, user, c.req.header());
-  return response.created(c, { timeEntry });
+  return response.created(c, timeEntry);
 };
 
 export const getTimeEntryStatsHandler: AppRouteHandler<typeof getTimeEntryStatsRoute> = async (c) => {
@@ -150,7 +146,7 @@ export const listExpensesHandler: AppRouteHandler<typeof listExpensesRoute> = as
   const user = c.get('user')!;
   const { organizationId, uuid } = c.req.valid('param');
   const expenses = await expensesService.listMatterExpenses(organizationId, uuid, user, c.req.header());
-  return response.ok(c, { expenses });
+  return response.ok(c, expenses);
 };
 
 export const createExpenseHandler: AppRouteHandler<typeof createExpenseRoute> = async (c) => {
@@ -158,14 +154,14 @@ export const createExpenseHandler: AppRouteHandler<typeof createExpenseRoute> = 
   const { organizationId, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const expense = await expensesService.createMatterExpense(organizationId, uuid, validatedBody, user, c.req.header());
-  return response.created(c, { expense });
+  return response.created(c, expense);
 };
 
 export const listMilestonesHandler: AppRouteHandler<typeof listMilestonesRoute> = async (c) => {
   const user = c.get('user')!;
   const { organizationId, uuid } = c.req.valid('param');
   const milestones = await milestonesService.listMatterMilestones(organizationId, uuid, user, c.req.header());
-  return response.ok(c, { milestones });
+  return response.ok(c, milestones);
 };
 
 export const createMilestoneHandler: AppRouteHandler<typeof createMilestoneRoute> = async (c) => {
@@ -182,7 +178,7 @@ export const createMilestoneHandler: AppRouteHandler<typeof createMilestoneRoute
     user,
     c.req.header(),
   );
-  return response.created(c, { milestone });
+  return response.created(c, milestone);
 };
 
 export const reorderMilestonesHandler: AppRouteHandler<typeof reorderMilestonesRoute> = async (c) => {

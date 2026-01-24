@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { getAppEnv } from '@/shared/utils/env';
 import { db } from '@/shared/database';
@@ -14,6 +15,7 @@ import {
   API_ACTOR_UUID,
   ORGANIZATION_ACTOR_UUID,
 } from './constants';
+import { TASK_NAMES } from '@/shared/queue/queue.config';
 
 export {
   SYSTEM_ACTOR_UUID,
@@ -332,4 +334,14 @@ export const publishEventTx = async (
     processed: baseEvent.processed,
     retryCount: baseEvent.retryCount,
   });
+
+  // Schedule outbox processing immediately within the same transaction
+  // This uses Graphile Worker's SQL API to ensure the job is committed atomically with the event
+  // The worker will pick it up immediately after commit
+  await tx.execute(sql`
+    SELECT graphile_worker.add_job(
+      ${TASK_NAMES.PROCESS_OUTBOX_EVENT},
+      json_build_object('eventId', ${eventId}::text)::json
+    );
+  `);
 };

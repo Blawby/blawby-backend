@@ -2,9 +2,10 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import * as routes from '@/modules/subscriptions/routes';
 import * as handlers from '@/modules/subscriptions/handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
 
-const subscriptionsApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const subscriptionsApp = createHonoApp();
 
 /**
  * GET /api/subscriptions/plans

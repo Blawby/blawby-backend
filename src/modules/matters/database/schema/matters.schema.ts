@@ -25,11 +25,6 @@ export const matters = pgTable(
       .references(() => organizations.id, {
         onDelete: 'cascade',
       }),
-    customer_id: uuid('customer_id')
-      .notNull()
-      .references(() => users.id, {
-        onDelete: 'cascade',
-      }),
     practice_client_id: uuid('practice_client_id').references(() => practiceClients.id, {
       onDelete: 'set null',
     }),
@@ -71,7 +66,6 @@ export const matters = pgTable(
   },
   (table) => [
     index('matters_org_idx').on(table.organization_id),
-    index('matters_customer_idx').on(table.customer_id),
     index('matters_client_idx').on(table.practice_client_id),
     index('matters_status_idx').on(table.status),
     index('matters_practice_area_idx').on(table.practice_area_id),
@@ -85,10 +79,6 @@ export const mattersRelations = relations(matters, ({ one }) => ({
   organization: one(organizations, {
     fields: [matters.organization_id],
     references: [organizations.id],
-  }),
-  customer: one(users, {
-    fields: [matters.customer_id],
-    references: [users.id],
   }),
   practiceClient: one(practiceClients, {
     fields: [matters.practice_client_id],
