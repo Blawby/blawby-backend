@@ -12,7 +12,9 @@ import {
 
 import { organizations, users } from '@/schema';
 import { practiceClientsSchema } from '@/modules/clients/database/schema/practice-clients.schema';
-import { practiceAreas } from './practice-areas.schema';
+import { practiceAreas } from '@/modules/matters/database/schema/practice-areas.schema';
+import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
+import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 
 const { practiceClients } = practiceClientsSchema;
 
@@ -75,7 +77,7 @@ export const matters = pgTable(
 );
 
 // Define relations
-export const mattersRelations = relations(matters, ({ one }) => ({
+export const mattersRelations = relations(matters, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [matters.organization_id],
     references: [organizations.id],
@@ -93,6 +95,8 @@ export const mattersRelations = relations(matters, ({ one }) => ({
     references: [users.id],
     relationName: 'deletedBy',
   }),
+  assignees: many(matterAssignees),
+  milestones: many(matterMilestones),
 }));
 
 export type InsertMatter = typeof matters.$inferInsert;

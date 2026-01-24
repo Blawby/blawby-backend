@@ -31,6 +31,34 @@ export const findMatterById = async (
   return matter;
 };
 
+/**
+ * Find matter by ID with relations (optimized)
+ */
+export const findMatterByIdWithRelations = async (id: string) => {
+  return await db.query.matters.findFirst({
+    where: and(eq(matters.id, id), isNull(matters.deleted_at)),
+    with: {
+      assignees: {
+        with: {
+          user: {
+            columns: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+      milestones: {
+        orderBy: (milestones, { asc }) => [asc(milestones.order)],
+      },
+      practiceArea: true,
+      practiceClient: true,
+    },
+  });
+};
+
 // Find matter by ID (including soft deleted)
 export const findMatterByIdWithDeleted = async (
   id: string,

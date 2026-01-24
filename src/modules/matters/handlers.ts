@@ -10,7 +10,6 @@ import { getMatterActivity } from '@/modules/matters/services/matter-activity.se
 import {
   listPracticeAreasRoute,
   createPracticeAreaRoute,
-  listMattersRoute,
   createMatterRoute,
   getMatterRoute,
   updateMatterRoute,
@@ -43,23 +42,7 @@ export const createPracticeAreaHandler: AppRouteHandler<typeof createPracticeAre
   return response.created(c, { practiceArea });
 };
 
-export const listMattersHandler: AppRouteHandler<typeof listMattersRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { organizationId } = c.req.valid('param');
-  const query = c.req.valid('query');
-  const result = await mattersService.listMatters(organizationId, {
-    ...query,
-    page: parseInt(String(query.page || '1'), 10),
-    limit: parseInt(String(query.limit || '20'), 10),
-  }, user, c.req.header());
-  return response.ok(c, {
-    matters: result.matters,
-    total: result.total,
-    page: parseInt(String(query.page || '1'), 10),
-    limit: parseInt(String(query.limit || '20'), 10),
-    totalPages: Math.ceil(result.total / parseInt(String(query.limit || '20'), 10)),
-  });
-};
+// [REMOVED listMattersHandler - Consolidated into getMatterHandler]
 
 export const createMatterHandler: AppRouteHandler<typeof createMatterRoute> = async (c) => {
   const user = c.get('user')!;
@@ -77,9 +60,27 @@ export const createMatterHandler: AppRouteHandler<typeof createMatterRoute> = as
 
 export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c) => {
   const user = c.get('user')!;
-  const { organizationId, uuid } = c.req.valid('param');
-  const matter = await mattersService.getMatterById(organizationId, uuid, user, c.req.header());
-  return response.ok(c, matter);
+  const { organizationId } = c.req.valid('param');
+  const query = c.req.valid('query');
+
+  if (query.matter_uuid) {
+    const matter = await mattersService.getMatterById(organizationId, query.matter_uuid, user, c.req.header());
+    return response.ok(c, { matter });
+  }
+
+  const result = await mattersService.listMatters(organizationId, {
+    ...query,
+    page: parseInt(String(query.page || '1'), 10),
+    limit: parseInt(String(query.limit || '20'), 10),
+  }, user, c.req.header());
+
+  return response.ok(c, {
+    matters: result.matters,
+    total: result.total,
+    page: parseInt(String(query.page || '1'), 10),
+    limit: parseInt(String(query.limit || '20'), 10),
+    totalPages: Math.ceil(result.total / parseInt(String(query.limit || '20'), 10)),
+  });
 };
 
 export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = async (c) => {
