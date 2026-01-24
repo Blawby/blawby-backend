@@ -4,7 +4,9 @@ import * as handlers from './handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 
-const practiceApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const practiceApp = createHonoApp();
 
 /**
  * GET /api/practice/list

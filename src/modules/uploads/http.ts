@@ -13,7 +13,9 @@ import { restoreHandler } from '@/modules/uploads/handlers/restore.handler';
 import { listHandler } from '@/modules/uploads/handlers/list.handler';
 import { getAuditLogHandler } from '@/modules/uploads/handlers/audit-log.handler';
 
-const uploadsApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const uploadsApp = createHonoApp();
 
 /**
  * POST /api/uploads/presign

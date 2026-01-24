@@ -21,19 +21,9 @@ export const initializeLogging = async () => {
     },
     loggers: [
       {
-        category: ["hono"],
-        sinks: ["console"],
-        lowestLevel: (process.env.NODE_ENV === "production" ? "info" : "debug"),
-      },
-      {
-        category: ["app"],
+        category: [], // Root logger catch-all for the entire application
         sinks: ["console", "file"],
         lowestLevel: (process.env.NODE_ENV === "production" ? "info" : "debug"),
-      },
-      {
-        category: ["onboarding"],
-        sinks: ["console", "file"],
-        lowestLevel: "debug",
       }
     ],
   });

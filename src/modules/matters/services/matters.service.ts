@@ -27,7 +27,10 @@ export const createMatter = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   // Extract assignees and milestones from data
   const { assignee_ids, milestones, ...matterData } = data;
@@ -45,7 +48,7 @@ export const createMatter = async (
 
     // Add assignees if provided
     if (assignee_ids && assignee_ids.length > 0) {
-      await mattersQueries.addMatterAssignees(matter.id, assignee_ids);
+      await mattersQueries.addMatterAssignees(matter.id, assignee_ids, tx);
     }
 
     if (milestones && milestones.length > 0) {
@@ -58,6 +61,7 @@ export const createMatter = async (
           order: m.order,
           status: 'pending' as const,
         })),
+        tx,
       );
     }
 
@@ -68,6 +72,7 @@ export const createMatter = async (
       `Matter "${matter.title}" was created`,
       user.id,
       { billing_type: matter.billing_type, status: matter.status },
+      tx,
     );
 
     return matter;
@@ -84,7 +89,10 @@ export const getMatterById = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   const matter = await mattersQueries.findMatterById(matterId);
 
@@ -115,7 +123,10 @@ export const listMatters = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   return await mattersQueries.listMattersByOrganization(organizationId, filters);
 };
@@ -147,9 +158,9 @@ export const updateMatter = async (
     // Update assignees if provided
     if (assignee_ids !== undefined) {
       // Clear existing assignees and add new ones
-      await mattersQueries.clearMatterAssignees(matterId);
+      await mattersQueries.clearMatterAssignees(matterId, tx);
       if (assignee_ids.length > 0) {
-        await mattersQueries.addMatterAssignees(matterId, assignee_ids);
+        await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
       }
     }
 
@@ -161,6 +172,7 @@ export const updateMatter = async (
       `Matter "${updated.title}" was updated (${changes.join(', ')})`,
       user.id,
       { changes: matterData },
+      tx,
     );
 
     // Check for status change
@@ -171,6 +183,7 @@ export const updateMatter = async (
         `Matter status changed from "${existingMatter.status}" to "${data.status}"`,
         user.id,
         { oldStatus: existingMatter.status, newStatus: data.status },
+        tx,
       );
     }
 
@@ -203,6 +216,8 @@ export const deleteMatter = async (
       ActivityAction.MATTER_DELETED,
       `Matter "${deleted.title}" was deleted`,
       user.id,
+      undefined,
+      tx,
     );
 
     return deleted;
@@ -218,7 +233,10 @@ export const getMatterCounts = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   const counts = await mattersQueries.getMatterCountsByStatus(organizationId);
 

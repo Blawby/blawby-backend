@@ -22,8 +22,10 @@ export const logMatterActivity = async (
   description: string,
   userId?: string,
   metadata?: Record<string, any>,
+  tx?: any,
 ): Promise<SelectMatterActivityLog> => {
-  const [activity] = await db
+  const client = tx ?? db;
+  const [activity] = await client
     .insert(matterActivityLog)
     .values({
       matter_id: matterId,

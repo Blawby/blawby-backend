@@ -4,7 +4,9 @@ import * as handlers from '@/modules/matters/handlers';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import type { AppContext } from '@/shared/types/hono';
 
-const mattersApp = new OpenAPIHono<AppContext>();
+import { createHonoApp } from '@/shared/router/factory';
+
+const mattersApp = createHonoApp();
 
 // ==================== PRACTICE AREAS ====================
 mattersApp.openapi(routes.listPracticeAreasRoute, handlers.listPracticeAreasHandler);

@@ -20,10 +20,12 @@ export const createMatterMilestone = async (
 // Create multiple milestones
 export const createMatterMilestones = async (
   data: InsertMatterMilestone[],
+  tx?: any,
 ): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) return [];
 
-  return await db
+  const client = tx ?? db;
+  return await client
     .insert(matterMilestones)
     .values(data)
     .returning();

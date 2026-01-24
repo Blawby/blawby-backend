@@ -3,7 +3,7 @@ import { uuidValidator } from '@/shared/validations/common';
 
 // Matter validation schemas
 const createMatterSchema = z.object({
-  customer_id: uuidValidator,
+  practice_client_id: uuidValidator.optional(),
   title: z.string().min(1, 'Title is required').max(255, 'Title too long'),
   description: z.string().optional(),
   billing_type: z.enum(['hourly', 'fixed', 'contingency']),
@@ -24,13 +24,14 @@ const createMatterSchema = z.object({
   })).optional(),
 }).refine(
   (data) => {
-    if (data.billing_type === 'fixed' && !data.total_fixed_price) {
+    // Use explicit undefined checks to allow 0 as a valid value
+    if (data.billing_type === 'fixed' && data.total_fixed_price === undefined) {
       return false;
     }
-    if (data.billing_type === 'contingency' && !data.contingency_percentage) {
+    if (data.billing_type === 'contingency' && data.contingency_percentage === undefined) {
       return false;
     }
-    if (data.billing_type === 'hourly' && !data.admin_hourly_rate && !data.attorney_hourly_rate) {
+    if (data.billing_type === 'hourly' && data.admin_hourly_rate === undefined && data.attorney_hourly_rate === undefined) {
       return false;
     }
     return true;
@@ -41,7 +42,7 @@ const createMatterSchema = z.object({
 );
 
 const updateMatterSchema = z.object({
-  customer_id: uuidValidator.optional(),
+  practice_client_id: uuidValidator.optional(),
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
   billing_type: z.enum(['hourly', 'fixed', 'contingency']).optional(),
@@ -63,7 +64,7 @@ const matterIdParamSchema = z.object({
 const listMattersQuerySchema = z.object({
   status: z.enum(['draft', 'active']).optional(),
   practice_area_id: uuidValidator.optional(),
-  customer_id: uuidValidator.optional(),
+  practice_client_id: uuidValidator.optional(),
   assignee_id: uuidValidator.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -73,7 +74,7 @@ const listMattersQuerySchema = z.object({
 const matterSchema = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
-  customer_id: z.uuid().nullable(),
+  practice_client_id: z.uuid().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   billing_type: z.enum(['hourly', 'fixed', 'contingency']),

@@ -22,7 +22,10 @@ export const createPracticeArea = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   return await practiceAreasQueries.createPracticeArea({
     organization_id: organizationId,
@@ -40,7 +43,10 @@ export const getPracticeAreaById = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   const practiceArea = await practiceAreasQueries.findPracticeAreaById(practiceAreaId);
 
@@ -60,7 +66,10 @@ export const listPracticeAreas = async (
   requestHeaders: Record<string, string>,
 ) => {
   // Verify user has access to organization
-  await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) {
+    throw new Error(orgResult.error.message || 'Organization not found or access denied');
+  }
 
   return await practiceAreasQueries.listPracticeAreasByOrganization(organizationId);
 };

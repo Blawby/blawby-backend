@@ -49,7 +49,7 @@ export const listMattersByOrganization = async (
   filters?: {
     status?: string;
     practice_area_id?: string;
-    customer_id?: string;
+    practice_client_id?: string;
     assignee_id?: string;
     search?: string;
     page?: number;
@@ -73,8 +73,8 @@ export const listMattersByOrganization = async (
     conditions.push(eq(matters.practice_area_id, filters.practice_area_id));
   }
 
-  if (filters?.customer_id) {
-    conditions.push(eq(matters.customer_id, filters.customer_id));
+  if (filters?.practice_client_id) {
+    conditions.push(eq(matters.practice_client_id, filters.practice_client_id));
   }
 
   if (filters?.search) {
@@ -91,8 +91,7 @@ export const listMattersByOrganization = async (
       .select({
         id: matters.id,
         organization_id: matters.organization_id,
-        customer_id: matters.customer_id,
-        practice_client_id: matters.practice_client_id, // Added
+        practice_client_id: matters.practice_client_id,
         title: matters.title,
         description: matters.description,
         billing_type: matters.billing_type,
@@ -209,10 +208,12 @@ export const getMatterCountsByStatus = async (
 export const addMatterAssignees = async (
   matterId: string,
   userIds: string[],
+  tx?: any,
 ): Promise<void> => {
   if (userIds.length === 0) return;
 
-  await db.insert(matterAssignees).values(
+  const client = tx || db;
+  await client.insert(matterAssignees).values(
     userIds.map((userId) => ({
       matter_id: matterId,
       user_id: userId,
@@ -224,10 +225,12 @@ export const addMatterAssignees = async (
 export const removeMatterAssignees = async (
   matterId: string,
   userIds: string[],
+  tx?: any,
 ): Promise<void> => {
   if (userIds.length === 0) return;
 
-  await db
+  const client = tx || db;
+  await client
     .delete(matterAssignees)
     .where(
       and(
@@ -256,6 +259,10 @@ export const getMatterAssignees = async (
 };
 
 // Clear all assignees from matter
-export const clearMatterAssignees = async (matterId: string): Promise<void> => {
-  await db.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
+export const clearMatterAssignees = async (
+  matterId: string,
+  tx?: any,
+): Promise<void> => {
+  const client = tx || db;
+  await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
