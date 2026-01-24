@@ -15,7 +15,7 @@ import type {
   UpdateMatterRequest,
   ListMattersQuery,
 } from '@/modules/matters/types/matter.types';
-import { logMatterActivity, ActivityAction } from './matter-activity.service';
+import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
 
 /**
  * Create a matter

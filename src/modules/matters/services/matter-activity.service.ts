@@ -10,7 +10,7 @@ import {
   matterActivityLog,
   type InsertMatterActivityLog,
   type SelectMatterActivityLog,
-} from '../database/schema/matter-activity-log.schema';
+} from '@/modules/matters/database/schema/matter-activity-log.schema';
 import type { User } from '@/shared/types/BetterAuth';
 
 /**

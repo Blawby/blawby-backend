@@ -81,9 +81,15 @@ const updatePracticeSchema = z
       const hasPracticeField
         = data.business_phone
         || data.business_email
-        || data.consultation_fee
+        || data.consultation_fee !== undefined
         || data.payment_url
-        || data.calendly_url;
+        || data.calendly_url
+        || data.website
+        || data.intro_message
+        || data.overview
+        || data.is_public !== undefined
+        || data.services
+        || data.address;
       return hasOrgField || hasPracticeField;
     },
     {

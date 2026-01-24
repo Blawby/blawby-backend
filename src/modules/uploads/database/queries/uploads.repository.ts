@@ -191,6 +191,9 @@ export const uploadsRepository = {
       })
       .where(eq(uploads.id, id))
       .returning();
+    if (!updated) {
+      throw new Error('Upload not found');
+    }
     return updated;
   },
 
