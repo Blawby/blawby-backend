@@ -101,8 +101,8 @@ export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityR
   const user = c.get('user')!;
   const { organizationId, uuid } = c.req.valid('param');
   await mattersService.getMatterById(organizationId, uuid, user, c.req.header());
-  const assets = await getMatterActivity(uuid);
-  return response.ok(c, { activity: assets });
+  const activity = await getMatterActivity(uuid);
+  return response.ok(c, activity);
 };
 
 export const listMatterNotesHandler: AppRouteHandler<typeof listMatterNotesRoute> = async (c) => {

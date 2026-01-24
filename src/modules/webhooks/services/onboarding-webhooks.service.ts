@@ -50,8 +50,8 @@ export const onboardingWebhooksService = {
     // Verify signature using Stripe SDK
     let event: Stripe.Event;
     try {
-      logger.info('Verifying signature with secret: {secretPrefix}...', {
-        secretPrefix: webhookSecret.substring(0, 8)
+      logger.info('Verifying webhook signature', {
+        secretPresent: true
       });
       event = stripe.webhooks.constructEvent(
         rawBody,

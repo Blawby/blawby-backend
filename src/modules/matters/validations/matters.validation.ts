@@ -98,7 +98,7 @@ const activityLogSchema = z.object({
   user_id: z.uuid().nullable(),
   action: z.string(),
   description: z.string(),
-  metadata: z.any().nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.iso.datetime(),
 }).openapi('ActivityLog');
 
