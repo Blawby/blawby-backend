@@ -241,10 +241,17 @@ export const removeMatterAssignees = async (
 };
 
 // Get matter assignees
+type MatterAssignee = {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+};
+
 export const getMatterAssignees = async (
   matterId: string,
-): Promise<typeof users.$inferSelect[]> => {
-  const results = await db
+): Promise<MatterAssignee[]> => {
+  return await db
     .select({
       id: users.id,
       name: users.name,
@@ -254,8 +261,6 @@ export const getMatterAssignees = async (
     .from(matterAssignees)
     .innerJoin(users, eq(matterAssignees.user_id, users.id))
     .where(eq(matterAssignees.matter_id, matterId));
-
-  return results as typeof users.$inferSelect[];
 };
 
 // Clear all assignees from matter

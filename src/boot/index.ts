@@ -4,9 +4,9 @@
  * Centralized application initialization
  */
 
-import { bootEventHandlers } from './event-handlers';
-import { bootServices } from './services';
-import { bootWorkers } from './workers';
+import { bootEventHandlers } from '@/boot/event-handlers';
+import { bootServices } from '@/boot/services';
+import { bootWorkers } from '@/boot/workers';
 import { initializeRateLimiter } from '@/shared/middleware/rateLimit';
 import { initializeLogging } from '@/shared/logging/config';
 
