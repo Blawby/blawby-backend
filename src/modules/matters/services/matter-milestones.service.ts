@@ -5,14 +5,14 @@
  */
 
 import * as milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
-import { getMatterById } from './matters.service';
+import { getMatterById } from '@/modules/matters/services/matters.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterMilestoneRequest,
   UpdateMatterMilestoneRequest,
   ReorderMilestonesRequest,
 } from '@/modules/matters/types/matter.types';
-import { logMatterActivity, ActivityAction } from './matter-activity.service';
+import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
 
 /**
  * Create a matter milestone

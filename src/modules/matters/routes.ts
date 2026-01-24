@@ -1,11 +1,11 @@
 import { createRoute, z } from '@hono/zod-openapi';
 
-import { practiceAreaValidations } from './validations/practice-areas.validation';
-import { matterValidations } from './validations/matters.validation';
-import { matterNoteValidations } from './validations/matter-notes.validation';
-import { matterTimeEntryValidations } from './validations/matter-time-entries.validation';
-import { matterExpenseValidations } from './validations/matter-expenses.validation';
-import { matterMilestoneValidations } from './validations/matter-milestones.validation';
+import { practiceAreaValidations } from '@/modules/matters/validations/practice-areas.validation';
+import { matterValidations } from '@/modules/matters/validations/matters.validation';
+import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
+import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
+import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
+import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
 
 // Common response schemas
 const errorResponseSchema = z.object({

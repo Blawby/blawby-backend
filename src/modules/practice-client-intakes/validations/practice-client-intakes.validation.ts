@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+// Public request schema - clientIp and userAgent are injected server-side from headers
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
   amount: z.number().int().min(50).max(99999999), // $0.50 to $999,999.99
@@ -12,8 +13,6 @@ const createPracticeClientIntakeSchema = z.object({
     example: 'John Doe',
   }),
   description: z.string().max(500).optional(),
-  clientIp: z.string().optional(),
-  userAgent: z.string().optional(),
 });
 
 const updatePracticeClientIntakeSchema = z.object({

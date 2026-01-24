@@ -4,7 +4,7 @@
  * Handles business logic for practice areas operations
  */
 
-import * as practiceAreasQueries from '../database/queries/practice-areas.queries';
+import * as practiceAreasQueries from '@/modules/matters/database/queries/practice-areas.queries';
 import type { User } from '@/shared/types/BetterAuth';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import type {

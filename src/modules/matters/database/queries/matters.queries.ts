@@ -130,11 +130,25 @@ export const listMattersByOrganization = async (
       .offset(offset);
   }
 
-  // Get total count
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(matters)
-    .where(and(...conditions));
+  // Get total count (must include assignee join if filtering by assignee)
+  let countResult: { count: number };
+  if (filters?.assignee_id) {
+    [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(matters)
+      .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
+      .where(
+        and(
+          ...conditions,
+          eq(matterAssignees.user_id, filters.assignee_id),
+        ),
+      );
+  } else {
+    [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(matters)
+      .where(and(...conditions));
+  }
 
   return {
     matters: results,
