@@ -11,7 +11,7 @@ import { users } from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter
-export const createMatter = async (
+const createMatter = async (
   data: InsertMatter,
 ): Promise<SelectMatter> => {
   const [matter] = await db
@@ -22,7 +22,7 @@ export const createMatter = async (
 };
 
 // Find matter by ID (excluding soft deleted)
-export const findMatterById = async (
+const findMatterById = async (
   id: string,
 ): Promise<SelectMatter | undefined> => {
   const [matter] = await db
@@ -36,7 +36,7 @@ export const findMatterById = async (
 /**
  * Find matter by ID with relations (optimized)
  */
-export const findMatterByIdWithRelations = async (id: string) => {
+const findMatterByIdWithRelations = async (id: string) => {
   return await db.query.matters.findFirst({
     where: and(eq(matters.id, id), isNull(matters.deleted_at)),
     with: {
@@ -61,7 +61,7 @@ export const findMatterByIdWithRelations = async (id: string) => {
 };
 
 // Find matter by ID (including soft deleted)
-export const findMatterByIdWithDeleted = async (
+const findMatterByIdWithDeleted = async (
   id: string,
 ): Promise<SelectMatter | undefined> => {
   const [matter] = await db
@@ -73,11 +73,11 @@ export const findMatterByIdWithDeleted = async (
 };
 
 // List matters by organization with filters
-export const listMattersByOrganization = async (
+const listMattersByOrganization = async (
   organizationId: string,
   filters?: {
     status?: string;
-    service_id?: string;
+    practice_service_id?: string;
     practice_client_id?: string;
     assignee_id?: string;
     search?: string;
@@ -98,8 +98,8 @@ export const listMattersByOrganization = async (
     conditions.push(eq(matters.status, filters.status));
   }
 
-  if (filters?.service_id) {
-    conditions.push(eq(matters.service_id, filters.service_id));
+  if (filters?.practice_service_id) {
+    conditions.push(eq(matters.practice_service_id, filters.practice_service_id));
   }
 
   if (filters?.practice_client_id) {
@@ -127,7 +127,7 @@ export const listMattersByOrganization = async (
         total_fixed_price: matters.total_fixed_price,
         contingency_percentage: matters.contingency_percentage,
         settlement_amount: matters.settlement_amount,
-        service_id: matters.service_id,
+        practice_service_id: matters.practice_service_id,
         admin_hourly_rate: matters.admin_hourly_rate,
         attorney_hourly_rate: matters.attorney_hourly_rate,
         payment_frequency: matters.payment_frequency,
@@ -185,7 +185,7 @@ export const listMattersByOrganization = async (
 };
 
 // Update matter
-export const updateMatter = async (
+const updateMatter = async (
   id: string,
   data: Partial<InsertMatter>,
 ): Promise<SelectMatter | undefined> => {
@@ -198,7 +198,7 @@ export const updateMatter = async (
 };
 
 // Soft delete matter
-export const softDeleteMatter = async (
+const softDeleteMatter = async (
   id: string,
   deletedBy: string,
 ): Promise<SelectMatter | undefined> => {
@@ -215,12 +215,12 @@ export const softDeleteMatter = async (
 };
 
 // Hard delete matter
-export const deleteMatter = async (id: string): Promise<void> => {
+const deleteMatter = async (id: string): Promise<void> => {
   await db.delete(matters).where(eq(matters.id, id));
 };
 
 // Get matter counts by status
-export const getMatterCountsByStatus = async (
+const getMatterCountsByStatus = async (
   organizationId: string,
 ): Promise<{ status: string; count: number }[]> => {
   return await db
@@ -234,10 +234,10 @@ export const getMatterCountsByStatus = async (
 };
 
 // Add assignees to matter
-export const addMatterAssignees = async (
+const addMatterAssignees = async (
   matterId: string,
   userIds: string[],
-  tx?: any,
+  tx?: typeof db,
 ): Promise<void> => {
   if (userIds.length === 0) return;
 
@@ -251,10 +251,10 @@ export const addMatterAssignees = async (
 };
 
 // Remove assignees from matter
-export const removeMatterAssignees = async (
+const removeMatterAssignees = async (
   matterId: string,
   userIds: string[],
-  tx?: any,
+  tx?: typeof db,
 ): Promise<void> => {
   if (userIds.length === 0) return;
 
@@ -277,7 +277,7 @@ type MatterAssignee = {
   image: string | null;
 };
 
-export const getMatterAssignees = async (
+const getMatterAssignees = async (
   matterId: string,
 ): Promise<MatterAssignee[]> => {
   return await db
@@ -293,10 +293,26 @@ export const getMatterAssignees = async (
 };
 
 // Clear all assignees from matter
-export const clearMatterAssignees = async (
+const clearMatterAssignees = async (
   matterId: string,
-  tx?: any,
+  tx?: typeof db,
 ): Promise<void> => {
   const client = tx || db;
   await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
+};
+
+export default {
+  createMatter,
+  findMatterById,
+  updateMatter,
+  softDeleteMatter,
+  deleteMatter,
+  getMatterCountsByStatus,
+  findMatterByIdWithRelations,
+  findMatterByIdWithDeleted,
+  listMattersByOrganization,
+  addMatterAssignees,
+  removeMatterAssignees,
+  getMatterAssignees,
+  clearMatterAssignees,
 };

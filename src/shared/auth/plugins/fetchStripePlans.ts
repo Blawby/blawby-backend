@@ -5,8 +5,8 @@
  * and maps them to Better Auth plan format
  */
 
-import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { db } from '@/shared/database';
 
 interface PlanWithPrice {
   name: string;

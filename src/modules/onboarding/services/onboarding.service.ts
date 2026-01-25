@@ -8,10 +8,9 @@ import {
 import type {
   OnboardingStatusResponse,
 } from '@/modules/onboarding/types/onboarding.types';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishUserEvent } from '@/shared/events/event-publisher';
-import type { User } from '@/shared/types/BetterAuth';
 import { organizationService } from '@/modules/practice/services/organization.service';
+import { OnboardingStarted } from '@/shared/events/definitions';
+import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, notFound, internalError } from '@/shared/utils/result';
 
@@ -41,7 +40,7 @@ export const onboardingService = {
       const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
       if (!orgResult.success) {
-        return orgResult as any;
+        return orgResult;
       }
 
       const result = await connectedAccountsService.createOrGetAccount(
@@ -52,15 +51,17 @@ export const onboardingService = {
         user.id,
       );
 
-      if (!result.success) return result as any;
+      if (!result.success) return result;
       const accountData = result.data;
 
       // Publish onboarding started event
-      void publishUserEvent(EventType.ONBOARDING_STARTED, user.id, {
+      void OnboardingStarted.dispatch({
         organization_id: organizationId,
         organization_email: organizationEmail,
         account_id: accountData.account_id,
         session_id: accountData.url,
+      }, {
+        actorId: user.id,
       });
 
       return ok({
@@ -98,7 +99,7 @@ export const onboardingService = {
       const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
       if (!orgResult.success) {
-        return orgResult as any;
+        return orgResult;
       }
 
       // 2. Fetch the connected account
@@ -149,7 +150,7 @@ export const onboardingService = {
       const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
 
       if (!orgResult.success) {
-        return orgResult as any;
+        return orgResult;
       }
 
       const result = await connectedAccountsService.createOrGetAccount(
@@ -160,7 +161,7 @@ export const onboardingService = {
         user.id,
       );
 
-      if (!result.success) return result as any;
+      if (!result.success) return result;
       const accountData = result.data;
 
       return ok({

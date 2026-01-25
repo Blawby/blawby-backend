@@ -170,11 +170,3 @@ export type NewEventSubscription = typeof eventSubscriptions.$inferInsert;
 export type PublishEventRequest = z.infer<typeof publishEventRequestSchema>;
 export type EventTimelineQuery = z.infer<typeof eventTimelineQuerySchema>;
 
-// Re-export event types from enum file
-export {
-  EventType,
-  type EventTypeValue,
-  isValidEventType,
-  getEventTypeByDomain,
-  EVENT_DOMAINS,
-} from '@/shared/events/enums/event-types';

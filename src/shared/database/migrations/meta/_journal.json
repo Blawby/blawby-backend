@@ -141,6 +141,13 @@
       "when": 1769319916772,
       "tag": "0019_rename_practice_area_to_service",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1769351093811,
+      "tag": "0020_quick_adam_destine",
+      "breakpoints": true
     }
   ]
 }

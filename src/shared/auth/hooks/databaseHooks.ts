@@ -7,8 +7,7 @@
 import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { AuthUserSignedUp } from '@/shared/events/definitions';
 
 /**
  * Get active organization ID for a user
@@ -85,14 +84,14 @@ export const createDatabaseHooks = (
     user: {
       create: {
         after: async (userData: UserData): Promise<void> => {
-          void publishSimpleEvent(EventType.AUTH_USER_SIGNED_UP, userData.id, undefined, {
+          void AuthUserSignedUp.dispatch({
             actor_id: userData.id,
             user_id: userData.id,
             email: userData.email,
             name: userData.name,
             signup_method: 'email',
             is_anonymous: userData.isAnonymous ?? false,
-          });
+          }, { actorId: userData.id });
         },
       },
     },

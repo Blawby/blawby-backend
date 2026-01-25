@@ -6,6 +6,7 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import {
   findPracticeDetailsByOrganization,
 } from '@/modules/practice/database/queries/practice-details.repository';
+import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceDetails as practiceDetailsTable } from '@/modules/practice/database/schema/practice.schema';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
@@ -15,8 +16,11 @@ import type {
   UpsertPracticeDetailsRequest,
 } from '@/modules/practice/types/practice-details.types';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx } from '@/shared/events/event-publisher';
+import {
+  PracticeDetailsCreated,
+  PracticeDetailsUpdated,
+  PracticeDetailsDeleted,
+} from '@/shared/events/definitions';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, notFound, internalError } from '@/shared/utils/result';
@@ -43,30 +47,15 @@ const getPracticeDetails = async (
       return organizationResult;
     }
 
-    // 2. Get practice details
-    const fetchedDetails = await findPracticeDetailsByOrganization(organizationId);
-
-    if (!fetchedDetails) {
-      // Return empty defaults if no details found yet
-      return ok({
-        address: null,
-        address_id: null,
-        business_email: null,
-        business_phone: null,
-        website: null,
-        consultation_fee: null,
-        payment_url: null,
-        calendly_url: null,
-        intro_message: null,
-        overview: null,
-        is_public: false,
-        services: [],
-      } as any);
-    }
+    // 2. Get practice details and services
+    const [fetchedDetails, services] = await Promise.all([
+      findPracticeDetailsByOrganization(organizationId),
+      practiceServicesRepository.findServicesByOrganization(organizationId),
+    ]);
 
     // 3. Fetch address if linked
     let addressData: AddressData | null = null;
-    if (fetchedDetails.address_id) {
+    if (fetchedDetails?.address_id) {
       const [address] = await db
         .select()
         .from(addresses)
@@ -85,8 +74,8 @@ const getPracticeDetails = async (
     }
 
     // 4. Return combined data
-    return ok({
-      ...omit(fetchedDetails, [
+    const responseData = {
+      ...omit(fetchedDetails || {}, [
         'id',
         'organization_id',
         'user_id',
@@ -95,8 +84,11 @@ const getPracticeDetails = async (
         'updated_at',
       ]),
       address: addressData,
-      services: (fetchedDetails.services || []) as any,
-    } as PracticeDetailsResponse);
+      services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
+      is_public: fetchedDetails?.is_public ?? false,
+    };
+
+    return ok(responseData as unknown as PracticeDetailsResponse);
   } catch (error) {
     logger.error('Failed to get practice details for {organizationId}: {error}', { organizationId, error });
     return internalError('Failed to get practice details');
@@ -167,7 +159,6 @@ const upsertPracticeDetails = async (
           intro_message: data.intro_message ?? undefined,
           overview: data.overview ?? undefined,
           is_public: data.is_public ?? undefined,
-          services: data.services ?? undefined,
         })
         .onConflictDoUpdate({
           target: practiceDetailsTable.organization_id,
@@ -182,27 +173,33 @@ const upsertPracticeDetails = async (
             intro_message: data.intro_message ?? undefined,
             overview: data.overview ?? undefined,
             is_public: data.is_public ?? undefined,
-            services: data.services ?? undefined,
             updated_at: new Date(),
           },
         })
         .returning();
 
-      await publishEventTx(tx, {
-        type: isCreate ? EventType.PRACTICE_DETAILS_CREATED : EventType.PRACTICE_DETAILS_UPDATED,
+      // Sync services
+      const syncedServices = await practiceServicesRepository.syncServicesTx(
+        tx,
+        organizationId,
+        data.services || [],
+      );
+
+      const EventClass = isCreate ? PracticeDetailsCreated : PracticeDetailsUpdated;
+      await EventClass.dispatch({
+        practice_details_id: details.id,
+        ...data,
+      }, {
         actorId: user.id,
         actorType: 'user',
         organizationId,
-        payload: {
-          practice_details_id: details.id,
-          ...data,
-        },
+        tx,
       });
 
-      return { details, addressResult };
+      return { details, addressResult, syncedServices };
     });
 
-    return ok({
+    const responseData = {
       ...omit(practiceDetailsResult.details, [
         'id',
         'organization_id',
@@ -212,8 +209,10 @@ const upsertPracticeDetails = async (
         'updated_at',
       ]),
       address: practiceDetailsResult.addressResult,
-      services: (practiceDetailsResult.details.services || []) as any,
-    } as PracticeDetailsResponse);
+      services: practiceDetailsResult.syncedServices.map((s) => ({ id: s.id, name: s.name, key: s.key })),
+    };
+
+    return ok(responseData as unknown as PracticeDetailsResponse);
   } catch (error) {
     logger.error('Failed to upsert practice details for {organizationId}: {error}', { organizationId, error });
     return internalError('Failed to save practice details');
@@ -249,19 +248,18 @@ const deletePracticeDetails = async (
           .delete(practiceDetailsTable)
           .where(eq(practiceDetailsTable.organization_id, organizationId));
 
-        await publishEventTx(tx, {
-          type: EventType.PRACTICE_DETAILS_DELETED,
+        await PracticeDetailsDeleted.dispatch({
+          practice_details_id: existing.id,
+          business_phone: existing.business_phone,
+          business_email: existing.business_email,
+          consultation_fee: existing.consultation_fee,
+          payment_url: existing.payment_url,
+          calendly_url: existing.calendly_url,
+        }, {
           actorId: user.id,
           actorType: 'user',
           organizationId,
-          payload: {
-            practice_details_id: existing.id,
-            business_phone: existing.business_phone,
-            business_email: existing.business_email,
-            consultation_fee: existing.consultation_fee,
-            payment_url: existing.payment_url,
-            calendly_url: existing.calendly_url,
-          },
+          tx,
         });
       });
     }
@@ -289,8 +287,11 @@ const getPracticeDetailsBySlug = async (
     const organization = slugResult;
 
 
-    // 2. Get practice details
-    const fetchedDetails = await findPracticeDetailsByOrganization(organization.id);
+    // 2. Get practice details and services
+    const [fetchedDetails, services] = await Promise.all([
+      findPracticeDetailsByOrganization(organization.id),
+      practiceServicesRepository.findServicesByOrganization(organization.id),
+    ]);
 
     if (!fetchedDetails) {
       return notFound(`Practice details not found for organization '${slug}'`);
@@ -317,7 +318,7 @@ const getPracticeDetailsBySlug = async (
     }
 
     // 4. Return data with organization details
-    return ok({
+    const responseData = {
       ...omit(fetchedDetails, [
         'id',
         'organization_id',
@@ -327,12 +328,14 @@ const getPracticeDetailsBySlug = async (
         'updated_at',
       ]),
       address: addressData,
-      services: (fetchedDetails.services || []) as any,
+      services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       name: organization.name,
       logo: organization.logo,
       payment_link_enabled: organization.paymentLinkEnabled ?? false,
       payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
-    } as PracticeDetailsResponse);
+    };
+
+    return ok(responseData as unknown as PracticeDetailsResponse);
   } catch (error) {
     logger.error('Failed to get practice details for slug {slug}: {error}', { slug, error });
     return internalError('Failed to get practice details');

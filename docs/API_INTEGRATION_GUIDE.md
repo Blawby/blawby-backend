@@ -424,9 +424,13 @@ const practices = response.data ?? [];
     "logo": "https://...",
     "business_phone": "+1-555-0123",
     "business_email": "contact@smithlaw.com",
+    "website": "https://smithlaw.com",
     "consultation_fee": 25000,
     "payment_url": "https://...",
     "calendly_url": "https://...",
+    "intro_message": "Welcome to our practice",
+    "overview": "Specializing in corporate law",
+    "is_public": true,
     "created_at": "2024-01-01T00:00:00Z",
     "updated_at": "2024-01-15T12:00:00Z"
   }
@@ -454,9 +458,22 @@ type CreatePracticeRequest = {
   // Optional practice details
   business_phone?: string;        // Business phone number
   business_email?: string;        // Business email
+  website?: string;               // Website URL
   consultation_fee?: number;      // Consultation fee in cents
   payment_url?: string;           // Payment link URL
   calendly_url?: string;          // Calendly scheduling URL
+  intro_message?: string;         // Brief welcome message
+  overview?: string;              // Detailed practice overview
+  is_public?: boolean;            // Whether the practice is public
+  services?: Array<{ name: string, key: string }>; // Practice services
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
 };
 ```
 

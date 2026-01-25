@@ -17,7 +17,7 @@ const MODULE_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/modules.ge
 const CONFIG_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/configs.generated.ts');
 
 const EXCLUDED_MODULES = [
-  'analytics', 'billing', 'admin',
+  'auth', 'analytics', 'billing', 'admin',
   'customers', 'events', 'health', 'invoices',
   'payouts', 'settings', 'stripe', 'dev'
 ];
@@ -117,6 +117,13 @@ const syncSchemas = (): void => {
   execSync('tsx scripts/sync-schemas.ts', { stdio: 'inherit' });
 }
 
+const syncListeners = (): void => {
+  console.log('\n🔊 Phase 2.1: Listener Sync');
+  console.log('─'.repeat(50));
+
+  execSync('tsx scripts/sync-listeners.ts', { stdio: 'inherit' });
+}
+
 // ============================================================================
 // Phase 2.5: Type Checking
 // ============================================================================
@@ -176,6 +183,9 @@ const main = async (): Promise<void> => {
 
     // Phase 2: Sync database schemas
     syncSchemas();
+
+    // Phase 2.1: Sync event listeners
+    syncListeners();
 
     // Phase 2.5: Type checking (catch errors before bundling)
     typeCheck();
