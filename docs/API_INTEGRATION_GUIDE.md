@@ -391,7 +391,7 @@ This section covers the Practice Management APIs for creating, managing, and swi
 All practice endpoints are prefixed with:
 
 ```
-/api/practice
+/api/practices
 ```
 
 **Authentication**: All practice endpoints require authentication via Bearer token.
@@ -402,47 +402,42 @@ All practice endpoints are prefixed with:
 
 Get all practices for the authenticated user.
 
-**Endpoint**: `GET /api/practice/list`
+**Endpoint**: `GET /api/practices`
 
 **Request**:
 
 ```typescript
 import { apiClient } from '@/lib/apiClient';
 
-const response = await apiClient.get('/api/practice/list');
-const { practices } = response.data;
+const response = await apiClient.get('/api/practices');
+const practices = response.data ?? [];
 ```
 
 **Response**:
 
-```typescript
-{
-  practices: [
-    {
-      id: "org-uuid",
-      name: "Smith & Associates Law Firm",
-      slug: "smith-associates",
-      logo: "https://example.com/logo.png",
-      metadata: {
-        industry: "Legal"
-      },
-      business_phone: "+1-555-0123",
-      business_email: "contact@smithlaw.com",
-      consultation_fee: 250.00,
-      payment_url: "https://payment.example.com",
-      calendly_url: "https://calendly.com/smith-law",
-      created_at: "2024-01-01T00:00:00Z",
-      updated_at: "2024-01-15T12:00:00Z"
-    }
-  ]
-}
+```json
+[
+  {
+    "id": "practice-uuid",
+    "name": "Smith & Associates Law Firm",
+    "slug": "smith-associates",
+    "logo": "https://...",
+    "business_phone": "+1-555-0123",
+    "business_email": "contact@smithlaw.com",
+    "consultation_fee": 25000,
+    "payment_url": "https://...",
+    "calendly_url": "https://...",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-15T12:00:00Z"
+  }
+]
 ```
 
 ### Create Practice
 
 Create a new law practice (organization).
 
-**Endpoint**: `POST /api/practice`
+**Endpoint**: `POST /api/practices`
 
 **Request Body**:
 
@@ -459,7 +454,7 @@ type CreatePracticeRequest = {
   // Optional practice details
   business_phone?: string;        // Business phone number
   business_email?: string;        // Business email
-  consultation_fee?: number;      // Consultation fee in dollars
+  consultation_fee?: number;      // Consultation fee in cents
   payment_url?: string;           // Payment link URL
   calendly_url?: string;          // Calendly scheduling URL
 };

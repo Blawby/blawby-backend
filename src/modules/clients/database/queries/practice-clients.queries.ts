@@ -1,10 +1,12 @@
-import { eq, desc, and, ilike, or, sql } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import {
+  eq, desc, and, ilike, or, sql,
+} from 'drizzle-orm';
 import {
   practiceClientsSchema,
   type InsertPracticeClient,
   type SelectPracticeClient,
 } from '@/modules/clients/database/schema/practice-clients.schema';
+import { db } from '@/shared/database';
 
 const { practiceClients } = practiceClientsSchema;
 
@@ -40,8 +42,8 @@ const findByEmail = async (
       and(
         eq(practiceClients.organization_id, organizationId),
         eq(practiceClients.email, email),
-        sql`${practiceClients.deleted_at} IS NULL`
-      )
+        sql`${practiceClients.deleted_at} IS NULL`,
+      ),
     )
     .limit(1);
   return result;
@@ -93,7 +95,9 @@ const listClients = async (params: {
   limit?: number;
   offset?: number;
 }): Promise<{ data: (SelectPracticeClient & { address: any })[]; total: number }> => {
-  const { organizationId, search, status, limit = 20, offset = 0 } = params;
+  const {
+    organizationId, search, status, limit = 20, offset = 0,
+  } = params;
 
   const conditions = [
     eq(practiceClients.organization_id, organizationId),
@@ -109,8 +113,8 @@ const listClients = async (params: {
       or(
         ilike(practiceClients.name, `%${search}%`),
         ilike(practiceClients.email, `%${search}%`),
-        sql`COALESCE(${practiceClients.phone}, '') ILIKE ${`%${search}%`}`
-      ) as any
+        sql`COALESCE(${practiceClients.phone}, '') ILIKE ${`%${search}%`}`,
+      ) as any,
     );
   }
 

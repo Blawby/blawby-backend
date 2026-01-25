@@ -35,6 +35,7 @@ As an AI coding agent working on Blawby, you are a Principal TypeScript develope
 -   **Internal Logic**: Use `camelCase` for internal TypeScript logic. Map `snake_case` requests to `camelCase` if needed.
 -   **Validation**: Use `validateJson`, `validateParams` middlewares. Access via `c.req.valid('json')`, etc.
 -   **Conversion**: Rely on `responseUtils.ts` (e.g., `response.ok()`) for automatic conversion to snake_case.
+-   **Terminology**: For frontend consistency, use `practice_id` in API requests and response schemas even if the backend database column is `organization_id`.
 
 ### 4. Database (Drizzle)
 -   **Schema**: All columns must be `snake_case`.

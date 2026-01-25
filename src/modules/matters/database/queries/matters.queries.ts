@@ -1,12 +1,14 @@
-import { eq, and, like, isNull, inArray, sql, desc } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import {
+  eq, and, like, isNull, inArray, sql, desc,
+} from 'drizzle-orm';
+import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import {
   matters,
   type InsertMatter,
   type SelectMatter,
 } from '@/modules/matters/database/schema/matters.schema';
-import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { users } from '@/schema';
+import { db } from '@/shared/database';
 
 // Create matter
 export const createMatter = async (
@@ -53,7 +55,6 @@ export const findMatterByIdWithRelations = async (id: string) => {
       milestones: {
         orderBy: (milestones, { asc }) => [asc(milestones.order)],
       },
-      practiceArea: true,
       practiceClient: true,
     },
   });
@@ -76,7 +77,7 @@ export const listMattersByOrganization = async (
   organizationId: string,
   filters?: {
     status?: string;
-    practice_area_id?: string;
+    service_id?: string;
     practice_client_id?: string;
     assignee_id?: string;
     search?: string;
@@ -88,7 +89,7 @@ export const listMattersByOrganization = async (
   const limit = filters?.limit || 20;
   const offset = (page - 1) * limit;
 
-  let conditions = [
+  const conditions = [
     eq(matters.organization_id, organizationId),
     isNull(matters.deleted_at),
   ];
@@ -97,8 +98,8 @@ export const listMattersByOrganization = async (
     conditions.push(eq(matters.status, filters.status));
   }
 
-  if (filters?.practice_area_id) {
-    conditions.push(eq(matters.practice_area_id, filters.practice_area_id));
+  if (filters?.service_id) {
+    conditions.push(eq(matters.service_id, filters.service_id));
   }
 
   if (filters?.practice_client_id) {
@@ -126,7 +127,7 @@ export const listMattersByOrganization = async (
         total_fixed_price: matters.total_fixed_price,
         contingency_percentage: matters.contingency_percentage,
         settlement_amount: matters.settlement_amount,
-        practice_area_id: matters.practice_area_id,
+        service_id: matters.service_id,
         admin_hourly_rate: matters.admin_hourly_rate,
         attorney_hourly_rate: matters.attorney_hourly_rate,
         payment_frequency: matters.payment_frequency,
