@@ -15,9 +15,18 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['clients', 'service']);
 
+export interface AddressInput {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+}
+
 const createClient = async (
   organizationId: string,
-  data: Omit<InsertPracticeClient, 'organization_id' | 'stripe_customer_id'> & { address?: any },
+  data: Omit<InsertPracticeClient, 'organization_id' | 'stripe_customer_id'> & { address?: AddressInput },
   userId: string,
 ): Promise<Result<SelectPracticeClient>> => {
   return await db.transaction(async (tx) => {
@@ -100,7 +109,7 @@ const createClient = async (
 const updateClient = async (
   id: string,
   organizationId: string,
-  data: Partial<InsertPracticeClient> & { address?: any },
+  data: Partial<InsertPracticeClient> & { address?: AddressInput },
   userId: string,
 ): Promise<Result<SelectPracticeClient>> => {
   return await db.transaction(async (tx) => {
