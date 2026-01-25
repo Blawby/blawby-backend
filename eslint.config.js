@@ -27,7 +27,7 @@ export default [
         caughtErrorsIgnorePattern: '^_',
       }],
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/prefer-const': 'error',
+      'prefer-const': 'error',
 
       // @stylistic/eslint-plugin rules (comprehensive formatting)
       ...stylistic.configs['recommended'].rules,
@@ -43,10 +43,6 @@ export default [
           body: 1,
         },
         FunctionExpression: {
-          parameters: 1,
-          body: 1,
-        },
-        ArrowFunctionExpression: {
           parameters: 1,
           body: 1,
         },

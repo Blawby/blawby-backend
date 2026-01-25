@@ -1,31 +1,33 @@
-import { getLogger } from '@logtape/logtape';
 import { randomUUID } from 'node:crypto';
+import { getLogger } from '@logtape/logtape';
+import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
+import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import {
+  practiceClientIntakeMetadataSchema,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import type {
+  InsertPracticeClientIntake,
+  PracticeClientIntakeMetadata,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type {
   IntakeSettingsResponse as PracticeClientIntakeSettings,
   CreatePracticeClientIntakeRequest,
   CreateIntakeResponse as CreatePracticeClientIntakeResponse,
   IntakeStatusResponse as PracticeClientIntakeStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import type {
-  InsertPracticeClientIntake,
-  PracticeClientIntakeMetadata,
-} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import {
-  practiceClientIntakeMetadataSchema,
-} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
-import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
-import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
-import { stripe } from '@/shared/utils/stripe-client';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
-const { ok, internalError, fail, badRequest, notFound, forbidden } = result;
+const {
+  ok, internalError, fail, badRequest, notFound, forbidden,
+} = result;
 
 /**
  * Get practice client intake settings by slug

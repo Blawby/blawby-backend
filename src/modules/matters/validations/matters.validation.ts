@@ -106,7 +106,6 @@ const activityLogSchema = z.object({
 }).openapi('ActivityLog');
 
 
-
 export const matterValidations = {
   createMatterSchema,
   updateMatterSchema,

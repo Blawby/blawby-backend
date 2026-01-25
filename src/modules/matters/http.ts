@@ -1,16 +1,9 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-import * as routes from '@/modules/matters/routes';
 import * as handlers from '@/modules/matters/handlers';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
-
+import * as routes from '@/modules/matters/routes';
 import { createHonoApp } from '@/shared/router/factory';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const mattersApp = createHonoApp();
-
-// ==================== PRACTICE AREAS ====================
-mattersApp.openapi(routes.listPracticeAreasRoute, handlers.listPracticeAreasHandler);
-mattersApp.openapi(routes.createPracticeAreaRoute, handlers.createPracticeAreaHandler);
 
 // ==================== MATTERS ====================
 mattersApp.openapi(routes.createMatterRoute, handlers.createMatterHandler);

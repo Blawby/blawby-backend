@@ -12,13 +12,13 @@ import type {
   PracticeWithDetails,
   UpdateOrganizationRequest,
 } from '@/modules/practice/types/practice.types';
+import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent, publishEventTx } from '@/shared/events/event-publisher';
 import type { User, Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
-import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 
 const { parseBetterAuthMetadata, getBetterAuthErrorMessage } = betterAuthUtils;
 

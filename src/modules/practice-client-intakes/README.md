@@ -20,19 +20,19 @@ The Practice Client Intakes module handles the complete payment flow for client 
 All endpoints are **public** (no authentication required). The module is mounted at `/api/practice/client-intakes`.
 
 ### 1. GET `/:slug/intake`
-**Public endpoint** - Retrieves organization details and payment settings for a practice's intake form.
+**Public endpoint** - Retrieves practice details and payment settings for a practice's intake form.
 
 **Full Path:** `/api/practice/client-intakes/:slug/intake`
 
 **Path Parameters:**
-- `slug` (string, required): Organization slug (e.g., `my-practice`)
+- `slug` (string, required): Practice slug (e.g., `my-practice`)
 
 **Response (200 OK):**
 ```json
 {
   "success": true,
   "data": {
-    "organization": {
+    "practice": {
       "id": "uuid",
       "name": "Law Firm Name",
       "slug": "my-practice",
@@ -51,9 +51,9 @@ All endpoints are **public** (no authentication required). The module is mounted
 ```
 
 **Error Responses:**
-- `404 Not Found`: Organization not found, payment links disabled, or connected account not ready
+- `404 Not Found`: Practice not found, payment links disabled, or connected account not ready
 
-**Use Case:** Frontend calls this to display the intake form with organization branding and pre-filled payment amount.
+**Use Case:** Frontend calls this to display the intake form with practice branding and pre-filled payment amount.
 
 ---
 
@@ -94,7 +94,7 @@ All endpoints are **public** (no authentication required). The module is mounted
     "amount": 5000,
     "currency": "usd",
     "status": "open",
-    "organization": {
+    "practice": {
       "name": "Law Firm Name",
       "logo": "https://..."
     }
@@ -205,7 +205,7 @@ All endpoints are **public** (no authentication required). The module is mounted
 ```typescript
 {
   id: uuid (primary key)
-  organization_id: uuid (foreign key → organizations.id, cascade delete)
+  practice_id: uuid (foreign key → practices.id, cascade delete)
   connected_account_id: uuid (foreign key → stripe_connected_accounts.id, restrict delete)
   
   // Stripe IDs
@@ -241,13 +241,13 @@ All endpoints are **public** (no authentication required). The module is mounted
 ```
 
 **Indexes:**
-- `organization_id` (for querying by organization)
+- `practice_id` (for querying by practice)
 - `stripe_payment_link_id` (unique, for Payment Link lookups)
 - `stripe_payment_intent_id` (for Stripe webhook lookups)
 - `status` (for filtering by payment status)
 
 **Relations:**
-- `organization` → `organizations` table (many-to-one)
+- `practice` → `practices` table (many-to-one)
 - `connectedAccount` → `stripe_connected_accounts` table (many-to-one)
 
 ### Repository
@@ -271,19 +271,19 @@ All endpoints are **public** (no authentication required). The module is mounted
 ### Service Methods
 
 #### `getPracticeClientIntakeSettings(slug: string)`
-1. Finds organization by slug
+1. Finds practice by slug
 2. Validates `paymentLinkEnabled` is true
 3. Retrieves connected Stripe account
 4. Validates `chargesEnabled` is true
-5. Returns organization details, settings, and connected account info
+5. Returns practice details, settings, and connected account info
 
 #### `createPracticeClientIntake(request)`
-1. Validates organization exists and payment links enabled
+1. Validates practice exists and payment links enabled
 2. Retrieves connected account
 3. Creates Stripe Payment Link with:
    - Line item with amount and currency
    - Payment intent data with transfer to connected account
-   - Metadata (client info, organization ID, intake UUID)
+   - Metadata (client info, practice ID, intake UUID)
    - Redirect URL after completion
 4. Creates database record with Payment Link ID
 5. Updates Payment Link metadata with intake UUID
@@ -371,13 +371,13 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 
 ### Authentication
 - **All endpoints are public** - No authentication required
-- Intake forms are meant to be accessible to anyone with the organization slug
+- Intake forms are meant to be accessible to anyone with the practice slug
 - Rate limiting should be applied at the application level
 
 ### Data Protection
 - **PII Storage**: Client email, name, phone stored in `metadata` JSONB field
 - **IP Tracking**: Client IP and user agent stored for security/audit purposes
-- **Data Retention**: Follow organization's data retention policy
+- **Data Retention**: Follow practice's data retention policy
 - **GDPR Compliance**: Consider data export/deletion capabilities for client requests
 
 ### Payment Security
@@ -387,20 +387,20 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 - **Idempotency**: Stripe Payment Intents are idempotent by design
 
 ### Access Controls
-- **Organization Validation**: All operations validate organization exists and payment links enabled
+- **Practice Validation**: All operations validate practice exists and payment links enabled
 - **Connected Account Validation**: Ensures connected account is ready (`chargesEnabled`)
 - **Status Validation**: Update operations check status before allowing changes
 
 ### Audit Logging
 - **Payment Lifecycle**: All status changes logged via database timestamps
 - **Event Publishing**: Payment lifecycle events published for downstream processing
-- **Error Tracking**: Service errors should be logged with context (organization ID, intake UUID)
+- **Error Tracking**: Service errors should be logged with context (practice ID, intake UUID)
 
 ### Rate Limiting
 - Apply rate limiting to prevent abuse:
   - `/create`: Limit per IP to prevent spam
   - `/:uuid/status`: Limit polling frequency
-  - Consider organization-level limits
+  - Consider practice-level limits
 
 ### Input Validation
 - All inputs validated via Zod schemas
@@ -415,14 +415,14 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 
 ### Dependencies
 - **Stripe API**: Payment processing via Stripe Connected Accounts
-- **Organizations Module**: Organization lookup and settings
+- **Practices Module**: Practice lookup and settings
 - **Onboarding Module**: Connected accounts repository
 - **Webhooks Module**: Webhook event handling
 - **Events System**: Event publishing for payment lifecycle
 
 ### Frontend Integration
 1. Call `GET /:slug/intake` to load form settings
-2. Display form with organization branding
+2. Display form with practice branding
 3. On submit, call `POST /create` to get `payment_link_url`
 4. Redirect client to `payment_link_url` (Stripe's hosted payment page)
 5. Client completes payment on Stripe's page
@@ -453,8 +453,8 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 4. **Check Status**: `GET /api/practice/client-intakes/{uuid}/status`
 
 ### Test Scenarios
-- Organization with payment links disabled → 404
-- Organization without connected account → 404
+- Practice with payment links disabled → 404
+- Practice without connected account → 404
 - Invalid amount (too low/high) → 400
 - Invalid email format → 400
 - Update amount after payment succeeded → 400
