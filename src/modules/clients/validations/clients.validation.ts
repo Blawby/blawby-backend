@@ -30,13 +30,16 @@ export const listClientsSchema = z.object({
 }).openapi('ListClients');
 
 export const clientParamsSchema = z.object({
-  orgId: z.uuid('Invalid organization ID'),
+  practiceId: z.uuid('Invalid practice ID'),
   uuid: z.uuid('Invalid client ID'),
 }).openapi('ClientParams');
 
-export const orgParamsSchema = z.object({
-  orgId: z.uuid('Invalid organization ID'),
-}).openapi('OrgParams');
+export const practiceParamsSchema = z.object({
+  practiceId: z.uuid('Invalid practice ID'),
+}).openapi('PracticeParams');
+
+// Alias for backwards compatibility
+export const orgParamsSchema = practiceParamsSchema;
 
 export const clientSchema = z.object({
   id: z.uuid(),

@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { createClientSchema, updateClientSchema, listClientsSchema, orgParamsSchema, clientParamsSchema } from '@/modules/clients/validations/clients.validation';
 import { createMemoSchema, updateMemoSchema, memoParamsSchema } from '@/modules/clients/validations/client-memos.validation';
+import { createClientSchema, updateClientSchema, listClientsSchema, practiceParamsSchema, clientParamsSchema } from '@/modules/clients/validations/clients.validation';
 
 // Common response schemas
 const errorResponseSchema = z.object({
@@ -18,13 +18,13 @@ const notFoundResponseSchema = z.object({
 
 export const listClientsRoute = createRoute({
   method: 'get',
-  path: '/organizations/{orgId}/clients',
+  path: '/organizations/{practiceId}/clients',
   tags: ['Clients'],
   summary: 'List clients',
   description: 'Get all clients for an organization',
   request: {
-    params: orgParamsSchema,
-    query: listClientsSchema
+    params: practiceParamsSchema,
+    query: listClientsSchema,
   },
   responses: {
     200: {
@@ -37,12 +37,12 @@ export const listClientsRoute = createRoute({
 
 export const createClientRoute = createRoute({
   method: 'post',
-  path: '/organizations/{orgId}/clients',
+  path: '/organizations/{practiceId}/clients',
   tags: ['Clients'],
   summary: 'Create client',
   description: 'Add a new client to the organization',
   request: {
-    params: orgParamsSchema,
+    params: practiceParamsSchema,
     body: { content: { 'application/json': { schema: createClientSchema } } },
   },
   responses: {
@@ -53,7 +53,7 @@ export const createClientRoute = createRoute({
 
 export const getClientRoute = createRoute({
   method: 'get',
-  path: '/organizations/{orgId}/clients/{uuid}',
+  path: '/organizations/{practiceId}/clients/{uuid}',
   tags: ['Clients'],
   summary: 'Get client',
   description: 'Get a specific client by ID',
@@ -66,7 +66,7 @@ export const getClientRoute = createRoute({
 
 export const updateClientRoute = createRoute({
   method: 'put',
-  path: '/organizations/{orgId}/clients/{uuid}',
+  path: '/organizations/{practiceId}/clients/{uuid}',
   tags: ['Clients'],
   summary: 'Update client',
   description: 'Update client profile',
@@ -82,7 +82,7 @@ export const updateClientRoute = createRoute({
 
 export const deleteClientRoute = createRoute({
   method: 'delete',
-  path: '/organizations/{orgId}/clients/{uuid}',
+  path: '/organizations/{practiceId}/clients/{uuid}',
   tags: ['Clients'],
   summary: 'Delete client',
   description: 'Delete a client (soft delete)',
@@ -97,7 +97,7 @@ export const deleteClientRoute = createRoute({
 
 export const listClientMemosRoute = createRoute({
   method: 'get',
-  path: '/organizations/{orgId}/clients/{uuid}/memos',
+  path: '/organizations/{practiceId}/clients/{uuid}/memos',
   tags: ['Clients: Memos'],
   summary: 'List client memos',
   description: 'Get all memos for a client',
@@ -110,7 +110,7 @@ export const listClientMemosRoute = createRoute({
 
 export const createClientMemoRoute = createRoute({
   method: 'post',
-  path: '/organizations/{orgId}/clients/{uuid}/memos',
+  path: '/organizations/{practiceId}/clients/{uuid}/memos',
   tags: ['Clients: Memos'],
   summary: 'Create client memo',
   description: 'Add a memo for a client',
@@ -126,7 +126,7 @@ export const createClientMemoRoute = createRoute({
 
 export const updateClientMemoRoute = createRoute({
   method: 'put',
-  path: '/organizations/{orgId}/clients/{uuid}/memos/{memoId}',
+  path: '/organizations/{practiceId}/clients/{uuid}/memos/{memoId}',
   tags: ['Clients: Memos'],
   summary: 'Update client memo',
   description: 'Update a specific memo content',
@@ -139,7 +139,7 @@ export const updateClientMemoRoute = createRoute({
 
 export const deleteClientMemoRoute = createRoute({
   method: 'delete',
-  path: '/organizations/{orgId}/clients/{uuid}/memos/{memoId}',
+  path: '/organizations/{practiceId}/clients/{uuid}/memos/{memoId}',
   tags: ['Clients: Memos'],
   summary: 'Delete client memo',
   description: 'Delete a specific memo',

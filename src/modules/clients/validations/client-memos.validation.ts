@@ -10,7 +10,7 @@ export const updateMemoSchema = z.object({
 }).openapi('UpdateMemo');
 
 export const memoParamsSchema = z.object({
-  orgId: z.uuid('Invalid organization ID'),
+  practiceId: z.uuid('Invalid practice ID'),
   uuid: z.uuid('Invalid client ID'),
   memoId: z.uuid('Invalid memo ID'),
 }).openapi('MemoParams');

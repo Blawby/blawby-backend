@@ -1,7 +1,3 @@
-import type { AppContext, AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
-import { clientsService } from '@/modules/clients/services/clients.service';
-import { clientMemosService } from '@/modules/clients/services/client-memos.service';
 import type {
   listClientsRoute,
   createClientRoute,
@@ -11,16 +7,20 @@ import type {
   listClientMemosRoute,
   createClientMemoRoute,
   updateClientMemoRoute,
-  deleteClientMemoRoute
+  deleteClientMemoRoute,
 } from '@/modules/clients/routes';
+import { clientMemosService } from '@/modules/clients/services/client-memos.service';
+import { clientsService } from '@/modules/clients/services/clients.service';
+import type { AppRouteHandler } from '@/shared/types/hono';
+import { response } from '@/shared/utils/responseUtils';
 
 export const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = async (c) => {
-  const { orgId } = c.req.valid('param');
+  const { practiceId: organizationId } = c.req.valid('param');
   const query = c.req.valid('query');
 
   const result = await clientsService.listClients({
-    organizationId: orgId,
-    ...query
+    organizationId: organizationId,
+    ...query,
   });
 
   if (!result.success) {
@@ -31,11 +31,11 @@ export const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = asyn
 };
 
 export const createClientHandler: AppRouteHandler<typeof createClientRoute> = async (c) => {
-  const { orgId } = c.req.valid('param');
+  const { practiceId: organizationId } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user')!;
 
-  const result = await clientsService.createClient(orgId, body, user.id);
+  const result = await clientsService.createClient(organizationId, body, user.id);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -45,9 +45,9 @@ export const createClientHandler: AppRouteHandler<typeof createClientRoute> = as
 };
 
 export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c) => {
-  const { orgId, uuid } = c.req.valid('param');
+  const { practiceId: organizationId, uuid } = c.req.valid('param');
 
-  const result = await clientsService.getClient(uuid, orgId);
+  const result = await clientsService.getClient(uuid, organizationId);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -57,11 +57,11 @@ export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c
 };
 
 export const updateClientHandler: AppRouteHandler<typeof updateClientRoute> = async (c) => {
-  const { orgId, uuid } = c.req.valid('param');
+  const { practiceId: organizationId, uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user')!;
 
-  const result = await clientsService.updateClient(uuid, orgId, body, user.id);
+  const result = await clientsService.updateClient(uuid, organizationId, body, user.id);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -71,10 +71,10 @@ export const updateClientHandler: AppRouteHandler<typeof updateClientRoute> = as
 };
 
 export const deleteClientHandler: AppRouteHandler<typeof deleteClientRoute> = async (c) => {
-  const { orgId, uuid } = c.req.valid('param');
+  const { practiceId: organizationId, uuid } = c.req.valid('param');
   const user = c.get('user')!;
 
-  const result = await clientsService.deleteClient(uuid, orgId, user.id);
+  const result = await clientsService.deleteClient(uuid, organizationId, user.id);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -86,9 +86,9 @@ export const deleteClientHandler: AppRouteHandler<typeof deleteClientRoute> = as
 // ==================== MEMOS ====================
 
 export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute> = async (c) => {
-  const { orgId, uuid } = c.req.valid('param');
+  const { practiceId: organizationId, uuid } = c.req.valid('param');
 
-  const result = await clientMemosService.listMemos(uuid, orgId);
+  const result = await clientMemosService.listMemos(uuid, organizationId);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -98,13 +98,13 @@ export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute
 };
 
 export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRoute> = async (c) => {
-  const { orgId, uuid } = c.req.valid('param');
+  const { practiceId: organizationId, uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user')!;
 
-  const result = await clientMemosService.createMemo(uuid, orgId, {
+  const result = await clientMemosService.createMemo(uuid, organizationId, {
     ...body,
-    event_time: body.event_time ? new Date(body.event_time) : undefined
+    event_time: body.event_time ? new Date(body.event_time) : undefined,
   }, user.id);
 
   if (!result.success) {
@@ -115,10 +115,10 @@ export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRou
 };
 
 export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRoute> = async (c) => {
-  const { orgId, uuid, memoId } = c.req.valid('param');
+  const { practiceId: organizationId, uuid, memoId } = c.req.valid('param');
   const body = c.req.valid('json');
 
-  const result = await clientMemosService.updateMemo(memoId, uuid, orgId, body);
+  const result = await clientMemosService.updateMemo(memoId, uuid, organizationId, body);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -128,9 +128,9 @@ export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRou
 };
 
 export const deleteClientMemoHandler: AppRouteHandler<typeof deleteClientMemoRoute> = async (c) => {
-  const { orgId, uuid, memoId } = c.req.valid('param');
+  const { practiceId: organizationId, uuid, memoId } = c.req.valid('param');
 
-  const result = await clientMemosService.deleteMemo(memoId, uuid, orgId);
+  const result = await clientMemosService.deleteMemo(memoId, uuid, organizationId);
 
   if (!result.success) {
     return response.fromResult(c, result);

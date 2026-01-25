@@ -50,9 +50,12 @@ export const idParamSchema = z.object({
 });
 
 // Parameter validation schemas
-export const organizationIdParamSchema = z.object({
-  organizationId: uuidValidator,
+export const practiceIdParamSchema = z.object({
+  practiceId: uuidValidator,
 });
+
+// Alias for backwards compatibility
+export const organizationIdParamSchema = practiceIdParamSchema;
 
 export const clientIdParamSchema = z.object({
   id: uuidValidator,
@@ -68,10 +71,6 @@ export const paymentIntentIdParamSchema = z.object({
 
 export const payoutIdParamSchema = z.object({
   id: uuidValidator,
-});
-
-export const practiceIdParamSchema = z.object({
-  id: uuidValidator.refine((val) => val.length > 0, 'Invalid practice ID'),
 });
 
 export const customerIdParamSchema = z.object({

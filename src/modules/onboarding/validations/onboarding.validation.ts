@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { emailValidator, organizationIdParamSchema } from '@/shared/validations/common';
+import { practiceIdParamSchema } from '@/shared/validations/common';
 
 // --- Shared Core Schemas ---
 
@@ -199,7 +199,7 @@ export const internalServerErrorResponseSchema = z.object({
  * Validation Object for Module
  */
 export const onboardingValidations = {
-  organizationIdParamSchema,
+  practiceIdParamSchema,
   createOnboardingSessionSchema,
   createConnectedAccountSchema,
   onboardingStatusResponseSchema,

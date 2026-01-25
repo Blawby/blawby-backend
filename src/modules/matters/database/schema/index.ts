@@ -1,4 +1,3 @@
-export * from './practice-areas.schema';
 export * from './matters.schema';
 export * from './matter-assignees.schema';
 export * from './matter-notes.schema';
