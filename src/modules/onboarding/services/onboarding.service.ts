@@ -55,7 +55,7 @@ export const onboardingService = {
       const accountData = result.data;
 
       // Publish onboarding started event
-      void OnboardingStarted.dispatch({
+      OnboardingStarted.dispatch({
         organization_id: organizationId,
         organization_email: organizationEmail,
         account_id: accountData.account_id,

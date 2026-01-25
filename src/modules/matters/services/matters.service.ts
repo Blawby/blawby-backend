@@ -229,7 +229,7 @@ export const updateMatter = async (
   try {
     const result = await db.transaction(async (tx) => {
       // Update the matter
-      const updated = await mattersQueries.updateMatter(matterId, matterData);
+      const updated = await mattersQueries.updateMatter(matterId, matterData, tx);
 
       if (!updated) {
         throw new Error('Failed to update matter');
@@ -323,7 +323,7 @@ export const deleteMatter = async (
 
   try {
     await db.transaction(async (tx) => {
-      const deleted = await mattersQueries.softDeleteMatter(matterId, user.id);
+      const deleted = await mattersQueries.softDeleteMatter(matterId, user.id, tx);
 
       if (!deleted) {
         throw new Error('Failed to delete matter');

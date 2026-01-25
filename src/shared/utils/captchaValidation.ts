@@ -5,13 +5,13 @@
  * Can be extended to support other providers in the future.
  */
 
-import { isDevelopment } from '@/shared/utils/env';
+import { isDevelopment } from './env.js';
 
 interface TurnstileVerifyResponse {
-  success: boolean;
+  'success': boolean;
   'error-codes'?: string[];
-  challenge_ts?: string;
-  hostname?: string;
+  'challenge_ts'?: string;
+  'hostname'?: string;
 }
 
 /**

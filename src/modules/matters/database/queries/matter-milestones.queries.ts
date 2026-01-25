@@ -1,9 +1,11 @@
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, sql, asc } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
+import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter milestone
@@ -20,7 +22,7 @@ const createMatterMilestone = async (
 // Create multiple milestones
 const createMatterMilestones = async (
   data: InsertMatterMilestone[],
-  tx?: any,
+  tx?: NodePgDatabase<typeof schema>,
 ): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) return [];
 

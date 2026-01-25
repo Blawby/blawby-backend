@@ -7,8 +7,8 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 
-import { users } from '@/schema/better-auth-schema';
 import { practiceClientsSchema } from '@/modules/clients/database/schema/practice-clients.schema';
+import { users } from '@/schema/better-auth-schema';
 
 const { practiceClients } = practiceClientsSchema;
 

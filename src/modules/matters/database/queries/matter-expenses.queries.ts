@@ -1,10 +1,12 @@
-import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import {
+  eq, and, desc, gte, lte, sql,
+} from 'drizzle-orm';
 import {
   matterExpenses,
   type InsertMatterExpense,
   type SelectMatterExpense,
 } from '@/modules/matters/database/schema/matter-expenses.schema';
+import { db } from '@/shared/database';
 
 // Create matter expense
 export const createMatterExpense = async (
@@ -38,7 +40,7 @@ export const listMatterExpenses = async (
     endDate?: string;
   },
 ): Promise<SelectMatterExpense[]> => {
-  let conditions = [eq(matterExpenses.matter_id, matterId)];
+  const conditions = [eq(matterExpenses.matter_id, matterId)];
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterExpenses.billable, filters.billable));

@@ -249,4 +249,5 @@ secrets/
 src/shared/router/modules.generated.ts
 src/shared/router/configs.generated.ts
 src/schema/index.ts
+src/shared/events/bootstrap.ts
 storage/

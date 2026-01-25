@@ -84,7 +84,7 @@ export const createDatabaseHooks = (
     user: {
       create: {
         after: async (userData: UserData): Promise<void> => {
-          void AuthUserSignedUp.dispatch({
+          AuthUserSignedUp.dispatch({
             actor_id: userData.id,
             user_id: userData.id,
             email: userData.email,

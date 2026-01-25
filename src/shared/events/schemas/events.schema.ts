@@ -25,15 +25,15 @@ export type BaseEvent = {
   eventId: string; // UUID primary key
   type: string; // Event type (renamed from eventType)
   eventVersion: string;
-  timestamp: Date;
+  createdAt: Date;
   actorId: string; // UUID - Who/what performed the action
   actorType: 'user' | 'system' | 'webhook' | 'cron' | 'api'; // Type of actor
-  organizationId?: string; // Context where the event happened
+  organizationId?: string | null; // Context where the event happened
   payload: Record<string, unknown>;
   metadata: EventMetadata;
-  processed?: boolean;
-  retryCount?: number;
-  lastError?: string; // Error message from last failed processing attempt
+  processed?: boolean | null;
+  retryCount?: number | null;
+  lastError?: string | null; // Error message from last failed processing attempt
 };
 
 // Events table
@@ -47,13 +47,13 @@ export const events = pgTable('events', {
 
   // Actor information
   actorId: uuid('actor_id').notNull(), // Changed from text to uuid
-  actorType: text('actor_type').notNull(), // Type of actor: 'user', 'system', 'webhook', etc.
+  actorType: text('actor_type').$type<'user' | 'system' | 'webhook' | 'cron' | 'api'>().notNull(), // Type of actor: 'user', 'system', 'webhook', etc.
   organizationId: uuid('organization_id').references(() => organizations.id, {
     onDelete: 'set null',
   }),
 
   // Event data
-  payload: json('payload').notNull(),
+  payload: json('payload').$type<Record<string, unknown>>().notNull(),
   metadata: json('metadata').notNull().$type<EventMetadata>(),
 
   // Processing status
@@ -102,7 +102,7 @@ export const baseEventSchema = z.object({
   eventId: z.uuid(),
   type: z.string(), // Renamed from eventType
   eventVersion: z.string(),
-  timestamp: z.coerce.date(),
+  createdAt: z.coerce.date(),
   actorId: z.uuid(), // Changed to uuid
   actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
   organizationId: z.uuid().optional(),

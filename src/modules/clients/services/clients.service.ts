@@ -61,7 +61,7 @@ const createClient = async (
       // 2. Handle Address
       let addressId: string | undefined;
       if (data.address) {
-        const address = await upsertAddressTx(tx as any, {
+        const address = await upsertAddressTx(tx, {
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -82,15 +82,15 @@ const createClient = async (
         organization_id: organizationId,
         stripe_customer_id: stripeCustomerId,
         address_id: addressId,
-      } as any);
+      });
 
       // 4. Publish event
-      void ClientCreated.dispatch({
+      await ClientCreated.dispatch({
         client_id: client.id,
         name: client.name,
         email: client.email,
         stripe_customer_id: client.stripe_customer_id ?? undefined,
-      }, { actorId: userId, organizationId });
+      }, { actorId: userId, organizationId, tx: tx });
 
       return ok(client);
     } catch (error) {
@@ -116,7 +116,7 @@ const updateClient = async (
       // 1. Handle Address
       let address_id = client.address_id;
       if (data.address) {
-        const address = await upsertAddressTx(tx as any, {
+        const address = await upsertAddressTx(tx, {
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -153,17 +153,17 @@ const updateClient = async (
         }
       }
 
-      const { address, ...clientData } = data;
+      const { address: _unused, ...clientData } = data;
       const updated = await practiceClientsRepository.update(id, {
         ...clientData,
         address_id,
       });
       if (!updated) return internalError('Failed to update client');
 
-      void ClientUpdated.dispatch({
+      await ClientUpdated.dispatch({
         client_id: updated.id,
         changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
-      }, { actorId: userId, organizationId });
+      }, { actorId: userId, organizationId, tx: tx });
 
       return ok(updated);
     } catch (error) {
@@ -226,7 +226,7 @@ const createClientFromIntake = async (params: {
   email: string;
   name: string;
   phone?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }): Promise<Result<SelectPracticeClient>> => {
   const {
     organizationId, intakeId, email, name, phone,

@@ -25,18 +25,22 @@ export const internalServerErrorResponseSchema = z.object({
  */
 
 export const practiceIdParamSchema = z.object({
-  practiceId: z.uuid().openapi({
-    param: { name: 'practiceId', in: 'path' },
+  practice_id: z.uuid().openapi({
+    param: { name: 'practice_id', in: 'path' },
     description: 'Practice ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
 });
 
 export const matterUuidParamSchema = z.object({
-  practiceId: z.uuid().openapi({
+  practice_id: z.uuid().openapi({
+    param: { name: 'practice_id', in: 'path' },
     description: 'Practice ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   }),
   uuid: z.uuid().openapi({
+    param: { name: 'uuid', in: 'path' },
     description: 'Matter ID (UUID)',
+    example: '789a1234-b56c-78d9-e012-345678901234',
   }),
 });

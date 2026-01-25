@@ -13,6 +13,7 @@ import type { Task } from 'graphile-worker';
 import { db } from '@/shared/database';
 import { bootstrapEventListeners } from '@/shared/events/bootstrap';
 import { Event } from '@/shared/events/event';
+import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import { events } from '@/shared/events/schemas/events.schema';
 
 // Bootstrap listeners once on module load
@@ -98,7 +99,7 @@ export const processOutboxEvent: Task = async (
     for (const event of unprocessedEvents) {
       try {
         // Dispatch to registered handlers using the new Event system
-        await Event.dispatch(event.type, event.payload as Record<string, unknown>);
+        await Event.dispatch(event.type, event);
 
         // Mark as processed
         await db
@@ -114,14 +115,43 @@ export const processOutboxEvent: Task = async (
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         helpers.logger.error(`Failed to process event ${event.eventId}:`, { error });
 
-        // Update retry count and error message
-        await db
-          .update(events)
-          .set({
-            retryCount: event.retryCount + 1,
-            lastError: errorMessage,
-          })
-          .where(eq(events.eventId, event.eventId));
+        const newRetryCount = event.retryCount + 1;
+
+        // Check if max retries exceeded - move to dead letter queue
+        if (newRetryCount >= MAX_RETRIES) {
+          helpers.logger.warn(`Event ${event.eventId} exceeded max retries, moving to dead letter queue`);
+
+          await db.transaction(async (tx) => {
+            // Move to dead letter queue
+            await tx.insert(eventsDeadLetter).values({
+              eventId: event.eventId,
+              type: event.type,
+              eventVersion: event.eventVersion,
+              actorId: event.actorId,
+              actorType: event.actorType,
+              organizationId: event.organizationId,
+              payload: event.payload,
+              metadata: event.metadata,
+              lastError: errorMessage,
+              retryCount: newRetryCount,
+              originalCreatedAt: event.createdAt,
+            });
+
+            // Remove from main events table
+            await tx.delete(events).where(eq(events.eventId, event.eventId));
+          });
+
+          helpers.logger.warn(`Event ${event.eventId} moved to dead letter queue`);
+        } else {
+          // Update retry count and error message
+          await db
+            .update(events)
+            .set({
+              retryCount: newRetryCount,
+              lastError: errorMessage,
+            })
+            .where(eq(events.eventId, event.eventId));
+        }
 
         // Collect error to throw after batch completes
         errors.push({ eventId: event.eventId, error });

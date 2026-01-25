@@ -27,7 +27,7 @@ const syncSubscriptionToOrg = async (
     eventType: 'created' | 'active' | 'updated';
     trigger: 'webhook' | 'user';
   },
-) => {
+): Promise<void> => {
   const {
     stripeSubscription, subscriptionId, referenceId, stripeCustomerId, planName, eventType, trigger,
   } = params;
@@ -105,9 +105,9 @@ const syncSubscriptionToOrg = async (
     });
   });
 
-  // 4. Side Effects (Fire-and-forget, outside transaction)
-  // We don't want event publishing failure to rollback the DB transaction
-  SubscriptionCreated.dispatch({
+  // 4. Side Effects (Critical - must persist before response for payment events)
+  // Use critical: true for immediate DB write with NOTIFY
+  await SubscriptionCreated.dispatch({
     subscription_id: subscriptionId,
     stripe_subscription_id: stripeSubscription.id,
     plan_name: planName,
@@ -115,7 +115,8 @@ const syncSubscriptionToOrg = async (
   }, {
     actorId: 'system',
     organizationId,
-  }).catch((err) => console.error('Failed to publish subscription event:', err));
+    critical: true,
+  });
 };
 
 /**

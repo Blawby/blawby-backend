@@ -20,11 +20,11 @@ const logger = getLogger(['clients', 'listeners']);
 /**
  * Register all client event listeners
  */
-export function registerClientsListeners(): void {
+export const registerClientsListeners = (): void => {
   logger.info('Registering clients event listeners...');
 
   // Auto-create client on intake payment success
-  Event.listen(IntakePaymentSucceeded, async (payload) => {
+  Event.listen(IntakePaymentSucceeded, async (payload, context) => {
     if (!payload.uuid) {
       logger.warn('Intake payment succeeded event missing uuid');
       return;
@@ -34,10 +34,9 @@ export function registerClientsListeners(): void {
       intakeId: payload.uuid,
     });
 
-    // Note: organizationId comes from the event context, not payload
-    // The worker will need to pass this through
+    // Use organizationId from the event context
     const result = await clientsService.createClientFromIntake({
-      organizationId: 'system', // Will be overridden by event context
+      organizationId: context?.organizationId || 'system',
       intakeId: payload.uuid,
       email: payload.client_email ?? '',
       name: payload.client_name ?? '',
@@ -71,4 +70,4 @@ export function registerClientsListeners(): void {
   });
 
   logger.info('Client event listeners registered');
-}
+};

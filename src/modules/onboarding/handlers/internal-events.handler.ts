@@ -10,7 +10,7 @@ const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
  * Internal handler for account updated event
  */
 export const handleAccountUpdatedInternal = async (event: BaseEvent): Promise<void> => {
-  logger.info("Onboarding account updated: {stripeAccountId} for organization {organizationId}", {
+  logger.info('Onboarding account updated: {stripeAccountId} for organization {organizationId}', {
     stripeAccountId: event.payload?.stripe_account_id,
     organizationId: event.organizationId,
   });
@@ -21,7 +21,7 @@ export const handleAccountUpdatedInternal = async (event: BaseEvent): Promise<vo
  */
 export const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void> => {
   const { organizationId } = event;
-  logger.info("Onboarding account requirements changed: {stripeAccountId}", {
+  logger.info('Onboarding account requirements changed: {stripeAccountId}', {
     stripeAccountId: event.payload?.stripe_account_id,
     organizationId,
   });
@@ -44,13 +44,13 @@ export const handleAccountRequirementsChanged = async (event: BaseEvent): Promis
         supportUrl: 'https://blawby.com/support',
       },
     ).catch((error: unknown) => {
-      logger.error("Failed to queue Connect status email for {organizationId}: {error}", {
+      logger.error('Failed to queue Connect status email for {organizationId}: {error}', {
         organizationId,
         error,
       });
     });
   } else {
-    logger.warn("Skipping Connect status email: missing billing_email for {organizationId}", {
+    logger.warn('Skipping Connect status email: missing billing_email for {organizationId}', {
       organizationId,
     });
   }
@@ -60,7 +60,7 @@ export const handleAccountRequirementsChanged = async (event: BaseEvent): Promis
  * Internal handler for account capabilities updated event
  */
 export const handleCapabilitiesUpdatedInternal = async (event: BaseEvent): Promise<void> => {
-  logger.info("Onboarding account capabilities updated: {stripeAccountId}", {
+  logger.info('Onboarding account capabilities updated: {stripeAccountId}', {
     stripeAccountId: event.payload?.stripe_account_id,
     organizationId: event.organizationId,
   });
@@ -70,7 +70,7 @@ export const handleCapabilitiesUpdatedInternal = async (event: BaseEvent): Promi
  * Internal handler for external account created event
  */
 export const handleExternalAccountCreatedInternal = async (event: BaseEvent): Promise<void> => {
-  logger.info("Onboarding external account created: {stripeAccountId}", {
+  logger.info('Onboarding external account created: {stripeAccountId}', {
     stripeAccountId: event.payload?.stripe_account_id,
     organizationId: event.organizationId,
   });
@@ -80,7 +80,7 @@ export const handleExternalAccountCreatedInternal = async (event: BaseEvent): Pr
  * Internal handler for external account updated event
  */
 export const handleExternalAccountUpdatedInternal = async (event: BaseEvent): Promise<void> => {
-  logger.info("Onboarding external account updated: {stripeAccountId}", {
+  logger.info('Onboarding external account updated: {stripeAccountId}', {
     stripeAccountId: event.payload?.stripe_account_id,
     organizationId: event.organizationId,
   });
@@ -90,7 +90,7 @@ export const handleExternalAccountUpdatedInternal = async (event: BaseEvent): Pr
  * Internal handler for external account deleted event
  */
 export const handleExternalAccountDeletedInternal = async (event: BaseEvent): Promise<void> => {
-  logger.info("Onboarding external account deleted: {stripeAccountId}", {
+  logger.info('Onboarding external account deleted: {stripeAccountId}', {
     stripeAccountId: event.payload?.stripe_account_id,
     organizationId: event.organizationId,
   });

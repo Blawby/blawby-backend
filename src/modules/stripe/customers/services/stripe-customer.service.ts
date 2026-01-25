@@ -7,6 +7,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
+import type Stripe from 'stripe';
 import { customersRepository } from '../database/queries/customers.repository';
 import type {
   Preferences,
@@ -62,7 +63,7 @@ export const stripeCustomerService = {
       if (existing) return ok(existing);
 
       // 2. Create customer on Stripe
-      const createParams: any = {
+      const createParams: Stripe.CustomerCreateParams = {
         email: data.email,
         name: data.name,
         metadata: {
@@ -188,17 +189,20 @@ export const stripeCustomerService = {
         return internalError('Stripe customer ID not found for user');
       }
 
-      const updateParams: any = {
-        metadata: {
-          product_usage: JSON.stringify(updates.productUsage || []),
-        },
+      const metadata: Stripe.MetadataParam = {
+        product_usage: JSON.stringify(updates.productUsage || []),
+      };
+
+      if (updates.dob) {
+        metadata.dob = updates.dob;
+      }
+
+      const updateParams: Stripe.CustomerUpdateParams = {
+        metadata,
       };
 
       if (updates.phone) {
         updateParams.phone = updates.phone;
-      }
-      if (updates.dob) {
-        updateParams.metadata.dob = updates.dob;
       }
 
       await stripe.customers.update(userData.stripeCustomerId, updateParams);
@@ -227,6 +231,7 @@ export const stripeCustomerService = {
           return customer || existing;
         });
       } else {
+        // Critical: Immediate DB write for Stripe events when not in transaction
         void StripeCustomerUpdated.dispatch({
           user_id: userId,
           stripe_customer_id: userData.stripeCustomerId,
@@ -235,6 +240,7 @@ export const stripeCustomerService = {
         }, {
           actorId: userId,
           organizationId: undefined,
+          critical: true,
         });
       }
 

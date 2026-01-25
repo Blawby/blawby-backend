@@ -77,10 +77,10 @@ const getPracticeById = async (
     const cleanPracticeDetails = practiceDetails
       ? omit(practiceDetails, [
         'id',
-        'organizationId',
-        'userId',
-        'createdAt',
-        'updatedAt',
+        'organization_id',
+        'user_id',
+        'created_at',
+        'updated_at',
       ])
       : null;
 
