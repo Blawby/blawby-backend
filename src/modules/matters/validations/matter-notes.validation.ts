@@ -25,7 +25,6 @@ const matterNoteSchema = z.object({
 }).openapi('MatterNote');
 
 
-
 export const matterNoteValidations = {
   createMatterNoteSchema,
   updateMatterNoteSchema,

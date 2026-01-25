@@ -1,25 +1,24 @@
 import { getLogger } from '@logtape/logtape';
-import { stripe } from '@/shared/utils/stripe-client';
 import { practiceClientsRepository } from '@/modules/clients/database/queries/practice-clients.queries';
-import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
-import { db } from '@/shared/database';
 import {
-  practiceClientsSchema,
   type InsertPracticeClient,
   type SelectPracticeClient,
 } from '@/modules/clients/database/schema/practice-clients.schema';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
+import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { db } from '@/shared/database';
 import { EventType } from '@/shared/events/enums/event-types';
 import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError, notFound } from '@/shared/utils/result';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['clients', 'service']);
 
 const createClient = async (
   organizationId: string,
   data: Omit<InsertPracticeClient, 'organization_id' | 'stripe_customer_id'> & { address?: any },
-  userId: string
+  userId: string,
 ): Promise<Result<SelectPracticeClient>> => {
   return await db.transaction(async (tx) => {
     try {
@@ -36,17 +35,17 @@ const createClient = async (
             phone: data.phone || undefined,
             metadata: {
               organization_id: organizationId,
-              source: 'blawby_clients_api'
-            }
+              source: 'blawby_clients_api',
+            },
           }, {
-            stripeAccount: connectedAccount.stripe_account_id
+            stripeAccount: connectedAccount.stripe_account_id,
           });
           stripeCustomerId = stripeCustomer.id;
         } catch (stripeError) {
           logger.error('Failed to create Stripe customer for client {email}: {error}', {
             email: data.email,
             error: stripeError,
-            organizationId
+            organizationId,
           });
         }
       }
@@ -64,7 +63,7 @@ const createClient = async (
             country: data.address.country,
           },
           organizationId,
-          type: 'client'
+          type: 'client',
         });
         addressId = address?.id;
       }
@@ -86,8 +85,8 @@ const createClient = async (
           client_id: client.id,
           name: client.name,
           email: client.email,
-          stripe_customer_id: client.stripe_customer_id
-        }
+          stripe_customer_id: client.stripe_customer_id,
+        },
       );
 
       return ok(client);
@@ -102,7 +101,7 @@ const updateClient = async (
   id: string,
   organizationId: string,
   data: Partial<InsertPracticeClient> & { address?: any },
-  userId: string
+  userId: string,
 ): Promise<Result<SelectPracticeClient>> => {
   return await db.transaction(async (tx) => {
     try {
@@ -125,7 +124,7 @@ const updateClient = async (
           },
           organizationId,
           addressId: client.address_id,
-          type: 'client'
+          type: 'client',
         });
         address_id = address?.id ?? address_id;
       }
@@ -140,12 +139,12 @@ const updateClient = async (
               name: data.name || undefined,
               phone: data.phone || undefined,
             }, {
-              stripeAccount: connectedAccount.stripe_account_id
+              stripeAccount: connectedAccount.stripe_account_id,
             });
           } catch (stripeError) {
             logger.error('Failed to update Stripe customer {customerId}: {error}', {
               customerId: client.stripe_customer_id,
-              error: stripeError
+              error: stripeError,
             });
           }
         }
@@ -164,8 +163,8 @@ const updateClient = async (
         organizationId,
         {
           client_id: updated.id,
-          changes: Object.keys(data)
-        }
+          changes: Object.keys(data),
+        },
       );
 
       return ok(updated);
@@ -218,7 +217,7 @@ const deleteClient = async (id: string, organizationId: string, userId: string):
       EventType.CLIENT_DELETED,
       userId,
       organizationId,
-      { client_id: id }
+      { client_id: id },
     );
 
     return ok(undefined);
@@ -236,7 +235,9 @@ const createClientFromIntake = async (params: {
   phone?: string;
   metadata?: any;
 }): Promise<Result<SelectPracticeClient>> => {
-  const { organizationId, intakeId, email, name, phone } = params;
+  const {
+    organizationId, intakeId, email, name, phone,
+  } = params;
 
   try {
     const existingClient = await practiceClientsRepository.findByEmail(organizationId, email);
@@ -246,7 +247,7 @@ const createClientFromIntake = async (params: {
         await practiceClientsRepository.update(existingClient.id, {
           intake_id: intakeId,
           status: 'active',
-          updated_at: new Date()
+          updated_at: new Date(),
         });
       }
       return ok(existingClient);
@@ -264,16 +265,16 @@ const createClientFromIntake = async (params: {
           metadata: {
             organization_id: organizationId,
             intake_id: intakeId,
-            source: 'blawby_intake'
-          }
+            source: 'blawby_intake',
+          },
         }, {
-          stripeAccount: connectedAccount.stripe_account_id
+          stripeAccount: connectedAccount.stripe_account_id,
         });
         stripeCustomerId = stripeCustomer.id;
       } catch (stripeError) {
         logger.error('Failed to create Stripe customer from intake for {email}: {error}', {
           email,
-          error: stripeError
+          error: stripeError,
         });
       }
     }
@@ -296,8 +297,8 @@ const createClientFromIntake = async (params: {
       {
         client_id: client.id,
         intake_id: intakeId,
-        source: 'intake'
-      }
+        source: 'intake',
+      },
     );
 
     return ok(client);

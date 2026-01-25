@@ -1,7 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
-
 import {
-  uploadValidations
+  uploadValidations,
 } from '@/modules/uploads/validations/uploads.validation';
 
 /**

@@ -1,23 +1,23 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { omit } from 'es-toolkit/compat';
+import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import {
   findPracticeDetailsByOrganization,
 } from '@/modules/practice/database/queries/practice-details.repository';
-import { getFullOrganization } from '@/modules/practice/services/organization.service';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
-import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx } from '@/shared/events/event-publisher';
-import type { User } from '@/shared/types/BetterAuth';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { practiceDetails as practiceDetailsTable } from '@/modules/practice/database/schema/practice.schema';
+import { getFullOrganization } from '@/modules/practice/services/organization.service';
+import type { AddressData } from '@/modules/practice/types/addresses.types';
 import type {
   PracticeDetailsResponse,
   UpsertPracticeDetailsRequest,
 } from '@/modules/practice/types/practice-details.types';
-import type { AddressData } from '@/modules/practice/types/addresses.types';
+import { db } from '@/shared/database';
+import { EventType } from '@/shared/events/enums/event-types';
+import { publishEventTx } from '@/shared/events/event-publisher';
+import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, notFound, internalError } from '@/shared/utils/result';
 

@@ -1,11 +1,9 @@
 import { createRoute, z } from '@hono/zod-openapi';
-
-import { practiceAreaValidations } from '@/modules/matters/validations/practice-areas.validation';
-import { matterValidations } from '@/modules/matters/validations/matters.validation';
-import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
-import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
 import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
+import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
+import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
+import { matterValidations } from '@/modules/matters/validations/matters.validation';
 
 // Common response schemas
 const errorResponseSchema = z.object({
@@ -20,18 +18,18 @@ const notFoundResponseSchema = z.object({
 }).openapi('NotFoundResponse');
 
 // Common param schemas
-const organizationIdParamSchema = z.object({
-  organizationId: z.uuid().openapi({
-    param: { name: 'organizationId', in: 'path' },
-    description: 'Organization ID (UUID)',
+const practiceIdParamSchema = z.object({
+  practiceId: z.uuid().openapi({
+    param: { name: 'practiceId', in: 'path' },
+    description: 'Practice ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
 });
 
 const matterUuidParamSchema = z.object({
-  organizationId: z.uuid().openapi({
-    param: { name: 'organizationId', in: 'path' },
-    description: 'Organization ID (UUID)',
+  practiceId: z.uuid().openapi({
+    param: { name: 'practiceId', in: 'path' },
+    description: 'Practice ID (UUID)',
   }),
   uuid: z.uuid().openapi({
     param: { name: 'uuid', in: 'path' },
@@ -39,39 +37,7 @@ const matterUuidParamSchema = z.object({
   }),
 });
 
-// ==================== PRACTICE AREAS ====================
-
-export const listPracticeAreasRoute = createRoute({
-  method: 'get',
-  path: '/{organizationId}/practice-areas',
-  tags: ['Matters: Practice Areas'],
-  summary: 'List practice areas',
-  description: 'Get all practice areas for an organization',
-  request: { params: organizationIdParamSchema },
-  responses: {
-    200: {
-      content: { 'application/json': { schema: z.object({ practiceAreas: z.array(practiceAreaValidations.practiceAreaSchema) }) } },
-      description: 'Practice areas retrieved successfully',
-    },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-  },
-});
-
-export const createPracticeAreaRoute = createRoute({
-  method: 'post',
-  path: '/{organizationId}/practice-areas',
-  tags: ['Matters: Practice Areas'],
-  summary: 'Create practice area',
-  description: 'Create a new practice area for an organization',
-  request: {
-    params: organizationIdParamSchema,
-    body: { content: { 'application/json': { schema: practiceAreaValidations.createPracticeAreaSchema } } },
-  },
-  responses: {
-    201: { content: { 'application/json': { schema: z.object({ practiceArea: practiceAreaValidations.practiceAreaSchema }) } }, description: 'Practice area created' },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-  },
-});
+// [REMOVED Practice Areas routes - Services are fetched from practice-details]
 
 // ==================== MATTERS ====================
 
@@ -79,12 +45,12 @@ export const createPracticeAreaRoute = createRoute({
 
 export const createMatterRoute = createRoute({
   method: 'post',
-  path: '/{organizationId}/matters',
+  path: '/{practiceId}/matters',
   tags: ['Matters: General'],
   summary: 'Create matter',
   description: 'Create a new matter/case',
   request: {
-    params: organizationIdParamSchema,
+    params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
@@ -101,12 +67,12 @@ export const createMatterRoute = createRoute({
 
 export const getMatterRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters',
+  path: '/{practiceId}/matters',
   tags: ['Matters: General'],
   summary: 'Get matter(s)',
   description: 'Get all matters or a single matter if matter_uuid query param is provided',
   request: {
-    params: organizationIdParamSchema,
+    params: practiceIdParamSchema,
     query: matterValidations.listMattersQuerySchema,
   },
   responses: {
@@ -134,7 +100,7 @@ export const getMatterRoute = createRoute({
 
 export const updateMatterRoute = createRoute({
   method: 'put',
-  path: '/{organizationId}/matters/{uuid}',
+  path: '/{practiceId}/matters/{uuid}',
   tags: ['Matters: General'],
   summary: 'Update matter',
   description: 'Update a matter',
@@ -156,7 +122,7 @@ export const updateMatterRoute = createRoute({
 
 export const deleteMatterRoute = createRoute({
   method: 'delete',
-  path: '/{organizationId}/matters/{uuid}',
+  path: '/{practiceId}/matters/{uuid}',
   tags: ['Matters: General'],
   summary: 'Delete matter',
   description: 'Soft delete a matter',
@@ -171,7 +137,7 @@ export const deleteMatterRoute = createRoute({
 
 export const listMatterNotesRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters/{uuid}/notes',
+  path: '/{practiceId}/matters/{uuid}/notes',
   tags: ['Matters: Notes'],
   summary: 'List notes',
   description: 'Get all notes for a matter',
@@ -183,7 +149,7 @@ export const listMatterNotesRoute = createRoute({
 
 export const createMatterNoteRoute = createRoute({
   method: 'post',
-  path: '/{organizationId}/matters/{uuid}/notes',
+  path: '/{practiceId}/matters/{uuid}/notes',
   tags: ['Matters: Notes'],
   summary: 'Create note',
   description: 'Create a note for a matter',
@@ -200,7 +166,7 @@ export const createMatterNoteRoute = createRoute({
 
 export const listTimeEntriesRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters/{uuid}/time-entries',
+  path: '/{practiceId}/matters/{uuid}/time-entries',
   tags: ['Matters: Time Entries'],
   summary: 'List time entries',
   description: 'Get all time entries for a matter',
@@ -212,7 +178,7 @@ export const listTimeEntriesRoute = createRoute({
 
 export const createTimeEntryRoute = createRoute({
   method: 'post',
-  path: '/{organizationId}/matters/{uuid}/time-entries',
+  path: '/{practiceId}/matters/{uuid}/time-entries',
   tags: ['Matters: Time Entries'],
   summary: 'Create time entry',
   description: 'Log time for a matter (duration calculated automatically)',
@@ -233,7 +199,7 @@ export const createTimeEntryRoute = createRoute({
 
 export const getTimeEntryStatsRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters/{uuid}/time-entries/stats',
+  path: '/{practiceId}/matters/{uuid}/time-entries/stats',
   tags: ['Matters: Time Entries'],
   summary: 'Get time statistics',
   description: 'Get total billable and non-billable time for a matter',
@@ -259,7 +225,7 @@ export const getTimeEntryStatsRoute = createRoute({
 
 export const listExpensesRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters/{uuid}/expenses',
+  path: '/{practiceId}/matters/{uuid}/expenses',
   tags: ['Matters: Expenses'],
   summary: 'List expenses',
   description: 'Get all expenses for a matter',
@@ -271,7 +237,7 @@ export const listExpensesRoute = createRoute({
 
 export const createExpenseRoute = createRoute({
   method: 'post',
-  path: '/{organizationId}/matters/{uuid}/expenses',
+  path: '/{practiceId}/matters/{uuid}/expenses',
   tags: ['Matters: Expenses'],
   summary: 'Create expense',
   description: 'Add an expense to a matter',
@@ -294,7 +260,7 @@ export const createExpenseRoute = createRoute({
 
 export const listMilestonesRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters/{uuid}/milestones',
+  path: '/{practiceId}/matters/{uuid}/milestones',
   tags: ['Matters: Milestones'],
   summary: 'List milestones',
   description: 'Get all milestones for a matter',
@@ -306,7 +272,7 @@ export const listMilestonesRoute = createRoute({
 
 export const createMilestoneRoute = createRoute({
   method: 'post',
-  path: '/{organizationId}/matters/{uuid}/milestones',
+  path: '/{practiceId}/matters/{uuid}/milestones',
   tags: ['Matters: Milestones'],
   summary: 'Create milestone',
   description: 'Add a milestone to a matter',
@@ -327,7 +293,7 @@ export const createMilestoneRoute = createRoute({
 
 export const reorderMilestonesRoute = createRoute({
   method: 'post',
-  path: '/{organizationId}/matters/{uuid}/milestones/reorder',
+  path: '/{practiceId}/matters/{uuid}/milestones/reorder',
   tags: ['Matters: Milestones'],
   summary: 'Reorder milestones',
   description: 'Reorder milestones by providing array of IDs in new order',
@@ -350,7 +316,7 @@ export const reorderMilestonesRoute = createRoute({
 
 export const getMatterActivityRoute = createRoute({
   method: 'get',
-  path: '/{organizationId}/matters/{uuid}/activity',
+  path: '/{practiceId}/matters/{uuid}/activity',
   tags: ['Matters: General'],
   summary: 'Get activity log',
   description: 'Get the activity log for a matter',

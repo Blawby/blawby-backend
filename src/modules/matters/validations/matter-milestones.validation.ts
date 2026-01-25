@@ -46,7 +46,6 @@ const milestoneSchema = z.object({
 }).openapi('Milestone');
 
 
-
 export const matterMilestoneValidations = {
   createMatterMilestoneSchema,
   updateMatterMilestoneSchema,

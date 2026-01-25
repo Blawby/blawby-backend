@@ -3,17 +3,17 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 /**
- * GET /api/onboarding/organization/:organizationId/status
+ * GET /api/onboarding/organization/:practiceId/status
  * Get onboarding status for organization
  */
 export const getOnboardingStatusRoute = createRoute({
   method: 'get',
-  path: '/organization/{organizationId}/status',
+  path: '/organization/{practiceId}/status',
   tags: ['Onboarding'],
   summary: 'Get onboarding status',
   description: 'Retrieve the onboarding status for a specific organization',
   request: {
-    params: onboardingValidations.organizationIdParamSchema,
+    params: onboardingValidations.practiceIdParamSchema,
   },
   responses: {
     200: {
