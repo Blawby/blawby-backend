@@ -11,8 +11,12 @@
 import { eq, and, lt, asc } from 'drizzle-orm';
 import type { Task } from 'graphile-worker';
 import { db } from '@/shared/database';
+import { bootstrapEventListeners } from '@/shared/events/bootstrap';
+import { Event } from '@/shared/events/event';
 import { events } from '@/shared/events/schemas/events.schema';
-import { dispatchEventToHandlers } from '@/shared/events/event-handler-registry';
+
+// Bootstrap listeners once on module load
+let listenersBootstrapped = false;
 
 const BATCH_SIZE = 10; // Process 10 events at a time
 const MAX_RETRIES = 5; // Maximum retry attempts before giving up
@@ -29,6 +33,13 @@ export const processOutboxEvent: Task = async (
   payload: unknown,
   helpers,
 ): Promise<void> => {
+  // Bootstrap listeners once on first invocation
+  if (!listenersBootstrapped) {
+    helpers.logger.info('Bootstrapping event listeners...');
+    await bootstrapEventListeners();
+    listenersBootstrapped = true;
+  }
+
   const { eventId } = (payload as { eventId?: string }) || {};
 
   if (eventId) {
@@ -86,23 +97,8 @@ export const processOutboxEvent: Task = async (
     // Process each event
     for (const event of unprocessedEvents) {
       try {
-        // Convert database event to BaseEvent format
-        const baseEvent = {
-          eventId: event.eventId,
-          type: event.type,
-          eventVersion: event.eventVersion,
-          timestamp: event.createdAt,
-          actorId: event.actorId,
-          actorType: event.actorType as 'user' | 'system' | 'webhook' | 'cron' | 'api',
-          organizationId: event.organizationId || undefined,
-          payload: event.payload as Record<string, unknown>,
-          metadata: event.metadata,
-          processed: event.processed,
-          retryCount: event.retryCount,
-        };
-
-        // Dispatch to registered handlers
-        await dispatchEventToHandlers(baseEvent);
+        // Dispatch to registered handlers using the new Event system
+        await Event.dispatch(event.type, event.payload as Record<string, unknown>);
 
         // Mark as processed
         await db

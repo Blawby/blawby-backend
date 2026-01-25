@@ -17,8 +17,7 @@ import type {
   CreateIntakeResponse as CreatePracticeClientIntakeResponse,
   IntakeStatusResponse as PracticeClientIntakeStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { IntakePaymentCreated } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -171,7 +170,7 @@ const createPracticeClientIntake = async (
     const practiceClientIntake = await practiceClientIntakesRepository.create(practiceClientIntakeData);
 
     // 6. Publish practice client intake created event
-    void publishSimpleEvent(EventType.INTAKE_PAYMENT_CREATED, 'organization', organization.id, {
+    void IntakePaymentCreated.dispatch({
       intake_payment_id: practiceClientIntake.id,
       uuid: practiceClientIntake.id,
       stripe_payment_link_id: stripePaymentLink.id,
@@ -180,6 +179,9 @@ const createPracticeClientIntake = async (
       client_email: request.email,
       client_name: request.name,
       created_at: new Date().toISOString(),
+    }, {
+      actorId: 'organization',
+      organizationId: organization.id,
     });
 
     return ok({

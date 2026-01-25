@@ -12,16 +12,20 @@ import type {
   Preferences,
   InsertPreferences,
 } from '@/modules/preferences/schema/preferences.schema';
+import { preferences } from '@/modules/preferences/schema/preferences.schema';
 import type { ProductUsage } from '@/modules/preferences/types/preferences.types';
 import { users } from '@/schema/better-auth-schema';
-import { preferences } from '@/modules/preferences/schema/preferences.schema';
 
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent, publishEventTx } from '@/shared/events/event-publisher';
-import { stripe } from '@/shared/utils/stripe-client';
+import {
+  StripeCustomerCreated,
+  StripeCustomerUpdated,
+  StripeCustomerDeleted,
+  StripeCustomerSyncFailed,
+} from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError, notFound } from '@/shared/utils/result';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['stripe', 'customer-service']);
 
@@ -96,19 +100,18 @@ export const stripeCustomerService = {
           .returning();
 
         // Publish STRIPE_CUSTOMER_CREATED event within transaction
-        await publishEventTx(tx, {
-          type: EventType.STRIPE_CUSTOMER_CREATED,
+        await StripeCustomerCreated.dispatch({
+          user_id: data.userId,
+          stripe_customer_id: stripeCustomer.id,
+          email: data.email,
+          name: data.name,
+          source: data.source || 'platform_signup',
+          created_at: new Date().toISOString(),
+        }, {
           actorId: data.userId,
           actorType: 'user',
           organizationId: undefined,
-          payload: {
-            user_id: data.userId,
-            stripe_customer_id: stripeCustomer.id,
-            email: data.email,
-            name: data.name,
-            source: data.source || 'platform_signup',
-            created_at: new Date().toISOString(),
-          },
+          tx,
         });
 
         return customer;
@@ -127,17 +130,15 @@ export const stripeCustomerService = {
         userId: data.userId,
       });
 
-      void publishSimpleEvent(
-        EventType.STRIPE_CUSTOMER_SYNC_FAILED,
-        data.userId,
-        undefined,
-        {
-          user_id: data.userId,
-          error_message: errorMessage,
-          retry_count: 0,
-          failed_at: new Date().toISOString(),
-        },
-      );
+      void StripeCustomerSyncFailed.dispatch({
+        user_id: data.userId,
+        error_message: errorMessage,
+        retry_count: 0,
+        failed_at: new Date().toISOString(),
+      }, {
+        actorId: data.userId,
+        organizationId: undefined,
+      });
 
       return internalError(errorMessage);
     }
@@ -211,33 +212,30 @@ export const stripeCustomerService = {
             .where(eq(preferences.user_id, userId))
             .returning();
 
-          await publishEventTx(tx, {
-            type: EventType.STRIPE_CUSTOMER_UPDATED,
+          await StripeCustomerUpdated.dispatch({
+            user_id: userId,
+            stripe_customer_id: userData.stripeCustomerId,
+            updated_fields: Object.keys(updates),
+            updated_at: new Date().toISOString(),
+          }, {
             actorId: userId,
             actorType: 'user',
             organizationId: undefined,
-            payload: {
-              user_id: userId,
-              stripe_customer_id: userData.stripeCustomerId,
-              updated_fields: Object.keys(updates),
-              updated_at: new Date().toISOString(),
-            },
+            tx,
           });
 
           return customer || existing;
         });
       } else {
-        void publishSimpleEvent(
-          EventType.STRIPE_CUSTOMER_UPDATED,
-          userId,
-          undefined,
-          {
-            user_id: userId,
-            stripe_customer_id: userData.stripeCustomerId,
-            updated_fields: Object.keys(updates),
-            updated_at: new Date().toISOString(),
-          },
-        );
+        void StripeCustomerUpdated.dispatch({
+          user_id: userId,
+          stripe_customer_id: userData.stripeCustomerId,
+          updated_fields: Object.keys(updates),
+          updated_at: new Date().toISOString(),
+        }, {
+          actorId: userId,
+          organizationId: undefined,
+        });
       }
 
       logger.info('Customer details updated successfully for user {userId}', {
@@ -253,17 +251,15 @@ export const stripeCustomerService = {
         userId,
       });
 
-      void publishSimpleEvent(
-        EventType.STRIPE_CUSTOMER_SYNC_FAILED,
-        userId,
-        undefined,
-        {
-          user_id: userId,
-          error_message: errorMessage,
-          retry_count: 0,
-          failed_at: new Date().toISOString(),
-        },
-      );
+      void StripeCustomerSyncFailed.dispatch({
+        user_id: userId,
+        error_message: errorMessage,
+        retry_count: 0,
+        failed_at: new Date().toISOString(),
+      }, {
+        actorId: userId,
+        organizationId: undefined,
+      });
 
       return internalError(errorMessage);
     }
@@ -295,8 +291,8 @@ export const stripeCustomerService = {
         return internalError('Stripe customer has been deleted');
       }
 
-      const needsUpdate =
-        stripeCustomer.metadata?.product_usage !== JSON.stringify(customer.product_usage || []);
+      const needsUpdate
+        = stripeCustomer.metadata?.product_usage !== JSON.stringify(customer.product_usage || []);
 
       if (needsUpdate) {
         await this.updateCustomerDetails(userId, {
@@ -348,16 +344,15 @@ export const stripeCustomerService = {
 
         await tx.delete(preferences).where(eq(preferences.user_id, userId));
 
-        await publishEventTx(tx, {
-          type: EventType.STRIPE_CUSTOMER_DELETED,
+        await StripeCustomerDeleted.dispatch({
+          user_id: userId,
+          stripe_customer_id: stripeCustomerId,
+          deleted_at: new Date().toISOString(),
+        }, {
           actorId: userId,
           actorType: 'user',
           organizationId: undefined,
-          payload: {
-            user_id: userId,
-            stripe_customer_id: stripeCustomerId,
-            deleted_at: new Date().toISOString(),
-          },
+          tx,
         });
       });
 

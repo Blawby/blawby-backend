@@ -7,7 +7,6 @@
 export const TASK_NAMES = {
   PROCESS_STRIPE_WEBHOOK: 'process-stripe-webhook',
   PROCESS_ONBOARDING_WEBHOOK: 'process-onboarding-webhook',
-  PROCESS_EVENT_HANDLER: 'process-event-handler',
   PROCESS_OUTBOX_EVENT: 'process-outbox-event',
   SEND_EMAIL: 'send-email',
 } as const;
@@ -24,18 +23,4 @@ export const graphileWorkerConfig = {
   concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5,
   // Graphile Worker schema name
   schema: process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker',
-} as const;
-
-// Legacy exports for backward compatibility during migration
-// TODO: Remove after full migration
-export const QUEUE_NAMES = {
-  STRIPE_WEBHOOKS: TASK_NAMES.PROCESS_STRIPE_WEBHOOK,
-  ONBOARDING_WEBHOOKS: TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK,
-  EVENTS: TASK_NAMES.PROCESS_EVENT_HANDLER,
-  ANALYTICS: 'analytics',
-  EMAILS: 'emails',
-} as const;
-
-export const JOB_NAMES = {
-  PROCESS_WEBHOOK: TASK_NAMES.PROCESS_STRIPE_WEBHOOK,
 } as const;

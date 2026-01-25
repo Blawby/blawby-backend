@@ -9,10 +9,10 @@ import type {
   ExternalAccount,
   ExternalAccounts,
 } from '@/modules/onboarding/types/onboarding.types';
-import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
+import { db } from '@/shared/database';
+import { OnboardingExternalAccountUpdated } from '@/shared/events/definitions';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
 const logger = getLogger(['onboarding', 'handler', 'external-account-updated']);
 
@@ -51,13 +51,13 @@ export const handleExternalAccountUpdated = async (
       : null;
 
     if (!stripeAccountId) {
-      logger.warn("Missing Stripe account ID for external account: {externalAccountId}", { externalAccountId: externalAccount.id });
+      logger.warn('Missing Stripe account ID for external account: {externalAccountId}', { externalAccountId: externalAccount.id });
       return;
     }
 
     logger.debug(
-      "Processing external_account.updated: {externalAccountId} ({accountType}) for account: {stripeAccountId}",
-      { externalAccountId: externalAccount.id, accountType, stripeAccountId }
+      'Processing external_account.updated: {externalAccountId} ({accountType}) for account: {stripeAccountId}',
+      { externalAccountId: externalAccount.id, accountType, stripeAccountId },
     );
 
     // Get current account record
@@ -74,8 +74,8 @@ export const handleExternalAccountUpdated = async (
 
     if (account.length === 0) {
       logger.warn(
-        "Account not found for external account update: {stripeAccountId}",
-        { stripeAccountId }
+        'Account not found for external account update: {stripeAccountId}',
+        { stripeAccountId },
       );
       return;
     }
@@ -132,30 +132,29 @@ export const handleExternalAccountUpdated = async (
         );
 
       // Publish external account updated event within transaction
-      await publishEventTx(tx, {
-        type: EventType.ONBOARDING_EXTERNAL_ACCOUNT_UPDATED,
+      await OnboardingExternalAccountUpdated.dispatch({
+        stripe_account_id: stripeAccountId,
+        organization_id: currentAccount.organization_id,
+        external_account_id: externalAccount.id,
+        external_account_type: accountType,
+        external_account_status: externalAccount.status,
+        updated_at: new Date().toISOString(),
+      }, {
         actorId: WEBHOOK_ACTOR_UUID,
         actorType: 'webhook',
         organizationId: currentAccount.organization_id,
-        payload: {
-          stripe_account_id: stripeAccountId,
-          organization_id: currentAccount.organization_id,
-          external_account_id: externalAccount.id,
-          external_account_type: accountType,
-          external_account_status: externalAccount.status,
-          updated_at: new Date().toISOString(),
-        },
+        tx,
       });
     });
 
     logger.info(
-      "External account updated and event published for: {externalAccountId}",
-      { externalAccountId: externalAccount.id }
+      'External account updated and event published for: {externalAccountId}',
+      { externalAccountId: externalAccount.id },
     );
   } catch (error) {
     logger.error(
-      "Failed to update external account: {externalAccountId} {error}",
-      { externalAccountId: externalAccount.id, error }
+      'Failed to update external account: {externalAccountId} {error}',
+      { externalAccountId: externalAccount.id, error },
     );
     throw error;
   }

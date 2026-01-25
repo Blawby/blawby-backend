@@ -29,13 +29,18 @@ export const createMatterHandler: AppRouteHandler<typeof createMatterRoute> = as
   const { practiceId: organizationId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
 
-  const matter = await mattersService.createMatter(
+  const result = await mattersService.createMatter(
     organizationId,
     validatedBody,
     user,
     c.req.header(),
   );
-  return response.created(c, matter);
+
+  if (result.success) {
+    return response.created(c, { matter: result.data });
+  }
+
+  return response.fromResult(c, result);
 };
 
 export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c) => {
@@ -44,22 +49,26 @@ export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c
   const query = c.req.valid('query');
 
   if (query.matter_uuid) {
-    const matter = await mattersService.getMatterById(organizationId, query.matter_uuid, user, c.req.header());
-    return response.ok(c, { matter });
+    const result = await mattersService.getMatterById(organizationId, query.matter_uuid, user, c.req.header());
+    return response.fromResult(c, result);
   }
 
   const result = await mattersService.listMatters(organizationId, {
     ...query,
-    page: parseInt(String(query.page || '1'), 10),
-    limit: parseInt(String(query.limit || '20'), 10),
+    page: parseInt(String(query.page ?? '1'), 10),
+    limit: parseInt(String(query.limit ?? '20'), 10),
   }, user, c.req.header());
 
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+
   return response.ok(c, {
-    matters: result.matters,
-    total: result.total,
-    page: parseInt(String(query.page || '1'), 10),
-    limit: parseInt(String(query.limit || '20'), 10),
-    totalPages: Math.ceil(result.total / parseInt(String(query.limit || '20'), 10)),
+    matters: result.data.matters,
+    total: result.data.total,
+    page: parseInt(String(query.page ?? '1'), 10),
+    limit: parseInt(String(query.limit ?? '20'), 10),
+    totalPages: Math.ceil(result.data.total / parseInt(String(query.limit ?? '20'), 10)),
   });
 };
 
@@ -67,15 +76,20 @@ export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = as
   const user = c.get('user')!;
   const { practiceId: organizationId, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const matter = await mattersService.updateMatter(organizationId, uuid, validatedBody, user, c.req.header());
-  return response.ok(c, matter);
+  const result = await mattersService.updateMatter(organizationId, uuid, validatedBody, user, c.req.header());
+
+  if (result.success) {
+    return response.ok(c, { matter: result.data });
+  }
+
+  return response.fromResult(c, result);
 };
 
 export const deleteMatterHandler: AppRouteHandler<typeof deleteMatterRoute> = async (c) => {
   const user = c.get('user')!;
   const { practiceId: organizationId, uuid } = c.req.valid('param');
-  await mattersService.deleteMatter(organizationId, uuid, user, c.req.header());
-  return response.ok(c, { success: true });
+  const result = await mattersService.deleteMatter(organizationId, uuid, user, c.req.header());
+  return response.fromResult(c, result);
 };
 
 export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityRoute> = async (c) => {

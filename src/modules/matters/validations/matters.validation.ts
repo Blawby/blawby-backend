@@ -10,7 +10,7 @@ const createMatterSchema = z.object({
   total_fixed_price: z.number().int().min(0).optional(), // in cents
   contingency_percentage: z.number().min(0).max(100).optional(),
   settlement_amount: z.number().int().min(0).optional(), // in cents
-  practice_area_id: uuidValidator.optional(),
+  practice_service_id: uuidValidator.optional(),
   admin_hourly_rate: z.number().int().min(0).optional(), // in cents
   attorney_hourly_rate: z.number().int().min(0).optional(), // in cents
   payment_frequency: z.enum(['project', 'milestone']).optional(),
@@ -49,7 +49,7 @@ const updateMatterSchema = z.object({
   total_fixed_price: z.number().int().min(0).optional(),
   contingency_percentage: z.number().min(0).max(100).optional(),
   settlement_amount: z.number().int().min(0).optional(),
-  practice_area_id: uuidValidator.optional(),
+  practice_service_id: uuidValidator.optional(),
   admin_hourly_rate: z.number().int().min(0).optional(),
   attorney_hourly_rate: z.number().int().min(0).optional(),
   payment_frequency: z.enum(['project', 'milestone']).optional(),
@@ -64,7 +64,7 @@ const matterIdParamSchema = z.object({
 const listMattersQuerySchema = z.object({
   matter_uuid: uuidValidator.optional(),
   status: z.enum(['draft', 'active']).optional(),
-  practice_area_id: uuidValidator.optional(),
+  practice_service_id: uuidValidator.optional(),
   practice_client_id: uuidValidator.optional(),
   assignee_id: uuidValidator.optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -82,7 +82,7 @@ const matterSchema = z.object({
   total_fixed_price: z.number().nullable(),
   contingency_percentage: z.number().nullable(),
   settlement_amount: z.number().nullable(),
-  practice_area_id: z.uuid().nullable(),
+  practice_service_id: z.uuid().nullable(),
   admin_hourly_rate: z.number().nullable(),
   attorney_hourly_rate: z.number().nullable(),
   payment_frequency: z.enum(['project', 'milestone']).nullable(),
