@@ -15,14 +15,14 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['clients', 'service']);
 
-export interface AddressInput {
+type AddressInput = {
   line1?: string;
   line2?: string;
   city?: string;
   state?: string;
   postalCode?: string;
   country?: string;
-}
+};
 
 const createClient = async (
   organizationId: string,
