@@ -1,4 +1,3 @@
-
 export type AddressData = {
   line1?: string | null;
   line2?: string | null;

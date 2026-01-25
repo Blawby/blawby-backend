@@ -410,7 +410,7 @@ Get all practices for the authenticated user.
 import { apiClient } from '@/lib/apiClient';
 
 const response = await apiClient.get('/api/practices');
-const { practices } = response.data;
+const practices = response.data ?? [];
 ```
 
 **Response**:

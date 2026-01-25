@@ -7,10 +7,9 @@ import {
   index,
   unique,
 } from 'drizzle-orm/pg-core';
-
-import { organizations, users } from '@/schema/better-auth-schema';
-import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
+import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const practiceClients = pgTable(
   'practice_clients',
