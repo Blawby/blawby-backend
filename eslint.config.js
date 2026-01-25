@@ -74,7 +74,7 @@ export default [
           'TSTypeParameterInstantiation',
           'TSTypeParameterDeclaration',
         ],
-        offsetTernaryExpressions: true,
+        offsetTernaryExpressions: false,
       }],
       '@stylistic/indent-binary-ops': 'off', // Disable to preserve logical operator alignment
       '@stylistic/operator-linebreak': ['error', 'before'],
