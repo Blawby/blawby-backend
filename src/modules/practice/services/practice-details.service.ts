@@ -178,12 +178,14 @@ const upsertPracticeDetails = async (
         })
         .returning();
 
-      // Sync services
-      const syncedServices = await practiceServicesRepository.syncServicesTx(
-        tx,
-        organizationId,
-        data.services || [],
-      );
+      // Sync services if provided
+      const syncedServices = data.services !== undefined
+        ? await practiceServicesRepository.syncServicesTx(
+          tx,
+          organizationId,
+          data.services,
+        )
+        : await practiceServicesRepository.findServicesByOrganization(organizationId);
 
       const EventClass = isCreate ? PracticeDetailsCreated : PracticeDetailsUpdated;
       await EventClass.dispatch({

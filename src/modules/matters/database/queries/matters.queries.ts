@@ -188,8 +188,10 @@ const listMattersByOrganization = async (
 const updateMatter = async (
   id: string,
   data: Partial<InsertMatter>,
+  tx?: typeof db,
 ): Promise<SelectMatter | undefined> => {
-  const [matter] = await db
+  const client = tx || db;
+  const [matter] = await client
     .update(matters)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -201,8 +203,10 @@ const updateMatter = async (
 const softDeleteMatter = async (
   id: string,
   deletedBy: string,
+  tx?: typeof db,
 ): Promise<SelectMatter | undefined> => {
-  const [matter] = await db
+  const client = tx || db;
+  const [matter] = await client
     .update(matters)
     .set({
       deleted_at: new Date(),

@@ -57,6 +57,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
       // Publish intake-specific event within transaction
       await IntakePaymentSucceeded.dispatch({
         event_id: eventId,
+        organization_id: practiceClientIntake.organizationId,
         stripe_payment_intent_id: paymentIntent.id,
         intake_payment_id: practiceClientIntake.id,
         uuid: practiceClientIntake.id,

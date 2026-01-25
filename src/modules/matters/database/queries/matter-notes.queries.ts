@@ -1,10 +1,10 @@
-import { eq, and, desc } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import { eq, desc } from 'drizzle-orm';
 import {
   matterNotes,
   type InsertMatterNote,
   type SelectMatterNote,
 } from '@/modules/matters/database/schema/matter-notes.schema';
+import { db } from '@/shared/database';
 
 // Create matter note
 export const createMatterNote = async (

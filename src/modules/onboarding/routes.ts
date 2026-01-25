@@ -1,4 +1,4 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
 
 import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 

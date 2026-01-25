@@ -1,22 +1,31 @@
-import { readdirSync, statSync, writeFileSync, existsSync } from 'fs';
-import { join, relative } from 'path';
+import {
+  readdirSync, statSync, writeFileSync, existsSync,
+} from 'fs';
+import { join } from 'path';
 
-const MODULES_DIR = join(process.cwd(), 'src/modules');
-const SHARED_EVENTS_DIR = join(process.cwd(), 'src/shared/events');
-const LISTENERS_DIR = join(process.cwd(), 'src/shared/events/listeners');
-const BOOTSTRAP_FILE = join(process.cwd(), 'src/shared/events/bootstrap.ts');
+const MODULES_DIR: string = join(process.cwd(), 'src/modules');
+const LISTENERS_DIR: string = join(process.cwd(), 'src/shared/events/listeners');
+const BOOTSTRAP_FILE: string = join(process.cwd(), 'src/shared/events/bootstrap.ts');
 
-const toCamelCase = (str: string) => str.replace(/[-/.]([a-z])/g, (_, letter) => letter.toUpperCase());
+function toCamelCase(str: string): string {
+  return str.replace(/[-/.]([a-z])/g, (_, letter) => letter.toUpperCase());
+}
 
-const getRegistrationFunction = (modName: string) => {
-  const camelName = toCamelCase(modName);
+function getRegistrationFunction(modName: string): string {
+  const camelName: string = toCamelCase(modName);
   // Remove 'index' from the end of function name if it exists (e.g., system.listeners -> registerSystemListeners)
-  const baseName = camelName.endsWith('Listeners') ? camelName : `${camelName}Listeners`;
+  const baseName: string = camelName.endsWith('Listeners') ? camelName : `${camelName}Listeners`;
   return `register${baseName.charAt(0).toUpperCase()}${baseName.slice(1)}`;
-};
+}
 
-const findListeners = (): { moduleName: string; importPath: string; functionName: string }[] => {
-  const registrations: { moduleName: string; importPath: string; functionName: string }[] = [];
+interface Registration {
+  moduleName: string;
+  importPath: string;
+  functionName: string;
+}
+
+function findListeners(): Registration[] {
+  const registrations: Registration[] = [];
 
   // 1. Scan src/modules/*/listeners.ts
   if (existsSync(MODULES_DIR)) {
@@ -53,9 +62,9 @@ const findListeners = (): { moduleName: string; importPath: string; functionName
   }
 
   return registrations;
-};
+}
 
-const generateBootstrap = () => {
+function generateBootstrap(): void {
   console.log('🔍 Scanning for event listeners...');
 
   const regs = findListeners().sort((a, b) => a.moduleName.localeCompare(b.moduleName));
@@ -75,7 +84,7 @@ const generateBootstrap = () => {
  */
 
 import { getLogger } from '@logtape/logtape';
-${regs.map(r => `import { ${r.functionName} } from '${r.importPath}';`).join('\n')}
+${regs.map((r) => `import { ${r.functionName} } from '${r.importPath}';`).join('\n')}
 
 const logger = getLogger(['events', 'bootstrap']);
 
@@ -85,20 +94,24 @@ const logger = getLogger(['events', 'bootstrap']);
 export async function bootstrapEventListeners(): Promise<void> {
   logger.info('Bootstrapping event listeners...');
 
-${regs.map(r => `  // ${r.moduleName} listeners\n  ${r.functionName}();`).join('\n\n')}
+${regs.map((r) => `  // ${r.moduleName} listeners\n  ${r.functionName}();`).join('\n\n')}
 
   logger.info('All event listeners bootstrapped successfully');
 }
 `;
 
   writeFileSync(BOOTSTRAP_FILE, content, 'utf-8');
-  console.log('✅ Event bootstrap file generated successfully!');
-  console.log(`   📦 ${regs.length} listener registrations added`);
 
-  regs.forEach(r => {
-    console.log(`   • ${r.moduleName} -> ${r.functionName}`);
-  });
-};
+  console.log('✅ Listener bootstrap generated successfully!');
+  console.log(`   📦 ${regs.length} listeners exported`);
+
+  if (regs.length > 0) {
+    console.log('\n   Registered listeners:');
+    regs.forEach((r) => {
+      console.log(`   - ${r.moduleName} -> ${r.functionName}`);
+    });
+  }
+}
 
 try {
   generateBootstrap();

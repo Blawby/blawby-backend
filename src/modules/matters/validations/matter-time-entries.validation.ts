@@ -38,7 +38,6 @@ const timeEntrySchema = z.object({
 }).openapi('TimeEntry');
 
 
-
 export const matterTimeEntryValidations = {
   createMatterTimeEntrySchema,
   updateMatterTimeEntrySchema,

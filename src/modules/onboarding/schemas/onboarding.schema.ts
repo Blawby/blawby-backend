@@ -8,7 +8,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-import { organizations } from '@/schema';
 import type {
   CompanyInfo,
   IndividualInfo,
@@ -18,6 +17,7 @@ import type {
   FutureRequirements,
   TosAcceptance,
 } from '@/modules/onboarding/types/onboarding.types';
+import { organizations } from '@/schema';
 
 // Stripe connected accounts table
 export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {

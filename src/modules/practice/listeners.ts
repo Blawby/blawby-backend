@@ -14,8 +14,7 @@ import {
   PracticeDetailsUpdated,
   PracticeDetailsDeleted,
   PracticeSwitched,
-  PaymentSucceeded,
-  PaymentRefunded,
+  IntakePaymentSucceeded,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { addEmailJob } from '@/shared/queue/queue.manager';
@@ -24,37 +23,6 @@ import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
 const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
-
-// Type guard for payment payloads
-interface PaymentPayload {
-  customer: { email: string; name: string };
-  payment: {
-    id: string;
-    invoiceNumber: string;
-    amount: number;
-    method: string;
-    amountRefunded?: number;
-  };
-  items: Array<{ description: string; amount: number }>;
-  business: {
-    name: string;
-    logoUrl?: string;
-    ownerEmail?: string;
-    ownerName?: string;
-    supportEmail?: string;
-  };
-}
-
-function isPaymentPayload(payload: unknown): payload is PaymentPayload {
-  return (
-    typeof payload === 'object'
-    && payload !== null
-    && 'customer' in payload
-    && 'payment' in payload
-    && 'items' in payload
-    && 'business' in payload
-  );
-}
 
 /**
  * Register all practice event listeners
@@ -104,18 +72,33 @@ export function registerPracticeListeners(): void {
     // Future: Update session, analytics tracking, etc.
   });
 
-  // Payment succeeded - send receipts
-  Event.listen(PaymentSucceeded, async (payload) => {
-    if (!isPaymentPayload(payload)) {
-      logError('Invalid PAYMENT_SUCCEEDED payload', new Error('Payload validation failed'), {
-        payload,
-      });
-      return;
-    }
+  // Payment succeeded - send receipts (mapped from IntakePaymentSucceeded)
+  Event.listen(IntakePaymentSucceeded, async (payload) => {
+    // Map intake payload fields to local variables for templates
+    const customer = {
+      email: payload.client_email || '',
+      name: payload.client_name || 'Valued Client',
+    };
 
-    const {
-      customer, payment, items, business,
-    } = payload;
+    const payment = {
+      id: payload.uuid,
+      invoiceNumber: payload.intake_payment_id || payload.uuid.slice(0, 8).toUpperCase(),
+      amount: payload.amount,
+      method: 'stripe',
+    };
+
+    // Generic business details (should come from practice info in real scenario)
+    const business = {
+      name: 'The Practice',
+      supportEmail: 'support@blawby.com',
+    };
+
+    const items = [
+      {
+        description: 'Legal Consultation / Service Intake',
+        amount: payload.amount,
+      },
+    ];
 
     // 1. Send Customer Receipt
     void addEmailJob(
@@ -126,11 +109,10 @@ export function registerPracticeListeners(): void {
         recipientEmail: customer.email,
         recipientName: customer.name,
         businessName: business.name,
-        teamPhotoUrl: business.logoUrl,
         invoiceNumber: payment.invoiceNumber,
         amountPaid: payment.amount,
         amountDue: payment.amount,
-        paidAt: new Date().toLocaleDateString(),
+        paidAt: new Date(payload.succeeded_at).toLocaleDateString(),
         lineItems: items,
         paymentMethod: payment.method,
         supportEmail: business.supportEmail,
@@ -143,58 +125,23 @@ export function registerPracticeListeners(): void {
     });
 
     // 2. Send Team Notification
-    if (business.ownerEmail) {
-      void addEmailJob(
-        EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT,
-        business.ownerEmail,
-        `New payment received: ${payment.invoiceNumber}`,
-        {
-          recipientEmail: business.ownerEmail,
-          recipientName: business.ownerName,
-          businessName: business.name,
-          invoiceNumber: payment.invoiceNumber,
-          amountPaid: payment.amount,
-          lineItems: items,
-          paymentMethod: payment.method,
-          invoiceUrl: `${APP_URL}/dashboard/invoices/${payment.id}`,
-          supportEmail: 'support@blawby.com',
-        },
-      ).catch((error) => {
-        logError('Failed to queue team receipt email', error, {
-          invoiceNumber: payment.invoiceNumber,
-        });
-      });
-    }
-  });
-
-  // Payment refunded - send confirmation
-  Event.listen(PaymentRefunded, async (payload) => {
-    if (!isPaymentPayload(payload)) {
-      logError('Invalid PAYMENT_REFUNDED payload', new Error('Payload validation failed'), {
-        payload,
-      });
-      return;
-    }
-
-    const {
-      customer, payment, items, business,
-    } = payload;
-
     void addEmailJob(
-      EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED,
-      customer.email,
-      `Refund confirmation from ${business.name}`,
+      EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT,
+      'support@blawby.com', // Default support/owner email
+      `New payment received: ${payment.invoiceNumber}`,
       {
-        recipientEmail: customer.email,
-        recipientName: customer.name,
+        recipientEmail: 'support@blawby.com',
+        recipientName: 'Team',
         businessName: business.name,
         invoiceNumber: payment.invoiceNumber,
-        amountRefunded: payment.amountRefunded || 0,
+        amountPaid: payment.amount,
         lineItems: items,
-        supportEmail: business.supportEmail,
+        paymentMethod: payment.method,
+        invoiceUrl: `${APP_URL}/dashboard/intakes/${payload.uuid}`,
+        supportEmail: 'support@blawby.com',
       },
     ).catch((error) => {
-      logError('Failed to queue refund confirmation email', error, {
+      logError('Failed to queue team receipt email', error, {
         invoiceNumber: payment.invoiceNumber,
       });
     });

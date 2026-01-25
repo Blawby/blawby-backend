@@ -6,6 +6,7 @@ import {
   type InsertPracticeClient,
   type SelectPracticeClient,
 } from '@/modules/clients/database/schema/practice-clients.schema';
+import { type Address } from '@/modules/practice/database/schema/addresses.schema';
 import { db } from '@/shared/database';
 
 const { practiceClients } = practiceClientsSchema;
@@ -94,7 +95,7 @@ const listClients = async (params: {
   status?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ data: (SelectPracticeClient & { address: any })[]; total: number }> => {
+}): Promise<{ data: (SelectPracticeClient & { address: Address | null })[]; total: number }> => {
   const {
     organizationId, search, status, limit = 20, offset = 0,
   } = params;
@@ -109,13 +110,14 @@ const listClients = async (params: {
   }
 
   if (search) {
-    conditions.push(
-      or(
-        ilike(practiceClients.name, `%${search}%`),
-        ilike(practiceClients.email, `%${search}%`),
-        sql`COALESCE(${practiceClients.phone}, '') ILIKE ${`%${search}%`}`,
-      ) as any,
+    const searchCondition = or(
+      ilike(practiceClients.name, `%${search}%`),
+      ilike(practiceClients.email, `%${search}%`),
+      sql<boolean>`COALESCE(${practiceClients.phone}, '') ILIKE ${`%${search}%`}`,
     );
+    if (searchCondition) {
+      conditions.push(searchCondition);
+    }
   }
 
   const whereClause = and(...conditions);

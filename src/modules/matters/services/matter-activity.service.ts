@@ -5,13 +5,13 @@
  */
 
 import { eq, desc } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterActivityLog,
-  type InsertMatterActivityLog,
   type SelectMatterActivityLog,
 } from '@/modules/matters/database/schema/matter-activity-log.schema';
-import type { User } from '@/shared/types/BetterAuth';
+import * as schema from '@/schema';
+import { db } from '@/shared/database';
 
 /**
  * Log activity for a matter
@@ -21,8 +21,8 @@ export const logMatterActivity = async (
   action: string,
   description: string,
   userId?: string,
-  metadata?: Record<string, any>,
-  tx?: any,
+  metadata?: Record<string, unknown>,
+  tx?: NodePgDatabase<typeof schema>,
 ): Promise<SelectMatterActivityLog> => {
   const client = tx ?? db;
   const [activity] = await client

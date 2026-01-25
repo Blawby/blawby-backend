@@ -1,9 +1,9 @@
 import type Stripe from 'stripe';
-import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 import type {
   ExternalAccount,
   ExternalAccounts,
 } from '@/modules/onboarding/types/onboarding.types';
+import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 /**
  * Type guards for Stripe and Onboarding types

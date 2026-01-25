@@ -1,10 +1,10 @@
 import { eq, desc } from 'drizzle-orm';
-import { db } from '@/shared/database';
 import {
   practiceClientMemosSchema,
   type InsertPracticeClientMemo,
   type SelectPracticeClientMemo,
 } from '@/modules/clients/database/schema/practice-client-memos.schema';
+import { db } from '@/shared/database';
 
 const { practiceClientMemos } = practiceClientMemosSchema;
 

@@ -14,6 +14,7 @@
  *   Event.listen(UserSignedUp, async (payload) => { ... });
  */
 
+import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -23,20 +24,25 @@ import {
   API_ACTOR_UUID,
   ORGANIZATION_ACTOR_UUID,
 } from './constants';
-import { events, type EventMetadata } from './schemas/events.schema';
+import { events, type EventMetadata, type BaseEvent as BaseEventRecord, type NewEvent } from './schemas/events.schema';
+import * as schema from '@/schema';
 import { db } from '@/shared/database';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { getAppEnv } from '@/shared/utils/env';
 
+const logger = getLogger(['events', 'system']);
+
 // Handler function type
-type Handler<T> = (payload: T) => Promise<void | boolean>;
+type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | boolean>;
 
 // Dispatch options type
 type DispatchOptions = {
   actorId?: string;
   actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api';
   organizationId?: string;
-  tx?: NodePgDatabase<any>;
+  tx?: NodePgDatabase<typeof schema>;
+  /** For critical events (Stripe/payments): immediate DB write, guaranteed before response */
+  critical?: boolean;
 };
 
 // Event class type - infers payload type T from constructor parameter
@@ -46,7 +52,7 @@ type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
 };
 
 // Global handler registry - populated by Event.listen()
-const handlers = new Map<string, Handler<any>[]>();
+const handlers = new Map<string, Handler<Record<string, unknown>>[]>();
 
 /**
  * Resolve actor ID string to UUID
@@ -69,7 +75,10 @@ const resolveActorId = (actorId: string): string => {
     case 'organization':
       return ORGANIZATION_ACTOR_UUID;
     default:
-      console.warn(`[Event] Unknown actorId "${actorId}" mapped to SYSTEM_ACTOR_UUID`);
+      logger.warn('Unknown actorId {actorId} mapped to SYSTEM_ACTOR_UUID', {
+        actorId,
+        fallback: SYSTEM_ACTOR_UUID,
+      });
       return SYSTEM_ACTOR_UUID;
   }
 };
@@ -97,17 +106,21 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
   ) { }
 
   /**
-   * Dispatch event - Laravel style static method
+   * Dispatch event - Three-tier approach for production-grade performance
+   *
+   * 1. Transactional (tx): Atomic with business logic - caller must await
+   * 2. Critical (critical: true): Immediate DB write - caller must await
+   * 3. Fire-and-forget: Async DB write - returns immediately, non-blocking
    *
    * @param payload - Event-specific payload data
    * @param options - Optional dispatch options
-   * @returns Event ID (UUID)
+   * @returns Event ID (UUID) - for async dispatch, returns before DB write completes
    */
-  static async dispatch<T extends Record<string, unknown>>(
+  static dispatch<T extends Record<string, unknown>>(
     this: { type: string; new(payload: T): BaseEvent<T> },
     payload: T,
     options?: DispatchOptions,
-  ): Promise<string> {
+  ): string | Promise<string> {
     const eventId = crypto.randomUUID();
     const resolvedActorId = resolveActorId(options?.actorId ?? 'system');
 
@@ -119,30 +132,105 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
       actorType: options?.actorType ?? 'user',
       organizationId: options?.organizationId,
       payload,
-      metadata: createEventMetadata(options?.tx ? 'tx' : 'api'),
+      metadata: createEventMetadata(options?.tx ? 'tx' : options?.critical ? 'critical' : 'async'),
       processed: false,
       retryCount: 0,
     };
 
+    // 1. Transactional: Atomic with business logic (caller awaits)
     if (options?.tx) {
-      // Transactional: insert and queue job atomically
-      await options.tx.insert(events).values(record);
-      await options.tx.execute(sql`
-        SELECT graphile_worker.add_job(
-          ${TASK_NAMES.PROCESS_OUTBOX_EVENT},
-          json_build_object('eventId', ${eventId}::text)::json
-        );
-      `);
-    } else {
-      // Non-transactional: insert then queue
-      await db.insert(events).values(record);
-      const { getWorkerUtils } = await import('@/shared/queue/graphile-worker.client');
-      const utils = await getWorkerUtils();
-      await utils.addJob(TASK_NAMES.PROCESS_OUTBOX_EVENT, { eventId });
+      return dispatchTransactional(record, options.tx, eventId, this.type);
     }
 
+    // 2. Critical: Immediate DB write, guaranteed persistence (caller awaits)
+    if (options?.critical) {
+      return dispatchCritical(record, eventId, this.type);
+    }
+
+    // 3. Fire-and-forget: Async DB write (non-blocking, returns immediately)
+    dispatchAsync(record, eventId, this.type);
     return eventId;
   }
+}
+
+/**
+ * Transactional dispatch: Write to outbox + queue job atomically
+ * Used when event must be atomic with business logic (inside db.transaction)
+ */
+async function dispatchTransactional(
+  record: NewEvent,
+  tx: NodePgDatabase<typeof schema>,
+  eventId: string,
+  eventType: string,
+): Promise<string> {
+  try {
+    await tx.insert(events).values(record);
+    await tx.execute(sql`
+      SELECT graphile_worker.add_job(
+        ${TASK_NAMES.PROCESS_OUTBOX_EVENT},
+        json_build_object('eventId', ${eventId}::text)::json
+      );
+    `);
+    return eventId;
+  } catch (error) {
+    logger.error('Failed to dispatch transactional event {eventType}: {error}', {
+      eventType,
+      error: error instanceof Error ? error.message : String(error),
+      eventId,
+    });
+    throw error; // Re-throw to rollback transaction
+  }
+}
+
+/**
+ * Critical dispatch: Immediate DB write, no transaction
+ * Used for Stripe/payment events that must persist before API response
+ */
+async function dispatchCritical(
+  record: NewEvent,
+  eventId: string,
+  eventType: string,
+): Promise<string> {
+  try {
+    await db.insert(events).values(record);
+    // Use NOTIFY for instant worker pickup
+    await db.execute(sql`NOTIFY new_events`);
+    return eventId;
+  } catch (error) {
+    logger.error('Failed to dispatch critical event {eventType}: {error}', {
+      eventType,
+      error: error instanceof Error ? error.message : String(error),
+      eventId,
+    });
+    return ''; // Return empty string on failure (don't throw - critical but not transactional)
+  }
+}
+
+/**
+ * Async dispatch: Non-blocking DB write using setImmediate
+ * Used for fire-and-forget events (practice, client, user activity)
+ * Events are still persisted to outbox (durable), just doesn't block the response
+ */
+function dispatchAsync(
+  record: NewEvent,
+  eventId: string,
+  eventType: string,
+): void {
+  // Use setImmediate to defer to next event loop tick - truly non-blocking
+  setImmediate(async () => {
+    try {
+      await db.insert(events).values(record);
+      // Use NOTIFY for instant worker pickup
+      await db.execute(sql`NOTIFY new_events`);
+    } catch (error) {
+      // Log but don't throw - this is fire-and-forget
+      logger.error('Failed to persist fire-and-forget event {eventType}: {error}', {
+        eventType,
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 }
 
 /**
@@ -162,7 +250,7 @@ export const Event = {
     handler: Handler<T>,
   ): void {
     const list = handlers.get(eventClass.type) ?? [];
-    list.push(handler);
+    list.push(handler as Handler<Record<string, unknown>>);
     handlers.set(eventClass.type, list);
   },
 
@@ -171,27 +259,32 @@ export const Event = {
    *
    * Called by the worker task to process events from the outbox.
    *
-   * @param eventType - Event type string
-   * @param payload - Event payload
+   * @param record - Full event record from database
    */
-  async dispatch(eventType: string, payload: Record<string, unknown>): Promise<void> {
+  async dispatch(eventType: string, record: BaseEventRecord): Promise<void> {
     const list = handlers.get(eventType) ?? [];
 
     if (list.length === 0) {
-      console.info(`[Event] No handlers registered for: ${eventType}`);
+      logger.info('No handlers registered for event type {eventType}', { eventType });
       return;
     }
 
+    const payload = record.payload as Record<string, unknown>;
+
     for (const handler of list) {
       try {
-        const result = await handler(payload);
+        const result = await handler(payload, record);
         // Stop propagation if handler returns false
         if (result === false) {
-          console.info(`[Event] Propagation stopped for: ${eventType}`);
+          logger.info('Propagation stopped for event type {eventType}', { eventType });
           break;
         }
       } catch (error) {
-        console.error(`[Event] Handler failed for ${eventType}:`, error);
+        logger.error('Handler failed for event type {eventType}: {error}', {
+          eventType,
+          error,
+          payload,
+        });
         // Continue to next handler even if one fails
       }
     }
@@ -200,7 +293,7 @@ export const Event = {
   /**
    * Get all registered handlers (for debugging/testing)
    */
-  getHandlers(): Map<string, Handler<any>[]> {
+  getHandlers(): Map<string, Handler<Record<string, unknown>>[]> {
     return handlers;
   },
 
