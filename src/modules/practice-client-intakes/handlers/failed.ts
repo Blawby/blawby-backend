@@ -6,17 +6,14 @@
  */
 
 import { consola } from 'consola';
-import type Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
-
-import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import type Stripe from 'stripe';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx } from '@/shared/events/event-publisher';
-import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
-import { sanitizeError } from '@/shared/utils/logging';
 import { db } from '@/shared/database';
+import { IntakePaymentFailed } from '@/shared/events/definitions';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
+import { sanitizeError } from '@/shared/utils/logging';
 
 /**
  * Handle failed practice client intake payment
@@ -47,23 +44,15 @@ export const handlePracticeClientIntakeFailed = async ({
         .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
 
       // Publish intake-specific event within transaction
-      await publishEventTx(tx, {
-        type: EventType.INTAKE_PAYMENT_FAILED,
+      await IntakePaymentFailed.dispatch({
+        stripe_payment_intent_id: paymentIntent.id,
+        intake_payment_id: practiceClientIntake.id,
+        error: paymentIntent.last_payment_error?.message,
+      }, {
         actorId: WEBHOOK_ACTOR_UUID,
         actorType: 'webhook',
         organizationId: practiceClientIntake.organizationId,
-        payload: {
-          event_id: eventId,
-          stripe_payment_intent_id: paymentIntent.id,
-          intake_payment_id: practiceClientIntake.id,
-          uuid: practiceClientIntake.id,
-          amount: practiceClientIntake.amount,
-          currency: practiceClientIntake.currency,
-          client_email: practiceClientIntake.metadata?.email,
-          client_name: practiceClientIntake.metadata?.name,
-          failure_reason: paymentIntent.last_payment_error?.message,
-          failed_at: new Date().toISOString(),
-        },
+        tx,
       });
     });
 

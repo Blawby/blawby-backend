@@ -1,10 +1,12 @@
-import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import {
+  eq, and, desc, gte, lte, sql,
+} from 'drizzle-orm';
 import {
   matterTimeEntries,
   type InsertMatterTimeEntry,
   type SelectMatterTimeEntry,
 } from '@/modules/matters/database/schema/matter-time-entries.schema';
+import { db } from '@/shared/database';
 
 // Create matter time entry
 export const createMatterTimeEntry = async (
@@ -38,7 +40,7 @@ export const listMatterTimeEntries = async (
     endDate?: Date;
   },
 ): Promise<SelectMatterTimeEntry[]> => {
-  let conditions = [eq(matterTimeEntries.matter_id, matterId)];
+  const conditions = [eq(matterTimeEntries.matter_id, matterId)];
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterTimeEntries.billable, filters.billable));

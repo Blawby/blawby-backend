@@ -4,15 +4,15 @@
  * Handles business logic for matter milestones operations
  */
 
-import * as milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
+import milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
+import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
 import { getMatterById } from '@/modules/matters/services/matters.service';
-import type { User } from '@/shared/types/BetterAuth';
 import type {
   CreateMatterMilestoneRequest,
   UpdateMatterMilestoneRequest,
   ReorderMilestonesRequest,
 } from '@/modules/matters/types/matter.types';
-import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
+import type { User } from '@/shared/types/BetterAuth';
 
 /**
  * Create a matter milestone

@@ -3,7 +3,7 @@ import { practiceClientMemosRepository } from '@/modules/clients/database/querie
 import { practiceClientsRepository } from '@/modules/clients/database/queries/practice-clients.queries';
 import {
   type SelectPracticeClientMemo,
-  type InsertPracticeClientMemo
+  type InsertPracticeClientMemo,
 } from '@/modules/clients/database/schema/practice-client-memos.schema';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError, notFound } from '@/shared/utils/result';
@@ -14,7 +14,7 @@ const createMemo = async (
   clientId: string,
   organizationId: string,
   data: Omit<InsertPracticeClientMemo, 'client_id' | 'created_by'>,
-  userId: string
+  userId: string,
 ): Promise<Result<SelectPracticeClientMemo>> => {
   try {
     const client = await practiceClientsRepository.findById(clientId);

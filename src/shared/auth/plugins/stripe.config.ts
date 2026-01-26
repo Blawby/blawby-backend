@@ -2,16 +2,15 @@ import { stripe as stripePlugin } from '@better-auth/stripe';
 import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type Stripe from 'stripe';
-import * as schema from '@/schema';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fetchStripePlans } from './fetchStripePlans';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import * as schema from '@/schema';
+import { SubscriptionCreated } from '@/shared/events/definitions';
+import { addWebhookJob } from '@/shared/queue/queue.manager';
 import {
   createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
-import { addWebhookJob } from '@/shared/queue/queue.manager';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 /**
  * SHARED HELPER: Synchronize subscription state to local DB.
@@ -27,9 +26,11 @@ const syncSubscriptionToOrg = async (
     planName: string;
     eventType: 'created' | 'active' | 'updated';
     trigger: 'webhook' | 'user';
-  }
-) => {
-  const { stripeSubscription, subscriptionId, referenceId, stripeCustomerId, planName, eventType, trigger } = params;
+  },
+): Promise<void> => {
+  const {
+    stripeSubscription, subscriptionId, referenceId, stripeCustomerId, planName, eventType, trigger,
+  } = params;
 
   // 1. Resolve Customer ID
   const customerId = stripeCustomerId
@@ -75,18 +76,16 @@ const syncSubscriptionToOrg = async (
     if (stripeSubscription.items?.data) {
       // Use Promise.all for concurrency instead of sequential for-loop
       await Promise.all(
-        stripeSubscription.items.data.map((item) =>
-          subscriptionRepository.upsertLineItem(tx, {
-            subscription_id: subscriptionId,
-            stripe_subscription_item_id: item.id,
-            stripe_price_id: item.price.id,
-            item_type: 'base_fee',
-            description: item.price.nickname || item.price.product?.toString(),
-            quantity: item.quantity || 1,
-            unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
-            metadata: {},
-          })
-        )
+        stripeSubscription.items.data.map((item) => subscriptionRepository.upsertLineItem(tx, {
+          subscription_id: subscriptionId,
+          stripe_subscription_item_id: item.id,
+          stripe_price_id: item.price.id,
+          item_type: 'base_fee',
+          description: item.price.nickname || item.price.product?.toString(),
+          quantity: item.quantity || 1,
+          unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
+          metadata: {},
+        })),
       );
     }
 
@@ -106,19 +105,18 @@ const syncSubscriptionToOrg = async (
     });
   });
 
-  // 4. Side Effects (Fire-and-forget, outside transaction)
-  // We don't want event publishing failure to rollback the DB transaction
-  publishSimpleEvent(
-    EventType.SUBSCRIPTION_CREATED,
-    'system',
+  // 4. Side Effects (Critical - must persist before response for payment events)
+  // Use critical: true for immediate DB write with NOTIFY
+  await SubscriptionCreated.dispatch({
+    subscription_id: subscriptionId,
+    stripe_subscription_id: stripeSubscription.id,
+    plan_name: planName,
+    organization_id: organizationId,
+  }, {
+    actorId: 'system',
     organizationId,
-    {
-      subscription_id: subscriptionId,
-      stripe_subscription_id: stripeSubscription.id,
-      plan_name: planName,
-      organization_id: organizationId,
-    }
-  ).catch(err => console.error('Failed to publish subscription event:', err));
+    critical: true,
+  });
 };
 
 /**
@@ -131,7 +129,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
     createCustomerOnSignUp: false,
 
     // Opt: Save customer ID immediately
-    onCustomerCreate: async ({ stripeCustomer, user }) => {
+    onCustomerCreate: async ({ stripeCustomer }) => {
       // When customer is created for an organization (via referenceId in subscription),
       // the organization_id is stored in Stripe customer metadata
       const organizationId = stripeCustomer.metadata?.organization_id;
@@ -149,7 +147,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         const webhookEvent = await createWebhookEventIfNotExists(
           event,
           { 'stripe-event-id': event.id, 'stripe-event-type': event.type },
-          '/api/auth/stripe/webhook'
+          '/api/auth/stripe/webhook',
         );
 
         if (!webhookEvent) {
@@ -158,7 +156,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         }
 
         const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.'];
-        const needsProcessing = CUSTOM_PROCESS_PREFIXES.some(prefix => event.type.startsWith(prefix));
+        const needsProcessing = CUSTOM_PROCESS_PREFIXES.some((prefix) => event.type.startsWith(prefix));
 
         if (needsProcessing) {
           addWebhookJob(webhookEvent.id, event.id, event.type).catch(console.error);
@@ -182,7 +180,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           .from(schema.members)
           .where(and(
             eq(schema.members.userId, user.id),
-            eq(schema.members.organizationId, referenceId)
+            eq(schema.members.organizationId, referenceId),
           ))
           .limit(1);
 
@@ -213,7 +211,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           stripeCustomerId: subscription.stripeCustomerId,
           planName: plan.name,
           eventType: 'created',
-          trigger: 'user'
+          trigger: 'user',
         });
       },
 
@@ -264,18 +262,16 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
           // Update line items if available
           if (stripeSubscription?.items?.data) {
-            await Promise.all(stripeSubscription.items.data.map(item =>
-              subscriptionRepository.upsertLineItem(tx, {
-                subscription_id: subscription.id,
-                stripe_subscription_item_id: item.id,
-                stripe_price_id: item.price.id,
-                item_type: 'base_fee',
-                description: item.price.nickname || item.price.product?.toString(),
-                quantity: item.quantity || 1,
-                unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
-                metadata: {},
-              })
-            ));
+            await Promise.all(stripeSubscription.items.data.map((item) => subscriptionRepository.upsertLineItem(tx, {
+              subscription_id: subscription.id,
+              stripe_subscription_item_id: item.id,
+              stripe_price_id: item.price.id,
+              item_type: 'base_fee',
+              description: item.price.nickname || item.price.product?.toString(),
+              quantity: item.quantity || 1,
+              unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
+              metadata: {},
+            })));
           }
 
           // Log event

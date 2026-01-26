@@ -12,11 +12,10 @@ import type {
   CreateSessionResponse,
 } from '@/modules/onboarding/types/onboarding.types';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
-import { stripe } from '@/shared/utils/stripe-client';
+import { StripeConnectedAccountCreated } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import { ok, notFound, internalError } from '@/shared/utils/result';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['onboarding', 'connected-accounts']);
 
@@ -152,16 +151,14 @@ export const connectedAccountsService = {
 
       const createdAccount = await onboardingRepo.create(newAccount);
 
-      void publishSimpleEvent(
-        EventType.STRIPE_CONNECTED_ACCOUNT_CREATED,
-        userId ?? 'system',
+      void StripeConnectedAccountCreated.dispatch({
+        account_id: stripeAccount.id,
+        email,
+        country: 'US',
+      }, {
+        actorId: userId ?? 'system',
         organizationId,
-        {
-          account_id: stripeAccount.id,
-          email,
-          country: 'US',
-        },
-      );
+      });
 
       return ok(createdAccount);
     } catch (error) {

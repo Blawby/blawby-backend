@@ -7,8 +7,8 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 
+import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { users } from '@/schema';
-import { matters } from './matters.schema';
 
 export const matterNotes = pgTable(
   'matter_notes',

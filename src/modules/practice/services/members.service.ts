@@ -1,13 +1,12 @@
 import { getLogger } from '@logtape/logtape';
 import type { MemberRole } from '@/modules/practice/types/members.types';
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
+import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { PracticeMemberRoleChanged, PracticeMemberRemoved } from '@/shared/events/definitions';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
-import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 
 const logger = getLogger(['practice', 'members-service']);
 
@@ -55,15 +54,13 @@ const updatePracticeMemberRole = async (
       headers: requestHeaders,
     });
 
-    void publishSimpleEvent(
-      EventType.PRACTICE_MEMBER_ROLE_CHANGED,
-      user.id,
+    void PracticeMemberRoleChanged.dispatch({
+      member_id: memberId,
+      new_role: newRole,
+    }, {
+      actorId: user.id,
       organizationId,
-      {
-        member_id: memberId,
-        new_role: newRole,
-      },
-    );
+    });
 
     return ok({ success: true });
   } catch (error) {
@@ -88,14 +85,12 @@ const removePracticeMember = async (
       headers: requestHeaders,
     });
 
-    void publishSimpleEvent(
-      EventType.PRACTICE_MEMBER_REMOVED,
-      user.id,
+    void PracticeMemberRemoved.dispatch({
+      removed_user_id: userId,
+    }, {
+      actorId: user.id,
       organizationId,
-      {
-        removed_user_id: userId,
-      },
-    );
+    });
 
     return ok({ success: true });
   } catch (error) {

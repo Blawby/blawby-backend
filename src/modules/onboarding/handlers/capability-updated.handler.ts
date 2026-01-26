@@ -3,8 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import type Stripe from 'stripe';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
+import { OnboardingAccountCapabilitiesUpdated } from '@/shared/events/definitions';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
 const logger = getLogger(['onboarding', 'handler', 'capability-updated']);
 
@@ -24,13 +24,13 @@ export const handleCapabilityUpdated = async (
       : null;
 
     if (!stripeAccountId) {
-      logger.warn("Missing Stripe account ID for capability: {capabilityId}", { capabilityId: capability.id });
+      logger.warn('Missing Stripe account ID for capability: {capabilityId}', { capabilityId: capability.id });
       return;
     }
 
     logger.debug(
-      "Processing capability.updated: {capabilityId} for account: {stripeAccountId}",
-      { capabilityId: capability.id, stripeAccountId }
+      'Processing capability.updated: {capabilityId} for account: {stripeAccountId}',
+      { capabilityId: capability.id, stripeAccountId },
     );
 
     // Update capabilities using SQL jsonb merge and return organization_id
@@ -52,30 +52,29 @@ export const handleCapabilityUpdated = async (
         .returning({ organization_id: stripeConnectedAccounts.organization_id });
 
       if (!record) {
-        logger.warn("Account not found for capability update: {stripeAccountId}", { stripeAccountId });
+        logger.warn('Account not found for capability update: {stripeAccountId}', { stripeAccountId });
         return;
       }
 
       // Publish capability updated event within transaction
-      await publishEventTx(tx, {
-        type: EventType.ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED,
+      await OnboardingAccountCapabilitiesUpdated.dispatch({
+        stripe_account_id: stripeAccountId,
+        organization_id: record.organization_id,
+        capability_id: capability.id,
+        capability_status: capability.status,
+        requested: capability.requested,
+        updated_at: new Date().toISOString(),
+      }, {
         actorId: WEBHOOK_ACTOR_UUID,
         actorType: 'webhook',
         organizationId: record.organization_id,
-        payload: {
-          stripe_account_id: stripeAccountId,
-          organization_id: record.organization_id,
-          capability_id: capability.id,
-          capability_status: capability.status,
-          requested: capability.requested,
-          updated_at: new Date().toISOString(),
-        },
+        tx,
       });
     });
 
-    logger.info("Capability updated and event published for: {capabilityId}", { capabilityId: capability.id });
+    logger.info('Capability updated and event published for: {capabilityId}', { capabilityId: capability.id });
   } catch (error) {
-    logger.error("Failed to update capability: {capabilityId} {error}", { capabilityId: capability.id, error });
+    logger.error('Failed to update capability: {capabilityId} {error}', { capabilityId: capability.id, error });
     throw error;
   }
 };

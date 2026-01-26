@@ -1,8 +1,8 @@
 import { isEmpty, isNil } from 'es-toolkit/compat';
 import type { MiddlewareHandler } from 'hono';
 import { match } from 'path-to-regexp';
-import { MODULE_REGISTRY } from './modules.generated';
 import { CONFIG_REGISTRY } from './configs.generated';
+import { MODULE_REGISTRY } from './modules.generated';
 import type { AppType } from '@/shared/types/hono';
 
 // Static module registry - auto-generated at build time
@@ -230,7 +230,7 @@ const registerModuleMiddleware = async (
   // Register patterns in file order
   for (let i = 0; i < patterns.length; i++) {
     const [pattern, middlewareConfig] = patterns[i];
-    const { method, path } = parsePattern(pattern);
+    const { path } = parsePattern(pattern);
 
     // Get later patterns (that could override this one)
     const laterPatterns = patterns.slice(i + 1).map(([p]) => {

@@ -13,6 +13,7 @@ import {
 import { practiceClientsSchema } from '@/modules/clients/database/schema/practice-clients.schema';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
+import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { organizations, users } from '@/schema';
 
 const { practiceClients } = practiceClientsSchema;
@@ -38,8 +39,10 @@ export const matters = pgTable(
     contingency_percentage: real('contingency_percentage'), // float, nullable
     settlement_amount: integer('settlement_amount'), // in cents, nullable
 
-    // Service/Practice area reference (no foreign key - services come from practice details)
-    service_id: uuid('service_id'),
+    // Service/Practice area reference
+    practice_service_id: uuid('practice_service_id').references(() => practiceServices.id, {
+      onDelete: 'set null',
+    }),
 
     // Hourly rates
     admin_hourly_rate: integer('admin_hourly_rate'), // in cents, nullable
@@ -67,7 +70,7 @@ export const matters = pgTable(
     index('matters_org_idx').on(table.organization_id),
     index('matters_client_idx').on(table.practice_client_id),
     index('matters_status_idx').on(table.status),
-    index('matters_service_idx').on(table.service_id),
+    index('matters_practice_service_idx').on(table.practice_service_id),
     index('matters_deleted_at_idx').on(table.deleted_at),
     index('matters_created_at_idx').on(table.created_at),
   ],
@@ -82,6 +85,10 @@ export const mattersRelations = relations(matters, ({ one, many }) => ({
   practiceClient: one(practiceClients, {
     fields: [matters.practice_client_id],
     references: [practiceClients.id],
+  }),
+  practiceService: one(practiceServices, {
+    fields: [matters.practice_service_id],
+    references: [practiceServices.id],
   }),
   deletedByUser: one(users, {
     fields: [matters.deleted_by],

@@ -1,28 +1,28 @@
+import { honoLogger } from '@logtape/hono';
 import { Scalar } from '@scalar/hono-api-reference';
 import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
+import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { SmartRouter } from 'hono/router/smart-router';
-import { RegExpRouter } from 'hono/router/reg-exp-router';
-import { TrieRouter } from 'hono/router/trie-router';
 import { requestId } from 'hono/request-id';
+import { RegExpRouter } from 'hono/router/reg-exp-router';
+import { SmartRouter } from 'hono/router/smart-router';
+import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { sql } from 'drizzle-orm';
 import {
   cors,
   responseMiddleware,
   notFoundHandler,
   errorHandler,
 } from '@/shared/middleware';
-import { honoLogger } from '@logtape/hono';
+import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
-import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { createOpenApiApp } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
-import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 
 // Automatically collect OpenAPI routes from all OpenAPIHono modules
 // This iterates through the module registry and mounts any OpenAPIHono instances
@@ -72,7 +72,7 @@ app.get('/api/health', async (c) => {
     database: {
       status: 'unknown' as 'connected' | 'disconnected' | 'unknown',
       latency: null as number | null,
-    }
+    },
   };
 
   // Check database connection

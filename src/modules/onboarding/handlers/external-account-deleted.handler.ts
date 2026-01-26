@@ -11,8 +11,8 @@ import type {
 } from '@/modules/onboarding/types/onboarding.types';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx, WEBHOOK_ACTOR_UUID } from '@/shared/events/event-publisher';
+import { OnboardingExternalAccountDeleted } from '@/shared/events/definitions';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
 const logger = getLogger(['onboarding', 'handler', 'external-account-deleted']);
 
@@ -51,13 +51,13 @@ export const handleExternalAccountDeleted = async (
       : null;
 
     if (!stripeAccountId) {
-      logger.warn("Missing Stripe account ID for external account: {externalAccountId}", { externalAccountId: externalAccount.id });
+      logger.warn('Missing Stripe account ID for external account: {externalAccountId}', { externalAccountId: externalAccount.id });
       return;
     }
 
     logger.debug(
-      "Processing external_account.deleted: {externalAccountId} ({accountType}) for account: {stripeAccountId}",
-      { externalAccountId: externalAccount.id, accountType, stripeAccountId }
+      'Processing external_account.deleted: {externalAccountId} ({accountType}) for account: {stripeAccountId}',
+      { externalAccountId: externalAccount.id, accountType, stripeAccountId },
     );
 
     // Get current account record
@@ -74,8 +74,8 @@ export const handleExternalAccountDeleted = async (
 
     if (account.length === 0) {
       logger.warn(
-        "Account not found for external account deletion: {stripeAccountId}",
-        { stripeAccountId }
+        'Account not found for external account deletion: {stripeAccountId}',
+        { stripeAccountId },
       );
       return;
     }
@@ -108,29 +108,28 @@ export const handleExternalAccountDeleted = async (
         );
 
       // Publish external account deleted event within transaction
-      await publishEventTx(tx, {
-        type: EventType.ONBOARDING_EXTERNAL_ACCOUNT_DELETED,
+      await OnboardingExternalAccountDeleted.dispatch({
+        stripe_account_id: stripeAccountId,
+        organization_id: currentAccount.organization_id,
+        external_account_id: externalAccount.id,
+        external_account_type: accountType,
+        deleted_at: new Date().toISOString(),
+      }, {
         actorId: WEBHOOK_ACTOR_UUID,
         actorType: 'webhook',
         organizationId: currentAccount.organization_id,
-        payload: {
-          stripe_account_id: stripeAccountId,
-          organization_id: currentAccount.organization_id,
-          external_account_id: externalAccount.id,
-          external_account_type: accountType,
-          deleted_at: new Date().toISOString(),
-        },
+        tx,
       });
     });
 
     logger.info(
-      "External account deleted and event published for: {externalAccountId}",
-      { externalAccountId: externalAccount.id }
+      'External account deleted and event published for: {externalAccountId}',
+      { externalAccountId: externalAccount.id },
     );
   } catch (error) {
     logger.error(
-      "Failed to delete external account: {externalAccountId} {error}",
-      { externalAccountId: externalAccount.id, error }
+      'Failed to delete external account: {externalAccountId} {error}',
+      { externalAccountId: externalAccount.id, error },
     );
     throw error;
   }

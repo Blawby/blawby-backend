@@ -118,7 +118,7 @@ export const response = {
   /**
    * 422 Unprocessable Entity - Validation error
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   unprocessableEntity: (
     c: Context,
     message: string,
@@ -132,7 +132,7 @@ export const response = {
   /**
    * 500 Internal Server Error - Server error
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   internalServerError: (
     c: Context,
     message = 'Internal server error',
@@ -145,7 +145,7 @@ export const response = {
   /**
    * Paginated response
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   paginated: (
     c: Context,
     data: unknown[],

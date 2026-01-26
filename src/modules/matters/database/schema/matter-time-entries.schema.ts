@@ -9,8 +9,8 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 
-import { users } from '@/schema';
 import { matters } from './matters.schema';
+import { users } from '@/schema';
 
 export const matterTimeEntries = pgTable(
   'matter_time_entries',

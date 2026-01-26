@@ -602,15 +602,31 @@ erDiagram
         text metadata
     }
 
+    PRACTICE_DETAILS ||--o{ PRACTICE_SERVICES : provides
     PRACTICE_DETAILS {
         uuid id PK
-        text organization_id FK
-        text practice_type
-        json specialties
-        text description
+        uuid organization_id FK
+        uuid user_id FK
+        uuid address_id FK
+        text business_phone
+        text business_email
         text website
-        text phone
-        json address
+        integer consultation_fee
+        text payment_url
+        text calendly_url
+        text intro_message
+        text overview
+        boolean is_public
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    PRACTICE_SERVICES {
+        uuid id PK
+        text name
+        text key
+        uuid organization_id FK
+        text description
         timestamp created_at
         timestamp updated_at
     }
@@ -910,16 +926,34 @@ CREATE TABLE "stripe_webhook_events" (
 ```sql
 CREATE TABLE "practice_details" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "organization_id" text NOT NULL REFERENCES "organization"("id"),
-  "practice_type" text,
-  "specialties" json,
-  "description" text,
+  "organization_id" uuid NOT NULL UNIQUE REFERENCES "organization"("id") ON DELETE CASCADE,
+  "user_id" uuid NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+  "address_id" uuid REFERENCES "addresses"("id") ON DELETE SET NULL,
+  "business_phone" text,
+  "business_email" text,
   "website" text,
-  "phone" text,
-  "address" json,
+  "consultation_fee" integer,
+  "payment_url" text,
+  "calendly_url" text,
+  "intro_message" text,
+  "overview" text,
+  "is_public" boolean DEFAULT false NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL
 );
+
+CREATE TABLE "practice_services" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "name" text NOT NULL,
+  "key" text NOT NULL,
+  "organization_id" uuid NOT NULL REFERENCES "organization"("id") ON DELETE CASCADE,
+  "description" text,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE UNIQUE INDEX "practice_services_org_key_idx" ON "practice_services" ("organization_id", "key");
+CREATE INDEX "practice_services_key_idx" ON "practice_services" ("key");
 ```
 
 ### Database Connection & Configuration
