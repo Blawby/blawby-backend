@@ -102,9 +102,17 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
 
     logger.info('{name} is ready and processing jobs', { name });
 
-    // Setup LISTEN/NOTIFY for instant event pickup
+    // Setup LISTEN/NOTIFY for instant event pickup (best-effort)
     // This provides <10ms latency vs 1000ms polling
-    listenClient = await setupEventListener(connectionString);
+    // If LISTEN fails, worker continues with polling only
+    try {
+      listenClient = await setupEventListener(connectionString);
+    } catch (listenError) {
+      logger.warn('LISTEN/NOTIFY setup failed, falling back to polling only: {error}', {
+        error: listenError instanceof Error ? listenError.message : String(listenError),
+      });
+      listenClient = null;
+    }
 
     // Handle graceful shutdown
     const shutdown = async (): Promise<void> => {
