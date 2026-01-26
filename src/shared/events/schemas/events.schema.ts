@@ -27,7 +27,7 @@ export type BaseEvent = {
   eventVersion: string;
   createdAt: Date;
   actorId: string; // UUID - Who/what performed the action
-  actorType: 'user' | 'system' | 'webhook' | 'cron' | 'api'; // Type of actor
+  actorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization'; // Type of actor
   organizationId?: string | null; // Context where the event happened
   payload: Record<string, unknown>;
   metadata: EventMetadata;
@@ -47,7 +47,7 @@ export const events = pgTable('events', {
 
   // Actor information
   actorId: uuid('actor_id').notNull(), // Changed from text to uuid
-  actorType: text('actor_type').$type<'user' | 'system' | 'webhook' | 'cron' | 'api'>().notNull(), // Type of actor: 'user', 'system', 'webhook', etc.
+  actorType: text('actor_type').$type<'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization'>().notNull(), // Type of actor: 'user', 'system', 'webhook', etc.
   organizationId: uuid('organization_id').references(() => organizations.id, {
     onDelete: 'set null',
   }),
@@ -85,7 +85,7 @@ export const createEventSchema = createInsertSchema(events, {
   type: z.string().min(1),
   eventVersion: z.string().default('1.0.0'),
   actorId: z.uuid(),
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']),
   payload: z.record(z.string(), z.any()),
   metadata: z.object({
     ipAddress: z.string().optional(),
@@ -104,7 +104,7 @@ export const baseEventSchema = z.object({
   eventVersion: z.string(),
   createdAt: z.coerce.date(),
   actorId: z.uuid(), // Changed to uuid
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']),
   organizationId: z.uuid().optional(),
   payload: z.record(z.string(), z.unknown()),
   metadata: z.object({
@@ -140,7 +140,7 @@ export const publishEventRequestSchema = z.object({
   type: z.string().min(1), // Renamed from eventType
   eventVersion: z.string().default('1.0.0'),
   actorId: z.uuid(), // Changed to uuid, required
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']),
   organizationId: z.uuid().optional(),
   payload: z.record(z.string(), z.any()),
   metadata: z.object({
@@ -154,7 +154,7 @@ export const publishEventRequestSchema = z.object({
 
 export const eventTimelineQuerySchema = z.object({
   actorId: z.uuid().optional(),
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']).optional(),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']).optional(),
   organizationId: z.uuid().optional(),
   eventTypes: z.array(z.string()).optional(), // Keep as eventTypes for query compatibility
   limit: z.number().min(1).max(100).default(50),

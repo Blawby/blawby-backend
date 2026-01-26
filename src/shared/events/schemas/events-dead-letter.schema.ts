@@ -35,7 +35,7 @@ export const eventsDeadLetter = pgTable('events_dead_letter', {
 
   // Actor information (copied from events table)
   actorId: uuid('actor_id').notNull(),
-  actorType: text('actor_type').$type<'user' | 'system' | 'webhook' | 'cron' | 'api'>().notNull(),
+  actorType: text('actor_type').$type<'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization'>().notNull(),
   organizationId: uuid('organization_id'),
 
   // Event data (copied from events table)

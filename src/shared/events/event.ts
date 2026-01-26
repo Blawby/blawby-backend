@@ -39,7 +39,7 @@ type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | bool
 // Dispatch options type
 type DispatchOptions = {
   actorId?: string;
-  actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api';
+  actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
   organizationId?: string;
   tx?: NodePgDatabase<typeof schema>;
   /** For critical events (Stripe/payments): immediate DB write, guaranteed before response */
@@ -127,7 +127,7 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
     const resolvedActorId = resolveActorId(rawActorId);
 
     // Derive actorType from rawActorId if not explicitly provided
-    const resolvedActorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' = options?.actorType ?? (
+    const resolvedActorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization' = options?.actorType ?? (
       rawActorId === 'system'
         ? 'system'
         : rawActorId === 'webhook'
@@ -136,7 +136,9 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
             ? 'cron'
             : rawActorId === 'api'
               ? 'api'
-              : 'user'
+              : rawActorId === 'organization'
+                ? 'organization'
+                : 'user'
     );
 
     const record = {
