@@ -11,7 +11,7 @@ import {
   serial,
   uuid,
   text,
-  json,
+  jsonb,
   timestamp,
   integer,
 } from 'drizzle-orm/pg-core';
@@ -39,8 +39,8 @@ export const eventsDeadLetter = pgTable('events_dead_letter', {
   organizationId: uuid('organization_id'),
 
   // Event data (copied from events table)
-  payload: json('payload').$type<Record<string, unknown>>().notNull(),
-  metadata: json('metadata').$type<EventMetadata>().notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  metadata: jsonb('metadata').$type<EventMetadata>().notNull(),
 
   // Failure information
   lastError: text('last_error'),

@@ -122,14 +122,28 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
     options?: DispatchOptions,
   ): string | Promise<string> {
     const eventId = crypto.randomUUID();
-    const resolvedActorId = resolveActorId(options?.actorId ?? 'system');
+    const rawActorId = options?.actorId ?? 'system';
+    const resolvedActorId = resolveActorId(rawActorId);
+
+    // Derive actorType from rawActorId if not explicitly provided
+    const resolvedActorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' = options?.actorType ?? (
+      rawActorId === 'system'
+        ? 'system'
+        : rawActorId === 'webhook'
+          ? 'webhook'
+          : rawActorId === 'cron'
+            ? 'cron'
+            : rawActorId === 'api'
+              ? 'api'
+              : 'user'
+    );
 
     const record = {
       eventId,
       type: this.type,
       eventVersion: '1.0.0',
       actorId: resolvedActorId,
-      actorType: options?.actorType ?? 'user',
+      actorType: resolvedActorType,
       organizationId: options?.organizationId,
       payload,
       metadata: createEventMetadata(options?.tx ? 'tx' : options?.critical ? 'critical' : 'async'),

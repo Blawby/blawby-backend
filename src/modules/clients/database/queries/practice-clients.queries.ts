@@ -1,5 +1,5 @@
 import {
-  eq, desc, and, ilike, or, sql,
+  eq, desc, and, ilike, or, sql, type SQL,
 } from 'drizzle-orm';
 import {
   practiceClientsSchema,
@@ -100,7 +100,7 @@ const listClients = async (params: {
     organizationId, search, status, limit = 20, offset = 0,
   } = params;
 
-  const conditions = [
+  const conditions: SQL[] = [
     eq(practiceClients.organization_id, organizationId),
     sql`${practiceClients.deleted_at} IS NULL`,
   ];
@@ -110,14 +110,12 @@ const listClients = async (params: {
   }
 
   if (search) {
-    const searchCondition = or(
+    const searchCondition: SQL = or(
       ilike(practiceClients.name, `%${search}%`),
       ilike(practiceClients.email, `%${search}%`),
       sql<boolean>`COALESCE(${practiceClients.phone}, '') ILIKE ${`%${search}%`}`,
-    );
-    if (searchCondition) {
-      conditions.push(searchCondition);
-    }
+    )!;
+    conditions.push(searchCondition);
   }
 
   const whereClause = and(...conditions);

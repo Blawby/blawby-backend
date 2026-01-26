@@ -5,7 +5,7 @@
  * Can be extended to support other providers in the future.
  */
 
-import { isDevelopment } from './env.js';
+import { isDevelopment } from '@/shared/utils/env';
 
 interface TurnstileVerifyResponse {
   'success': boolean;
