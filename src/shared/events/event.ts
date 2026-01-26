@@ -14,6 +14,7 @@
  *   Event.listen(UserSignedUp, async (payload) => { ... });
  */
 
+import { randomUUID } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -121,7 +122,7 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
     payload: T,
     options?: DispatchOptions,
   ): string | Promise<string> {
-    const eventId = crypto.randomUUID();
+    const eventId = randomUUID();
     const rawActorId = options?.actorId ?? 'system';
     const resolvedActorId = resolveActorId(rawActorId);
 
@@ -296,8 +297,8 @@ export const Event = {
       } catch (error) {
         logger.error('Handler failed for event type {eventType}: {error}', {
           eventType,
-          error,
-          payload,
+          eventId: record.eventId,
+          error: error instanceof Error ? error.message : String(error),
         });
         // Continue to next handler even if one fails
       }
