@@ -7,8 +7,7 @@ import {
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -62,7 +61,7 @@ const createClient = async (
       // 2. Handle Address
       let addressId: string | undefined;
       if (data.address) {
-        const address = await upsertAddressTx(tx as any, {
+        const address = await upsertAddressTx(tx, {
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -83,20 +82,15 @@ const createClient = async (
         organization_id: organizationId,
         stripe_customer_id: stripeCustomerId,
         address_id: addressId,
-      } as any);
+      });
 
       // 4. Publish event
-      void publishSimpleEvent(
-        EventType.CLIENT_CREATED,
-        userId,
-        organizationId,
-        {
-          client_id: client.id,
-          name: client.name,
-          email: client.email,
-          stripe_customer_id: client.stripe_customer_id,
-        },
-      );
+      await ClientCreated.dispatch({
+        client_id: client.id,
+        name: client.name,
+        email: client.email,
+        stripe_customer_id: client.stripe_customer_id ?? undefined,
+      }, { actorId: userId, organizationId, tx: tx });
 
       return ok(client);
     } catch (error) {
@@ -122,7 +116,7 @@ const updateClient = async (
       // 1. Handle Address
       let address_id = client.address_id;
       if (data.address) {
-        const address = await upsertAddressTx(tx as any, {
+        const address = await upsertAddressTx(tx, {
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -159,22 +153,17 @@ const updateClient = async (
         }
       }
 
-      const { address, ...clientData } = data;
+      const { address: _unused, ...clientData } = data;
       const updated = await practiceClientsRepository.update(id, {
         ...clientData,
         address_id,
       });
       if (!updated) return internalError('Failed to update client');
 
-      void publishSimpleEvent(
-        EventType.CLIENT_UPDATED,
-        userId,
-        organizationId,
-        {
-          client_id: updated.id,
-          changes: Object.keys(data),
-        },
-      );
+      await ClientUpdated.dispatch({
+        client_id: updated.id,
+        changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
+      }, { actorId: userId, organizationId, tx: tx });
 
       return ok(updated);
     } catch (error) {
@@ -222,12 +211,7 @@ const deleteClient = async (id: string, organizationId: string, userId: string):
 
     await practiceClientsRepository.softDelete(id, userId);
 
-    void publishSimpleEvent(
-      EventType.CLIENT_DELETED,
-      userId,
-      organizationId,
-      { client_id: id },
-    );
+    void ClientDeleted.dispatch({ client_id: id }, { actorId: userId, organizationId });
 
     return ok(undefined);
   } catch (error) {
@@ -242,7 +226,7 @@ const createClientFromIntake = async (params: {
   email: string;
   name: string;
   phone?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }): Promise<Result<SelectPracticeClient>> => {
   const {
     organizationId, intakeId, email, name, phone,
@@ -299,16 +283,12 @@ const createClientFromIntake = async (params: {
       event_name: 'client_intake_success',
     });
 
-    void publishSimpleEvent(
-      EventType.CLIENT_CREATED,
-      'system',
-      organizationId,
-      {
-        client_id: client.id,
-        intake_id: intakeId,
-        source: 'intake',
-      },
-    );
+    void ClientCreated.dispatch({
+      client_id: client.id,
+      name: client.name,
+      email: client.email,
+      stripe_customer_id: client.stripe_customer_id ?? undefined,
+    }, { actorId: 'system', actorType: 'system', organizationId });
 
     return ok(client);
   } catch (error) {

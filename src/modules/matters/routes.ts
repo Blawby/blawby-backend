@@ -4,38 +4,12 @@ import { matterMilestoneValidations } from '@/modules/matters/validations/matter
 import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
 import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
-
-// Common response schemas
-const errorResponseSchema = z.object({
-  error: z.string(),
-  message: z.string().optional(),
-  details: z.any().optional(),
-}).openapi('ErrorResponse');
-
-const notFoundResponseSchema = z.object({
-  error: z.string(),
-  message: z.string(),
-}).openapi('NotFoundResponse');
-
-// Common param schemas
-const practiceIdParamSchema = z.object({
-  practiceId: z.uuid().openapi({
-    param: { name: 'practiceId', in: 'path' },
-    description: 'Practice ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  }),
-});
-
-const matterUuidParamSchema = z.object({
-  practiceId: z.uuid().openapi({
-    param: { name: 'practiceId', in: 'path' },
-    description: 'Practice ID (UUID)',
-  }),
-  uuid: z.uuid().openapi({
-    param: { name: 'uuid', in: 'path' },
-    description: 'Matter ID (UUID)',
-  }),
-});
+import {
+  errorResponseSchema,
+  notFoundResponseSchema,
+  practiceIdParamSchema,
+  matterUuidParamSchema,
+} from '@/shared/validations/openapi';
 
 // [REMOVED Practice Areas routes - Services are fetched from practice-details]
 
@@ -45,7 +19,7 @@ const matterUuidParamSchema = z.object({
 
 export const createMatterRoute = createRoute({
   method: 'post',
-  path: '/{practiceId}/matters',
+  path: '/{practiceId}/create',
   tags: ['Matters: General'],
   summary: 'Create matter',
   description: 'Create a new matter/case',
@@ -67,7 +41,7 @@ export const createMatterRoute = createRoute({
 
 export const getMatterRoute = createRoute({
   method: 'get',
-  path: '/{practiceId}/matters',
+  path: '/{practiceId}',
   tags: ['Matters: General'],
   summary: 'Get matter(s)',
   description: 'Get all matters or a single matter if matter_uuid query param is provided',
@@ -100,7 +74,7 @@ export const getMatterRoute = createRoute({
 
 export const updateMatterRoute = createRoute({
   method: 'put',
-  path: '/{practiceId}/matters/{uuid}',
+  path: '/{practiceId}/update/{uuid}',
   tags: ['Matters: General'],
   summary: 'Update matter',
   description: 'Update a matter',
@@ -122,14 +96,28 @@ export const updateMatterRoute = createRoute({
 
 export const deleteMatterRoute = createRoute({
   method: 'delete',
-  path: '/{practiceId}/matters/{uuid}',
+  path: '/{practiceId}/delete/{uuid}',
   tags: ['Matters: General'],
   summary: 'Delete matter',
   description: 'Soft delete a matter',
   request: { params: matterUuidParamSchema },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Matter deleted' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Matter not found' },
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean() }),
+        },
+      },
+      description: 'Matter deleted successfully',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: notFoundResponseSchema,
+        },
+      },
+      description: 'Matter not found',
+    },
   },
 });
 

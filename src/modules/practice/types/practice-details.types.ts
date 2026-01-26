@@ -3,9 +3,10 @@ import type { AddressData } from '@/modules/practice/types/addresses.types';
 
 export type PracticeDetailsResponse = Omit<
   PracticeDetails,
-  'id' | 'organization_id' | 'user_id' | 'created_at' | 'updated_at'
+  'id' | 'organization_id' | 'user_id' | 'address_id' | 'created_at' | 'updated_at' | 'services'
 > & {
   address?: AddressData | null;
+  services: Array<{ id: string; name: string; key: string }>;
   name?: string;
   logo?: string | null;
   payment_link_enabled?: boolean;
@@ -22,7 +23,7 @@ export type UpsertPracticeDetailsRequest = {
   intro_message?: string | null;
   overview?: string | null;
   is_public?: boolean;
-  services?: Array<{ id: string; name: string }>;
+  services?: Array<{ id?: string; name: string; key: string }>;
   // Nested Address fields
   address?: AddressData;
 };

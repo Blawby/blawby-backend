@@ -25,15 +25,15 @@ export type BaseEvent = {
   eventId: string; // UUID primary key
   type: string; // Event type (renamed from eventType)
   eventVersion: string;
-  timestamp: Date;
+  createdAt: Date;
   actorId: string; // UUID - Who/what performed the action
-  actorType: 'user' | 'system' | 'webhook' | 'cron' | 'api'; // Type of actor
-  organizationId?: string; // Context where the event happened
+  actorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization'; // Type of actor
+  organizationId?: string | null; // Context where the event happened
   payload: Record<string, unknown>;
   metadata: EventMetadata;
-  processed?: boolean;
-  retryCount?: number;
-  lastError?: string; // Error message from last failed processing attempt
+  processed?: boolean; // Has default(false).notNull() in DB
+  retryCount?: number; // Has default(0).notNull() in DB
+  lastError?: string | null; // Error message from last failed processing attempt
 };
 
 // Events table
@@ -47,13 +47,13 @@ export const events = pgTable('events', {
 
   // Actor information
   actorId: uuid('actor_id').notNull(), // Changed from text to uuid
-  actorType: text('actor_type').notNull(), // Type of actor: 'user', 'system', 'webhook', etc.
+  actorType: text('actor_type').$type<'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization'>().notNull(), // Type of actor: 'user', 'system', 'webhook', etc.
   organizationId: uuid('organization_id').references(() => organizations.id, {
     onDelete: 'set null',
   }),
 
   // Event data
-  payload: json('payload').notNull(),
+  payload: json('payload').$type<Record<string, unknown>>().notNull(),
   metadata: json('metadata').notNull().$type<EventMetadata>(),
 
   // Processing status
@@ -85,7 +85,7 @@ export const createEventSchema = createInsertSchema(events, {
   type: z.string().min(1),
   eventVersion: z.string().default('1.0.0'),
   actorId: z.uuid(),
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']),
   payload: z.record(z.string(), z.any()),
   metadata: z.object({
     ipAddress: z.string().optional(),
@@ -102,9 +102,9 @@ export const baseEventSchema = z.object({
   eventId: z.uuid(),
   type: z.string(), // Renamed from eventType
   eventVersion: z.string(),
-  timestamp: z.coerce.date(),
+  createdAt: z.coerce.date(),
   actorId: z.uuid(), // Changed to uuid
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']),
   organizationId: z.uuid().optional(),
   payload: z.record(z.string(), z.unknown()),
   metadata: z.object({
@@ -140,7 +140,7 @@ export const publishEventRequestSchema = z.object({
   type: z.string().min(1), // Renamed from eventType
   eventVersion: z.string().default('1.0.0'),
   actorId: z.uuid(), // Changed to uuid, required
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']),
   organizationId: z.uuid().optional(),
   payload: z.record(z.string(), z.any()),
   metadata: z.object({
@@ -154,7 +154,7 @@ export const publishEventRequestSchema = z.object({
 
 export const eventTimelineQuerySchema = z.object({
   actorId: z.uuid().optional(),
-  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api']).optional(),
+  actorType: z.enum(['user', 'system', 'webhook', 'cron', 'api', 'organization']).optional(),
   organizationId: z.uuid().optional(),
   eventTypes: z.array(z.string()).optional(), // Keep as eventTypes for query compatibility
   limit: z.number().min(1).max(100).default(50),
@@ -170,11 +170,3 @@ export type NewEventSubscription = typeof eventSubscriptions.$inferInsert;
 export type PublishEventRequest = z.infer<typeof publishEventRequestSchema>;
 export type EventTimelineQuery = z.infer<typeof eventTimelineQuerySchema>;
 
-// Re-export event types from enum file
-export {
-  EventType,
-  type EventTypeValue,
-  isValidEventType,
-  getEventTypeByDomain,
-  EVENT_DOMAINS,
-} from '@/shared/events/enums/event-types';

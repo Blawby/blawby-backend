@@ -3,7 +3,6 @@ import {
   nameValidator,
   slugValidator,
   urlValidator,
-  emailValidator,
   phoneValidator,
   currencyValidator,
 } from '@/shared/validations/common';
@@ -44,9 +43,9 @@ const practiceDetailsValidationSchema = z.object({
   overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
   is_public: z.boolean().optional().openapi({ example: true }),
   services: z
-    .array(z.object({ id: z.string(), name: z.string() }))
+    .array(z.object({ id: z.string().optional(), name: z.string(), key: z.string() }))
     .optional()
-    .openapi({ example: [{ id: '1', name: 'Service 1' }] }),
+    .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
   // Nested Address
   address: addressSchema.optional(),
 });
@@ -57,7 +56,7 @@ const createPracticeSchema = z.object({
   name: nameValidator,
   slug: slugValidator,
   logo: urlValidator.optional().or(z.literal('')),
-  metadata: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 
   // Practice details
   ...practiceDetailsValidationSchema.shape,
@@ -69,7 +68,7 @@ const updatePracticeSchema = z
     name: nameValidator.optional(),
     slug: slugValidator.optional(),
     logo: urlValidator.optional().or(z.literal('')),
-    metadata: z.record(z.string(), z.any()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
 
     // Practice details
     ...practiceDetailsValidationSchema.shape,
@@ -113,28 +112,59 @@ const practiceResponseSchema = z
     logo: z.string().nullable().openapi({
       example: 'https://example.com/logo.png',
     }),
-    metadata: z.record(z.string(), z.any()).nullable().openapi({
+    metadata: z.record(z.string(), z.unknown()).nullable().openapi({
       example: { key: 'value' },
     }),
     business_phone: z.string().nullable().openapi({
+      description: 'Business phone number',
       example: '+1234567890',
     }),
     business_email: z.email().nullable().openapi({
+      description: 'Business email address',
       example: 'contact@example.com',
     }),
+    website: z.string().nullable().openapi({
+      description: 'Practice website URL',
+      example: 'https://example.com',
+    }),
     consultation_fee: z.number().nullable().openapi({
-      example: 100.0,
+      description: 'Consultation fee (in cents or primary currency unit)',
+      example: 25000,
     }),
-    payment_url: z.url().nullable().openapi({
-      example: 'https://payment.example.com',
+    payment_url: z.string().nullable().openapi({
+      description: 'Direct payment URL',
+      example: 'https://payment.example.com/pay',
     }),
-    calendly_url: z.url().nullable().openapi({
-      example: 'https://calendly.com/example',
+    calendly_url: z.string().nullable().openapi({
+      description: 'Calendly scheduling URL',
+      example: 'https://calendly.com/practice',
     }),
-    created_at: z.iso.datetime().openapi({
+    intro_message: z.string().nullable().openapi({
+      description: 'Brief welcome message for clients',
+      example: 'Welcome to our law firm',
+    }),
+    overview: z.string().nullable().openapi({
+      description: 'Detailed practice overview or biography',
+      example: 'We specialize in family and corporate law with over 20 years of experience.',
+    }),
+    is_public: z.boolean().openapi({
+      description: 'Whether the practice details are publicly visible',
+      example: true,
+    }),
+    paymentLinkEnabled: z.boolean().nullable().openapi({
+      description: 'Whether the practice has payment links enabled',
+      example: true,
+    }),
+    paymentLinkPrefillAmount: z.number().nullable().openapi({
+      description: 'Default prefill amount for payment links (in cents)',
+      example: 5000,
+    }),
+    createdAt: z.date().openapi({
+      description: 'Organization creation timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
-    updated_at: z.iso.datetime().openapi({
+    updatedAt: z.date().optional().openapi({
+      description: 'Organization last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
   })
@@ -316,7 +346,7 @@ const invitationsListResponseSchema = z.object({
 
 const acceptInvitationResponseSchema = z.object({
   success: z.boolean(),
-  organization: z.any(), // Organization object from Better Auth
+  organization: z.unknown(), // Organization object from Better Auth
 });
 
 // Practice Details API schemas
@@ -366,9 +396,9 @@ const practiceDetailsResponseSchema = z
     overview: z.string().nullable().openapi({ example: 'Overview text' }),
     is_public: z.boolean().openapi({ example: true }),
     services: z
-      .array(z.object({ id: z.string(), name: z.string() }))
+      .array(z.object({ id: z.string(), name: z.string(), key: z.string() }))
       .nullable()
-      .openapi({ example: [{ id: '1', name: 'Service 1' }] }),
+      .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
     address: addressSchema.nullable(),
     name: z.string().openapi({
       example: 'My Practice',
@@ -381,6 +411,14 @@ const practiceDetailsResponseSchema = z
     }),
     payment_link_prefill_amount: z.number().openapi({
       example: 5000,
+    }),
+    createdAt: z.date().openapi({
+      description: 'Organization creation timestamp',
+      example: '2024-01-01T00:00:00Z',
+    }),
+    updatedAt: z.date().optional().openapi({
+      description: 'Organization last update timestamp',
+      example: '2024-01-01T00:00:00Z',
     }),
   })
   .openapi('PracticeDetailsResponse');
@@ -406,7 +444,6 @@ const practiceDetailsUpdateResponseSchema = z
 const slugParamSchema = z.object({
   slug: z.string(),
 });
-
 
 
 export const practiceValidations = {

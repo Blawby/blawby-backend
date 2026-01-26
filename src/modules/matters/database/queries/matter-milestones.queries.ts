@@ -1,13 +1,15 @@
-import { eq, and, asc, sql } from 'drizzle-orm';
-import { db } from '@/shared/database';
+import { eq, sql, asc } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
+import * as schema from '@/schema';
+import { db } from '@/shared/database';
 
 // Create matter milestone
-export const createMatterMilestone = async (
+const createMatterMilestone = async (
   data: InsertMatterMilestone,
 ): Promise<SelectMatterMilestone> => {
   const [milestone] = await db
@@ -18,9 +20,9 @@ export const createMatterMilestone = async (
 };
 
 // Create multiple milestones
-export const createMatterMilestones = async (
+const createMatterMilestones = async (
   data: InsertMatterMilestone[],
-  tx?: any,
+  tx?: NodePgDatabase<typeof schema>,
 ): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) return [];
 
@@ -32,7 +34,7 @@ export const createMatterMilestones = async (
 };
 
 // Find matter milestone by ID
-export const findMatterMilestoneById = async (
+const findMatterMilestoneById = async (
   id: string,
 ): Promise<SelectMatterMilestone | undefined> => {
   const [milestone] = await db
@@ -44,7 +46,7 @@ export const findMatterMilestoneById = async (
 };
 
 // List matter milestones
-export const listMatterMilestones = async (
+const listMatterMilestones = async (
   matterId: string,
 ): Promise<SelectMatterMilestone[]> => {
   return await db
@@ -55,7 +57,7 @@ export const listMatterMilestones = async (
 };
 
 // Update matter milestone
-export const updateMatterMilestone = async (
+const updateMatterMilestone = async (
   id: string,
   data: Partial<InsertMatterMilestone>,
 ): Promise<SelectMatterMilestone | undefined> => {
@@ -68,12 +70,12 @@ export const updateMatterMilestone = async (
 };
 
 // Delete matter milestone
-export const deleteMatterMilestone = async (id: string): Promise<void> => {
+const deleteMatterMilestone = async (id: string): Promise<void> => {
   await db.delete(matterMilestones).where(eq(matterMilestones.id, id));
 };
 
 // Reorder milestones
-export const reorderMilestones = async (
+const reorderMilestones = async (
   updates: { id: string; order: number }[],
 ): Promise<void> => {
   if (updates.length === 0) return;
@@ -89,7 +91,7 @@ export const reorderMilestones = async (
 };
 
 // Get milestone statistics
-export const getMilestoneStats = async (
+const getMilestoneStats = async (
   matterId: string,
 ): Promise<{
   total: number;
@@ -122,4 +124,15 @@ export const getMilestoneStats = async (
     totalAmount: Number(stats.totalAmount),
     completedAmount: Number(stats.completedAmount),
   };
+};
+
+export default {
+  createMatterMilestone,
+  createMatterMilestones,
+  findMatterMilestoneById,
+  listMatterMilestones,
+  updateMatterMilestone,
+  deleteMatterMilestone,
+  reorderMilestones,
+  getMilestoneStats,
 };

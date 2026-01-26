@@ -7,7 +7,7 @@ const logger = getLogger(['onboarding', 'handler', 'onboarding-failed']);
  * Handle onboarding failed event
  */
 export const handleOnboardingFailed = async (event: BaseEvent): Promise<void> => {
-  logger.error("Onboarding failed for organization {organizationId}", {
+  logger.error('Onboarding failed for organization {organizationId}', {
     organizationId: event.organizationId,
     actorId: event.actorId,
     eventId: event.eventId,

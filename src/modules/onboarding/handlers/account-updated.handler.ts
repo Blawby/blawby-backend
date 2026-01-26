@@ -4,12 +4,11 @@ import type Stripe from 'stripe';
 import {
   stripeConnectedAccounts,
 } from '@/modules/onboarding/schemas/onboarding.schema';
-import { organizations } from '@/schema/better-auth-schema';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
+import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishEventTx } from '@/shared/events/event-publisher';
-import { WEBHOOK_ACTOR_UUID } from '@/shared/events/constants';
+import { OnboardingAccountUpdated } from '@/shared/events/definitions';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
 const logger = getLogger(['onboarding', 'handler', 'account-updated']);
 
@@ -51,7 +50,7 @@ export const handleAccountUpdated = async (
         .returning({ organization_id: stripeConnectedAccounts.organization_id });
 
       if (!updatedRecord) {
-        logger.warn("Account not found for Stripe ID: {stripeAccountId}, skipping update.", { stripeAccountId: account.id });
+        logger.warn('Account not found for Stripe ID: {stripeAccountId}, skipping update.', { stripeAccountId: account.id });
         return;
       }
 
@@ -66,28 +65,27 @@ export const handleAccountUpdated = async (
       }
 
       // Publish account updated event within transaction
-      await publishEventTx(tx, {
-        type: EventType.ONBOARDING_ACCOUNT_UPDATED,
+      await OnboardingAccountUpdated.dispatch({
+        stripe_account_id: account.id,
+        organization_id: organizationId,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        details_submitted: account.details_submitted,
+        business_type: account.business_type,
+        updated_at: new Date().toISOString(),
+      }, {
         actorId: WEBHOOK_ACTOR_UUID,
         actorType: 'webhook',
         organizationId: organizationId,
-        payload: {
-          stripe_account_id: account.id,
-          organization_id: organizationId,
-          charges_enabled: account.charges_enabled,
-          payouts_enabled: account.payouts_enabled,
-          details_submitted: account.details_submitted,
-          business_type: account.business_type,
-          updated_at: new Date().toISOString(),
-        },
+        tx,
       });
     });
 
     if (organizationId) {
-      logger.info("Account updated and event published for: {stripeAccountId}", { stripeAccountId: account.id });
+      logger.info('Account updated and event published for: {stripeAccountId}', { stripeAccountId: account.id });
     }
   } catch (error) {
-    logger.error("Failed to update account: {stripeAccountId} {error}", { stripeAccountId: account.id, error });
+    logger.error('Failed to update account: {stripeAccountId} {error}', { stripeAccountId: account.id, error });
     throw error;
   }
 };
