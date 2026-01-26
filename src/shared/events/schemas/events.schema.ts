@@ -31,8 +31,8 @@ export type BaseEvent = {
   organizationId?: string | null; // Context where the event happened
   payload: Record<string, unknown>;
   metadata: EventMetadata;
-  processed?: boolean | null;
-  retryCount?: number | null;
+  processed?: boolean; // Has default(false).notNull() in DB
+  retryCount?: number; // Has default(0).notNull() in DB
   lastError?: string | null; // Error message from last failed processing attempt
 };
 

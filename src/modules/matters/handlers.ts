@@ -95,7 +95,10 @@ export const deleteMatterHandler: AppRouteHandler<typeof deleteMatterRoute> = as
 export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
-  await mattersService.getMatterById(practice_id, uuid, user, c.req.header());
+  const result = await mattersService.getMatterById(practice_id, uuid, user, c.req.header());
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
   const activity = await getMatterActivity(uuid);
   return response.ok(c, activity);
 };

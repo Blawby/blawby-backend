@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
-import { validateCaptchaToken as defaultValidate } from '../utils/captchaValidation.js';
-import { response } from '../utils/responseUtils.js';
+import { validateCaptchaToken as defaultValidate } from '@/shared/utils/captchaValidation';
+import { response } from '@/shared/utils/responseUtils';
 
 /**
  * Middleware to require a valid Captcha token

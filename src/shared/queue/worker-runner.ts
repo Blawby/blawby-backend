@@ -8,11 +8,14 @@
  * instead of relying solely on polling (up to 1000ms latency).
  */
 
+import { getLogger } from '@logtape/logtape';
 import { run, TaskList } from 'graphile-worker';
 import { Client } from 'pg';
 import { getWorkerUtils } from './graphile-worker.client';
 import { graphileWorkerConfig, TASK_NAMES } from './queue.config';
 import { bootCore } from '@/boot';
+
+const logger = getLogger(['queue', 'worker-runner']);
 
 interface WorkerOptions {
   name: string;
@@ -42,19 +45,25 @@ const setupEventListener = async (connectionString: string): Promise<Client> => 
           // Trigger immediate outbox processing (no payload = batch mode)
           await utils.addJob(TASK_NAMES.PROCESS_OUTBOX_EVENT, {});
         } catch (error) {
-          console.error('Failed to trigger outbox processing on NOTIFY:', error);
+          logger.error('Failed to trigger outbox processing on NOTIFY: {error}', {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     });
 
     client.on('error', (err) => {
-      console.error('LISTEN client error:', err);
+      logger.error('LISTEN client error: {error}', {
+        error: err.message,
+      });
     });
 
-    console.log('📡 LISTEN new_events handler active (instant event pickup)');
+    logger.info('LISTEN new_events handler active (instant event pickup)');
     return client;
   } catch (error) {
-    console.error('Failed to setup LISTEN handler:', error);
+    logger.error('Failed to setup LISTEN handler: {error}', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 };
@@ -76,9 +85,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
   const schema = graphileWorkerConfig.schema;
   const workerConcurrency = concurrency || graphileWorkerConfig.concurrency;
 
-  console.log(`📡 Starting ${name}...`);
-  console.log(`   - Schema: ${schema}`);
-  console.log(`   - Concurrency: ${workerConcurrency}`);
+  logger.info('Starting worker {name}', { name, schema, concurrency: workerConcurrency });
 
   let listenClient: Client | null = null;
 
@@ -93,7 +100,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
       crontab: options.crontab,
     });
 
-    console.log(`✅ ${name} is ready and processing jobs.`);
+    logger.info('{name} is ready and processing jobs', { name });
 
     // Setup LISTEN/NOTIFY for instant event pickup
     // This provides <10ms latency vs 1000ms polling
@@ -101,17 +108,19 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
 
     // Handle graceful shutdown
     const shutdown = async (): Promise<void> => {
-      console.log(`\n📴 Shutting down ${name}...`);
+      logger.info('Shutting down {name}...', { name });
       if (listenClient) {
         try {
           await listenClient.end();
-          console.log('   - LISTEN client closed');
+          logger.info('LISTEN client closed');
         } catch (err) {
-          console.error('   - Error closing LISTEN client:', err);
+          logger.error('Error closing LISTEN client: {error}', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
       await runner.stop();
-      console.log(`   - ${name} stopped`);
+      logger.info('{name} stopped', { name });
       process.exit(0);
     };
 
@@ -121,7 +130,10 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
     // Wait for the runner
     await runner.promise;
   } catch (error) {
-    console.error(`❌ ${name} failed to start:`, error);
+    logger.error('{name} failed to start: {error}', {
+      name,
+      error: error instanceof Error ? error.message : String(error),
+    });
     if (listenClient) {
       await listenClient.end().catch(() => { });
     }
