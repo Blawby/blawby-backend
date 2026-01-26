@@ -64,6 +64,14 @@ const setupEventListener = async (connectionString: string): Promise<Client> => 
     logger.error('Failed to setup LISTEN handler: {error}', {
       error: error instanceof Error ? error.message : String(error),
     });
+    // Close the client to avoid leaking the connection if connect() succeeded
+    try {
+      await client.end();
+    } catch (closeError) {
+      logger.error('Error closing LISTEN client after setup failure: {error}', {
+        error: closeError instanceof Error ? closeError.message : String(closeError),
+      });
+    }
     throw error;
   }
 };
