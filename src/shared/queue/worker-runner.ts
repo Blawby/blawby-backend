@@ -11,9 +11,9 @@
 import { getLogger } from '@logtape/logtape';
 import { run, TaskList } from 'graphile-worker';
 import { Client } from 'pg';
-import { getWorkerUtils } from './graphile-worker.client';
-import { graphileWorkerConfig, TASK_NAMES } from './queue.config';
 import { bootCore } from '@/boot';
+import { getWorkerUtils } from '@/shared/queue/graphile-worker.client';
+import { graphileWorkerConfig, TASK_NAMES } from '@/shared/queue/queue.config';
 
 const logger = getLogger(['queue', 'worker-runner']);
 
