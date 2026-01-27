@@ -26,13 +26,12 @@ const create = async (
 const findById = async (
   id: string,
 ): Promise<(SelectUserDetail & { user: typeof users.$inferSelect }) | undefined> => {
-  const result = await db.query.userDetails.findFirst({
+  return db.query.userDetails.findFirst({
     where: and(eq(userDetails.id, id), sql`${userDetails.deleted_at} IS NULL`),
     with: {
       user: true,
     },
   });
-  return result as (SelectUserDetail & { user: typeof users.$inferSelect }) | undefined;
 };
 
 
@@ -117,10 +116,11 @@ const listClients = async (params: {
   }
 
   if (search) {
+    const searchPattern = `%${search}%`;
     const searchCondition: SQL = or(
-      ilike(users.name, `%${search}%`),
-      ilike(users.email, `%${search}%`),
-      sql<boolean>`COALESCE(${users.phone}, '') ILIKE ${`%${search}%`}`,
+      ilike(users.name, searchPattern),
+      ilike(users.email, searchPattern),
+      ilike(sql`COALESCE(${users.phone}, '')`, searchPattern),
     )!;
     conditions.push(searchCondition);
   }
