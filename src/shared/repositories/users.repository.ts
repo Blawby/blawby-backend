@@ -1,7 +1,10 @@
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { users } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+
+const logger = getLogger(['app', 'repositories', 'users']);
 
 // Better Auth instance created with the global DB connection
 const auth = createBetterAuthInstance(db);
@@ -55,12 +58,17 @@ const update = async (
   if (data.isAnonymous !== undefined) updateFields.isAnonymous = data.isAnonymous;
 
   if (Object.keys(updateFields).length > 0) {
-    await auth.api.adminUpdateUser({
-      body: {
-        userId: id,
-        data: updateFields,
-      },
-    });
+    try {
+      await auth.api.adminUpdateUser({
+        body: {
+          userId: id,
+          data: updateFields,
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to update user {userId} via Better Auth', { userId: id, error });
+      throw error;
+    }
   }
 
   // Return fresh user from DB (may be undefined if user was not found)

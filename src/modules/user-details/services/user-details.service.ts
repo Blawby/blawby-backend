@@ -15,7 +15,7 @@ import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
 
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound, accepted } from '@/shared/utils/result';
+import { ok, internalError, notFound, accepted, type AcceptedResponse } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['user-details', 'service']);
@@ -42,7 +42,7 @@ const createUserDetails = async (
     currency?: string;
   },
   actorId: string,
-): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect }>> => {
+): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect } | AcceptedResponse>> => {
   // Variables to capture for post-transaction event dispatch
   let eventData: {
     detail: SelectUserDetail;
