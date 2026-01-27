@@ -61,6 +61,7 @@ export const userDetailsRelations = relations(userDetails, ({ one }) => ({
   user: one(users, {
     fields: [userDetails.user_id],
     references: [users.id],
+    relationName: 'user',
   }),
   intake: one(practiceClientIntakes, {
     fields: [userDetails.intake_id],
@@ -73,6 +74,7 @@ export const userDetailsRelations = relations(userDetails, ({ one }) => ({
   deletedByUser: one(users, {
     fields: [userDetails.deleted_by],
     references: [users.id],
+    relationName: 'deletedBy',
   }),
 }));
 

@@ -44,7 +44,7 @@ const update = async (
     primaryWorkspace: string;
     isAnonymous: boolean;
   }>,
-): Promise<SelectUser> => {
+): Promise<SelectUser | undefined> => {
   // Prepare update data for Better Auth API
   const updateFields: Record<string, unknown> = {};
 
@@ -63,13 +63,8 @@ const update = async (
     });
   }
 
-  // Return fresh user from DB
-  const user = await findById(id);
-  if (!user) {
-    throw new Error('Failed to update user');
-  }
-
-  return user;
+  // Return fresh user from DB (may be undefined if user was not found)
+  return await findById(id);
 };
 
 const usersRepository = {

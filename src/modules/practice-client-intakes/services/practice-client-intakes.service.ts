@@ -104,20 +104,9 @@ const createPracticeClientIntake = async (
       return fail('Connected account not found');
     }
 
-    // Validate userId if provided - ensure it belongs to a real user (anonymous or registered)
-    let validatedUserId: string | undefined;
-    if (request.userId) {
-      const { db } = await import('@/shared/database');
-      const { users } = await import('@/schema/better-auth-schema');
-      const { eq } = await import('drizzle-orm');
-
-      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, request.userId)).limit(1);
-      if (user) {
-        validatedUserId = user.id;
-      } else {
-        logger.warn('Invalid userId provided for intake - ignoring: {userId}', { userId: request.userId });
-      }
-    }
+    // user_id comes from authenticated session context (set by HTTP handler)
+    // No need to validate - session context is trusted
+    const validatedUserId = request.user_id;
 
     const intakeId: string = randomUUID();
 

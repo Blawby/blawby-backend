@@ -30,8 +30,14 @@ app.post('/create', zValidator('json', intakeValidations.createPracticeClientInt
     || c.req.header('x-real-ip');
   const userAgent = c.req.header('user-agent');
 
+  // Get user_id from authenticated session context (if available)
+  // Never trust user_id from request body to prevent spoofing
+  const sessionUserId = c.get('userId');
+
   const result = await practiceClientIntakesService.createPracticeClientIntake({
     ...body,
+    // Override any user_id from request body with session user_id
+    user_id: sessionUserId ?? undefined,
     clientIp,
     userAgent,
   });

@@ -46,6 +46,28 @@ FROM users u
 WHERE LOWER(ud.email) = LOWER(u.email)
   AND ud.user_id IS NULL;--> statement-breakpoint
 
+-- Backfill users for user_details rows without email before enforcing NOT NULL
+INSERT INTO users (id, name, email, phone, email_verified, is_anonymous, primary_workspace, created_at, updated_at)
+SELECT gen_random_uuid(),
+       COALESCE(ud.name, 'Unknown'),
+       CONCAT('anon+', ud.id, '@blawby.local'),
+       ud.phone,
+       false,
+       true,
+       'client',
+       ud.created_at,
+       now()
+FROM user_details ud
+WHERE ud.email IS NULL
+  AND ud.user_id IS NULL;--> statement-breakpoint
+
+UPDATE user_details ud
+SET user_id = u.id
+FROM users u
+WHERE ud.user_id IS NULL
+  AND ud.email IS NULL
+  AND u.email = CONCAT('anon+', ud.id, '@blawby.local');--> statement-breakpoint
+
 -- Make user_id NOT NULL after data migration
 ALTER TABLE "user_details" ALTER COLUMN "user_id" SET NOT NULL;--> statement-breakpoint
 
@@ -74,6 +96,19 @@ CREATE INDEX "user_details_address_idx" ON "user_details" USING btree ("address_
 CREATE INDEX "user_details_deleted_at_idx" ON "user_details" USING btree ("deleted_at");--> statement-breakpoint
 CREATE INDEX "user_details_created_at_idx" ON "user_details" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "matters_client_idx" ON "matters" USING btree ("client_id");--> statement-breakpoint
+
+-- Preflight check for duplicates before adding UNIQUE constraint
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM user_details
+    GROUP BY organization_id, user_id
+    HAVING COUNT(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'Duplicate user_details rows for organization_id/user_id - please deduplicate before running migration';
+  END IF;
+END $$;--> statement-breakpoint
 
 -- Add unique constraint
 ALTER TABLE "user_details" ADD CONSTRAINT "user_details_org_user_unique" UNIQUE("organization_id","user_id");
