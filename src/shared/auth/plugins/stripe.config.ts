@@ -1,4 +1,5 @@
 import { stripe as stripePlugin } from '@better-auth/stripe';
+import { getLogger } from '@logtape/logtape';
 import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type Stripe from 'stripe';
@@ -11,6 +12,8 @@ import {
   createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+
+const logger = getLogger(['shared', 'auth', 'plugins', 'stripe']);
 
 /**
  * SHARED HELPER: Synchronize subscription state to local DB.
@@ -37,7 +40,7 @@ const syncSubscriptionToOrg = async (
     || (typeof stripeSubscription.customer === 'string' ? stripeSubscription.customer : null);
 
   if (!customerId) {
-    console.warn('[Stripe Plugin] No customer ID found, skipping sync.');
+    logger.warn('[Stripe Plugin] No customer ID found, skipping sync.');
     return;
   }
 
@@ -55,11 +58,14 @@ const syncSubscriptionToOrg = async (
   }
 
   if (!organizationId) {
-    console.warn(`[Stripe Plugin] No organization found for Customer ID: ${customerId}`);
+    logger.warn('[Stripe Plugin] No organization found for Customer ID: {customerId}', { customerId });
     return;
   }
 
-  console.log(`[Stripe Plugin] Syncing subscription ${subscriptionId} to Org ${organizationId}`);
+  logger.info('[Stripe Plugin] Syncing subscription {subscriptionId} to Org {organizationId}', {
+    subscriptionId,
+    organizationId,
+  });
 
   // 3. TRANSACTION: Update Org, Line Items, and Logs atomically
   await db.transaction(async (tx) => {
@@ -151,7 +157,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         );
 
         if (!webhookEvent) {
-          console.log(`⚠️ Skipped duplicate event: ${event.id}`);
+          logger.info('⚠️ Skipped duplicate event: {eventId}', { eventId: event.id });
           return;
         }
 
@@ -159,10 +165,13 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some((prefix) => event.type.startsWith(prefix));
 
         if (needsProcessing) {
-          addWebhookJob(webhookEvent.id, event.id, event.type).catch(console.error);
+          addWebhookJob(webhookEvent.id, event.id, event.type).catch((err) => logger.error('Failed to add webhook job: {error}', { error: err }));
         }
       } catch (error) {
-        console.error(`❌ Webhook Error ${event.id}:`, error);
+        logger.error('❌ Webhook Error {eventId}: {error}', {
+          eventId: event.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         // Do not throw; prevent Stripe from retrying infinitely on logic errors
       }
     },

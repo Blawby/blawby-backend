@@ -3,7 +3,7 @@ import {
   practiceClientMemosSchema,
   type InsertPracticeClientMemo,
   type SelectPracticeClientMemo,
-} from '@/modules/clients/database/schema/practice-client-memos.schema';
+} from '@/modules/user-details/database/schema/practice-client-memos.schema';
 import { db } from '@/shared/database';
 
 const { practiceClientMemos } = practiceClientMemosSchema;

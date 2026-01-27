@@ -1,15 +1,19 @@
+import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { anonymous, organization } from 'better-auth/plugins';
+import { anonymous, organization, admin } from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
+import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
+
+const logger = getLogger(['shared', 'auth', 'better-auth']);
 
 let authInstance: ReturnType<typeof betterAuthInstance> | null = null;
 
@@ -30,7 +34,15 @@ const betterAuthInstance = (
         roles: organizationRoles,
       }),
       createStripePlugin(db),
-      anonymous(),
+      anonymous({
+        onLinkAccount: async ({ anonymousUser, newUser }) => {
+          await linkAnonymousUserData({
+            anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
+            newUser: { id: newUser.user.id, email: newUser.user.email },
+          });
+        },
+      }),
+      admin(),
     ],
     baseURL: process.env.BASE_URL!,
     basePath: '/api/auth',
@@ -58,21 +70,21 @@ const betterAuthInstance = (
       database: {
         generateId: 'uuid',
       },
-      useSecureCookies: true,
+      useSecureCookies: !isDevelopment(),
       // Disable origin check in development to allow cURL and server-to-server requests
       disableOriginCheck: isDevelopment(),
       crossSubDomainCookies: {
         enabled: isProductionLike(),
-        domain: isProductionLike() ? ".blawby.com" : undefined,
+        domain: isProductionLike() ? '.blawby.com' : undefined,
         secure: isProductionLike(),
-        sameSite: isProductionLike() ? "none" : "lax"
+        sameSite: isProductionLike() ? 'none' : 'lax',
       },
       cookie: {
         // CRITICAL: Allow cookie sharing across subdomains
-        domain: isProductionLike() ? ".blawby.com" : undefined,
+        domain: isProductionLike() ? '.blawby.com' : undefined,
         secure: isProductionLike(),
-        sameSite: isProductionLike() ? "none" : "lax",
-      }
+        sameSite: isProductionLike() ? 'none' : 'lax',
+      },
     },
     databaseHooks: createDatabaseHooks(db),
     session: AUTH_CONFIG.session,
@@ -109,14 +121,36 @@ const betterAuthInstance = (
         redirectURI: process.env.GOOGLE_REDIRECT_URI,
       },
     },
+    logger: {
+      enabled: true,
+      level: isDevelopment() ? 'debug' : 'info',
+      handler: (log: unknown) => {
+        const { level, message, ...rest } = log as Record<string, unknown>;
+        const msg = String(message);
+        switch (level) {
+          case 'error':
+            logger.error(msg, rest);
+            break;
+          case 'warn':
+            logger.warn(msg, rest);
+            break;
+          case 'info':
+            logger.info(msg, rest);
+            break;
+          case 'debug':
+            logger.debug(msg, rest);
+            break;
+        }
+      },
+    },
     onAPIError: {
       throw: false,
       onError: (error: unknown, context?: Record<string, unknown>) => {
         const sanitized = sanitizeError(error);
-        console.error('Better Auth error:', sanitized, context);
+        logger.error('Better Auth error: {error}', { error: sanitized, context });
       },
     },
-    trustedOrigins: getTrustedOrigins
+    trustedOrigins: getTrustedOrigins,
   });
 };
 

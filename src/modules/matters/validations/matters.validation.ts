@@ -3,7 +3,7 @@ import { uuidValidator } from '@/shared/validations/common';
 
 // Matter validation schemas
 const createMatterSchema = z.object({
-  practice_client_id: uuidValidator.optional(),
+  client_id: uuidValidator.optional(),
   title: z.string().min(1, 'Title is required').max(255, 'Title too long'),
   description: z.string().optional(),
   billing_type: z.enum(['hourly', 'fixed', 'contingency']),
@@ -42,7 +42,7 @@ const createMatterSchema = z.object({
 );
 
 const updateMatterSchema = z.object({
-  practice_client_id: uuidValidator.optional(),
+  client_id: uuidValidator.optional(),
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
   billing_type: z.enum(['hourly', 'fixed', 'contingency']).optional(),
@@ -65,7 +65,7 @@ const listMattersQuerySchema = z.object({
   matter_uuid: uuidValidator.optional(),
   status: z.enum(['draft', 'active']).optional(),
   practice_service_id: uuidValidator.optional(),
-  practice_client_id: uuidValidator.optional(),
+  client_id: uuidValidator.optional(),
   assignee_id: uuidValidator.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -75,7 +75,7 @@ const listMattersQuerySchema = z.object({
 const matterSchema = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
-  practice_client_id: z.uuid().nullable(),
+  client_id: z.uuid().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   billing_type: z.enum(['hourly', 'fixed', 'contingency']),

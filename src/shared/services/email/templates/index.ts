@@ -5,21 +5,6 @@
  */
 
 // Customer templates
-import { customerPaymentReceipt } from './customer/payment-receipt';
-import { customerPaymentRequest } from './customer/payment-request';
-
-// Team templates
-import { teamPaymentReceipt } from './team/payment-receipt';
-
-// Onboarding templates
-import { welcomeEmail } from './onboarding/welcome';
-import { stripeConnectWelcome } from './onboarding/stripe-connect-welcome';
-import { stripeConnectStatus } from './onboarding/stripe-connect-status';
-import { payoutSent } from './onboarding/payout-sent';
-
-// Event templates
-import { scheduledEventTemplate } from './scheduled-event';
-
 import {
   EMAIL_TEMPLATES,
   type EmailTemplateName,
@@ -32,6 +17,21 @@ import {
   type PayoutSentData,
   type ScheduledEventData,
 } from '../email.types';
+import { customerPaymentReceipt } from './customer/payment-receipt';
+import { customerPaymentRequest } from './customer/payment-request';
+
+// Team templates
+
+// Onboarding templates
+import { payoutSent } from '@/shared/services/email/templates/onboarding/payout-sent';
+import { stripeConnectStatus } from '@/shared/services/email/templates/onboarding/stripe-connect-status';
+import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
+import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
+
+// Event templates
+import { scheduledEventTemplate } from '@/shared/services/email/templates/scheduled-event';
+import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
+
 
 /**
  * Mapping of email templates to their specific data types
@@ -59,10 +59,13 @@ const templateRegistry = {
   // Customer templates
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: customerPaymentReceipt,
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: customerPaymentRequest,
-  [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: customerPaymentReceipt, // Reusing receipt template for custom receipts
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
-  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]: customerPaymentReceipt, // Intentional reuse: notification uses receipt layout
+  [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: customerPaymentReceipt,
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]:
+    customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]:
+    customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]:
+    customerPaymentReceipt, // Intentional reuse: notification uses receipt layout
 
   // Team templates
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: teamPaymentReceipt,

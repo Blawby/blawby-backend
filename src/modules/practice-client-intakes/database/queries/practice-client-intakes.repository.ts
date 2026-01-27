@@ -36,7 +36,7 @@ export const practiceClientIntakesRepository = {
     const [result] = await db
       .select()
       .from(practiceClientIntakes)
-      .where(eq(practiceClientIntakes.stripePaymentLinkId, linkId))
+      .where(eq(practiceClientIntakes.stripe_payment_link_id, linkId))
       .limit(1);
     return result;
   },
@@ -47,7 +47,7 @@ export const practiceClientIntakesRepository = {
     const [result] = await db
       .select()
       .from(practiceClientIntakes)
-      .where(eq(practiceClientIntakes.stripePaymentIntentId, intentId))
+      .where(eq(practiceClientIntakes.stripe_payment_intent_id, intentId))
       .limit(1);
     return result;
   },
@@ -58,7 +58,7 @@ export const practiceClientIntakesRepository = {
   ): Promise<SelectPracticeClientIntake> {
     const [updated] = await db
       .update(practiceClientIntakes)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updated_at: new Date() })
       .where(eq(practiceClientIntakes.id, id))
       .returning();
     return updated;
@@ -70,7 +70,7 @@ export const practiceClientIntakesRepository = {
   ): Promise<SelectPracticeClientIntake> {
     const [updated] = await db
       .update(practiceClientIntakes)
-      .set({ status, updatedAt: new Date() })
+      .set({ status, updated_at: new Date() })
       .where(eq(practiceClientIntakes.id, id))
       .returning();
     return updated;
@@ -84,8 +84,8 @@ export const practiceClientIntakesRepository = {
     return await db
       .select()
       .from(practiceClientIntakes)
-      .where(eq(practiceClientIntakes.organizationId, organizationId))
-      .orderBy(desc(practiceClientIntakes.createdAt))
+      .where(eq(practiceClientIntakes.organization_id, organizationId))
+      .orderBy(desc(practiceClientIntakes.created_at))
       .limit(limit)
       .offset(offset);
   },
@@ -99,14 +99,14 @@ export const practiceClientIntakesRepository = {
     count: number;
     succeededCount: number;
   }> {
-    const conditions = [eq(practiceClientIntakes.organizationId, organizationId)];
+    const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
 
     if (startDate) {
-      conditions.push(gte(practiceClientIntakes.createdAt, startDate));
+      conditions.push(gte(practiceClientIntakes.created_at, startDate));
     }
 
     if (endDate) {
-      conditions.push(lte(practiceClientIntakes.createdAt, endDate));
+      conditions.push(lte(practiceClientIntakes.created_at, endDate));
     }
 
     const results = await db

@@ -1,12 +1,12 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { getLogger } from '@logtape/logtape';
 import type { Context } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+import type Stripe from 'stripe';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
-import type Stripe from 'stripe';
+import type { AppContext } from '@/shared/types/hono';
 import type { Result } from '@/shared/types/result';
+import { response } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['webhooks', 'http']);
 const webhooksApp = new OpenAPIHono<AppContext>();
@@ -89,9 +89,8 @@ const handleWebhook = async (
  * Dedicated endpoint for Stripe Connect webhooks (using different signing secret)
  */
 webhooksApp.post('/stripe/connected-accounts', async (c) => {
-  return handleWebhook(c, (body, sig, headers, url) =>
-    onboardingWebhooksService.verifyAndStore(body, sig, headers, url)
-  );
+  return handleWebhook(c, (body, sig, headers, url) => onboardingWebhooksService
+    .verifyAndStore(body, sig, headers, url));
 });
 
 /**
@@ -100,9 +99,8 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
  * Uses STRIPE_WEBHOOK_SECRET for signature verification
  */
 webhooksApp.post('/stripe/account', async (c) => {
-  return handleWebhook(c, (body, sig, headers, url) =>
-    onboardingWebhooksService.verifyAndStoreAccount(body, sig, headers, url)
-  );
+  return handleWebhook(c, (body, sig, headers, url) => onboardingWebhooksService
+    .verifyAndStoreAccount(body, sig, headers, url));
 });
 
 export default webhooksApp;

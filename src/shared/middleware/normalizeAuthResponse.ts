@@ -7,9 +7,11 @@
  * - Preserves Better Auth functionality (set-auth-token header, etc.)
  */
 
+import { getLogger } from '@logtape/logtape';
+import { snakeCase } from 'es-toolkit/compat';
 import type { MiddlewareHandler } from 'hono';
 
-import { snakeCase } from 'es-toolkit/compat';
+const logger = getLogger(['shared', 'middleware', 'normalize-auth-response']);
 
 /**
  * Recursively converts object keys from camelCase to snake_case
@@ -111,12 +113,20 @@ export const normalizeAuthResponse = (): MiddlewareHandler => {
       // Clone the response to avoid modifying the original
       const response = c.res.clone();
       const body = await response.text();
+      const trimmedBody = body.trim();
 
-      if (!body) {
+      if (!trimmedBody) {
         return;
       }
 
-      const data = JSON.parse(body);
+      let data: unknown;
+      try {
+        data = JSON.parse(trimmedBody);
+      } catch (error) {
+        // If parsing fails despite content-type, it's likely an empty-ish or invalid response
+        logger.debug('Failed to parse response body for normalization: {error}', { error });
+        return;
+      }
       const status = response.status;
 
       // Normalize error responses (4xx, 5xx)
@@ -126,11 +136,25 @@ export const normalizeAuthResponse = (): MiddlewareHandler => {
 
         // Create new response with normalized error
         const normalizedBody = JSON.stringify(normalizedData);
-        c.res = new Response(normalizedBody, {
+        const newResponse = new Response(normalizedBody, {
           status,
           statusText: response.statusText,
           headers: response.headers,
         });
+
+        // Fix for multiple Set-Cookie headers in Node.js/Fetch
+        // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
+        if (typeof response.headers.getSetCookie === 'function') {
+          const setCookies = response.headers.getSetCookie();
+          if (setCookies.length > 0) {
+            newResponse.headers.delete('Set-Cookie');
+            setCookies.forEach((cookie: string) => {
+              newResponse.headers.append('Set-Cookie', cookie);
+            });
+          }
+        }
+
+        c.res = newResponse;
         return;
       }
 
@@ -139,14 +163,28 @@ export const normalizeAuthResponse = (): MiddlewareHandler => {
       const normalizedBody = JSON.stringify(normalizedData);
 
       // Create new response with normalized data
-      c.res = new Response(normalizedBody, {
+      const newResponse = new Response(normalizedBody, {
         status,
         statusText: response.statusText,
         headers: response.headers,
       });
+
+      // Fix for multiple Set-Cookie headers in Node.js/Fetch
+      // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
+      if (typeof response.headers.getSetCookie === 'function') {
+        const setCookies = response.headers.getSetCookie();
+        if (setCookies.length > 0) {
+          newResponse.headers.delete('Set-Cookie');
+          setCookies.forEach((cookie: string) => {
+            newResponse.headers.append('Set-Cookie', cookie);
+          });
+        }
+      }
+
+      c.res = newResponse;
     } catch (error) {
       // If parsing fails, leave response unchanged
-      console.warn('[Auth] Failed to normalize response:', error);
+      logger.warn('Failed to normalize response: {error}', { error });
     }
   };
 };

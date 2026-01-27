@@ -6,10 +6,10 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { handleProductCreated } from '../handlers/productCreated.handler';
+import { handleProductCreated } from '@/modules/subscriptions/handlers/productCreated.handler';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'sync-plans']);
 
@@ -60,7 +60,7 @@ const syncAllPlansFromStripe = async (): Promise<Result<SyncResult>> => {
         result.synced += 1;
         logger.info('Synced product: {productId} - {productName}', {
           productId: product.id,
-          productName: product.name
+          productName: product.name,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -70,14 +70,14 @@ const syncAllPlansFromStripe = async (): Promise<Result<SyncResult>> => {
         });
         logger.error('Failed to sync product {productId}: {error}', {
           productId: product.id,
-          error: errorMessage
+          error: errorMessage,
         });
       }
     }
 
     logger.info('Sync completed: {synced} products synced, {errorCount} errors', {
       synced: result.synced,
-      errorCount: result.errors.length
+      errorCount: result.errors.length,
     });
     return ok(result);
   } catch (error) {

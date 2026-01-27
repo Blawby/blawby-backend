@@ -5,7 +5,7 @@
  * Updates intake status and publishes INTAKE_PAYMENT_FAILED event
  */
 
-import { consola } from 'consola';
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
@@ -14,6 +14,8 @@ import { db } from '@/shared/database';
 import { IntakePaymentFailed } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import { sanitizeError } from '@/shared/utils/logging';
+
+const logger = getLogger(['practice-client-intakes', 'handlers', 'failed']);
 
 /**
  * Handle failed practice client intake payment
@@ -38,8 +40,8 @@ export const handlePracticeClientIntakeFailed = async ({
         .update(practiceClientIntakes)
         .set({
           status: 'failed',
-          stripePaymentIntentId: paymentIntent.id,
-          updatedAt: new Date(),
+          stripe_payment_intent_id: paymentIntent.id,
+          updated_at: new Date(),
         })
         .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
 
@@ -51,19 +53,19 @@ export const handlePracticeClientIntakeFailed = async ({
       }, {
         actorId: WEBHOOK_ACTOR_UUID,
         actorType: 'webhook',
-        organizationId: practiceClientIntake.organizationId,
+        organizationId: practiceClientIntake.organization_id,
         tx,
       });
     });
 
-    consola.warn('Practice client intake payment failed', {
+    logger.warn('Practice client intake payment failed', {
       intakeId: practiceClientIntake.id,
       stripePaymentIntentId: paymentIntent.id,
       failureReason: paymentIntent.last_payment_error?.message,
       eventId,
     });
   } catch (error) {
-    consola.error('Failed to handle practice client intake failed', {
+    logger.error('Failed to handle practice client intake failed', {
       error: sanitizeError(error),
       paymentIntentId: paymentIntent.id,
     });
