@@ -1,24 +1,24 @@
 import type {
-  listClientsRoute,
-  createClientRoute,
-  getClientRoute,
-  updateClientRoute,
-  deleteClientRoute,
-  listClientMemosRoute,
-  createClientMemoRoute,
-  updateClientMemoRoute,
-  deleteClientMemoRoute,
-} from '@/modules/clients/routes';
-import { clientMemosService } from '@/modules/clients/services/client-memos.service';
-import { clientsService } from '@/modules/clients/services/clients.service';
+  listUserDetailsRoute as listClientsRoute,
+  createUserDetailsRoute as createClientRoute,
+  getUserDetailRoute as getClientRoute,
+  updateUserDetailsRoute as updateClientRoute,
+  deleteUserDetailRoute as deleteClientRoute,
+  listUserDetailsMemosRoute as listClientMemosRoute,
+  createUserDetailMemoRoute as createClientMemoRoute,
+  updateUserDetailsMemoRoute as updateClientMemoRoute,
+  deleteUserDetailsMemoRoute as deleteClientMemoRoute,
+} from '@/modules/user-details/routes';
+import { clientMemosService } from '@/modules/user-details/services/client-memos.service';
+import { userDetailsService as clientsService } from '@/modules/user-details/services/user-details.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
-export const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = async (c) => {
+export const listUserDetailsHandler: AppRouteHandler<typeof listClientsRoute> = async (c) => {
   const { practiceId: organizationId } = c.req.valid('param');
   const query = c.req.valid('query');
 
-  const result = await clientsService.listClients({
+  const result = await clientsService.listUserDetails({
     organizationId: organizationId,
     ...query,
   });
@@ -30,12 +30,12 @@ export const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = asyn
   return response.ok(c, result.data);
 };
 
-export const createClientHandler: AppRouteHandler<typeof createClientRoute> = async (c) => {
+export const createUserDetailsHandler: AppRouteHandler<typeof createClientRoute> = async (c) => {
   const { practiceId: organizationId } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user')!;
 
-  const result = await clientsService.createClient(organizationId, body, user.id);
+  const result = await clientsService.createUserDetails(organizationId, body, user.id);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -44,10 +44,10 @@ export const createClientHandler: AppRouteHandler<typeof createClientRoute> = as
   return response.created(c, { data: result.data });
 };
 
-export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c) => {
+export const getUserDetailHandler: AppRouteHandler<typeof getClientRoute> = async (c) => {
   const { practiceId: organizationId, uuid } = c.req.valid('param');
 
-  const result = await clientsService.getClient(uuid, organizationId);
+  const result = await clientsService.getUserDetail(uuid, organizationId);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -56,12 +56,12 @@ export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c
   return response.ok(c, { data: result.data });
 };
 
-export const updateClientHandler: AppRouteHandler<typeof updateClientRoute> = async (c) => {
+export const updateUserDetailsHandler: AppRouteHandler<typeof updateClientRoute> = async (c) => {
   const { practiceId: organizationId, uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user')!;
 
-  const result = await clientsService.updateClient(uuid, organizationId, body, user.id);
+  const result = await clientsService.updateUserDetails(uuid, organizationId, body, user.id);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -70,11 +70,11 @@ export const updateClientHandler: AppRouteHandler<typeof updateClientRoute> = as
   return response.ok(c, { data: result.data });
 };
 
-export const deleteClientHandler: AppRouteHandler<typeof deleteClientRoute> = async (c) => {
+export const deleteUserDetailHandler: AppRouteHandler<typeof deleteClientRoute> = async (c) => {
   const { practiceId: organizationId, uuid } = c.req.valid('param');
   const user = c.get('user')!;
 
-  const result = await clientsService.deleteClient(uuid, organizationId, user.id);
+  const result = await clientsService.deleteUserDetail(uuid, organizationId, user.id);
 
   if (!result.success) {
     return response.fromResult(c, result);
@@ -85,7 +85,7 @@ export const deleteClientHandler: AppRouteHandler<typeof deleteClientRoute> = as
 
 // ==================== MEMOS ====================
 
-export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute> = async (c) => {
+export const listUserDetailsMemosHandler: AppRouteHandler<typeof listClientMemosRoute> = async (c) => {
   const { practiceId: organizationId, uuid } = c.req.valid('param');
 
   const result = await clientMemosService.listMemos(uuid, organizationId);
@@ -97,7 +97,7 @@ export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute
   return response.ok(c, { data: result.data });
 };
 
-export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRoute> = async (c) => {
+export const createUserDetailMemoHandler: AppRouteHandler<typeof createClientMemoRoute> = async (c) => {
   const { practiceId: organizationId, uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const user = c.get('user')!;
@@ -114,7 +114,7 @@ export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRou
   return response.created(c, { data: result.data });
 };
 
-export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRoute> = async (c) => {
+export const updateUserDetailMemoHandler: AppRouteHandler<typeof updateClientMemoRoute> = async (c) => {
   const { practiceId: organizationId, uuid, memoId } = c.req.valid('param');
   const body = c.req.valid('json');
 
@@ -127,7 +127,7 @@ export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRou
   return response.ok(c, { data: result.data });
 };
 
-export const deleteClientMemoHandler: AppRouteHandler<typeof deleteClientMemoRoute> = async (c) => {
+export const deleteUserDetailMemoHandler: AppRouteHandler<typeof deleteClientMemoRoute> = async (c) => {
   const { practiceId: organizationId, uuid, memoId } = c.req.valid('param');
 
   const result = await clientMemosService.deleteMemo(memoId, uuid, organizationId);

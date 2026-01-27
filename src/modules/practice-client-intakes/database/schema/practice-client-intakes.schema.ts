@@ -19,21 +19,21 @@ export const practiceClientIntakes = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Relations
-    organizationId: uuid('organization_id')
+    organization_id: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    connectedAccountId: uuid('connected_account_id')
+    connected_account_id: uuid('connected_account_id')
       .notNull()
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
     // Stripe IDs
-    stripePaymentLinkId: text('stripe_payment_link_id').notNull().unique(),
-    stripePaymentIntentId: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
-    stripeChargeId: text('stripe_charge_id'),
+    stripe_payment_link_id: text('stripe_payment_link_id').notNull().unique(),
+    stripe_payment_intent_id: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
+    stripe_charge_id: text('stripe_charge_id'),
 
     // Payment Details (amounts in cents)
     amount: integer('amount').notNull(),
-    applicationFee: integer('application_fee'),
+    application_fee: integer('application_fee'),
     currency: text('currency').notNull().default('usd'),
     status: text('status').notNull(),
 
@@ -41,24 +41,24 @@ export const practiceClientIntakes = pgTable(
     metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
 
     // Security & Tracking
-    clientIp: text('client_ip'),
-    userAgent: text('user_agent'),
+    client_ip: text('client_ip'),
+    user_agent: text('user_agent'),
 
     // Timestamps
-    succeededAt: timestamp('succeeded_at', { withTimezone: true, mode: 'date' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    succeeded_at: timestamp('succeeded_at', { withTimezone: true, mode: 'date' }),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    index('practice_client_intakes_org_idx').on(table.organizationId),
-    index('practice_client_intakes_stripe_link_idx').on(table.stripePaymentLinkId),
-    index('practice_client_intakes_stripe_intent_idx').on(table.stripePaymentIntentId),
+    index('practice_client_intakes_org_idx').on(table.organization_id),
+    index('practice_client_intakes_stripe_link_idx').on(table.stripe_payment_link_id),
+    index('practice_client_intakes_stripe_intent_idx').on(table.stripe_payment_intent_id),
     index('practice_client_intakes_status_idx').on(table.status),
-    index('practice_client_intakes_created_at_idx').on(table.createdAt),
+    index('practice_client_intakes_created_at_idx').on(table.created_at),
   ],
 );
 
@@ -67,11 +67,11 @@ export const practiceClientIntakesRelations = relations(
   practiceClientIntakes,
   ({ one }) => ({
     organization: one(organizations, {
-      fields: [practiceClientIntakes.organizationId],
+      fields: [practiceClientIntakes.organization_id],
       references: [organizations.id],
     }),
     connectedAccount: one(stripeConnectedAccounts, {
-      fields: [practiceClientIntakes.connectedAccountId],
+      fields: [practiceClientIntakes.connected_account_id],
       references: [stripeConnectedAccounts.id],
     }),
   }),
@@ -86,9 +86,11 @@ export const practiceClientIntakeMetadataSchema = z.object({
   email: z.email(),
   name: z.string().min(1),
   phone: z.string().optional(),
-  onBehalfOf: z.string().optional(),
-  opposingParty: z.string().optional(),
+  user_id: z.uuid().optional(),
+  on_behalf_of: z.string().optional(),
+  opposing_party: z.string().optional(),
   description: z.string().optional(),
 });
+
 
 export type PracticeClientIntakeMetadata = z.infer<typeof practiceClientIntakeMetadataSchema>;

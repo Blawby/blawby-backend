@@ -4,13 +4,16 @@
  * Core email sending functionality using Resend
  */
 
-import { Resend } from 'resend';
-import type { EmailJobPayload, EmailSendOptions } from './email.types';
-import { renderTemplate } from '@/shared/services/email/templates';
-import { db } from '@/shared/database/connection';
-import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
 import fs from 'node:fs';
 import path from 'node:path';
+import { getLogger } from '@logtape/logtape';
+import { Resend } from 'resend';
+import type { EmailJobPayload, EmailSendOptions } from './email.types';
+import { db } from '@/shared/database/connection';
+import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
+import { renderTemplate } from '@/shared/services/email/templates';
+
+const logger = getLogger(['shared', 'services', 'email']);
 
 // Lazy-initialized Resend client
 let _resend: Resend | null = null;
@@ -57,9 +60,9 @@ const saveEmailToFile = (to: string, subject: string, html: string) => {
     `;
 
     fs.writeFileSync(filePath, content);
-    console.log(`📂 Email saved for preview: file://${filePath}`);
+    logger.info('Email saved for preview: file://{filePath}', { filePath });
   } catch (error) {
-    console.error('Failed to save email to file:', error);
+    logger.error('Failed to save email to file: {error}', { error });
   }
 };
 
@@ -85,7 +88,9 @@ export const sendEmail = async (
 
     // Skip actual sending if no API key in dev
     if (isLocal && (!apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_'))) {
-      console.log(`📡 [DEV] Skipping actual Resend call for "${payload.subject}". Local preview saved.`);
+      logger.info('📡 [DEV] Skipping actual Resend call for "{subject}". Local preview saved.', {
+        subject: payload.subject,
+      });
 
       // Log success in DB for local tracking
       void db.insert(emailLogs).values({
@@ -95,7 +100,7 @@ export const sendEmail = async (
         templateData: payload.data,
         status: 'sent',
         messageId: 'local_preview_' + Date.now(),
-      }).catch(err => console.error('Failed to log email success:', err));
+      }).catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
 
       return { success: true, messageId: 'local_preview' };
     }
@@ -111,7 +116,7 @@ export const sendEmail = async (
     });
 
     if (result.error) {
-      console.error(`❌ Email send failed:`, result.error);
+      logger.error('❌ Email send failed: {error}', { error: result.error });
 
       // Log failure (fire and forget)
       void db.insert(emailLogs).values({
@@ -121,7 +126,7 @@ export const sendEmail = async (
         templateData: payload.data,
         status: 'failed',
         errorMessage: result.error.message,
-      }).catch(err => console.error('Failed to log email failure:', err));
+      }).catch((err) => logger.error('Failed to log email failure to database: {error}', { error: err }));
 
       return {
         success: false,
@@ -129,7 +134,7 @@ export const sendEmail = async (
       };
     }
 
-    console.log(`✅ Email sent successfully: ${result.data?.id}`);
+    logger.info('✅ Email sent successfully: {messageId}', { messageId: result.data?.id });
 
     // Log success (fire and forget)
     void db.insert(emailLogs).values({
@@ -139,7 +144,7 @@ export const sendEmail = async (
       templateData: payload.data,
       status: 'sent',
       messageId: result.data?.id,
-    }).catch(err => console.error('Failed to log email success:', err));
+    }).catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
 
     return {
       success: true,
@@ -147,7 +152,7 @@ export const sendEmail = async (
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`❌ Email send error:`, errorMessage);
+    logger.error('❌ Email send error: {error}', { error: errorMessage });
 
     // Log unexpected error (fire and forget)
     void db.insert(emailLogs).values({
@@ -157,7 +162,7 @@ export const sendEmail = async (
       templateData: payload.data,
       status: 'failed',
       errorMessage: errorMessage,
-    }).catch(err => console.error('Failed to log unexpected email error:', err));
+    }).catch((err) => logger.error('Failed to log unexpected email error to database: {error}', { error: err }));
 
     return {
       success: false,

@@ -10,13 +10,13 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 
-import { practiceClientsSchema } from '@/modules/clients/database/schema/practice-clients.schema';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
+import { userDetailsSchema } from '@/modules/user-details/database/schema/user-details.schema';
 import { organizations, users } from '@/schema';
 
-const { practiceClients } = practiceClientsSchema;
+const { userDetails } = userDetailsSchema;
 
 export const matters = pgTable(
   'matters',
@@ -27,7 +27,7 @@ export const matters = pgTable(
       .references(() => organizations.id, {
         onDelete: 'cascade',
       }),
-    practice_client_id: uuid('practice_client_id').references(() => practiceClients.id, {
+    client_id: uuid('client_id').references(() => userDetails.id, {
       onDelete: 'set null',
     }),
     title: varchar('title', { length: 255 }).notNull(),
@@ -68,7 +68,7 @@ export const matters = pgTable(
   },
   (table) => [
     index('matters_org_idx').on(table.organization_id),
-    index('matters_client_idx').on(table.practice_client_id),
+    index('matters_client_idx').on(table.client_id),
     index('matters_status_idx').on(table.status),
     index('matters_practice_service_idx').on(table.practice_service_id),
     index('matters_deleted_at_idx').on(table.deleted_at),
@@ -82,9 +82,9 @@ export const mattersRelations = relations(matters, ({ one, many }) => ({
     fields: [matters.organization_id],
     references: [organizations.id],
   }),
-  practiceClient: one(practiceClients, {
-    fields: [matters.practice_client_id],
-    references: [practiceClients.id],
+  client: one(userDetails, {
+    fields: [matters.client_id],
+    references: [userDetails.id],
   }),
   practiceService: one(practiceServices, {
     fields: [matters.practice_service_id],

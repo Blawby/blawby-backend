@@ -8,19 +8,19 @@
  * in the subscription_plans.metered_items JSONB field
  */
 
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { getLogger } from '@logtape/logtape';
-import * as schema from '@/schema';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import {
   getMeteredItemsForOrganization,
   getMeteredItemByType,
 } from '../constants/meteredProducts';
 import type { MeteredItem } from '../constants/meteredProducts';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import * as schema from '@/schema';
 import type { Result } from '@/shared/types/result';
-import { ok, badRequest, internalError, notFound } from '@/shared/utils/result';
+import { ok, badRequest, internalError } from '@/shared/utils/result';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
 
@@ -64,7 +64,7 @@ const ensureMeteredProduct = async (
     if (existingItem) {
       logger.debug('Metered product already attached: {meterName} (org: {organizationId})', {
         meterName: meteredItem.meter_name,
-        organizationId
+        organizationId,
       });
       return ok(existingItem.stripe_subscription_item_id);
     }
@@ -116,14 +116,14 @@ const ensureMeteredProduct = async (
 
     logger.info('Attached metered product: {meterName} to organization {organizationId}', {
       meterName: meteredItem.meter_name,
-      organizationId
+      organizationId,
     });
     return ok(subscriptionItem.id);
   } catch (error) {
     logger.error('Failed to ensure metered product {meterName} for org {organizationId}: {error}', {
       meterName: meteredItem.meter_name,
       organizationId,
-      error
+      error,
     });
     return internalError('Failed to attach metered product');
   }
@@ -157,7 +157,7 @@ const reportMeteredUsage = async (
     if (!meteredItem) {
       logger.debug('Metered item type "{meteredType}" not configured for organization: {organizationId}', {
         meteredType,
-        organizationId
+        organizationId,
       });
       return ok(undefined);
     }
@@ -188,7 +188,7 @@ const reportMeteredUsage = async (
     logger.info('Usage reported: {meterName} +{quantity} (org: {organizationId})', {
       meterName: meteredItem.meter_name,
       quantity,
-      organizationId
+      organizationId,
     });
     return ok(undefined);
   } catch (error) {
@@ -229,9 +229,7 @@ const getCurrentUsage = async (
       org.activeSubscriptionId,
     );
 
-    const meteredItems = lineItems.filter((item) =>
-      item.item_type.startsWith('metered_'),
-    );
+    const meteredItems = lineItems.filter((item) => item.item_type.startsWith('metered_'));
 
     const summary = meteredItems.map((item) => {
       const meterNameValue = (item.metadata as Record<string, unknown>)?.meter_name;

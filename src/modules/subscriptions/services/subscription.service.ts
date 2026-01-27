@@ -5,9 +5,8 @@
  * Integrates with Better Auth Stripe plugin for subscription operations
  */
 
-import { eq, and } from 'drizzle-orm';
 import { getLogger } from '@logtape/logtape';
-
+import { eq, and } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import type {
   CreateSubscriptionRequest,
@@ -16,8 +15,8 @@ import type {
   SubscriptionAPI,
 } from '@/modules/subscriptions/types/subscription.types';
 import { organizations, subscriptions } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { db } from '@/shared/database';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, badRequest, notFound, internalError } from '@/shared/utils/result';
@@ -127,7 +126,7 @@ const getCurrentSubscription = async (
   } catch (error) {
     logger.error('Failed to get current subscription for org {organizationId}: {error}', {
       organizationId,
-      error
+      error,
     });
     return internalError('Failed to retrieve current subscription');
   }
@@ -188,7 +187,7 @@ const ensureOrganizationCustomer = async (
   } catch (error) {
     logger.error('Failed to ensure organization customer for org {organizationId}: {error}', {
       organizationId,
-      error
+      error,
     });
     return internalError('Failed to setup billing customer');
   }
@@ -268,7 +267,7 @@ const createSubscription = async (
   } catch (error) {
     logger.error('Failed to create subscription for org {organizationId}: {error}', {
       organizationId,
-      error
+      error,
     });
     return internalError('Failed to initiate subscription creation');
   }
@@ -326,7 +325,7 @@ const cancelSubscription = async (
     logger.error('Failed to cancel subscription {subscriptionId} for org {organizationId}: {error}', {
       subscriptionId,
       organizationId,
-      error
+      error,
     });
     return internalError('Failed to process subscription cancellation');
   }

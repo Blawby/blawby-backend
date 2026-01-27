@@ -104,6 +104,21 @@ const createPracticeClientIntake = async (
       return fail('Connected account not found');
     }
 
+    // Validate userId if provided - ensure it belongs to a real user (anonymous or registered)
+    let validatedUserId: string | undefined;
+    if (request.userId) {
+      const { db } = await import('@/shared/database');
+      const { users } = await import('@/schema/better-auth-schema');
+      const { eq } = await import('drizzle-orm');
+
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, request.userId)).limit(1);
+      if (user) {
+        validatedUserId = user.id;
+      } else {
+        logger.warn('Invalid userId provided for intake - ignoring: {userId}', { userId: request.userId });
+      }
+    }
+
     const intakeId: string = randomUUID();
 
     const stripePaymentLink = await stripe.paymentLinks.create({
@@ -136,8 +151,10 @@ const createPracticeClientIntake = async (
           description: request.description || '',
           organization_id: organization.id,
           intake_uuid: intakeId,
+          ...(validatedUserId && { user_id: validatedUserId }),
         },
       },
+
       after_completion: {
         type: 'redirect',
         redirect: {
@@ -149,9 +166,9 @@ const createPracticeClientIntake = async (
     // 4. Store practice client intake in database
     const practiceClientIntakeData: InsertPracticeClientIntake = {
       id: intakeId,
-      organizationId: organization.id,
-      connectedAccountId: connectedAccount.id,
-      stripePaymentLinkId: stripePaymentLink.id,
+      organization_id: organization.id,
+      connected_account_id: connectedAccount.id,
+      stripe_payment_link_id: stripePaymentLink.id,
       amount: request.amount,
       currency: 'usd',
       status: 'open', // Payment Link status: open, completed, expired
@@ -159,12 +176,13 @@ const createPracticeClientIntake = async (
         email: request.email,
         name: request.name,
         phone: request.phone,
-        onBehalfOf: request.on_behalf_of,
-        opposingParty: request.opposing_party,
+        on_behalf_of: request.on_behalf_of,
+        opposing_party: request.opposing_party,
         description: request.description,
+        ...(validatedUserId && { user_id: validatedUserId }),
       },
-      clientIp: request.clientIp,
-      userAgent: request.userAgent,
+      client_ip: request.clientIp,
+      user_agent: request.userAgent,
     };
 
     const practiceClientIntake = await practiceClientIntakesRepository.create(practiceClientIntakeData);
@@ -211,9 +229,10 @@ const createPracticeClientIntake = async (
 const updatePracticeClientIntake = async (
   _uuid: string,
   _amount: number,
-): Promise<Result<any>> => {
+): Promise<Result<void>> => {
   return badRequest('Updating practice client intakes is no longer supported. Create a new intake instead.');
 };
+
 
 /**
  * Get practice client intake status by UUID
@@ -232,7 +251,7 @@ const getPracticeClientIntakeStatus = async (
     if (practiceClientIntake.metadata) {
       try {
         metadata = practiceClientIntakeMetadataSchema.parse(practiceClientIntake.metadata);
-      } catch (parseError) {
+      } catch (_parseError) {
         // If metadata doesn't match schema, return null
         metadata = null;
       }
@@ -245,11 +264,12 @@ const getPracticeClientIntakeStatus = async (
         amount: practiceClientIntake.amount,
         currency: practiceClientIntake.currency,
         status: practiceClientIntake.status,
-        stripe_charge_id: practiceClientIntake.stripeChargeId || undefined,
-        metadata: (metadata as any) ?? undefined,
-        succeeded_at: practiceClientIntake.succeededAt?.toISOString() || undefined,
-        created_at: practiceClientIntake.createdAt.toISOString(),
+        stripe_charge_id: practiceClientIntake.stripe_charge_id || undefined,
+        metadata: metadata ?? undefined,
+        succeeded_at: practiceClientIntake.succeeded_at?.toISOString() || undefined,
+        created_at: practiceClientIntake.created_at.toISOString(),
       },
+
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
