@@ -46,6 +46,13 @@ export const paralegalRole = organizationAccessController.newRole({
   // For example: project: ["create", "update"] if you add project resource
 });
 
+// Client role - very limited permissions, can only view their own data
+export const clientRole = organizationAccessController.newRole({
+  // Minimal permissions - no management actions allowed
+  organization: [],
+  member: [],
+});
+
 /**
  * Export all roles for Better Auth configuration
  */
@@ -55,5 +62,6 @@ export const organizationRoles = {
   member: memberRole,
   attorney: attorneyRole,
   paralegal: paralegalRole,
+  client: clientRole,
 };
 

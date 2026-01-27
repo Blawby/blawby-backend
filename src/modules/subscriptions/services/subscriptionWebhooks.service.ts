@@ -1,8 +1,5 @@
 import { getLogger } from '@logtape/logtape';
 import type Stripe from 'stripe';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError } from '@/shared/utils/result';
-
 import {
   handleProductCreated,
   handleProductUpdated,
@@ -11,6 +8,9 @@ import {
   handlePriceUpdated,
   handlePriceDeleted,
 } from '@/modules/subscriptions/handlers/index';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError } from '@/shared/utils/result';
+
 
 const logger = getLogger(['subscriptions', 'webhook-service']);
 
@@ -21,7 +21,7 @@ const processSubscriptionWebhookEvent = async (
   event: Stripe.Event,
 ): Promise<Result<void>> => {
   try {
-    logger.info("Processing subscription webhook event: {eventType}", { eventType: event.type });
+    logger.info('Processing subscription webhook event: {eventType}', { eventType: event.type });
 
     switch (event.type) {
       case 'product.created':
@@ -49,13 +49,13 @@ const processSubscriptionWebhookEvent = async (
         break;
 
       default:
-        logger.info("Unhandled subscription webhook event type: {eventType}", { eventType: event.type });
+        logger.info('Unhandled subscription webhook event type: {eventType}', { eventType: event.type });
     }
 
-    logger.info("Successfully processed subscription webhook event: {eventType}", { eventType: event.type });
+    logger.info('Successfully processed subscription webhook event: {eventType}', { eventType: event.type });
     return ok(undefined);
   } catch (error) {
-    logger.error("Failed to process subscription webhook event {eventType}: {error}", {
+    logger.error('Failed to process subscription webhook event {eventType}: {error}', {
       eventType: event.type,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,

@@ -22,7 +22,12 @@ export const users = pgTable('users', {
   phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
   stripeCustomerId: text('stripe_customer_id'), // Stripe customer ID for billing
+  role: text('role'), // Admin plugin: user role
+  banned: boolean('banned'), // Admin plugin: banned status
+  banReason: text('ban_reason'), // Admin plugin: reason for ban
+  banExpires: timestamp('ban_expires'), // Admin plugin: ban expiration
   createdAt: timestamp('created_at').defaultNow().notNull(),
+
   updatedAt: timestamp('updated_at')
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
@@ -44,7 +49,9 @@ export const sessions = pgTable('sessions', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   activeOrganizationId: uuid('active_organization_id'),
+  impersonatedBy: text('impersonated_by'), // Admin plugin: impersonator ID
 });
+
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),

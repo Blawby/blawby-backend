@@ -55,7 +55,7 @@ const findMatterByIdWithRelations = async (id: string) => {
       milestones: {
         orderBy: (milestones, { asc }) => [asc(milestones.order)],
       },
-      practiceClient: true,
+      client: true,
     },
   });
 };
@@ -78,7 +78,8 @@ const listMattersByOrganization = async (
   filters?: {
     status?: string;
     practice_service_id?: string;
-    practice_client_id?: string;
+    client_id?: string;
+
     assignee_id?: string;
     search?: string;
     page?: number;
@@ -102,9 +103,10 @@ const listMattersByOrganization = async (
     conditions.push(eq(matters.practice_service_id, filters.practice_service_id));
   }
 
-  if (filters?.practice_client_id) {
-    conditions.push(eq(matters.practice_client_id, filters.practice_client_id));
+  if (filters?.client_id) {
+    conditions.push(eq(matters.client_id, filters.client_id));
   }
+
 
   if (filters?.search) {
     conditions.push(
@@ -120,7 +122,8 @@ const listMattersByOrganization = async (
       .select({
         id: matters.id,
         organization_id: matters.organization_id,
-        practice_client_id: matters.practice_client_id,
+        client_id: matters.client_id,
+
         title: matters.title,
         description: matters.description,
         billing_type: matters.billing_type,
