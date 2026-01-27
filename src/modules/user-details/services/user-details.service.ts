@@ -15,7 +15,7 @@ import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
 
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { ok, internalError, notFound, accepted } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['user-details', 'service']);
@@ -43,7 +43,13 @@ const createUserDetails = async (
   },
   actorId: string,
 ): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect }>> => {
-  return await db.transaction(async (tx) => {
+  // Variables to capture for post-transaction event dispatch
+  let eventData: {
+    detail: SelectUserDetail;
+    user: typeof users.$inferSelect;
+  } | undefined;
+
+  const txResult = await db.transaction(async (tx) => {
     try {
       // 1. Find existing user by email or invite them
       const user = await usersRepository.findByEmail(data.email);
@@ -64,8 +70,8 @@ const createUserDetails = async (
 
           // For now, we cannot create user_details without a user record.
           // The user_details will be created when the invitation is accepted.
-          // Return a specific error to indicate this.
-          return internalError('Invitation sent to client. User details will be created when they accept the invitation.');
+          // Return a pending/accepted status to indicate deferred creation.
+          return accepted('Invitation sent to client. User details will be created when they accept the invitation.');
         } catch (inviteError) {
           logger.error('Failed to send invitation to {email}: {error}', {
             email: data.email,
@@ -142,14 +148,8 @@ const createUserDetails = async (
         currency: data.currency ?? 'usd',
       });
 
-      // 6. Publish event
-      await UserDetailsCreated.dispatch({
-        user_detail_id: detail.id,
-        user_id: user.id,
-        name: user.name,
-        email: user.email,
-        stripe_customer_id: detail.stripe_customer_id ?? undefined,
-      }, { actorId, organizationId, tx: tx });
+      // Capture data for post-transaction event dispatch
+      eventData = { detail, user };
 
       return ok({ ...detail, user });
     } catch (error) {
@@ -157,6 +157,19 @@ const createUserDetails = async (
       return internalError('Failed to create user details');
     }
   });
+
+  // 6. Publish event AFTER transaction commits successfully
+  if (txResult.success && eventData) {
+    void UserDetailsCreated.dispatch({
+      user_detail_id: eventData.detail.id,
+      user_id: eventData.user.id,
+      name: eventData.user.name,
+      email: eventData.user.email,
+      stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
+    }, { actorId, organizationId });
+  }
+
+  return txResult;
 };
 
 

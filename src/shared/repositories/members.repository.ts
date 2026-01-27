@@ -33,6 +33,15 @@ const findByOrgAndUser = async (params: {
 type OrganizationRole = 'owner' | 'admin' | 'member' | 'attorney' | 'paralegal' | 'client';
 
 /**
+ * Type guard to validate member record shape from Better Auth API
+ */
+const isMemberRecord = (value: unknown): value is SelectMember => typeof value === 'object'
+  && value !== null
+  && 'id' in value
+  && 'organizationId' in value
+  && 'userId' in value;
+
+/**
  * Programmatically add a member to an organization using the Better Auth API
  * This ensures roles and permissions are correctly handled.
  */
@@ -50,14 +59,11 @@ const create = async (data: {
     },
   });
 
-
-  if (!result) {
-    throw new Error('Failed to add member via Better Auth');
+  if (!result || !isMemberRecord(result)) {
+    throw new Error('Unexpected addMember response shape');
   }
 
-  // Better Auth API returns the member object directly or in a wrap depending on context
-  // In server-side auth.api, it typically returns the DB record.
-  return result as SelectMember;
+  return result;
 };
 
 export const membersRepository = {

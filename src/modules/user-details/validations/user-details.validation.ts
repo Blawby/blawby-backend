@@ -2,7 +2,7 @@ import { z } from '@hono/zod-openapi';
 
 export const createUserDetailsSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
-  email: z.string().email('Invalid email address').max(255),
+  email: z.email('Invalid email address').max(255),
   phone: z.string().max(50).optional(),
 
   // Address grouped for convenience but mapped in service
@@ -31,7 +31,7 @@ export const listUserDetailsSchema = z.object({
 
 export const userDetailParamsSchema = z.object({
   practiceId: z.uuid('Invalid practice ID'),
-  uuid: z.uuid('Invalid client ID'),
+  uuid: z.uuid('Invalid user detail ID'),
 }).openapi('UserDetailParams');
 
 export const practiceParamsSchema = z.object({

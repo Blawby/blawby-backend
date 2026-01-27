@@ -13,7 +13,7 @@ const createPracticeClientIntakeSchema = z.object({
     example: 'John Doe',
   }),
   description: z.string().max(500).optional(),
-  userId: z.uuid().optional(),
+  user_id: z.uuid().optional(),
 });
 
 const updatePracticeClientIntakeSchema = z.object({
@@ -93,7 +93,7 @@ const practiceClientIntakeStatusResponseSchema = z.object({
       on_behalf_of: z.string().optional(),
       opposing_party: z.string().optional(),
       description: z.string().optional(),
-      userId: z.string().optional(),
+      user_id: z.uuid().optional(),
     }).optional(),
     succeeded_at: z.string().optional(),
     created_at: z.string(),

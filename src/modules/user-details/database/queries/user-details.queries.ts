@@ -1,7 +1,7 @@
 import {
   eq, desc, and, ilike, or, sql, type SQL,
 } from 'drizzle-orm';
-import { type Address } from '@/modules/practice/database/schema/addresses.schema';
+import { addresses, type Address } from '@/modules/practice/database/schema/addresses.schema';
 import {
   userDetailsSchema,
   type InsertUserDetail,
@@ -127,22 +127,34 @@ const listClients = async (params: {
 
   const whereClause = and(...conditions);
 
+  // Use consistent query approach for both count and data
   const [totalResult] = await db
     .select({ count: sql<number>`count(*)` })
     .from(userDetails)
     .innerJoin(users, eq(userDetails.user_id, users.id))
     .where(whereClause);
 
-  const data = await db.query.userDetails.findMany({
-    where: whereClause,
-    orderBy: desc(userDetails.created_at),
-    limit,
-    offset,
-    with: {
-      address: true,
-      user: true,
-    },
-  });
+  // Use select-based query with explicit joins to match count query behavior
+  const rows = await db
+    .select({
+      userDetail: userDetails,
+      user: users,
+      address: addresses,
+    })
+    .from(userDetails)
+    .innerJoin(users, eq(userDetails.user_id, users.id))
+    .leftJoin(addresses, eq(userDetails.address_id, addresses.id))
+    .where(whereClause)
+    .orderBy(desc(userDetails.created_at))
+    .limit(limit)
+    .offset(offset);
+
+  // Reshape results to match expected return type
+  const data = rows.map((row) => ({
+    ...row.userDetail,
+    user: row.user,
+    address: row.address,
+  }));
 
   return {
     data: data as (SelectUserDetail & { user: typeof users.$inferSelect; address: Address | null })[],

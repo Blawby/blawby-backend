@@ -1,10 +1,10 @@
-import { getLogger } from '@logtape/logtape';
+import { getLogger, type Logger } from '@logtape/logtape';
 import { eq, and } from 'drizzle-orm';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { members } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
-const logger = getLogger(['auth', 'link-service']);
+const logger: Logger = getLogger(['auth', 'link-service']);
 
 /**
  * Transfers data from an anonymous user to a new user account.
@@ -23,7 +23,7 @@ export const linkAnonymousUserData = async (params: {
 
   await db.transaction(async (tx) => {
     // 1. Move organization memberships
-    const anonMemberships = await tx.select().from(members).where(eq(members.userId, anonymousUser.id));
+    const anonMemberships: Array<typeof members.$inferSelect> = await tx.select().from(members).where(eq(members.userId, anonymousUser.id));
 
     for (const membership of anonMemberships) {
       // Check if new user already belongs to this organization
@@ -48,7 +48,7 @@ export const linkAnonymousUserData = async (params: {
     }
 
     // 2. Move User Details (Clients)
-    const anonDetails = await tx.select().from(userDetails).where(eq(userDetails.user_id, anonymousUser.id));
+    const anonDetails: Array<typeof userDetails.$inferSelect> = await tx.select().from(userDetails).where(eq(userDetails.user_id, anonymousUser.id));
 
     for (const detail of anonDetails) {
       // Check if new user already has details in this organization

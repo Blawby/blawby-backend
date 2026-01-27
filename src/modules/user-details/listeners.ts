@@ -41,7 +41,6 @@ export const registerUserDetailsListeners = (): void => {
     logger.info('Creating user details from successful intake', {
       intakeId: payload.uuid,
       userId: userId ?? 'none',
-      email: payload.client_email,
     });
 
     // Use organizationId from the event context
