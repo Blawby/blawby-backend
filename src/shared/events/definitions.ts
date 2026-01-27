@@ -350,11 +350,13 @@ export class IntakePaymentSucceeded extends BaseEvent<{
   currency: string;
   client_email?: string;
   client_name?: string;
+  user_id?: string;
   stripe_charge_id?: string;
   succeeded_at: string;
 }> {
   static type = 'intake_payment.succeeded' as const;
 }
+
 
 export class IntakePaymentFailed extends BaseEvent<{
   stripe_payment_intent_id: string;
@@ -399,35 +401,37 @@ export class SubscriptionPaymentFailed extends BaseEvent<Record<string, unknown>
 // CLIENT EVENTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export class ClientCreated extends BaseEvent<{
-  client_id: string;
+export class UserDetailsCreated extends BaseEvent<{
+  user_detail_id: string;
+  user_id: string;
   name: string;
   email: string;
   stripe_customer_id?: string;
 }> {
-  static type = 'client.created' as const;
+  static type = 'user_details.created' as const;
 }
 
-export class ClientUpdated extends BaseEvent<{
-  client_id: string;
+export class UserDetailsUpdated extends BaseEvent<{
+  user_detail_id: string;
   changes?: Record<string, unknown>;
 }> {
-  static type = 'client.updated' as const;
+  static type = 'user_details.updated' as const;
 }
 
-export class ClientDeleted extends BaseEvent<{
-  client_id: string;
+export class UserDetailsDeleted extends BaseEvent<{
+  user_detail_id: string;
 }> {
-  static type = 'client.deleted' as const;
+  static type = 'user_details.deleted' as const;
 }
 
-export class ClientStatusChanged extends BaseEvent<{
-  client_id: string;
+export class UserDetailsStatusChanged extends BaseEvent<{
+  user_detail_id: string;
   old_status: string;
   new_status: string;
 }> {
-  static type = 'client.status_changed' as const;
+  static type = 'user_details.status_changed' as const;
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MATTER EVENTS
@@ -605,11 +609,12 @@ export const EventClasses = {
   'subscription.renewed': SubscriptionRenewed,
   'subscription.payment_failed': SubscriptionPaymentFailed,
 
-  // Client
-  'client.created': ClientCreated,
-  'client.updated': ClientUpdated,
-  'client.deleted': ClientDeleted,
-  'client.status_changed': ClientStatusChanged,
+  // User Details
+  'user_details.created': UserDetailsCreated,
+  'user_details.updated': UserDetailsUpdated,
+  'user_details.deleted': UserDetailsDeleted,
+  'user_details.status_changed': UserDetailsStatusChanged,
+
 
   // System
   'system.health_check_performed': SystemHealthCheckPerformed,

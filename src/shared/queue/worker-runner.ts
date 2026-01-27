@@ -9,11 +9,16 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { run, TaskList } from 'graphile-worker';
-import { Client } from 'pg';
+import { run } from 'graphile-worker';
+import type { TaskList } from 'graphile-worker';
+import pg from 'pg';
+import type { Client as PgClient } from 'pg';
 import { bootCore } from '@/boot';
+import { initializeLogging } from '@/shared/logging/config';
 import { getWorkerUtils } from '@/shared/queue/graphile-worker.client';
 import { graphileWorkerConfig, TASK_NAMES } from '@/shared/queue/queue.config';
+
+const { Client } = pg;
 
 const logger = getLogger(['queue', 'worker-runner']);
 
@@ -31,7 +36,7 @@ interface WorkerOptions {
  * This listener picks up that notification and immediately triggers outbox processing,
  * reducing latency from up to 1000ms (polling) to <10ms.
  */
-const setupEventListener = async (connectionString: string): Promise<Client> => {
+const setupEventListener = async (connectionString: string): Promise<PgClient> => {
   const client = new Client({ connectionString });
 
   try {
@@ -81,6 +86,10 @@ const setupEventListener = async (connectionString: string): Promise<Client> => 
  */
 export const runWorker = async (options: WorkerOptions): Promise<void> => {
   const { name, taskList, concurrency } = options;
+
+  // 0. Initialize logging system
+  await initializeLogging();
+
   // 1. Ensure the application environment is ready (Events, Services, etc.)
   // This is the "Everything should be ready" part
   bootCore();
@@ -95,7 +104,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
 
   logger.info('Starting worker {name}', { name, schema, concurrency: workerConcurrency });
 
-  let listenClient: Client | null = null;
+  let listenClient: PgClient | null = null;
 
   try {
     // Start the Graphile Worker runner

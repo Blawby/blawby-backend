@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-export const createClientSchema = z.object({
+export const createUserDetailsSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   email: z.email('Invalid email address').max(255),
   phone: z.string().max(50).optional(),
@@ -18,21 +18,21 @@ export const createClientSchema = z.object({
   status: z.enum(['lead', 'active', 'inactive', 'archived']).default('lead'),
   currency: z.string().length(3).default('usd'),
   event_name: z.string().max(255).optional(),
-}).openapi('CreateClient');
+}).openapi('CreateUserDetails');
 
-export const updateClientSchema = createClientSchema.partial().openapi('UpdateClient');
+export const updateUserDetailsSchema = createUserDetailsSchema.partial().openapi('UpdateUserDetails');
 
-export const listClientsSchema = z.object({
+export const listUserDetailsSchema = z.object({
   search: z.string().optional(),
   status: z.enum(['lead', 'active', 'inactive', 'archived']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
-}).openapi('ListClients');
+}).openapi('ListUserDetails');
 
-export const clientParamsSchema = z.object({
+export const userDetailParamsSchema = z.object({
   practiceId: z.uuid('Invalid practice ID'),
-  uuid: z.uuid('Invalid client ID'),
-}).openapi('ClientParams');
+  uuid: z.uuid('Invalid user detail ID'),
+}).openapi('UserDetailParams');
 
 export const practiceParamsSchema = z.object({
   practiceId: z.uuid('Invalid practice ID'),
@@ -41,14 +41,19 @@ export const practiceParamsSchema = z.object({
 // Alias for backwards compatibility
 export const orgParamsSchema = practiceParamsSchema;
 
-export const clientSchema = z.object({
+export const userDetailSchema = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
-  name: z.string(),
-  email: z.email(),
-  phone: z.string().nullable(),
+  user_id: z.uuid(),
+  user: z.object({
+    id: z.uuid(),
+    name: z.string(),
+    email: z.string(),
+    phone: z.string().nullable(),
+  }),
   address_id: z.uuid().nullable(),
   status: z.enum(['lead', 'active', 'inactive', 'archived']),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
-}).openapi('Client');
+  currency: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).openapi('UserDetail');

@@ -11,17 +11,16 @@ import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
-export const practiceClients = pgTable(
-  'practice_clients',
+export const userDetails = pgTable(
+  'user_details',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organization_id: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-
-    name: varchar('name', { length: 255 }).notNull(),
-    email: varchar('email', { length: 255 }).notNull(),
-    phone: varchar('phone', { length: 50 }),
+    user_id: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
 
     address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
 
@@ -43,40 +42,46 @@ export const practiceClients = pgTable(
       .notNull(),
   },
   (table) => [
-    index('practice_clients_org_idx').on(table.organization_id),
-    index('practice_clients_email_idx').on(table.email),
-    index('practice_clients_status_idx').on(table.status),
-    index('practice_clients_stripe_id_idx').on(table.stripe_customer_id),
-    index('practice_clients_address_idx').on(table.address_id),
-    index('practice_clients_deleted_at_idx').on(table.deleted_at),
-    index('practice_clients_created_at_idx').on(table.created_at),
-    unique('practice_clients_org_email_unique').on(table.organization_id, table.email),
+    index('user_details_org_idx').on(table.organization_id),
+    index('user_details_user_idx').on(table.user_id),
+    index('user_details_status_idx').on(table.status),
+    index('user_details_stripe_id_idx').on(table.stripe_customer_id),
+    index('user_details_address_idx').on(table.address_id),
+    index('user_details_deleted_at_idx').on(table.deleted_at),
+    index('user_details_created_at_idx').on(table.created_at),
+    unique('user_details_org_user_unique').on(table.organization_id, table.user_id),
   ],
 );
 
-export const practiceClientsRelations = relations(practiceClients, ({ one }) => ({
+export const userDetailsRelations = relations(userDetails, ({ one }) => ({
   organization: one(organizations, {
-    fields: [practiceClients.organization_id],
+    fields: [userDetails.organization_id],
     references: [organizations.id],
   }),
+  user: one(users, {
+    fields: [userDetails.user_id],
+    references: [users.id],
+    relationName: 'user',
+  }),
   intake: one(practiceClientIntakes, {
-    fields: [practiceClients.intake_id],
+    fields: [userDetails.intake_id],
     references: [practiceClientIntakes.id],
   }),
   address: one(addresses, {
-    fields: [practiceClients.address_id],
+    fields: [userDetails.address_id],
     references: [addresses.id],
   }),
   deletedByUser: one(users, {
-    fields: [practiceClients.deleted_by],
+    fields: [userDetails.deleted_by],
     references: [users.id],
+    relationName: 'deletedBy',
   }),
 }));
 
-export const practiceClientsSchema = {
-  practiceClients,
-  practiceClientsRelations,
+export const userDetailsSchema = {
+  userDetails,
+  userDetailsRelations,
 };
 
-export type InsertPracticeClient = typeof practiceClients.$inferInsert;
-export type SelectPracticeClient = typeof practiceClients.$inferSelect;
+export type InsertUserDetail = typeof userDetails.$inferInsert;
+export type SelectUserDetail = typeof userDetails.$inferSelect;

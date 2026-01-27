@@ -4,11 +4,11 @@
  * if referenceId is not provided, before the request reaches Better Auth
  */
 
+import { eq, inArray } from 'drizzle-orm';
+import type { MiddlewareHandler } from 'hono';
+import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { eq, inArray } from 'drizzle-orm';
-import * as schema from '@/schema';
-import type { MiddlewareHandler } from 'hono';
 
 const generateSlug = (name: string): string => {
   return name
@@ -28,7 +28,16 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
     try {
       // Clone request to read body without consuming the original
       const clonedRequest = c.req.raw.clone();
-      const body = await clonedRequest.json().catch(() => ({}));
+      let body: Record<string, unknown> = {};
+
+      const contentLength = c.req.header('content-length');
+      if (contentLength && contentLength !== '0') {
+        try {
+          body = await clonedRequest.json();
+        } catch (_err) {
+          body = {};
+        }
+      }
 
       // If referenceId is already provided, skip
       if (body.referenceId) {

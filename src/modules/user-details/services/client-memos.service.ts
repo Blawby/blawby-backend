@@ -1,10 +1,10 @@
 import { getLogger } from '@logtape/logtape';
-import { practiceClientMemosRepository } from '@/modules/clients/database/queries/practice-client-memos.queries';
-import { practiceClientsRepository } from '@/modules/clients/database/queries/practice-clients.queries';
+import { practiceClientMemosRepository } from '@/modules/user-details/database/queries/practice-client-memos.queries';
+import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
 import {
   type SelectPracticeClientMemo,
   type InsertPracticeClientMemo,
-} from '@/modules/clients/database/schema/practice-client-memos.schema';
+} from '@/modules/user-details/database/schema/practice-client-memos.schema';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 
@@ -17,7 +17,7 @@ const createMemo = async (
   userId: string,
 ): Promise<Result<SelectPracticeClientMemo>> => {
   try {
-    const client = await practiceClientsRepository.findById(clientId);
+    const client = await userDetailsRepository.findById(clientId);
     if (!client || client.organization_id !== organizationId) {
       return notFound('Client not found');
     }
@@ -47,7 +47,7 @@ const updateMemo = async (
       return notFound('Memo not found');
     }
 
-    const client = await practiceClientsRepository.findById(clientId);
+    const client = await userDetailsRepository.findById(clientId);
     if (!client || client.organization_id !== organizationId) {
       return notFound('Client not found');
     }
@@ -73,7 +73,7 @@ const deleteMemo = async (
       return notFound('Memo not found');
     }
 
-    const client = await practiceClientsRepository.findById(clientId);
+    const client = await userDetailsRepository.findById(clientId);
     if (!client || client.organization_id !== organizationId) {
       return notFound('Client not found');
     }
@@ -88,7 +88,7 @@ const deleteMemo = async (
 
 const listMemos = async (clientId: string, organizationId: string): Promise<Result<SelectPracticeClientMemo[]>> => {
   try {
-    const client = await practiceClientsRepository.findById(clientId);
+    const client = await userDetailsRepository.findById(clientId);
     if (!client || client.organization_id !== organizationId) {
       return notFound('Client not found');
     }

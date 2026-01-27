@@ -5,12 +5,12 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import type Stripe from 'stripe';
 import type { Task } from 'graphile-worker';
-import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
+import type Stripe from 'stripe';
 import subscriptionWebhooksService from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
+import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import {
   isPaymentIntentEvent,
   isSubscriptionEvent,
@@ -31,9 +31,9 @@ interface ProcessStripeWebhookPayload {
  */
 const isOnboardingEvent = (eventType: string): boolean => {
   return (
-    eventType.startsWith('account.') ||
-    eventType.startsWith('capability.') ||
-    eventType.startsWith('account.external_account.')
+    eventType.startsWith('account.')
+    || eventType.startsWith('capability.')
+    || eventType.startsWith('account.external_account.')
   );
 };
 
