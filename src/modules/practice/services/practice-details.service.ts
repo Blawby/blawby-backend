@@ -38,7 +38,7 @@ const getPracticeDetails = async (
   try {
     // 1. Verify organization exists and user has access via Better Auth
     const organizationResult = await getFullOrganization(
-      organizationId,
+      organization_id: organizationId,
       user,
       requestHeaders,
     );
@@ -83,7 +83,7 @@ const getPracticeDetails = async (
         'created_at',
         'updated_at',
       ]),
-      organizationId,
+      organization_id: organizationId,
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       is_public: fetchedDetails?.is_public ?? false,
@@ -108,7 +108,7 @@ const upsertPracticeDetails = async (
   try {
     // 1. Verify organization exists and user has access via Better Auth
     const orgResult = await getFullOrganization(
-      organizationId,
+      organization_id: organizationId,
       user,
       requestHeaders,
     );
@@ -211,7 +211,7 @@ const upsertPracticeDetails = async (
         'created_at',
         'updated_at',
       ]),
-      organizationId,
+      organization_id: organizationId,
       address: practiceDetailsResult.addressResult,
       services: practiceDetailsResult.syncedServices.map((s) => ({ id: s.id, name: s.name, key: s.key })),
     };
@@ -331,7 +331,7 @@ const getPracticeDetailsBySlug = async (
         'created_at',
         'updated_at',
       ]),
-      organizationId: organization.id,
+      organization_id: organization.id,
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       name: organization.name,
