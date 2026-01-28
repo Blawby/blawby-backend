@@ -2,7 +2,7 @@ import { z } from '@hono/zod-openapi';
 
 export const createMemoSchema = z.object({
   content: z.string().min(1, 'Content is required'),
-  event_time: z.string().datetime().optional(),
+  event_time: z.iso.datetime().optional(),
 }).openapi('CreateMemo');
 
 export const updateMemoSchema = z.object({
@@ -20,7 +20,8 @@ export const clientMemoSchema = z.object({
   client_id: z.uuid(),
   created_by: z.uuid(),
   content: z.string(),
-  event_time: z.string().datetime().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  event_time: z.iso.datetime().nullable(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 }).openapi('ClientMemo');
+
