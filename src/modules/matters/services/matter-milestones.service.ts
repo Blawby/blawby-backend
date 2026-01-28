@@ -1,10 +1,6 @@
-/**
- * Matter Milestones Service
- *
- * Handles business logic for matter milestones operations
- */
-
+import { getLogger } from '@logtape/logtape';
 import milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
+import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
 import { getMatterById } from '@/modules/matters/services/matters.service';
 import type {
@@ -13,6 +9,10 @@ import type {
   ReorderMilestonesRequest,
 } from '@/modules/matters/types/matter.types';
 import type { User } from '@/shared/types/BetterAuth';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError, notFound } from '@/shared/utils/result';
+
+const logger = getLogger(['matters', 'services', 'milestones']);
 
 /**
  * Create a matter milestone
@@ -23,30 +23,42 @@ export const createMatterMilestone = async (
   data: CreateMatterMilestoneRequest,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<SelectMatterMilestone>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
+  }
 
-  const milestone = await milestonesQueries.createMatterMilestone({
-    matter_id: matterId,
-    description: data.description,
-    amount: data.amount,
-    due_date: data.due_date,
-    status: data.status,
-    order: data.order,
-  });
+  try {
+    const milestone = await milestonesQueries.createMatterMilestone({
+      matter_id: matterId,
+      description: data.description,
+      amount: data.amount,
+      due_date: data.due_date,
+      status: data.status,
+      order: data.order,
+    });
 
-  // Log activity
-  const amountFormatted = (data.amount / 100).toFixed(2);
-  await logMatterActivity(
-    matterId,
-    ActivityAction.MILESTONE_CREATED,
-    `${user.name || user.email} created milestone: ${data.description} ($${amountFormatted})`,
-    user.id,
-    { amount: data.amount, due_date: data.due_date },
-  );
+    // Log activity
+    const amountFormatted = (data.amount / 100).toFixed(2);
+    await logMatterActivity(
+      matterId,
+      ActivityAction.MILESTONE_CREATED,
+      `${user.name || user.email} created milestone: ${data.description} ($${amountFormatted})`,
+      user.id,
+      { amount: data.amount, due_date: data.due_date },
+    );
 
-  return milestone;
+    return ok(milestone);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to create matter milestone {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -57,11 +69,24 @@ export const listMatterMilestones = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<SelectMatterMilestone[]>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
+  }
 
-  return await milestonesQueries.listMatterMilestones(matterId);
+  try {
+    const milestones = await milestonesQueries.listMatterMilestones(matterId);
+    return ok(milestones);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to list matter milestones {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -74,43 +99,49 @@ export const updateMatterMilestone = async (
   data: UpdateMatterMilestoneRequest,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<SelectMatterMilestone>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
-
-  // Verify milestone exists and belongs to matter
-  const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
-  if (!milestone || milestone.matter_id !== matterId) {
-    throw new Error('Milestone not found');
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
   }
 
-  // Convert date if provided
-  const updateData = {
-    ...data,
-    due_date: data.due_date,
-  };
+  try {
+    // Verify milestone exists and belongs to matter
+    const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
+    if (!milestone || milestone.matter_id !== matterId) {
+      return notFound('Milestone not found');
+    }
 
-  const updated = await milestonesQueries.updateMatterMilestone(milestoneId, updateData);
+    const updated = await milestonesQueries.updateMatterMilestone(milestoneId, data);
 
-  // Log activity
-  await logMatterActivity(
-    matterId,
-    ActivityAction.MILESTONE_UPDATED,
-    `${user.name || user.email} updated milestone: ${updated!.description}`,
-    user.id,
-  );
-
-  // Check if milestone was marked as completed
-  if (data.status === 'completed' && milestone.status !== 'completed') {
+    // Log activity
     await logMatterActivity(
       matterId,
-      ActivityAction.MILESTONE_COMPLETED,
-      `${user.name || user.email} completed milestone: ${milestone.description}`,
+      ActivityAction.MILESTONE_UPDATED,
+      `${user.name || user.email} updated milestone: ${updated!.description}`,
       user.id,
     );
-  }
 
-  return updated;
+    // Check if milestone was marked as completed
+    if (data.status === 'completed' && milestone.status !== 'completed') {
+      await logMatterActivity(
+        matterId,
+        ActivityAction.MILESTONE_COMPLETED,
+        `${user.name || user.email} completed milestone: ${milestone.description}`,
+        user.id,
+      );
+    }
+
+    return ok(updated!);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to update matter milestone {milestoneId}: {error}', {
+      milestoneId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -122,25 +153,39 @@ export const deleteMatterMilestone = async (
   milestoneId: string,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
-
-  // Verify milestone exists and belongs to matter
-  const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
-  if (!milestone || milestone.matter_id !== matterId) {
-    throw new Error('Milestone not found');
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
   }
 
-  await milestonesQueries.deleteMatterMilestone(milestoneId);
+  try {
+    // Verify milestone exists and belongs to matter
+    const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
+    if (!milestone || milestone.matter_id !== matterId) {
+      return notFound('Milestone not found');
+    }
 
-  // Log activity
-  await logMatterActivity(
-    matterId,
-    ActivityAction.MILESTONE_DELETED,
-    `${user.name || user.email} deleted milestone: ${milestone.description}`,
-    user.id,
-  );
+    await milestonesQueries.deleteMatterMilestone(milestoneId);
+
+    // Log activity
+    await logMatterActivity(
+      matterId,
+      ActivityAction.MILESTONE_DELETED,
+      `${user.name || user.email} deleted milestone: ${milestone.description}`,
+      user.id,
+    );
+
+    return ok({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to delete matter milestone {milestoneId}: {error}', {
+      milestoneId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -152,27 +197,41 @@ export const reorderMilestones = async (
   data: ReorderMilestonesRequest,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
-
-  // Verify all milestones belong to this matter
-  for (const item of data.milestones) {
-    const milestone = await milestonesQueries.findMatterMilestoneById(item.id);
-    if (!milestone || milestone.matter_id !== matterId) {
-      throw new Error(`Milestone ${item.id} not found or does not belong to this matter`);
-    }
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
   }
 
-  await milestonesQueries.reorderMilestones(data.milestones);
+  try {
+    // Verify all milestones belong to this matter
+    for (const item of data.milestones) {
+      const milestone = await milestonesQueries.findMatterMilestoneById(item.id);
+      if (!milestone || milestone.matter_id !== matterId) {
+        return notFound(`Milestone ${item.id} not found or does not belong to this matter`);
+      }
+    }
 
-  // Log activity
-  await logMatterActivity(
-    matterId,
-    ActivityAction.MILESTONE_UPDATED,
-    `${user.name || user.email} reordered milestones`,
-    user.id,
-  );
+    await milestonesQueries.reorderMilestones(data.milestones);
+
+    // Log activity
+    await logMatterActivity(
+      matterId,
+      ActivityAction.MILESTONE_UPDATED,
+      `${user.name || user.email} reordered milestones`,
+      user.id,
+    );
+
+    return ok({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to reorder milestones {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -183,16 +242,38 @@ export const getMilestoneStats = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<{
+  total: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  overdue: number;
+  totalAmount: number;
+  completedAmount: number;
+  completionPercentage: number;
+}>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
+  }
 
-  const stats = await milestonesQueries.getMilestoneStats(matterId);
+  try {
+    const stats = await milestonesQueries.getMilestoneStats(matterId);
 
-  return {
-    ...stats,
-    totalAmount: stats.totalAmount / 100,
-    completedAmount: stats.completedAmount / 100,
-    completionPercentage: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0,
-  };
+    return ok({
+      ...stats,
+      totalAmount: stats.totalAmount / 100,
+      completedAmount: stats.completedAmount / 100,
+      completionPercentage: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get milestone stats {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
+

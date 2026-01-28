@@ -4,6 +4,7 @@
  * Handles logging and retrieval of matter activity
  */
 
+import { getLogger } from '@logtape/logtape';
 import { eq, desc } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
@@ -12,6 +13,10 @@ import {
 } from '@/modules/matters/database/schema/matter-activity-log.schema';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError } from '@/shared/utils/result';
+
+const logger = getLogger(['matters', 'services', 'activity']);
 
 /**
  * Log activity for a matter
@@ -48,17 +53,28 @@ export const getMatterActivity = async (
     limit?: number;
     offset?: number;
   },
-): Promise<SelectMatterActivityLog[]> => {
+): Promise<Result<SelectMatterActivityLog[]>> => {
   const limit = options?.limit || 50;
   const offset = options?.offset || 0;
 
-  return await db
-    .select()
-    .from(matterActivityLog)
-    .where(eq(matterActivityLog.matter_id, matterId))
-    .orderBy(desc(matterActivityLog.created_at))
-    .limit(limit)
-    .offset(offset);
+  try {
+    const activity = await db
+      .select()
+      .from(matterActivityLog)
+      .where(eq(matterActivityLog.matter_id, matterId))
+      .orderBy(desc(matterActivityLog.created_at))
+      .limit(limit)
+      .offset(offset);
+
+    return ok(activity);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get matter activity {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**

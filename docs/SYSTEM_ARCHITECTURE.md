@@ -1,5 +1,33 @@
 # Blawby System Architecture
 
+## Overview
+
+Blawby is a **modular monolith API backend** for a legal practice management and client intake platform. Built with TypeScript and Hono, it manages law firm organizations, case/matter tracking, client intake forms, billing via Stripe, and document uploads.
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Version |
+|-------|------------|---------|
+| Runtime | Node.js | 18.17+ |
+| Language | TypeScript (strict mode) | 5.9 |
+| HTTP Framework | Hono | 4.10 |
+| ORM | Drizzle ORM | 0.36 |
+| Database | PostgreSQL | - |
+| Authentication | Better Auth | 1.4 |
+| Validation | Zod | 4.1 |
+| Job Queue | Graphile Worker | 0.16 |
+| API Documentation | @hono/zod-openapi + Scalar | 1.1 |
+| Logging | Logtape | 2.0 |
+| Rate Limiting | rate-limiter-flexible | 9.0 |
+| Payments | Stripe (Connect) | 20.2 |
+| File Storage | AWS S3 / Cloudflare R2 | - |
+| Email | Resend + MJML | 6.8 |
+| CAPTCHA | Cloudflare Turnstile | - |
+
+---
+
 ## High-Level System Diagram
 
 ```mermaid
@@ -16,29 +44,33 @@ graph LR
             AUTH[Auth]
             PRACTICE[Practice]
             MATTERS[Matters]
+            SUBS[Subscriptions]
         end
 
         subgraph SUPPORT[" Support Modules "]
             UPLOADS[Uploads]
             INTAKES[Intakes]
             PREFS[Preferences]
+            USERDET[User Details]
         end
 
         subgraph INTEGRATION[" Integration "]
-            ONBOARD[Stripe<br/>Onboarding]
+            ONBOARD[Onboarding]
+            STRIPE[Stripe]
+            WEBHOOKS[Webhooks]
         end
     end
 
     subgraph DATA[" Data & Processing "]
         DB[(PostgreSQL)]
-        EVENTS[Event Bus]
-        WORKER[Background<br/>Worker]
+        EVENTS[Event Outbox]
+        WORKER[Graphile<br/>Worker]
     end
 
     subgraph EXTERNAL[" External Services "]
-        STRIPE[Stripe]
+        STRIPEAPI[Stripe API]
         R2[R2 Storage]
-        EMAIL[Email]
+        EMAIL[Resend]
         CAPTCHA[Turnstile]
     end
 
@@ -48,40 +80,72 @@ graph LR
     API --> AUTH
     API --> PRACTICE
     API --> MATTERS
+    API --> SUBS
     API --> UPLOADS
     API --> INTAKES
     API --> PREFS
+    API --> USERDET
     API --> ONBOARD
+    API --> STRIPE
+    API --> WEBHOOKS
 
     AUTH --> DB
     PRACTICE --> DB
     MATTERS --> DB
+    SUBS --> DB
     UPLOADS --> DB
     INTAKES --> DB
     PREFS --> DB
+    USERDET --> DB
     ONBOARD --> DB
 
     MATTERS --> EVENTS
     INTAKES --> EVENTS
     ONBOARD --> EVENTS
+    SUBS --> EVENTS
 
     EVENTS --> WORKER
     WORKER --> DB
 
-    ONBOARD -.-> STRIPE
-    INTAKES -.-> STRIPE
+    ONBOARD -.-> STRIPEAPI
+    STRIPE -.-> STRIPEAPI
+    INTAKES -.-> STRIPEAPI
+    SUBS -.-> STRIPEAPI
     UPLOADS -.-> R2
     INTAKES -.-> CAPTCHA
     WORKER -.-> EMAIL
 
     style API fill:#4A90E2
     style DB fill:#50C878
-    style STRIPE fill:#635BFF
+    style STRIPEAPI fill:#635BFF
     style WORKER fill:#FF6B6B
     style EVENTS fill:#FFD93D
 ```
 
-## Detailed Module Architecture
+---
+
+## Module Architecture
+
+### Module Structure Pattern
+
+Each module follows a consistent layered architecture:
+
+```
+src/modules/{module-name}/
+├── http.ts              # HTTP routing layer (Hono router)
+├── routes.ts            # OpenAPI route definitions
+├── handlers.ts          # Request handlers
+├── routes.config.ts     # Middleware configuration
+├── listeners.ts         # Event listeners
+├── services/            # Business logic layer
+├── database/
+│   ├── queries/         # Reusable database queries
+│   └── schema/          # Drizzle ORM schemas
+├── validations/         # Zod input validation schemas
+└── types/               # TypeScript types
+```
+
+### Module Overview
 
 ```mermaid
 graph LR
@@ -89,33 +153,154 @@ graph LR
         PRACTICE[Practice<br/>Organizations]
         MATTERS[Matters<br/>Cases]
         INTAKE[Client Intakes<br/>Forms]
+        SUBS[Subscriptions<br/>Billing]
     end
 
     subgraph "Supporting Modules"
         AUTH[Authentication<br/>Better Auth]
         UPLOADS[File Uploads<br/>R2 Storage]
         PREFS[Preferences<br/>Settings]
+        USERDET[User Details<br/>Profiles]
     end
 
     subgraph "Integration Modules"
-        ONBOARD[Stripe Onboarding<br/>Connect Setup]
-        PAYMENTS[Payment Processing<br/>Stripe]
+        ONBOARD[Onboarding<br/>Stripe Connect]
+        STRIPE[Stripe<br/>Payments]
+        WEBHOOKS[Webhooks<br/>Event Handling]
     end
 
     PRACTICE -->|Creates| MATTERS
     MATTERS -->|Uses| UPLOADS
     INTAKE -->|Creates| MATTERS
-    INTAKE -->|Uses| PAYMENTS
+    INTAKE -->|Uses| STRIPE
 
     AUTH -.->|Secures| PRACTICE
     AUTH -.->|Secures| MATTERS
 
-    ONBOARD -->|Enables| PAYMENTS
+    ONBOARD -->|Enables| STRIPE
+    SUBS -->|Uses| STRIPE
 
     style PRACTICE fill:#4A90E2
     style MATTERS fill:#50C878
     style AUTH fill:#FFD93D
+    style STRIPE fill:#635BFF
 ```
+
+### Module Descriptions
+
+| Module | Responsibility | Key Entities |
+|--------|---------------|--------------|
+| **auth** | Authentication & RBAC | users, sessions, organizations |
+| **practice** | Law firm management | practice, practice_services, addresses |
+| **matters** | Case/matter tracking | matters, assignees, notes, time_entries, expenses, milestones |
+| **subscriptions** | Billing management | subscription_plans, subscription_events |
+| **uploads** | File management | uploads, upload_audit_logs |
+| **practice-client-intakes** | Client forms | practice_client_intakes |
+| **preferences** | User settings | preferences |
+| **user-details** | User profiles | user_details, practice_client_memos |
+| **stripe** | Payment integration | Connected accounts |
+| **onboarding** | Stripe Connect flow | onboarding |
+| **webhooks** | External webhooks | Stripe/onboarding events |
+| **public** | Public endpoints | Health checks |
+
+---
+
+## Request Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware Stack
+    participant R as OpenAPI Router
+    participant H as Handler
+    participant S as Service
+    participant DB as PostgreSQL
+
+    C->>MW: HTTP Request
+    MW->>MW: requestId()
+    MW->>MW: logger()
+    MW->>MW: cors()
+    MW->>MW: responseMiddleware()
+    MW->>R: Route Matching
+    R->>R: Zod Validation
+    R->>H: Call Handler
+    H->>H: Extract User Context
+    H->>S: Call Service
+    S->>DB: Database Query
+    DB-->>S: Query Result
+    S-->>H: Result<T>
+    H-->>MW: Response Data
+    MW-->>C: JSON Response
+```
+
+---
+
+## Error Handling Pattern
+
+The system uses a **Result type pattern** for explicit error handling:
+
+```typescript
+type Result<T> =
+  | { success: true; data: T }
+  | { success: false; error: AppError }
+
+interface AppError {
+  status: number;      // HTTP status code
+  code: string;        // Error code (e.g., "VALIDATION_ERROR")
+  message: string;     // Human-readable message
+  details?: unknown;   // Additional error details
+}
+```
+
+**Response Format:**
+```json
+// Success
+{ "data": { ... }, "meta": { "timestamp": "..." } }
+
+// Error
+{ "error": { "status": 400, "code": "VALIDATION_ERROR", "message": "..." } }
+```
+
+---
+
+## Event-Driven Architecture
+
+The system uses a **PostgreSQL-based outbox pattern** for reliable event processing:
+
+```mermaid
+sequenceDiagram
+    participant S as Service
+    participant DB as PostgreSQL
+    participant O as Events Table (Outbox)
+    participant W as Graphile Worker
+    participant H as Event Handlers
+    participant DLQ as Dead Letter Queue
+
+    S->>DB: Business Transaction
+    S->>O: Write Event (same tx)
+    Note over S,O: Transactional Consistency
+
+    loop Every Minute (Cron)
+        W->>O: Poll Pending Events
+        O-->>W: Unprocessed Events
+        W->>H: Invoke Handlers
+        alt Success
+            H-->>W: Handler Complete
+            W->>O: Mark Processed
+        else Failure (after retries)
+            H-->>W: Handler Failed
+            W->>DLQ: Move to Dead Letter
+        end
+    end
+```
+
+**Event Flow:**
+1. `Event.dispatch(EventClass, payload)` writes to `events` table
+2. Graphile Worker polls every minute via cron
+3. Registered handlers invoked via `Event.listen()`
+4. Failed events (after 5 retries) move to dead letter queue
+
+---
 
 ## Data Flow Patterns
 
@@ -134,7 +319,7 @@ sequenceDiagram
         C->>API: Sign In Request
         API->>DB: Verify Credentials
         DB-->>API: User Data
-        API-->>C: JWT Token + Session
+        API-->>C: Session Cookie
     end
 
     %% Practice Onboarding Flow
@@ -190,38 +375,113 @@ sequenceDiagram
     end
 ```
 
+---
+
 ## System Components
 
-### Frontend
-- **Web App**: React/Preact SPA
-- **Auth**: Better Auth client with Bearer tokens
-- **State**: Local state + API calls
-- **Storage**: IndexedDB for tokens
+### Entry Points
+
+| File | Purpose |
+|------|---------|
+| `src/hono-server.ts` | Main server entry point |
+| `src/hono-app.ts` | App assembly & middleware registration |
+| `src/boot/index.ts` | Boot orchestration (logging, services, workers) |
+| `src/workers/event.worker.ts` | Background event worker |
+| `src/workers/email.worker.ts` | Email delivery worker |
 
 ### API Server (Hono)
 - **Runtime**: Node.js with TypeScript
 - **Framework**: Hono (lightweight, fast)
-- **Architecture**: Modular (each feature = module)
+- **Architecture**: Modular monolith (each feature = module)
 - **Middleware**: Auth, validation, CORS, rate limiting
 - **ORM**: Drizzle (type-safe SQL)
+- **API Docs**: OpenAPI 3.0 via Scalar UI at `/docs`
 
 ### Background Processing
+
+| Worker | Tasks |
+|--------|-------|
+| **Event Worker** | Stripe webhooks, onboarding webhooks, outbox events (cron) |
+| **Email Worker** | Transactional email via Resend |
+
 - **Queue**: Graphile Worker (PostgreSQL-based)
-- **Jobs**: Webhooks, emails, event handlers
-- **Concurrency**: Configurable workers
-- **Retry**: Automatic with exponential backoff
+- **Retry**: Up to 5 attempts with exponential backoff
+- **Dead Letter**: Failed events tracked for investigation
 
 ### Database
 - **Primary**: PostgreSQL
 - **Schema Management**: Drizzle Kit migrations
-- **Features**: JSONB columns, UUID/ULID primary keys
-- **Indexes**: Optimized for queries
+- **Features**: JSONB columns, ULID primary keys
+- **Multi-tenant**: Organization-scoped data isolation
+- **Soft Deletes**: `deleted_at` timestamp pattern
 
-### External Services
-- **Stripe**: Connect accounts + Platform billing
-- **R2**: Cloudflare object storage
-- **Email**: Transactional email service
-- **CAPTCHA**: Cloudflare Turnstile
+### Shared Infrastructure
+
+```
+src/shared/
+├── auth/              # Better Auth setup & plugins
+├── database/          # Connection pool & migrations
+├── middleware/        # Middleware stack
+├── events/            # Event system & outbox
+├── queue/             # Graphile Worker config
+├── router/            # Module discovery & OpenAPI
+├── types/             # Result<T>, Hono context
+├── validations/       # Shared Zod schemas
+└── utils/             # Helpers (Stripe client, logging)
+```
+
+---
+
+## Security Architecture
+
+### Security Layers
+
+```mermaid
+graph LR
+    CLIENT[Client] -->|HTTPS| CORS[CORS Policy]
+    CORS -->|Rate Limited| RATE[Rate Limiter]
+    RATE -->|Validated| VAL[Zod Validation]
+    VAL -->|Authenticated| AUTH[Better Auth]
+    AUTH -->|Authorized| AUTHZ[Org Role Check]
+    AUTHZ -->|Sanitized| BIZ[Business Logic]
+    BIZ -->|Parameterized| DB[(Database)]
+
+    AUTH -.->|Session| SESS[(Session Store)]
+    AUTHZ -.->|Check| ROLES[Organization Roles]
+
+    style RATE fill:#FF6B6B
+    style AUTH fill:#FFD93D
+    style AUTHZ fill:#4A90E2
+```
+
+### Authentication
+- **Framework**: Better Auth with plugins (organization, admin, anonymous, stripe)
+- **Session**: Database-backed session storage
+- **OAuth**: Google OAuth integration
+- **Cookies**: Secure, HTTP-only (HTTPS in production)
+
+### Authorization
+- **Model**: Role-Based Access Control (RBAC)
+- **Roles**: `owner`, `admin`, `member` per organization
+- **Middleware**: `requireAuth()`, `requireAdmin()`
+
+### Rate Limiting
+- **Storage**: PostgreSQL table-based (not in-memory)
+- **Rules**:
+  - Sign-in: 5 requests/minute
+  - Sign-up: 3 requests/minute
+  - Password reset: 3 requests/5 minutes
+
+### Input Validation
+- **Schema**: Zod for all request inputs
+- **Integration**: `@hono/zod-validator` middleware
+- **OpenAPI**: Validation schemas double as API docs
+
+### CAPTCHA
+- **Provider**: Cloudflare Turnstile
+- **Usage**: Public forms (client intake)
+
+---
 
 ## Module Interactions
 
@@ -244,6 +504,7 @@ graph LR
         J[Preferences] -.->|Configures| A
         K[Events] -.->|Logs| E
         K -.->|Notifies| G
+        L[Subscriptions] -.->|Bills| A
     end
 
     style A fill:#4A90E2
@@ -251,6 +512,8 @@ graph LR
     style D fill:#635BFF
     style I fill:#FFD93D
 ```
+
+---
 
 ## Deployment Architecture
 
@@ -266,14 +529,11 @@ graph TB
         end
 
         subgraph "Worker Pool"
-            W1[Worker 1]
-            W2[Worker 2]
+            W1[Event Worker]
+            W2[Email Worker]
         end
 
         DB[(Primary DB<br/>PostgreSQL)]
-        DBRR[(Read Replica)]
-
-        CACHE[(Redis Cache)]
 
         LB --> API1
         LB --> API2
@@ -283,14 +543,6 @@ graph TB
         API2 --> DB
         API3 --> DB
 
-        API1 -.->|Read| DBRR
-        API2 -.->|Read| DBRR
-        API3 -.->|Read| DBRR
-
-        API1 -.->|Cache| CACHE
-        API2 -.->|Cache| CACHE
-        API3 -.->|Cache| CACHE
-
         W1 --> DB
         W2 --> DB
     end
@@ -299,11 +551,13 @@ graph TB
         CDN[Cloudflare CDN]
         R2[R2 Storage]
         STRIPE[Stripe API]
+        RESEND[Resend API]
     end
 
     CDN --> LB
     API1 --> R2
     API1 --> STRIPE
+    W2 --> RESEND
     STRIPE -.->|Webhooks| LB
 
     style DB fill:#50C878
@@ -311,24 +565,67 @@ graph TB
     style STRIPE fill:#635BFF
 ```
 
-## Security Layers
+### Process Management
+- **API Server**: Node process on PORT 3000
+- **Event Worker**: Separate Node process
+- **Email Worker**: Separate Node process
+- **Graceful Shutdown**: `close-with-grace` (500ms drain)
 
-```mermaid
-graph LR
-    CLIENT[Client] -->|HTTPS| WAF[WAF/Firewall]
-    WAF -->|Rate Limited| AUTH[Auth Middleware]
-    AUTH -->|Validated| AUTHZ[Authorization]
-    AUTHZ -->|Sanitized| BIZ[Business Logic]
-    BIZ -->|Parameterized| DB[(Database)]
+### Build & Run
 
-    AUTH -.->|JWT Verify| KEYS[Token Keys]
-    AUTHZ -.->|Check| PERMS[Permissions DB]
-
-    style WAF fill:#FF6B6B
-    style AUTH fill:#FFD93D
-    style AUTHZ fill:#4A90E2
+```bash
+pnpm run build       # Compile TypeScript → dist/
+pnpm run dev         # Watch mode development
+pnpm start           # Run compiled API server
+pnpm start:all       # API + event worker + email worker
 ```
 
 ---
 
-**Last Updated**: January 21, 2026
+## API Documentation
+
+- **OpenAPI UI**: Available at `/docs` (Scalar) and `/scalar`
+- **OpenAPI JSON**: Available at `/openapi.json`
+- **LLM-friendly**: Markdown export at `/llms.txt`
+
+---
+
+## Key File Locations
+
+```
+src/
+├── hono-app.ts                    # App assembly
+├── hono-server.ts                 # Server entry point
+├── boot/
+│   ├── index.ts                   # Boot orchestration
+│   ├── services.ts                # Service initialization
+│   └── event-handlers.ts          # Event listener registration
+├── modules/
+│   ├── auth/                      # Authentication
+│   ├── practice/                  # Practice management
+│   ├── matters/                   # Matter/case management
+│   ├── subscriptions/             # Billing
+│   ├── uploads/                   # File uploads
+│   ├── practice-client-intakes/   # Intake forms
+│   ├── preferences/               # User settings
+│   ├── user-details/              # User profiles
+│   ├── webhooks/                  # Webhook handling
+│   ├── stripe/                    # Stripe integration
+│   ├── onboarding/                # Stripe onboarding
+│   └── public/                    # Public endpoints
+├── shared/
+│   ├── auth/                      # Better Auth setup
+│   ├── database/                  # DB connection
+│   ├── middleware/                # Middleware stack
+│   ├── events/                    # Event system
+│   ├── queue/                     # Graphile Worker
+│   ├── router/                    # Module registration
+│   ├── types/                     # Result<T>, context types
+│   └── utils/                     # Helpers
+├── schema/                        # Database schemas
+└── workers/                       # Background workers
+```
+
+---
+
+**Last Updated**: January 28, 2026
