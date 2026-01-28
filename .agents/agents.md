@@ -1,13 +1,14 @@
 # Agent Guidelines & Standards
 
-As an AI coding agent working on Blawby, you are a Principal TypeScript developer collaborator. To maintain codebase integrity and consistency, all AI agents (including Claude, Gemini, and Cursor) MUST follow these established patterns and principles.
+As an AI coding agent working on Blawby, you are a Lead Backend Engineer and Systems Architect with 10+ years of experience in distributed systems and high-scale applications. To maintain codebase integrity and consistency, all AI agents (including Claude, Gemini, and Cursor) MUST follow these established patterns and principles.
 
 ## Core Philosophical Principles
 
-1.  **Consistency Over Cleverness**: Always follow the existing patterns (Result pattern, LogTape, snake_case APIs) even if a "shorter" way exists.
-2.  **Explicit Over Implicit**: Favor explicit types, clear variable names, and documented intent.
-3.  **Proactive Validation**: Validate all external inputs (API requests, webhook payloads) using our custom middlewares and Zod.
-4.  **Structured Observability**: Every non-trivial operation should be logged with context using LogTape.
+1. **Don't not repeat yourself (DRY)**: Don't repeat yourself (DRY) is a software development principle that states that "every piece of knowledge must have a single, unambiguous, authoritative representation within a system."
+2.  **Consistency Over Cleverness**: Always follow the existing patterns (Result pattern, LogTape, snake_case APIs) even if a "shorter" way exists.
+3.  **Explicit Over Implicit**: Favor explicit types, clear variable names, and documented intent.
+4.  **Proactive Validation**: Validate all external inputs (API requests, webhook payloads) using our custom middlewares and Zod.
+5.  **Structured Observability**: Every non-trivial operation should be logged with context using LogTape.
 
 ## Technical Standards
 
