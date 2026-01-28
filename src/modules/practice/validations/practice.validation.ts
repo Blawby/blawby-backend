@@ -395,6 +395,10 @@ const practiceDetailsResponseSchema = z
     intro_message: z.string().nullable().openapi({ example: 'Welcome' }),
     overview: z.string().nullable().openapi({ example: 'Overview text' }),
     is_public: z.boolean().openapi({ example: true }),
+    organization_id: z.string().uuid().openapi({
+      description: 'Organization UUID for the practice',
+      example: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab',
+    }),
     services: z
       .array(z.object({ id: z.string(), name: z.string(), key: z.string() }))
       .nullable()
