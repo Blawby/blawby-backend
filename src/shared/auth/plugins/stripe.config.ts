@@ -32,15 +32,29 @@ const syncSubscriptionToOrg = async (
   },
 ): Promise<void> => {
   const {
-    stripeSubscription, subscriptionId, referenceId, stripeCustomerId, planName, eventType, trigger,
+    stripeSubscription,
+    subscriptionId,
+    referenceId,
+    stripeCustomerId,
+    planName,
+    eventType,
+    trigger,
   } = params;
+
+  logger.info('[Stripe Plugin] Syncing subscription {subscriptionId} to Org {referenceId} (Trigger: {trigger}, Event: {eventType})', {
+    subscriptionId,
+    referenceId,
+    trigger,
+    eventType,
+  });
+
 
   // 1. Resolve Customer ID
   const customerId = stripeCustomerId
     || (typeof stripeSubscription.customer === 'string' ? stripeSubscription.customer : null);
 
   if (!customerId) {
-    logger.warn('[Stripe Plugin] No customer ID found, skipping sync.');
+    logger.warn('[Stripe Plugin] No customer ID found for subscription {subscriptionId}, skipping sync.', { subscriptionId });
     return;
   }
 
@@ -48,6 +62,7 @@ const syncSubscriptionToOrg = async (
   let organizationId = referenceId;
 
   if (!organizationId) {
+    logger.debug('[Stripe Plugin] No ReferenceId provided, looking up Org by customerId: {customerId}', { customerId });
     const org = await db
       .select({ id: schema.organizations.id })
       .from(schema.organizations)
@@ -58,25 +73,49 @@ const syncSubscriptionToOrg = async (
   }
 
   if (!organizationId) {
-    logger.warn('[Stripe Plugin] No organization found for Customer ID: {customerId}', { customerId });
+    logger.warn('[Stripe Plugin] No organization found for ReferenceId: {referenceId} or Customer ID: {customerId}', {
+      referenceId,
+      customerId,
+    });
     return;
   }
 
-  logger.info('[Stripe Plugin] Syncing subscription {subscriptionId} to Org {organizationId}', {
-    subscriptionId,
+  logger.info('[Stripe Plugin] Resolved Organization ID: {organizationId} for subscription {subscriptionId} (Method: {lookupMethod})', {
     organizationId,
+    subscriptionId,
+    lookupMethod: referenceId ? 'referenceId' : 'customerIdLookup',
   });
 
   // 3. TRANSACTION: Update Org, Line Items, and Logs atomically
   await db.transaction(async (tx) => {
+    logger.debug('[Stripe Plugin] Updating activeSubscriptionId for Org {organizationId} to {subscriptionId}', {
+      organizationId,
+      subscriptionId,
+    });
     // A. Update Organization Active Subscription
-    await tx
+    const updated = await tx
       .update(schema.organizations)
       .set({
         stripeCustomerId: customerId,
         activeSubscriptionId: subscriptionId,
       })
-      .where(eq(schema.organizations.id, organizationId!));
+      .where(eq(schema.organizations.id, organizationId!))
+      .returning({ id: schema.organizations.id });
+
+    if (updated.length === 0) {
+      logger.error('[Stripe Plugin] CRITICAL: Failed to update organization table for {organizationId}. Row not found.', {
+        organizationId,
+        subscriptionId,
+        customerId,
+      });
+      throw new Error('Failed to update organization table during sync - organization not found');
+    }
+
+    logger.debug('[Stripe Plugin] Successfully updated organizations.activeSubscriptionId for {organizationId}', {
+      organizationId,
+      subscriptionId,
+    });
+
 
     // B. Sync Line Items (Parallelized)
     if (stripeSubscription.items?.data) {
@@ -213,6 +252,11 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         plan: { name: string };
         stripeSubscription: Stripe.Subscription;
       }) => {
+        logger.debug('[Stripe Plugin] checkout.session.completed hook triggered', {
+          subscriptionId: subscription.id,
+          referenceId: subscription.referenceId,
+          stripeCustomerId: subscription.stripeCustomerId,
+        });
         await syncSubscriptionToOrg(db, {
           stripeSubscription,
           subscriptionId: subscription.id,

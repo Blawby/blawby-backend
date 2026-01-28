@@ -1,4 +1,4 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
 import { subscriptionValidations } from './validations/subscription.validation';
 
 /**
@@ -50,54 +50,6 @@ export const getCurrentSubscriptionRoute = createRoute({
         },
       },
       description: 'Subscription retrieved successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-/**
- * POST /api/subscriptions/create
- * Create/upgrade subscription
- */
-export const createSubscriptionRoute = createRoute({
-  method: 'post',
-  path: '/create',
-  tags: ['Subscriptions'],
-  summary: 'Create subscription',
-  description: 'Create or upgrade a subscription for the current organization',
-  security: [{ Bearer: [] }],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.createSubscriptionSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.createSubscriptionResponseSchema,
-        },
-      },
-      description: 'Subscription created successfully',
     },
     400: {
       content: {

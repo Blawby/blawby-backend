@@ -1,10 +1,6 @@
-/**
- * Matter Expenses Service
- *
- * Handles business logic for matter expenses operations
- */
-
+import { getLogger } from '@logtape/logtape';
 import * as expensesQueries from '@/modules/matters/database/queries/matter-expenses.queries';
+import type { SelectMatterExpense } from '@/modules/matters/database/schema/matter-expenses.schema';
 import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
 import { getMatterById } from '@/modules/matters/services/matters.service';
 import type {
@@ -12,6 +8,10 @@ import type {
   UpdateMatterExpenseRequest,
 } from '@/modules/matters/types/matter.types';
 import type { User } from '@/shared/types/BetterAuth';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError, notFound } from '@/shared/utils/result';
+
+const logger = getLogger(['matters', 'services', 'expenses']);
 
 /**
  * Create a matter expense
@@ -22,30 +22,42 @@ export const createMatterExpense = async (
   data: CreateMatterExpenseRequest,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<SelectMatterExpense>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
+  }
 
-  const expense = await expensesQueries.createMatterExpense({
-    matter_id: matterId,
-    user_id: user.id,
-    description: data.description,
-    amount: data.amount,
-    date: data.date,
-    billable: data.billable,
-  });
+  try {
+    const expense = await expensesQueries.createMatterExpense({
+      matter_id: matterId,
+      user_id: user.id,
+      description: data.description,
+      amount: data.amount,
+      date: data.date,
+      billable: data.billable,
+    });
 
-  // Log activity
-  const amountFormatted = (data.amount / 100).toFixed(2);
-  await logMatterActivity(
-    matterId,
-    ActivityAction.EXPENSE_ADDED,
-    `${user.name || user.email} added expense: ${data.description} ($${amountFormatted})${data.billable ? ' (billable)' : ''}`,
-    user.id,
-    { amount: data.amount, billable: data.billable },
-  );
+    // Log activity
+    const amountFormatted = (data.amount / 100).toFixed(2);
+    await logMatterActivity(
+      matterId,
+      ActivityAction.EXPENSE_ADDED,
+      `${user.name || user.email} added expense: ${data.description} ($${amountFormatted})${data.billable ? ' (billable)' : ''}`,
+      user.id,
+      { amount: data.amount, billable: data.billable },
+    );
 
-  return expense;
+    return ok(expense);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to create matter expense {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -61,11 +73,24 @@ export const listMatterExpenses = async (
     startDate?: string;
     endDate?: string;
   },
-) => {
+): Promise<Result<SelectMatterExpense[]>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
+  }
 
-  return await expensesQueries.listMatterExpenses(matterId, filters);
+  try {
+    const expenses = await expensesQueries.listMatterExpenses(matterId, filters);
+    return ok(expenses);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to list matter expenses {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -78,33 +103,39 @@ export const updateMatterExpense = async (
   data: UpdateMatterExpenseRequest,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<SelectMatterExpense>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
-
-  // Verify expense exists and belongs to matter
-  const expense = await expensesQueries.findMatterExpenseById(expenseId);
-  if (!expense || expense.matter_id !== matterId) {
-    throw new Error('Expense not found');
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
   }
 
-  // Convert date if provided
-  const updateData = {
-    ...data,
-    date: data.date,
-  };
+  try {
+    // Verify expense exists and belongs to matter
+    const expense = await expensesQueries.findMatterExpenseById(expenseId);
+    if (!expense || expense.matter_id !== matterId) {
+      return notFound('Expense not found');
+    }
 
-  const updated = await expensesQueries.updateMatterExpense(expenseId, updateData);
+    const updated = await expensesQueries.updateMatterExpense(expenseId, data);
 
-  // Log activity
-  await logMatterActivity(
-    matterId,
-    ActivityAction.EXPENSE_UPDATED,
-    `${user.name || user.email} updated an expense`,
-    user.id,
-  );
+    // Log activity
+    await logMatterActivity(
+      matterId,
+      ActivityAction.EXPENSE_UPDATED,
+      `${user.name || user.email} updated an expense`,
+      user.id,
+    );
 
-  return updated;
+    return ok(updated!);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to update matter expense {expenseId}: {error}', {
+      expenseId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -116,25 +147,39 @@ export const deleteMatterExpense = async (
   expenseId: string,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
-
-  // Verify expense exists and belongs to matter
-  const expense = await expensesQueries.findMatterExpenseById(expenseId);
-  if (!expense || expense.matter_id !== matterId) {
-    throw new Error('Expense not found');
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
   }
 
-  await expensesQueries.deleteMatterExpense(expenseId);
+  try {
+    // Verify expense exists and belongs to matter
+    const expense = await expensesQueries.findMatterExpenseById(expenseId);
+    if (!expense || expense.matter_id !== matterId) {
+      return notFound('Expense not found');
+    }
 
-  // Log activity
-  await logMatterActivity(
-    matterId,
-    ActivityAction.EXPENSE_DELETED,
-    `${user.name || user.email} deleted an expense`,
-    user.id,
-  );
+    await expensesQueries.deleteMatterExpense(expenseId);
+
+    // Log activity
+    await logMatterActivity(
+      matterId,
+      ActivityAction.EXPENSE_DELETED,
+      `${user.name || user.email} deleted an expense`,
+      user.id,
+    );
+
+    return ok({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to delete matter expense {expenseId}: {error}', {
+      expenseId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -145,17 +190,35 @@ export const getExpenseStats = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-) => {
+): Promise<Result<{
+  totalBillableCents: number;
+  totalCents: number;
+  totalBillable: number;
+  total: number;
+}>> => {
   // Verify user has access to matter
-  await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
+  }
 
-  const totalBillable = await expensesQueries.getTotalBillableExpenses(matterId);
-  const totalExpenses = await expensesQueries.getTotalExpenses(matterId);
+  try {
+    const totalBillable = await expensesQueries.getTotalBillableExpenses(matterId);
+    const totalExpenses = await expensesQueries.getTotalExpenses(matterId);
 
-  return {
-    totalBillableCents: totalBillable,
-    totalCents: totalExpenses,
-    totalBillable: totalBillable / 100,
-    total: totalExpenses / 100,
-  };
+    return ok({
+      totalBillableCents: totalBillable,
+      totalCents: totalExpenses,
+      totalBillable: totalBillable / 100,
+      total: totalExpenses / 100,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get expense stats {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
+
