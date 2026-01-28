@@ -85,6 +85,11 @@ const getPracticeDetails = async (
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       is_public: fetchedDetails?.is_public ?? false,
+      name: organizationResult.data.name,
+      logo: organizationResult.data.logo,
+      payment_link_enabled: organizationResult.data.paymentLinkEnabled ?? false,
+      payment_link_prefill_amount: organizationResult.data.paymentLinkPrefillAmount ?? 0,
+      billing_increment_minutes: organizationResult.data.billingIncrementMinutes ?? 1,
     };
 
     return ok(responseData as unknown as PracticeDetailsResponse);
@@ -334,6 +339,7 @@ const getPracticeDetailsBySlug = async (
       logo: organization.logo,
       payment_link_enabled: organization.paymentLinkEnabled ?? false,
       payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
+      billing_increment_minutes: organization.billingIncrementMinutes ?? 1,
     };
 
     return ok(responseData as unknown as PracticeDetailsResponse);

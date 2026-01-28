@@ -31,6 +31,14 @@ const { parseBetterAuthMetadata, getBetterAuthErrorMessage } = betterAuthUtils;
 
 const logger = getLogger(['practice', 'service']);
 
+const mapOrganizationBillingIncrement = <T extends { billingIncrementMinutes?: number }>(organization: T) => {
+  const { billingIncrementMinutes, ...rest } = organization;
+  return {
+    ...rest,
+    billing_increment_minutes: billingIncrementMinutes ?? 1,
+  };
+};
+
 /**
  * Practice Service
  *
@@ -46,7 +54,9 @@ const listPractices = async (
 ): Promise<Result<{ practices: Organization[] }>> => {
   const result = await organizationService.listOrganizations(user, requestHeaders);
   if (!result.success) return result;
-  return ok({ practices: result.data });
+  return ok({
+    practices: result.data.map((organization) => mapOrganizationBillingIncrement(organization)),
+  });
 };
 
 /**
@@ -86,7 +96,7 @@ const getPracticeById = async (
 
     return ok({
       practice: {
-        ...organization,
+        ...mapOrganizationBillingIncrement(organization),
         ...cleanPracticeDetails,
         metadata: parseBetterAuthMetadata(organization.metadata),
       } as PracticeWithDetails,
@@ -189,7 +199,7 @@ const createPractice = async (params: {
 
     return ok({
       practice: {
-        ...organization,
+        ...mapOrganizationBillingIncrement(organization),
         ...cleanPracticeDetails,
         metadata: parseBetterAuthMetadata(organization.metadata),
       } as PracticeWithDetails,
@@ -321,7 +331,7 @@ const updatePractice = async (
 
     return ok({
       practice: {
-        ...organization,
+        ...mapOrganizationBillingIncrement(organization),
         ...cleanPracticeDetails,
         metadata: parseBetterAuthMetadata(organization.metadata),
       } as PracticeWithDetails,
@@ -436,4 +446,3 @@ export const practiceService = {
   getPracticeById,
   setActivePractice,
 };
-

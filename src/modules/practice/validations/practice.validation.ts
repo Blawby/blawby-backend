@@ -13,6 +13,15 @@ const businessEmailSchema = z.email().optional();
 const consultationFeeSchema = currencyValidator.optional();
 const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
 const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
+const billingIncrementMinutesSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(60)
+  .openapi({
+    description: 'Billing increment in minutes',
+    example: 15,
+  });
 
 
 // Address schema
@@ -57,6 +66,7 @@ const createPracticeSchema = z.object({
   slug: slugValidator,
   logo: urlValidator.optional().or(z.literal('')),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  billing_increment_minutes: billingIncrementMinutesSchema.optional(),
 
   // Practice details
   ...practiceDetailsValidationSchema.shape,
@@ -69,6 +79,7 @@ const updatePracticeSchema = z
     slug: slugValidator.optional(),
     logo: urlValidator.optional().or(z.literal('')),
     metadata: z.record(z.string(), z.unknown()).optional(),
+    billing_increment_minutes: billingIncrementMinutesSchema.optional(),
 
     // Practice details
     ...practiceDetailsValidationSchema.shape,
@@ -76,7 +87,11 @@ const updatePracticeSchema = z
   .refine(
     (data) => {
       // Ensure at least one field is provided for update
-      const hasOrgField = data.name || data.slug || data.logo || data.metadata;
+      const hasOrgField = data.name
+        || data.slug
+        || data.logo
+        || data.metadata
+        || data.billing_increment_minutes !== undefined;
       const hasPracticeField
         = data.business_phone
         || data.business_email
@@ -158,6 +173,10 @@ const practiceResponseSchema = z
     paymentLinkPrefillAmount: z.number().nullable().openapi({
       description: 'Default prefill amount for payment links (in cents)',
       example: 5000,
+    }),
+    billing_increment_minutes: billingIncrementMinutesSchema.openapi({
+      description: 'Billing increment in minutes for time entry dropdowns',
+      example: 15,
     }),
     createdAt: z.date().openapi({
       description: 'Organization creation timestamp',
@@ -415,6 +434,10 @@ const practiceDetailsResponseSchema = z
     }),
     payment_link_prefill_amount: z.number().openapi({
       example: 5000,
+    }),
+    billing_increment_minutes: billingIncrementMinutesSchema.openapi({
+      description: 'Billing increment in minutes for time entry dropdowns',
+      example: 15,
     }),
     createdAt: z.date().openapi({
       description: 'Organization creation timestamp',
