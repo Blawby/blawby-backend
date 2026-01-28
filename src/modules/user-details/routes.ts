@@ -23,7 +23,7 @@ const notFoundResponseSchema = z.object({
 
 export const listUserDetailsRoute = createRoute({
   method: 'get',
-  path: '/organizations/{practiceId}/user-details',
+  path: '/practice/{practiceId}/user-details',
   tags: ['UserDetails'],
   summary: 'List user details',
   description: 'Get all user details for an organization',
@@ -42,7 +42,7 @@ export const listUserDetailsRoute = createRoute({
 
 export const createUserDetailsRoute = createRoute({
   method: 'post',
-  path: '/organizations/{practiceId}/user-details',
+  path: '/practice/{practiceId}/user-details',
   tags: ['UserDetails'],
   summary: 'Create user detail',
   description: 'Add a new user detail (client) to the organization',
@@ -58,7 +58,7 @@ export const createUserDetailsRoute = createRoute({
 
 export const getUserDetailRoute = createRoute({
   method: 'get',
-  path: '/organizations/{practiceId}/user-details/{uuid}',
+  path: '/practice/{practiceId}/user-details/{uuid}',
   tags: ['UserDetails'],
   summary: 'Get user detail',
   description: 'Get a specific user detail by ID',
@@ -71,7 +71,7 @@ export const getUserDetailRoute = createRoute({
 
 export const updateUserDetailsRoute = createRoute({
   method: 'put',
-  path: '/organizations/{practiceId}/user-details/{uuid}',
+  path: '/practice/{practiceId}/user-details/{uuid}',
   tags: ['UserDetails'],
   summary: 'Update user detail',
   description: 'Update user detail profile',
@@ -87,7 +87,7 @@ export const updateUserDetailsRoute = createRoute({
 
 export const deleteUserDetailRoute = createRoute({
   method: 'delete',
-  path: '/organizations/{practiceId}/user-details/{uuid}',
+  path: '/practice/{practiceId}/user-details/{uuid}',
   tags: ['UserDetails'],
   summary: 'Delete user detail',
   description: 'Delete a user detail (soft delete)',
@@ -102,7 +102,7 @@ export const deleteUserDetailRoute = createRoute({
 
 export const listUserDetailsMemosRoute = createRoute({
   method: 'get',
-  path: '/organizations/{practiceId}/user-details/{uuid}/memos',
+  path: '/practice/{practiceId}/user-details/{uuid}/memos',
   tags: ['UserDetails: Memos'],
   summary: 'List user detail memos',
   description: 'Get all memos for a user detail',
@@ -115,7 +115,7 @@ export const listUserDetailsMemosRoute = createRoute({
 
 export const createUserDetailMemoRoute = createRoute({
   method: 'post',
-  path: '/organizations/{practiceId}/user-details/{uuid}/memos',
+  path: '/practice/{practiceId}/user-details/{uuid}/memos',
   tags: ['UserDetails: Memos'],
   summary: 'Create user detail memo',
   description: 'Add a memo for a user detail',
@@ -131,7 +131,7 @@ export const createUserDetailMemoRoute = createRoute({
 
 export const updateUserDetailsMemoRoute = createRoute({
   method: 'put',
-  path: '/organizations/{practiceId}/user-details/{uuid}/memos/{memoId}',
+  path: '/practice/{practiceId}/user-details/{uuid}/memos/{memoId}',
   tags: ['UserDetails: Memos'],
   summary: 'Update user detail memo',
   description: 'Update a specific memo content',
@@ -144,7 +144,7 @@ export const updateUserDetailsMemoRoute = createRoute({
 
 export const deleteUserDetailsMemoRoute = createRoute({
   method: 'delete',
-  path: '/organizations/{practiceId}/user-details/{uuid}/memos/{memoId}',
+  path: '/practice/{practiceId}/user-details/{uuid}/memos/{memoId}',
   tags: ['UserDetails: Memos'],
   summary: 'Delete user detail memo',
   description: 'Delete a specific memo',
