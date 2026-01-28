@@ -5,7 +5,7 @@ export type PracticeDetailsResponse = Omit<
   PracticeDetails,
   'id' | 'organization_id' | 'user_id' | 'address_id' | 'created_at' | 'updated_at' | 'services'
 > & {
-  organizationId: string;
+  organization_id: string;
   address?: AddressData | null;
   services: Array<{ id: string; name: string; key: string }>;
   name?: string;
