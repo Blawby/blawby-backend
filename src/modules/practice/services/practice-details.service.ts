@@ -83,6 +83,7 @@ const getPracticeDetails = async (
         'created_at',
         'updated_at',
       ]),
+      organizationId,
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       is_public: fetchedDetails?.is_public ?? false,
@@ -210,6 +211,7 @@ const upsertPracticeDetails = async (
         'created_at',
         'updated_at',
       ]),
+      organizationId,
       address: practiceDetailsResult.addressResult,
       services: practiceDetailsResult.syncedServices.map((s) => ({ id: s.id, name: s.name, key: s.key })),
     };
@@ -329,6 +331,7 @@ const getPracticeDetailsBySlug = async (
         'created_at',
         'updated_at',
       ]),
+      organizationId: organization.id,
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       name: organization.name,
