@@ -1,6 +1,6 @@
 {
-  "id": "02c53b72-9684-4ff0-958d-d76326eb74ca",
-  "prevId": "872f345c-6fec-4b53-ad92-b2e0e1d6558e",
+  "id": "02a4ecb1-4d77-4a85-907a-2278ed486c24",
+  "prevId": "02c53b72-9684-4ff0-958d-d76326eb74ca",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -352,13 +352,6 @@
           "primaryKey": false,
           "notNull": false,
           "default": 0
-        },
-        "billing_increment_minutes": {
-          "name": "billing_increment_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
         }
       },
       "indexes": {},
@@ -2899,6 +2892,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "billing_increment_minutes": {
+          "name": "billing_increment_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "created_at": {
           "name": "created_at",

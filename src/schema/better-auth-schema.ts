@@ -104,7 +104,6 @@ export const organizations = pgTable('organizations', {
   // Payment Links settings
   paymentLinkEnabled: boolean('payment_link_enabled').default(false),
   paymentLinkPrefillAmount: integer('payment_link_prefill_amount').default(0),
-  billingIncrementMinutes: integer('billing_increment_minutes').default(1).notNull(),
 });
 
 export const members = pgTable('members', {

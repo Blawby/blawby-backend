@@ -26,6 +26,39 @@ export const myRepository = {
 };
 ```
 
+## 7. Early Returns
+Prefer early returns (guard clauses) over nested `if` statements. This reduces indentation and improves readability.
+
+```typescript
+// ✅ CORRECT
+const processRequest = async (data: any) => {
+  if (!isValid(data)) {
+    return result.badRequest('Invalid data');
+  }
+
+  if (!hasPermission(data)) {
+    return result.forbidden('No permission');
+  }
+
+  const processed = await perform(data);
+  return result.ok(processed);
+};
+
+// ❌ INCORRECT
+const processRequest = async (data: any) => {
+  if (isValid(data)) {
+    if (hasPermission(data)) {
+      const processed = await perform(data);
+      return result.ok(processed);
+    } else {
+      return result.forbidden('No permission');
+    }
+  } else {
+    return result.badRequest('Invalid data');
+  }
+};
+```
+
 ## 2. Database Schema Pattern
 Group exports (tables, relations) into a single `{moduleName}Schema` object. Import module-internal schemas using the same object-destructuring pattern.
 
