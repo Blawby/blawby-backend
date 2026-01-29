@@ -47,13 +47,16 @@ const getPracticeDetails = async (
       return organizationResult;
     }
 
-    // 2. Get practice details and services
+    // 2. Get organization with custom fields from repository (Drizzle-typed)
+    const organization = await organizationRepository.findById(organizationId);
+
+    // 3. Get practice details and services
     const [fetchedDetails, services] = await Promise.all([
       findPracticeDetailsByOrganization(organizationId),
       practiceServicesRepository.findServicesByOrganization(organizationId),
     ]);
 
-    // 3. Fetch address if linked
+    // 4. Fetch address if linked
     let addressData: AddressData | null = null;
     if (fetchedDetails?.address_id) {
       const [address] = await db
@@ -73,7 +76,7 @@ const getPracticeDetails = async (
       }
     }
 
-    // 4. Return combined data
+    // 5. Return combined data
     const responseData = {
       ...omit(fetchedDetails || {}, [
         'id',
@@ -88,8 +91,8 @@ const getPracticeDetails = async (
       billing_increment_minutes: fetchedDetails?.billing_increment_minutes ?? 1,
       name: organizationResult.data.name,
       logo: organizationResult.data.logo,
-      payment_link_enabled: organizationResult.data.paymentLinkEnabled ?? false,
-      payment_link_prefill_amount: organizationResult.data.paymentLinkPrefillAmount ?? 0,
+      payment_link_enabled: organization?.paymentLinkEnabled ?? false,
+      payment_link_prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
     };
 
     return ok(responseData as unknown as PracticeDetailsResponse);
