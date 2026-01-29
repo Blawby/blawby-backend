@@ -63,14 +63,22 @@ const practiceDetailsValidationSchema = z.object({
 /**
  * Generic helper to check if any fields from a Zod schema are present and contain values
  */
-const isAnyFieldProvided = (data: Record<string, unknown>, schema: z.ZodObject): boolean => {
+const isAnyFieldProvided = (
+  data: Record<string, unknown>,
+  schema: z.ZodObject,
+  options: { treatEmptyStringAsProvided?: boolean } = {},
+): boolean => {
+  const { treatEmptyStringAsProvided = false } = options;
   return Object.keys(schema.shape).some((key) => {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) return false;
     const value = data[key];
     if (value === undefined || value === null) return false;
     if (typeof value === 'object' && !Array.isArray(value)) {
       return Object.keys(value).length > 0;
     }
-    if (typeof value === 'string') return value.trim().length > 0;
+    if (typeof value === 'string') {
+      return treatEmptyStringAsProvided ? true : value.trim().length > 0;
+    }
     return true; // Booleans, numbers, non-empty arrays
   });
 };
@@ -99,7 +107,7 @@ const updatePracticeSchemaBase = z.object({
 });
 
 const updatePracticeSchema = updatePracticeSchemaBase.refine(
-  (data) => isAnyFieldProvided(data as Record<string, unknown>, updatePracticeSchemaBase),
+  (data) => isAnyFieldProvided(data, updatePracticeSchemaBase, { treatEmptyStringAsProvided: true }),
   {
     message: 'At least one field must be provided to update the practice',
   },
@@ -364,7 +372,7 @@ const acceptInvitationResponseSchema = z.object({
 
 // Practice Details API schemas
 const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
-  (data) => isAnyFieldProvided(data as Record<string, unknown>, practiceDetailsValidationSchema),
+  (data) => isAnyFieldProvided(data, practiceDetailsValidationSchema),
   {
     message: 'At least one practice detail field must be provided',
   },
@@ -481,6 +489,6 @@ export const practiceValidations = {
   practiceDetailsUpdateResponseSchema,
   slugParamSchema,
   hasPracticeDetails: (data: Partial<z.infer<typeof practiceDetailsValidationSchema>>) => {
-    return isAnyFieldProvided(data as Record<string, unknown>, practiceDetailsValidationSchema);
+    return isAnyFieldProvided(data, practiceDetailsValidationSchema);
   },
 };
