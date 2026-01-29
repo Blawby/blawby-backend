@@ -129,7 +129,6 @@ const buildOpenApiDocument = () => {
       name: 'Matters Management',
       tags: [
         'Matters: General',
-        'Matters: Practice Areas',
         'Matters: Notes',
         'Matters: Time Entries',
         'Matters: Expenses',

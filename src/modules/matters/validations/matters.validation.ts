@@ -39,7 +39,7 @@ const createMatterSchema = z.object({
   {
     message: 'Invalid billing configuration for the selected billing type',
   },
-);
+).strict();
 
 const updateMatterSchema = z.object({
   client_id: uuidValidator.optional(),
@@ -55,7 +55,7 @@ const updateMatterSchema = z.object({
   payment_frequency: z.enum(['project', 'milestone']).optional(),
   status: z.enum(['draft', 'active']).optional(),
   assignee_ids: z.array(uuidValidator).optional(),
-});
+}).strict();
 
 const matterIdParamSchema = z.object({
   uuid: uuidValidator,

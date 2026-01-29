@@ -7,7 +7,7 @@ import { db } from '@/shared/database';
 /**
  * Find all services for an organization
  */
-export const findServicesByOrganization = async (
+const findServicesByOrganization = async (
   organizationId: string,
 ): Promise<PracticeService[]> => {
   return await db
@@ -20,7 +20,7 @@ export const findServicesByOrganization = async (
  * Upsert services for an organization within a transaction
  * Handles creating new ones, updating existing ones, and deleting removed ones.
  */
-export const syncServicesTx = async (
+const syncServicesTx = async (
   tx: typeof db,
   organizationId: string,
   newServices: { id?: string; name: string; key: string; description?: string }[],
@@ -89,9 +89,22 @@ export const syncServicesTx = async (
   return results.filter((s): s is PracticeService => !!s);
 };
 
+/**
+ * Find service by ID
+ */
+const findById = async (
+  id: string,
+): Promise<PracticeService | undefined> => {
+  const [service] = await db
+    .select()
+    .from(practiceServices)
+    .where(eq(practiceServices.id, id))
+    .limit(1);
+  return service;
+};
+
 export const practiceServicesRepository = {
   findServicesByOrganization,
   syncServicesTx,
+  findById,
 };
-
-export default practiceServicesRepository;
