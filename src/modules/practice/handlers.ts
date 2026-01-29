@@ -1,9 +1,3 @@
-import { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
-import { practiceService } from '@/modules/practice/services/practice.service';
-import { membersService } from '@/modules/practice/services/members.service';
-import { invitationsService } from '@/modules/practice/services/invitations.service';
-import { practiceDetailsService } from '@/modules/practice/services/practice-details.service';
 import {
   listPracticesRoute,
   createPracticeRoute,
@@ -24,6 +18,12 @@ import {
   deletePracticeDetailsRoute,
   getPracticeDetailsBySlugRoute,
 } from '@/modules/practice/routes';
+import { invitationsService } from '@/modules/practice/services/invitations.service';
+import { membersService } from '@/modules/practice/services/members.service';
+import { practiceDetailsService } from '@/modules/practice/services/practice-details.service';
+import { practiceService } from '@/modules/practice/services/practice.service';
+import { AppRouteHandler } from '@/shared/types/hono';
+import { response } from '@/shared/utils/responseUtils';
 
 export const listPracticesHandler: AppRouteHandler<typeof listPracticesRoute> = async (c) => {
   const user = c.get('user')!;
@@ -82,7 +82,8 @@ export const updateMemberRoleHandler: AppRouteHandler<typeof updateMemberRoleRou
   const user = c.get('user')!;
   const { uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await membersService.updatePracticeMemberRole(uuid, validatedBody.member_id, validatedBody.role, user, c.req.header());
+  const result = await membersService
+    .updatePracticeMemberRole(uuid, validatedBody.member_id, validatedBody.role, user, c.req.header());
   return response.fromResult(c, result);
 };
 
@@ -103,7 +104,8 @@ export const createInvitationHandler: AppRouteHandler<typeof createInvitationRou
   const user = c.get('user')!;
   const { uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await invitationsService.createPracticeInvitation(uuid, validatedBody.email, validatedBody.role, user, c.req.header());
+  const result = await invitationsService
+    .createPracticeInvitation(uuid, validatedBody.email, validatedBody.role, user, c.req.header());
   return response.fromResult(c, result, 201);
 };
 

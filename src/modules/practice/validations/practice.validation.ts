@@ -51,6 +51,7 @@ const practiceDetailsValidationSchema = z.object({
   intro_message: z.string().optional().openapi({ example: 'Welcome to our practice' }),
   overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
   is_public: z.boolean().optional().openapi({ example: true }),
+  billing_increment_minutes: billingIncrementMinutesSchema.optional(),
   services: z
     .array(z.object({ id: z.string().optional(), name: z.string(), key: z.string() }))
     .optional()
@@ -59,6 +60,21 @@ const practiceDetailsValidationSchema = z.object({
   address: addressSchema.optional(),
 });
 
+/**
+ * Generic helper to check if any fields from a Zod schema are present and contain values
+ */
+const isAnyFieldProvided = (data: Record<string, unknown>, schema: z.ZodObject): boolean => {
+  return Object.keys(schema.shape).some((key) => {
+    const value = data[key];
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return Object.keys(value).length > 0;
+    }
+    if (typeof value === 'string') return value.trim().length > 0;
+    return true; // Booleans, numbers, non-empty arrays
+  });
+};
+
 // Complete practice schemas
 const createPracticeSchema = z.object({
   // Organization fields (required)
@@ -66,50 +82,28 @@ const createPracticeSchema = z.object({
   slug: slugValidator,
   logo: urlValidator.optional().or(z.literal('')),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  billing_increment_minutes: billingIncrementMinutesSchema.optional(),
 
   // Practice details
   ...practiceDetailsValidationSchema.shape,
 });
 
-const updatePracticeSchema = z
-  .object({
-    // Organization fields (all optional for updates)
-    name: nameValidator.optional(),
-    slug: slugValidator.optional(),
-    logo: urlValidator.optional().or(z.literal('')),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-    billing_increment_minutes: billingIncrementMinutesSchema.optional(),
+const updatePracticeSchemaBase = z.object({
+  // Organization fields (all optional for updates)
+  name: nameValidator.optional(),
+  slug: slugValidator.optional(),
+  logo: urlValidator.optional().or(z.literal('')),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 
-    // Practice details
-    ...practiceDetailsValidationSchema.shape,
-  })
-  .refine(
-    (data) => {
-      // Ensure at least one field is provided for update
-      const hasOrgField = data.name
-        || data.slug
-        || data.logo
-        || data.metadata
-        || data.billing_increment_minutes !== undefined;
-      const hasPracticeField
-        = data.business_phone
-        || data.business_email
-        || data.consultation_fee !== undefined
-        || data.payment_url
-        || data.calendly_url
-        || data.website
-        || data.intro_message
-        || data.overview
-        || data.is_public !== undefined
-        || data.services
-        || data.address;
-      return hasOrgField || hasPracticeField;
-    },
-    {
-      message: 'At least one field must be provided to update the practice',
-    },
-  );
+  // Practice details
+  ...practiceDetailsValidationSchema.shape,
+});
+
+const updatePracticeSchema = updatePracticeSchemaBase.refine(
+  (data) => isAnyFieldProvided(data as Record<string, unknown>, updatePracticeSchemaBase),
+  {
+    message: 'At least one field must be provided to update the practice',
+  },
+);
 
 // Response schemas with OpenAPI metadata
 const practiceResponseSchema = z
@@ -370,22 +364,7 @@ const acceptInvitationResponseSchema = z.object({
 
 // Practice Details API schemas
 const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
-  (data) => {
-    // At least one field must be provided
-    return (
-      data.business_phone
-      || data.business_email
-      || data.consultation_fee !== undefined
-      || data.payment_url
-      || data.calendly_url
-      || data.website
-      || data.intro_message
-      || data.overview
-      || data.is_public !== undefined
-      || data.services
-      || data.address
-    );
-  },
+  (data) => isAnyFieldProvided(data as Record<string, unknown>, practiceDetailsValidationSchema),
   {
     message: 'At least one practice detail field must be provided',
   },
@@ -501,4 +480,7 @@ export const practiceValidations = {
   practiceDetailsCreateResponseSchema,
   practiceDetailsUpdateResponseSchema,
   slugParamSchema,
+  hasPracticeDetails: (data: Partial<z.infer<typeof practiceDetailsValidationSchema>>) => {
+    return isAnyFieldProvided(data as Record<string, unknown>, practiceDetailsValidationSchema);
+  },
 };
