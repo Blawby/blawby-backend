@@ -92,7 +92,7 @@ const accountPreferencesSchema = z.object({
 
 const onboardingPreferencesSchema = z.object({
   birthday: z.string().optional(), // ISO date string
-  primary_use_case: z.string().optional(),
+  primary_use_case: z.enum(PRODUCT_USAGE_OPTIONS).optional(),
   use_case_additional_info: z.string().optional(),
   completed: z.boolean().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
@@ -191,4 +191,3 @@ export const preferenceValidations = {
   notFoundResponseSchema,
   internalServerErrorResponseSchema,
 };
-

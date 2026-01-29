@@ -3,6 +3,11 @@ import { preferenceValidations } from '@/modules/preferences/validations/prefere
 
 // Product usage options enum
 export const PRODUCT_USAGE_OPTIONS = [
+  'messaging',
+  'legal_payments',
+  'matter_management',
+  'intake_forms',
+  'other',
   'personal_legal_issue',
   'business_legal_needs',
   'legal_research',
