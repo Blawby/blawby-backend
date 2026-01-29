@@ -71,3 +71,27 @@ Every module `index.ts` should be minimal and simply export the Hono application
 import http from '@/modules/my-module/http';
 export default http;
 ```
+
+## 6. Result Pattern
+Use the `Result<T>` type for service returns to handle success and failure gracefully. For paginated data, use `PaginatedResult<T, Key>`.
+
+- Use `result.ok(data)` for success responses.
+- Use `result.badRequest(message)` or `result.internalError(message)` for failures.
+- Always use the `result.something` pattern (object access) rather than destructuring for clarity.
+
+```typescript
+import { result } from '@/shared/utils/result';
+import type { PaginatedResult } from '@/shared/types/result';
+
+const list = async (organizationId: string): Promise<PaginatedResult<MyItem, 'items'>> => {
+  try {
+    const data = await getItems(organizationId);
+    return result.ok({
+      items: data,
+      total: data.length,
+    });
+  } catch (error) {
+    return result.internalError(error.message);
+  }
+};
+```

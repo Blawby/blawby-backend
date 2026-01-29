@@ -9,7 +9,9 @@ import type {
   ListMattersQuery,
   MatterResponse,
 } from '@/modules/matters/types/matter.types';
+import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { getFullOrganization } from '@/modules/practice/services/organization.service';
+import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
 import { db } from '@/shared/database';
 import {
   MatterCreated,
@@ -18,8 +20,8 @@ import {
   MatterStatusChanged,
 } from '@/shared/events/definitions';
 import type { User } from '@/shared/types/BetterAuth';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import type { Result, PaginatedResult } from '@/shared/types/result';
+import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'service']);
 
@@ -45,6 +47,22 @@ const createMatter = async (
 
   // Extract assignees and milestones from data
   const { assignee_ids, milestones, ...matterData } = data;
+
+  // Validate client_id if provided
+  if (data.client_id) {
+    const client = await userDetailsRepository.findById(data.client_id);
+    if (!client || client.organization_id !== organizationId) {
+      return result.badRequest('Invalid client_id or client does not belong to this organization');
+    }
+  }
+
+  // Validate practice_service_id if provided
+  if (data.practice_service_id) {
+    const service = await practiceServicesRepository.findById(data.practice_service_id);
+    if (!service || service.organization_id !== organizationId) {
+      return result.badRequest('Invalid practice_service_id or service does not belong to this organization');
+    }
+  }
 
   try {
     // Create matter in transaction
@@ -101,7 +119,7 @@ const createMatter = async (
       return newMatter;
     });
 
-    return ok({
+    return result.ok({
       ...matter,
       created_at: matter.created_at.toISOString(),
       updated_at: matter.updated_at.toISOString(),
@@ -113,7 +131,7 @@ const createMatter = async (
       userId: user.id,
       error: message,
     });
-    return internalError(message);
+    return result.internalError(message);
   }
 };
 
@@ -145,10 +163,10 @@ const getMatterById = async (
         matterId,
         organizationId,
       });
-      return notFound('Matter not found');
+      return result.notFound('Matter not found');
     }
 
-    return ok({
+    return result.ok({
       ...matter,
       assignees: matter.assignees.map((a) => a.user),
       created_at: matter.created_at.toISOString(),
@@ -161,7 +179,7 @@ const getMatterById = async (
       matterId,
       error: message,
     });
-    return internalError(message);
+    return result.internalError(message);
   }
 };
 
@@ -173,7 +191,7 @@ const listMatters = async (
   filters: ListMattersQuery,
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<Result<{ matters: MatterResponse[]; total: number }>> => {
+): Promise<PaginatedResult<MatterResponse, 'matters'>> => {
   // Verify user has access to organization
   const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) {
@@ -186,23 +204,23 @@ const listMatters = async (
   }
 
   try {
-    const result = await mattersQueries.listMattersByOrganization(organizationId, filters);
-    return ok({
-      matters: result.matters.map((m) => ({
+    const listResult = await mattersQueries.listMattersByOrganization(organizationId, filters);
+    return result.ok({
+      matters: listResult.matters.map((m) => ({
         ...m,
         created_at: m.created_at.toISOString(),
         updated_at: m.updated_at.toISOString(),
         deleted_at: m.deleted_at?.toISOString(),
-      })),
-      total: result.total,
-    } as { matters: MatterResponse[]; total: number });
+      })) as MatterResponse[],
+      total: listResult.total,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to list matters {organizationId}: {error}', {
       organizationId,
       error: message,
     });
-    return internalError(message);
+    return result.internalError(message);
   }
 };
 
@@ -226,8 +244,24 @@ const updateMatter = async (
   // Extract assignees from data
   const { assignee_ids, ...matterData } = data;
 
+  // Validate client_id if provided
+  if (data.client_id) {
+    const client = await userDetailsRepository.findById(data.client_id);
+    if (!client || client.organization_id !== organizationId) {
+      return result.badRequest('Invalid client_id or client does not belong to this organization');
+    }
+  }
+
+  // Validate practice_service_id if provided
+  if (data.practice_service_id) {
+    const service = await practiceServicesRepository.findById(data.practice_service_id);
+    if (!service || service.organization_id !== organizationId) {
+      return result.badRequest('Invalid practice_service_id or service does not belong to this organization');
+    }
+  }
+
   try {
-    const result = await db.transaction(async (tx) => {
+    const transactionResult = await db.transaction(async (tx) => {
       // Update the matter
       const updated = await mattersQueries.updateMatter(matterId, matterData, tx);
 
@@ -290,11 +324,11 @@ const updateMatter = async (
       return updated;
     });
 
-    return ok({
-      ...result,
-      created_at: result.created_at.toISOString(),
-      updated_at: result.updated_at.toISOString(),
-      deleted_at: result.deleted_at?.toISOString(),
+    return result.ok({
+      ...transactionResult,
+      created_at: transactionResult.created_at.toISOString(),
+      updated_at: transactionResult.updated_at.toISOString(),
+      deleted_at: transactionResult.deleted_at?.toISOString(),
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -302,7 +336,7 @@ const updateMatter = async (
       matterId,
       error: message,
     });
-    return internalError(message);
+    return result.internalError(message);
   }
 };
 
@@ -351,14 +385,14 @@ const deleteMatter = async (
       return deleted;
     });
 
-    return ok({ success: true });
+    return result.ok({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete matter {matterId}: {error}', {
       matterId,
       error: message,
     });
-    return internalError(message);
+    return result.internalError(message);
   }
 };
 
@@ -390,14 +424,14 @@ const getMatterCounts = async (
       return acc;
     }, {} as Record<string, number>);
 
-    return ok(transformed);
+    return result.ok(transformed);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get matter counts {organizationId}: {error}', {
       organizationId,
       error: message,
     });
-    return internalError(message);
+    return result.internalError(message);
   }
 };
 
