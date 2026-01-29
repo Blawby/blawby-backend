@@ -1,8 +1,8 @@
 import { getLogger } from '@logtape/logtape';
-import milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
-import mattersQueries from '@/modules/matters/database/queries/matters.queries';
+import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
+import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
-import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
+import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import type {
   CreateMatterRequest,
   UpdateMatterRequest,
@@ -26,7 +26,7 @@ const logger = getLogger(['matters', 'service']);
 /**
  * Create a matter
  */
-export const createMatter = async (
+const createMatter = async (
   organizationId: string,
   data: CreateMatterRequest,
   user: User,
@@ -64,7 +64,7 @@ export const createMatter = async (
       }
 
       if (milestones && milestones.length > 0) {
-        await milestonesQueries.createMatterMilestones(
+        await matterMilestonesQueries.createMatterMilestones(
           milestones.map((milestone) => ({
             matter_id: newMatter.id,
             description: milestone.description,
@@ -78,9 +78,9 @@ export const createMatter = async (
       }
 
       // Log activity
-      await logMatterActivity(
+      await matterActivityService.logMatterActivity(
         newMatter.id,
-        ActivityAction.MATTER_CREATED,
+        matterActivityService.ActivityAction.MATTER_CREATED,
         `Matter "${newMatter.title}" was created`,
         user.id,
         { billing_type: newMatter.billing_type, status: newMatter.status },
@@ -120,7 +120,7 @@ export const createMatter = async (
 /**
  * Get matter by ID with relations
  */
-export const getMatterById = async (
+const getMatterById = async (
   organizationId: string,
   matterId: string,
   user: User,
@@ -168,7 +168,7 @@ export const getMatterById = async (
 /**
  * List matters with filters
  */
-export const listMatters = async (
+const listMatters = async (
   organizationId: string,
   filters: ListMattersQuery,
   user: User,
@@ -209,7 +209,7 @@ export const listMatters = async (
 /**
  * Update matter
  */
-export const updateMatter = async (
+const updateMatter = async (
   organizationId: string,
   matterId: string,
   data: UpdateMatterRequest,
@@ -217,7 +217,7 @@ export const updateMatter = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<MatterResponse>> => {
   // Verify access
-  const existingResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const existingResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!existingResult.success) {
     return existingResult;
   }
@@ -246,9 +246,9 @@ export const updateMatter = async (
 
       // Log activity
       const changes = Object.keys(matterData);
-      await logMatterActivity(
+      await matterActivityService.logMatterActivity(
         matterId,
-        ActivityAction.MATTER_UPDATED,
+        matterActivityService.ActivityAction.MATTER_UPDATED,
         `Matter "${updated.title}" was updated (${changes.join(', ')})`,
         user.id,
         { changes: matterData },
@@ -257,9 +257,9 @@ export const updateMatter = async (
 
       // Check for status change
       if (data.status && data.status !== existingMatter.status) {
-        await logMatterActivity(
+        await matterActivityService.logMatterActivity(
           matterId,
-          ActivityAction.MATTER_STATUS_CHANGED,
+          matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
           `Matter status changed from "${existingMatter.status}" to "${data.status}"`,
           user.id,
           { oldStatus: existingMatter.status, newStatus: data.status },
@@ -309,16 +309,16 @@ export const updateMatter = async (
 /**
  * Delete matter (soft delete)
  */
-export const deleteMatter = async (
+const deleteMatter = async (
   organizationId: string,
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: true }>> => {
-  // Verify access
-  const existingResult = await getMatterById(organizationId, matterId, user, requestHeaders);
-  if (!existingResult.success) {
-    return existingResult;
+  // Verify user has access to matter
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult;
   }
 
   try {
@@ -330,9 +330,9 @@ export const deleteMatter = async (
       }
 
       // Log activity
-      await logMatterActivity(
+      await matterActivityService.logMatterActivity(
         matterId,
-        ActivityAction.MATTER_DELETED,
+        matterActivityService.ActivityAction.MATTER_DELETED,
         `Matter "${deleted.title}" was deleted`,
         user.id,
         undefined,
@@ -365,7 +365,7 @@ export const deleteMatter = async (
 /**
  * Get matter counts by status
  */
-export const getMatterCounts = async (
+const getMatterCounts = async (
   organizationId: string,
   user: User,
   requestHeaders: Record<string, string>,
@@ -385,7 +385,7 @@ export const getMatterCounts = async (
     const counts = await mattersQueries.getMatterCountsByStatus(organizationId);
 
     // Transform to object format
-    const transformed = counts.reduce((acc, { status, count }) => {
+    const transformed = counts.reduce((acc: Record<string, number>, { status, count }) => {
       acc[status] = count;
       return acc;
     }, {} as Record<string, number>);
@@ -399,4 +399,13 @@ export const getMatterCounts = async (
     });
     return internalError(message);
   }
+};
+
+export const mattersService = {
+  createMatter,
+  getMatterById,
+  listMatters,
+  updateMatter,
+  deleteMatter,
+  getMatterCounts,
 };
