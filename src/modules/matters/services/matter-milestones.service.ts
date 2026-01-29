@@ -1,8 +1,8 @@
 import { getLogger } from '@logtape/logtape';
-import milestonesQueries from '@/modules/matters/database/queries/matter-milestones.queries';
+import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
-import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
-import { getMatterById } from '@/modules/matters/services/matters.service';
+import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import { mattersService } from '@/modules/matters/services/matters.service';
 import type {
   CreateMatterMilestoneRequest,
   UpdateMatterMilestoneRequest,
@@ -17,7 +17,7 @@ const logger = getLogger(['matters', 'services', 'milestones']);
 /**
  * Create a matter milestone
  */
-export const createMatterMilestone = async (
+const createMatterMilestone = async (
   organizationId: string,
   matterId: string,
   data: CreateMatterMilestoneRequest,
@@ -25,13 +25,13 @@ export const createMatterMilestone = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterMilestone>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
-    const milestone = await milestonesQueries.createMatterMilestone({
+    const milestone = await matterMilestonesQueries.createMatterMilestone({
       matter_id: matterId,
       description: data.description,
       amount: data.amount,
@@ -42,9 +42,9 @@ export const createMatterMilestone = async (
 
     // Log activity
     const amountFormatted = (data.amount / 100).toFixed(2);
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.MILESTONE_CREATED,
+      matterActivityService.ActivityAction.MILESTONE_CREATED,
       `${user.name || user.email} created milestone: ${data.description} ($${amountFormatted})`,
       user.id,
       { amount: data.amount, due_date: data.due_date },
@@ -64,20 +64,20 @@ export const createMatterMilestone = async (
 /**
  * List matter milestones
  */
-export const listMatterMilestones = async (
+const listMatterMilestones = async (
   organizationId: string,
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterMilestone[]>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
-    const milestones = await milestonesQueries.listMatterMilestones(matterId);
+    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId);
     return ok(milestones);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -92,7 +92,7 @@ export const listMatterMilestones = async (
 /**
  * Update matter milestone
  */
-export const updateMatterMilestone = async (
+const updateMatterMilestone = async (
   organizationId: string,
   matterId: string,
   milestoneId: string,
@@ -101,33 +101,33 @@ export const updateMatterMilestone = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterMilestone>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Verify milestone exists and belongs to matter
-    const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
+    const milestone = await matterMilestonesQueries.findMatterMilestoneById(milestoneId);
     if (!milestone || milestone.matter_id !== matterId) {
       return notFound('Milestone not found');
     }
 
-    const updated = await milestonesQueries.updateMatterMilestone(milestoneId, data);
+    const updated = await matterMilestonesQueries.updateMatterMilestone(milestoneId, data);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.MILESTONE_UPDATED,
+      matterActivityService.ActivityAction.MILESTONE_UPDATED,
       `${user.name || user.email} updated milestone: ${updated!.description}`,
       user.id,
     );
 
     // Check if milestone was marked as completed
     if (data.status === 'completed' && milestone.status !== 'completed') {
-      await logMatterActivity(
+      await matterActivityService.logMatterActivity(
         matterId,
-        ActivityAction.MILESTONE_COMPLETED,
+        matterActivityService.ActivityAction.MILESTONE_COMPLETED,
         `${user.name || user.email} completed milestone: ${milestone.description}`,
         user.id,
       );
@@ -147,7 +147,7 @@ export const updateMatterMilestone = async (
 /**
  * Delete matter milestone
  */
-export const deleteMatterMilestone = async (
+const deleteMatterMilestone = async (
   organizationId: string,
   matterId: string,
   milestoneId: string,
@@ -155,24 +155,24 @@ export const deleteMatterMilestone = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Verify milestone exists and belongs to matter
-    const milestone = await milestonesQueries.findMatterMilestoneById(milestoneId);
+    const milestone = await matterMilestonesQueries.findMatterMilestoneById(milestoneId);
     if (!milestone || milestone.matter_id !== matterId) {
       return notFound('Milestone not found');
     }
 
-    await milestonesQueries.deleteMatterMilestone(milestoneId);
+    await matterMilestonesQueries.deleteMatterMilestone(milestoneId);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.MILESTONE_DELETED,
+      matterActivityService.ActivityAction.MILESTONE_DELETED,
       `${user.name || user.email} deleted milestone: ${milestone.description}`,
       user.id,
     );
@@ -191,7 +191,7 @@ export const deleteMatterMilestone = async (
 /**
  * Reorder milestones
  */
-export const reorderMilestones = async (
+const reorderMilestones = async (
   organizationId: string,
   matterId: string,
   data: ReorderMilestonesRequest,
@@ -199,7 +199,7 @@ export const reorderMilestones = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -207,18 +207,18 @@ export const reorderMilestones = async (
   try {
     // Verify all milestones belong to this matter
     for (const item of data.milestones) {
-      const milestone = await milestonesQueries.findMatterMilestoneById(item.id);
+      const milestone = await matterMilestonesQueries.findMatterMilestoneById(item.id);
       if (!milestone || milestone.matter_id !== matterId) {
         return notFound(`Milestone ${item.id} not found or does not belong to this matter`);
       }
     }
 
-    await milestonesQueries.reorderMilestones(data.milestones);
+    await matterMilestonesQueries.reorderMilestones(data.milestones);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.MILESTONE_UPDATED,
+      matterActivityService.ActivityAction.MILESTONE_UPDATED,
       `${user.name || user.email} reordered milestones`,
       user.id,
     );
@@ -237,7 +237,7 @@ export const reorderMilestones = async (
 /**
  * Get milestone statistics
  */
-export const getMilestoneStats = async (
+const getMilestoneStats = async (
   organizationId: string,
   matterId: string,
   user: User,
@@ -253,13 +253,13 @@ export const getMilestoneStats = async (
   completionPercentage: number;
 }>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
-    const stats = await milestonesQueries.getMilestoneStats(matterId);
+    const stats = await matterMilestonesQueries.getMilestoneStats(matterId);
 
     return ok({
       ...stats,
@@ -275,5 +275,14 @@ export const getMilestoneStats = async (
     });
     return internalError(message);
   }
+};
+
+export const matterMilestonesService = {
+  createMatterMilestone,
+  listMatterMilestones,
+  updateMatterMilestone,
+  deleteMatterMilestone,
+  reorderMilestones,
+  getMilestoneStats,
 };
 

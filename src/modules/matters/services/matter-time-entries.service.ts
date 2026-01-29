@@ -1,8 +1,8 @@
 import { getLogger } from '@logtape/logtape';
-import * as timeEntriesQueries from '@/modules/matters/database/queries/matter-time-entries.queries';
+import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/matter-time-entries.schema';
-import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
-import { getMatterById } from '@/modules/matters/services/matters.service';
+import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import { mattersService } from '@/modules/matters/services/matters.service';
 import type {
   CreateMatterTimeEntryRequest,
   UpdateMatterTimeEntryRequest,
@@ -23,7 +23,7 @@ const calculateDuration = (startTime: Date, endTime: Date): number => {
 /**
  * Create a matter time entry
  */
-export const createMatterTimeEntry = async (
+const createMatterTimeEntry = async (
   organizationId: string,
   matterId: string,
   data: CreateMatterTimeEntryRequest,
@@ -31,7 +31,7 @@ export const createMatterTimeEntry = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterTimeEntry>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
@@ -41,7 +41,7 @@ export const createMatterTimeEntry = async (
     const endTime = new Date(data.end_time);
     const duration = calculateDuration(startTime, endTime);
 
-    const entry = await timeEntriesQueries.createMatterTimeEntry({
+    const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
       matter_id: matterId,
       user_id: user.id,
       start_time: startTime,
@@ -54,9 +54,9 @@ export const createMatterTimeEntry = async (
     // Log activity
     const hours = Math.floor(duration / 3600);
     const minutes = Math.floor((duration % 3600) / 60);
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.TIME_ENTRY_ADDED,
+      matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
       `${user.name || user.email} logged ${hours}h ${minutes}m${data.billable ? ' (billable)' : ''}`,
       user.id,
       { duration, billable: data.billable },
@@ -76,7 +76,7 @@ export const createMatterTimeEntry = async (
 /**
  * List matter time entries
  */
-export const listMatterTimeEntries = async (
+const listMatterTimeEntries = async (
   organizationId: string,
   matterId: string,
   user: User,
@@ -88,13 +88,13 @@ export const listMatterTimeEntries = async (
   },
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
 
   try {
-    const entries = await timeEntriesQueries.listMatterTimeEntries(matterId, filters);
+    const entries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId, filters);
     return ok(entries);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -109,7 +109,7 @@ export const listMatterTimeEntries = async (
 /**
  * Update matter time entry
  */
-export const updateMatterTimeEntry = async (
+const updateMatterTimeEntry = async (
   organizationId: string,
   matterId: string,
   entryId: string,
@@ -118,14 +118,14 @@ export const updateMatterTimeEntry = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterTimeEntry>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
 
   try {
     // Verify entry exists and belongs to matter
-    const entry: SelectMatterTimeEntry | undefined = await timeEntriesQueries.findMatterTimeEntryById(entryId);
+    const entry: SelectMatterTimeEntry | undefined = await matterTimeEntriesQueries.findMatterTimeEntryById(entryId);
     if (!entry || entry.matter_id !== matterId) {
       return notFound('Time entry not found');
     }
@@ -134,7 +134,7 @@ export const updateMatterTimeEntry = async (
     const startTime = data.start_time ? new Date(data.start_time) : entry.start_time;
     const endTime = data.end_time ? new Date(data.end_time) : entry.end_time;
 
-    const updateData: Parameters<typeof timeEntriesQueries.updateMatterTimeEntry>[1] = {
+    const updateData: Parameters<typeof matterTimeEntriesQueries.updateMatterTimeEntry>[1] = {
       ...(data.start_time && { start_time: startTime }),
       ...(data.end_time && { end_time: endTime }),
       ...(data.description !== undefined && { description: data.description }),
@@ -142,12 +142,12 @@ export const updateMatterTimeEntry = async (
       ...((data.start_time || data.end_time) && { duration: calculateDuration(startTime, endTime) }),
     };
 
-    const updated = await timeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
+    const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.TIME_ENTRY_UPDATED,
+      matterActivityService.ActivityAction.TIME_ENTRY_UPDATED,
       `${user.name || user.email} updated a time entry`,
       user.id,
     );
@@ -166,7 +166,7 @@ export const updateMatterTimeEntry = async (
 /**
  * Delete matter time entry
  */
-export const deleteMatterTimeEntry = async (
+const deleteMatterTimeEntry = async (
   organizationId: string,
   matterId: string,
   entryId: string,
@@ -174,24 +174,24 @@ export const deleteMatterTimeEntry = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
 
   try {
     // Verify entry exists and belongs to matter
-    const entry = await timeEntriesQueries.findMatterTimeEntryById(entryId);
+    const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(entryId);
     if (!entry || entry.matter_id !== matterId) {
       return notFound('Time entry not found');
     }
 
-    await timeEntriesQueries.deleteMatterTimeEntry(entryId);
+    await matterTimeEntriesQueries.deleteMatterTimeEntry(entryId);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.TIME_ENTRY_DELETED,
+      matterActivityService.ActivityAction.TIME_ENTRY_DELETED,
       `${user.name || user.email} deleted a time entry`,
       user.id,
     );
@@ -210,7 +210,7 @@ export const deleteMatterTimeEntry = async (
 /**
  * Get time entry statistics
  */
-export const getTimeEntryStats = async (
+const getTimeEntryStats = async (
   organizationId: string,
   matterId: string,
   user: User,
@@ -222,14 +222,14 @@ export const getTimeEntryStats = async (
   totalHours: number;
 }>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
 
   try {
-    const totalBillable = await timeEntriesQueries.getTotalBillableTime(matterId);
-    const totalTime = await timeEntriesQueries.getTotalTime(matterId);
+    const totalBillable = await matterTimeEntriesQueries.getTotalBillableTime(matterId);
+    const totalTime = await matterTimeEntriesQueries.getTotalTime(matterId);
 
     return ok({
       totalBillableSeconds: totalBillable,
@@ -245,5 +245,13 @@ export const getTimeEntryStats = async (
     });
     return internalError(message);
   }
+};
+
+export const matterTimeEntriesService = {
+  createMatterTimeEntry,
+  listMatterTimeEntries,
+  updateMatterTimeEntry,
+  deleteMatterTimeEntry,
+  getTimeEntryStats,
 };
 

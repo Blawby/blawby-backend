@@ -9,7 +9,7 @@ import {
 import { db } from '@/shared/database';
 
 // Create matter expense
-export const createMatterExpense = async (
+const createMatterExpense = async (
   data: InsertMatterExpense,
 ): Promise<SelectMatterExpense> => {
   const [expense] = await db
@@ -20,7 +20,7 @@ export const createMatterExpense = async (
 };
 
 // Find matter expense by ID
-export const findMatterExpenseById = async (
+const findMatterExpenseById = async (
   id: string,
 ): Promise<SelectMatterExpense | undefined> => {
   const [expense] = await db
@@ -32,7 +32,7 @@ export const findMatterExpenseById = async (
 };
 
 // List matter expenses
-export const listMatterExpenses = async (
+const listMatterExpenses = async (
   matterId: string,
   filters?: {
     billable?: boolean;
@@ -62,7 +62,7 @@ export const listMatterExpenses = async (
 };
 
 // Update matter expense
-export const updateMatterExpense = async (
+const updateMatterExpense = async (
   id: string,
   data: Partial<InsertMatterExpense>,
 ): Promise<SelectMatterExpense | undefined> => {
@@ -75,12 +75,12 @@ export const updateMatterExpense = async (
 };
 
 // Delete matter expense
-export const deleteMatterExpense = async (id: string): Promise<void> => {
+const deleteMatterExpense = async (id: string): Promise<void> => {
   await db.delete(matterExpenses).where(eq(matterExpenses.id, id));
 };
 
 // Get total billable expenses for matter
-export const getTotalBillableExpenses = async (
+const getTotalBillableExpenses = async (
   matterId: string,
 ): Promise<number> => {
   const [result] = await db
@@ -99,7 +99,7 @@ export const getTotalBillableExpenses = async (
 };
 
 // Get total expenses for matter (billable and non-billable)
-export const getTotalExpenses = async (
+const getTotalExpenses = async (
   matterId: string,
 ): Promise<number> => {
   const [result] = await db
@@ -110,4 +110,14 @@ export const getTotalExpenses = async (
     .where(eq(matterExpenses.matter_id, matterId));
 
   return Number(result.total);
+};
+
+export const matterExpensesQueries = {
+  createMatterExpense,
+  findMatterExpenseById,
+  listMatterExpenses,
+  updateMatterExpense,
+  deleteMatterExpense,
+  getTotalBillableExpenses,
+  getTotalExpenses,
 };

@@ -6,21 +6,29 @@ import {
   getMatterActivityRoute,
   listMatterNotesRoute,
   createMatterNoteRoute,
+  updateMatterNoteRoute,
+  deleteMatterNoteRoute,
   listTimeEntriesRoute,
   createTimeEntryRoute,
+  updateTimeEntryRoute,
+  deleteTimeEntryRoute,
   getTimeEntryStatsRoute,
   listExpensesRoute,
   createExpenseRoute,
+  updateExpenseRoute,
+  deleteExpenseRoute,
   listMilestonesRoute,
   createMilestoneRoute,
+  updateMilestoneRoute,
+  deleteMilestoneRoute,
   reorderMilestonesRoute,
 } from '@/modules/matters/routes';
-import { getMatterActivity } from '@/modules/matters/services/matter-activity.service';
-import * as expensesService from '@/modules/matters/services/matter-expenses.service';
-import * as milestonesService from '@/modules/matters/services/matter-milestones.service';
-import * as notesService from '@/modules/matters/services/matter-notes.service';
-import * as timeEntriesService from '@/modules/matters/services/matter-time-entries.service';
-import * as mattersService from '@/modules/matters/services/matters.service';
+import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
+import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
+import { matterNotesService } from '@/modules/matters/services/matter-notes.service';
+import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
+import { mattersService } from '@/modules/matters/services/matters.service';
 import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -99,14 +107,14 @@ export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityR
   if (!result.success) {
     return response.fromResult(c, result);
   }
-  const activityResult = await getMatterActivity(uuid);
+  const activityResult = await matterActivityService.getMatterActivity(uuid);
   return response.fromResult(c, activityResult);
 };
 
 export const listMatterNotesHandler: AppRouteHandler<typeof listMatterNotesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
-  const result = await notesService.listMatterNotes(practice_id, uuid, user, c.req.header());
+  const result = await matterNotesService.listMatterNotes(practice_id, uuid, user, c.req.header());
   return response.fromResult(c, result);
 };
 
@@ -114,14 +122,36 @@ export const createMatterNoteHandler: AppRouteHandler<typeof createMatterNoteRou
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await notesService.createMatterNote(practice_id, uuid, validatedBody, user, c.req.header());
+  const result = await matterNotesService.createMatterNote(practice_id, uuid, validatedBody, user, c.req.header());
   return response.fromResult(c, result, 201);
+};
+
+export const updateMatterNoteHandler: AppRouteHandler<typeof updateMatterNoteRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, noteId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterNotesService.updateMatterNote(
+    practice_id,
+    uuid,
+    noteId,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
+};
+
+export const deleteMatterNoteHandler: AppRouteHandler<typeof deleteMatterNoteRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, noteId } = c.req.valid('param');
+  const result = await matterNotesService.deleteMatterNote(practice_id, uuid, noteId, user, c.req.header());
+  return response.fromResult(c, result);
 };
 
 export const listTimeEntriesHandler: AppRouteHandler<typeof listTimeEntriesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
-  const result = await timeEntriesService.listMatterTimeEntries(practice_id, uuid, user, c.req.header());
+  const result = await matterTimeEntriesService.listMatterTimeEntries(practice_id, uuid, user, c.req.header());
   return response.fromResult(c, result);
 };
 
@@ -129,22 +159,50 @@ export const createTimeEntryHandler: AppRouteHandler<typeof createTimeEntryRoute
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await timeEntriesService
+  const result = await matterTimeEntriesService
     .createMatterTimeEntry(practice_id, uuid, validatedBody, user, c.req.header());
   return response.fromResult(c, result, 201);
+};
+
+export const updateTimeEntryHandler: AppRouteHandler<typeof updateTimeEntryRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, entryId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterTimeEntriesService.updateMatterTimeEntry(
+    practice_id,
+    uuid,
+    entryId,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
+};
+
+export const deleteTimeEntryHandler: AppRouteHandler<typeof deleteTimeEntryRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, entryId } = c.req.valid('param');
+  const result = await matterTimeEntriesService.deleteMatterTimeEntry(
+    practice_id,
+    uuid,
+    entryId,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
 };
 
 export const getTimeEntryStatsHandler: AppRouteHandler<typeof getTimeEntryStatsRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
-  const result = await timeEntriesService.getTimeEntryStats(practice_id, uuid, user, c.req.header());
+  const result = await matterTimeEntriesService.getTimeEntryStats(practice_id, uuid, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const listExpensesHandler: AppRouteHandler<typeof listExpensesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
-  const result = await expensesService.listMatterExpenses(practice_id, uuid, user, c.req.header());
+  const result = await matterExpensesService.listMatterExpenses(practice_id, uuid, user, c.req.header());
   return response.fromResult(c, result);
 };
 
@@ -152,14 +210,43 @@ export const createExpenseHandler: AppRouteHandler<typeof createExpenseRoute> = 
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await expensesService.createMatterExpense(practice_id, uuid, validatedBody, user, c.req.header());
+  const result = await matterExpensesService
+    .createMatterExpense(practice_id, uuid, validatedBody, user, c.req.header());
   return response.fromResult(c, result, 201);
+};
+
+export const updateExpenseHandler: AppRouteHandler<typeof updateExpenseRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, expenseId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterExpensesService.updateMatterExpense(
+    practice_id,
+    uuid,
+    expenseId,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
+};
+
+export const deleteExpenseHandler: AppRouteHandler<typeof deleteExpenseRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, expenseId } = c.req.valid('param');
+  const result = await matterExpensesService.deleteMatterExpense(
+    practice_id,
+    uuid,
+    expenseId,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
 };
 
 export const listMilestonesHandler: AppRouteHandler<typeof listMilestonesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
-  const result = await milestonesService.listMatterMilestones(practice_id, uuid, user, c.req.header());
+  const result = await matterMilestonesService.listMatterMilestones(practice_id, uuid, user, c.req.header());
   return response.fromResult(c, result);
 };
 
@@ -167,7 +254,7 @@ export const createMilestoneHandler: AppRouteHandler<typeof createMilestoneRoute
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await milestonesService.createMatterMilestone(
+  const result = await matterMilestonesService.createMatterMilestone(
     practice_id,
     uuid,
     {
@@ -180,11 +267,39 @@ export const createMilestoneHandler: AppRouteHandler<typeof createMilestoneRoute
   return response.fromResult(c, result, 201);
 };
 
+export const updateMilestoneHandler: AppRouteHandler<typeof updateMilestoneRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, milestoneId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterMilestonesService.updateMatterMilestone(
+    practice_id,
+    uuid,
+    milestoneId,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
+};
+
+export const deleteMilestoneHandler: AppRouteHandler<typeof deleteMilestoneRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, uuid, milestoneId } = c.req.valid('param');
+  const result = await matterMilestonesService.deleteMatterMilestone(
+    practice_id,
+    uuid,
+    milestoneId,
+    user,
+    c.req.header(),
+  );
+  return response.fromResult(c, result);
+};
+
 export const reorderMilestonesHandler: AppRouteHandler<typeof reorderMilestonesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await milestonesService.reorderMilestones(practice_id, uuid, validatedBody, user, c.req.header());
+  const result = await matterMilestonesService
+    .reorderMilestones(practice_id, uuid, validatedBody, user, c.req.header());
   return response.fromResult(c, result);
 };
-

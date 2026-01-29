@@ -1,8 +1,8 @@
 import { getLogger } from '@logtape/logtape';
-import * as notesQueries from '@/modules/matters/database/queries/matter-notes.queries';
+import { matterNotesQueries } from '@/modules/matters/database/queries/matter-notes.queries';
 import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-notes.schema';
-import { logMatterActivity, ActivityAction } from '@/modules/matters/services/matter-activity.service';
-import { getMatterById } from '@/modules/matters/services/matters.service';
+import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import { mattersService } from '@/modules/matters/services/matters.service';
 import type {
   CreateMatterNoteRequest,
   UpdateMatterNoteRequest,
@@ -16,7 +16,7 @@ const logger = getLogger(['matters', 'services', 'notes']);
 /**
  * Create a matter note
  */
-export const createMatterNote = async (
+const createMatterNote = async (
   organizationId: string,
   matterId: string,
   data: CreateMatterNoteRequest,
@@ -24,22 +24,22 @@ export const createMatterNote = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterNote>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
-    const note = await notesQueries.createMatterNote({
+    const note = await matterNotesQueries.createMatterNote({
       matter_id: matterId,
       user_id: user.id,
       content: data.content,
     });
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.NOTE_ADDED,
+      matterActivityService.ActivityAction.NOTE_ADDED,
       `${user.name || user.email} added a note`,
       user.id,
     );
@@ -58,20 +58,20 @@ export const createMatterNote = async (
 /**
  * List matter notes
  */
-export const listMatterNotes = async (
+const listMatterNotes = async (
   organizationId: string,
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterNote[]>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
-    const notes = await notesQueries.listMatterNotes(matterId);
+    const notes = await matterNotesQueries.listMatterNotes(matterId);
     return ok(notes);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -86,7 +86,7 @@ export const listMatterNotes = async (
 /**
  * Update matter note
  */
-export const updateMatterNote = async (
+const updateMatterNote = async (
   organizationId: string,
   matterId: string,
   noteId: string,
@@ -95,24 +95,24 @@ export const updateMatterNote = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<SelectMatterNote>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Verify note exists and belongs to matter
-    const note = await notesQueries.findMatterNoteById(noteId);
+    const note = await matterNotesQueries.findMatterNoteById(noteId);
     if (!note || note.matter_id !== matterId) {
       return notFound('Note not found');
     }
 
-    const updated = await notesQueries.updateMatterNote(noteId, data);
+    const updated = await matterNotesQueries.updateMatterNote(noteId, data);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.NOTE_UPDATED,
+      matterActivityService.ActivityAction.NOTE_UPDATED,
       `${user.name || user.email} updated a note`,
       user.id,
     );
@@ -131,7 +131,7 @@ export const updateMatterNote = async (
 /**
  * Delete matter note
  */
-export const deleteMatterNote = async (
+const deleteMatterNote = async (
   organizationId: string,
   matterId: string,
   noteId: string,
@@ -139,24 +139,24 @@ export const deleteMatterNote = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Verify note exists and belongs to matter
-    const note = await notesQueries.findMatterNoteById(noteId);
+    const note = await matterNotesQueries.findMatterNoteById(noteId);
     if (!note || note.matter_id !== matterId) {
       return notFound('Note not found');
     }
 
-    await notesQueries.deleteMatterNote(noteId);
+    await matterNotesQueries.deleteMatterNote(noteId);
 
     // Log activity
-    await logMatterActivity(
+    await matterActivityService.logMatterActivity(
       matterId,
-      ActivityAction.NOTE_DELETED,
+      matterActivityService.ActivityAction.NOTE_DELETED,
       `${user.name || user.email} deleted a note`,
       user.id,
     );
@@ -170,5 +170,12 @@ export const deleteMatterNote = async (
     });
     return internalError(message);
   }
+};
+
+export const matterNotesService = {
+  createMatterNote,
+  listMatterNotes,
+  updateMatterNote,
+  deleteMatterNote,
 };
 
