@@ -162,6 +162,13 @@
       "when": 1769486724893,
       "tag": "0022_empty_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1769578959294,
+      "tag": "0023_add_billing_increment_minutes",
+      "breakpoints": true
     }
   ]
 }

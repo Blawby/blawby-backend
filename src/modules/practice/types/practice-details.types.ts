@@ -12,6 +12,7 @@ export type PracticeDetailsResponse = Omit<
   logo?: string | null;
   payment_link_enabled?: boolean;
   payment_link_prefill_amount?: number;
+  billing_increment_minutes?: number;
 };
 
 export type UpsertPracticeDetailsRequest = {
@@ -24,6 +25,7 @@ export type UpsertPracticeDetailsRequest = {
   intro_message?: string | null;
   overview?: string | null;
   is_public?: boolean;
+  billing_increment_minutes?: number;
   services?: Array<{ id?: string; name: string; key: string }>;
   // Nested Address fields
   address?: AddressData;

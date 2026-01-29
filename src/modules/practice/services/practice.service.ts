@@ -1,9 +1,11 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { omit } from 'es-toolkit/compat';
+import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import {
   findPracticeDetailsByOrganization,
 } from '@/modules/practice/database/queries/practice-details.repository';
+import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { practiceDetails as practiceDetailsTable, type PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import type {
@@ -12,6 +14,7 @@ import type {
   PracticeWithDetails,
   UpdateOrganizationRequest,
 } from '@/modules/practice/types/practice.types';
+import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import {
@@ -68,7 +71,8 @@ const getPracticeById = async (
     if (!orgResult.success) {
       return orgResult;
     }
-    const organization = orgResult.data;
+    // Omit members and invitations from the organization response
+    const organization = omit(orgResult.data, ['members', 'invitations']);
 
     // 2. Get optional practice details
     const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
@@ -88,7 +92,7 @@ const getPracticeById = async (
       practice: {
         ...organization,
         ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(organization.metadata),
+        metadata: parseBetterAuthMetadata(orgResult.data.metadata),
       } as PracticeWithDetails,
     });
   } catch (error) {
@@ -107,13 +111,20 @@ const createPractice = async (params: {
 }): Promise<Result<{ practice: PracticeWithDetails }>> => {
   const { data, user, requestHeaders } = params;
   try {
-    // 1. Extract practice details
+    // 1. Extract practice details from organization data
     const {
       business_phone,
       business_email,
       consultation_fee,
       payment_url,
       calendly_url,
+      billing_increment_minutes,
+      website,
+      intro_message,
+      overview,
+      is_public,
+      services,
+      address,
       ...organizationData
     } = data;
 
@@ -131,17 +142,36 @@ const createPractice = async (params: {
 
     // 3. Create optional practice details
     let practiceDetails: PracticeDetails | null = null;
-    const detailsPayload = {
-      business_phone: business_phone || null,
-      business_email: business_email || null,
-      consultation_fee: consultation_fee || null,
-      payment_url: payment_url || null,
-      calendly_url: calendly_url || null,
-    };
-    const hasDetails = Object.values(detailsPayload).some(Boolean);
+    const hasDetails = practiceValidations.hasPracticeDetails(data);
 
     if (hasDetails) {
       practiceDetails = await db.transaction(async (tx) => {
+        // Handle address if provided
+        let addressId: string | undefined;
+        if (address && Object.keys(address).length > 0) {
+          const addressResult = await upsertAddressTx(tx, {
+            addressData: address,
+            organizationId: organization.id,
+          });
+          if (addressResult) {
+            addressId = addressResult.id;
+          }
+        }
+
+        const detailsPayload = {
+          business_phone: business_phone || null,
+          business_email: business_email || null,
+          consultation_fee: consultation_fee || null,
+          payment_url: payment_url || null,
+          calendly_url: calendly_url || null,
+          billing_increment_minutes: billing_increment_minutes ?? 1,
+          website: website || null,
+          intro_message: intro_message || null,
+          overview: overview || null,
+          is_public: is_public ?? false,
+          address_id: addressId,
+        };
+
         const [details] = await tx
           .insert(practiceDetailsTable)
           .values({
@@ -150,6 +180,11 @@ const createPractice = async (params: {
             ...detailsPayload,
           })
           .returning();
+
+        // Sync services if provided
+        if (services !== undefined) {
+          await practiceServicesRepository.syncServicesTx(tx, organization.id, services);
+        }
 
         await PracticeDetailsCreated.dispatch({
           practice_details_id: details.id,
@@ -210,13 +245,20 @@ const updatePractice = async (
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ practice: PracticeWithDetails }>> => {
   try {
-    // 1. Extract details and organization data
+    // 1. Extract practice details from organization data
     const {
       business_phone,
       business_email,
       consultation_fee,
       payment_url,
       calendly_url,
+      billing_increment_minutes,
+      website,
+      intro_message,
+      overview,
+      is_public,
+      services,
+      address,
       ...organizationData
     } = data;
 
@@ -251,18 +293,40 @@ const updatePractice = async (
 
     // 3. Update practice details
     let practiceDetails: PracticeDetails | null = null;
-    const practiceData = {
-      business_phone: business_phone ?? undefined,
-      business_email: business_email ?? undefined,
-      consultation_fee: consultation_fee ?? undefined,
-      payment_url: payment_url ?? undefined,
-      calendly_url: calendly_url ?? undefined,
-    };
-
-    const hasPracticeUpdate = Object.values(practiceData).some((v) => v !== undefined);
+    const hasPracticeUpdate = practiceValidations.hasPracticeDetails(data);
 
     if (hasPracticeUpdate) {
+      // Get existing details to preserve address_id
+      const existing = await findPracticeDetailsByOrganization(organizationId);
+      let addressId = existing?.address_id;
+
       practiceDetails = await db.transaction(async (tx) => {
+        // Handle address if provided
+        if (address && Object.keys(address).length > 0) {
+          const addressResult = await upsertAddressTx(tx, {
+            addressData: address,
+            organizationId,
+            addressId,
+          });
+          if (addressResult) {
+            addressId = addressResult.id;
+          }
+        }
+
+        const practiceData = {
+          business_phone: business_phone ?? undefined,
+          business_email: business_email ?? undefined,
+          consultation_fee: consultation_fee ?? undefined,
+          payment_url: payment_url ?? undefined,
+          calendly_url: calendly_url ?? undefined,
+          billing_increment_minutes: billing_increment_minutes ?? undefined,
+          website: website ?? undefined,
+          intro_message: intro_message ?? undefined,
+          overview: overview ?? undefined,
+          is_public: is_public ?? undefined,
+          address_id: addressId,
+        };
+
         const [details] = await tx
           .insert(practiceDetailsTable)
           .values({
@@ -278,6 +342,11 @@ const updatePractice = async (
             },
           })
           .returning();
+
+        // Sync services if provided
+        if (services !== undefined) {
+          await practiceServicesRepository.syncServicesTx(tx, organizationId, services);
+        }
 
         await PracticeDetailsUpdated.dispatch({
           practice_details_id: details.id,
@@ -436,4 +505,3 @@ export const practiceService = {
   getPracticeById,
   setActivePractice,
 };
-
