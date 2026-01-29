@@ -13,6 +13,38 @@ import {
 
 // [REMOVED Practice Areas routes - Services are fetched from practice-details]
 
+const matterNoteParamsSchema = matterUuidParamSchema.extend({
+  noteId: z.uuid().openapi({
+    param: { name: 'noteId', in: 'path' },
+    description: 'Note ID (UUID)',
+    example: '9b9a7f35-9f0e-4a2d-9e8b-5a8d71fa2f11',
+  }),
+});
+
+const matterTimeEntryParamsSchema = matterUuidParamSchema.extend({
+  entryId: z.uuid().openapi({
+    param: { name: 'entryId', in: 'path' },
+    description: 'Time entry ID (UUID)',
+    example: 'db4f6797-2bb8-4ed8-9d38-9c07f40d4b0d',
+  }),
+});
+
+const matterExpenseParamsSchema = matterUuidParamSchema.extend({
+  expenseId: z.uuid().openapi({
+    param: { name: 'expenseId', in: 'path' },
+    description: 'Expense ID (UUID)',
+    example: '5e0a120a-87ac-4e61-90ab-38d91bf6cc8d',
+  }),
+});
+
+const matterMilestoneParamsSchema = matterUuidParamSchema.extend({
+  milestoneId: z.uuid().openapi({
+    param: { name: 'milestoneId', in: 'path' },
+    description: 'Milestone ID (UUID)',
+    example: '9a33c3d5-0c6b-43a4-9b46-7a0d80d1e6b4',
+  }),
+});
+
 // ==================== MATTERS ====================
 
 // [REMOVED listMattersRoute - Consolidated into getMatterRoute]
@@ -150,6 +182,35 @@ export const createMatterNoteRoute = createRoute({
   },
 });
 
+export const updateMatterNoteRoute = createRoute({
+  method: 'put',
+  path: '/{practiceId}/matters/{uuid}/notes/{noteId}',
+  tags: ['Matters: Notes'],
+  summary: 'Update note',
+  description: 'Update a note for a matter',
+  request: {
+    params: matterNoteParamsSchema,
+    body: { content: { 'application/json': { schema: matterNoteValidations.updateMatterNoteSchema } } },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ note: matterNoteValidations.matterNoteSchema }) } }, description: 'Note updated' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Note not found' },
+  },
+});
+
+export const deleteMatterNoteRoute = createRoute({
+  method: 'delete',
+  path: '/{practiceId}/matters/{uuid}/notes/{noteId}',
+  tags: ['Matters: Notes'],
+  summary: 'Delete note',
+  description: 'Delete a note for a matter',
+  request: { params: matterNoteParamsSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Note deleted' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Note not found' },
+  },
+});
+
 // ==================== TIME ENTRIES ====================
 
 export const listTimeEntriesRoute = createRoute({
@@ -182,6 +243,35 @@ export const createTimeEntryRoute = createRoute({
   },
   responses: {
     201: { content: { 'application/json': { schema: z.object({ timeEntry: matterTimeEntryValidations.timeEntrySchema }) } }, description: 'Time entry created' },
+  },
+});
+
+export const updateTimeEntryRoute = createRoute({
+  method: 'put',
+  path: '/{practiceId}/matters/{uuid}/time-entries/{entryId}',
+  tags: ['Matters: Time Entries'],
+  summary: 'Update time entry',
+  description: 'Update a time entry for a matter',
+  request: {
+    params: matterTimeEntryParamsSchema,
+    body: { content: { 'application/json': { schema: matterTimeEntryValidations.updateMatterTimeEntrySchema } } },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ timeEntry: matterTimeEntryValidations.timeEntrySchema }) } }, description: 'Time entry updated' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Time entry not found' },
+  },
+});
+
+export const deleteTimeEntryRoute = createRoute({
+  method: 'delete',
+  path: '/{practiceId}/matters/{uuid}/time-entries/{entryId}',
+  tags: ['Matters: Time Entries'],
+  summary: 'Delete time entry',
+  description: 'Delete a time entry for a matter',
+  request: { params: matterTimeEntryParamsSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Time entry deleted' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Time entry not found' },
   },
 });
 
@@ -244,6 +334,35 @@ export const createExpenseRoute = createRoute({
   },
 });
 
+export const updateExpenseRoute = createRoute({
+  method: 'put',
+  path: '/{practiceId}/matters/{uuid}/expenses/{expenseId}',
+  tags: ['Matters: Expenses'],
+  summary: 'Update expense',
+  description: 'Update an expense for a matter',
+  request: {
+    params: matterExpenseParamsSchema,
+    body: { content: { 'application/json': { schema: matterExpenseValidations.updateMatterExpenseSchema } } },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ expense: matterExpenseValidations.expenseSchema }) } }, description: 'Expense updated' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Expense not found' },
+  },
+});
+
+export const deleteExpenseRoute = createRoute({
+  method: 'delete',
+  path: '/{practiceId}/matters/{uuid}/expenses/{expenseId}',
+  tags: ['Matters: Expenses'],
+  summary: 'Delete expense',
+  description: 'Delete an expense for a matter',
+  request: { params: matterExpenseParamsSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Expense deleted' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Expense not found' },
+  },
+});
+
 // ==================== MILESTONES ====================
 
 export const listMilestonesRoute = createRoute({
@@ -276,6 +395,35 @@ export const createMilestoneRoute = createRoute({
   },
   responses: {
     201: { content: { 'application/json': { schema: z.object({ milestone: matterMilestoneValidations.milestoneSchema }) } }, description: 'Milestone created' },
+  },
+});
+
+export const updateMilestoneRoute = createRoute({
+  method: 'put',
+  path: '/{practiceId}/matters/{uuid}/milestones/{milestoneId}',
+  tags: ['Matters: Milestones'],
+  summary: 'Update milestone',
+  description: 'Update a milestone for a matter',
+  request: {
+    params: matterMilestoneParamsSchema,
+    body: { content: { 'application/json': { schema: matterMilestoneValidations.updateMatterMilestoneSchema } } },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ milestone: matterMilestoneValidations.milestoneSchema }) } }, description: 'Milestone updated' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Milestone not found' },
+  },
+});
+
+export const deleteMilestoneRoute = createRoute({
+  method: 'delete',
+  path: '/{practiceId}/matters/{uuid}/milestones/{milestoneId}',
+  tags: ['Matters: Milestones'],
+  summary: 'Delete milestone',
+  description: 'Delete a milestone for a matter',
+  request: { params: matterMilestoneParamsSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Milestone deleted' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Milestone not found' },
   },
 });
 

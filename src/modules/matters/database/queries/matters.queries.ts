@@ -308,7 +308,7 @@ const clearMatterAssignees = async (
   await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
 
-export default {
+export const mattersQueries = {
   createMatter,
   findMatterById,
   updateMatter,

@@ -21,7 +21,7 @@ const logger = getLogger(['matters', 'services', 'activity']);
 /**
  * Log activity for a matter
  */
-export const logMatterActivity = async (
+const logMatterActivity = async (
   matterId: string,
   action: string,
   description: string,
@@ -47,7 +47,7 @@ export const logMatterActivity = async (
 /**
  * Get matter activity log
  */
-export const getMatterActivity = async (
+const getMatterActivity = async (
   matterId: string,
   options?: {
     limit?: number;
@@ -80,7 +80,7 @@ export const getMatterActivity = async (
 /**
  * Activity action types
  */
-export const ActivityAction = {
+const ActivityAction = {
   MATTER_CREATED: 'matter_created',
   MATTER_UPDATED: 'matter_updated',
   MATTER_DELETED: 'matter_deleted',
@@ -101,3 +101,9 @@ export const ActivityAction = {
   ASSIGNEE_ADDED: 'assignee_added',
   ASSIGNEE_REMOVED: 'assignee_removed',
 } as const;
+
+export const matterActivityService = {
+  logMatterActivity,
+  getMatterActivity,
+  ActivityAction,
+};

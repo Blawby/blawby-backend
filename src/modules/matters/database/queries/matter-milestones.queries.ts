@@ -126,7 +126,7 @@ const getMilestoneStats = async (
   };
 };
 
-export default {
+export const matterMilestonesQueries = {
   createMatterMilestone,
   createMatterMilestones,
   findMatterMilestoneById,

@@ -7,7 +7,7 @@ import {
 import { db } from '@/shared/database';
 
 // Create matter note
-export const createMatterNote = async (
+const createMatterNote = async (
   data: InsertMatterNote,
 ): Promise<SelectMatterNote> => {
   const [note] = await db
@@ -18,7 +18,7 @@ export const createMatterNote = async (
 };
 
 // Find matter note by ID
-export const findMatterNoteById = async (
+const findMatterNoteById = async (
   id: string,
 ): Promise<SelectMatterNote | undefined> => {
   const [note] = await db
@@ -30,7 +30,7 @@ export const findMatterNoteById = async (
 };
 
 // List matter notes
-export const listMatterNotes = async (
+const listMatterNotes = async (
   matterId: string,
 ): Promise<SelectMatterNote[]> => {
   return await db
@@ -41,7 +41,7 @@ export const listMatterNotes = async (
 };
 
 // Update matter note
-export const updateMatterNote = async (
+const updateMatterNote = async (
   id: string,
   data: Partial<InsertMatterNote>,
 ): Promise<SelectMatterNote | undefined> => {
@@ -54,6 +54,14 @@ export const updateMatterNote = async (
 };
 
 // Delete matter note
-export const deleteMatterNote = async (id: string): Promise<void> => {
+const deleteMatterNote = async (id: string): Promise<void> => {
   await db.delete(matterNotes).where(eq(matterNotes.id, id));
+};
+
+export const matterNotesQueries = {
+  createMatterNote,
+  findMatterNoteById,
+  listMatterNotes,
+  updateMatterNote,
+  deleteMatterNote,
 };
