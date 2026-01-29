@@ -13,6 +13,15 @@ const businessEmailSchema = z.email().optional();
 const consultationFeeSchema = currencyValidator.optional();
 const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
 const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
+const billingIncrementMinutesSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(60)
+  .openapi({
+    description: 'Billing increment in minutes',
+    example: 15,
+  });
 
 
 // Address schema
@@ -42,6 +51,7 @@ const practiceDetailsValidationSchema = z.object({
   intro_message: z.string().optional().openapi({ example: 'Welcome to our practice' }),
   overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
   is_public: z.boolean().optional().openapi({ example: true }),
+  billing_increment_minutes: billingIncrementMinutesSchema.optional(),
   services: z
     .array(z.object({ id: z.string().optional(), name: z.string(), key: z.string() }))
     .optional()
@@ -49,6 +59,29 @@ const practiceDetailsValidationSchema = z.object({
   // Nested Address
   address: addressSchema.optional(),
 });
+
+/**
+ * Generic helper to check if any fields from a Zod schema are present and contain values
+ */
+const isAnyFieldProvided = (
+  data: Record<string, unknown>,
+  schema: z.ZodObject,
+  options: { treatEmptyStringAsProvided?: boolean } = {},
+): boolean => {
+  const { treatEmptyStringAsProvided = false } = options;
+  return Object.keys(schema.shape).some((key) => {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) return false;
+    const value = data[key];
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return Object.keys(value).length > 0;
+    }
+    if (typeof value === 'string') {
+      return treatEmptyStringAsProvided ? true : value.trim().length > 0;
+    }
+    return true; // Booleans, numbers, non-empty arrays
+  });
+};
 
 // Complete practice schemas
 const createPracticeSchema = z.object({
@@ -62,39 +95,23 @@ const createPracticeSchema = z.object({
   ...practiceDetailsValidationSchema.shape,
 });
 
-const updatePracticeSchema = z
-  .object({
-    // Organization fields (all optional for updates)
-    name: nameValidator.optional(),
-    slug: slugValidator.optional(),
-    logo: urlValidator.optional().or(z.literal('')),
-    metadata: z.record(z.string(), z.unknown()).optional(),
+const updatePracticeSchemaBase = z.object({
+  // Organization fields (all optional for updates)
+  name: nameValidator.optional(),
+  slug: slugValidator.optional(),
+  logo: urlValidator.optional().or(z.literal('')),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 
-    // Practice details
-    ...practiceDetailsValidationSchema.shape,
-  })
-  .refine(
-    (data) => {
-      // Ensure at least one field is provided for update
-      const hasOrgField = data.name || data.slug || data.logo || data.metadata;
-      const hasPracticeField
-        = data.business_phone
-        || data.business_email
-        || data.consultation_fee !== undefined
-        || data.payment_url
-        || data.calendly_url
-        || data.website
-        || data.intro_message
-        || data.overview
-        || data.is_public !== undefined
-        || data.services
-        || data.address;
-      return hasOrgField || hasPracticeField;
-    },
-    {
-      message: 'At least one field must be provided to update the practice',
-    },
-  );
+  // Practice details
+  ...practiceDetailsValidationSchema.shape,
+});
+
+const updatePracticeSchema = updatePracticeSchemaBase.refine(
+  (data) => isAnyFieldProvided(data, updatePracticeSchemaBase, { treatEmptyStringAsProvided: true }),
+  {
+    message: 'At least one field must be provided to update the practice',
+  },
+);
 
 // Response schemas with OpenAPI metadata
 const practiceResponseSchema = z
@@ -158,6 +175,10 @@ const practiceResponseSchema = z
     paymentLinkPrefillAmount: z.number().nullable().openapi({
       description: 'Default prefill amount for payment links (in cents)',
       example: 5000,
+    }),
+    billing_increment_minutes: billingIncrementMinutesSchema.openapi({
+      description: 'Billing increment in minutes for time entry dropdowns',
+      example: 15,
     }),
     createdAt: z.date().openapi({
       description: 'Organization creation timestamp',
@@ -351,22 +372,7 @@ const acceptInvitationResponseSchema = z.object({
 
 // Practice Details API schemas
 const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
-  (data) => {
-    // At least one field must be provided
-    return (
-      data.business_phone
-      || data.business_email
-      || data.consultation_fee !== undefined
-      || data.payment_url
-      || data.calendly_url
-      || data.website
-      || data.intro_message
-      || data.overview
-      || data.is_public !== undefined
-      || data.services
-      || data.address
-    );
-  },
+  (data) => isAnyFieldProvided(data, practiceDetailsValidationSchema),
   {
     message: 'At least one practice detail field must be provided',
   },
@@ -415,6 +421,10 @@ const practiceDetailsResponseSchema = z
     }),
     payment_link_prefill_amount: z.number().openapi({
       example: 5000,
+    }),
+    billing_increment_minutes: billingIncrementMinutesSchema.openapi({
+      description: 'Billing increment in minutes for time entry dropdowns',
+      example: 15,
     }),
     createdAt: z.date().openapi({
       description: 'Organization creation timestamp',
@@ -478,4 +488,7 @@ export const practiceValidations = {
   practiceDetailsCreateResponseSchema,
   practiceDetailsUpdateResponseSchema,
   slugParamSchema,
+  hasPracticeDetails: (data: Partial<z.infer<typeof practiceDetailsValidationSchema>>) => {
+    return isAnyFieldProvided(data, practiceDetailsValidationSchema);
+  },
 };

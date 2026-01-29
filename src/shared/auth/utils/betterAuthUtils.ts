@@ -60,6 +60,6 @@ const betterAuthUtils = {
   getBetterAuthErrorMessage,
   isBetterAuthForbidden,
   parseBetterAuthMetadata,
-}
+};
 
 export default betterAuthUtils;

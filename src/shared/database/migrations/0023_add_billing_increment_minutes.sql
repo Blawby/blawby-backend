@@ -1,0 +1,1 @@
+ALTER TABLE "practice_details" ADD COLUMN "billing_increment_minutes" integer DEFAULT 1 NOT NULL;

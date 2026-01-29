@@ -85,6 +85,11 @@ const getPracticeDetails = async (
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       is_public: fetchedDetails?.is_public ?? false,
+      billing_increment_minutes: fetchedDetails?.billing_increment_minutes ?? 1,
+      name: organizationResult.data.name,
+      logo: organizationResult.data.logo,
+      payment_link_enabled: organizationResult.data.paymentLinkEnabled ?? false,
+      payment_link_prefill_amount: organizationResult.data.paymentLinkPrefillAmount ?? 0,
     };
 
     return ok(responseData as unknown as PracticeDetailsResponse);
@@ -158,6 +163,7 @@ const upsertPracticeDetails = async (
           intro_message: data.intro_message ?? undefined,
           overview: data.overview ?? undefined,
           is_public: data.is_public ?? undefined,
+          billing_increment_minutes: data.billing_increment_minutes ?? undefined,
         })
         .onConflictDoUpdate({
           target: practiceDetailsTable.organization_id,
@@ -172,6 +178,7 @@ const upsertPracticeDetails = async (
             intro_message: data.intro_message ?? undefined,
             overview: data.overview ?? undefined,
             is_public: data.is_public ?? undefined,
+            billing_increment_minutes: data.billing_increment_minutes ?? undefined,
             updated_at: new Date(),
           },
         })
@@ -330,6 +337,7 @@ const getPracticeDetailsBySlug = async (
       organization_id: organization.id,
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
+      billing_increment_minutes: fetchedDetails.billing_increment_minutes ?? 1,
       name: organization.name,
       logo: organization.logo,
       payment_link_enabled: organization.paymentLinkEnabled ?? false,

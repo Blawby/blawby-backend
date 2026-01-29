@@ -29,6 +29,7 @@ export const practiceDetails = pgTable('practice_details', {
   intro_message: text('intro_message'),
   overview: text('overview'),
   is_public: boolean('is_public').default(false).notNull(),
+  billing_increment_minutes: integer('billing_increment_minutes').default(1).notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
