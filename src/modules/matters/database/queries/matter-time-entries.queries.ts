@@ -9,7 +9,7 @@ import {
 import { db } from '@/shared/database';
 
 // Create matter time entry
-export const createMatterTimeEntry = async (
+const createMatterTimeEntry = async (
   data: InsertMatterTimeEntry,
 ): Promise<SelectMatterTimeEntry> => {
   const [entry] = await db
@@ -20,7 +20,7 @@ export const createMatterTimeEntry = async (
 };
 
 // Find matter time entry by ID
-export const findMatterTimeEntryById = async (
+const findMatterTimeEntryById = async (
   id: string,
 ): Promise<SelectMatterTimeEntry | undefined> => {
   const [entry] = await db
@@ -32,7 +32,7 @@ export const findMatterTimeEntryById = async (
 };
 
 // List matter time entries
-export const listMatterTimeEntries = async (
+const listMatterTimeEntries = async (
   matterId: string,
   filters?: {
     billable?: boolean;
@@ -62,7 +62,7 @@ export const listMatterTimeEntries = async (
 };
 
 // Update matter time entry
-export const updateMatterTimeEntry = async (
+const updateMatterTimeEntry = async (
   id: string,
   data: Partial<InsertMatterTimeEntry>,
 ): Promise<SelectMatterTimeEntry | undefined> => {
@@ -75,12 +75,12 @@ export const updateMatterTimeEntry = async (
 };
 
 // Delete matter time entry
-export const deleteMatterTimeEntry = async (id: string): Promise<void> => {
+const deleteMatterTimeEntry = async (id: string): Promise<void> => {
   await db.delete(matterTimeEntries).where(eq(matterTimeEntries.id, id));
 };
 
 // Get total billable time for matter
-export const getTotalBillableTime = async (
+const getTotalBillableTime = async (
   matterId: string,
 ): Promise<number> => {
   const [result] = await db
@@ -99,7 +99,7 @@ export const getTotalBillableTime = async (
 };
 
 // Get total time for matter (billable and non-billable)
-export const getTotalTime = async (
+const getTotalTime = async (
   matterId: string,
 ): Promise<number> => {
   const [result] = await db
@@ -110,4 +110,14 @@ export const getTotalTime = async (
     .where(eq(matterTimeEntries.matter_id, matterId));
 
   return Number(result.total);
+};
+
+export const matterTimeEntriesQueries = {
+  createMatterTimeEntry,
+  findMatterTimeEntryById,
+  listMatterTimeEntries,
+  updateMatterTimeEntry,
+  deleteMatterTimeEntry,
+  getTotalBillableTime,
+  getTotalTime,
 };
