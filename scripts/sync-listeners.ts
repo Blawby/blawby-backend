@@ -87,15 +87,21 @@ import { getLogger } from '@logtape/logtape';
 ${regs.map((r) => `import { ${r.functionName} } from '${r.importPath}';`).join('\n')}
 
 const logger = getLogger(['events', 'bootstrap']);
+let bootstrapped = false;
 
 /**
  * Bootstrap all event listeners
  */
 export async function bootstrapEventListeners(): Promise<void> {
+  if (bootstrapped) {
+    return;
+  }
+
   logger.info('Bootstrapping event listeners...');
 
 ${regs.map((r) => `  // ${r.moduleName} listeners\n  ${r.functionName}();`).join('\n\n')}
 
+  bootstrapped = true;
   logger.info('All event listeners bootstrapped successfully');
 }
 `;

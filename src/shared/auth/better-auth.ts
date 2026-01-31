@@ -1,7 +1,9 @@
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { anonymous, organization, admin } from 'better-auth/plugins';
+import {
+  anonymous, organization, admin, magicLink,
+} from 'better-auth/plugins';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
@@ -10,6 +12,8 @@ import { organizationAccessController, organizationRoles } from '@/shared/auth/o
 import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
+import { InvitationAccepted } from '@/shared/events/definitions';
+import { addEmailJob } from '@/shared/queue/queue.manager';
 import { isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
 
@@ -32,6 +36,23 @@ const betterAuthInstance = (
       organization({
         ac: organizationAccessController,
         roles: organizationRoles,
+        hooks: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          afterAcceptInvitation: async (context: any) => {
+            const {
+              invitation, member, user,
+            } = context;
+
+            // Dispatch event for other modules (User Details) to handle
+            void InvitationAccepted.dispatch({
+              invitationId: invitation.id,
+              organizationId: invitation.organizationId,
+              userId: user.user.id,
+              email: user.user.email,
+              role: member.role,
+            });
+          },
+        },
       }),
       createStripePlugin(db),
       anonymous({
@@ -43,6 +64,16 @@ const betterAuthInstance = (
         },
       }),
       admin(),
+      magicLink({
+        sendMagicLink: async ({ email, url }) => {
+          await addEmailJob(
+            'magic-link',
+            email,
+            'Sign in to Blawby',
+            { url, year: new Date().getFullYear() },
+          );
+        },
+      }),
     ],
     baseURL: process.env.BASE_URL!,
     basePath: '/api/auth',
@@ -111,6 +142,11 @@ const betterAuthInstance = (
         isAnonymous: {
           type: 'boolean',
           required: false,
+        },
+        onboardingComplete: {
+          type: 'boolean',
+          required: false,
+          defaultValue: true,
         },
       },
     },

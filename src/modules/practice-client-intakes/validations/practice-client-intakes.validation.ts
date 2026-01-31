@@ -82,6 +82,7 @@ const practiceClientIntakeStatusResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
+    organization_id: z.uuid(),
     amount: z.number(),
     currency: z.string(),
     status: z.string(),
@@ -119,6 +120,11 @@ const internalServerErrorResponseSchema = z.object({
   error: z.string(),
 });
 
+const triggerIntakeInvitationResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
 export const intakeValidations = {
   createPracticeClientIntakeSchema,
   updatePracticeClientIntakeSchema,
@@ -128,6 +134,7 @@ export const intakeValidations = {
   createPracticeClientIntakeResponseSchema,
   updatePracticeClientIntakeResponseSchema,
   practiceClientIntakeStatusResponseSchema,
+  triggerIntakeInvitationResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,
   internalServerErrorResponseSchema,

@@ -7,6 +7,7 @@
 import { execSync } from 'child_process';
 import { readdir, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { isDevelopment } from '../src/shared/utils/env';
 
 // ============================================================================
 // Configuration
@@ -19,8 +20,12 @@ const CONFIG_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/configs.ge
 const EXCLUDED_MODULES = [
   'auth', 'analytics', 'billing', 'admin',
   'customers', 'events', 'health', 'invoices',
-  'payouts', 'settings', 'stripe', 'dev'
+  'payouts', 'settings', 'stripe'
 ];
+
+if (!isDevelopment()) {
+  EXCLUDED_MODULES.push('dev');
+}
 
 // ============================================================================
 // Phase 1: Module Discovery

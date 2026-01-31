@@ -102,6 +102,16 @@ export class AuthAccountDeleted extends BaseEvent<{
   static type = 'auth.account_deleted' as const;
 }
 
+export class InvitationAccepted extends BaseEvent<{
+  invitationId: string;
+  organizationId: string;
+  userId: string;
+  email: string;
+  role: string;
+}> {
+  static type = 'auth.invitation_accepted' as const;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // USER CRUD EVENTS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -539,6 +549,7 @@ export const EventClasses = {
   'auth.password_reset_requested': AuthPasswordResetRequested,
   'auth.password_changed': AuthPasswordChanged,
   'auth.account_deleted': AuthAccountDeleted,
+  'auth.invitation_accepted': InvitationAccepted,
 
   // User
   'user.created': UserCreated,

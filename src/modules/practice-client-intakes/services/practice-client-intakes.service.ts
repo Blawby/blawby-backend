@@ -17,10 +17,13 @@ import type {
   CreateIntakeResponse as CreatePracticeClientIntakeResponse,
   IntakeStatusResponse as PracticeClientIntakeStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
+
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
@@ -250,6 +253,7 @@ const getPracticeClientIntakeStatus = async (
       success: true,
       data: {
         uuid: practiceClientIntake.id,
+        organization_id: practiceClientIntake.organization_id,
         amount: practiceClientIntake.amount,
         currency: practiceClientIntake.currency,
         status: practiceClientIntake.status,
@@ -266,9 +270,70 @@ const getPracticeClientIntakeStatus = async (
   }
 };
 
+/**
+ * Trigger a magic link for the user associated with an intake.
+ * When the user clicks the magic link and authenticates, the onLinkAccount
+ * hook will add them to the organization as a client.
+ */
+const triggerIntakeInvitation = async (
+  uuid: string,
+  sessionUserId: string,
+  _requestHeaders: Headers,
+): Promise<Result<{ success: true; message: string }>> => {
+  try {
+    // 1. Get intake and verify ownership
+    const intakeResult = await getPracticeClientIntakeStatus(uuid);
+
+    if (!intakeResult.success || !intakeResult.data?.data) {
+      return intakeResult as Result<never>;
+    }
+
+    const intakeData = intakeResult.data.data;
+    const metadata = intakeData.metadata;
+
+    if (metadata?.user_id !== sessionUserId) {
+      return forbidden('You do not own this intake');
+    }
+
+    if (intakeData.status !== 'succeeded') {
+      return badRequest('Payment must be completed before sending an invitation');
+    }
+
+    if (!metadata?.email) {
+      return badRequest('No email address found in intake data');
+    }
+
+    // 2. Send magic link via Better Auth
+    // When user clicks the link and authenticates, onLinkAccount hook
+    // will check for pending intake and add them to the organization
+    const auth = createBetterAuthInstance(db);
+
+    await auth.api.signInMagicLink({
+      body: {
+        email: metadata.email,
+        callbackURL: '/client/dashboard',
+      },
+      headers: new Headers(),
+    });
+
+    return ok({ success: true, message: 'Magic link sent to your email' });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to send magic link for intake {uuid}: {error} {details}', {
+      uuid,
+      error: errorMessage,
+      details: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+    });
+    return internalError('An unexpected error occurred while sending the magic link');
+  }
+};
+
+
 export const practiceClientIntakesService = {
   getPracticeClientIntakeSettings,
   createPracticeClientIntake,
   updatePracticeClientIntake,
   getPracticeClientIntakeStatus,
+  triggerIntakeInvitation,
 };
+
