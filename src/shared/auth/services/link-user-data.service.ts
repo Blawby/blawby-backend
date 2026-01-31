@@ -1,6 +1,9 @@
 import { getLogger, type Logger } from '@logtape/logtape';
-import { eq, and } from 'drizzle-orm';
-import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { eq, and, sql } from 'drizzle-orm';
+import {
+  practiceClientIntakes,
+  practiceClientIntakeMetadataSchema,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
@@ -81,21 +84,15 @@ export const linkAnonymousUserData = async (params: {
     }
 
     // 3. Check for succeeded intakes and add user to organization as client
-    const succeededIntakes = await tx
+    const userIntakes: Array<typeof practiceClientIntakes.$inferSelect> = await tx
       .select()
       .from(practiceClientIntakes)
       .where(
         and(
           eq(practiceClientIntakes.status, 'succeeded'),
-          // Match by user_id in metadata (JSON field)
+          eq(sql<string>`${practiceClientIntakes.metadata} ->> 'user_id'`, anonymousUser.id),
         ),
       );
-
-    // Filter intakes that belong to the anonymous user
-    const userIntakes = succeededIntakes.filter((intake) => {
-      const metadata = intake.metadata as { user_id?: string } | null;
-      return metadata?.user_id === anonymousUser.id;
-    });
 
     for (const intake of userIntakes) {
       // Check if new user already belongs to this organization

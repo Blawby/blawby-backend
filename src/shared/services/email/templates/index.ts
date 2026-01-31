@@ -7,11 +7,11 @@
 // Customer templates
 
 // Auth templates
-import { magicLinkTemplate } from './auth/magic-link';
+import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
 
 // Customer templates
-import { customerPaymentReceipt } from './customer/payment-receipt';
-import { customerPaymentRequest } from './customer/payment-request';
+import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
+import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
 import {
   EMAIL_TEMPLATES,
   type EmailTemplateName,

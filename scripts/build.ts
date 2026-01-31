@@ -7,7 +7,7 @@
 import { execSync } from 'child_process';
 import { readdir, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { isDevelopment } from '../src/shared/utils/env';
+import { isDevelopment } from '@/shared/utils/env';
 
 // ============================================================================
 // Configuration
