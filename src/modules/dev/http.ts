@@ -1,6 +1,6 @@
-import { Hono } from 'hono';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Hono } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 
 const http = new Hono<AppContext>();
@@ -25,11 +25,11 @@ http.get('/emails', async (c) => {
   }
 
   const files = fs.readdirSync(EMAILS_DIR)
-    .filter(f => f.endsWith('.html'))
+    .filter((f) => f.endsWith('.html'))
     .sort()
     .reverse();
 
-  const listItems = files.map(f => {
+  const listItems = files.map((f) => {
     const filePath = path.join(EMAILS_DIR, f);
     const stat = fs.statSync(filePath);
     return `

@@ -1,13 +1,10 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { users } from '@/schema/better-auth-schema';
-import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 
 const logger = getLogger(['app', 'repositories', 'users']);
 
-// Better Auth instance created with the global DB connection
-const auth = createBetterAuthInstance(db);
 
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
@@ -59,14 +56,9 @@ const update = async (
 
   if (Object.keys(updateFields).length > 0) {
     try {
-      await auth.api.adminUpdateUser({
-        body: {
-          userId: id,
-          data: updateFields,
-        },
-      });
+      await db.update(users).set(updateFields).where(eq(users.id, id));
     } catch (error) {
-      logger.error('Failed to update user {userId} via Better Auth', { userId: id, error });
+      logger.error('Failed to update user {userId} in database', { userId: id, error });
       throw error;
     }
   }

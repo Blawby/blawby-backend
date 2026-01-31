@@ -24,7 +24,6 @@ const slugParamOpenAPISchema = z.object({
 
 const uuidParamOpenAPISchema = z.object({
   uuid: z
-    .string()
     .uuid()
     .openapi({
       param: {
@@ -221,4 +220,52 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
   },
 });
 
+/**
+ * POST /api/practice/client-intakes/:uuid/invite
+ * Triggers an invitation for the user associated with this intake
+ */
+export const triggerIntakeInvitationRoute = createRoute({
+  method: 'post',
+  path: '/{uuid}/invite',
+  tags: ['Practice Client Intakes'],
+  summary: 'Trigger intake invitation',
+  description: 'Triggers a manual organization invitation for the client associated with a successful intake. This is used by legal staff to explicitly invite a client to the practice workspace after they have completed the intake payment. Requires authentication. The invitation process creates a link between the client\'s intake data and their (potentially new) user account.',
+  request: {
+    params: uuidParamOpenAPISchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.triggerIntakeInvitationResponseSchema,
+        },
+      },
+      description: 'Invitation triggered successfully. An email will be sent to the client with a link to accept the invitation and join the practice workspace.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - intake not found or not in a successful state',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized - authentication required',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
 

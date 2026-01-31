@@ -11,14 +11,11 @@
 import { eq, and, lt, asc } from 'drizzle-orm';
 import type { Task } from 'graphile-worker';
 import { db } from '@/shared/database';
-import { bootstrapEventListeners } from '@/shared/events/bootstrap';
 import { Event } from '@/shared/events/event';
 import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import { events } from '@/shared/events/schemas/events.schema';
 
-// Bootstrap listeners once on module load
-let listenersBootstrapped = false;
-
+// Batch processing configuration
 const BATCH_SIZE = 10; // Process 10 events at a time
 const MAX_RETRIES = 5; // Maximum retry attempts before giving up
 
@@ -34,13 +31,6 @@ export const processOutboxEvent: Task = async (
   payload: unknown,
   helpers,
 ): Promise<void> => {
-  // Bootstrap listeners once on first invocation
-  if (!listenersBootstrapped) {
-    helpers.logger.info('Bootstrapping event listeners...');
-    await bootstrapEventListeners();
-    listenersBootstrapped = true;
-  }
-
   const { eventId } = (payload as { eventId?: string }) || {};
 
   if (eventId) {
