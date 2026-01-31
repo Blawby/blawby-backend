@@ -278,7 +278,7 @@ const getPracticeClientIntakeStatus = async (
 const triggerIntakeInvitation = async (
   uuid: string,
   sessionUserId: string,
-  _requestHeaders: Headers,
+  requestHeaders: Headers,
 ): Promise<Result<{ success: true; message: string }>> => {
   try {
     // 1. Get intake and verify ownership
@@ -313,7 +313,7 @@ const triggerIntakeInvitation = async (
         email: metadata.email,
         callbackURL: '/client/dashboard',
       },
-      headers: new Headers(),
+      headers: requestHeaders,
     });
 
     return ok({ success: true, message: 'Magic link sent to your email' });

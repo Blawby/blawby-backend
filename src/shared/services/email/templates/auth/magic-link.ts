@@ -2,7 +2,7 @@
  * Magic Link Email Template
  */
 
-import { type MagicLinkData } from '../../email.types';
+import { type MagicLinkData } from '@/shared/services/email/email.types';
 
 export const magicLinkTemplate = (data: MagicLinkData): string => `
 <!DOCTYPE html>

@@ -6,7 +6,7 @@ import {
   intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
+import type { AppContext, AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
@@ -74,7 +74,7 @@ app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema),
 
 // POST /:uuid/invite
 // Triggers an invitation for the user associated with this intake
-app.post('/:uuid/invite', zValidator('param', intakeValidations.uuidParamSchema), async (c) => {
+const triggerIntakeInvitationHandler: AppRouteHandler<typeof routes.triggerIntakeInvitationRoute> = async (c) => {
   const { uuid } = c.req.valid('param');
   const sessionUserId = c.get('userId');
 
@@ -89,7 +89,9 @@ app.post('/:uuid/invite', zValidator('param', intakeValidations.uuidParamSchema)
   );
 
   return response.fromResult(c, result);
-});
+};
+
+app.openapi(routes.triggerIntakeInvitationRoute, triggerIntakeInvitationHandler);
 
 registerOpenApiRoutes(app, routes);
 

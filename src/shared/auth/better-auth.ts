@@ -47,8 +47,8 @@ const betterAuthInstance = (
             void InvitationAccepted.dispatch({
               invitationId: invitation.id,
               organizationId: invitation.organizationId,
-              userId: user.user.id,
-              email: user.user.email,
+              userId: user.id,
+              email: user.email,
               role: member.role,
             });
           },
