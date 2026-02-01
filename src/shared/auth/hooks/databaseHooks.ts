@@ -4,10 +4,80 @@
  * Handles database-level events (user creation, session management)
  */
 
-import { eq, and } from 'drizzle-orm';
+import { getLogger } from '@logtape/logtape';
+import { eq, and, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import * as schema from '@/schema';
-import { AuthUserSignedUp } from '@/shared/events/definitions';
+import { AuthUserSignedUp, PracticeMemberJoined } from '@/shared/events/definitions';
+
+const logger = getLogger(['auth', 'database-hooks']);
+
+/**
+ * Check for pending intakes by email and add user to organization.
+ * This handles the case where anonymous session was lost but user authenticates
+ * with the same email they used during intake.
+ */
+const checkPendingIntakesByEmail = async (
+  db: NodePgDatabase<typeof schema>,
+  userId: string,
+  email: string,
+): Promise<void> => {
+  // Find succeeded intakes matching this email that haven't been processed
+  const pendingIntakes = await db
+    .select()
+    .from(practiceClientIntakes)
+    .where(
+      and(
+        eq(practiceClientIntakes.status, 'succeeded'),
+        eq(sql<string>`${practiceClientIntakes.metadata} ->> 'email'`, email.toLowerCase()),
+      ),
+    );
+
+  for (const intake of pendingIntakes) {
+    // Check if user is already a member of this org
+    const [existingMember] = await db
+      .select()
+      .from(schema.members)
+      .where(
+        and(
+          eq(schema.members.organizationId, intake.organization_id),
+          eq(schema.members.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!existingMember) {
+      // Add user to organization as client
+      const [newMember] = await db.insert(schema.members).values({
+        organizationId: intake.organization_id,
+        userId: userId,
+        role: 'client',
+        createdAt: new Date(),
+      }).returning();
+
+      // Mark user as needing onboarding
+      await db.update(schema.users)
+        .set({ onboardingComplete: false })
+        .where(eq(schema.users.id, userId));
+
+      logger.info('Added user {userId} to organization {orgId} from pending intake {intakeId} (email match)', {
+        userId,
+        orgId: intake.organization_id,
+        intakeId: intake.id,
+      });
+
+      // Dispatch event
+      void PracticeMemberJoined.dispatch({
+        member_id: newMember.id,
+        intake_id: intake.id,
+      }, {
+        actorId: userId,
+        organizationId: intake.organization_id,
+      });
+    }
+  }
+};
 
 /**
  * Get active organization ID for a user
@@ -130,8 +200,25 @@ export const createDatabaseHooks = (
             data: { ...sessionData, activeOrganizationId },
           };
         },
-        after: async (_session: SessionData): Promise<void> => {
-          // Session created - no event published for login
+        after: async (session: SessionData): Promise<void> => {
+          // Check for pending intakes by email (handles lost anonymous session case)
+          try {
+            const [user] = await db
+              .select({ email: schema.users.email, isAnonymous: schema.users.isAnonymous })
+              .from(schema.users)
+              .where(eq(schema.users.id, session.userId))
+              .limit(1);
+
+            // Only check for non-anonymous users (anonymous users are handled by onLinkAccount)
+            if (user && !user.isAnonymous) {
+              await checkPendingIntakesByEmail(db, session.userId, user.email);
+            }
+          } catch (error) {
+            logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
+              sessionId: session.id,
+              error,
+            });
+          }
         },
       },
     },
