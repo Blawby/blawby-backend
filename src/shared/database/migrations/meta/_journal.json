@@ -176,6 +176,13 @@
       "when": 1769851786388,
       "tag": "0024_damp_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1769952733059,
+      "tag": "0025_huge_veda",
+      "breakpoints": true
     }
   ]
 }
