@@ -8,6 +8,7 @@ import {
   date,
   uuid,
   bigint,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -117,7 +118,9 @@ export const members = pgTable('members', {
     .references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').default('member').notNull(),
   createdAt: timestamp('created_at').notNull(),
-});
+}, (table) => [
+  unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId),
+]);
 
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey().defaultRandom(),

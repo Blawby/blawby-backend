@@ -13,67 +13,90 @@ import { AuthUserSignedUp, PracticeMemberJoined } from '@/shared/events/definiti
 
 const logger = getLogger(['auth', 'database-hooks']);
 
+const INTAKE_STATUS_SUCCEEDED = 'succeeded';
+const ROLE_CLIENT = 'client';
+
+interface CheckPendingIntakesParams {
+  db: NodePgDatabase<typeof schema>;
+  userId: string;
+  email: string;
+}
+
+interface GetActiveOrgParams {
+  db: NodePgDatabase<typeof schema>;
+  userId: string;
+  lastActiveOrgId: string | null;
+}
+
 /**
  * Check for pending intakes by email and add user to organization.
  * This handles the case where anonymous session was lost but user authenticates
  * with the same email they used during intake.
  */
-const checkPendingIntakesByEmail = async (
-  db: NodePgDatabase<typeof schema>,
-  userId: string,
-  email: string,
-): Promise<void> => {
+const checkPendingIntakesByEmail = async ({
+  db,
+  userId,
+  email,
+}: CheckPendingIntakesParams): Promise<void> => {
   // Find succeeded intakes matching this email that haven't been processed
   const pendingIntakes = await db
     .select()
     .from(practiceClientIntakes)
     .where(
       and(
-        eq(practiceClientIntakes.status, 'succeeded'),
-        eq(sql<string>`${practiceClientIntakes.metadata} ->> 'email'`, email.toLowerCase()),
+        eq(practiceClientIntakes.status, INTAKE_STATUS_SUCCEEDED),
+        eq(sql<string>`lower(${practiceClientIntakes.metadata} ->> 'email')`, email.toLowerCase()),
       ),
     );
 
   for (const intake of pendingIntakes) {
-    // Check if user is already a member of this org
-    const [existingMember] = await db
-      .select()
-      .from(schema.members)
-      .where(
-        and(
-          eq(schema.members.organizationId, intake.organization_id),
-          eq(schema.members.userId, userId),
-        ),
-      )
-      .limit(1);
+    try {
+      // Add user to organization as client (Atomic insert using unique constraint)
+      const [newMember] = await db
+        .insert(schema.members)
+        .values({
+          organizationId: intake.organization_id,
+          userId: userId,
+          role: ROLE_CLIENT,
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning();
 
-    if (!existingMember) {
-      // Add user to organization as client
-      const [newMember] = await db.insert(schema.members).values({
-        organizationId: intake.organization_id,
-        userId: userId,
-        role: 'client',
-        createdAt: new Date(),
-      }).returning();
+      if (newMember) {
+        // Mark user as needing onboarding
+        await db.update(schema.users)
+          .set({ onboardingComplete: false })
+          .where(eq(schema.users.id, userId));
 
-      // Mark user as needing onboarding
-      await db.update(schema.users)
-        .set({ onboardingComplete: false })
-        .where(eq(schema.users.id, userId));
+        logger.info('Added user {userId} to organization {orgId} from pending intake {intakeId} (email match)', {
+          userId,
+          orgId: intake.organization_id,
+          intakeId: intake.id,
+        });
 
-      logger.info('Added user {userId} to organization {orgId} from pending intake {intakeId} (email match)', {
-        userId,
-        orgId: intake.organization_id,
+        // Dispatch event with error handling
+        try {
+          await PracticeMemberJoined.dispatch({
+            member_id: newMember.id,
+            intake_id: intake.id,
+          }, {
+            actorId: userId,
+            organizationId: intake.organization_id,
+          });
+        } catch (dispatchError) {
+          logger.error('Failed to dispatch PracticeMemberJoined event for user {userId} and intake {intakeId}: {error}', {
+            userId,
+            intakeId: intake.id,
+            error: dispatchError,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to process pending intake {intakeId} for user {userId}: {error}', {
         intakeId: intake.id,
-      });
-
-      // Dispatch event
-      void PracticeMemberJoined.dispatch({
-        member_id: newMember.id,
-        intake_id: intake.id,
-      }, {
-        actorId: userId,
-        organizationId: intake.organization_id,
+        userId,
+        error,
       });
     }
   }
@@ -83,11 +106,11 @@ const checkPendingIntakesByEmail = async (
  * Get active organization ID for a user
  * Tries to preserve last active organization, falls back to first organization
  */
-const getActiveOrganizationId = async (
-  db: NodePgDatabase<typeof schema>,
-  userId: string,
-  lastActiveOrgId: string | null,
-): Promise<string | null> => {
+const getActiveOrganizationId = async ({
+  db,
+  userId,
+  lastActiveOrgId,
+}: GetActiveOrgParams): Promise<string | null> => {
   // First, try to use the last active organization if it's still valid
   if (lastActiveOrgId) {
     const orgValidation = await db
@@ -187,11 +210,11 @@ export const createDatabaseHooks = (
           // Determine active organization
           let activeOrganizationId: string | null = null;
           try {
-            activeOrganizationId = await getActiveOrganizationId(
+            activeOrganizationId = await getActiveOrganizationId({
               db,
-              sessionData.userId,
-              lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
-            );
+              userId: sessionData.userId,
+              lastActiveOrgId: lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
+            });
           } catch (error) {
             console.warn('Failed to set active organization:', error);
           }
@@ -211,7 +234,7 @@ export const createDatabaseHooks = (
 
             // Only check for non-anonymous users (anonymous users are handled by onLinkAccount)
             if (user && !user.isAnonymous) {
-              await checkPendingIntakesByEmail(db, session.userId, user.email);
+              await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
             }
           } catch (error) {
             logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
