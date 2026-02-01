@@ -2,7 +2,6 @@ import { getLogger, type Logger } from '@logtape/logtape';
 import { eq, and, sql } from 'drizzle-orm';
 import {
   practiceClientIntakes,
-  practiceClientIntakeMetadataSchema,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { members, users } from '@/schema/better-auth-schema';
