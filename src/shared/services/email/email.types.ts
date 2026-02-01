@@ -25,6 +25,8 @@ export const EMAIL_TEMPLATES = {
   PAYOUT_SENT: 'payout-sent',
   // Events
   SCHEDULED_EVENT: 'scheduled-event',
+  // Auth
+  MAGIC_LINK: 'magic-link',
 } as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];
@@ -38,6 +40,13 @@ export interface ScheduledEventData {
   teamName: string;
   paymentUrl: string;
   supportUrl: string;
+}
+/**
+ * Magic Link Email Data
+ */
+export interface MagicLinkData {
+  url: string;
+  year: number;
 }
 
 // Line item for invoices/receipts

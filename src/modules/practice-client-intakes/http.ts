@@ -1,15 +1,16 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { zValidator } from '@hono/zod-validator';
-import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import * as routes from '@/modules/practice-client-intakes/routes';
+import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import {
   intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
+import type { AppContext, AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
+
 
 // GET /:slug/intake
 // Public intake page - returns organization details and payment settings
@@ -69,6 +70,28 @@ app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema),
   const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
   return response.fromResult(c, result);
 });
+
+
+// POST /:uuid/invite
+// Triggers an invitation for the user associated with this intake
+const triggerIntakeInvitationHandler: AppRouteHandler<typeof routes.triggerIntakeInvitationRoute> = async (c) => {
+  const { uuid } = c.req.valid('param');
+  const sessionUserId = c.get('userId');
+
+  if (!sessionUserId) {
+    return response.unauthorized(c, 'Authentication required to trigger invitation');
+  }
+
+  const result = await practiceClientIntakesService.triggerIntakeInvitation(
+    uuid,
+    sessionUserId,
+    c.req.raw.headers,
+  );
+
+  return response.fromResult(c, result);
+};
+
+app.openapi(routes.triggerIntakeInvitationRoute, triggerIntakeInvitationHandler);
 
 registerOpenApiRoutes(app, routes);
 

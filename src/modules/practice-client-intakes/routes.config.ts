@@ -1,8 +1,7 @@
 export const config = {
   name: 'practice-client-intakes',
-  prefix: '/api/practice/client-intakes', // Full path for API routes
+  prefix: '/api/practice/client-intakes',
   middleware: {
-    // All practice client intake routes are public (no authentication required)
-    '*': ['public'],
+    '*': ['requireAuth'],
   },
 };

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { config } from '@dotenvx/dotenvx';
-config();
 
+import { processEmail } from '@/workers/tasks/process-email';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { runWorker } from '@/shared/queue/worker-runner';
-import { processEmail } from './tasks/process-email';
+
+config();
 
 // Start the worker
 void runWorker({

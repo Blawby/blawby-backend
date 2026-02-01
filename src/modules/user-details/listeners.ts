@@ -12,6 +12,7 @@ import {
   UserDetailsCreated,
   UserDetailsUpdated,
   UserDetailsDeleted,
+  InvitationAccepted,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 
@@ -61,6 +62,47 @@ export const registerUserDetailsListeners = (): void => {
     } else {
       logger.error('Failed to create user details from intake', {
         intakeId: payload.uuid,
+        error: result.error,
+      });
+    }
+  });
+
+  // Handle Invitation Accepted (for direct client invites)
+  Event.listen(InvitationAccepted, async (payload) => {
+    if (payload.role !== 'client') {
+      return;
+    }
+
+    logger.info('Invitation accepted by client, creating user details', {
+      userId: payload.userId,
+      organizationId: payload.organizationId,
+    });
+
+    const result = await userDetailsService.createUserDetails(
+      payload.organizationId,
+      {
+        name: 'New Client', // Name might be updated later by the user or fetched from user record if available
+        email: payload.email,
+        status: 'active',
+      },
+      'system',
+    );
+
+    if (result.success) {
+      if ('id' in result.data) {
+        logger.info('Successfully created user details for invited client', {
+          userDetailId: result.data.id,
+          userId: payload.userId,
+        });
+      } else {
+        logger.info('User details creation accepted (pending)', {
+          userId: payload.userId,
+          message: result.data.message,
+        });
+      }
+    } else {
+      logger.error('Failed to create user details for invited client', {
+        userId: payload.userId,
         error: result.error,
       });
     }

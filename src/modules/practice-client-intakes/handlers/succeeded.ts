@@ -6,9 +6,11 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
-import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import {
+  practiceClientIntakes,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
 import { db } from '@/shared/database';
 import { IntakePaymentSucceeded } from '@/shared/events/definitions';
@@ -48,7 +50,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
 
     // Update practice client intake status and publish event within transaction
     await db.transaction(async (tx) => {
-      await tx
+      const updateResult = await tx
         .update(practiceClientIntakes)
         .set({
           status: 'succeeded',
@@ -57,31 +59,51 @@ export const handlePracticeClientIntakeSucceeded = async ({
           succeeded_at: new Date(),
           updated_at: new Date(),
         })
-        .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
+        .where(
+          and(
+            eq(practiceClientIntakes.id, practiceClientIntake.id),
+            eq(practiceClientIntakes.status, 'open'),
+          ),
+        );
 
-      // Publish intake-specific event within transaction
-      await IntakePaymentSucceeded.dispatch({
-        event_id: eventId,
-        organization_id: practiceClientIntake.organization_id,
-        stripe_payment_intent_id: paymentIntent.id,
-        intake_payment_id: practiceClientIntake.id,
-        uuid: practiceClientIntake.id,
-        amount: practiceClientIntake.amount,
-        currency: practiceClientIntake.currency,
-        client_email: practiceClientIntake.metadata?.email as string | undefined,
-        client_name: practiceClientIntake.metadata?.name as string | undefined,
-        user_id: practiceClientIntake.metadata?.user_id as string | undefined,
-        stripe_charge_id: stripeChargeId,
-        succeeded_at: new Date().toISOString(),
-      }, {
-        actorId: WEBHOOK_ACTOR_UUID,
-        actorType: 'webhook',
-        organizationId: practiceClientIntake.organization_id,
-        tx,
-      });
+      // Only publish event if this specific request was the one that flipped the status to 'succeeded'
+      if (updateResult.rowCount === 1) {
+        // Publish intake-specific event within transaction
+        await IntakePaymentSucceeded.dispatch({
+          event_id: eventId,
+          organization_id: practiceClientIntake.organization_id,
+          stripe_payment_intent_id: paymentIntent.id,
+          intake_payment_id: practiceClientIntake.id,
+          uuid: practiceClientIntake.id,
+          amount: practiceClientIntake.amount,
+          currency: practiceClientIntake.currency,
+          client_email: practiceClientIntake.metadata?.email as string | undefined,
+          client_name: practiceClientIntake.metadata?.name as string | undefined,
+          user_id: practiceClientIntake.metadata?.user_id as string | undefined,
+          stripe_charge_id: stripeChargeId,
+          succeeded_at: new Date().toISOString(),
+        }, {
+          actorId: WEBHOOK_ACTOR_UUID,
+          actorType: 'webhook',
+          organizationId: practiceClientIntake.organization_id,
+          tx,
+        });
+
+        logger.info('Practice client intake status updated to succeeded', {
+          intakeId: practiceClientIntake.id,
+          stripePaymentIntentId: paymentIntent.id,
+        });
+      } else {
+        logger.info('Practice client intake status already updated, skipping event dispatch', {
+          intakeId: practiceClientIntake.id,
+        });
+      }
     });
 
-    logger.info('Practice client intake payment succeeded', {
+    // Link user and create user details record is now handled solely by the IntakePaymentSucceeded event listener
+    // in src/modules/user-details/listeners.ts to prevent duplicate processing.
+
+    logger.info('Practice client intake payment succeeded and user linked', {
       intakeId: practiceClientIntake.id,
       stripePaymentIntentId: paymentIntent.id,
       eventId,
