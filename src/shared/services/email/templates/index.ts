@@ -5,6 +5,13 @@
  */
 
 // Customer templates
+
+// Auth templates
+import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
+
+// Customer templates
+import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
+import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
 import {
   EMAIL_TEMPLATES,
   type EmailTemplateName,
@@ -16,9 +23,8 @@ import {
   type StripeConnectStatusData,
   type PayoutSentData,
   type ScheduledEventData,
-} from '../email.types';
-import { customerPaymentReceipt } from './customer/payment-receipt';
-import { customerPaymentRequest } from './customer/payment-request';
+  type MagicLinkData,
+} from '@/shared/services/email/email.types';
 
 // Team templates
 
@@ -52,6 +58,7 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
   [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
   [EMAIL_TEMPLATES.SCHEDULED_EVENT]: ScheduledEventData;
+  [EMAIL_TEMPLATES.MAGIC_LINK]: MagicLinkData;
 }
 
 // Template registry with explicit mapping
@@ -79,6 +86,7 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: stripeConnectStatus,
   [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent,
   [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate,
+  [EMAIL_TEMPLATES.MAGIC_LINK]: magicLinkTemplate,
 } as const;
 
 /**
@@ -107,4 +115,5 @@ export {
   stripeConnectStatus,
   payoutSent,
   scheduledEventTemplate,
+  magicLinkTemplate,
 };

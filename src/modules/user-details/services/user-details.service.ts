@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { eq } from 'drizzle-orm';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
@@ -302,6 +303,76 @@ const getUserDetail = async (
   }
 };
 
+const resolveUserForIntake = async (params: {
+  userId?: string;
+  email: string;
+  name: string;
+  phone?: string;
+}): Promise<typeof users.$inferSelect | undefined> => {
+  const {
+    userId, email, name, phone,
+  } = params;
+  const existingUserByEmail = await usersRepository.findByEmail(email);
+
+  // 1. Check if we have a valid session user
+  if (userId) {
+    const sessionUser = await usersRepository.findById(userId);
+
+    if (sessionUser) {
+      const isAnonymousUser = sessionUser.isAnonymous === true;
+
+      // Case 1: Anonymous user provided an email that belongs to a different real user
+      if (isAnonymousUser && existingUserByEmail && existingUserByEmail.id !== userId) {
+        await linkAnonymousUserData({
+          anonymousUser: { id: userId, email: '' },
+          newUser: { id: existingUserByEmail.id, email: existingUserByEmail.email },
+        });
+
+        // Remove the anonymous user directly from DB to bypass auth check in webhook context
+        await db.delete(users).where(eq(users.id, userId));
+
+        return usersRepository.update(existingUserByEmail.id, {
+          name,
+          phone,
+          primaryWorkspace: 'client',
+        });
+      }
+
+      // Case 2: Anonymous user updating their own generic profile (normal flow)
+      if (isAnonymousUser) {
+        return usersRepository.update(userId, {
+          email: email.toLowerCase(),
+          name,
+          phone,
+          // Do NOT set primaryWorkspace: 'client' yet.
+          // We save the info, but they remain anonymous until they sign up/accept invite.
+        });
+      }
+
+      // Case 3: Real user using intake
+      return usersRepository.update(userId, {
+        name: name || sessionUser.name,
+        phone: phone || sessionUser.phone || undefined,
+        // If they are already a real user, we assume they are already a client or we don't force it here?
+        // Actually, if a real user does intake, they probably ARE a client now.
+        // But for consistency with the request "don't convert", maybe we leave this alone too if they aren't one?
+        // Let's assume real users are already set up. We just update contact info.
+      });
+    }
+  }
+
+  // Case 4: No session user, but email exists (logged out real user)
+  if (existingUserByEmail) {
+    return usersRepository.update(existingUserByEmail.id, {
+      name,
+      phone,
+    });
+  }
+
+  // Case 5: No matching user found
+  return undefined;
+};
+
 const deleteUserDetail = async (id: string, organizationId: string, actorId: string): Promise<Result<void>> => {
   try {
     const detail = await userDetailsRepository.findById(id);
@@ -335,82 +406,18 @@ const createUserDetailsFromIntake = async (params: {
 
   try {
     // 1. Identify user - prefer session user, fallback to email lookup
-    let user: typeof users.$inferSelect | undefined;
-
-    // Check if email already belongs to an existing user
-    const existingUserByEmail = await usersRepository.findByEmail(email);
-
-    if (userId) {
-      // We have a user ID from the session (could be anonymous or real user)
-      const sessionUser = await usersRepository.findById(userId);
-
-      if (sessionUser) {
-        // Check if the user is anonymous (isAnonymous flag set by Better Auth)
-        const isAnonymousUser = sessionUser.isAnonymous === true;
-
-        if (isAnonymousUser && existingUserByEmail && existingUserByEmail.id !== userId) {
-          // Anonymous user provided an email that belongs to a different real user
-          // Link anonymous data to the existing real user
-          await linkAnonymousUserData({
-            anonymousUser: { id: userId, email: '' },
-            newUser: { id: existingUserByEmail.id, email: existingUserByEmail.email },
-          });
-
-          // Update existing user with latest info
-          user = await usersRepository.update(existingUserByEmail.id, {
-            name,
-            phone,
-            primaryWorkspace: 'client',
-          });
-
-          // Remove the anonymous user (Better Auth will clean up accounts)
-          await auth.api.removeUser({
-            headers: new Headers(),
-            body: { userId },
-          });
-        } else if (isAnonymousUser) {
-          // Anonymous user - update with intake info (this is the normal flow)
-          user = await usersRepository.update(userId, {
-            email: email.toLowerCase(),
-            name,
-            phone,
-            primaryWorkspace: 'client',
-            // Keep isAnonymous: true - they'll set password later via Better Auth signup
-          });
-        } else {
-          // Real user using intake - just update their info if needed
-          user = await usersRepository.update(userId, {
-            name: name || sessionUser.name,
-            phone: phone || sessionUser.phone || undefined,
-            primaryWorkspace: 'client',
-          });
-        }
-      }
-    }
-
-    // Fallback: no userId or anonymous user not found
-    if (!user) {
-      if (existingUserByEmail) {
-        // Update existing user
-        user = await usersRepository.update(existingUserByEmail.id, {
-          name,
-          phone,
-          primaryWorkspace: 'client',
-        });
-      } else {
-        // No anonymous user and no existing user - cannot proceed
-        // Intake flow requires either an anonymous session or an existing account
-        logger.error('Intake failed - no anonymous user and no existing account for {email}', {
-          email,
-          organizationId,
-          intakeId,
-        });
-        return internalError('Unable to process intake. Please sign in or create an account first.');
-      }
-    }
+    // 1. Identify user - prefer session user, fallback to email lookup
+    const user = await resolveUserForIntake({
+      userId, email, name, phone,
+    });
 
     if (!user) {
-      return internalError('Failed to handle user record during intake');
+      logger.error('Intake failed - no anonymous user and no existing account for {email}', {
+        email,
+        organizationId,
+        intakeId,
+      });
+      return internalError('Unable to process intake. Please sign in or create an account first.');
     }
 
 

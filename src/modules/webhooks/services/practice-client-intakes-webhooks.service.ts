@@ -8,9 +8,6 @@
 
 import { getLogger } from '@logtape/logtape';
 import type Stripe from 'stripe';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError } from '@/shared/utils/result';
-
 import {
   handlePracticeClientIntakeSucceeded,
   handlePracticeClientIntakeFailed,
@@ -18,6 +15,8 @@ import {
 } from '@/modules/practice-client-intakes/handlers';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
+import type { Result } from '@/shared/types/result';
+import { ok, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['practice-client-intakes', 'webhook-service']);
 
@@ -43,9 +42,9 @@ export const practiceClientIntakesWebhooksService = {
 
       if (event.type.startsWith('payment_intent.')) {
         if (
-          event.type !== 'payment_intent.succeeded' &&
-          event.type !== 'payment_intent.payment_failed' &&
-          event.type !== 'payment_intent.canceled'
+          event.type !== 'payment_intent.succeeded'
+          && event.type !== 'payment_intent.payment_failed'
+          && event.type !== 'payment_intent.canceled'
         ) {
           logger.info('Unhandled payment intent event type: {eventType}', { eventType: event.type });
           await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
@@ -73,53 +72,6 @@ export const practiceClientIntakesWebhooksService = {
 
         await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
         logger.info('Successfully processed practice client intake webhook event: {eventId}', { eventId });
-        return ok(undefined);
-      }
-
-      if (event.type === 'charge.succeeded') {
-        const charge = event.data.object as Stripe.Charge;
-
-        if (!charge.payment_intent || typeof charge.payment_intent !== 'string') {
-          logger.info('Charge {chargeId} does not have a payment_intent, skipping practice client intake processing', {
-            chargeId: charge.id,
-          });
-          await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
-          return ok(undefined);
-        }
-
-        const { stripe } = await import('@/shared/utils/stripe-client');
-        const paymentIntent = await stripe.paymentIntents.retrieve(charge.payment_intent);
-        const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-
-        if (!practiceClientIntake) {
-          logger.info(
-            'Payment intent {paymentIntentId} from charge {chargeId} not associated with practice client intake',
-            {
-              paymentIntentId: paymentIntent.id,
-              chargeId: charge.id,
-            },
-          );
-          await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
-          return ok(undefined);
-        }
-
-        const syntheticEvent = {
-          ...event,
-          type: 'payment_intent.succeeded' as const,
-          data: {
-            object: paymentIntent,
-          },
-        } as unknown as Stripe.Event;
-
-        await this.handlePracticeClientIntakeSucceededWebhook(syntheticEvent);
-        await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
-        logger.info(
-          'Successfully processed practice client intake charge.succeeded webhook event: {eventId} for charge {chargeId}',
-          {
-            eventId,
-            chargeId: charge.id,
-          },
-        );
         return ok(undefined);
       }
 
