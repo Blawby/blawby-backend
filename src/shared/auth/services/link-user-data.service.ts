@@ -25,6 +25,11 @@ export const linkAnonymousUserData = async (params: {
     newId: newUser.id,
   });
 
+  const eventsToDispatch: Array<{
+    payload: { member_id: string; intake_id: string };
+    options: { actorId: string; organizationId: string };
+  }> = [];
+
   await db.transaction(async (tx) => {
     // 1. Move organization memberships
     const anonMemberships: Array<typeof members.$inferSelect> = await tx
@@ -121,13 +126,16 @@ export const linkAnonymousUserData = async (params: {
           intakeId: intake.id,
         });
 
-        // Dispatch event for side effects (e.g., metered billing, notifications)
-        void PracticeMemberJoined.dispatch({
-          member_id: newMember.id,
-          intake_id: intake.id,
-        }, {
-          actorId: newUser.id,
-          organizationId: intake.organization_id,
+        // Queue event dispatch for after transaction commit
+        eventsToDispatch.push({
+          payload: {
+            member_id: newMember.id,
+            intake_id: intake.id,
+          },
+          options: {
+            actorId: newUser.id,
+            organizationId: intake.organization_id,
+          },
         });
 
         // Mark user as needing onboarding (profile completion)
@@ -142,5 +150,20 @@ export const linkAnonymousUserData = async (params: {
     anonId: anonymousUser.id,
     newId: newUser.id,
   });
+
+  // Dispatch queued events
+  for (const event of eventsToDispatch) {
+    try {
+      await PracticeMemberJoined.dispatch(event.payload, event.options);
+    } catch (error) {
+      logger.error('Failed to dispatch PracticeMemberJoined event', {
+        error,
+        member_id: event.payload.member_id,
+        intake_id: event.payload.intake_id,
+        actorId: event.options.actorId,
+        organizationId: event.options.organizationId,
+      });
+    }
+  }
 };
 
