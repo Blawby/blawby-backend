@@ -216,7 +216,7 @@ export const createDatabaseHooks = (
               lastActiveOrgId: lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
             });
           } catch (error) {
-            console.warn('Failed to set active organization:', error);
+            logger.warn('Failed to set active organization', { error });
           }
 
           return {
