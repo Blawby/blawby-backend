@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
 import {
   type SelectUserDetail,
@@ -432,7 +433,11 @@ const createUserDetailsFromIntake = async (params: {
     }
 
 
-    // 3. Check if user_details already exists for this org+user
+    // 3. Fetch intake record to get address_id
+    const intake = await practiceClientIntakesRepository.findById(intakeId);
+
+
+    // 4. Check if user_details already exists for this org+user
     const existingDetail = await userDetailsRepository.findByOrgAndUser(organizationId, user.id);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
@@ -477,6 +482,7 @@ const createUserDetailsFromIntake = async (params: {
       organization_id: organizationId,
       user_id: user.id,
       intake_id: intakeId,
+      address_id: intake?.address_id ?? undefined,
       stripe_customer_id: stripeCustomerId,
       status: 'active',
       event_name: 'client_intake_success',

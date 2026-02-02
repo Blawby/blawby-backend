@@ -9,9 +9,15 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { organizations } from '@/schema';
+
+import { addressSchema } from '@/shared/validations/address';
+
+
+export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInsert;
+export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
 
 export const practiceClientIntakes = pgTable(
   'practice_client_intakes',
@@ -39,6 +45,7 @@ export const practiceClientIntakes = pgTable(
 
     // Client Data
     metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
+    address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
 
     // Security & Tracking
     client_ip: text('client_ip'),
@@ -74,12 +81,12 @@ export const practiceClientIntakesRelations = relations(
       fields: [practiceClientIntakes.connected_account_id],
       references: [stripeConnectedAccounts.id],
     }),
+    address: one(addresses, {
+      fields: [practiceClientIntakes.address_id],
+      references: [addresses.id],
+    }),
   }),
 );
-
-
-export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInsert;
-export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
 
 // Define metadata schema and type using Zod
 export const practiceClientIntakeMetadataSchema = z.object({
@@ -90,6 +97,7 @@ export const practiceClientIntakeMetadataSchema = z.object({
   on_behalf_of: z.string().optional(),
   opposing_party: z.string().optional(),
   description: z.string().optional(),
+  address: addressSchema.optional(),
 });
 
 
