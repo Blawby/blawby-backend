@@ -94,6 +94,10 @@ export const organizations = pgTable('organizations', {
   slug: text('slug').notNull().unique(),
   logo: text('logo'),
   createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
   metadata: text('metadata'),
 
   // Billing fields for platform subscription
@@ -118,6 +122,10 @@ export const members = pgTable('members', {
     .references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').default('member').notNull(),
   createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 }, (table) => [
   unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId),
 ]);
@@ -134,6 +142,11 @@ export const invitations = pgTable('invitations', {
   inviterId: uuid('inviter_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 });
 
 /**

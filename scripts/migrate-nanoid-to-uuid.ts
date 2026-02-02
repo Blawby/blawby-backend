@@ -18,10 +18,7 @@ import { db } from '../src/shared/database';
 import { sql } from 'drizzle-orm';
 
 // UUID regex pattern (standard format with hyphens)
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Check if a string is a valid UUID
-const isValidUUID = (str: string): boolean => UUID_REGEX.test(str);
+const UUID_REGEX: RegExp = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Generate a deterministic UUID from a nanoid (for consistency)
 // Uses a simple hash-based approach to create reproducible UUIDs
@@ -88,7 +85,7 @@ const getNonUuidValues = async (tableName: string, columnName: string): Promise<
     SELECT DISTINCT "${columnName}" as id
     FROM "${tableName}"
     WHERE "${columnName}" IS NOT NULL
-      AND "${columnName}" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      AND "${columnName}" !~ '${UUID_REGEX.source}'
   `));
   return (result.rows as Array<{ id: string }>).map(row => row.id);
 };

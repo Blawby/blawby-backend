@@ -14,10 +14,4 @@ export const AUTH_CONFIG = {
     minPasswordLength: 8,
     maxPasswordLength: 128,
   },
-  organization: {
-    enabled: true,
-    allowPersonalAccounts: true,
-    requireActiveOrganization: false,
-  },
 } as const;
-

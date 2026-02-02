@@ -62,7 +62,7 @@ const initialize = (): void => {
   _db = drizzle(_pool, { schema });
   isInitialized = true;
 
-  console.log('✅ Database connection initialized');
+  console.log(`✅ Database connection initialized: ${connectionString.split('@').pop()}`);
 };
 
 /**

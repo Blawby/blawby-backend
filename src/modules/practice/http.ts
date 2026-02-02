@@ -1,10 +1,8 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-import * as routes from '@/modules/practice/routes';
 import * as handlers from '@/modules/practice/handlers';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
-
+import * as routes from '@/modules/practice/routes';
 import { createHonoApp } from '@/shared/router/factory';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
+
 
 const practiceApp = createHonoApp();
 

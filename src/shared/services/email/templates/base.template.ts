@@ -13,6 +13,8 @@ const COLORS = {
   text: '#1A1A1A',
   textMuted: '#7A7A7A',
   textDark: '#414552',
+  primary: '#2563eb',
+  subtext: '#64748b',
   border: '#eaeaea',
 };
 

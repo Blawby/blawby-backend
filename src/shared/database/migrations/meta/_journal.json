@@ -183,6 +183,13 @@
       "when": 1769952733059,
       "tag": "0025_huge_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1770007212041,
+      "tag": "0026_bouncy_bromley",
+      "breakpoints": true
     }
   ]
 }
