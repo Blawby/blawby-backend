@@ -27,6 +27,14 @@ export type ClientIntake = {
   customer_email: string;
   customer_name: string;
   customer_phone?: string | null;
+  customer_address?: {
+    address?: string | null;
+    apartment?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+  } | null;
   on_behalf_of?: string | null;
   opposing_party?: string | null;
   description?: string | null;

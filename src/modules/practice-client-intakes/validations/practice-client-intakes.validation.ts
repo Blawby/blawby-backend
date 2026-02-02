@@ -7,6 +7,14 @@ const createPracticeClientIntakeSchema = z.object({
   email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
+  address: z.object({
+    address: z.string().optional(),
+    apartment: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    postal_code: z.string().optional(),
+    country: z.string().optional(),
+  }).optional(),
   on_behalf_of: z.string().max(200).optional(),
   opposing_party: z.string().max(200).optional().openapi({
     description: 'Name of the opposing party in the legal matter',
