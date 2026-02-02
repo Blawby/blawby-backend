@@ -1,19 +1,15 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-
-import * as routes from '@/modules/uploads/routes';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
-
-import { presignHandler } from '@/modules/uploads/handlers/presign.handler';
-import { confirmHandler } from '@/modules/uploads/handlers/confirm.handler';
-import { getHandler } from '@/modules/uploads/handlers/get.handler';
-import { downloadHandler } from '@/modules/uploads/handlers/download.handler';
-import { deleteHandler } from '@/modules/uploads/handlers/delete.handler';
-import { restoreHandler } from '@/modules/uploads/handlers/restore.handler';
-import { listHandler } from '@/modules/uploads/handlers/list.handler';
 import { getAuditLogHandler } from '@/modules/uploads/handlers/audit-log.handler';
-
+import { confirmHandler } from '@/modules/uploads/handlers/confirm.handler';
+import { deleteHandler } from '@/modules/uploads/handlers/delete.handler';
+import { downloadHandler } from '@/modules/uploads/handlers/download.handler';
+import { getHandler } from '@/modules/uploads/handlers/get.handler';
+import { listHandler } from '@/modules/uploads/handlers/list.handler';
+import { presignHandler } from '@/modules/uploads/handlers/presign.handler';
+import { restoreHandler } from '@/modules/uploads/handlers/restore.handler';
+import * as routes from '@/modules/uploads/routes';
 import { createHonoApp } from '@/shared/router/factory';
+import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
+
 
 const uploadsApp = createHonoApp();
 

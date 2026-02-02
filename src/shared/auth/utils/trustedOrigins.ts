@@ -19,7 +19,8 @@ export const matchesPattern = (origin: string, pattern: string): boolean => {
  * Get trusted origins for Better Auth
  * Also validates callbackURLs for OAuth Proxy
  */
-export const getTrustedOrigins = (request: Request): string[] => {
+export const getTrustedOrigins = (request?: Request): string[] => {
+  if (!request) return [];
   const origin = request.headers.get('origin');
   const origins: string[] = [];
 
@@ -40,7 +41,7 @@ export const getTrustedOrigins = (request: Request): string[] => {
   // This reuses the same variable as your CORS middleware
   const envOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? [];
 
-  envOrigins.forEach(o => {
+  envOrigins.forEach((o) => {
     const trimmed = o.trim();
     if (trimmed && !origins.includes(trimmed)) {
       origins.push(trimmed);

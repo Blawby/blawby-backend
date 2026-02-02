@@ -4,14 +4,6 @@
  * Central export point for all email templates and the render function
  */
 
-// Customer templates
-
-// Auth templates
-import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
-
-// Customer templates
-import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
-import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
 import {
   EMAIL_TEMPLATES,
   type EmailTemplateName,
@@ -24,9 +16,15 @@ import {
   type PayoutSentData,
   type ScheduledEventData,
   type MagicLinkData,
+  type TeamInvitationData,
 } from '@/shared/services/email/email.types';
 
-// Team templates
+// Auth templates
+import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
+
+// Customer templates
+import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
+import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
 
 // Onboarding templates
 import { payoutSent } from '@/shared/services/email/templates/onboarding/payout-sent';
@@ -36,7 +34,10 @@ import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welco
 
 // Event templates
 import { scheduledEventTemplate } from '@/shared/services/email/templates/scheduled-event';
+
+// Team templates
 import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
+import { teamInvitation } from '@/shared/services/email/templates/team/team-invitation';
 
 
 /**
@@ -52,7 +53,7 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: TeamPaymentReceiptData;
-  [EMAIL_TEMPLATES.TEAM_INVITATION]: WelcomeEmailData;
+  [EMAIL_TEMPLATES.TEAM_INVITATION]: TeamInvitationData;
   [EMAIL_TEMPLATES.WELCOME]: WelcomeEmailData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
@@ -78,7 +79,7 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: teamPaymentReceipt,
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: teamPaymentReceipt, // Reusing team receipt for custom cases
   [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: teamPaymentReceipt, // Intentional reuse: notification uses team receipt layout
-  [EMAIL_TEMPLATES.TEAM_INVITATION]: welcomeEmail, // Intentional reuse: uses welcome layout for invitations
+  [EMAIL_TEMPLATES.TEAM_INVITATION]: teamInvitation,
 
   // Onboarding templates
   [EMAIL_TEMPLATES.WELCOME]: welcomeEmail,
@@ -111,6 +112,7 @@ export {
   customerPaymentRequest,
   teamPaymentReceipt,
   welcomeEmail,
+  teamInvitation,
   stripeConnectWelcome,
   stripeConnectStatus,
   payoutSent,
