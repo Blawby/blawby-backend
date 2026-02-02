@@ -157,43 +157,45 @@ const createPracticeClientIntake = async (
       },
     });
 
-    // 4. Create address record if provided
-    let addressId: string | undefined;
-    if (request.address) {
-      const addressRecord = await upsertAddressTx(db, {
-        addressData: request.address,
-        organizationId: organization.id,
-        userId: validatedUserId,
-        type: 'client_intake',
-      });
-      addressId = addressRecord?.id;
-    }
+    const practiceClientIntake = await db.transaction(async (tx) => {
+      // 4. Create address record if provided
+      let addressId: string | undefined;
+      if (request.address) {
+        const addressRecord = await upsertAddressTx(tx, {
+          addressData: request.address,
+          organizationId: organization.id,
+          userId: validatedUserId,
+          type: 'client_intake',
+        });
+        addressId = addressRecord?.id;
+      }
 
-    // 5. Store practice client intake in database
-    const practiceClientIntakeData: InsertPracticeClientIntake = {
-      id: intakeId,
-      organization_id: organization.id,
-      connected_account_id: connectedAccount.id,
-      stripe_payment_link_id: stripePaymentLink.id,
-      address_id: addressId,
-      amount: request.amount,
-      currency: 'usd',
-      status: 'open', // Payment Link status: open, completed, expired
-      metadata: {
-        email: request.email,
-        name: request.name,
-        phone: request.phone,
-        on_behalf_of: request.on_behalf_of,
-        opposing_party: request.opposing_party,
-        description: request.description,
-        address: request.address,
-        ...(validatedUserId && { user_id: validatedUserId }),
-      },
-      client_ip: request.clientIp,
-      user_agent: request.userAgent,
-    };
+      // 5. Store practice client intake in database
+      const practiceClientIntakeData: InsertPracticeClientIntake = {
+        id: intakeId,
+        organization_id: organization.id,
+        connected_account_id: connectedAccount.id,
+        stripe_payment_link_id: stripePaymentLink.id,
+        address_id: addressId,
+        amount: request.amount,
+        currency: 'usd',
+        status: 'open', // Payment Link status: open, completed, expired
+        metadata: {
+          email: request.email,
+          name: request.name,
+          phone: request.phone,
+          on_behalf_of: request.on_behalf_of,
+          opposing_party: request.opposing_party,
+          description: request.description,
+          address: request.address,
+          ...(validatedUserId && { user_id: validatedUserId }),
+        },
+        client_ip: request.clientIp,
+        user_agent: request.userAgent,
+      };
 
-    const practiceClientIntake = await practiceClientIntakesRepository.create(practiceClientIntakeData);
+      return await practiceClientIntakesRepository.create(practiceClientIntakeData, tx);
+    });
 
     // 6. Publish practice client intake created event
     void IntakePaymentCreated.dispatch({

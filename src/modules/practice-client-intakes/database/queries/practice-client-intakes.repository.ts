@@ -11,8 +11,9 @@ import { db } from '@/shared/database';
 export const practiceClientIntakesRepository = {
   create: async function create(
     data: InsertPracticeClientIntake,
+    tx: typeof db = db,
   ): Promise<SelectPracticeClientIntake> {
-    const [practiceClientIntake] = await db
+    const [practiceClientIntake] = await tx
       .insert(practiceClientIntakes)
       .values(data)
       .returning();

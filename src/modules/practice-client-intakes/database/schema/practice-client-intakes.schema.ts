@@ -16,9 +16,6 @@ import { organizations } from '@/schema';
 import { addressSchema } from '@/shared/validations/address';
 
 
-export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInsert;
-export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
-
 export const practiceClientIntakes = pgTable(
   'practice_client_intakes',
   {
@@ -68,6 +65,9 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_created_at_idx').on(table.created_at),
   ],
 );
+
+export type InsertPracticeClientIntake = typeof practiceClientIntakes.$inferInsert;
+export type SelectPracticeClientIntake = typeof practiceClientIntakes.$inferSelect;
 
 // Define relations
 export const practiceClientIntakesRelations = relations(

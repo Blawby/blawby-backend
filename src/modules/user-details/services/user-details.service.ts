@@ -436,6 +436,9 @@ const createUserDetailsFromIntake = async (params: {
     // 3. Fetch intake record to get address_id
     const intake = await practiceClientIntakesRepository.findById(intakeId);
 
+    if (!intake) {
+      return notFound(`Intake record with ID '${intakeId}' not found`);
+    }
 
     // 4. Check if user_details already exists for this org+user
     const existingDetail = await userDetailsRepository.findByOrgAndUser(organizationId, user.id);
