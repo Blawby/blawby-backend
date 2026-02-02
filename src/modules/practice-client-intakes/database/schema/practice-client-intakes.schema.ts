@@ -99,7 +99,6 @@ export const practiceClientIntakeMetadataSchema = z.object({
   opposing_party: z.string().optional(),
   description: z.string().optional(),
   address: addressSchema.optional(),
-  conversation_id: z.uuid().optional(),
 });
 
 

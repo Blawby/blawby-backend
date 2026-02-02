@@ -9,10 +9,13 @@
  * - PostgreSQL: Job queue storage
  */
 
+import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import { getWorkerUtils, closeWorkerUtils } from './graphile-worker.client';
 import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 import { db } from '@/shared/database';
+
+const logger = getLogger(['queue', 'manager']);
 
 /**
  * Add a webhook processing job to the queue
@@ -38,9 +41,9 @@ export const addWebhookJob = async (
       },
     );
 
-    console.log(`✅ Webhook job queued: ${eventId} (${eventType})`);
+    logger.info('Webhook job queued: {eventId} ({eventType})', { eventId, eventType });
   } catch (error) {
-    console.error(`❌ Failed to queue webhook job ${eventId}:`, error);
+    logger.error('Failed to queue webhook job {eventId}', { error, eventId });
     throw error;
   }
 };
@@ -69,9 +72,9 @@ export const addOnboardingWebhookJob = async (
       },
     );
 
-    console.log(`✅ Onboarding webhook job queued: ${eventId} (${eventType})`);
+    logger.info('Onboarding webhook job queued: {eventId} ({eventType})', { eventId, eventType });
   } catch (error) {
-    console.error(`❌ Failed to queue onboarding webhook job ${eventId}:`, error);
+    logger.error('Failed to queue onboarding webhook job {eventId}', { error, eventId });
     throw error;
   }
 };
@@ -103,9 +106,9 @@ export const addEmailJob = async (
       },
     );
 
-    console.log(`✅ Email job queued: ${template} to ${to}`);
+    logger.info('Email job queued: {template} to {to}', { template, to });
   } catch (error) {
-    console.error('❌ Failed to queue email job:', error);
+    logger.error('Failed to queue email job', { error });
     throw error;
   }
 };
@@ -175,9 +178,9 @@ export const getWebhookQueueStats = async (): Promise<{
  * Clean up Graphile Worker connection
  */
 export const closeQueues = async (): Promise<void> => {
-  console.log('Closing queue manager...');
+  logger.info('Closing queue manager...');
   await closeWorkerUtils();
-  console.log('Queue manager closed');
+  logger.info('Queue manager closed');
 };
 
 // Legacy exports for backward compatibility during migration
@@ -202,13 +205,13 @@ export const getQueueEvents = (_name: string): never => {
 
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
-  console.log('Received SIGINT, closing queue manager...');
+  logger.info('Received SIGINT, closing queue manager...');
   await closeQueues();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('Received SIGTERM, closing queue manager...');
+  logger.info('Received SIGTERM, closing queue manager...');
   await closeQueues();
   process.exit(0);
 });

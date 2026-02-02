@@ -329,10 +329,16 @@ const triggerIntakeInvitation = async (
     // will check for pending intake and add them to the organization
     const auth = createBetterAuthInstance(db);
 
+    const baseUrl = `${process.env.FRONTEND_URL}/onboarding`;
+    const returnToPath = '/client/conversations/';
+    const returnTo = intakeData.conversation_id
+      ? `${returnToPath}?conversation_id=${intakeData.conversation_id}`
+      : returnToPath;
+
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: `${process.env.FRONTEND_URL}/onboarding?returnTo=/client/conversations?conversation_id=${intakeData.conversation_id}`,
+        callbackURL: `${baseUrl}?returnTo=${encodeURIComponent(returnTo)}`,
       },
       headers: requestHeaders,
     });
