@@ -1,4 +1,5 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
+import { addressSchema } from '@/shared/validations/address';
 
 // Public request schema - clientIp and userAgent are injected server-side from headers
 const createPracticeClientIntakeSchema = z.object({
@@ -14,6 +15,9 @@ const createPracticeClientIntakeSchema = z.object({
   }),
   description: z.string().max(500).optional(),
   user_id: z.uuid().optional(),
+  address: addressSchema.optional().openapi({
+    description: 'Client address information',
+  }),
 });
 
 const updatePracticeClientIntakeSchema = z.object({
@@ -85,7 +89,11 @@ const practiceClientIntakeStatusResponseSchema = z.object({
     organization_id: z.uuid(),
     amount: z.number(),
     currency: z.string(),
-    status: z.string(),
+    status: z.string().openapi({ example: 'succeeded' }),
+    address_id: z.uuid().optional().openapi({
+      description: 'ID of the created address record',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     stripe_charge_id: z.string().optional(),
     metadata: z.object({
       email: z.string(),
@@ -95,6 +103,15 @@ const practiceClientIntakeStatusResponseSchema = z.object({
       opposing_party: z.string().optional(),
       description: z.string().optional(),
       user_id: z.uuid().optional(),
+      address: addressSchema.optional().openapi({
+        example: {
+          line1: '123 Client St',
+          city: 'New York',
+          state: 'NY',
+          postal_code: '10001',
+          country: 'US',
+        },
+      }),
     }).optional(),
     succeeded_at: z.string().optional(),
     created_at: z.string(),

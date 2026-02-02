@@ -2,8 +2,8 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
-import { MODULE_REGISTRY } from './modules.generated';
 import { CONFIG_REGISTRY } from './configs.generated';
+import { MODULE_REGISTRY } from './modules.generated';
 import type { AppContext } from '@/shared/types/hono';
 
 /**
