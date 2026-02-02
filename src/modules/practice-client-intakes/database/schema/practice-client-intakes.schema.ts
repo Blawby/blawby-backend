@@ -43,6 +43,7 @@ export const practiceClientIntakes = pgTable(
     // Client Data
     metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
     address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
+    conversation_id: uuid('conversation_id'),
 
     // Security & Tracking
     client_ip: text('client_ip'),
