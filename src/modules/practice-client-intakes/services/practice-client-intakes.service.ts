@@ -177,6 +177,7 @@ const createPracticeClientIntake = async (
         connected_account_id: connectedAccount.id,
         stripe_payment_link_id: stripePaymentLink.id,
         address_id: addressId,
+        conversation_id: request.conversation_id,
         amount: request.amount,
         currency: 'usd',
         status: 'open', // Payment Link status: open, completed, expired
@@ -276,6 +277,7 @@ const getPracticeClientIntakeStatus = async (
         currency: practiceClientIntake.currency,
         status: practiceClientIntake.status,
         address_id: practiceClientIntake.address_id || undefined,
+        conversation_id: practiceClientIntake.conversation_id || undefined,
         stripe_charge_id: practiceClientIntake.stripe_charge_id || undefined,
         metadata: metadata ?? undefined,
         succeeded_at: practiceClientIntake.succeeded_at?.toISOString() || undefined,
@@ -327,10 +329,16 @@ const triggerIntakeInvitation = async (
     // will check for pending intake and add them to the organization
     const auth = createBetterAuthInstance(db);
 
+    const baseUrl = `${process.env.FRONTEND_URL}/onboarding`;
+    const returnToPath = '/client/conversations/';
+    const returnTo = intakeData.conversation_id
+      ? `${returnToPath}?conversation_id=${intakeData.conversation_id}`
+      : returnToPath;
+
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: '/client/dashboard',
+        callbackURL: `${baseUrl}?returnTo=${encodeURIComponent(returnTo)}`,
       },
       headers: requestHeaders,
     });
