@@ -10,8 +10,8 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 import { getWorkerUtils, closeWorkerUtils } from './graphile-worker.client';
+import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 import { db } from '@/shared/database';
 
 /**
@@ -105,7 +105,7 @@ export const addEmailJob = async (
 
     console.log(`✅ Email job queued: ${template} to ${to}`);
   } catch (error) {
-    console.error(`❌ Failed to queue email job:`, error);
+    console.error('❌ Failed to queue email job:', error);
     throw error;
   }
 };

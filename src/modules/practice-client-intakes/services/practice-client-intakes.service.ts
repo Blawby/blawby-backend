@@ -152,7 +152,7 @@ const createPracticeClientIntake = async (
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${process.env.FRONTEND_URL}/${process.env.INTAKE_REDIRECT}?conversation_id=${request.conversation_id}`,
+          url: `${process.env.FRONTEND_URL}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}`,
         },
       },
     });
@@ -332,7 +332,7 @@ const triggerIntakeInvitation = async (
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: '/client/dashboard',
+        callbackURL: `${process.env.FRONTEND_URL}/onboarding?returnTo=/client/conversations?conversation_id=${intakeData.conversation_id}`,
       },
       headers: requestHeaders,
     });
