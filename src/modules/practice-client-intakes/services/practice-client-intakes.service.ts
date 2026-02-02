@@ -152,7 +152,7 @@ const createPracticeClientIntake = async (
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${process.env.FRONTEND_URL}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}`,
+          url: `${process.env.FRONTEND_URL}/${process.env.INTAKE_REDIRECT}?conversation_id=${request.conversation_id}`,
         },
       },
     });
@@ -177,6 +177,7 @@ const createPracticeClientIntake = async (
         connected_account_id: connectedAccount.id,
         stripe_payment_link_id: stripePaymentLink.id,
         address_id: addressId,
+        conversation_id: request.conversation_id,
         amount: request.amount,
         currency: 'usd',
         status: 'open', // Payment Link status: open, completed, expired
@@ -276,6 +277,7 @@ const getPracticeClientIntakeStatus = async (
         currency: practiceClientIntake.currency,
         status: practiceClientIntake.status,
         address_id: practiceClientIntake.address_id || undefined,
+        conversation_id: practiceClientIntake.conversation_id || undefined,
         stripe_charge_id: practiceClientIntake.stripe_charge_id || undefined,
         metadata: metadata ?? undefined,
         succeeded_at: practiceClientIntake.succeeded_at?.toISOString() || undefined,

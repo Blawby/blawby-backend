@@ -18,6 +18,10 @@ const createPracticeClientIntakeSchema = z.object({
   address: addressSchema.optional().openapi({
     description: 'Client address information',
   }),
+  conversation_id: z.uuid().optional().openapi({
+    description: 'Conversation ID associated with the client intake',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
 });
 
 const updatePracticeClientIntakeSchema = z.object({
@@ -92,6 +96,10 @@ const practiceClientIntakeStatusResponseSchema = z.object({
     status: z.string().openapi({ example: 'succeeded' }),
     address_id: z.uuid().optional().openapi({
       description: 'ID of the created address record',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    conversation_id: z.uuid().optional().openapi({
+      description: 'Conversation ID associated with the client intake',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
     stripe_charge_id: z.string().optional(),
