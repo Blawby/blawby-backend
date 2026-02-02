@@ -1,16 +1,9 @@
 import { z } from '@hono/zod-openapi';
+import { addressSchema as onboardingAddressSchema } from '@/shared/validations/address';
+
 import { practiceIdParamSchema } from '@/shared/validations/common';
 
 // --- Shared Core Schemas ---
-
-export const onboardingAddressSchema = z.object({
-  line1: z.string().optional(),
-  line2: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  postal_code: z.string().optional(),
-  country: z.string().optional(),
-}).openapi('OnboardingAddress');
 
 export const companyInfoSchema = z.object({
   name: z.string().optional(),

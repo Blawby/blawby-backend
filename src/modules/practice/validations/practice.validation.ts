@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { addressSchema } from '@/shared/validations/address';
 import {
   nameValidator,
   slugValidator,
@@ -22,17 +23,6 @@ const billingIncrementMinutesSchema = z
     description: 'Billing increment in minutes',
     example: 15,
   });
-
-
-// Address schema
-const addressSchema = z.object({
-  line1: z.string().optional().openapi({ example: '123 Main St' }),
-  line2: z.string().optional().openapi({ example: 'Suite 100' }),
-  city: z.string().optional().openapi({ example: 'New York' }),
-  state: z.string().optional().openapi({ example: 'NY' }),
-  postal_code: z.string().optional().openapi({ example: '10001' }),
-  country: z.string().optional().openapi({ example: 'US' }),
-});
 
 // Practice module specific param schemas
 const practiceIdParamSchema = z.object({
@@ -409,7 +399,16 @@ const practiceDetailsResponseSchema = z
       .array(z.object({ id: z.string(), name: z.string(), key: z.string() }))
       .nullable()
       .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
-    address: addressSchema.nullable(),
+    address: addressSchema.nullable().openapi({
+      description: 'Practice or organizational address',
+      example: {
+        line1: '123 Business Way',
+        city: 'San Francisco',
+        state: 'CA',
+        postal_code: '94105',
+        country: 'US',
+      },
+    }),
     name: z.string().openapi({
       example: 'My Practice',
     }),
