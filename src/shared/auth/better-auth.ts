@@ -52,11 +52,6 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         },
       },
       sendInvitationEmail: async (data) => {
-        console.info('📧 sendInvitationEmail hook triggered', {
-          email: data.email,
-          orgName: data.organization.name,
-        });
-
         const teamName = data.organization.name || 'the team';
 
         // Queue the invitation email
