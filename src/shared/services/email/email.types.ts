@@ -17,7 +17,7 @@ export const EMAIL_TEMPLATES = {
   TEAM_PAYMENT_RECEIPT: 'team-payment-receipt',
   TEAM_CUSTOM_RECEIPT: 'team-custom-receipt',
   TEAM_REFUND_REQUEST: 'team-refund-request',
-  TEAM_INVITATION: 'team-invitation',
+  PRACTICE_INVITATION: 'practice-invitation',
   // Onboarding emails
   WELCOME: 'welcome',
   STRIPE_CONNECT_WELCOME: 'stripe-connect-welcome',
@@ -144,10 +144,10 @@ export interface RefundData extends BaseEmailData {
   supportUrl?: string;
 }
 
-// Team invitation data
-export interface TeamInvitationData extends BaseEmailData {
+// Practice invitation data
+export interface PracticeInvitationData extends BaseEmailData {
   inviterName: string;
-  teamName: string;
+  practiceName: string;
   inviteLink: string;
 }
 

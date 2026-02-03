@@ -1,8 +1,4 @@
-/**
- * Team Invitation Email Template
- */
-
-import { type TeamInvitationData } from '@/shared/services/email/email.types';
+import { type PracticeInvitationData } from '@/shared/services/email/email.types';
 import {
   baseLayout,
   cardSection,
@@ -15,12 +11,12 @@ import {
 
 /**
  * Renders an invitation email for a user to join an organization.
- * Uses the TeamInvitationData structure: { recipientEmail, recipientName, inviterName, teamName, inviteLink }
+ * Uses the PracticeInvitationData structure: { recipientEmail, recipientName, inviterName, practiceName, inviteLink }
  */
-export const teamInvitation = (data: TeamInvitationData): string => {
+export const practiceInvitation = (data: PracticeInvitationData): string => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const inviterName = escapeHtml(data.inviterName);
-  const teamName = escapeHtml(data.teamName);
+  const practiceName = escapeHtml(data.practiceName);
   const sanitizedInviteLink = sanitizeUrl(data.inviteLink);
   const escapedInviteLink = escapeHtml(sanitizedInviteLink);
 
@@ -29,7 +25,7 @@ export const teamInvitation = (data: TeamInvitationData): string => {
     ${cardSection(`
       <mj-column>
         <mj-text color="${COLORS.text}" font-size="20px" font-weight="700" padding-bottom="10px">
-          You've been invited to join ${teamName} on Blawby
+          You've been invited to join ${practiceName} on Blawby
         </mj-text>
         
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
@@ -37,7 +33,7 @@ export const teamInvitation = (data: TeamInvitationData): string => {
         </mj-text>
         
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
-          <strong>${inviterName}</strong> has invited you to join their team, <strong>${teamName}</strong>, on Blawby.
+          <strong>${inviterName}</strong> has invited you to join their practice, <strong>${practiceName}</strong>, on Blawby.
         </mj-text>
         
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px" padding-bottom="20px">
