@@ -1,16 +1,46 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { zValidator } from '@hono/zod-validator';
+import { getLogger } from '@logtape/logtape';
 import * as routes from '@/modules/practice-client-intakes/routes';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import {
   intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import type { BetterAuthInstance } from '@/shared/auth/better-auth';
+import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { db } from '@/shared/database';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
+import type { Session } from '@/shared/types/BetterAuth';
 import type { AppContext, AppRouteHandler } from '@/shared/types/hono';
+import { sanitizeHeaders } from '@/shared/utils/logging';
 import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
+const logger = getLogger(['practice-client-intakes', 'http']);
 
+const getOptionalSessionUserId = async function getOptionalSessionUserId(
+  c: AppContext,
+): Promise<string | undefined> {
+  const existingUserId: string | undefined = c.get('userId') ?? undefined;
+  if (existingUserId) {
+    return existingUserId;
+  }
+
+  try {
+    const auth: BetterAuthInstance = createBetterAuthInstance(db);
+    const session: Session | null | undefined = await auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
+    return session?.user?.id ?? undefined;
+  } catch (err) {
+    logger.error('Failed to resolve optional session user id', {
+      error: err,
+      existingUserId,
+      headers: sanitizeHeaders(Object.fromEntries(c.req.raw.headers.entries())),
+    });
+    return undefined;
+  }
+};
 
 // GET /:slug/intake
 // Public intake page - returns organization details and payment settings
@@ -33,7 +63,7 @@ app.post('/create', zValidator('json', intakeValidations.createPracticeClientInt
 
   // Get user_id from authenticated session context (if available)
   // Never trust user_id from request body to prevent spoofing
-  const sessionUserId = c.get('userId');
+  const sessionUserId = await getOptionalSessionUserId(c);
 
   const result = await practiceClientIntakesService.createPracticeClientIntake({
     ...body,
@@ -45,6 +75,22 @@ app.post('/create', zValidator('json', intakeValidations.createPracticeClientInt
 
   return response.fromResult(c, result, 201);
 });
+
+// POST /:uuid/checkout-session
+// Creates Stripe Checkout Session for existing intake
+app.post(
+  '/:uuid/checkout-session',
+  zValidator('param', intakeValidations.uuidParamSchema),
+  async (c) => {
+    const { uuid } = c.req.valid('param');
+    const sessionUserId = await getOptionalSessionUserId(c);
+    const result = await practiceClientIntakesService.createPracticeClientIntakeCheckoutSession({
+      uuid,
+      user_id: sessionUserId,
+    });
+    return response.fromResult(c, result, 201);
+  },
+);
 
 
 // PUT /:uuid
@@ -67,10 +113,41 @@ app.put(
 // Will be mounted at /api/practice/client-intakes/:uuid/status
 app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema), async (c) => {
   const { uuid } = c.req.valid('param');
-  const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
+  const sessionUserId = c.get('userId') ?? undefined;
+  const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid, sessionUserId);
   return response.fromResult(c, result);
 });
 
+// GET /post-pay/status
+app.get(
+  '/post-pay/status',
+  zValidator('query', intakeValidations.checkoutSessionStatusQuerySchema),
+  async (c) => {
+    const { session_id } = c.req.valid('query');
+    const result = await practiceClientIntakesService.getPracticeClientIntakePostPayStatus(session_id);
+    return response.fromResult(c, result);
+  },
+);
+
+// POST /claim
+app.post(
+  '/claim',
+  zValidator('json', intakeValidations.claimPracticeClientIntakeSchema),
+  async (c) => {
+    const { session_id } = c.req.valid('json');
+    const sessionUserId = c.get('userId');
+
+    if (!sessionUserId) {
+      return response.unauthorized(c, 'Authentication required to claim intake');
+    }
+
+    const result = await practiceClientIntakesService.claimPracticeClientIntakePayment({
+      session_id,
+      user_id: sessionUserId,
+    });
+    return response.fromResult(c, result);
+  },
+);
 
 // POST /:uuid/invite
 // Triggers an invitation for the user associated with this intake

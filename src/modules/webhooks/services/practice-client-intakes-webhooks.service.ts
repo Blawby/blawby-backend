@@ -14,6 +14,7 @@ import {
   handlePracticeClientIntakeCanceled,
 } from '@/modules/practice-client-intakes/handlers';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
+import { handlePracticeClientIntakeCheckoutSessionCompleted } from '@/modules/practice-client-intakes/handlers/checkout-session';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
@@ -39,6 +40,13 @@ export const practiceClientIntakesWebhooksService = {
 
     try {
       const event = webhookEvent.payload as Stripe.Event;
+
+      if (event.type === 'checkout.session.completed') {
+        await handlePracticeClientIntakeCheckoutSessionCompleted(event);
+        await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
+        logger.info('Successfully processed practice client intake checkout session event: {eventId}', { eventId });
+        return ok(undefined);
+      }
 
       if (event.type.startsWith('payment_intent.')) {
         if (
@@ -141,6 +149,7 @@ export const practiceClientIntakesWebhooksService = {
       eventId: event.id,
     });
   },
+
 };
 
 export default practiceClientIntakesWebhooksService;
