@@ -8,6 +8,7 @@ export type Variables = {
   session: Session | null;
   userId: string | null;
   activeOrganizationId: string | null;
+  intakeOwner?: boolean;
 };
 
 export type AppContext = {

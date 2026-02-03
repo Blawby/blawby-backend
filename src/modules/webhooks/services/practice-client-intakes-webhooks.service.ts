@@ -12,14 +12,12 @@ import {
   handlePracticeClientIntakeSucceeded,
   handlePracticeClientIntakeFailed,
   handlePracticeClientIntakeCanceled,
-  findPracticeClientIntakeByCheckoutSession,
 } from '@/modules/practice-client-intakes/handlers';
 import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
-import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import { handlePracticeClientIntakeCheckoutSessionCompleted } from '@/modules/practice-client-intakes/handlers/checkout-session';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
-import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['practice-client-intakes', 'webhook-service']);
 
@@ -44,7 +42,7 @@ export const practiceClientIntakesWebhooksService = {
       const event = webhookEvent.payload as Stripe.Event;
 
       if (event.type === 'checkout.session.completed') {
-        await this.handlePracticeClientIntakeCheckoutSessionCompleted(event);
+        await handlePracticeClientIntakeCheckoutSessionCompleted(event);
         await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
         logger.info('Successfully processed practice client intake checkout session event: {eventId}', { eventId });
         return ok(undefined);
@@ -152,46 +150,6 @@ export const practiceClientIntakesWebhooksService = {
     });
   },
 
-  /**
-   * Handle practice client intake checkout session completion
-   */
-  async handlePracticeClientIntakeCheckoutSessionCompleted(event: Stripe.Event): Promise<void> {
-    const session = event.data.object as Stripe.Checkout.Session;
-
-    if (!session.id) {
-      throw new Error('Checkout Session ID missing from checkout.session.completed event');
-    }
-
-    const practiceClientIntake = await findPracticeClientIntakeByCheckoutSession(session);
-
-    if (!practiceClientIntake) {
-      logger.info('Checkout session {sessionId} not associated with practice client intake', {
-        sessionId: session.id,
-      });
-      return;
-    }
-
-    if (!practiceClientIntake.stripe_checkout_session_id) {
-      await practiceClientIntakesRepository.update(practiceClientIntake.id, {
-        stripe_checkout_session_id: session.id,
-      });
-    }
-
-    const paymentIntentId = typeof session.payment_intent === 'string'
-      ? session.payment_intent
-      : session.payment_intent?.id;
-
-    if (!paymentIntentId) {
-      throw new Error('Payment Intent ID missing from checkout.session.completed event');
-    }
-
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    await handlePracticeClientIntakeSucceeded({
-      paymentIntent,
-      eventId: event.id,
-    });
-  },
 };
 
 export default practiceClientIntakesWebhooksService;

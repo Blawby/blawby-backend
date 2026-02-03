@@ -1,31 +1,43 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { getLogger } from '@logtape/logtape';
 import { zValidator } from '@hono/zod-validator';
 import * as routes from '@/modules/practice-client-intakes/routes';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import {
   intakeValidations,
 } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
+import type { Session } from '@/shared/types/BetterAuth';
 import type { AppContext, AppRouteHandler } from '@/shared/types/hono';
+import { sanitizeHeaders } from '@/shared/utils/logging';
 import { response } from '@/shared/utils/responseUtils';
 
 const app = new OpenAPIHono<AppContext>();
+const logger = getLogger(['practice-client-intakes', 'http']);
 
-const getOptionalSessionUserId = async (c: AppContext): Promise<string | undefined> => {
-  const existingUserId = c.get('userId');
+const getOptionalSessionUserId = async function getOptionalSessionUserId(
+  c: AppContext,
+): Promise<string | undefined> {
+  const existingUserId: string | undefined = c.get('userId') ?? undefined;
   if (existingUserId) {
     return existingUserId;
   }
 
   try {
-    const auth = createBetterAuthInstance(db);
-    const session = await auth.api.getSession({
+    const auth: BetterAuthInstance = createBetterAuthInstance(db);
+    const session: Session | null | undefined = await auth.api.getSession({
       headers: c.req.raw.headers,
     });
     return session?.user?.id ?? undefined;
-  } catch {
+  } catch (err) {
+    logger.error('Failed to resolve optional session user id', {
+      error: err,
+      existingUserId,
+      headers: sanitizeHeaders(Object.fromEntries(c.req.raw.headers.entries())),
+    });
     return undefined;
   }
 };
@@ -102,6 +114,13 @@ app.put(
 app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema), async (c) => {
   const { uuid } = c.req.valid('param');
   const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
+  const isOwner = c.get('intakeOwner') === true;
+
+  if (result.success && result.data?.data && !isOwner) {
+    result.data.data.metadata = undefined;
+    result.data.data.address_id = undefined;
+    result.data.data.conversation_id = undefined;
+  }
   return response.fromResult(c, result);
 });
 

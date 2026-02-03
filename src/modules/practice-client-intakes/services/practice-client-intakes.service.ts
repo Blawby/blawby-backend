@@ -313,6 +313,7 @@ const createPracticeClientIntakeCheckoutSession = async (
       return forbidden('Connected account is not ready to accept payments');
     }
 
+    // Reuse any existing session to avoid duplicate Checkout Sessions for the same intake.
     if (practiceClientIntake.stripe_checkout_session_id) {
       try {
         const existingSession = await stripe.checkout.sessions.retrieve(
