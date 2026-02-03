@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
@@ -17,7 +18,11 @@ import type {
   CreatePracticeClientIntakeRequest,
   CreateIntakeResponse as CreatePracticeClientIntakeResponse,
   IntakeStatusResponse as PracticeClientIntakeStatus,
+  CreateCheckoutSessionResponse as PracticeClientIntakeCheckoutSessionResponse,
+  IntakePostPayStatusResponse as PracticeClientIntakePostPayStatusResponse,
+  ClaimPracticeClientIntakeResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import { userDetailsService } from '@/modules/user-details/services/user-details.service';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
@@ -31,6 +36,36 @@ const logger = getLogger(['practice-client-intakes', 'service']);
 const {
   ok, internalError, fail, badRequest, notFound, forbidden,
 } = result;
+
+const resolvePracticeClientIntakeByCheckoutSessionId = async (
+  sessionId: string,
+): Promise<{ intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>; session?: Stripe.Checkout.Session }> => {
+  const existing = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
+  if (existing) {
+    return { intake: existing };
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const intakeUuid = typeof session.metadata?.intake_uuid === 'string'
+      ? session.metadata.intake_uuid
+      : (typeof session.client_reference_id === 'string' ? session.client_reference_id : undefined);
+
+    if (!intakeUuid) {
+      return { session };
+    }
+
+    const intake = await practiceClientIntakesRepository.findById(intakeUuid);
+    if (intake && !intake.stripe_checkout_session_id) {
+      await practiceClientIntakesRepository.update(intake.id, {
+        stripe_checkout_session_id: session.id,
+      });
+    }
+    return { intake, session };
+  } catch {
+    return {};
+  }
+};
 
 /**
  * Get practice client intake settings by slug
@@ -114,6 +149,10 @@ const createPracticeClientIntake = async (
 
     const intakeId: string = randomUUID();
 
+    const conversationParam = request.conversation_id
+      ? `&conversation_id=${encodeURIComponent(request.conversation_id)}`
+      : '';
+
     const stripePaymentLink = await stripe.paymentLinks.create({
       line_items: [
         {
@@ -152,7 +191,7 @@ const createPracticeClientIntake = async (
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${process.env.FRONTEND_URL}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}`,
+          url: `${process.env.FRONTEND_URL}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
         },
       },
     });
@@ -244,6 +283,159 @@ const updatePracticeClientIntake = async (
   return badRequest('Updating practice client intakes is no longer supported. Create a new intake instead.');
 };
 
+/**
+ * Create a Stripe Checkout Session for an existing intake
+ */
+const createPracticeClientIntakeCheckoutSession = async (
+  request: { uuid: string; user_id?: string },
+): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> => {
+  try {
+    const practiceClientIntake = await practiceClientIntakesRepository.findById(request.uuid);
+    if (!practiceClientIntake) {
+      return notFound(`Practice client intake with UUID '${request.uuid}' not found`);
+    }
+
+    if (practiceClientIntake.status !== 'open') {
+      return badRequest('Intake is not eligible for checkout session creation');
+    }
+
+    const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
+    if (!organization) {
+      return notFound('Organization not found');
+    }
+
+    const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
+    if (!connectedAccount) {
+      return fail('Connected account not found');
+    }
+
+    if (!(await isAccountActive(connectedAccount))) {
+      return forbidden('Connected account is not ready to accept payments');
+    }
+
+    if (practiceClientIntake.stripe_checkout_session_id) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(
+          practiceClientIntake.stripe_checkout_session_id,
+        );
+
+        if (existingSession.url) {
+          return ok({
+            success: true,
+            data: {
+              url: existingSession.url,
+              session_id: existingSession.id,
+            },
+          });
+        }
+      } catch {
+        // If retrieval fails, create a new session below
+      }
+    }
+
+    const metadata: Record<string, string> = {
+      intake_uuid: practiceClientIntake.id,
+      organization_id: organization.id,
+    };
+
+    if (practiceClientIntake.metadata?.email) {
+      metadata.email = practiceClientIntake.metadata.email;
+    }
+
+    if (practiceClientIntake.metadata?.name) {
+      metadata.name = practiceClientIntake.metadata.name;
+    }
+
+    if (practiceClientIntake.metadata?.phone) {
+      metadata.phone = practiceClientIntake.metadata.phone;
+    }
+
+    if (practiceClientIntake.metadata?.on_behalf_of) {
+      metadata.on_behalf_of = practiceClientIntake.metadata.on_behalf_of;
+    }
+
+    if (practiceClientIntake.metadata?.opposing_party) {
+      metadata.opposing_party = practiceClientIntake.metadata.opposing_party;
+    }
+
+    if (practiceClientIntake.metadata?.description) {
+      metadata.description = practiceClientIntake.metadata.description;
+    }
+
+    if (practiceClientIntake.conversation_id) {
+      metadata.conversation_id = practiceClientIntake.conversation_id;
+    }
+
+    if (request.user_id) {
+      metadata.user_id = request.user_id;
+    }
+
+    const conversationParam = practiceClientIntake.conversation_id
+      ? `&conversation_id=${encodeURIComponent(practiceClientIntake.conversation_id)}`
+      : '';
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      client_reference_id: practiceClientIntake.id,
+      success_url: `${process.env.FRONTEND_URL}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${organization.slug}${conversationParam}`,
+      cancel_url: `${process.env.FRONTEND_URL}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${organization.slug}&canceled=true${conversationParam}`,
+      line_items: [
+        {
+          price_data: {
+            currency: practiceClientIntake.currency,
+            product_data: {
+              name: `Client Intake - ${organization.name}`,
+              description: practiceClientIntake.metadata?.description || 'Legal consultation payment',
+            },
+            unit_amount: practiceClientIntake.amount,
+          },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: {
+        transfer_data: {
+          destination: connectedAccount.stripe_account_id,
+        },
+        metadata,
+        ...(practiceClientIntake.application_fee && {
+          application_fee_amount: practiceClientIntake.application_fee,
+        }),
+      },
+      metadata,
+    });
+
+    if (!session.url) {
+      return internalError('Stripe Checkout Session URL missing');
+    }
+
+    const updatedMetadata = request.user_id
+      ? {
+        ...(practiceClientIntake.metadata ?? {}),
+        user_id: practiceClientIntake.metadata?.user_id ?? request.user_id,
+      }
+      : practiceClientIntake.metadata;
+
+    await practiceClientIntakesRepository.update(practiceClientIntake.id, {
+      stripe_checkout_session_id: session.id,
+      metadata: updatedMetadata ?? undefined,
+    });
+
+    return ok({
+      success: true,
+      data: {
+        url: session.url,
+        session_id: session.id,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to create checkout session for intake {uuid}: {error}', {
+      uuid: request.uuid,
+      error,
+    });
+    return internalError('Failed to create checkout session');
+  }
+};
+
 
 /**
  * Get practice client intake status by UUID
@@ -288,6 +480,109 @@ const getPracticeClientIntakeStatus = async (
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
     return internalError('Failed to get practice client intake status');
+  }
+};
+
+/**
+ * Get practice client intake post-pay status by Checkout Session ID
+ */
+const getPracticeClientIntakePostPayStatus = async (
+  sessionId: string,
+): Promise<Result<PracticeClientIntakePostPayStatusResponse>> => {
+  try {
+    const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(sessionId);
+
+    if (!intake) {
+      return notFound('Checkout session not found');
+    }
+
+    if (intake.status !== 'succeeded') {
+      return ok({
+        success: true,
+        data: {
+          paid: false,
+        },
+      });
+    }
+
+    return ok({
+      success: true,
+      data: {
+        paid: true,
+        intake_uuid: intake.id,
+        organization_id: intake.organization_id,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to get post-pay status for session {sessionId}: {error}', {
+      sessionId,
+      error,
+    });
+    return internalError('Failed to get post-pay status');
+  }
+};
+
+/**
+ * Claim a paid intake and link to authenticated user
+ */
+const claimPracticeClientIntakePayment = async (
+  request: { session_id: string; user_id: string },
+): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
+  try {
+    const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(request.session_id);
+
+    if (!intake) {
+      return notFound('Checkout session not found');
+    }
+
+    if (intake.status !== 'succeeded') {
+      return badRequest('Payment must be completed before claiming intake');
+    }
+
+    const intakeMetadata = intake.metadata ?? {};
+    if (intakeMetadata.user_id && intakeMetadata.user_id !== request.user_id) {
+      return forbidden('This intake has already been claimed by another user');
+    }
+
+    if (!intakeMetadata.email || !intakeMetadata.name) {
+      return badRequest('Intake metadata is incomplete');
+    }
+
+    if (!intakeMetadata.user_id) {
+      await practiceClientIntakesRepository.update(intake.id, {
+        metadata: {
+          ...intakeMetadata,
+          user_id: request.user_id,
+        },
+      });
+    }
+
+    const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
+      organizationId: intake.organization_id,
+      intakeId: intake.id,
+      userId: request.user_id,
+      email: intakeMetadata.email,
+      name: intakeMetadata.name,
+      phone: intakeMetadata.phone,
+    });
+
+    if (!userDetailsResult.success) {
+      return userDetailsResult as Result<never>;
+    }
+
+    return ok({
+      success: true,
+      data: {
+        intake_uuid: intake.id,
+        organization_id: intake.organization_id,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to claim intake for session {sessionId}: {error}', {
+      sessionId: request.session_id,
+      error,
+    });
+    return internalError('Failed to claim intake');
   }
 };
 
@@ -360,7 +655,9 @@ export const practiceClientIntakesService = {
   getPracticeClientIntakeSettings,
   createPracticeClientIntake,
   updatePracticeClientIntake,
+  createPracticeClientIntakeCheckoutSession,
   getPracticeClientIntakeStatus,
+  getPracticeClientIntakePostPayStatus,
+  claimPracticeClientIntakePayment,
   triggerIntakeInvitation,
 };
-

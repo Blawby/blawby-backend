@@ -36,6 +36,14 @@ const uuidParamSchema = z.object({
   uuid: z.uuid(), // UUID format
 });
 
+const checkoutSessionStatusQuerySchema = z.object({
+  session_id: z.string().min(1),
+});
+
+const claimPracticeClientIntakeSchema = z.object({
+  session_id: z.string().min(1),
+});
+
 // Response schemas for OpenAPI
 const practiceClientIntakeSettingsResponseSchema = z.object({
   success: z.boolean(),
@@ -70,6 +78,15 @@ const createPracticeClientIntakeResponseSchema = z.object({
       name: z.string(),
       logo: z.string().optional(),
     }),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+const createPracticeClientIntakeCheckoutSessionResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    url: z.url(),
+    session_id: z.string(),
   }).optional(),
   error: z.string().optional(),
 });
@@ -127,6 +144,25 @@ const practiceClientIntakeStatusResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+const practiceClientIntakePostPayStatusResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    paid: z.boolean(),
+    intake_uuid: z.uuid().optional(),
+    organization_id: z.uuid().optional(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+const claimPracticeClientIntakeResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    intake_uuid: z.uuid(),
+    organization_id: z.uuid(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
 const errorResponseSchema = z.object({
   error: z.string(),
   message: z.string().optional(),
@@ -155,10 +191,15 @@ export const intakeValidations = {
   updatePracticeClientIntakeSchema,
   slugParamSchema,
   uuidParamSchema,
+  checkoutSessionStatusQuerySchema,
+  claimPracticeClientIntakeSchema,
   practiceClientIntakeSettingsResponseSchema,
   createPracticeClientIntakeResponseSchema,
+  createPracticeClientIntakeCheckoutSessionResponseSchema,
   updatePracticeClientIntakeResponseSchema,
   practiceClientIntakeStatusResponseSchema,
+  practiceClientIntakePostPayStatusResponseSchema,
+  claimPracticeClientIntakeResponseSchema,
   triggerIntakeInvitationResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,

@@ -42,3 +42,28 @@ export const findPracticeClientIntakeByPaymentIntent = async (
 
   return practiceClientIntake;
 };
+
+/**
+ * Find practice client intake by Checkout Session
+ */
+export const findPracticeClientIntakeByCheckoutSession = async (
+  session: Stripe.Checkout.Session,
+): Promise<SelectPracticeClientIntake | undefined> => {
+  let practiceClientIntake = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(
+    session.id,
+  );
+
+  if (!practiceClientIntake && typeof session.client_reference_id === 'string') {
+    practiceClientIntake = await practiceClientIntakesRepository.findById(
+      session.client_reference_id,
+    );
+  }
+
+  if (!practiceClientIntake && typeof session.metadata?.intake_uuid === 'string') {
+    practiceClientIntake = await practiceClientIntakesRepository.findById(
+      session.metadata.intake_uuid,
+    );
+  }
+
+  return practiceClientIntake;
+};

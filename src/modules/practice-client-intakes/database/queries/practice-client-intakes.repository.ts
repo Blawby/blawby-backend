@@ -53,6 +53,17 @@ export const practiceClientIntakesRepository = {
     return result;
   },
 
+  findByStripeCheckoutSessionId: async function findByStripeCheckoutSessionId(
+    sessionId: string,
+  ): Promise<SelectPracticeClientIntake | undefined> {
+    const [result] = await db
+      .select()
+      .from(practiceClientIntakes)
+      .where(eq(practiceClientIntakes.stripe_checkout_session_id, sessionId))
+      .limit(1);
+    return result;
+  },
+
   update: async function update(
     id: string,
     data: Partial<SelectPracticeClientIntake>,
