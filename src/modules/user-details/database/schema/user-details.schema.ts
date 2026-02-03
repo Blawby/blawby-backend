@@ -7,6 +7,7 @@ import {
   index,
   unique,
 } from 'drizzle-orm/pg-core';
+import { invoices } from '@/modules/invoices/database/schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
@@ -53,7 +54,7 @@ export const userDetails = pgTable(
   ],
 );
 
-export const userDetailsRelations = relations(userDetails, ({ one }) => ({
+export const userDetailsRelations = relations(userDetails, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [userDetails.organization_id],
     references: [organizations.id],
@@ -76,6 +77,7 @@ export const userDetailsRelations = relations(userDetails, ({ one }) => ({
     references: [users.id],
     relationName: 'deletedBy',
   }),
+  invoices: many(invoices),
 }));
 
 export const userDetailsSchema = {

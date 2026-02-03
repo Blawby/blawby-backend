@@ -9,7 +9,6 @@ import {
   type SelectUserDetail,
 } from '@/modules/user-details/database/schema/user-details.schema';
 import { users } from '@/schema/better-auth-schema';
-import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { db } from '@/shared/database';
 import { UserDetailsCreated, UserDetailsUpdated, UserDetailsDeleted } from '@/shared/events/definitions';
@@ -17,11 +16,10 @@ import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
 
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound, accepted, type AcceptedResponse } from '@/shared/utils/result';
+import { ok, internalError, notFound, type AcceptedResponse } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['user-details', 'service']);
-const auth = createBetterAuthInstance(db as Parameters<typeof createBetterAuthInstance>[0]);
 
 
 type AddressInput = {
@@ -57,31 +55,10 @@ const createUserDetails = async (
       const user = await usersRepository.findByEmail(data.email);
 
       if (!user) {
-        // User doesn't exist - send invitation via Better Auth organization invite
-        // The invitation will create the user when they accept
-        try {
-          await auth.api.createInvitation({
-            headers: new Headers(),
-            body: {
-              email: data.email.toLowerCase(),
-              organizationId,
-              role: 'client',
-            },
-          });
-          logger.info('Invitation sent to new client {email}', { email: data.email, organizationId });
-
-          // For now, we cannot create user_details without a user record.
-          // The user_details will be created when the invitation is accepted.
-          // Return a pending/accepted status to indicate deferred creation.
-          return accepted('Invitation sent to client. User details will be created when they accept the invitation.');
-        } catch (inviteError) {
-          logger.error('Failed to send invitation to {email}: {error}', {
-            email: data.email,
-            error: inviteError,
-            organizationId,
-          });
-          return internalError('Failed to invite client. Please try again.');
-        }
+        // User doesn't exist - they need to be invited first via:
+        // 1. Admin invite flow (/api/practice/invitations)
+        // 2. Client intake flow (magic link after payment)
+        return notFound('User not found. Please invite them using the invitations flow first.');
       }
 
       // 2. Create/find organization membership with role: 'client'

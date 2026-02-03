@@ -5,9 +5,8 @@ import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const userDetailsApp = createHonoApp();
 
-// User Details
+// User Details (Note: No POST/create - clients are created via intake or invitation flows)
 userDetailsApp.openapi(routes.listUserDetailsRoute, handlers.listUserDetailsHandler);
-userDetailsApp.openapi(routes.createUserDetailsRoute, handlers.createUserDetailsHandler);
 userDetailsApp.openapi(routes.getUserDetailRoute, handlers.getUserDetailHandler);
 userDetailsApp.openapi(routes.updateUserDetailsRoute, handlers.updateUserDetailsHandler);
 userDetailsApp.openapi(routes.deleteUserDetailRoute, handlers.deleteUserDetailHandler);
