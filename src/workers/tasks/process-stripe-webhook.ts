@@ -7,6 +7,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import type Stripe from 'stripe';
+import { invoiceWebhooksService } from '@/modules/invoices/services/invoice-webhooks.service';
 import subscriptionWebhooksService from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
@@ -37,9 +38,16 @@ const isOnboardingEvent = (eventType: string): boolean => {
   );
 };
 
+/**
+ * Checks if the event belongs to the invoice flow
+ */
+const isInvoiceEvent = (eventType: string): boolean => {
+  return eventType.startsWith('invoice.');
+};
+
 // --- MAIN TASK ---
 
-export const processStripeWebhook: Task = async (payload, helpers) => {
+export const processStripeWebhook: Task = async (payload, _helpers) => {
   const { webhookId, eventId, eventType } = payload as ProcessStripeWebhookPayload;
   const startTime = Date.now();
 
@@ -81,6 +89,12 @@ export const processStripeWebhook: Task = async (payload, helpers) => {
         throw new Error(result.error.message);
       }
       // Service marks as processed internally
+    } else if (isInvoiceEvent(event.type)) {
+      const result = await invoiceWebhooksService.processEvent(event);
+      if (!result.success) {
+        throw new Error(result.error.message);
+      }
+      await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded') {
       const result = await practiceClientIntakesWebhooksService.processEvent(eventId);
       if (!result.success) {
@@ -120,7 +134,7 @@ export const processStripeWebhook: Task = async (payload, helpers) => {
     try {
       // Only mark failed if we actually found the webhook originally
       await stripeWebhookEventsRepository.markFailed(webhookId, errorMessage, errorStack);
-    } catch (markError) {
+    } catch (_markError) {
       logger.error('CRITICAL: Failed to mark webhook as failed in DB: {webhookId}', { webhookId });
     }
 

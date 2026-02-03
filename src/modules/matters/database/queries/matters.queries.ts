@@ -134,6 +134,7 @@ const listMattersByOrganization = async (
         admin_hourly_rate: matters.admin_hourly_rate,
         attorney_hourly_rate: matters.attorney_hourly_rate,
         payment_frequency: matters.payment_frequency,
+        retainer_balance: matters.retainer_balance,
         status: matters.status,
         deleted_at: matters.deleted_at,
         deleted_by: matters.deleted_by,
