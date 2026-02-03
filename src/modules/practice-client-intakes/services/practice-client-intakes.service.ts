@@ -1,15 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { eq, sql } from 'drizzle-orm';
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
-  practiceClientIntakeMetadataSchema,
-  practiceClientIntakes,
+  practiceClientIntakesSchema,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type {
   InsertPracticeClientIntake,
@@ -32,12 +31,12 @@ import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
+const { practiceClientIntakes, practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
+
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
-const {
-  ok, internalError, fail, badRequest, notFound, forbidden,
-} = result;
+// result utilities are accessed via result object (Standard #6)
 
 type ResolveCheckoutSessionResult = {
   intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
@@ -52,16 +51,16 @@ type ClaimIntakeAbort = {
 const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
   return Boolean(
     value
-      && typeof value === 'object'
-      && '__claimIntakeResult' in value
-      && (value as { __claimIntakeResult?: unknown }).__claimIntakeResult === true
-      && 'result' in value,
+    && typeof value === 'object'
+    && '__claimIntakeResult' in value
+    && (value as { __claimIntakeResult?: unknown }).__claimIntakeResult === true
+    && 'result' in value,
   );
 };
-const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePracticeClientIntakeByCheckoutSessionId(
+const resolvePracticeClientIntakeByCheckoutSessionId = async (
   sessionId: string,
   options?: { requireSession?: boolean },
-): Promise<ResolveCheckoutSessionResult> {
+): Promise<ResolveCheckoutSessionResult> => {
   const { requireSession = false } = options ?? {};
   let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
     = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
@@ -111,26 +110,26 @@ const getPracticeClientIntakeSettings = async (
     const organization = await organizationRepository.findBySlug(slug);
 
     if (!organization) {
-      return notFound(`Organization with slug '${slug}' not found`);
+      return result.notFound(`Organization with slug '${slug}' not found`);
     }
 
     if (!organization.activeSubscriptionId) {
-      return forbidden('Organization does not have an active subscription');
+      return result.forbidden('Organization does not have an active subscription');
     }
 
     // 2. Get connected account
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
 
     if (!connectedAccount) {
-      return forbidden('Organization does not have a connected Stripe account');
+      return result.forbidden('Organization does not have a connected Stripe account');
     }
 
     // 3. Validate connected account
     if (!(await isAccountActive(connectedAccount))) {
-      return forbidden('Connected account is not ready to accept payments');
+      return result.forbidden('Connected account is not ready to accept payments');
     }
 
-    return ok({
+    return result.ok({
       success: true,
       data: {
         organization: {
@@ -151,7 +150,7 @@ const getPracticeClientIntakeSettings = async (
     });
   } catch (error) {
     logger.error('Failed to get organization intake settings for {slug}: {error}', { error, slug });
-    return internalError('Failed to get organization intake settings');
+    return result.internalError('Failed to get organization intake settings');
   }
 };
 
@@ -173,7 +172,7 @@ const createPracticeClientIntake = async (
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
 
     if (!connectedAccount) {
-      return fail('Connected account not found');
+      return result.fail('Connected account not found');
     }
 
     // user_id comes from authenticated session context (set by HTTP handler)
@@ -285,7 +284,7 @@ const createPracticeClientIntake = async (
       organizationId: organization.id,
     });
 
-    return ok({
+    return result.ok({
       success: true,
       data: {
         uuid: practiceClientIntake.id,
@@ -301,7 +300,7 @@ const createPracticeClientIntake = async (
     });
   } catch (error) {
     logger.error('Failed to create practice client intake for {slug}: {error}', { error, slug: request.slug });
-    return internalError('Failed to create practice client intake');
+    return result.internalError('Failed to create practice client intake');
   }
 };
 
@@ -313,37 +312,37 @@ const updatePracticeClientIntake = async (
   _uuid: string,
   _amount: number,
 ): Promise<Result<void>> => {
-  return badRequest('Updating practice client intakes is no longer supported. Create a new intake instead.');
+  return result.badRequest('Updating practice client intakes is no longer supported. Create a new intake instead.');
 };
 
 /**
  * Create a Stripe Checkout Session for an existing intake
  */
-const createPracticeClientIntakeCheckoutSession = async function createPracticeClientIntakeCheckoutSession(
+const createPracticeClientIntakeCheckoutSession = async (
   request: { uuid: string; user_id?: string },
-): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> {
+): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> => {
   try {
     const practiceClientIntake = await practiceClientIntakesRepository.findById(request.uuid);
     if (!practiceClientIntake) {
-      return notFound(`Practice client intake with UUID '${request.uuid}' not found`);
+      return result.notFound(`Practice client intake with UUID '${request.uuid}' not found`);
     }
 
     if (practiceClientIntake.status !== 'open') {
-      return badRequest('Intake is not eligible for checkout session creation');
+      return result.badRequest('Intake is not eligible for checkout session creation');
     }
 
     const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
     if (!organization) {
-      return notFound('Organization not found');
+      return result.notFound('Organization not found');
     }
 
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
     if (!connectedAccount) {
-      return fail('Connected account not found');
+      return result.fail('Connected account not found');
     }
 
     if (!(await isAccountActive(connectedAccount))) {
-      return forbidden('Connected account is not ready to accept payments');
+      return result.forbidden('Connected account is not ready to accept payments');
     }
 
     // Reuse any existing session to avoid duplicate Checkout Sessions for the same intake.
@@ -359,7 +358,7 @@ const createPracticeClientIntakeCheckoutSession = async function createPracticeC
           && existingSession.payment_status !== 'paid';
 
         if (isReusable && existingSession?.url) {
-          return ok({
+          return result.ok({
             success: true,
             data: {
               url: existingSession.url,
@@ -448,22 +447,22 @@ const createPracticeClientIntakeCheckoutSession = async function createPracticeC
     });
 
     if (!session.url) {
-      return internalError('Stripe Checkout Session URL missing');
+      return result.internalError('Stripe Checkout Session URL missing');
     }
 
     const updatedMetadata: PracticeClientIntakeMetadata | undefined = request.user_id
       ? {
-        ...(practiceClientIntake.metadata ?? {}),
+        ...practiceClientIntake.metadata ?? { email: '', name: '' },
         user_id: practiceClientIntake.metadata?.user_id ?? request.user_id,
       }
-      : practiceClientIntake.metadata;
+      : practiceClientIntake.metadata ?? undefined;
 
     await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       stripe_checkout_session_id: session.id,
       metadata: updatedMetadata ?? undefined,
     });
 
-    return ok({
+    return result.ok({
       success: true,
       data: {
         url: session.url,
@@ -475,7 +474,7 @@ const createPracticeClientIntakeCheckoutSession = async function createPracticeC
       uuid: request.uuid,
       error,
     });
-    return internalError('Failed to create checkout session');
+    return result.internalError('Failed to create checkout session');
   }
 };
 
@@ -490,7 +489,7 @@ const getPracticeClientIntakeStatus = async (
   try {
     const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
     if (!practiceClientIntake) {
-      return notFound(`Practice client intake with UUID '${uuid}' not found`);
+      return result.notFound(`Practice client intake with UUID '${uuid}' not found`);
     }
 
     // Validate and parse metadata if present
@@ -498,7 +497,7 @@ const getPracticeClientIntakeStatus = async (
     if (practiceClientIntake.metadata) {
       try {
         metadata = practiceClientIntakeMetadataSchema.parse(practiceClientIntake.metadata);
-      } catch (_parseError) {
+      } catch {
         // If metadata doesn't match schema, return null
         metadata = null;
       }
@@ -508,7 +507,7 @@ const getPracticeClientIntakeStatus = async (
       ? metadata.user_id === requestingUserId
       : false;
 
-    return ok({
+    return result.ok({
       success: true,
       data: {
         uuid: practiceClientIntake.id,
@@ -527,7 +526,7 @@ const getPracticeClientIntakeStatus = async (
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
-    return internalError('Failed to get practice client intake status');
+    return result.internalError('Failed to get practice client intake status');
   }
 };
 
@@ -541,11 +540,11 @@ const getPracticeClientIntakePostPayStatus = async (
     const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(sessionId);
 
     if (!intake) {
-      return notFound('Checkout session not found');
+      return result.notFound('Checkout session not found');
     }
 
     if (intake.status !== 'succeeded') {
-      return ok({
+      return result.ok({
         success: true,
         data: {
           paid: false,
@@ -553,7 +552,7 @@ const getPracticeClientIntakePostPayStatus = async (
       });
     }
 
-    return ok({
+    return result.ok({
       success: true,
       data: {
         paid: true,
@@ -566,21 +565,21 @@ const getPracticeClientIntakePostPayStatus = async (
       sessionId,
       error,
     });
-    return internalError('Failed to get post-pay status');
+    return result.internalError('Failed to get post-pay status');
   }
 };
 
 /**
  * Claim a paid intake and link to authenticated user
  */
-const claimPracticeClientIntakePayment = async function claimPracticeClientIntakePayment(
+const claimPracticeClientIntakePayment = async (
   request: { session_id: string; user_id: string },
-): Promise<Result<ClaimPracticeClientIntakeResponse>> {
+): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
   try {
     const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(request.session_id);
 
     if (!intake) {
-      return notFound('Checkout session not found');
+      return result.notFound('Checkout session not found');
     }
 
     const transactionResult = await db.transaction(async (tx) => {
@@ -605,20 +604,20 @@ const claimPracticeClientIntakePayment = async function claimPracticeClientIntak
         .limit(1);
 
       if (!lockedIntake) {
-        rollbackWithResult(notFound('Practice client intake not found'));
+        rollbackWithResult(result.notFound('Practice client intake not found'));
       }
 
       if (lockedIntake.status !== 'succeeded') {
-        rollbackWithResult(badRequest('Payment must be completed before claiming intake'));
+        rollbackWithResult(result.badRequest('Payment must be completed before claiming intake'));
       }
 
-      const intakeMetadata: PracticeClientIntakeMetadata = lockedIntake.metadata ?? {};
-      if (intakeMetadata.user_id && intakeMetadata.user_id !== request.user_id) {
-        rollbackWithResult(forbidden('This intake has already been claimed by another user'));
-      }
-
+      const intakeMetadata: PracticeClientIntakeMetadata = lockedIntake.metadata ?? { email: '', name: '' };
       if (!intakeMetadata.email || !intakeMetadata.name) {
-        rollbackWithResult(badRequest('Intake metadata is incomplete'));
+        rollbackWithResult(result.badRequest('Intake metadata is incomplete'));
+      }
+
+      if (intakeMetadata.user_id && intakeMetadata.user_id !== request.user_id) {
+        rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
       }
 
       if (!intakeMetadata.user_id) {
@@ -647,7 +646,7 @@ const claimPracticeClientIntakePayment = async function claimPracticeClientIntak
         rollbackWithResult(userDetailsResult as Result<ClaimPracticeClientIntakeResponse>);
       }
 
-      return ok({
+      return result.ok({
         success: true,
         data: {
           intake_uuid: lockedIntake.id,
@@ -665,7 +664,7 @@ const claimPracticeClientIntakePayment = async function claimPracticeClientIntak
       sessionId: request.session_id,
       error,
     });
-    return internalError('Failed to claim intake');
+    return result.internalError('Failed to claim intake');
   }
 };
 
@@ -691,15 +690,15 @@ const triggerIntakeInvitation = async (
     const metadata = intakeData.metadata;
 
     if (metadata?.user_id !== sessionUserId) {
-      return forbidden('You do not own this intake');
+      return result.forbidden('You do not own this intake');
     }
 
     if (intakeData.status !== 'succeeded') {
-      return badRequest('Payment must be completed before sending an invitation');
+      return result.badRequest('Payment must be completed before sending an invitation');
     }
 
     if (!metadata?.email) {
-      return badRequest('No email address found in intake data');
+      return result.badRequest('No email address found in intake data');
     }
 
     // 2. Send magic link via Better Auth
@@ -721,7 +720,7 @@ const triggerIntakeInvitation = async (
       headers: requestHeaders,
     });
 
-    return ok({ success: true, message: 'Magic link sent to your email' });
+    return result.ok({ success: true, message: 'Magic link sent to your email' });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Failed to send magic link for intake {uuid}: {error} {details}', {
@@ -729,7 +728,7 @@ const triggerIntakeInvitation = async (
       error: errorMessage,
       details: JSON.stringify(error, Object.getOwnPropertyNames(error)),
     });
-    return internalError('An unexpected error occurred while sending the magic link');
+    return result.internalError('An unexpected error occurred while sending the magic link');
   }
 };
 

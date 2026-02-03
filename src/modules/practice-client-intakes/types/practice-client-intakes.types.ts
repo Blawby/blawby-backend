@@ -46,8 +46,14 @@ export type ClientIntake = {
  */
 export type IntakeSettingsResponse = z.infer<typeof intakeValidations.practiceClientIntakeSettingsResponseSchema>;
 export type CreateIntakeResponse = z.infer<typeof intakeValidations.createPracticeClientIntakeResponseSchema>;
-export type CreateCheckoutSessionResponse = z.infer<typeof intakeValidations.createPracticeClientIntakeCheckoutSessionResponseSchema>;
+export type CreateCheckoutSessionResponse = z.infer<
+  typeof intakeValidations.createPracticeClientIntakeCheckoutSessionResponseSchema
+>;
 export type UpdateIntakeResponse = z.infer<typeof intakeValidations.updatePracticeClientIntakeResponseSchema>;
 export type IntakeStatusResponse = z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>;
-export type IntakePostPayStatusResponse = z.infer<typeof intakeValidations.practiceClientIntakePostPayStatusResponseSchema>;
-export type ClaimPracticeClientIntakeResponse = z.infer<typeof intakeValidations.claimPracticeClientIntakeResponseSchema>;
+export type IntakePostPayStatusResponse = z.infer<
+  typeof intakeValidations.practiceClientIntakePostPayStatusResponseSchema
+>;
+export type ClaimPracticeClientIntakeResponse = z.infer<
+  typeof intakeValidations.claimPracticeClientIntakeResponseSchema
+>;

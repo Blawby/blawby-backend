@@ -1,3 +1,4 @@
+import { z } from '@hono/zod-openapi';
 import { relations } from 'drizzle-orm';
 import {
   pgTable,
@@ -8,7 +9,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
+
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { organizations } from '@/schema';
@@ -92,15 +93,22 @@ export const practiceClientIntakesRelations = relations(
 
 // Define metadata schema and type using Zod
 export const practiceClientIntakeMetadataSchema = z.object({
-  email: z.email(),
+  email: z.string().email(),
   name: z.string().min(1),
   phone: z.string().optional(),
-  user_id: z.uuid().optional(),
+  user_id: z.string().uuid().optional(),
   on_behalf_of: z.string().optional(),
   opposing_party: z.string().optional(),
   description: z.string().optional(),
   address: addressSchema.optional(),
-});
+}).openapi('PracticeClientIntakeMetadata');
 
 
 export type PracticeClientIntakeMetadata = z.infer<typeof practiceClientIntakeMetadataSchema>;
+
+export const practiceClientIntakesSchema = {
+  practiceClientIntakes,
+  practiceClientIntakesRelations,
+  practiceClientIntakeMetadataSchema,
+};
+
