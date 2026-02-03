@@ -56,7 +56,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
 
         // Queue the invitation email
         await addEmailJob(
-          'team-invitation',
+          'practice-invitation',
           data.email,
           `You've been invited to join ${practiceName} on Blawby`,
           {
