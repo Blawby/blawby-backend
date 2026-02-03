@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { eq, sql } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
 import type Stripe from 'stripe';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
@@ -61,8 +61,8 @@ const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
 const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePracticeClientIntakeByCheckoutSessionId(
   sessionId: string,
 ): Promise<ResolveCheckoutSessionResult> {
-  const existing: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
-    await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
+  const existing: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
+    = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
   if (existing) {
     return { intake: existing };
   }
@@ -77,8 +77,8 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePra
       return { session };
     }
 
-    const intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
-      await practiceClientIntakesRepository.findById(intakeUuid);
+    const intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
+      = await practiceClientIntakesRepository.findById(intakeUuid);
     if (intake && !intake.stripe_checkout_session_id) {
       await practiceClientIntakesRepository.update(intake.id, {
         stripe_checkout_session_id: session.id,
@@ -122,15 +122,6 @@ const getPracticeClientIntakeSettings = async (
     // 3. Validate connected account
     if (!(await isAccountActive(connectedAccount))) {
       return forbidden('Connected account is not ready to accept payments');
-    }
-
-    if (practiceClientIntake.metadata?.user_id) {
-      if (!request.user_id) {
-        return forbidden('Authentication required to manage this intake');
-      }
-      if (practiceClientIntake.metadata.user_id !== request.user_id) {
-        return forbidden('You do not own this intake');
-      }
     }
 
     return ok({
