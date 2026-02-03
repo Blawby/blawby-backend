@@ -60,11 +60,14 @@ const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
 };
 const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePracticeClientIntakeByCheckoutSessionId(
   sessionId: string,
+  options?: { requireSession?: boolean },
 ): Promise<ResolveCheckoutSessionResult> {
-  const existing: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
+  const { requireSession = false } = options ?? {};
+  let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
     = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
-  if (existing) {
-    return { intake: existing };
+
+  if (intake && !requireSession) {
+    return { intake };
   }
 
   try {
@@ -77,13 +80,16 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePra
       return { session };
     }
 
-    const intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
-      = await practiceClientIntakesRepository.findById(intakeUuid);
+    if (!intake) {
+      intake = await practiceClientIntakesRepository.findById(intakeUuid);
+    }
+
     if (intake && !intake.stripe_checkout_session_id) {
       await practiceClientIntakesRepository.update(intake.id, {
         stripe_checkout_session_id: session.id,
       });
     }
+
     return { intake, session };
   } catch (error) {
     logger.error('Failed to resolve checkout session {sessionId} in resolvePracticeClientIntakeByCheckoutSessionId', {
@@ -343,14 +349,16 @@ const createPracticeClientIntakeCheckoutSession = async function createPracticeC
     // Reuse any existing session to avoid duplicate Checkout Sessions for the same intake.
     if (practiceClientIntake.stripe_checkout_session_id) {
       try {
-        const existingSession: Stripe.Checkout.Session = await stripe.checkout.sessions.retrieve(
+        const { session: existingSession } = await resolvePracticeClientIntakeByCheckoutSessionId(
           practiceClientIntake.stripe_checkout_session_id,
+          { requireSession: true },
         );
 
-        const isReusable = existingSession.status === 'open'
+        const isReusable = existingSession
+          && existingSession.status === 'open'
           && existingSession.payment_status !== 'paid';
 
-        if (isReusable && existingSession.url) {
+        if (isReusable && existingSession?.url) {
           return ok({
             success: true,
             data: {
