@@ -52,19 +52,19 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         },
       },
       sendInvitationEmail: async (data) => {
-        const teamName = data.organization.name || 'the team';
+        const practiceName = data.organization.name || 'the team';
 
         // Queue the invitation email
         await addEmailJob(
-          'team-invitation',
+          'practice-invitation',
           data.email,
-          `You've been invited to join ${teamName} on Blawby`,
+          `You've been invited to join ${practiceName} on Blawby`,
           {
             recipientEmail: data.email,
             recipientName: '', // Optional
             inviterName: data.inviter.user.name || data.inviter.user.email,
-            teamName,
-            inviteLink: `${process.env.BASE_URL}/api/auth/accept-invitation/${data.id}`,
+            practiceName,
+            inviteLink: `${process.env.FRONTEND_URL}/auth/accept-invitation?invitationId=${data.id}`,
           },
         );
 

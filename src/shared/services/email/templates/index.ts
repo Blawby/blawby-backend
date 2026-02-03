@@ -16,7 +16,7 @@ import {
   type PayoutSentData,
   type ScheduledEventData,
   type MagicLinkData,
-  type TeamInvitationData,
+  type PracticeInvitationData,
 } from '@/shared/services/email/email.types';
 
 // Auth templates
@@ -37,7 +37,7 @@ import { scheduledEventTemplate } from '@/shared/services/email/templates/schedu
 
 // Team templates
 import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
-import { teamInvitation } from '@/shared/services/email/templates/team/team-invitation';
+import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
 
 
 /**
@@ -53,7 +53,7 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: TeamPaymentReceiptData;
-  [EMAIL_TEMPLATES.TEAM_INVITATION]: TeamInvitationData;
+  [EMAIL_TEMPLATES.PRACTICE_INVITATION]: PracticeInvitationData;
   [EMAIL_TEMPLATES.WELCOME]: WelcomeEmailData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
@@ -79,7 +79,9 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: teamPaymentReceipt,
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: teamPaymentReceipt, // Reusing team receipt for custom cases
   [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: teamPaymentReceipt, // Intentional reuse: notification uses team receipt layout
-  [EMAIL_TEMPLATES.TEAM_INVITATION]: teamInvitation,
+  [EMAIL_TEMPLATES.PRACTICE_INVITATION]: practiceInvitation,
+
+  // Onboarding templates
 
   // Onboarding templates
   [EMAIL_TEMPLATES.WELCOME]: welcomeEmail,
@@ -112,7 +114,7 @@ export {
   customerPaymentRequest,
   teamPaymentReceipt,
   welcomeEmail,
-  teamInvitation,
+  practiceInvitation,
   stripeConnectWelcome,
   stripeConnectStatus,
   payoutSent,
