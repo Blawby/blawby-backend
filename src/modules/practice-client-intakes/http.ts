@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { zValidator } from '@hono/zod-validator';
 import { getLogger } from '@logtape/logtape';
+import type { Context } from 'hono';
 import * as routes from '@/modules/practice-client-intakes/routes';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import {
@@ -19,7 +20,7 @@ const app = new OpenAPIHono<AppContext>();
 const logger = getLogger(['practice-client-intakes', 'http']);
 
 const getOptionalSessionUserId = async function getOptionalSessionUserId(
-  c: AppContext,
+  c: Context<AppContext>,
 ): Promise<string | undefined> {
   const existingUserId: string | undefined = c.get('userId') ?? undefined;
   if (existingUserId) {
