@@ -643,7 +643,9 @@ const claimPracticeClientIntakePayment = async (
       });
 
       if (!userDetailsResult.success) {
-        rollbackWithResult(userDetailsResult as Result<ClaimPracticeClientIntakeResponse>);
+        rollbackWithResult(
+          result.fail(userDetailsResult.error.message, userDetailsResult.error.status, userDetailsResult.error.code),
+        );
       }
 
       return result.ok({

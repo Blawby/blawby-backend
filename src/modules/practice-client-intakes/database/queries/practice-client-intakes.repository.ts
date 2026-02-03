@@ -76,6 +76,9 @@ const update = async (
     .set({ ...data, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
     .returning();
+  if (!updated) {
+    throw new Error(`PracticeClientIntake not found for id: ${id}`);
+  }
   return updated;
 };
 
@@ -88,6 +91,9 @@ const updateStatus = async (
     .set({ status, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
     .returning();
+  if (!updated) {
+    throw new Error(`PracticeClientIntake not found for id: ${id}`);
+  }
   return updated;
 };
 

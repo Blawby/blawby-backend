@@ -93,10 +93,10 @@ export const practiceClientIntakesRelations = relations(
 
 // Define metadata schema and type using Zod
 export const practiceClientIntakeMetadataSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(1),
   phone: z.string().optional(),
-  user_id: z.string().uuid().optional(),
+  user_id: z.uuid().optional(),
   on_behalf_of: z.string().optional(),
   opposing_party: z.string().optional(),
   description: z.string().optional(),
