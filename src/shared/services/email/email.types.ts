@@ -144,10 +144,10 @@ export interface RefundData extends BaseEmailData {
   supportUrl?: string;
 }
 
-// Team invitation data
-export interface TeamInvitationData extends BaseEmailData {
+// Practice invitation data
+export interface PracticeInvitationData extends BaseEmailData {
   inviterName: string;
-  teamName: string;
+  practiceName: string;
   inviteLink: string;
 }
 
