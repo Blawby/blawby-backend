@@ -44,15 +44,20 @@ type ResolveCheckoutSessionResult = {
   session?: Stripe.Checkout.Session;
 };
 
-class ClaimIntakeError extends Error {
-  public readonly result: Result<ClaimPracticeClientIntakeResponse>;
+type ClaimIntakeAbort = {
+  __claimIntakeResult: true;
+  result: Result<ClaimPracticeClientIntakeResponse>;
+};
 
-  constructor(result: Result<ClaimPracticeClientIntakeResponse>) {
-    super(result.success ? 'Claim intake rollback' : result.error.message);
-    this.result = result;
-  }
-}
-
+const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
+  return Boolean(
+    value
+      && typeof value === 'object'
+      && '__claimIntakeResult' in value
+      && (value as { __claimIntakeResult?: unknown }).__claimIntakeResult === true
+      && 'result' in value,
+  );
+};
 const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePracticeClientIntakeByCheckoutSessionId(
   sessionId: string,
 ): Promise<ResolveCheckoutSessionResult> {
@@ -117,6 +122,15 @@ const getPracticeClientIntakeSettings = async (
     // 3. Validate connected account
     if (!(await isAccountActive(connectedAccount))) {
       return forbidden('Connected account is not ready to accept payments');
+    }
+
+    if (practiceClientIntake.metadata?.user_id) {
+      if (!request.user_id) {
+        return forbidden('Authentication required to manage this intake');
+      }
+      if (practiceClientIntake.metadata.user_id !== request.user_id) {
+        return forbidden('You do not own this intake');
+      }
     }
 
     return ok({
@@ -472,6 +486,7 @@ const createPracticeClientIntakeCheckoutSession = async function createPracticeC
  */
 const getPracticeClientIntakeStatus = async (
   uuid: string,
+  requestingUserId?: string,
 ): Promise<Result<PracticeClientIntakeStatus>> => {
   try {
     const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
@@ -490,6 +505,10 @@ const getPracticeClientIntakeStatus = async (
       }
     }
 
+    const isOwner = metadata?.user_id && requestingUserId
+      ? metadata.user_id === requestingUserId
+      : false;
+
     return ok({
       success: true,
       data: {
@@ -498,10 +517,10 @@ const getPracticeClientIntakeStatus = async (
         amount: practiceClientIntake.amount,
         currency: practiceClientIntake.currency,
         status: practiceClientIntake.status,
-        address_id: practiceClientIntake.address_id || undefined,
-        conversation_id: practiceClientIntake.conversation_id || undefined,
+        address_id: isOwner ? practiceClientIntake.address_id || undefined : undefined,
+        conversation_id: isOwner ? practiceClientIntake.conversation_id || undefined : undefined,
         stripe_charge_id: practiceClientIntake.stripe_charge_id || undefined,
-        metadata: metadata ?? undefined,
+        metadata: isOwner ? metadata ?? undefined : undefined,
         succeeded_at: practiceClientIntake.succeeded_at?.toISOString() || undefined,
         created_at: practiceClientIntake.created_at.toISOString(),
       },
@@ -567,7 +586,10 @@ const claimPracticeClientIntakePayment = async function claimPracticeClientIntak
 
     const transactionResult = await db.transaction(async (tx) => {
       const rollbackWithResult = (resultValue: Result<ClaimPracticeClientIntakeResponse>): never => {
-        throw new ClaimIntakeError(resultValue);
+        throw {
+          __claimIntakeResult: true,
+          result: resultValue,
+        } satisfies ClaimIntakeAbort;
       };
 
       await tx.execute(sql`
@@ -637,7 +659,7 @@ const claimPracticeClientIntakePayment = async function claimPracticeClientIntak
 
     return transactionResult;
   } catch (error) {
-    if (error instanceof ClaimIntakeError) {
+    if (isClaimIntakeAbort(error)) {
       return error.result;
     }
     logger.error('Failed to claim intake for session {sessionId}: {error}', {
@@ -660,7 +682,7 @@ const triggerIntakeInvitation = async (
 ): Promise<Result<{ success: true; message: string }>> => {
   try {
     // 1. Get intake and verify ownership
-    const intakeResult = await getPracticeClientIntakeStatus(uuid);
+    const intakeResult = await getPracticeClientIntakeStatus(uuid, sessionUserId);
 
     if (!intakeResult.success || !intakeResult.data?.data) {
       return intakeResult as Result<never>;

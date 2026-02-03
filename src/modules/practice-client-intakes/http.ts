@@ -113,14 +113,8 @@ app.put(
 // Will be mounted at /api/practice/client-intakes/:uuid/status
 app.get('/:uuid/status', zValidator('param', intakeValidations.uuidParamSchema), async (c) => {
   const { uuid } = c.req.valid('param');
-  const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
-  const isOwner = c.get('intakeOwner') === true;
-
-  if (result.success && result.data?.data && !isOwner) {
-    result.data.data.metadata = undefined;
-    result.data.data.address_id = undefined;
-    result.data.data.conversation_id = undefined;
-  }
+  const sessionUserId = c.get('userId') ?? undefined;
+  const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid, sessionUserId);
   return response.fromResult(c, result);
 });
 
