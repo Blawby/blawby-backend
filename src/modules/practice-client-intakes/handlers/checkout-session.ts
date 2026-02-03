@@ -1,8 +1,8 @@
 import { getLogger } from '@logtape/logtape';
 import type Stripe from 'stripe';
+import { stripe } from '@/shared/utils/stripe-client';
 import { findPracticeClientIntakeByCheckoutSession } from '@/modules/practice-client-intakes/handlers/helpers';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { stripe } from '@/shared/utils/stripe-client';
 import { handlePracticeClientIntakeSucceeded } from '@/modules/practice-client-intakes/handlers/succeeded';
 
 const logger = getLogger(['practice-client-intakes', 'handlers', 'checkout-session']);

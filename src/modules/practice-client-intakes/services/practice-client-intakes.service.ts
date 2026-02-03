@@ -1,6 +1,7 @@
+import { getLogger } from '@logtape/logtape';
+import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type Stripe from 'stripe';
-import { getLogger } from '@logtape/logtape';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
@@ -8,6 +9,7 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   practiceClientIntakeMetadataSchema,
+  practiceClientIntakes,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type {
   InsertPracticeClientIntake,
@@ -37,17 +39,32 @@ const {
   ok, internalError, fail, badRequest, notFound, forbidden,
 } = result;
 
-const resolvePracticeClientIntakeByCheckoutSessionId = async (
+type ResolveCheckoutSessionResult = {
+  intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
+  session?: Stripe.Checkout.Session;
+};
+
+class ClaimIntakeError extends Error {
+  public readonly result: Result<ClaimPracticeClientIntakeResponse>;
+
+  constructor(result: Result<ClaimPracticeClientIntakeResponse>) {
+    super(result.success ? 'Claim intake rollback' : result.error.message);
+    this.result = result;
+  }
+}
+
+const resolvePracticeClientIntakeByCheckoutSessionId = async function resolvePracticeClientIntakeByCheckoutSessionId(
   sessionId: string,
-): Promise<{ intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>; session?: Stripe.Checkout.Session }> => {
-  const existing = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
+): Promise<ResolveCheckoutSessionResult> {
+  const existing: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
+    await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
   if (existing) {
     return { intake: existing };
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const intakeUuid = typeof session.metadata?.intake_uuid === 'string'
+    const session: Stripe.Checkout.Session = await stripe.checkout.sessions.retrieve(sessionId);
+    const intakeUuid: string | undefined = typeof session.metadata?.intake_uuid === 'string'
       ? session.metadata.intake_uuid
       : (typeof session.client_reference_id === 'string' ? session.client_reference_id : undefined);
 
@@ -55,15 +72,20 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async (
       return { session };
     }
 
-    const intake = await practiceClientIntakesRepository.findById(intakeUuid);
+    const intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
+      await practiceClientIntakesRepository.findById(intakeUuid);
     if (intake && !intake.stripe_checkout_session_id) {
       await practiceClientIntakesRepository.update(intake.id, {
         stripe_checkout_session_id: session.id,
       });
     }
     return { intake, session };
-  } catch {
-    return {};
+  } catch (error) {
+    logger.error('Failed to resolve checkout session {sessionId} in resolvePracticeClientIntakeByCheckoutSessionId', {
+      sessionId,
+      error,
+    });
+    throw error;
   }
 };
 
@@ -286,9 +308,9 @@ const updatePracticeClientIntake = async (
 /**
  * Create a Stripe Checkout Session for an existing intake
  */
-const createPracticeClientIntakeCheckoutSession = async (
+const createPracticeClientIntakeCheckoutSession = async function createPracticeClientIntakeCheckoutSession(
   request: { uuid: string; user_id?: string },
-): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> => {
+): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> {
   try {
     const practiceClientIntake = await practiceClientIntakesRepository.findById(request.uuid);
     if (!practiceClientIntake) {
@@ -316,11 +338,14 @@ const createPracticeClientIntakeCheckoutSession = async (
     // Reuse any existing session to avoid duplicate Checkout Sessions for the same intake.
     if (practiceClientIntake.stripe_checkout_session_id) {
       try {
-        const existingSession = await stripe.checkout.sessions.retrieve(
+        const existingSession: Stripe.Checkout.Session = await stripe.checkout.sessions.retrieve(
           practiceClientIntake.stripe_checkout_session_id,
         );
 
-        if (existingSession.url) {
+        const isReusable = existingSession.status === 'open'
+          && existingSession.payment_status !== 'paid';
+
+        if (isReusable && existingSession.url) {
           return ok({
             success: true,
             data: {
@@ -329,7 +354,11 @@ const createPracticeClientIntakeCheckoutSession = async (
             },
           });
         }
-      } catch {
+      } catch (error) {
+        logger.error('Failed to retrieve checkout session for intake {uuid}: {error}', {
+          uuid: practiceClientIntake.id,
+          error,
+        });
         // If retrieval fails, create a new session below
       }
     }
@@ -371,7 +400,7 @@ const createPracticeClientIntakeCheckoutSession = async (
       metadata.user_id = request.user_id;
     }
 
-    const conversationParam = practiceClientIntake.conversation_id
+    const conversationParam: string = practiceClientIntake.conversation_id
       ? `&conversation_id=${encodeURIComponent(practiceClientIntake.conversation_id)}`
       : '';
 
@@ -409,7 +438,7 @@ const createPracticeClientIntakeCheckoutSession = async (
       return internalError('Stripe Checkout Session URL missing');
     }
 
-    const updatedMetadata = request.user_id
+    const updatedMetadata: PracticeClientIntakeMetadata | undefined = request.user_id
       ? {
         ...(practiceClientIntake.metadata ?? {}),
         user_id: practiceClientIntake.metadata?.user_id ?? request.user_id,
@@ -526,9 +555,9 @@ const getPracticeClientIntakePostPayStatus = async (
 /**
  * Claim a paid intake and link to authenticated user
  */
-const claimPracticeClientIntakePayment = async (
+const claimPracticeClientIntakePayment = async function claimPracticeClientIntakePayment(
   request: { session_id: string; user_id: string },
-): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
+): Promise<Result<ClaimPracticeClientIntakeResponse>> {
   try {
     const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(request.session_id);
 
@@ -536,49 +565,81 @@ const claimPracticeClientIntakePayment = async (
       return notFound('Checkout session not found');
     }
 
-    if (intake.status !== 'succeeded') {
-      return badRequest('Payment must be completed before claiming intake');
-    }
+    const transactionResult = await db.transaction(async (tx) => {
+      const rollbackWithResult = (resultValue: Result<ClaimPracticeClientIntakeResponse>): never => {
+        throw new ClaimIntakeError(resultValue);
+      };
 
-    const intakeMetadata = intake.metadata ?? {};
-    if (intakeMetadata.user_id && intakeMetadata.user_id !== request.user_id) {
-      return forbidden('This intake has already been claimed by another user');
-    }
+      await tx.execute(sql`
+        SELECT 1
+        FROM "practice_client_intakes"
+        WHERE "id" = ${intake.id}
+        FOR UPDATE
+      `);
 
-    if (!intakeMetadata.email || !intakeMetadata.name) {
-      return badRequest('Intake metadata is incomplete');
-    }
+      const [lockedIntake] = await tx
+        .select()
+        .from(practiceClientIntakes)
+        .where(eq(practiceClientIntakes.id, intake.id))
+        .limit(1);
 
-    if (!intakeMetadata.user_id) {
-      await practiceClientIntakesRepository.update(intake.id, {
-        metadata: {
-          ...intakeMetadata,
-          user_id: request.user_id,
+      if (!lockedIntake) {
+        rollbackWithResult(notFound('Practice client intake not found'));
+      }
+
+      if (lockedIntake.status !== 'succeeded') {
+        rollbackWithResult(badRequest('Payment must be completed before claiming intake'));
+      }
+
+      const intakeMetadata: PracticeClientIntakeMetadata = lockedIntake.metadata ?? {};
+      if (intakeMetadata.user_id && intakeMetadata.user_id !== request.user_id) {
+        rollbackWithResult(forbidden('This intake has already been claimed by another user'));
+      }
+
+      if (!intakeMetadata.email || !intakeMetadata.name) {
+        rollbackWithResult(badRequest('Intake metadata is incomplete'));
+      }
+
+      if (!intakeMetadata.user_id) {
+        await tx
+          .update(practiceClientIntakes)
+          .set({
+            metadata: {
+              ...intakeMetadata,
+              user_id: request.user_id,
+            },
+            updated_at: new Date(),
+          })
+          .where(eq(practiceClientIntakes.id, intake.id));
+      }
+
+      const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
+        organizationId: lockedIntake.organization_id,
+        intakeId: lockedIntake.id,
+        userId: request.user_id,
+        email: intakeMetadata.email,
+        name: intakeMetadata.name,
+        phone: intakeMetadata.phone,
+      });
+
+      if (!userDetailsResult.success) {
+        rollbackWithResult(userDetailsResult as Result<ClaimPracticeClientIntakeResponse>);
+      }
+
+      return ok({
+        success: true,
+        data: {
+          intake_uuid: lockedIntake.id,
+          organization_id: lockedIntake.organization_id,
         },
       });
-    }
-
-    const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
-      organizationId: intake.organization_id,
-      intakeId: intake.id,
-      userId: request.user_id,
-      email: intakeMetadata.email,
-      name: intakeMetadata.name,
-      phone: intakeMetadata.phone,
     });
 
-    if (!userDetailsResult.success) {
-      return userDetailsResult as Result<never>;
-    }
-
-    return ok({
-      success: true,
-      data: {
-        intake_uuid: intake.id,
-        organization_id: intake.organization_id,
-      },
-    });
+    return transactionResult;
   } catch (error) {
+    if (error instanceof ClaimIntakeError) {
+      return error.result;
+    }
     logger.error('Failed to claim intake for session {sessionId}: {error}', {
       sessionId: request.session_id,
       error,

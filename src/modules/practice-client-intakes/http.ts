@@ -1,6 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { getLogger } from '@logtape/logtape';
 import { zValidator } from '@hono/zod-validator';
+import { getLogger } from '@logtape/logtape';
 import * as routes from '@/modules/practice-client-intakes/routes';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import {
