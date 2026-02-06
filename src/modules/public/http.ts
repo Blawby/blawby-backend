@@ -76,6 +76,11 @@ publicApp.openapi(routes.infoRoute, async (c) => {
 // Contact Form
 publicApp.openapi(routes.contactRoute, async (c) => {
   const body = c.req.valid('json');
+
+  // TODO: Implement contact form submission processing (e.g., save to DB or send email)
+  // Tracker: [ISSUE-123] - Hook up contact form to email/service layer
+  // For now, this is a stub that returns success with sanitized data.
+
   return response.created(c, {
     status: 'success',
     timestamp: new Date().toISOString(),

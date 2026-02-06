@@ -17,7 +17,7 @@ export const prefillDataSchema = z.discriminatedUnion('type', [
     type: z.literal('intake'),
     intakeId: z.string().describe('The intake ID'),
     conversationId: z.string().describe('The conversation ID'),
-    email: z.string().email().optional(),
+    email: z.email().optional(),
     orgName: z.string().optional(),
     orgSlug: z.string().optional(),
   }),
