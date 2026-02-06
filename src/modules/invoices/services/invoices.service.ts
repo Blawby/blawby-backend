@@ -8,10 +8,16 @@ import type {
   InvoiceWithRelations,
   SelectInvoiceLineItem,
 } from '../types/invoices.types';
-import { paymentLinksService } from './payment-links.service';
 import { stripeInvoicesService } from './stripe-invoices.service';
-import { getFullOrganization } from '@/modules/practice/services/organization.service';
+import { organizationService } from '@/modules/practice/services/organization.service';
 import { db } from '@/shared/database';
+import {
+  InvoiceCreated,
+  InvoiceUpdated,
+  InvoiceSent,
+  InvoiceVoided,
+  InvoiceDeleted,
+} from '@/shared/events/definitions';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result, PaginatedResult } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
@@ -64,7 +70,7 @@ const createInvoice = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   const { line_items, ...invoiceData } = data;
@@ -93,7 +99,24 @@ const createInvoice = async (
         tx,
       );
 
-      return await invoicesRepository.findInvoiceById(newInvoice.id, organizationId);
+      const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, organizationId, tx);
+      if (invWithRel) {
+        await InvoiceCreated.dispatch({
+          invoice_id: newInvoice.id,
+          organization_id: organizationId,
+          client_id: data.client_id,
+          matter_id: data.matter_id || null,
+          invoice_number: newInvoice.invoice_number,
+          total: totals.total,
+        }, {
+          actorId: user.id,
+          actorType: 'user',
+          organizationId,
+          tx,
+        });
+      }
+
+      return invWithRel;
     });
 
     if (!invoice) return result.internalError('Failed to retrieve created invoice');
@@ -119,7 +142,7 @@ const getInvoiceById = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   try {
@@ -146,7 +169,7 @@ const listInvoices = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<PaginatedResult<InvoiceResponse, 'invoices'>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   try {
@@ -176,7 +199,7 @@ const updateInvoice = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   try {
@@ -217,7 +240,21 @@ const updateInvoice = async (
         tx,
       );
 
-      return await invoicesRepository.findInvoiceById(invoiceId, organizationId);
+      const updated = await invoicesRepository.findInvoiceById(invoiceId, organizationId, tx);
+      if (updated) {
+        await InvoiceUpdated.dispatch({
+          invoice_id: invoiceId,
+          organization_id: organizationId,
+          changes: data as Record<string, unknown>,
+        }, {
+          actorId: user.id,
+          actorType: 'user',
+          organizationId,
+          tx,
+        });
+      }
+
+      return updated;
     });
 
     if (!updatedInvoice) return result.internalError('Failed to retrieve updated invoice');
@@ -242,7 +279,7 @@ const deleteInvoice = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<{ success: true }>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   try {
@@ -253,7 +290,19 @@ const deleteInvoice = async (
       return result.badRequest('Only draft invoices can be deleted');
     }
 
-    await invoicesRepository.softDeleteInvoice(invoiceId, organizationId, user.id);
+    await db.transaction(async (tx) => {
+      await invoicesRepository.softDeleteInvoice(invoiceId, organizationId, user.id, tx);
+      await InvoiceDeleted.dispatch({
+        invoice_id: invoiceId,
+        organization_id: organizationId,
+        deleted_by: 'user',
+      }, {
+        actorId: user.id,
+        actorType: 'user',
+        organizationId,
+        tx,
+      });
+    });
     return result.ok({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -274,7 +323,7 @@ const sendInvoice = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   try {
@@ -309,20 +358,32 @@ const sendInvoice = async (
     const finalInvoice = sendResult.data;
 
     // 3. Update internal status
-    await invoicesRepository.updateInvoice(invoiceId, organizationId, {
-      status: 'sent',
-      stripe_invoice_id: finalInvoice.id,
-      stripe_hosted_invoice_url: finalInvoice.hosted_invoice_url,
-      // Note: payment_intent is no longer a top-level property on Stripe.Invoice in v20
-      // It's now accessed via invoice.payments sub-resource if needed
-      issue_date: new Date(),
+    await db.transaction(async (tx) => {
+      await invoicesRepository.updateInvoice(invoiceId, organizationId, {
+        status: 'sent',
+        stripe_invoice_id: finalInvoice.id,
+        stripe_hosted_invoice_url: finalInvoice.hosted_invoice_url,
+        issue_date: new Date(),
+      }, tx);
+
+      await InvoiceSent.dispatch({
+        invoice_id: invoiceId,
+        organization_id: organizationId,
+        client_id: invWithRel.client_id,
+        stripe_invoice_id: finalInvoice.id,
+        stripe_hosted_invoice_url: finalInvoice.hosted_invoice_url!,
+        total: invWithRel.total,
+      }, {
+        actorId: user.id,
+        actorType: 'user',
+        organizationId,
+        tx,
+      });
     });
 
     const updated = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
     if (!updated) return result.internalError('Failed to retrieve updated invoice');
 
-    // 4. Generate Payment Link for "Review & Pay" UI
-    await paymentLinksService.createPaymentLink(invoiceId, organizationId);
 
     return result.ok(transformInvoiceResponse(updated as InvoiceWithRelations));
   } catch (error) {
@@ -344,7 +405,7 @@ const syncInvoice = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
   try {
@@ -392,6 +453,69 @@ const syncInvoice = async (
   }
 };
 
+/**
+ * Void an invoice via Stripe
+ */
+const voidInvoice = async (
+  organizationId: string,
+  invoiceId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<InvoiceResponse>> => {
+  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
+  if (!orgResult.success) return orgResult;
+
+  try {
+    const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
+    if (!invoice) return result.notFound('Invoice not found');
+
+    // Can only void sent/open invoices
+    if (invoice.status !== 'sent') {
+      return result.badRequest('Only sent invoices can be voided');
+    }
+
+    if (!invoice.stripe_invoice_id) {
+      return result.badRequest('Invoice has no Stripe record');
+    }
+
+    // Void on Stripe
+    const voidResult = await stripeInvoicesService.voidInvoice(
+      invoice.stripe_invoice_id,
+      invoice.connected_account_id,
+    );
+    if (!voidResult.success) return voidResult;
+
+    await db.transaction(async (tx) => {
+      // Update local status
+      await invoicesRepository.updateInvoice(invoiceId, organizationId, {
+        status: 'cancelled',
+      }, tx);
+
+      await InvoiceVoided.dispatch({
+        invoice_id: invoiceId,
+        organization_id: organizationId,
+        stripe_invoice_id: invoice.stripe_invoice_id,
+        voided_by: 'user',
+      }, {
+        actorId: user.id,
+        actorType: 'user',
+        organizationId: organizationId,
+        tx,
+      });
+    });
+
+    const updated = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
+    return result.ok(transformInvoiceResponse(updated as InvoiceWithRelations));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to void invoice {invoiceId}: {error}', {
+      invoiceId,
+      error: message,
+    });
+    return result.internalError(message);
+  }
+};
+
 export const invoicesService = {
   createInvoice,
   getInvoiceById,
@@ -400,4 +524,5 @@ export const invoicesService = {
   deleteInvoice,
   sendInvoice,
   syncInvoice,
+  voidInvoice,
 };

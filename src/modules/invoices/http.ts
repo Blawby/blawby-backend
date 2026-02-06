@@ -14,8 +14,7 @@ app.openapi(routes.deleteInvoiceRoute, handlers.deleteInvoiceHandler);
 app.openapi(routes.sendInvoiceRoute, handlers.sendInvoiceHandler);
 app.openapi(routes.syncInvoiceRoute, handlers.syncInvoiceHandler);
 
-// ==================== PUBLIC PAYMENTS ====================
-app.openapi(routes.getPublicInvoiceRoute, handlers.getPublicInvoiceHandler);
+app.openapi(routes.voidInvoiceRoute, handlers.voidInvoiceHandler);
 
 registerOpenApiRoutes(app, { ...routes });
 

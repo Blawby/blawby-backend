@@ -309,6 +309,24 @@ const clearMatterAssignees = async (
   await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
 
+/**
+ * Update matter retainer balance
+ */
+const updateRetainerBalance = async (
+  matterId: string,
+  newBalance: number,
+  tx?: typeof db,
+): Promise<void> => {
+  const client = tx || db;
+  await client
+    .update(matters)
+    .set({
+      retainer_balance: newBalance,
+      updated_at: new Date(),
+    })
+    .where(eq(matters.id, matterId));
+};
+
 export const mattersQueries = {
   createMatter,
   findMatterById,
@@ -323,4 +341,5 @@ export const mattersQueries = {
   removeMatterAssignees,
   getMatterAssignees,
   clearMatterAssignees,
+  updateRetainerBalance,
 };
