@@ -1,23 +1,71 @@
-import { Hono } from 'hono';
-import type { AppContext } from '@/shared/types/hono';
+import { getLogger } from '@logtape/logtape';
+import { sql } from 'drizzle-orm';
+import * as routes from '@/modules/public/routes';
+import { db } from '@/shared/database';
+import { createHonoApp } from '@/shared/router/factory';
 import { response } from '@/shared/utils/responseUtils';
 
-const publicApp = new Hono<AppContext>();
+const logger = getLogger(['app', 'public', 'health']);
 
-// Note: This module is configured as PUBLIC in module-router.ts
-// No authentication required for these routes
+type HealthStatus = {
+  status: 'ok' | 'degraded';
+  timestamp: string;
+  uptime: number;
+  database: {
+    status: 'connected' | 'disconnected' | 'unknown';
+    latency: number | null;
+  };
+};
 
-// GET /api/public/health
-publicApp.get('/health', async (c) => {
+const publicApp = createHonoApp();
+
+// Root route
+publicApp.openapi(routes.rootRoute, async (c) => {
   return response.ok(c, {
-    status: 'ok',
+    message: 'Hono server is running!',
     timestamp: new Date().toISOString(),
-    message: 'Public health check endpoint',
+    routes: ['/api/health', '/api/session', '/docs'],
   });
 });
 
-// GET /api/public/info
-publicApp.get('/info', async (c) => {
+// Health check
+publicApp.openapi(routes.healthRoute, async (c) => {
+  const health: HealthStatus = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: {
+      status: 'unknown',
+      latency: null,
+    },
+  };
+
+  // Check database connection
+  try {
+    const startTime = Date.now();
+    await db.execute(sql`SELECT 1`);
+    const latency = Date.now() - startTime;
+
+    health.database.status = 'connected';
+    health.database.latency = latency;
+  } catch (error) {
+    logger.error('Database health check failed: {error}', { error });
+    health.status = 'degraded';
+    health.database.status = 'disconnected';
+  }
+
+  if (health.status !== 'ok') {
+    return c.json(health, 503);
+  }
+  return c.json(health, 200);
+});
+
+// Note: This module is configured as prefix: '/' in routes.config.ts
+// All paths are relative to root.
+
+
+// API Info
+publicApp.openapi(routes.infoRoute, async (c) => {
   return response.ok(c, {
     name: 'Blawby API',
     version: '1.0.0',
@@ -25,15 +73,24 @@ publicApp.get('/info', async (c) => {
   });
 });
 
-// POST /api/public/contact
-publicApp.post('/contact', async (c) => {
-  const body = await c.req.json();
+// Contact Form
+publicApp.openapi(routes.contactRoute, async (c) => {
+  const body = c.req.valid('json');
 
-  // This is a public endpoint - no auth required
+  // TODO: Implement contact form submission processing (e.g., save to DB or send email)
+  // Tracker: [ISSUE-123] - Hook up contact form to email/service layer
+  // For now, this is a stub that returns success with sanitized data.
+
   return response.created(c, {
+    status: 'success',
+    timestamp: new Date().toISOString(),
     message: 'Contact form submitted',
-    data: body,
+    data: {
+      name: body.name,
+      subject: body.subject,
+    },
   });
 });
+
 
 export default publicApp;
