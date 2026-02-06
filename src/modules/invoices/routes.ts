@@ -161,37 +161,20 @@ export const syncInvoiceRoute = createRoute({
   },
 });
 
-// Public Invoice Routes
-
-export const getPublicInvoiceRoute = createRoute({
-  method: 'get',
-  path: '/invoices/public/{token}',
+export const voidInvoiceRoute = createRoute({
+  method: 'post',
+  path: '/{practice_id}/invoices/{id}/void',
   tags: ['Invoices'],
-  summary: 'Get public invoice',
-  description: 'Public endpoint to retrieve invoice details by payment token',
-  request: {
-    params: z.object({
-      token: z.string().min(32).describe('Secure payment token'),
-    }),
-  },
+  summary: 'Void invoice',
+  description: 'Void a sent invoice (cannot be undone)',
+  request: { params: invoiceUuidParamSchema },
   responses: {
     200: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            invoice: invoiceValidations.invoiceSchema,
-          }),
-        },
-      },
-      description: 'Invoice details retrieved',
+      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
+      description: 'Invoice voided successfully',
     },
-    404: {
-      content: { 'application/json': { schema: notFoundResponseSchema } },
-      description: 'Invalid or expired payment link',
-    },
-    400: {
-      content: { 'application/json': { schema: errorResponseSchema } },
-      description: 'Invalid request',
-    },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
+

@@ -31,8 +31,9 @@ const createInvoice = async (
 /**
  * Find invoice by ID with line items
  */
-const findInvoiceById = async (id: string, organizationId: string) => {
-  const invoice = await db.query.invoices.findFirst({
+const findInvoiceById = async (id: string, organizationId: string, tx?: typeof db) => {
+  const client = tx || db;
+  const invoice = await client.query.invoices.findFirst({
     where: and(
       eq(invoices.id, id),
       eq(invoices.organization_id, organizationId),
@@ -69,8 +70,9 @@ const findInvoiceById = async (id: string, organizationId: string) => {
 /**
  * Find invoice by Stripe Invoice ID
  */
-const findInvoiceByStripeId = async (stripeInvoiceId: string) => {
-  const invoice = await db.query.invoices.findFirst({
+const findInvoiceByStripeId = async (stripeInvoiceId: string, tx?: typeof db) => {
+  const client = tx || db;
+  const invoice = await client.query.invoices.findFirst({
     where: and(
       eq(invoices.stripe_invoice_id, stripeInvoiceId),
       isNull(invoices.deleted_at),
@@ -117,13 +119,19 @@ const listInvoicesByOrganization = async (
     conditions.push(eq(invoices.status, filters.status));
   }
 
-  const results = await db
-    .select()
-    .from(invoices)
-    .where(and(...conditions))
-    .orderBy(desc(invoices.created_at))
-    .limit(limit)
-    .offset(offset);
+  const results = await db.query.invoices.findMany({
+    where: and(...conditions),
+    orderBy: desc(invoices.created_at),
+    limit,
+    offset,
+    with: {
+      client: {
+        with: { user: true }
+      },
+      lineItems: true,
+      matter: true
+    }
+  });
 
   const [countResult] = await db
     .select({ count: sql<number>`count(*)` })

@@ -55,6 +55,7 @@ export const invoices = pgTable(
 
     notes: text('notes'),
     memo: text('memo'),
+    payment_from_retainer: integer('payment_from_retainer').notNull().default(0),
 
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     deleted_by: uuid('deleted_by').references(() => users.id, {

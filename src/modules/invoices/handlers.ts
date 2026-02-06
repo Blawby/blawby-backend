@@ -6,10 +6,9 @@ import {
   deleteInvoiceRoute,
   sendInvoiceRoute,
   syncInvoiceRoute,
-  getPublicInvoiceRoute,
+  voidInvoiceRoute,
 } from '@/modules/invoices/routes';
 import { invoicesService } from '@/modules/invoices/services/invoices.service';
-import { paymentLinksService } from '@/modules/invoices/services/payment-links.service';
 import type { User } from '@/shared/types/BetterAuth';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
@@ -123,14 +122,17 @@ export const syncInvoiceHandler: AppRouteHandler<typeof syncInvoiceRoute> = asyn
   return response.fromResult(c, result);
 };
 
-export const getPublicInvoiceHandler: AppRouteHandler<typeof getPublicInvoiceRoute> = async (c) => {
-  const { token } = c.req.valid('param');
+export const voidInvoiceHandler: AppRouteHandler<typeof voidInvoiceRoute> = async (c) => {
+  const user = c.get('user') as User;
+  const { practice_id, id } = c.req.valid('param');
+  const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
-  const result = await paymentLinksService.getInvoiceByToken(token);
+  const result = await invoicesService.voidInvoice(
+    practice_id,
+    id,
+    user,
+    requestHeaders,
+  );
 
-  if (!result.success) {
-    return response.fromResult(c, result);
-  }
-
-  return response.ok(c, { invoice: result.data });
+  return response.fromResult(c, result);
 };
