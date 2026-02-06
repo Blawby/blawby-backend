@@ -1,7 +1,5 @@
 import { honoLogger } from '@logtape/hono';
 import { Scalar } from '@scalar/hono-api-reference';
-import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
-import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { requestId } from 'hono/request-id';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
@@ -23,6 +21,7 @@ import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { createOpenApiApp } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
+import { createMarkdownFromOpenApi } from '@/shared/utils/openapi';
 
 // Automatically collect OpenAPI routes from all OpenAPIHono modules
 // This iterates through the module registry and mounts any OpenAPIHono instances
@@ -53,44 +52,6 @@ app.use('/api/auth/*', autoCreateOrgForSubscription()); // Auto-create org for s
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
   const authInstance = getAuthInstance();
   return authInstance.handler(c.req.raw);
-});
-
-// Root route
-app.get('/', (c) => {
-  return c.json({
-    message: 'Hono server is running!',
-    timestamp: new Date().toISOString(),
-    routes: ['/api/health', '/api/session', '/docs'],
-  });
-});
-
-app.get('/api/health', async (c) => {
-  const health = {
-    status: 'ok' as 'ok' | 'degraded',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: {
-      status: 'unknown' as 'connected' | 'disconnected' | 'unknown',
-      latency: null as number | null,
-    },
-  };
-
-  // Check database connection
-  try {
-    const startTime = Date.now();
-    await db.execute(sql`SELECT 1`);
-    const latency = Date.now() - startTime;
-
-    health.database.status = 'connected';
-    health.database.latency = latency;
-  } catch {
-    health.status = 'degraded';
-    health.database.status = 'disconnected';
-    health.database.latency = null;
-  }
-
-  const statusCode = health.status === 'ok' ? 200 : 503;
-  return c.json(health, statusCode);
 });
 
 // Register additional module routes
@@ -124,6 +85,7 @@ const buildOpenApiDocument = () => {
   };
 
   // Add tag groups for better organization in documentation UI
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (doc as any)['x-tag-groups'] = [
     {
       name: 'Matters Management',

@@ -53,6 +53,18 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
       },
       sendInvitationEmail: async (data) => {
         const practiceName = data.organization.name || 'the team';
+        const inviterName = data.inviter.user.name || data.inviter.user.email;
+
+        const prefillData = {
+          id: data.id,
+          email: data.email,
+          orgName: practiceName,
+          orgSlug: data.organization.slug,
+          inviterName,
+          type: 'invitation',
+        };
+
+        const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
 
         // Queue the invitation email
         await addEmailJob(
@@ -62,9 +74,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
           {
             recipientEmail: data.email,
             recipientName: '', // Optional
-            inviterName: data.inviter.user.name || data.inviter.user.email,
+            inviterName,
             practiceName,
-            inviteLink: `${process.env.FRONTEND_URL}/auth/accept-invitation?invitationId=${data.id}`,
+            inviteLink: `${process.env.FRONTEND_URL}/auth/accept-invitation?data=${encodedData}`,
           },
         );
 

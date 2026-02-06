@@ -703,21 +703,31 @@ const triggerIntakeInvitation = async (
       return result.badRequest('No email address found in intake data');
     }
 
-    // 2. Send magic link via Better Auth
-    // When user clicks the link and authenticates, onLinkAccount hook
-    // will check for pending intake and add them to the organization
-    const auth = createBetterAuthInstance(db);
+    // 2. Build prefill data object
+    const organization = await organizationRepository.findById(intakeData.organization_id);
+    if (!organization) {
+      return result.notFound('Organization not found');
+    }
 
-    const baseUrl = `${process.env.FRONTEND_URL}/onboarding`;
-    const returnToPath = '/client/conversations/';
-    const returnTo = intakeData.conversation_id
-      ? `${returnToPath}?conversation_id=${intakeData.conversation_id}`
-      : returnToPath;
+    const prefillData = {
+      email: metadata.email,
+      orgName: organization.name,
+      orgSlug: organization.slug,
+      type: 'intake',
+      intakeId: uuid,
+      conversationId: intakeData.conversation_id,
+    };
+
+    // 3. Base64url encode the data
+    const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
+
+    // 4. Send magic link via Better Auth
+    const auth = createBetterAuthInstance(db);
 
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: `${baseUrl}?returnTo=${encodeURIComponent(returnTo)}`,
+        callbackURL: `${process.env.FRONTEND_URL}/auth/accept-invitation?data=${encodedData}`,
       },
       headers: requestHeaders,
     });
