@@ -27,6 +27,7 @@ import { userDetailsService } from '@/modules/user-details/services/user-details
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
+import type { PrefillData } from '@/shared/types/prefill';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -703,21 +704,31 @@ const triggerIntakeInvitation = async (
       return result.badRequest('No email address found in intake data');
     }
 
-    // 2. Send magic link via Better Auth
-    // When user clicks the link and authenticates, onLinkAccount hook
-    // will check for pending intake and add them to the organization
-    const auth = createBetterAuthInstance(db);
+    // 2. Build prefill data object
+    const organization = await organizationRepository.findById(intakeData.organization_id);
+    if (!organization) {
+      return result.notFound('Organization not found');
+    }
 
-    const baseUrl = `${process.env.FRONTEND_URL}/onboarding`;
-    const returnToPath = '/client/conversations/';
-    const returnTo = intakeData.conversation_id
-      ? `${returnToPath}?conversation_id=${intakeData.conversation_id}`
-      : returnToPath;
+    const prefillData: PrefillData = {
+      type: 'intake',
+      intakeId: uuid,
+      conversationId: intakeData.conversation_id ?? '',
+      email: metadata.email,
+      orgName: organization.name,
+      orgSlug: organization.slug,
+    };
+
+    // 3. Base64url encode the data
+    const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
+
+    // 4. Send magic link via Better Auth
+    const auth = createBetterAuthInstance(db);
 
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: `${baseUrl}?returnTo=${encodeURIComponent(returnTo)}`,
+        callbackURL: `${process.env.FRONTEND_URL}/auth/accept-invitation?data=${encodedData}`,
       },
       headers: requestHeaders,
     });
