@@ -1,15 +1,27 @@
+import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import * as routes from '@/modules/public/routes';
 import { db } from '@/shared/database';
 import { createHonoApp } from '@/shared/router/factory';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import { response } from '@/shared/utils/responseUtils';
+
+const logger = getLogger(['app', 'public', 'health']);
+
+type HealthStatus = {
+  status: 'ok' | 'degraded';
+  timestamp: string;
+  uptime: number;
+  database: {
+    status: 'connected' | 'disconnected' | 'unknown';
+    latency: number | null;
+  };
+};
 
 const publicApp = createHonoApp();
 
 // Root route
 publicApp.openapi(routes.rootRoute, async (c) => {
-  return c.json({
+  return response.ok(c, {
     message: 'Hono server is running!',
     timestamp: new Date().toISOString(),
     routes: ['/api/health', '/api/session', '/docs'],
@@ -18,13 +30,13 @@ publicApp.openapi(routes.rootRoute, async (c) => {
 
 // Health check
 publicApp.openapi(routes.healthRoute, async (c) => {
-  const health = {
-    status: 'ok' as 'ok' | 'degraded',
+  const health: HealthStatus = {
+    status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     database: {
-      status: 'unknown' as 'connected' | 'disconnected' | 'unknown',
-      latency: null as number | null,
+      status: 'unknown',
+      latency: null,
     },
   };
 
@@ -36,27 +48,21 @@ publicApp.openapi(routes.healthRoute, async (c) => {
 
     health.database.status = 'connected';
     health.database.latency = latency;
-  } catch {
+  } catch (error) {
+    logger.error('Database health check failed: {error}', { error });
     health.status = 'degraded';
     health.database.status = 'disconnected';
-    health.database.latency = null;
   }
 
-  const statusCode = health.status === 'ok' ? 200 : 503;
-  return c.json(health, statusCode);
+  if (health.status !== 'ok') {
+    return c.json(health, 503);
+  }
+  return c.json(health, 200);
 });
 
 // Note: This module is configured as prefix: '/' in routes.config.ts
 // All paths are relative to root.
 
-// Health Check
-publicApp.openapi(routes.healthRoute, async (c) => {
-  return response.ok(c, {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    message: 'Public health check endpoint',
-  });
-});
 
 // API Info
 publicApp.openapi(routes.infoRoute, async (c) => {
@@ -74,10 +80,12 @@ publicApp.openapi(routes.contactRoute, async (c) => {
     status: 'success',
     timestamp: new Date().toISOString(),
     message: 'Contact form submitted',
-    data: body,
+    data: {
+      name: body.name,
+      subject: body.subject,
+    },
   });
 });
 
-registerOpenApiRoutes(publicApp, routes);
 
 export default publicApp;

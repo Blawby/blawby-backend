@@ -27,6 +27,7 @@ import { userDetailsService } from '@/modules/user-details/services/user-details
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
+import type { PrefillData } from '@/shared/types/prefill';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -709,13 +710,13 @@ const triggerIntakeInvitation = async (
       return result.notFound('Organization not found');
     }
 
-    const prefillData = {
+    const prefillData: PrefillData = {
+      type: 'intake',
+      intakeId: uuid,
+      conversationId: intakeData.conversation_id ?? '',
       email: metadata.email,
       orgName: organization.name,
       orgSlug: organization.slug,
-      type: 'intake',
-      intakeId: uuid,
-      conversationId: intakeData.conversation_id,
     };
 
     // 3. Base64url encode the data

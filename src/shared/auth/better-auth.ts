@@ -14,6 +14,7 @@ import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.ser
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
 import { addEmailJob } from '@/shared/queue/queue.manager';
+import type { PrefillData } from '@/shared/types/prefill';
 import { isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
 
@@ -55,13 +56,13 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         const practiceName = data.organization.name || 'the team';
         const inviterName = data.inviter.user.name || data.inviter.user.email;
 
-        const prefillData = {
+        const prefillData: PrefillData = {
+          type: 'invitation',
           id: data.id,
           email: data.email,
           orgName: practiceName,
           orgSlug: data.organization.slug,
           inviterName,
-          type: 'invitation',
         };
 
         const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');

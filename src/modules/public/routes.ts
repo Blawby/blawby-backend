@@ -62,9 +62,7 @@ export const healthRoute = createRoute({
       description: 'System degraded',
       content: {
         'application/json': {
-          schema: z.object({
-            status: z.string(),
-            timestamp: z.string(),
+          schema: successSchema.extend({
             uptime: z.number(),
             database: z.object({
               status: z.string(),
