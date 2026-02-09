@@ -188,7 +188,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
       onboardingComplete: {
         type: 'boolean',
         required: false,
-        defaultValue: true,
+        defaultValue: false,
       },
     },
   },
