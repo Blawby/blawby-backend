@@ -27,7 +27,7 @@ export const users = pgTable('users', {
   banned: boolean('banned'), // Admin plugin: banned status
   banReason: text('ban_reason'), // Admin plugin: reason for ban
   banExpires: timestamp('ban_expires'), // Admin plugin: ban expiration
-  onboardingComplete: boolean('onboarding_complete').default(true), // Client onboarding status
+  onboardingComplete: boolean('onboarding_complete').default(false), // Client onboarding status
   createdAt: timestamp('created_at').defaultNow().notNull(),
 
   updatedAt: timestamp('updated_at')
