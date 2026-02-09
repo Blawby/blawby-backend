@@ -384,7 +384,6 @@ const createUserDetailsFromIntake = async (params: {
 
   try {
     // 1. Identify user - prefer session user, fallback to email lookup
-    // 1. Identify user - prefer session user, fallback to email lookup
     const user = await resolveUserForIntake({
       userId, email, name, phone,
     });

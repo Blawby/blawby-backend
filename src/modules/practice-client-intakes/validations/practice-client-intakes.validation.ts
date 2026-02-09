@@ -18,6 +18,10 @@ const createPracticeClientIntakeSchema = z.object({
   address: addressSchema.optional().openapi({
     description: 'Client address information',
   }),
+  conversation_id: z.uuid().optional().openapi({
+    description: 'Conversation ID associated with the client intake',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
 });
 
 const updatePracticeClientIntakeSchema = z.object({
@@ -30,6 +34,14 @@ const slugParamSchema = z.object({
 
 const uuidParamSchema = z.object({
   uuid: z.uuid(), // UUID format
+});
+
+const checkoutSessionStatusQuerySchema = z.object({
+  session_id: z.string().min(1),
+});
+
+const claimPracticeClientIntakeSchema = z.object({
+  session_id: z.string().min(1),
 });
 
 // Response schemas for OpenAPI
@@ -70,6 +82,15 @@ const createPracticeClientIntakeResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+const createPracticeClientIntakeCheckoutSessionResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    url: z.url(),
+    session_id: z.string(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
 const updatePracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
@@ -94,6 +115,10 @@ const practiceClientIntakeStatusResponseSchema = z.object({
       description: 'ID of the created address record',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
+    conversation_id: z.uuid().optional().openapi({
+      description: 'Conversation ID associated with the client intake',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     stripe_charge_id: z.string().optional(),
     metadata: z.object({
       email: z.string(),
@@ -115,6 +140,25 @@ const practiceClientIntakeStatusResponseSchema = z.object({
     }).optional(),
     succeeded_at: z.string().optional(),
     created_at: z.string(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+const practiceClientIntakePostPayStatusResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    paid: z.boolean(),
+    intake_uuid: z.uuid().optional(),
+    organization_id: z.uuid().optional(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+const claimPracticeClientIntakeResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    intake_uuid: z.uuid(),
+    organization_id: z.uuid(),
   }).optional(),
   error: z.string().optional(),
 });
@@ -147,10 +191,15 @@ export const intakeValidations = {
   updatePracticeClientIntakeSchema,
   slugParamSchema,
   uuidParamSchema,
+  checkoutSessionStatusQuerySchema,
+  claimPracticeClientIntakeSchema,
   practiceClientIntakeSettingsResponseSchema,
   createPracticeClientIntakeResponseSchema,
+  createPracticeClientIntakeCheckoutSessionResponseSchema,
   updatePracticeClientIntakeResponseSchema,
   practiceClientIntakeStatusResponseSchema,
+  practiceClientIntakePostPayStatusResponseSchema,
+  claimPracticeClientIntakeResponseSchema,
   triggerIntakeInvitationResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,

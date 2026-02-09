@@ -1,1 +1,0 @@
-ALTER TABLE "invoices" ADD COLUMN "payment_from_retainer" integer DEFAULT 0 NOT NULL;
