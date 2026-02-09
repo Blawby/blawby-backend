@@ -95,7 +95,7 @@ export const getEnvArray = (key: string, defaultValue: string[] = []): string[] 
  */
 export const getMatchingFrontendUrl = (origin?: string | null): string => {
   const urls = getEnvArray('FRONTEND_URL');
-  if (urls.length === 0) return process.env.BASE_URL || '';
+  if (urls.length === 0) return '';
   if (urls.length === 1 || !origin) return urls[0] || '';
 
   const normalizedOrigin = origin.toLowerCase().trim().replace(/\/$/, '');
