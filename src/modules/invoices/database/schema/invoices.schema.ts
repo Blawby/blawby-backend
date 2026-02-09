@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   index,
+  pgEnum,
 } from 'drizzle-orm/pg-core';
 import { billingTransactions } from './billing-transactions.schema';
 import { invoiceLineItems } from './invoice-line-items.schema';
@@ -15,6 +16,12 @@ import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { organizations, users } from '@/schema';
+
+export const invoiceTypeEnum = pgEnum('invoice_type', [
+  'flat_fee', // Earned upon receipt → operating
+  'phase_fee', // Earned upon receipt per phase → operating
+  'retainer_deposit', // Client funds → trust (lawyer routes internally)
+]);
 
 export const invoices = pgTable(
   'invoices',
@@ -34,6 +41,10 @@ export const invoices = pgTable(
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
     invoice_number: varchar('invoice_number', { length: 50 }).notNull(),
+    invoice_type: invoiceTypeEnum('invoice_type').notNull().default('flat_fee'),
+    fund_destination: varchar('fund_destination', { length: 20 })
+      .notNull()
+      .default('operating'), // 'operating' | 'trust'
     status: varchar('status', { length: 20 })
       .notNull()
       .default('draft'), // draft, pending, sent, paid, overdue, cancelled
@@ -74,6 +85,7 @@ export const invoices = pgTable(
     index('invoices_client_idx').on(table.client_id),
     index('invoices_matter_idx').on(table.matter_id),
     index('invoices_status_idx').on(table.status),
+    index('invoices_type_idx').on(table.invoice_type),
     index('invoices_number_idx').on(table.invoice_number),
     index('invoices_stripe_id_idx').on(table.stripe_invoice_id),
   ],

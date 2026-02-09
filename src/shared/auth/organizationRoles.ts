@@ -51,14 +51,9 @@ export const paralegalRole: OrganizationRole = organizationAccessController.newR
   // For example: project: ["create", "update"] if you add project resource
 });
 
-// Client role - very limited permissions, can only view their own data
+// Client role - same permissions as member per user request
 export const clientRole: OrganizationRole = organizationAccessController.newRole({
-  // Minimal permissions - no management actions allowed
-  organization: [],
-  member: [],
-  invitation: [],
-  team: [],
-  ac: [],
+  ...memberAc.statements,
 });
 
 /**

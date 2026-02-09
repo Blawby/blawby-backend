@@ -44,3 +44,22 @@ export const matterUuidParamSchema = z.object({
     example: '789a1234-b56c-78d9-e012-345678901234',
   }),
 });
+
+/**
+ * Standard Resource ID Param (uses 'id')
+ */
+export const resourceIdParamSchema = practiceIdParamSchema.extend({
+  id: z.uuid().openapi({
+    param: { name: 'id', in: 'path' },
+    description: 'Resource ID (UUID)',
+    example: '789a1234-b56c-78d9-e012-345678901234',
+  }),
+});
+
+export const matterIdParamSchema = practiceIdParamSchema.extend({
+  id: z.uuid().openapi({
+    param: { name: 'id', in: 'path' },
+    description: 'Matter ID (UUID)',
+    example: '789a1234-b56c-78d9-e012-345678901234',
+  }),
+});

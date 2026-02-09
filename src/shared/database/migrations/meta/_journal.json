@@ -204,6 +204,20 @@
       "when": 1770177903937,
       "tag": "0028_futuristic_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1770219682580,
+      "tag": "0029_quiet_onyx_sailor",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1770637906257,
+      "tag": "0030_dashing_thunderbolts",
+      "breakpoints": true
     }
   ]
 }

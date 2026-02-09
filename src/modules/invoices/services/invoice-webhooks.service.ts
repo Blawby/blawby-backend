@@ -3,6 +3,8 @@ import type { Stripe } from 'stripe';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
+import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
 import {
   InvoicePaid,
@@ -12,6 +14,7 @@ import {
 } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['invoices', 'webhooks-service']);
 
@@ -56,35 +59,81 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           : extendedInvoice.on_behalf_of.id;
       }
 
-      // Create billing_transaction record for accounting
+      // 1. Create Stripe transfer with fund routing metadata
+      const transfer = await stripe.transfers.create({
+        amount: stripeInvoice.amount_paid,
+        currency: 'usd',
+        destination: destinationAccountId,
+        metadata: {
+          invoice_id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          invoice_type: invoice.invoice_type,
+          fund_destination: invoice.fund_destination,
+          matter_id: invoice.matter_id || '',
+        },
+      });
+
+      logger.info('Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}', {
+        transferId: transfer.id,
+        invoiceId: invoice.id,
+        fundDestination: invoice.fund_destination,
+      });
+
+      // 2. Create billing_transaction record with transfer ID
       await billingTransactionsRepository.createTransaction({
         invoice_id: invoice.id,
         matter_id: invoice.matter_id,
         amount: stripeInvoice.amount_paid,
-        type: 'payout', // In Direct Charges, it's immediately paid out to them
+        type: 'payout',
         status: 'completed',
         destination_account_id: destinationAccountId,
+        stripe_transfer_id: transfer.id,
         completed_at: new Date(stripeInvoice.status_transitions.paid_at! * 1000),
         metadata: {
           stripe_invoice_id: stripeInvoice.id,
           stripe_charge_id: (extendedInvoice.charge || null) as unknown,
+          invoice_type: invoice.invoice_type,
+          fund_destination: invoice.fund_destination,
         } as Record<string, unknown>,
       }, tx);
 
-      // Deduct from retainer balance if applicable
-      if (invoice.matter_id && invoice.payment_from_retainer) {
+      // 3. Update retainer balance for retainer_deposit invoices
+      if (invoice.invoice_type === 'retainer_deposit' && invoice.matter_id) {
         const matter = await mattersQueries.findMatterById(invoice.matter_id);
         if (matter) {
-          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
           await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
 
-          logger.info('Updated retainer balance for matter {matterId}: {oldBalance} -> {newBalance}', {
+          logger.info('Incremented retainer balance for matter {matterId}: {oldBalance} -> {newBalance}', {
             matterId: invoice.matter_id,
             oldBalance: matter.retainer_balance,
             newBalance,
           });
         }
       }
+
+      // 4. Deduct from retainer balance if payment_from_retainer is set
+      if (invoice.matter_id && invoice.payment_from_retainer) {
+        const matter = await mattersQueries.findMatterById(invoice.matter_id);
+        if (matter) {
+          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+
+          logger.info('Decremented retainer balance for matter {matterId}: {oldBalance} -> {newBalance}', {
+            matterId: invoice.matter_id,
+            oldBalance: matter.retainer_balance,
+            newBalance,
+          });
+        }
+      }
+
+      // 5. Record metered usage for platform fee
+      await meteredProductsService.reportMeteredUsage(
+        tx,
+        invoice.organization_id,
+        METERED_TYPES.INVOICE_FEE,
+        1, // 1 invoice processed
+      );
 
       await InvoicePaid.dispatch({
         invoice_id: invoice.id,

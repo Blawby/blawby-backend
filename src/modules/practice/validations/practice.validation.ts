@@ -266,7 +266,7 @@ const practiceQuerySchema = z.object({
 });
 
 // Member validation schemas
-const memberRoleSchema = z.enum(['owner', 'admin', 'attorney', 'paralegal', 'member']);
+const memberRoleSchema = z.enum(['owner', 'admin', 'attorney', 'paralegal', 'member', 'client']);
 
 const updateMemberRoleSchema = z.object({
   member_id: z.uuid().openapi({
