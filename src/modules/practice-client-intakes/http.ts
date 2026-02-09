@@ -88,6 +88,7 @@ app.post(
     const result = await practiceClientIntakesService.createPracticeClientIntakeCheckoutSession({
       uuid,
       user_id: sessionUserId,
+      origin: c.req.header('origin'),
     });
     return response.fromResult(c, result, 201);
   },

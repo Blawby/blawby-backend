@@ -75,3 +75,34 @@ export const isProductionLike = (): boolean => {
   const env = getAppEnv();
   return env === 'staging' || env === 'production';
 };
+
+/**
+ * Get an environment variable as an array of strings (comma-separated)
+ */
+export const getEnvArray = (key: string, defaultValue: string[] = []): string[] => {
+  const value = process.env[key];
+  if (!value) return defaultValue;
+
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+};
+
+/**
+ * Get the best matching frontend URL from FRONTEND_URL environment variable
+ * based on the provided origin. Falls back to the first URL if no match is found.
+ */
+export const getMatchingFrontendUrl = (origin?: string | null): string => {
+  const urls = getEnvArray('FRONTEND_URL');
+  if (urls.length === 0) return process.env.BASE_URL || '';
+  if (urls.length === 1 || !origin) return urls[0] || '';
+
+  const normalizedOrigin = origin.toLowerCase().trim().replace(/\/$/, '');
+  const match = urls.find((url) => {
+    const normalizedUrl = url.toLowerCase().trim().replace(/\/$/, '');
+    return normalizedUrl === normalizedOrigin || normalizedOrigin.startsWith(normalizedUrl);
+  });
+
+  return match || urls[0];
+};

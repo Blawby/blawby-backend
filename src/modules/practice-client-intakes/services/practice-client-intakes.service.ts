@@ -29,6 +29,7 @@ import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
 import type { PrefillData } from '@/shared/types/prefill';
 import type { Result } from '@/shared/types/result';
+import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
@@ -224,7 +225,7 @@ const createPracticeClientIntake = async (
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${process.env.FRONTEND_URL}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
+          url: `${getMatchingFrontendUrl(request.clientIp ? null : null)}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
         },
       },
     });
@@ -320,7 +321,7 @@ const updatePracticeClientIntake = async (
  * Create a Stripe Checkout Session for an existing intake
  */
 const createPracticeClientIntakeCheckoutSession = async (
-  request: { uuid: string; user_id?: string },
+  request: { uuid: string; user_id?: string; origin?: string | null },
 ): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> => {
   try {
     const practiceClientIntake = await practiceClientIntakesRepository.findById(request.uuid);
@@ -420,8 +421,8 @@ const createPracticeClientIntakeCheckoutSession = async (
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       client_reference_id: practiceClientIntake.id,
-      success_url: `${process.env.FRONTEND_URL}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${organization.slug}${conversationParam}`,
-      cancel_url: `${process.env.FRONTEND_URL}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${organization.slug}&canceled=true${conversationParam}`,
+      success_url: `${getMatchingFrontendUrl(request.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${organization.slug}${conversationParam}`,
+      cancel_url: `${getMatchingFrontendUrl(request.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${organization.slug}&canceled=true${conversationParam}`,
       line_items: [
         {
           price_data: {
@@ -728,7 +729,7 @@ const triggerIntakeInvitation = async (
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: `${process.env.FRONTEND_URL}/auth/accept-invitation?data=${encodedData}`,
+        callbackURL: `${getMatchingFrontendUrl(requestHeaders.get('origin'))}/auth/accept-invitation?data=${encodedData}`,
       },
       headers: requestHeaders,
     });
