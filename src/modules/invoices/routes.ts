@@ -18,7 +18,7 @@ const invoiceUuidParamSchema = practiceIdParamSchema.extend({
 
 export const createInvoiceRoute = createRoute({
   method: 'post',
-  path: '/{practice_id}/invoices',
+  path: '/{practice_id}/create',
   tags: ['Invoices'],
   summary: 'Create invoice',
   description: 'Create a new invoice with line items',
@@ -43,7 +43,7 @@ export const createInvoiceRoute = createRoute({
 
 export const getInvoicesRoute = createRoute({
   method: 'get',
-  path: '/{practice_id}/invoices',
+  path: '/{practice_id}',
   tags: ['Invoices'],
   summary: 'List invoices',
   description: 'Get all invoices for a practice',
@@ -69,7 +69,7 @@ export const getInvoicesRoute = createRoute({
 
 export const getInvoiceRoute = createRoute({
   method: 'get',
-  path: '/{practice_id}/invoices/{id}',
+  path: '/{practice_id}/{invoice_id}',
   tags: ['Invoices'],
   summary: 'Get invoice',
   description: 'Get a single invoice by ID',
@@ -87,7 +87,7 @@ export const getInvoiceRoute = createRoute({
 
 export const updateInvoiceRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/invoices/{id}',
+  path: '/{practice_id}/update/{invoice_id}',
   tags: ['Invoices'],
   summary: 'Update invoice',
   description: 'Update a draft invoice',
@@ -113,7 +113,7 @@ export const updateInvoiceRoute = createRoute({
 
 export const deleteInvoiceRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/invoices/{id}',
+  path: '/{practice_id}/delete/{invoice_id}',
   tags: ['Invoices'],
   summary: 'Delete invoice',
   description: 'Soft delete a draft invoice',
@@ -129,7 +129,7 @@ export const deleteInvoiceRoute = createRoute({
 
 export const sendInvoiceRoute = createRoute({
   method: 'post',
-  path: '/{practice_id}/invoices/{id}/send',
+  path: '/{practice_id}/{invoice_id}/send',
   tags: ['Invoices'],
   summary: 'Send invoice',
   description: 'Finalize and send an invoice via Stripe',
@@ -146,7 +146,7 @@ export const sendInvoiceRoute = createRoute({
 
 export const syncInvoiceRoute = createRoute({
   method: 'post',
-  path: '/{practice_id}/invoices/{id}/sync',
+  path: '/{practice_id}/{invoice_id}/sync',
   tags: ['Invoices'],
   summary: 'Sync invoice',
   description: 'Sync invoice status with Stripe',
@@ -163,7 +163,7 @@ export const syncInvoiceRoute = createRoute({
 
 export const voidInvoiceRoute = createRoute({
   method: 'post',
-  path: '/{practice_id}/invoices/{id}/void',
+  path: '/{practice_id}/{invoice_id}/void',
   tags: ['Invoices'],
   summary: 'Void invoice',
   description: 'Void a sent invoice (cannot be undone)',

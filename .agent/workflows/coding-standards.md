@@ -128,3 +128,30 @@ const list = async (organizationId: string): Promise<PaginatedResult<MyItem, 'it
   }
 };
 ```
+
+## 8. Standard Route Pattern (CRUD)
+Use a consistent, explicit pattern for all CRUD operations to ensure security middleware compatibility and terminal log readability. Every path MUST start with `/{practice_id}`.
+
+| Action | Method | Standard Path |
+| :--- | :--- | :--- |
+| **List** | `GET` | `/{practice_id}` |
+| **Create** | `POST` | `/{practice_id}/create` |
+| **Get** | `GET` | `/{practice_id}/{id}` |
+| **Update** | `PATCH` | `/{practice_id}/update/{id}` |
+| **Delete** | `DELETE` | `/{practice_id}/delete/{id}` |
+
+```typescript
+// ✅ CORRECT
+export const updateMatterRoute = createRoute({
+  method: 'patch',
+  path: '/{practice_id}/update/{id}',
+  // ...
+});
+
+// ❌ INCORRECT (Missing practice_id prefix)
+export const updateMatterRoute = createRoute({
+  method: 'patch',
+  path: '/matters/{id}',
+  // ...
+});
+```

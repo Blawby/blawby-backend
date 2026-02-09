@@ -43,6 +43,22 @@ const calculateInvoiceTotals = (lineItems: Array<{ quantity: number; unit_price:
 };
 
 /**
+ * Determine fund destination based on invoice type
+ * - retainer_deposit → trust (lawyer routes to trust account)
+ * - flat_fee, phase_fee → operating (earned upon receipt)
+ */
+const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_deposit'): 'operating' | 'trust' => {
+  switch (invoiceType) {
+    case 'retainer_deposit':
+      return 'trust';
+    case 'flat_fee':
+    case 'phase_fee':
+    default:
+      return 'operating';
+  }
+};
+
+/**
  * Transform database invoice to response format
  */
 const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
@@ -73,15 +89,42 @@ const createInvoice = async (
   const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
+  // Validate that the connected account exists and is fully enabled
+  const connectedAccount = await db.query.stripeConnectedAccounts.findFirst({
+    where: (accounts, { eq }) => eq(accounts.id, data.connected_account_id),
+  });
+
+  if (!connectedAccount) {
+    return result.badRequest('Invalid connected account ID');
+  }
+
+  if (!connectedAccount.charges_enabled) {
+    return result.badRequest(
+      'Stripe Connect account is not enabled for charges. Please complete onboarding first.',
+    );
+  }
+
+  if (!connectedAccount.payouts_enabled) {
+    return result.badRequest(
+      'Stripe Connect account is not enabled for payouts. Please complete onboarding and add a bank account.',
+    );
+  }
+
   const { line_items, ...invoiceData } = data;
   const totals = calculateInvoiceTotals(line_items);
 
   try {
     const invoice = await db.transaction(async (tx) => {
+      // Auto-set fund_destination based on invoice_type
+      const invoice_type = data.invoice_type || 'flat_fee';
+      const fund_destination = getFundDestination(invoice_type);
+
       const newInvoice = await invoicesRepository.createInvoice(
         {
           organization_id: organizationId,
           ...invoiceData,
+          invoice_type,
+          fund_destination,
           ...totals,
           status: 'draft',
           due_date: data.due_date ? new Date(data.due_date) : undefined,
