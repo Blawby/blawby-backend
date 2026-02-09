@@ -7,4 +7,7 @@
 export { handlePracticeClientIntakeSucceeded } from './succeeded';
 export { handlePracticeClientIntakeFailed } from './failed';
 export { handlePracticeClientIntakeCanceled } from './canceled';
-export { findPracticeClientIntakeByPaymentIntent } from './helpers';
+export {
+  findPracticeClientIntakeByPaymentIntent,
+  findPracticeClientIntakeByCheckoutSession,
+} from './helpers';

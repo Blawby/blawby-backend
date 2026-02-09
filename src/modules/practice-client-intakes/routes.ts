@@ -77,6 +77,55 @@ export const getIntakeSettingsRoute = createRoute({
 });
 
 /**
+ * POST /api/practice/client-intakes/:uuid/checkout-session
+ * Creates a Stripe Checkout Session for an existing intake
+ */
+export const createPracticeClientIntakeCheckoutSessionRoute = createRoute({
+  method: 'post',
+  path: '/{uuid}/checkout-session',
+  tags: ['Practice Client Intakes'],
+  summary: 'Create Checkout Session for intake',
+  description: 'Creates a Stripe Checkout Session for an existing intake. Returns a Checkout Session URL for redirecting the client to Stripe-hosted checkout. The session includes metadata for intake association and supports destination charges on the connected account.',
+  request: {
+    params: uuidParamOpenAPISchema,
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.createPracticeClientIntakeCheckoutSessionResponseSchema,
+        },
+      },
+      description: 'Checkout Session created successfully. Returns the Stripe Checkout Session URL and session ID.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - intake not eligible for checkout session',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Practice client intake not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
  * POST /api/practice/client-intakes/create
  * Creates a Stripe Payment Link for practice client intake
  */
@@ -221,6 +270,110 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
 });
 
 /**
+ * GET /api/practice/client-intakes/post-pay/status
+ * Gets post-pay status by Checkout Session ID
+ */
+export const getPracticeClientIntakePostPayStatusRoute = createRoute({
+  method: 'get',
+  path: '/post-pay/status',
+  tags: ['Practice Client Intakes'],
+  summary: 'Get intake status by Checkout Session ID',
+  description: 'Retrieves post-pay status using a Stripe Checkout Session ID. Used by clients returning from Stripe with a session_id parameter.',
+  request: {
+    query: intakeValidations.checkoutSessionStatusQuerySchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.practiceClientIntakePostPayStatusResponseSchema,
+        },
+      },
+      description: 'Post-pay status retrieved. Returns paid flag and intake identifiers when available.',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Checkout session not found or not associated with an intake',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * POST /api/practice/client-intakes/claim
+ * Claims a paid intake for the authenticated user
+ */
+export const claimPracticeClientIntakeRoute = createRoute({
+  method: 'post',
+  path: '/claim',
+  tags: ['Practice Client Intakes'],
+  summary: 'Claim paid intake',
+  description: 'Links a paid intake (identified by Checkout Session ID) to the authenticated user and ensures membership in the organization.',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.claimPracticeClientIntakeSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.claimPracticeClientIntakeResponseSchema,
+        },
+      },
+      description: 'Intake claimed successfully.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - missing session ID or intake not paid',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized - authentication required',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Checkout session or intake not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
  * POST /api/practice/client-intakes/:uuid/invite
  * Triggers an invitation for the user associated with this intake
  */
@@ -268,4 +421,3 @@ export const triggerIntakeInvitationRoute = createRoute({
     },
   },
 });
-

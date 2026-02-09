@@ -14,6 +14,7 @@ import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.ser
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
 import { addEmailJob } from '@/shared/queue/queue.manager';
+import type { PrefillData } from '@/shared/types/prefill';
 import { isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
 
@@ -52,19 +53,31 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         },
       },
       sendInvitationEmail: async (data) => {
-        const teamName = data.organization.name || 'the team';
+        const practiceName = data.organization.name || 'the team';
+        const inviterName = data.inviter.user.name || data.inviter.user.email;
+
+        const prefillData: PrefillData = {
+          type: 'invitation',
+          id: data.id,
+          email: data.email,
+          orgName: practiceName,
+          orgSlug: data.organization.slug,
+          inviterName,
+        };
+
+        const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
 
         // Queue the invitation email
         await addEmailJob(
-          'team-invitation',
+          'practice-invitation',
           data.email,
-          `You've been invited to join ${teamName} on Blawby`,
+          `You've been invited to join ${practiceName} on Blawby`,
           {
             recipientEmail: data.email,
             recipientName: '', // Optional
-            inviterName: data.inviter.user.name || data.inviter.user.email,
-            teamName,
-            inviteLink: `${process.env.BASE_URL}/api/auth/accept-invitation/${data.id}`,
+            inviterName,
+            practiceName,
+            inviteLink: `${process.env.FRONTEND_URL}/auth/accept-invitation?data=${encodedData}`,
           },
         );
 
@@ -175,7 +188,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
       onboardingComplete: {
         type: 'boolean',
         required: false,
-        defaultValue: true,
+        defaultValue: false,
       },
     },
   },

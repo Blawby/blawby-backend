@@ -1,3 +1,4 @@
+import { z } from '@hono/zod-openapi';
 import { relations } from 'drizzle-orm';
 import {
   pgTable,
@@ -8,7 +9,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
+
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { organizations } from '@/schema';
@@ -33,6 +34,7 @@ export const practiceClientIntakes = pgTable(
     stripe_payment_link_id: text('stripe_payment_link_id').notNull().unique(),
     stripe_payment_intent_id: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
     stripe_charge_id: text('stripe_charge_id'),
+    stripe_checkout_session_id: text('stripe_checkout_session_id').unique(),
 
     // Payment Details (amounts in cents)
     amount: integer('amount').notNull(),
@@ -43,6 +45,7 @@ export const practiceClientIntakes = pgTable(
     // Client Data
     metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
     address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
+    conversation_id: uuid('conversation_id'),
 
     // Security & Tracking
     client_ip: text('client_ip'),
@@ -98,7 +101,14 @@ export const practiceClientIntakeMetadataSchema = z.object({
   opposing_party: z.string().optional(),
   description: z.string().optional(),
   address: addressSchema.optional(),
-});
+}).openapi('PracticeClientIntakeMetadata');
 
 
 export type PracticeClientIntakeMetadata = z.infer<typeof practiceClientIntakeMetadataSchema>;
+
+export const practiceClientIntakesSchema = {
+  practiceClientIntakes,
+  practiceClientIntakesRelations,
+  practiceClientIntakeMetadataSchema,
+};
+
