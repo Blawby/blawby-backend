@@ -101,7 +101,7 @@ export const getMatchingFrontendUrl = (origin?: string | null): string => {
   const normalizedOrigin = origin.toLowerCase().trim().replace(/\/$/, '');
   const match = urls.find((url) => {
     const normalizedUrl = url.toLowerCase().trim().replace(/\/$/, '');
-    return normalizedUrl === normalizedOrigin || normalizedOrigin.startsWith(normalizedUrl);
+    return normalizedUrl === normalizedOrigin;
   });
 
   return match || urls[0];

@@ -160,7 +160,7 @@ const getPracticeClientIntakeSettings = async (
  * Create a new practice client intake
  */
 const createPracticeClientIntake = async (
-  request: CreatePracticeClientIntakeRequest & { clientIp?: string; userAgent?: string },
+  request: CreatePracticeClientIntakeRequest & { clientIp?: string; userAgent?: string; origin?: string | null },
 ): Promise<Result<CreatePracticeClientIntakeResponse | PracticeClientIntakeSettings>> => {
   try {
     const settingsResult = await getPracticeClientIntakeSettings(request.slug);
@@ -225,7 +225,7 @@ const createPracticeClientIntake = async (
       after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${getMatchingFrontendUrl(request.clientIp ? null : null)}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
+          url: `${getMatchingFrontendUrl(request.origin)}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
         },
       },
     });

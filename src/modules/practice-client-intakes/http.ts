@@ -72,6 +72,7 @@ app.post('/create', zValidator('json', intakeValidations.createPracticeClientInt
     user_id: sessionUserId ?? undefined,
     clientIp,
     userAgent,
+    origin: c.req.header('origin'),
   });
 
   return response.fromResult(c, result, 201);
