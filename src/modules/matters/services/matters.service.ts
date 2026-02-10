@@ -68,12 +68,19 @@ const createMatter = async (
   try {
     // Create matter in transaction
     const matter = await db.transaction(async (tx) => {
+      // Convert date strings to Date objects
+      const dbData = {
+        ...matterData,
+        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+      };
+
       // Create the matter
       const [newMatter] = await tx
         .insert(matters)
         .values({
           organization_id: organizationId,
-          ...matterData,
+          ...dbData,
         })
         .returning();
 
@@ -247,8 +254,12 @@ const updateMatter = async (
   const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
     if (value === undefined) return acc;
     const existingValue = (existingMatter as Record<string, unknown>)[key];
+    // Normalize dates for comparison (existing values from DB are Date objects or ISO strings)
     const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
-    const normalizedNext = value instanceof Date ? value.toISOString() : value;
+    // Values from validation are always strings for date fields
+    const normalizedNext = (typeof value === 'string' && (key === 'open_date' || key === 'close_date'))
+      ? value
+      : value;
     if (!isEqual(normalizedExisting, normalizedNext)) {
       acc.push(key);
     }
@@ -283,8 +294,15 @@ const updateMatter = async (
 
   try {
     const transactionResult = await db.transaction(async (tx) => {
+      // Convert date strings to Date objects
+      const dbData = {
+        ...matterData,
+        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+      };
+
       // Update the matter
-      const updated = await mattersQueries.updateMatter(matterId, matterData, tx);
+      const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
 
       if (!updated) {
         throw new Error('Failed to update matter');

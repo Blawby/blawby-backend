@@ -126,11 +126,8 @@ const updateMatterExpense = async (
     if (data.amount !== undefined && data.amount !== expense.amount) {
       changedFields.push('amount');
     }
-    if (data.date !== undefined) {
-      const nextDate = new Date(data.date);
-      if (!Number.isNaN(nextDate.getTime()) && nextDate.getTime() !== expense.date.getTime()) {
-        changedFields.push('date');
-      }
+    if (data.date !== undefined && data.date !== expense.date) {
+      changedFields.push('date');
     }
     if (data.billable !== undefined && data.billable !== expense.billable) {
       changedFields.push('billable');
