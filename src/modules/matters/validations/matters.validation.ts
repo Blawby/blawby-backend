@@ -161,6 +161,7 @@ const activityLogSchema = z.object({
 
 
 export const matterValidations = {
+  matterStatusEnum,
   createMatterSchema,
   updateMatterSchema,
   matterIdParamSchema,
