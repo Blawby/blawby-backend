@@ -243,6 +243,19 @@ const updateMatter = async (
 
   // Extract assignees from data
   const { assignee_ids, ...matterData } = data;
+  const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
+    if (value === undefined) return acc;
+    const existingValue = (existingMatter as Record<string, unknown>)[key];
+    const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
+    const normalizedNext = value instanceof Date ? value.toISOString() : value;
+    if (normalizedExisting !== normalizedNext) {
+      acc.push(key);
+    }
+    return acc;
+  }, []);
+  if (assignee_ids !== undefined) {
+    changedFields.push('assignees');
+  }
 
   // Validate client_id if provided
   if (data.client_id) {
@@ -279,13 +292,12 @@ const updateMatter = async (
       }
 
       // Log activity
-      const changes = Object.keys(matterData);
       await matterActivityService.logMatterActivity(
         matterId,
         matterActivityService.ActivityAction.MATTER_UPDATED,
-        `Matter "${updated.title}" was updated (${changes.join(', ')})`,
+        `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
         user.id,
-        { changes: matterData },
+        { changes: matterData, changed_fields: changedFields },
         tx,
       );
 
@@ -296,7 +308,7 @@ const updateMatter = async (
           matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
           `Matter status changed from "${existingMatter.status}" to "${data.status}"`,
           user.id,
-          { oldStatus: existingMatter.status, newStatus: data.status },
+          { oldStatus: existingMatter.status, newStatus: data.status, changed_fields: ['status'] },
           tx,
         );
 
