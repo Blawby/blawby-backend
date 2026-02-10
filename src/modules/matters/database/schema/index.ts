@@ -5,3 +5,4 @@ export * from './matter-time-entries.schema';
 export * from './matter-expenses.schema';
 export * from './matter-milestones.schema';
 export * from './matter-activity-log.schema';
+export * from './matter-status-history.schema';
