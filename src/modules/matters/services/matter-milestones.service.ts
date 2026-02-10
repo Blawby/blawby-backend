@@ -39,6 +39,7 @@ const createMatterMilestone = async (
       status: data.status,
       order: data.order,
     });
+    const changedFields = ['description', 'amount', 'due_date', 'status', 'order'];
 
     // Log activity
     const amountFormatted = (data.amount / 100).toFixed(2);
@@ -47,7 +48,7 @@ const createMatterMilestone = async (
       matterActivityService.ActivityAction.MILESTONE_CREATED,
       `${user.name || user.email} created milestone: ${data.description} ($${amountFormatted})`,
       user.id,
-      { amount: data.amount, due_date: data.due_date },
+      { amount: data.amount, due_date: data.due_date, changed_fields: changedFields },
     );
 
     return ok(milestone);
@@ -114,13 +115,42 @@ const updateMatterMilestone = async (
     }
 
     const updated = await matterMilestonesQueries.updateMatterMilestone(milestoneId, data);
+    if (!updated) {
+      return internalError('Failed to update milestone');
+    }
+    const changedFields: string[] = [];
+    if (data.description !== undefined && data.description !== milestone.description) {
+      changedFields.push('description');
+    }
+    if (data.amount !== undefined && data.amount !== milestone.amount) {
+      changedFields.push('amount');
+    }
+    if (data.due_date !== undefined) {
+      if ((data.due_date === null) !== (milestone.due_date === null)) {
+        changedFields.push('due_date');
+      } else if (data.due_date !== null && milestone.due_date !== null) {
+        const nextDue = new Date(data.due_date);
+        const currentDue = new Date(milestone.due_date);
+        if (!Number.isNaN(nextDue.getTime()) && !Number.isNaN(currentDue.getTime())
+          && nextDue.getTime() !== currentDue.getTime()) {
+          changedFields.push('due_date');
+        }
+      }
+    }
+    if (data.status !== undefined && data.status !== milestone.status) {
+      changedFields.push('status');
+    }
+    if (data.order !== undefined && data.order !== milestone.order) {
+      changedFields.push('order');
+    }
 
     // Log activity
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.MILESTONE_UPDATED,
-      `${user.name || user.email} updated milestone: ${updated!.description}`,
+      `${user.name || user.email} updated milestone: ${updated.description}`,
       user.id,
+      { changed_fields: changedFields },
     );
 
     // Check if milestone was marked as completed
@@ -130,10 +160,11 @@ const updateMatterMilestone = async (
         matterActivityService.ActivityAction.MILESTONE_COMPLETED,
         `${user.name || user.email} completed milestone: ${milestone.description}`,
         user.id,
+        { changed_fields: ['status'] },
       );
     }
 
-    return ok(updated!);
+    return ok(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update matter milestone {milestoneId}: {error}', {
@@ -175,6 +206,7 @@ const deleteMatterMilestone = async (
       matterActivityService.ActivityAction.MILESTONE_DELETED,
       `${user.name || user.email} deleted milestone: ${milestone.description}`,
       user.id,
+      { changed_fields: ['deleted'] },
     );
 
     return ok({ success: true });
@@ -221,6 +253,7 @@ const reorderMilestones = async (
       matterActivityService.ActivityAction.MILESTONE_UPDATED,
       `${user.name || user.email} reordered milestones`,
       user.id,
+      { changed_fields: ['order'] },
     );
 
     return ok({ success: true });
@@ -285,4 +318,3 @@ export const matterMilestonesService = {
   reorderMilestones,
   getMilestoneStats,
 };
-

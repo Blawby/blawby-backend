@@ -42,6 +42,7 @@ const createMatterNote = async (
       matterActivityService.ActivityAction.NOTE_ADDED,
       `${user.name || user.email} added a note`,
       user.id,
+      { changed_fields: ['content'] },
     );
 
     return ok(note);
@@ -108,6 +109,10 @@ const updateMatterNote = async (
     }
 
     const updated = await matterNotesQueries.updateMatterNote(noteId, data);
+    const changedFields = [];
+    if (data.content !== undefined && data.content !== note.content) {
+      changedFields.push('content');
+    }
 
     // Log activity
     await matterActivityService.logMatterActivity(
@@ -115,6 +120,7 @@ const updateMatterNote = async (
       matterActivityService.ActivityAction.NOTE_UPDATED,
       `${user.name || user.email} updated a note`,
       user.id,
+      { changed_fields: changedFields },
     );
 
     return ok(updated!);
@@ -159,6 +165,7 @@ const deleteMatterNote = async (
       matterActivityService.ActivityAction.NOTE_DELETED,
       `${user.name || user.email} deleted a note`,
       user.id,
+      { changed_fields: ['deleted'] },
     );
 
     return ok({ success: true });
@@ -178,4 +185,3 @@ export const matterNotesService = {
   updateMatterNote,
   deleteMatterNote,
 };
-
