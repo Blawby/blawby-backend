@@ -36,8 +36,7 @@ export const matters = pgTable(
     matter_type: varchar('matter_type', { length: 100 }),
 
     // Billing information
-    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency'
-    fee_arrangement: varchar('fee_arrangement', { length: 20 }), // 'flat', 'hourly', 'contingency', 'pro_bono'
+    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
     total_fixed_price: integer('total_fixed_price'), // in cents, nullable
     contingency_percentage: real('contingency_percentage'), // float, nullable
     settlement_amount: integer('settlement_amount'), // in cents, nullable
