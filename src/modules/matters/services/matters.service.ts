@@ -292,14 +292,25 @@ const updateMatter = async (
       }
 
       // Log activity
-      await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MATTER_UPDATED,
-        `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
-        user.id,
-        { changes: matterData, changed_fields: changedFields },
-        tx,
-      );
+      if (changedFields.length > 0) {
+        await matterActivityService.logMatterActivity(
+          matterId,
+          matterActivityService.ActivityAction.MATTER_UPDATED,
+          `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
+          user.id,
+          { changes: matterData, changed_fields: changedFields },
+          tx,
+        );
+      } else {
+        await matterActivityService.logMatterActivity(
+          matterId,
+          matterActivityService.ActivityAction.MATTER_UPDATED,
+          `Matter "${updated.title}" update attempted (no changes)`,
+          user.id,
+          { changes: matterData, changed_fields: changedFields },
+          tx,
+        );
+      }
 
       // Check for status change
       if (data.status && data.status !== existingMatter.status) {
