@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { isEqual } from 'es-toolkit';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
@@ -248,13 +249,20 @@ const updateMatter = async (
     const existingValue = (existingMatter as Record<string, unknown>)[key];
     const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
     const normalizedNext = value instanceof Date ? value.toISOString() : value;
-    if (normalizedExisting !== normalizedNext) {
+    if (!isEqual(normalizedExisting, normalizedNext)) {
       acc.push(key);
     }
     return acc;
   }, []);
   if (assignee_ids !== undefined) {
-    changedFields.push('assignees');
+    const existingAssignees = Array.isArray(existingMatter.assignees)
+      ? existingMatter.assignees.map((assignee) => assignee.id).filter(Boolean)
+      : [];
+    const normalizedExisting = [...existingAssignees].sort().join(',');
+    const normalizedNext = [...assignee_ids].sort().join(',');
+    if (normalizedExisting !== normalizedNext) {
+      changedFields.push('assignees');
+    }
   }
 
   // Validate client_id if provided
