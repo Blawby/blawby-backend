@@ -17,6 +17,9 @@ const createMatterStatusHistory = async (
     .insert(matterStatusHistory)
     .values(data)
     .returning();
+  if (!entry) {
+    throw new Error('Failed to create matter status history entry');
+  }
   return entry;
 };
 
