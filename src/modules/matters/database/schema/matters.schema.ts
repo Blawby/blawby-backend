@@ -55,7 +55,7 @@ export const matters = pgTable(
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
     // Status
-    status: varchar('status', { length: 40 }).notNull().default('FIRST_CONTACT'),
+    status: varchar('status', { length: 40 }).notNull().default('first_contact'),
     urgency: varchar('urgency', { length: 20 }), // 'routine', 'time_sensitive', 'emergency'
 
     // Attorney assignments

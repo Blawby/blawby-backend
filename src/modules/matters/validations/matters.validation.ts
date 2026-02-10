@@ -2,24 +2,24 @@ import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
 
 const matterStatusEnum = z.enum([
-  'FIRST_CONTACT',
-  'INTAKE_PENDING',
-  'CONFLICT_CHECK',
-  'CONFLICTED',
-  'ELIGIBILITY',
-  'REFERRED',
-  'CONSULTATION_SCHEDULED',
-  'DECLINED',
-  'ENGAGEMENT_PENDING',
-  'ACTIVE',
-  'PLEADINGS_FILED',
-  'DISCOVERY',
-  'MEDIATION',
-  'PRE_TRIAL',
-  'TRIAL',
-  'ORDER_ENTERED',
-  'APPEAL_PENDING',
-  'CLOSED',
+  'first_contact',
+  'intake_pending',
+  'conflict_check',
+  'conflicted',
+  'eligibility',
+  'referred',
+  'consultation_scheduled',
+  'declined',
+  'engagement_pending',
+  'active',
+  'pleadings_filed',
+  'discovery',
+  'mediation',
+  'pre_trial',
+  'trial',
+  'order_entered',
+  'appeal_pending',
+  'closed',
 ]);
 
 // Matter validation schemas
@@ -38,7 +38,7 @@ const createMatterSchema = z.object({
   admin_hourly_rate: z.number().int().min(0).optional(), // in cents
   attorney_hourly_rate: z.number().int().min(0).optional(), // in cents
   payment_frequency: z.enum(['project', 'milestone']).optional(),
-  status: matterStatusEnum.default('FIRST_CONTACT'),
+  status: matterStatusEnum.default('first_contact'),
   urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
   responsible_attorney_id: uuidValidator.optional(),
   originating_attorney_id: uuidValidator.optional(),
