@@ -145,7 +145,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
     database: {
       generateId: 'uuid',
     },
-    useSecureCookies: !isDevelopment(),
+    useSecureCookies: true,
     // Disable origin check in development to allow cURL and server-to-server requests
     disableOriginCheck: isDevelopment(),
     disableCSRFCheck: isDevelopment(),
@@ -159,7 +159,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         name: 'better-auth.session_token',
         attributes: {
           domain: isProductionLike() ? '.blawby.com' : undefined,
-          sameSite: isProductionLike() ? 'none' : 'lax',
+          sameSite: 'none',
+          secure: true,
         },
       },
     },
