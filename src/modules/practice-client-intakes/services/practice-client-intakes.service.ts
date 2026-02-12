@@ -697,9 +697,6 @@ const triggerIntakeInvitation = async (
       return result.forbidden('You do not own this intake');
     }
 
-    if (intakeData.status !== 'succeeded') {
-      return result.badRequest('Payment must be completed before sending an invitation');
-    }
 
     if (!metadata?.email) {
       return result.badRequest('No email address found in intake data');
