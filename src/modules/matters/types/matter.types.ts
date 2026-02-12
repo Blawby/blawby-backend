@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { SelectMatterActivityLog } from '@/modules/matters/database/schema/matter-activity-log.schema';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
+import type { SelectMatterStatusHistory } from '@/modules/matters/database/schema/matter-status-history.schema';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
 import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
@@ -43,6 +44,14 @@ export type MatterListResponse = {
  */
 export type MatterActivityResponse = {
   activities: SelectMatterActivityLog[];
+  total: number;
+};
+
+/**
+ * Matter status history response
+ */
+export type MatterStatusHistoryResponse = {
+  history: SelectMatterStatusHistory[];
   total: number;
 };
 

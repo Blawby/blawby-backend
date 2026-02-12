@@ -15,7 +15,9 @@ import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import type { PrefillData } from '@/shared/types/prefill';
-import { isDevelopment, isProductionLike } from '@/shared/utils/env';
+import {
+  getMatchingFrontendUrl, isDevelopment, isProductionLike,
+} from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
@@ -67,6 +69,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
 
         const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
 
+        const frontendUrl = getMatchingFrontendUrl();
+        // Queue the invitation email
         // Queue the invitation email
         await addEmailJob(
           'practice-invitation',
@@ -77,7 +81,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
             recipientName: '', // Optional
             inviterName,
             practiceName,
-            inviteLink: `${process.env.FRONTEND_URL}/auth/accept-invitation?data=${encodedData}`,
+            inviteLink: `${frontendUrl}/auth/accept-invitation?data=${encodedData}`,
           },
         );
 
@@ -141,7 +145,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
     database: {
       generateId: 'uuid',
     },
-    useSecureCookies: !isDevelopment(),
+    useSecureCookies: true,
     // Disable origin check in development to allow cURL and server-to-server requests
     disableOriginCheck: isDevelopment(),
     disableCSRFCheck: isDevelopment(),
@@ -155,7 +159,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         name: 'better-auth.session_token',
         attributes: {
           domain: isProductionLike() ? '.blawby.com' : undefined,
-          sameSite: isProductionLike() ? 'none' : 'lax',
+          sameSite: 'none',
+          secure: true,
         },
       },
     },

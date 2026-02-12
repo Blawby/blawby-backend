@@ -1,3 +1,6 @@
+import { getEnvArray } from '@/shared/utils/env';
+
+
 /**
  * Trusted Origins Utility
  *
@@ -32,19 +35,16 @@ export const getTrustedOrigins = (request?: Request): string[] => {
     origins.push(origin);
   }
 
-
   if (process.env.BASE_URL) {
     origins.push(process.env.BASE_URL);
   }
 
   // 3. Add Custom Origins from Environment
-  // This reuses the same variable as your CORS middleware
-  const envOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? [];
+  const allowedOrigins = getEnvArray('ALLOWED_ORIGINS');
 
-  envOrigins.forEach((o) => {
-    const trimmed = o.trim();
-    if (trimmed && !origins.includes(trimmed)) {
-      origins.push(trimmed);
+  [...allowedOrigins].forEach((o) => {
+    if (o && !origins.includes(o)) {
+      origins.push(o);
     }
   });
 
