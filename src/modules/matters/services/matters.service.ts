@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { isEqual } from 'es-toolkit';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
@@ -67,12 +68,19 @@ const createMatter = async (
   try {
     // Create matter in transaction
     const matter = await db.transaction(async (tx) => {
+      // Convert date strings to Date objects
+      const dbData = {
+        ...matterData,
+        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+      };
+
       // Create the matter
       const [newMatter] = await tx
         .insert(matters)
         .values({
           organization_id: organizationId,
-          ...matterData,
+          ...dbData,
         })
         .returning();
 
@@ -243,6 +251,30 @@ const updateMatter = async (
 
   // Extract assignees from data
   const { assignee_ids, ...matterData } = data;
+  const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
+    if (value === undefined) return acc;
+    const existingValue = (existingMatter as Record<string, unknown>)[key];
+    // Normalize dates for comparison (existing values from DB are Date objects or ISO strings)
+    const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
+    // Values from validation are always strings for date fields
+    const normalizedNext = (typeof value === 'string' && (key === 'open_date' || key === 'close_date'))
+      ? value
+      : value;
+    if (!isEqual(normalizedExisting, normalizedNext)) {
+      acc.push(key);
+    }
+    return acc;
+  }, []);
+  if (assignee_ids !== undefined) {
+    const existingAssignees = Array.isArray(existingMatter.assignees)
+      ? existingMatter.assignees.map((assignee) => assignee.id).filter(Boolean)
+      : [];
+    const normalizedExisting = [...existingAssignees].sort().join(',');
+    const normalizedNext = [...assignee_ids].sort().join(',');
+    if (normalizedExisting !== normalizedNext) {
+      changedFields.push('assignees');
+    }
+  }
 
   // Validate client_id if provided
   if (data.client_id) {
@@ -262,8 +294,15 @@ const updateMatter = async (
 
   try {
     const transactionResult = await db.transaction(async (tx) => {
+      // Convert date strings to Date objects
+      const dbData = {
+        ...matterData,
+        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+      };
+
       // Update the matter
-      const updated = await mattersQueries.updateMatter(matterId, matterData, tx);
+      const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
 
       if (!updated) {
         throw new Error('Failed to update matter');
@@ -279,15 +318,25 @@ const updateMatter = async (
       }
 
       // Log activity
-      const changes = Object.keys(matterData);
-      await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MATTER_UPDATED,
-        `Matter "${updated.title}" was updated (${changes.join(', ')})`,
-        user.id,
-        { changes: matterData },
-        tx,
-      );
+      if (changedFields.length > 0) {
+        await matterActivityService.logMatterActivity(
+          matterId,
+          matterActivityService.ActivityAction.MATTER_UPDATED,
+          `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
+          user.id,
+          { changes: matterData, changed_fields: changedFields },
+          tx,
+        );
+      } else {
+        await matterActivityService.logMatterActivity(
+          matterId,
+          matterActivityService.ActivityAction.MATTER_UPDATED,
+          `Matter "${updated.title}" update attempted (no changes)`,
+          user.id,
+          { changes: matterData, changed_fields: changedFields },
+          tx,
+        );
+      }
 
       // Check for status change
       if (data.status && data.status !== existingMatter.status) {
@@ -296,7 +345,7 @@ const updateMatter = async (
           matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
           `Matter status changed from "${existingMatter.status}" to "${data.status}"`,
           user.id,
-          { oldStatus: existingMatter.status, newStatus: data.status },
+          { oldStatus: existingMatter.status, newStatus: data.status, changed_fields: ['status'] },
           tx,
         );
 

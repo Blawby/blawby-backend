@@ -50,6 +50,13 @@ const createMatterTimeEntry = async (
       description: data.description,
       billable: data.billable,
     });
+    const changedFields = [
+      'start_time',
+      'end_time',
+      'duration',
+      ...(data.billable !== undefined ? ['billable'] : []),
+      ...(data.description !== undefined ? ['description'] : []),
+    ];
 
     // Log activity
     const hours = Math.floor(duration / 3600);
@@ -59,7 +66,7 @@ const createMatterTimeEntry = async (
       matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
       `${user.name || user.email} logged ${hours}h ${minutes}m${data.billable ? ' (billable)' : ''}`,
       user.id,
-      { duration, billable: data.billable },
+      { duration, billable: data.billable, changed_fields: changedFields },
     );
 
     return ok(entry);
@@ -143,6 +150,22 @@ const updateMatterTimeEntry = async (
     };
 
     const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
+    const changedFields = [];
+    if (data.start_time && entry.start_time.toISOString() !== startTime.toISOString()) {
+      changedFields.push('start_time');
+    }
+    if (data.end_time && entry.end_time.toISOString() !== endTime.toISOString()) {
+      changedFields.push('end_time');
+    }
+    if (data.description !== undefined && data.description !== entry.description) {
+      changedFields.push('description');
+    }
+    if (data.billable !== undefined && data.billable !== entry.billable) {
+      changedFields.push('billable');
+    }
+    if ((data.start_time || data.end_time) && entry.duration !== updateData.duration) {
+      changedFields.push('duration');
+    }
 
     // Log activity
     await matterActivityService.logMatterActivity(
@@ -150,6 +173,7 @@ const updateMatterTimeEntry = async (
       matterActivityService.ActivityAction.TIME_ENTRY_UPDATED,
       `${user.name || user.email} updated a time entry`,
       user.id,
+      { changed_fields: changedFields },
     );
 
     return ok(updated!);
@@ -194,6 +218,7 @@ const deleteMatterTimeEntry = async (
       matterActivityService.ActivityAction.TIME_ENTRY_DELETED,
       `${user.name || user.email} deleted a time entry`,
       user.id,
+      { changed_fields: ['deleted'] },
     );
 
     return ok({ success: true });
@@ -254,4 +279,3 @@ export const matterTimeEntriesService = {
   deleteMatterTimeEntry,
   getTimeEntryStats,
 };
-

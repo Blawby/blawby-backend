@@ -38,6 +38,7 @@ const createMatterExpense = async (
       date: data.date,
       billable: data.billable,
     });
+    const changedFields = ['description', 'amount', 'date', 'billable'];
 
     // Log activity
     const amountFormatted = (data.amount / 100).toFixed(2);
@@ -46,7 +47,7 @@ const createMatterExpense = async (
       matterActivityService.ActivityAction.EXPENSE_ADDED,
       `${user.name || user.email} added expense: ${data.description} ($${amountFormatted})${data.billable ? ' (billable)' : ''}`,
       user.id,
-      { amount: data.amount, billable: data.billable },
+      { amount: data.amount, billable: data.billable, changed_fields: changedFields },
     );
 
     return ok(expense);
@@ -118,6 +119,19 @@ const updateMatterExpense = async (
     }
 
     const updated = await matterExpensesQueries.updateMatterExpense(expenseId, data);
+    const changedFields: string[] = [];
+    if (data.description !== undefined && data.description !== expense.description) {
+      changedFields.push('description');
+    }
+    if (data.amount !== undefined && data.amount !== expense.amount) {
+      changedFields.push('amount');
+    }
+    if (data.date !== undefined && data.date !== expense.date) {
+      changedFields.push('date');
+    }
+    if (data.billable !== undefined && data.billable !== expense.billable) {
+      changedFields.push('billable');
+    }
 
     // Log activity
     await matterActivityService.logMatterActivity(
@@ -125,6 +139,7 @@ const updateMatterExpense = async (
       matterActivityService.ActivityAction.EXPENSE_UPDATED,
       `${user.name || user.email} updated an expense`,
       user.id,
+      { changed_fields: changedFields },
     );
 
     return ok(updated!);
@@ -169,6 +184,7 @@ const deleteMatterExpense = async (
       matterActivityService.ActivityAction.EXPENSE_DELETED,
       `${user.name || user.email} deleted an expense`,
       user.id,
+      { changed_fields: ['deleted'] },
     );
 
     return ok({ success: true });
@@ -229,4 +245,3 @@ export const matterExpensesService = {
   deleteMatterExpense,
   getExpenseStats,
 };
-

@@ -33,9 +33,11 @@ export const matters = pgTable(
     }),
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
+    case_number: varchar('case_number', { length: 100 }),
+    matter_type: varchar('matter_type', { length: 100 }),
 
     // Billing information
-    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency'
+    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
     total_fixed_price: integer('total_fixed_price'), // in cents, nullable
     contingency_percentage: real('contingency_percentage'), // float, nullable
     settlement_amount: integer('settlement_amount'), // in cents, nullable
@@ -55,7 +57,26 @@ export const matters = pgTable(
     retainer_balance: integer('retainer_balance').notNull().default(0),
 
     // Status
-    status: varchar('status', { length: 20 }).notNull().default('draft'), // 'draft', 'active'
+    status: varchar('status', { length: 40 }).notNull().default('first_contact'),
+    urgency: varchar('urgency', { length: 20 }), // 'routine', 'time_sensitive', 'emergency'
+
+    // Attorney assignments
+    responsible_attorney_id: uuid('responsible_attorney_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    originating_attorney_id: uuid('originating_attorney_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+
+    // Court metadata
+    court: text('court'),
+    judge: text('judge'),
+    opposing_party: text('opposing_party'),
+    opposing_counsel: text('opposing_counsel'),
+
+    // Matter lifecycle dates
+    open_date: timestamp('open_date', { withTimezone: true, mode: 'date' }),
+    close_date: timestamp('close_date', { withTimezone: true, mode: 'date' }),
 
     // Soft delete
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
@@ -98,6 +119,16 @@ export const mattersRelations = relations(matters, ({ one, many }) => ({
     fields: [matters.deleted_by],
     references: [users.id],
     relationName: 'deletedBy',
+  }),
+  responsibleAttorney: one(users, {
+    fields: [matters.responsible_attorney_id],
+    references: [users.id],
+    relationName: 'responsibleAttorney',
+  }),
+  originatingAttorney: one(users, {
+    fields: [matters.originating_attorney_id],
+    references: [users.id],
+    relationName: 'originatingAttorney',
   }),
   assignees: many(matterAssignees),
   milestones: many(matterMilestones),
