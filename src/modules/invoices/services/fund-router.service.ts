@@ -1,5 +1,26 @@
 import type { SelectInvoice } from '@/modules/invoices/database/schema/invoices.schema';
 
+export type FundDestination = 'operating' | 'trust';
+
+const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust'] as const;
+
+/**
+ * Type guard that validates a fund destination value at runtime.
+ * Prevents silent misrouting of funds from invalid DB values.
+ */
+export const isValidFundDestination = (value: unknown): value is FundDestination => {
+  return typeof value === 'string' && VALID_FUND_DESTINATIONS.includes(value as FundDestination);
+};
+
+export const validateFundDestination = (value: unknown, invoiceId: string): FundDestination => {
+  if (isValidFundDestination(value)) {
+    return value;
+  }
+  throw new Error(
+    `Invalid fund_destination '${String(value)}' on invoice ${invoiceId}. Expected one of: ${VALID_FUND_DESTINATIONS.join(', ')}`,
+  );
+};
+
 /**
  * Transfer instruction returned by fund routing logic
  */
@@ -46,11 +67,13 @@ export class FundRouterService {
     invoice: SelectInvoice,
     connectedAccountId: string,
   ): Promise<TransferInstruction> {
+    const validatedDestination = validateFundDestination(invoice.fund_destination, invoice.id);
+
     const baseMetadata = {
       invoice_id: invoice.id,
       invoice_number: invoice.invoice_number,
       invoice_type: invoice.invoice_type,
-      fund_destination: invoice.fund_destination as 'operating' | 'trust',
+      fund_destination: validatedDestination,
       matter_id: invoice.matter_id || '',
     };
 
