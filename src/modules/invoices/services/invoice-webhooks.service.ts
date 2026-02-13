@@ -2,6 +2,7 @@ import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
@@ -57,71 +58,76 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           : stripeInvoice.on_behalf_of.id;
       }
 
-      // 1. Create Stripe transfer with fund routing metadata
-      const transfer = await stripe.transfers.create({
-        amount: stripeInvoice.amount_paid,
-        currency: 'usd',
-        destination: destinationAccountId,
-        metadata: {
+      // 1. Determine fund routing based on invoice type
+      const routingInstruction = await fundRouterService.routePayment(
+        invoice,
+        destinationAccountId,
+      );
+
+      // 2. Create Stripe transfer with fund routing metadata
+      // Note: Legal billing doesn't use escrow - all transfers are immediate
+      if (!routingInstruction.holdForApproval) {
+        const transfer = await stripe.transfers.create({
+          amount: stripeInvoice.amount_paid,
+          currency: 'usd',
+          destination: routingInstruction.destination,
+          metadata: routingInstruction.metadata,
+        });
+
+        logger.info('Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}', {
+          transferId: transfer.id,
+          invoiceId: invoice.id,
+          fundDestination: routingInstruction.metadata.fund_destination,
+        });
+
+        // 3. Create billing_transaction record with transfer ID
+        await billingTransactionsRepository.createTransaction({
           invoice_id: invoice.id,
-          invoice_number: invoice.invoice_number,
-          invoice_type: invoice.invoice_type,
-          fund_destination: invoice.fund_destination,
-          matter_id: invoice.matter_id || '',
-        },
-      });
+          matter_id: invoice.matter_id,
+          amount: stripeInvoice.amount_paid,
+          type: 'payout',
+          status: 'completed',
+          destination_account_id: destinationAccountId,
+          stripe_transfer_id: transfer.id,
+          completed_at: stripeInvoice.status_transitions.paid_at
+            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+            : null,
+          metadata: {
+            stripe_invoice_id: stripeInvoice.id,
+            stripe_charge_id: charge_id,
+            invoice_type: invoice.invoice_type,
+            fund_destination: routingInstruction.metadata.fund_destination,
+          },
+        }, tx);
+      }
 
-      logger.info('Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}', {
-        transferId: transfer.id,
-        invoiceId: invoice.id,
-        fundDestination: invoice.fund_destination,
-      });
-
-      // 2. Create billing_transaction record with transfer ID
-      await billingTransactionsRepository.createTransaction({
-        invoice_id: invoice.id,
-        matter_id: invoice.matter_id,
-        amount: stripeInvoice.amount_paid,
-        type: 'payout',
-        status: 'completed',
-        destination_account_id: destinationAccountId,
-        stripe_transfer_id: transfer.id,
-        completed_at: stripeInvoice.status_transitions.paid_at
-          ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-          : null,
-        metadata: {
-          stripe_invoice_id: stripeInvoice.id,
-          stripe_charge_id: charge_id,
-          invoice_type: invoice.invoice_type,
-          fund_destination: invoice.fund_destination,
-        },
-      }, tx);
-
-      // 3 & 4. Update retainer balance
-      if (invoice.matter_id) {
+      // 4. Update retainer balance (if applicable)
+      if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
         const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
         if (matter) {
-          let newBalance = matter.retainer_balance;
+          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
 
-          if (invoice.invoice_type === 'retainer_deposit') {
-            newBalance += stripeInvoice.amount_paid;
-            logger.info('Incrementing retainer balance for matter {matterId} (deposit): {oldBalance} -> {newBalance}', {
-              matterId: invoice.matter_id,
-              oldBalance: matter.retainer_balance,
-              newBalance,
-            });
-          } else if (invoice.payment_from_retainer) {
-            newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
-            logger.info('Decrementing retainer balance for matter {matterId} (payment): {oldBalance} -> {newBalance}', {
-              matterId: invoice.matter_id,
-              oldBalance: matter.retainer_balance,
-              newBalance,
-            });
-          }
+          logger.info('Incrementing retainer balance for matter {matterId} (deposit): {oldBalance} -> {newBalance}', {
+            matterId: invoice.matter_id,
+            oldBalance: matter.retainer_balance,
+            newBalance,
+          });
 
-          if (newBalance !== matter.retainer_balance) {
-            await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
-          }
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+        }
+      } else if (invoice.matter_id && invoice.payment_from_retainer) {
+        // Handle payment from retainer (decrement balance)
+        const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
+        if (matter) {
+          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+
+          logger.info('Decrementing retainer balance for matter {matterId} (payment): {oldBalance} -> {newBalance}', {
+            matterId: invoice.matter_id,
+            oldBalance: matter.retainer_balance,
+            newBalance,
+          });
+
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
         }
       }
 
