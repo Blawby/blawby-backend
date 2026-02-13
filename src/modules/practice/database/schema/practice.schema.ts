@@ -28,6 +28,7 @@ export const practiceDetails = pgTable('practice_details', {
   calendly_url: text('calendly_url'),
   intro_message: text('intro_message'),
   overview: text('overview'),
+  accent_color: text('accent_color'),
   is_public: boolean('is_public').default(false).notNull(),
   billing_increment_minutes: integer('billing_increment_minutes').default(1).notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),

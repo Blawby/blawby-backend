@@ -165,6 +165,7 @@ const upsertPracticeDetails = async (
           website: data.website ?? undefined,
           intro_message: data.intro_message ?? undefined,
           overview: data.overview ?? undefined,
+          accent_color: data.accent_color ?? undefined,
           is_public: data.is_public ?? undefined,
           billing_increment_minutes: data.billing_increment_minutes ?? undefined,
         })
@@ -180,6 +181,7 @@ const upsertPracticeDetails = async (
             website: data.website ?? undefined,
             intro_message: data.intro_message ?? undefined,
             overview: data.overview ?? undefined,
+            accent_color: data.accent_color ?? undefined,
             is_public: data.is_public ?? undefined,
             billing_increment_minutes: data.billing_increment_minutes ?? undefined,
             updated_at: new Date(),
