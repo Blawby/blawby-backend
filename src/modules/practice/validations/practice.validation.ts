@@ -40,6 +40,7 @@ const practiceDetailsValidationSchema = z.object({
   website: urlValidator.optional().or(z.literal('')).openapi({ example: 'https://example.com' }),
   intro_message: z.string().optional().openapi({ example: 'Welcome to our practice' }),
   overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
+  accent_color: z.string().optional().openapi({ example: '#3B82F6' }),
   is_public: z.boolean().optional().openapi({ example: true }),
   billing_increment_minutes: billingIncrementMinutesSchema.optional(),
   services: z
@@ -153,6 +154,10 @@ const practiceResponseSchema = z
     overview: z.string().nullable().openapi({
       description: 'Detailed practice overview or biography',
       example: 'We specialize in family and corporate law with over 20 years of experience.',
+    }),
+    accent_color: z.string().nullable().openapi({
+      description: 'Practice accent color for theming',
+      example: '#3B82F6',
     }),
     is_public: z.boolean().openapi({
       description: 'Whether the practice details are publicly visible',
@@ -390,6 +395,7 @@ const practiceDetailsResponseSchema = z
     website: z.string().nullable().openapi({ example: 'https://example.com' }),
     intro_message: z.string().nullable().openapi({ example: 'Welcome' }),
     overview: z.string().nullable().openapi({ example: 'Overview text' }),
+    accent_color: z.string().nullable().openapi({ example: '#3B82F6' }),
     is_public: z.boolean().openapi({ example: true }),
     organization_id: z.string().uuid().openapi({
       description: 'Organization UUID for the practice',

@@ -24,6 +24,7 @@ export type UpsertPracticeDetailsRequest = {
   website?: string | null;
   intro_message?: string | null;
   overview?: string | null;
+  accent_color?: string | null;
   is_public?: boolean;
   billing_increment_minutes?: number;
   services?: Array<{ id?: string; name: string; key: string }>;
