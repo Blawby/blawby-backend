@@ -1,3 +1,4 @@
+import { relations } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -46,6 +47,16 @@ export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
+
+export const stripeConnectedAccountsRelations = relations(
+  stripeConnectedAccounts,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [stripeConnectedAccounts.organization_id],
+      references: [organizations.id],
+    }),
+  }),
+);
 
 // Zod schemas for database interaction
 export const createStripeConnectedAccountSchema = createInsertSchema(

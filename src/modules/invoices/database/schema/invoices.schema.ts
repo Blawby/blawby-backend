@@ -8,10 +8,11 @@ import {
   timestamp,
   index,
   pgEnum,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { billingTransactions } from './billing-transactions.schema';
-import { invoiceLineItems } from './invoice-line-items.schema';
-import { paymentLinks } from './payment-links.schema';
+import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
+import { invoiceLineItems } from '@/modules/invoices/database/schema/invoice-line-items.schema';
+import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
@@ -88,6 +89,11 @@ export const invoices = pgTable(
     index('invoices_type_idx').on(table.invoice_type),
     index('invoices_number_idx').on(table.invoice_number),
     index('invoices_stripe_id_idx').on(table.stripe_invoice_id),
+    uniqueIndex('invoices_org_number_unique_idx').on(
+      table.organization_id,
+      table.invoice_number,
+    ),
+    uniqueIndex('invoices_stripe_invoice_unique_idx').on(table.stripe_invoice_id),
   ],
 );
 

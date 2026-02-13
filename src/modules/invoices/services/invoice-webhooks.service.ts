@@ -18,12 +18,6 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['invoices', 'webhooks-service']);
 
-/**
- * Extended Stripe Invoice to handle missing properties in formal types
- */
-interface ExtendedStripeInvoice extends Stripe.Invoice {
-  charge?: string | null;
-}
 
 /**
  * Handle invoice.paid event
@@ -44,19 +38,23 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           status: 'paid',
           amount_paid: stripeInvoice.amount_paid,
           amount_due: stripeInvoice.amount_remaining,
-          paid_at: new Date(stripeInvoice.status_transitions.paid_at! * 1000),
+          paid_at: stripeInvoice.status_transitions.paid_at
+            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+            : null,
         },
         tx,
       );
 
-      const extendedInvoice = stripeInvoice as ExtendedStripeInvoice;
+      let charge_id: string | null = null;
+      if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
+        charge_id = stripeInvoice.charge;
+      }
 
-      // Safe access to destination_account_id
       let destinationAccountId = invoice.connected_account_id;
-      if (extendedInvoice.on_behalf_of) {
-        destinationAccountId = typeof extendedInvoice.on_behalf_of === 'string'
-          ? extendedInvoice.on_behalf_of
-          : extendedInvoice.on_behalf_of.id;
+      if (stripeInvoice.on_behalf_of) {
+        destinationAccountId = typeof stripeInvoice.on_behalf_of === 'string'
+          ? stripeInvoice.on_behalf_of
+          : stripeInvoice.on_behalf_of.id;
       }
 
       // 1. Create Stripe transfer with fund routing metadata
@@ -88,42 +86,42 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
         status: 'completed',
         destination_account_id: destinationAccountId,
         stripe_transfer_id: transfer.id,
-        completed_at: new Date(stripeInvoice.status_transitions.paid_at! * 1000),
+        completed_at: stripeInvoice.status_transitions.paid_at
+          ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+          : null,
         metadata: {
           stripe_invoice_id: stripeInvoice.id,
-          stripe_charge_id: (extendedInvoice.charge || null) as unknown,
+          stripe_charge_id: charge_id,
           invoice_type: invoice.invoice_type,
           fund_destination: invoice.fund_destination,
-        } as Record<string, unknown>,
+        },
       }, tx);
 
-      // 3. Update retainer balance for retainer_deposit invoices
-      if (invoice.invoice_type === 'retainer_deposit' && invoice.matter_id) {
-        const matter = await mattersQueries.findMatterById(invoice.matter_id);
+      // 3 & 4. Update retainer balance
+      if (invoice.matter_id) {
+        const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
         if (matter) {
-          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
-          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+          let newBalance = matter.retainer_balance;
 
-          logger.info('Incremented retainer balance for matter {matterId}: {oldBalance} -> {newBalance}', {
-            matterId: invoice.matter_id,
-            oldBalance: matter.retainer_balance,
-            newBalance,
-          });
-        }
-      }
+          if (invoice.invoice_type === 'retainer_deposit') {
+            newBalance += stripeInvoice.amount_paid;
+            logger.info('Incrementing retainer balance for matter {matterId} (deposit): {oldBalance} -> {newBalance}', {
+              matterId: invoice.matter_id,
+              oldBalance: matter.retainer_balance,
+              newBalance,
+            });
+          } else if (invoice.payment_from_retainer) {
+            newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+            logger.info('Decrementing retainer balance for matter {matterId} (payment): {oldBalance} -> {newBalance}', {
+              matterId: invoice.matter_id,
+              oldBalance: matter.retainer_balance,
+              newBalance,
+            });
+          }
 
-      // 4. Deduct from retainer balance if payment_from_retainer is set
-      if (invoice.matter_id && invoice.payment_from_retainer) {
-        const matter = await mattersQueries.findMatterById(invoice.matter_id);
-        if (matter) {
-          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
-          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
-
-          logger.info('Decremented retainer balance for matter {matterId}: {oldBalance} -> {newBalance}', {
-            matterId: invoice.matter_id,
-            oldBalance: matter.retainer_balance,
-            newBalance,
-          });
+          if (newBalance !== matter.retainer_balance) {
+            await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+          }
         }
       }
 
@@ -160,7 +158,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
       stripeInvoiceId: stripeInvoice.id,
       error: message,
     });
-    return result.internalError(message);
+    return result.internalError('Failed to handle invoice.paid webhook');
   }
 };
 
@@ -198,7 +196,8 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
     return result.ok(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return result.internalError(message);
+    logger.error('Failed to handle invoice webhook: {error}', { error: message });
+    return result.internalError('Failed to handle invoice webhook');
   }
 };
 
@@ -237,7 +236,8 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
     return result.ok(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return result.internalError(message);
+    logger.error('Failed to handle invoice webhook: {error}', { error: message });
+    return result.internalError('Failed to handle invoice webhook');
   }
 };
 
@@ -253,7 +253,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
       await invoicesRepository.softDeleteInvoice(
         invoice.id,
         invoice.organization_id,
-        'system',
+        null,
         tx,
       );
 
@@ -273,16 +273,29 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
     return result.ok(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return result.internalError(message);
+    logger.error('Failed to handle invoice webhook: {error}', { error: message });
+    return result.internalError('Failed to handle invoice webhook');
   }
 };
+
+/**
+ * Type guard for Stripe Invoice
+ */
+function isStripeInvoice(obj: unknown): obj is Stripe.Invoice {
+  return !!obj && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
+}
 
 /**
  * Process a Stripe invoice event
  */
 const processEvent = async (event: Stripe.Event): Promise<Result<void>> => {
   const eventType = event.type;
-  const stripeInvoice = event.data.object as Stripe.Invoice;
+  const stripeInvoice = event.data.object;
+
+  if (!isStripeInvoice(stripeInvoice)) {
+    logger.warn('Received Stripe event without invoice object: {eventType}', { eventType });
+    return result.ok(undefined);
+  }
 
   logger.info('Processing invoice webhook event {eventType} for Stripe Invoice {stripeInvoiceId}', {
     eventType,

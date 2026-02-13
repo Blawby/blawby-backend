@@ -1,5 +1,7 @@
 import { getLogger } from '@logtape/logtape';
-import { invoicesRepository } from '../database/queries/invoices.repository';
+import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
+import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
 import type {
   CreateInvoiceRequest,
   UpdateInvoiceRequest,
@@ -7,8 +9,9 @@ import type {
   InvoiceResponse,
   InvoiceWithRelations,
   SelectInvoiceLineItem,
-} from '../types/invoices.types';
-import { stripeInvoicesService } from './stripe-invoices.service';
+} from '@/modules/invoices/types/invoices.types';
+import { handleServiceError } from '@/modules/invoices/utils/error-handler';
+import { invoiceValidators } from '@/modules/invoices/validators/invoice-creation.validators';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import { db } from '@/shared/database';
 import {
@@ -74,7 +77,7 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceRespons
       created_at: li.created_at.toISOString(),
       updated_at: li.updated_at.toISOString(),
     })),
-  } as InvoiceResponse;
+  } satisfies InvoiceResponse;
 };
 
 /**
@@ -86,30 +89,39 @@ const createInvoice = async (
   user: User,
   requestHeaders: Record<string, string>,
 ): Promise<Result<InvoiceResponse>> => {
+  // 1. Validate organization access
   const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
   if (!orgResult.success) return orgResult;
 
-  // Validate that the connected account exists and is fully enabled
-  const connectedAccount = await db.query.stripeConnectedAccounts.findFirst({
-    where: (accounts, { eq }) => eq(accounts.id, data.connected_account_id),
-  });
+  // 2. Resolve and validate client with all required relations
+  const clientResult = await invoiceClientResolver.resolveClientForInvoice(
+    organizationId,
+    data.client_id,
+    data.connected_account_id,
+  );
+  if (!clientResult.success) return clientResult;
 
-  if (!connectedAccount) {
-    return result.badRequest('Invalid connected account ID');
+  const { id: clientId, connectedAccount, matters } = clientResult.data;
+
+  // 3. Validate connected account capabilities
+  const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
+  if (!accountValidation.success) return accountValidation;
+
+  // 4. Validate matter belongs to client (if provided)
+  if (data.matter_id) {
+    const matter = matters.find((m) => m.id === data.matter_id);
+    const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
+    if (!matterValidation.success) return matterValidation;
   }
 
-  if (!connectedAccount.charges_enabled) {
-    return result.badRequest(
-      'Stripe Connect account is not enabled for charges. Please complete onboarding first.',
-    );
-  }
+  // 5. Validate invoice number is unique
+  const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(
+    organizationId,
+    data.invoice_number,
+  );
+  if (!numberValidation.success) return numberValidation;
 
-  if (!connectedAccount.payouts_enabled) {
-    return result.badRequest(
-      'Stripe Connect account is not enabled for payouts. Please complete onboarding and add a bank account.',
-    );
-  }
-
+  // 6. Create invoice
   const { line_items, ...invoiceData } = data;
   const totals = calculateInvoiceTotals(line_items);
 
@@ -123,10 +135,12 @@ const createInvoice = async (
         {
           organization_id: organizationId,
           ...invoiceData,
+          client_id: clientId,
           invoice_type,
           fund_destination,
           ...totals,
           status: 'draft',
+          issue_date: new Date(),
           due_date: data.due_date ? new Date(data.due_date) : undefined,
         },
         tx,
@@ -144,19 +158,22 @@ const createInvoice = async (
 
       const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, organizationId, tx);
       if (invWithRel) {
-        await InvoiceCreated.dispatch({
-          invoice_id: newInvoice.id,
-          organization_id: organizationId,
-          client_id: data.client_id,
-          matter_id: data.matter_id || null,
-          invoice_number: newInvoice.invoice_number,
-          total: totals.total,
-        }, {
-          actorId: user.id,
-          actorType: 'user',
-          organizationId,
-          tx,
-        });
+        await InvoiceCreated.dispatch(
+          {
+            invoice_id: newInvoice.id,
+            organization_id: organizationId,
+            client_id: clientId,
+            matter_id: data.matter_id || null,
+            invoice_number: newInvoice.invoice_number,
+            total: totals.total,
+          },
+          {
+            actorId: user.id,
+            actorType: 'user',
+            organizationId,
+            tx,
+          },
+        );
       }
 
       return invWithRel;
@@ -164,15 +181,9 @@ const createInvoice = async (
 
     if (!invoice) return result.internalError('Failed to retrieve created invoice');
 
-    return result.ok(transformInvoiceResponse(invoice as InvoiceWithRelations));
+    return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to create invoice {organizationId} {userId}: {error}', {
-      organizationId,
-      userId: user.id,
-      error: message,
-    });
-    return result.internalError(message);
+    return handleServiceError(error, logger, { organizationId, userId: user.id }, 'Failed to create invoice');
   }
 };
 
@@ -192,14 +203,14 @@ const getInvoiceById = async (
     const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
     if (!invoice) return result.notFound('Invoice not found');
 
-    return result.ok(transformInvoiceResponse(invoice as InvoiceWithRelations));
+    return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get invoice {invoiceId}: {error}', {
       invoiceId,
       error: message,
     });
-    return result.internalError(message);
+    return result.internalError('Failed to retrieve invoice');
   }
 };
 
@@ -219,7 +230,7 @@ const listInvoices = async (
     const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(organizationId, filters);
 
     return result.ok({
-      invoices: list.map((i) => transformInvoiceResponse(i as InvoiceWithRelations)),
+      invoices: list.map((i) => transformInvoiceResponse(i)),
       total,
     });
   } catch (error) {
@@ -228,7 +239,7 @@ const listInvoices = async (
       organizationId,
       error: message,
     });
-    return result.internalError(message);
+    return result.internalError('Failed to list invoices');
   }
 };
 
@@ -249,9 +260,14 @@ const updateInvoice = async (
     const existing = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
     if (!existing) return result.notFound('Invoice not found');
 
-    // Only allow updating draft invoices for now
-    if (existing.status !== 'draft' && !data.status) {
-      return result.badRequest('Only draft invoices can be modified');
+    // Only allow updating non-draft invoices if updating status ONLY
+    if (existing.status !== 'draft') {
+      const updateKeys = Object.keys(data);
+      const isStatusOnlyUpdate = updateKeys.length === 1 && updateKeys[0] === 'status';
+
+      if (!isStatusOnlyUpdate) {
+        return result.badRequest('Only draft invoices can be modified (except status updates)');
+      }
     }
 
     const { line_items, ...invoiceData } = data;
@@ -262,7 +278,7 @@ const updateInvoice = async (
         totals = calculateInvoiceTotals(line_items);
         await invoicesRepository.deleteInvoiceLineItems(invoiceId, tx);
         await invoicesRepository.createInvoiceLineItems(
-          line_items.map((item, index) => ({
+          (line_items || []).map((item, index) => ({
             ...item,
             invoice_id: invoiceId,
             line_total: item.quantity * item.unit_price,
@@ -288,7 +304,7 @@ const updateInvoice = async (
         await InvoiceUpdated.dispatch({
           invoice_id: invoiceId,
           organization_id: organizationId,
-          changes: data as Record<string, unknown>,
+          changes: data,
         }, {
           actorId: user.id,
           actorType: 'user',
@@ -302,14 +318,14 @@ const updateInvoice = async (
 
     if (!updatedInvoice) return result.internalError('Failed to retrieve updated invoice');
 
-    return result.ok(transformInvoiceResponse(updatedInvoice as InvoiceWithRelations));
+    return result.ok(transformInvoiceResponse(updatedInvoice));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update invoice {invoiceId}: {error}', {
       invoiceId,
       error: message,
     });
-    return result.internalError(message);
+    return result.internalError('Failed to update invoice');
   }
 };
 
@@ -353,7 +369,7 @@ const deleteInvoice = async (
       invoiceId,
       error: message,
     });
-    return result.internalError(message);
+    return result.internalError('Failed to delete invoice');
   }
 };
 
@@ -377,7 +393,7 @@ const sendInvoice = async (
       return result.badRequest('Only draft invoices can be sent');
     }
 
-    const invWithRel = invoice as InvoiceWithRelations;
+    const invWithRel = invoice;
     if (!invWithRel.client?.stripe_customer_id) {
       return result.badRequest('Client is missing Stripe customer ID');
     }
@@ -428,14 +444,9 @@ const sendInvoice = async (
     if (!updated) return result.internalError('Failed to retrieve updated invoice');
 
 
-    return result.ok(transformInvoiceResponse(updated as InvoiceWithRelations));
+    return result.ok(transformInvoiceResponse(updated));
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to send invoice {invoiceId}: {error}', {
-      invoiceId,
-      error: message,
-    });
-    return result.internalError(message);
+    return handleServiceError(error, logger, { invoiceId }, 'Failed to finalize and send invoice');
   }
 };
 
@@ -485,14 +496,11 @@ const syncInvoice = async (
     });
 
     const updated = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
-    return result.ok(transformInvoiceResponse(updated as InvoiceWithRelations));
+    if (!updated) return result.notFound('Invoice not found');
+
+    return result.ok(transformInvoiceResponse(updated));
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to sync invoice {invoiceId}: {error}', {
-      invoiceId,
-      error: message,
-    });
-    return result.internalError(message);
+    return handleServiceError(error, logger, { invoiceId }, 'Failed to sync invoice with Stripe');
   }
 };
 
@@ -548,14 +556,11 @@ const voidInvoice = async (
     });
 
     const updated = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
-    return result.ok(transformInvoiceResponse(updated as InvoiceWithRelations));
+    if (!updated) return result.notFound('Invoice not found');
+
+    return result.ok(transformInvoiceResponse(updated));
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to void invoice {invoiceId}: {error}', {
-      invoiceId,
-      error: message,
-    });
-    return result.internalError(message);
+    return handleServiceError(error, logger, { invoiceId }, 'Failed to void invoice');
   }
 };
 

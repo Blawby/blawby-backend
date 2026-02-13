@@ -11,6 +11,7 @@ import {
   type InsertInvoice,
   type SelectInvoice,
 } from '@/modules/invoices/database/schema/invoices.schema';
+import { type InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
 /**
@@ -31,9 +32,13 @@ const createInvoice = async (
 /**
  * Find invoice by ID with line items
  */
-const findInvoiceById = async (id: string, organizationId: string, tx?: typeof db) => {
+const findInvoiceById = async (
+  id: string,
+  organizationId: string,
+  tx?: typeof db,
+): Promise<InvoiceWithRelations | undefined> => {
   const client = tx || db;
-  const invoice = await client.query.invoices.findFirst({
+  return await client.query.invoices.findFirst({
     where: and(
       eq(invoices.id, id),
       eq(invoices.organization_id, organizationId),
@@ -44,47 +49,38 @@ const findInvoiceById = async (id: string, organizationId: string, tx?: typeof d
         orderBy: (li, { asc }) => [asc(li.sort_order)],
       },
       client: {
-        columns: {
-          id: true,
-          status: true,
-          stripe_customer_id: true,
-        },
         with: {
-          user: {
-            columns: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-            },
-          },
+          user: true,
         },
       },
       matter: true,
+      connectedAccount: true,
     },
   });
-
-  return invoice;
 };
 
 /**
  * Find invoice by Stripe Invoice ID
  */
-const findInvoiceByStripeId = async (stripeInvoiceId: string, tx?: typeof db) => {
+const findInvoiceByStripeId = async (
+  stripeInvoiceId: string,
+  tx?: typeof db,
+): Promise<InvoiceWithRelations | undefined> => {
   const client = tx || db;
-  const invoice = await client.query.invoices.findFirst({
+  return await client.query.invoices.findFirst({
     where: and(
       eq(invoices.stripe_invoice_id, stripeInvoiceId),
       isNull(invoices.deleted_at),
     ),
     with: {
       lineItems: true,
-      client: true,
+      client: {
+        with: { user: true },
+      },
       matter: true,
+      connectedAccount: true,
     },
   });
-
-  return invoice;
 };
 
 /**
@@ -99,7 +95,7 @@ const listInvoicesByOrganization = async (
     page?: number;
     limit?: number;
   },
-): Promise<{ invoices: SelectInvoice[]; total: number }> => {
+): Promise<{ invoices: InvoiceWithRelations[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
   const offset = (page - 1) * limit;
@@ -126,11 +122,12 @@ const listInvoicesByOrganization = async (
     offset,
     with: {
       client: {
-        with: { user: true }
+        with: { user: true },
       },
       lineItems: true,
-      matter: true
-    }
+      matter: true,
+      connectedAccount: true,
+    },
   });
 
   const [countResult] = await db
@@ -168,7 +165,7 @@ const updateInvoice = async (
 const softDeleteInvoice = async (
   id: string,
   organizationId: string,
-  deletedBy: string,
+  deletedBy: string | null,
   tx?: typeof db,
 ): Promise<SelectInvoice | undefined> => {
   const client = tx || db;
@@ -176,7 +173,7 @@ const softDeleteInvoice = async (
     .update(invoices)
     .set({
       deleted_at: new Date(),
-      deleted_by: deletedBy,
+      deleted_by: deletedBy ?? null,
       updated_at: new Date(),
     })
     .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId)))
