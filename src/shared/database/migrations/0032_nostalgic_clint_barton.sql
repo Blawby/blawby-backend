@@ -168,20 +168,4 @@ DO $$ BEGIN
     EXCEPTION
         WHEN duplicate_object THEN null;
     END;
-END $$;--> statement-breakpoint
-
-DO $$ BEGIN
-    BEGIN
-        CREATE UNIQUE INDEX "invoices_org_number_unique_idx" ON "invoices" USING btree ("organization_id","invoice_number");
-    EXCEPTION
-        WHEN duplicate_table THEN null;
-    END;
-END $$;--> statement-breakpoint
-
-DO $$ BEGIN
-    BEGIN
-        CREATE UNIQUE INDEX "invoices_stripe_invoice_unique_idx" ON "invoices" USING btree ("stripe_invoice_id");
-    EXCEPTION
-        WHEN duplicate_table THEN null;
-    END;
 END $$;
