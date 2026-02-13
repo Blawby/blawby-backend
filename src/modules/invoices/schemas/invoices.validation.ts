@@ -31,7 +31,7 @@ const updateInvoiceSchema = z.object({
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).optional(),
-  status: z.enum(['draft', 'pending', 'sent', 'paid', 'overdue', 'cancelled']).optional(),
+  status: z.enum(['draft', 'pending', 'sent', 'overdue', 'cancelled']).optional(),
 }).strict();
 
 const invoiceIdParamSchema = z.object({

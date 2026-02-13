@@ -7,8 +7,8 @@ import {
 } from '@/shared/validations/openapi';
 
 const invoiceUuidParamSchema = practiceIdParamSchema.extend({
-  id: z.uuid().openapi({
-    param: { name: 'id', in: 'path' },
+  invoice_id: z.uuid().openapi({
+    param: { name: 'invoice_id', in: 'path' },
     description: 'Invoice ID (UUID)',
     example: '789a1234-b56c-78d9-e012-345678901234',
   }),
@@ -21,7 +21,7 @@ export const createInvoiceRoute = createRoute({
   path: '/{practice_id}/create',
   tags: ['Invoices'],
   summary: 'Create invoice',
-  description: 'Create a new invoice with line items',
+  description: 'Create a new draft invoice. The client_id can be either a User ID or a UserDetails ID; the system will automatically resolve and create the necessary client records in a non-blocking way.',
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -33,9 +33,8 @@ export const createInvoiceRoute = createRoute({
     },
   },
   responses: {
-    201: {
-      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
-      description: 'Invoice created',
+    204: {
+      description: 'Invoice created successfully (no content)',
     },
     400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
   },

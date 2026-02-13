@@ -56,8 +56,7 @@ export const billingTransactionsRepository = {
       .set({
         status,
         ...extras,
-        updated_at: new Date(),
-      } as Partial<InsertBillingTransaction>)
+      })
       .where(eq(billingTransactions.id, id));
   },
 

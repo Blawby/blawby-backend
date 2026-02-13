@@ -8,7 +8,7 @@ import {
   index,
   jsonb,
 } from 'drizzle-orm/pg-core';
-import { invoices } from './invoices.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 
 export const billingTransactions = pgTable(

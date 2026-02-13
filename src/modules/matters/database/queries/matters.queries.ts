@@ -24,8 +24,10 @@ const createMatter = async (
 // Find matter by ID (excluding soft deleted)
 const findMatterById = async (
   id: string,
+  tx?: typeof db,
 ): Promise<SelectMatter | undefined> => {
-  const [matter] = await db
+  const client = tx || db;
+  const [matter] = await client
     .select()
     .from(matters)
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -36,8 +38,9 @@ const findMatterById = async (
 /**
  * Find matter by ID with relations (optimized)
  */
-const findMatterByIdWithRelations = async (id: string) => {
-  return await db.query.matters.findFirst({
+const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => {
+  const client = tx || db;
+  return await client.query.matters.findFirst({
     where: and(eq(matters.id, id), isNull(matters.deleted_at)),
     with: {
       assignees: {
@@ -63,8 +66,10 @@ const findMatterByIdWithRelations = async (id: string) => {
 // Find matter by ID (including soft deleted)
 const findMatterByIdWithDeleted = async (
   id: string,
+  tx?: typeof db,
 ): Promise<SelectMatter | undefined> => {
-  const [matter] = await db
+  const client = tx || db;
+  const [matter] = await client
     .select()
     .from(matters)
     .where(eq(matters.id, id))

@@ -1,723 +1,161 @@
 /**
- * Event Definitions
+ * Event Definitions Aggregator
  *
- * Typed event classes for all event types. Each class extends BaseEvent
- * and provides type-safe payloads.
+ * Centralized place for all event classes. This file re-exports domain-specific
+ * definitions to maintain a single import point while keeping the code base modular.
  *
  * Usage:
- *   await ClientCreated.dispatch({ client_id: '...', name: '...' });
+ *   import { ClientCreated } from '@/shared/events/definitions';
  */
 
-import { BaseEvent } from './event';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STRIPE ACCOUNT EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class StripeConnectedAccountCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.connected_account_created' as const;
-}
-
-export class StripeConnectedAccountUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.connected_account_updated' as const;
-}
-
-export class StripeConnectedAccountDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.connected_account_deleted' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STRIPE CUSTOMER EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class StripeCustomerCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.customer.created' as const;
-}
-
-export class StripeCustomerUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.customer.updated' as const;
-}
-
-export class StripeCustomerDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.customer.deleted' as const;
-}
-
-export class StripeCustomerSyncFailed extends BaseEvent<Record<string, unknown>> {
-  static type = 'stripe.customer.sync_failed' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTHENTICATION EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class AuthUserSignedUp extends BaseEvent<{
-  actor_id: string;
-  user_id: string;
-  email: string;
-  name: string | null;
-  signup_method: string;
-  is_anonymous: boolean;
-}> {
-  static type = 'auth.user_signed_up' as const;
-}
-
-export class AuthEmailVerified extends BaseEvent<{
-  user_id: string;
-  email: string;
-}> {
-  static type = 'auth.email_verified' as const;
-}
-
-export class AuthUserLoggedIn extends BaseEvent<{
-  user_id: string;
-  session_id: string;
-}> {
-  static type = 'auth.user_logged_in' as const;
-}
-
-export class AuthUserLoggedOut extends BaseEvent<{
-  user_id: string;
-  session_id: string;
-}> {
-  static type = 'auth.user_logged_out' as const;
-}
-
-export class AuthPasswordResetRequested extends BaseEvent<{
-  user_id: string;
-  email: string;
-}> {
-  static type = 'auth.password_reset_requested' as const;
-}
-
-export class AuthPasswordChanged extends BaseEvent<{
-  user_id: string;
-}> {
-  static type = 'auth.password_changed' as const;
-}
-
-export class AuthAccountDeleted extends BaseEvent<{
-  user_id: string;
-  email: string;
-}> {
-  static type = 'auth.account_deleted' as const;
-}
-
-export class InvitationAccepted extends BaseEvent<{
-  invitationId: string;
-  organizationId: string;
-  userId: string;
-  email: string;
-  role: string;
-}> {
-  static type = 'auth.invitation_accepted' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// USER CRUD EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class UserCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'user.created' as const;
-}
-
-export class UserUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'user.updated' as const;
-}
-
-export class UserDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'user.deleted' as const;
-}
-
-export class UserProfileUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'user.profile_updated' as const;
-}
-
-export class UserEmailChanged extends BaseEvent<Record<string, unknown>> {
-  static type = 'user.email_changed' as const;
-}
-
-export class UserAvatarUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'user.avatar_updated' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PRACTICE EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class PracticeCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.created' as const;
-}
-
-export class PracticeUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.updated' as const;
-}
-
-export class PracticeDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.deleted' as const;
-}
-
-export class PracticeDetailsCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.details_created' as const;
-}
-
-export class PracticeDetailsUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.details_updated' as const;
-}
-
-export class PracticeDetailsDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.details_deleted' as const;
-}
-
-export class PracticeSpecialtiesUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.specialties_updated' as const;
-}
-
-export class PracticeContactInfoUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.contact_info_updated' as const;
-}
-
-export class PracticeMemberInvited extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_invited' as const;
-}
-
-export class PracticeMemberJoined extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_joined' as const;
-}
-
-export class PracticeMemberRoleChanged extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_role_changed' as const;
-}
-
-export class PracticeMemberRemoved extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_removed' as const;
-}
-
-export class PracticeMemberLeft extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_left' as const;
-}
-
-export class PracticeSwitched extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.switched' as const;
-}
-
-export class PracticeAccessDenied extends BaseEvent<{
-  user_id: string;
-  organization_id: string;
-  reason: string;
-}> {
-  static type = 'practice.access_denied' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SETTINGS EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class SettingsCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'settings.created' as const;
-}
-
-export class SettingsUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'settings.updated' as const;
-}
-
-export class SettingsDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'settings.deleted' as const;
-}
-
-export class UserSettingsUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'settings.user_updated' as const;
-}
-
-export class PracticeSettingsUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'settings.practice_updated' as const;
-}
-
-export class SettingsCategoryUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'settings.category_updated' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ONBOARDING EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class OnboardingStarted extends BaseEvent<{
-  organization_id: string;
-  organization_email: string;
-  account_id: string;
-  session_id: string;
-}> {
-  static type = 'onboarding.started' as const;
-}
-
-export class OnboardingCompleted extends BaseEvent<{
-  organization_id: string;
-  stripe_account_id: string;
-  charges_enabled: boolean;
-  payouts_enabled: boolean;
-}> {
-  static type = 'onboarding.completed' as const;
-}
-
-export class OnboardingCompletedProcessed extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.completed_processed' as const;
-}
-
-export class OnboardingFailed extends BaseEvent<{
-  organization_id: string;
-  error: string;
-}> {
-  static type = 'onboarding.failed' as const;
-}
-
-export class OnboardingAccountUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.account_updated' as const;
-}
-
-export class OnboardingAccountRequirementsChanged extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.account_requirements_changed' as const;
-}
-
-export class OnboardingAccountCapabilitiesUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.account_capabilities_updated' as const;
-}
-
-export class OnboardingExternalAccountCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.external_account_created' as const;
-}
-
-export class OnboardingExternalAccountUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.external_account_updated' as const;
-}
-
-export class OnboardingExternalAccountDeleted extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.external_account_deleted' as const;
-}
-
-export class OnboardingWebhookReceived extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.webhook_received' as const;
-}
-
-export class OnboardingWebhookProcessed extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.webhook_processed' as const;
-}
-
-export class OnboardingWebhookFailed extends BaseEvent<Record<string, unknown>> {
-  static type = 'onboarding.webhook_failed' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PAYMENT EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class PaymentSessionCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'payment.session_created' as const;
-}
-
-export class PaymentReceived extends BaseEvent<Record<string, unknown>> {
-  static type = 'payment.received' as const;
-}
-
-export class PaymentSucceeded extends BaseEvent<{
-  stripe_payment_intent_id: string;
-  amount: number;
-  currency?: string;
-}> {
-  static type = 'payment.succeeded' as const;
-}
-
-export class PaymentFailed extends BaseEvent<{
-  stripe_payment_intent_id: string;
-  error?: string;
-}> {
-  static type = 'payment.failed' as const;
-}
-
-export class PaymentCanceled extends BaseEvent<{
-  stripe_payment_intent_id: string;
-}> {
-  static type = 'payment.canceled' as const;
-}
-
-export class PaymentRefunded extends BaseEvent<Record<string, unknown>> {
-  static type = 'payment.refunded' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// INTAKE PAYMENT EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class IntakePaymentCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'intake_payment.created' as const;
-}
-
-export class IntakePaymentSucceeded extends BaseEvent<{
-  event_id?: string;
-  organization_id: string;
-  stripe_payment_intent_id: string;
-  intake_payment_id: string;
-  uuid: string;
-  amount: number;
-  currency: string;
-  client_email?: string;
-  client_name?: string;
-  user_id?: string;
-  stripe_charge_id?: string;
-  succeeded_at: string;
-}> {
-  static type = 'intake_payment.succeeded' as const;
-}
-
-
-export class IntakePaymentFailed extends BaseEvent<{
-  stripe_payment_intent_id: string;
-  intake_payment_id: string;
-  error?: string;
-}> {
-  static type = 'intake_payment.failed' as const;
-}
-
-export class IntakePaymentCanceled extends BaseEvent<{
-  stripe_payment_intent_id: string;
-  intake_payment_id: string;
-}> {
-  static type = 'intake_payment.canceled' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SUBSCRIPTION EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class SubscriptionCreated extends BaseEvent<Record<string, unknown>> {
-  static type = 'subscription.created' as const;
-}
-
-export class SubscriptionUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'subscription.updated' as const;
-}
-
-export class SubscriptionCancelled extends BaseEvent<Record<string, unknown>> {
-  static type = 'subscription.cancelled' as const;
-}
-
-export class SubscriptionRenewed extends BaseEvent<Record<string, unknown>> {
-  static type = 'subscription.renewed' as const;
-}
-
-export class SubscriptionPaymentFailed extends BaseEvent<Record<string, unknown>> {
-  static type = 'subscription.payment_failed' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CLIENT EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class UserDetailsCreated extends BaseEvent<{
-  user_detail_id: string;
-  user_id: string;
-  name: string;
-  email: string;
-  stripe_customer_id?: string;
-}> {
-  static type = 'user_details.created' as const;
-}
-
-export class UserDetailsUpdated extends BaseEvent<{
-  user_detail_id: string;
-  changes?: Record<string, unknown>;
-}> {
-  static type = 'user_details.updated' as const;
-}
-
-export class UserDetailsDeleted extends BaseEvent<{
-  user_detail_id: string;
-}> {
-  static type = 'user_details.deleted' as const;
-}
-
-export class UserDetailsStatusChanged extends BaseEvent<{
-  user_detail_id: string;
-  old_status: string;
-  new_status: string;
-}> {
-  static type = 'user_details.status_changed' as const;
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MATTER EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class MatterCreated extends BaseEvent<{
-  matter_id: string;
-  organization_id: string;
-  title: string;
-  billing_type: string;
-}> {
-  static type = 'matter.created' as const;
-}
-
-export class MatterUpdated extends BaseEvent<{
-  matter_id: string;
-  organization_id: string;
-  changes: Record<string, unknown>;
-}> {
-  static type = 'matter.updated' as const;
-}
-
-export class MatterDeleted extends BaseEvent<{
-  matter_id: string;
-  organization_id: string;
-}> {
-  static type = 'matter.deleted' as const;
-}
-
-export class MatterStatusChanged extends BaseEvent<{
-  matter_id: string;
-  organization_id: string;
-  old_status: string;
-  new_status: string;
-}> {
-  static type = 'matter.status_changed' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// INVOICE EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class InvoiceCreated extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  client_id: string;
-  matter_id: string | null;
-  invoice_number: string;
-  total: number;
-}> {
-  static type = 'invoice.created' as const;
-}
-
-export class InvoiceUpdated extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  changes: Record<string, unknown>;
-}> {
-  static type = 'invoice.updated' as const;
-}
-
-export class InvoiceSent extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  client_id: string;
-  stripe_invoice_id: string;
-  stripe_hosted_invoice_url: string;
-  total: number;
-}> {
-  static type = 'invoice.sent' as const;
-}
-
-export class InvoicePaid extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  matter_id: string | null;
-  stripe_invoice_id: string;
-  amount_paid: number;
-  retainer_deducted: boolean;
-  retainer_amount_deducted?: number;
-}> {
-  static type = 'invoice.paid' as const;
-}
-
-export class InvoicePaymentFailed extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  stripe_invoice_id: string;
-}> {
-  static type = 'invoice.payment_failed' as const;
-}
-
-export class InvoiceVoided extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  stripe_invoice_id: string | null;
-  voided_by: 'user' | 'webhook';
-}> {
-  static type = 'invoice.voided' as const;
-}
-
-export class InvoiceDeleted extends BaseEvent<{
-  invoice_id: string;
-  organization_id: string;
-  deleted_by: 'user' | 'webhook';
-}> {
-  static type = 'invoice.deleted' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SYSTEM EVENTS
-// ═══════════════════════════════════════════════════════════════════════════
-
-export class SystemHealthCheckPerformed extends BaseEvent<Record<string, unknown>> {
-  static type = 'system.health_check_performed' as const;
-}
-
-export class SystemErrorOccurred extends BaseEvent<{
-  error: string;
-  stack?: string;
-  context?: Record<string, unknown>;
-}> {
-  static type = 'system.error_occurred' as const;
-}
-
-export class SystemPerformanceDegraded extends BaseEvent<Record<string, unknown>> {
-  static type = 'system.performance_degraded' as const;
-}
-
-export class SessionCreated extends BaseEvent<{
-  user_id: string;
-  session_id: string;
-}> {
-  static type = 'session.created' as const;
-}
-
-export class SessionExpired extends BaseEvent<{
-  user_id: string;
-  session_id: string;
-}> {
-  static type = 'session.expired' as const;
-}
-
-export class SessionInvalidated extends BaseEvent<{
-  user_id: string;
-  session_id: string;
-}> {
-  static type = 'session.invalidated' as const;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// EVENT TYPE TO CLASS MAP (for reverse lookup)
-// ═══════════════════════════════════════════════════════════════════════════
+import * as auth from './definitions/auth';
+import * as invoices from './definitions/invoices';
+import * as matters from './definitions/matters';
+import * as onboarding from './definitions/onboarding';
+import * as payments from './definitions/payments';
+import * as practice from './definitions/practice';
+import * as settings from './definitions/settings';
+import * as stripe from './definitions/stripe';
+import * as subscriptions from './definitions/subscriptions';
+import * as system from './definitions/system';
+import * as userDetails from './definitions/user-details';
+import * as users from './definitions/users';
+
+// Re-export everything for backward compatibility
+export * from './definitions/auth';
+export * from './definitions/invoices';
+export * from './definitions/matters';
+export * from './definitions/onboarding';
+export * from './definitions/payments';
+export * from './definitions/practice';
+export * from './definitions/settings';
+export * from './definitions/stripe';
+export * from './definitions/subscriptions';
+export * from './definitions/system';
+export * from './definitions/user-details';
+export * from './definitions/users';
 
 /**
  * Map of event type strings to event classes
- * Useful for dynamic event handling
+ * Useful for dynamic event handling and reverse lookup
  */
 export const EventClasses = {
   // Stripe Account
-  'stripe.connected_account_created': StripeConnectedAccountCreated,
-  'stripe.connected_account_updated': StripeConnectedAccountUpdated,
-  'stripe.connected_account_deleted': StripeConnectedAccountDeleted,
+  'stripe.connected_account_created': stripe.StripeConnectedAccountCreated,
+  'stripe.connected_account_updated': stripe.StripeConnectedAccountUpdated,
+  'stripe.connected_account_deleted': stripe.StripeConnectedAccountDeleted,
 
   // Stripe Customer
-  'stripe.customer.created': StripeCustomerCreated,
-  'stripe.customer.updated': StripeCustomerUpdated,
-  'stripe.customer.deleted': StripeCustomerDeleted,
-  'stripe.customer.sync_failed': StripeCustomerSyncFailed,
+  'stripe.customer.created': stripe.StripeCustomerCreated,
+  'stripe.customer.updated': stripe.StripeCustomerUpdated,
+  'stripe.customer.deleted': stripe.StripeCustomerDeleted,
+  'stripe.customer.sync_failed': stripe.StripeCustomerSyncFailed,
 
   // Auth
-  'auth.user_signed_up': AuthUserSignedUp,
-  'auth.email_verified': AuthEmailVerified,
-  'auth.user_logged_in': AuthUserLoggedIn,
-  'auth.user_logged_out': AuthUserLoggedOut,
-  'auth.password_reset_requested': AuthPasswordResetRequested,
-  'auth.password_changed': AuthPasswordChanged,
-  'auth.account_deleted': AuthAccountDeleted,
-  'auth.invitation_accepted': InvitationAccepted,
+  'auth.user_signed_up': auth.AuthUserSignedUp,
+  'auth.email_verified': auth.AuthEmailVerified,
+  'auth.user_logged_in': auth.AuthUserLoggedIn,
+  'auth.user_logged_out': auth.AuthUserLoggedOut,
+  'auth.password_reset_requested': auth.AuthPasswordResetRequested,
+  'auth.password_changed': auth.AuthPasswordChanged,
+  'auth.account_deleted': auth.AuthAccountDeleted,
+  'auth.invitation_accepted': auth.InvitationAccepted,
 
   // User
-  'user.created': UserCreated,
-  'user.updated': UserUpdated,
-  'user.deleted': UserDeleted,
-  'user.profile_updated': UserProfileUpdated,
-  'user.email_changed': UserEmailChanged,
-  'user.avatar_updated': UserAvatarUpdated,
+  'user.created': users.UserCreated,
+  'user.updated': users.UserUpdated,
+  'user.deleted': users.UserDeleted,
+  'user.profile_updated': users.UserProfileUpdated,
+  'user.email_changed': users.UserEmailChanged,
+  'user.avatar_updated': users.UserAvatarUpdated,
 
   // Practice
-  'practice.created': PracticeCreated,
-  'practice.updated': PracticeUpdated,
-  'practice.deleted': PracticeDeleted,
-  'practice.details_created': PracticeDetailsCreated,
-  'practice.details_updated': PracticeDetailsUpdated,
-  'practice.details_deleted': PracticeDetailsDeleted,
-  'practice.specialties_updated': PracticeSpecialtiesUpdated,
-  'practice.contact_info_updated': PracticeContactInfoUpdated,
-  'practice.member_invited': PracticeMemberInvited,
-  'practice.member_joined': PracticeMemberJoined,
-  'practice.member_role_changed': PracticeMemberRoleChanged,
-  'practice.member_removed': PracticeMemberRemoved,
-  'practice.member_left': PracticeMemberLeft,
-  'practice.switched': PracticeSwitched,
-  'practice.access_denied': PracticeAccessDenied,
+  'practice.created': practice.PracticeCreated,
+  'practice.updated': practice.PracticeUpdated,
+  'practice.deleted': practice.PracticeDeleted,
+  'practice.details_created': practice.PracticeDetailsCreated,
+  'practice.details_updated': practice.PracticeDetailsUpdated,
+  'practice.details_deleted': practice.PracticeDetailsDeleted,
+  'practice.specialties_updated': practice.PracticeSpecialtiesUpdated,
+  'practice.contact_info_updated': practice.PracticeContactInfoUpdated,
+  'practice.member_invited': practice.PracticeMemberInvited,
+  'practice.member_joined': practice.PracticeMemberJoined,
+  'practice.member_role_changed': practice.PracticeMemberRoleChanged,
+  'practice.member_removed': practice.PracticeMemberRemoved,
+  'practice.member_left': practice.PracticeMemberLeft,
+  'practice.switched': practice.PracticeSwitched,
+  'practice.access_denied': practice.PracticeAccessDenied,
 
   // Settings
-  'settings.created': SettingsCreated,
-  'settings.updated': SettingsUpdated,
-  'settings.deleted': SettingsDeleted,
-  'settings.user_updated': UserSettingsUpdated,
-  'settings.practice_updated': PracticeSettingsUpdated,
-  'settings.category_updated': SettingsCategoryUpdated,
+  'settings.created': settings.SettingsCreated,
+  'settings.updated': settings.SettingsUpdated,
+  'settings.deleted': settings.SettingsDeleted,
+  'settings.user_updated': settings.UserSettingsUpdated,
+  'settings.practice_updated': settings.PracticeSettingsUpdated,
+  'settings.category_updated': settings.SettingsCategoryUpdated,
 
   // Onboarding
-  'onboarding.started': OnboardingStarted,
-  'onboarding.completed': OnboardingCompleted,
-  'onboarding.completed_processed': OnboardingCompletedProcessed,
-  'onboarding.failed': OnboardingFailed,
-  'onboarding.account_updated': OnboardingAccountUpdated,
-  'onboarding.account_requirements_changed': OnboardingAccountRequirementsChanged,
-  'onboarding.account_capabilities_updated': OnboardingAccountCapabilitiesUpdated,
-  'onboarding.external_account_created': OnboardingExternalAccountCreated,
-  'onboarding.external_account_updated': OnboardingExternalAccountUpdated,
-  'onboarding.external_account_deleted': OnboardingExternalAccountDeleted,
-  'onboarding.webhook_received': OnboardingWebhookReceived,
-  'onboarding.webhook_processed': OnboardingWebhookProcessed,
-  'onboarding.webhook_failed': OnboardingWebhookFailed,
+  'onboarding.started': onboarding.OnboardingStarted,
+  'onboarding.completed': onboarding.OnboardingCompleted,
+  'onboarding.completed_processed': onboarding.OnboardingCompletedProcessed,
+  'onboarding.failed': onboarding.OnboardingFailed,
+  'onboarding.account_updated': onboarding.OnboardingAccountUpdated,
+  'onboarding.account_requirements_changed': onboarding.OnboardingAccountRequirementsChanged,
+  'onboarding.account_capabilities_updated': onboarding.OnboardingAccountCapabilitiesUpdated,
+  'onboarding.external_account_created': onboarding.OnboardingExternalAccountCreated,
+  'onboarding.external_account_updated': onboarding.OnboardingExternalAccountUpdated,
+  'onboarding.external_account_deleted': onboarding.OnboardingExternalAccountDeleted,
+  'onboarding.webhook_received': onboarding.OnboardingWebhookReceived,
+  'onboarding.webhook_processed': onboarding.OnboardingWebhookProcessed,
+  'onboarding.webhook_failed': onboarding.OnboardingWebhookFailed,
 
   // Payment
-  'payment.session_created': PaymentSessionCreated,
-  'payment.received': PaymentReceived,
-  'payment.succeeded': PaymentSucceeded,
-  'payment.failed': PaymentFailed,
-  'payment.canceled': PaymentCanceled,
-  'payment.refunded': PaymentRefunded,
+  'payment.session_created': payments.PaymentSessionCreated,
+  'payment.received': payments.PaymentReceived,
+  'payment.succeeded': payments.PaymentSucceeded,
+  'payment.failed': payments.PaymentFailed,
+  'payment.canceled': payments.PaymentCanceled,
+  'payment.refunded': payments.PaymentRefunded,
 
   // Intake Payment
-  'intake_payment.created': IntakePaymentCreated,
-  'intake_payment.succeeded': IntakePaymentSucceeded,
-  'intake_payment.failed': IntakePaymentFailed,
-  'intake_payment.canceled': IntakePaymentCanceled,
+  'intake_payment.created': payments.IntakePaymentCreated,
+  'intake_payment.succeeded': payments.IntakePaymentSucceeded,
+  'intake_payment.failed': payments.IntakePaymentFailed,
+  'intake_payment.canceled': payments.IntakePaymentCanceled,
 
   // Subscription
-  'subscription.created': SubscriptionCreated,
-  'subscription.updated': SubscriptionUpdated,
-  'subscription.cancelled': SubscriptionCancelled,
-  'subscription.renewed': SubscriptionRenewed,
-  'subscription.payment_failed': SubscriptionPaymentFailed,
+  'subscription.created': subscriptions.SubscriptionCreated,
+  'subscription.updated': subscriptions.SubscriptionUpdated,
+  'subscription.cancelled': subscriptions.SubscriptionCancelled,
+  'subscription.renewed': subscriptions.SubscriptionRenewed,
+  'subscription.payment_failed': subscriptions.SubscriptionPaymentFailed,
 
   // User Details
-  'user_details.created': UserDetailsCreated,
-  'user_details.updated': UserDetailsUpdated,
-  'user_details.deleted': UserDetailsDeleted,
-  'user_details.status_changed': UserDetailsStatusChanged,
-
+  'user_details.created': userDetails.UserDetailsCreated,
+  'user_details.updated': userDetails.UserDetailsUpdated,
+  'user_details.deleted': userDetails.UserDetailsDeleted,
+  'user_details.status_changed': userDetails.UserDetailsStatusChanged,
 
   // System
-  'system.health_check_performed': SystemHealthCheckPerformed,
-  'system.error_occurred': SystemErrorOccurred,
-  'system.performance_degraded': SystemPerformanceDegraded,
-  'session.created': SessionCreated,
-  'session.expired': SessionExpired,
-  'session.invalidated': SessionInvalidated,
+  'system.health_check_performed': system.SystemHealthCheckPerformed,
+  'system.error_occurred': system.SystemErrorOccurred,
+  'system.performance_degraded': system.SystemPerformanceDegraded,
+  'session.created': system.SessionCreated,
+  'session.expired': system.SessionExpired,
+  'session.invalidated': system.SessionInvalidated,
 
   // Matter
-  'matter.created': MatterCreated,
-  'matter.updated': MatterUpdated,
-  'matter.deleted': MatterDeleted,
-  'matter.status_changed': MatterStatusChanged,
+  'matter.created': matters.MatterCreated,
+  'matter.updated': matters.MatterUpdated,
+  'matter.deleted': matters.MatterDeleted,
+  'matter.status_changed': matters.MatterStatusChanged,
 
   // Invoice
-  'invoice.created': InvoiceCreated,
-  'invoice.updated': InvoiceUpdated,
-  'invoice.sent': InvoiceSent,
-  'invoice.paid': InvoicePaid,
-  'invoice.payment_failed': InvoicePaymentFailed,
-  'invoice.voided': InvoiceVoided,
-  'invoice.deleted': InvoiceDeleted,
+  'invoice.created': invoices.InvoiceCreated,
+  'invoice.updated': invoices.InvoiceUpdated,
+  'invoice.sent': invoices.InvoiceSent,
+  'invoice.paid': invoices.InvoicePaid,
+  'invoice.payment_failed': invoices.InvoicePaymentFailed,
+  'invoice.voided': invoices.InvoiceVoided,
+  'invoice.deleted': invoices.InvoiceDeleted,
 } as const;

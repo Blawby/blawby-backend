@@ -1,5 +1,5 @@
 import { getLogger } from '@logtape/logtape';
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 import type { InvoiceWithRelations } from '../types/invoices.types';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
@@ -21,13 +21,18 @@ export const stripeInvoicesService = {
     invoice: InvoiceWithRelations,
     stripeCustomerId: string,
   ): Promise<Result<Stripe.Invoice>> {
-    const stripeAccountId = invoice.connected_account_id;
+    const stripeAccountId = invoice.connectedAccount?.stripe_account_id;
+    if (!stripeAccountId) {
+      return result.badRequest('Missing Stripe account ID for connected account');
+    }
+
+    const createdItemIds: string[] = [];
 
     try {
       // 1. Create invoice items for each line item
       if (invoice.lineItems) {
         for (const item of invoice.lineItems) {
-          await stripe.invoiceItems.create({
+          const stripeItem = await stripe.invoiceItems.create({
             customer: stripeCustomerId,
             amount: item.line_total,
             currency: 'usd',
@@ -39,6 +44,7 @@ export const stripeInvoicesService = {
           }, {
             stripeAccount: stripeAccountId,
           });
+          createdItemIds.push(stripeItem.id);
         }
       }
 
@@ -62,17 +68,31 @@ export const stripeInvoicesService = {
 
       return result.ok(stripeInvoice);
     } catch (error) {
+      // 3. Cleanup on failure: delete created items
+      for (const itemId of createdItemIds) {
+        try {
+          await stripe.invoiceItems.del(itemId, {
+            stripeAccount: stripeAccountId,
+          });
+        } catch (cleanupError) {
+          logger.error('Failed to cleanup Stripe invoice item {itemId}: {error}', {
+            itemId,
+            error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error',
+          });
+        }
+      }
+
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to create Stripe invoice {invoiceId}: {error}', {
         invoiceId: invoice.id,
         error: message,
       });
-      return result.internalError(message);
+      return result.internalError('Failed to create Stripe invoice');
     }
   },
 
   /**
-   * Finalize and send a Stripe invoice
+   * Finalize and send a Stripe invoice with retry logic
    */
   async finalizeAndSendInvoice(
     stripeInvoiceId: string,
@@ -84,19 +104,40 @@ export const stripeInvoicesService = {
         stripeAccount: stripeAccountId,
       });
 
-      // Send the invoice email
-      const sent = await stripe.invoices.sendInvoice(stripeInvoiceId, {}, {
-        stripeAccount: stripeAccountId,
+      // Send the invoice email with retries
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const sent = await stripe.invoices.sendInvoice(stripeInvoiceId, {}, {
+            stripeAccount: stripeAccountId,
+          });
+          return result.ok(sent);
+        } catch (error) {
+          lastError = error;
+          const delay = Math.pow(2, attempt) * 500; // exponential backoff: 1s, 2s, 4s
+          logger.warn('Failed to send Stripe invoice {stripeInvoiceId}, attempt {attempt}/3. Retrying in {delay}ms...', {
+            stripeInvoiceId,
+            attempt,
+            delay,
+          });
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+
+      logger.error('Failed to send Stripe invoice {stripeInvoiceId} after 3 attempts: {error}', {
+        stripeInvoiceId,
+        error: lastError instanceof Error ? lastError.message : 'Unknown error',
       });
 
-      return result.ok(sent);
+      const errorMessage = lastError instanceof Error ? lastError.message : 'Unknown error';
+      return result.internalError(`Invoice finalized but failed to send: ${errorMessage}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to finalize/send Stripe invoice {stripeInvoiceId}: {error}', {
         stripeInvoiceId,
         error: message,
       });
-      return result.internalError(message);
+      return result.internalError('Failed to finalize or send Stripe invoice');
     }
   },
 
@@ -118,7 +159,7 @@ export const stripeInvoicesService = {
         stripeInvoiceId,
         error: message,
       });
-      return result.internalError(message);
+      return result.internalError('Failed to void Stripe invoice');
     }
   },
 
@@ -140,7 +181,7 @@ export const stripeInvoicesService = {
         stripeInvoiceId,
         error: message,
       });
-      return result.internalError(message);
+      return result.internalError('Failed to delete draft Stripe invoice');
     }
   },
 
@@ -162,7 +203,7 @@ export const stripeInvoicesService = {
         stripeInvoiceId,
         error: message,
       });
-      return result.internalError(message);
+      return result.internalError('Failed to retrieve Stripe invoice');
     }
   },
 };

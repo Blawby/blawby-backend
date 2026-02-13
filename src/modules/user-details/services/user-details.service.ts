@@ -152,6 +152,70 @@ const createUserDetails = async (
 };
 
 
+/**
+ * Ensures a client is fully set up (Stripe customer created, events dispatched).
+ * Can be called asynchronously (voided) to avoid blocking main processes.
+ */
+const ensureClientSetup = async (
+  id: string,
+  organizationId: string,
+  actorId: string,
+): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect }>> => {
+  try {
+    const detail = await userDetailsRepository.findById(id);
+    if (!detail || detail.organization_id !== organizationId) {
+      return notFound('Client details not found');
+    }
+
+    const user = await usersRepository.findById(detail.user_id);
+    if (!user) return notFound('User not found');
+
+    // 1. Create Stripe customer if missing
+    if (!detail.stripe_customer_id) {
+      const connectedAccount = await onboardingRepository.findByOrganizationId(organizationId);
+      if (connectedAccount?.stripe_account_id) {
+        try {
+          const stripeCustomer = await stripe.customers.create({
+            email: user.email,
+            name: user.name,
+            phone: user.phone || undefined,
+            metadata: {
+              organization_id: organizationId,
+              source: 'auto_vivification_sync',
+            },
+          }, {
+            stripeAccount: connectedAccount.stripe_account_id,
+          });
+
+          await userDetailsRepository.update(id, {
+            stripe_customer_id: stripeCustomer.id,
+          });
+          detail.stripe_customer_id = stripeCustomer.id;
+        } catch (stripeError) {
+          logger.error('Failed to create background Stripe customer for {id}: {error}', {
+            id, error: stripeError,
+          });
+        }
+      }
+    }
+
+    // 2. Publish event if it hasn't been handled yet (minimal check)
+    void UserDetailsCreated.dispatch({
+      user_detail_id: detail.id,
+      user_id: user.id,
+      name: user.name,
+      email: user.email,
+      stripe_customer_id: detail.stripe_customer_id ?? undefined,
+    }, { actorId, organizationId });
+
+    return ok({ ...detail, user });
+  } catch (error) {
+    logger.error('Failed to ensure client setup for {id}: {error}', { id, error });
+    return internalError('Failed to complete client setup');
+  }
+};
+
+
 const updateUserDetails = async (
   id: string,
   organizationId: string,
@@ -490,4 +554,5 @@ export const userDetailsService = {
   getUserDetail,
   deleteUserDetail,
   createUserDetailsFromIntake,
+  ensureClientSetup,
 };

@@ -1,29 +1,32 @@
+import { BuildQueryResult, ExtractTablesWithRelations } from 'drizzle-orm';
 import { z } from 'zod';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import type { SelectInvoiceLineItem } from '@/modules/invoices/database/schema/invoice-line-items.schema';
 import type { SelectInvoice } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectPaymentLink } from '@/modules/invoices/database/schema/payment-links.schema';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
-import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
+import * as schema from '@/schema';
+
+type Schema = ExtractTablesWithRelations<typeof schema>;
 
 /**
  * Invoice with line items and relations
+ * Matches findInvoiceById result structure
  */
-export type InvoiceWithRelations = SelectInvoice & {
-  lineItems?: SelectInvoiceLineItem[];
-  client?: {
-    id: string;
-    status: string;
-    stripe_customer_id: string | null;
-    user: {
-      id: string;
-      name: string;
-      email: string;
-      image: string | null;
+export type InvoiceWithRelations = BuildQueryResult<
+  Schema,
+  Schema['invoices'],
+  {
+    with: {
+      lineItems: true;
+      client: {
+        with: { user: true };
+      };
+      matter: true;
+      connectedAccount: true;
     };
-  };
-  matter?: SelectMatter | null; // Matter relations
-};
+  }
+>;
 
 /**
  * Invoice list response

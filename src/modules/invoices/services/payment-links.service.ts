@@ -1,5 +1,5 @@
 import { getLogger } from '@logtape/logtape';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 
 import { paymentLinks, type SelectPaymentLink, type InsertPaymentLink } from '@/modules/invoices/database/schema/payment-links.schema';
@@ -9,6 +9,8 @@ import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['invoices', 'payment-links']);
+
+const PAYMENT_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /**
  * Payment Links Service
@@ -29,6 +31,7 @@ export const paymentLinksService = {
         where: and(
           eq(paymentLinks.invoice_id, invoiceId),
           eq(paymentLinks.status, 'active'),
+          sql`${paymentLinks.expires_at} > now()`,
         ),
       });
 
@@ -44,17 +47,19 @@ export const paymentLinksService = {
         .join('');
 
       // 4. Create record
+      const insertData: InsertPaymentLink = {
+        organization_id: organizationId,
+        invoice_id: invoiceId,
+        token,
+        amount: invoice.total,
+        currency: 'usd',
+        status: 'active',
+        expires_at: new Date(Date.now() + PAYMENT_LINK_TTL_MS),
+      };
+
       const [link] = await db
         .insert(paymentLinks)
-        .values({
-          organization_id: organizationId,
-          invoice_id: invoiceId,
-          token,
-          amount: invoice.total,
-          currency: 'usd',
-          status: 'active',
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        } as InsertPaymentLink)
+        .values(insertData)
         .returning();
 
       return result.ok(link);
@@ -64,14 +69,14 @@ export const paymentLinksService = {
         invoiceId,
         error: message,
       });
-      return result.internalError(message);
+      return result.internalError('Failed to create payment link');
     }
   },
 
   /**
    * Find invoice by payment token (Public)
    */
-  async getInvoiceByToken(token: string): Promise<Result<any>> {
+  async getInvoiceByToken(token: string): Promise<Result<unknown>> {
     try {
       const link = await db.query.paymentLinks.findFirst({
         where: and(
@@ -108,7 +113,8 @@ export const paymentLinksService = {
       return result.ok(link.invoice);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      return result.internalError(message);
+      logger.error('Failed to get invoice by token: {error}', { error: message });
+      return result.internalError('Failed to retrieve invoice');
     }
   },
 
