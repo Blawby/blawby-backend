@@ -1,4 +1,6 @@
 import type { SelectInvoice } from '@/modules/invoices/database/schema/invoices.schema';
+import type { Result } from '@/shared/types/result';
+import { ok, badRequest } from '@/shared/utils/result';
 
 export type FundDestination = 'operating' | 'trust';
 
@@ -12,12 +14,13 @@ export const isValidFundDestination = (value: unknown): value is FundDestination
   return typeof value === 'string' && VALID_FUND_DESTINATIONS.includes(value as FundDestination);
 };
 
-export const validateFundDestination = (value: unknown, invoiceId: string): FundDestination => {
+export const validateFundDestination = (value: unknown, invoiceId: string): Result<FundDestination> => {
   if (isValidFundDestination(value)) {
-    return value;
+    return ok(value);
   }
-  throw new Error(
+  return badRequest(
     `Invalid fund_destination '${String(value)}' on invoice ${invoiceId}. Expected one of: ${VALID_FUND_DESTINATIONS.join(', ')}`,
+    'INVALID_FUND_DESTINATION',
   );
 };
 
@@ -32,7 +35,7 @@ export interface TransferInstruction {
     invoice_id: string;
     invoice_number: string;
     invoice_type: string;
-    fund_destination: 'operating' | 'trust';
+    fund_destination: FundDestination;
     matter_id: string;
   };
   /** Whether to hold funds for client approval (escrow) */
@@ -61,27 +64,37 @@ export class FundRouterService {
    *
    * @param invoice - The invoice that was paid
    * @param connectedAccountId - Practice's Stripe connected account ID
-   * @returns Transfer instruction with routing metadata
+   * @returns Result with transfer instruction or failure
    */
-  async routePayment(
+  routePayment(
     invoice: SelectInvoice,
     connectedAccountId: string,
-  ): Promise<TransferInstruction> {
-    const validatedDestination = validateFundDestination(invoice.fund_destination, invoice.id);
+  ): Result<TransferInstruction> {
+    const destinationResult = validateFundDestination(invoice.fund_destination, invoice.id);
+    if (!destinationResult.success) {
+      return destinationResult;
+    }
+
+    if (!invoice.matter_id) {
+      return badRequest(
+        `Missing matter_id on invoice ${invoice.id}. Fund routing requires a matter association.`,
+        'MISSING_MATTER_ID',
+      );
+    }
 
     const baseMetadata = {
       invoice_id: invoice.id,
       invoice_number: invoice.invoice_number,
       invoice_type: invoice.invoice_type,
-      fund_destination: validatedDestination,
-      matter_id: invoice.matter_id || '',
+      fund_destination: destinationResult.data,
+      matter_id: invoice.matter_id,
     };
 
     switch (invoice.invoice_type) {
       case 'flat_fee':
       case 'phase_fee':
         // Earned upon receipt — transfer immediately to operating
-        return {
+        return ok({
           destination: connectedAccountId,
           metadata: {
             ...baseMetadata,
@@ -90,12 +103,12 @@ export class FundRouterService {
           holdForApproval: false,
           escrowStatus: 'none',
           updateRetainerBalance: false,
-        };
+        });
 
       case 'retainer_deposit':
         // Client money — transfer to Practice trust account
         // Platform does NOT manage trust accounting; Practice does
-        return {
+        return ok({
           destination: connectedAccountId,
           metadata: {
             ...baseMetadata,
@@ -107,10 +120,13 @@ export class FundRouterService {
           // The metadata flag tells Practice this is a trust deposit.
           escrowStatus: 'none',
           updateRetainerBalance: true,
-        };
+        });
 
       default:
-        throw new Error(`Unknown invoice type: ${invoice.invoice_type}`);
+        return badRequest(
+          `Unknown invoice type: ${invoice.invoice_type}`,
+          'UNKNOWN_INVOICE_TYPE',
+        );
     }
   }
 

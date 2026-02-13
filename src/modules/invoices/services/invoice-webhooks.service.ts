@@ -59,10 +59,20 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
       }
 
       // 1. Determine fund routing based on invoice type
-      const routingInstruction = await fundRouterService.routePayment(
+      const routingResult = fundRouterService.routePayment(
         invoice,
         destinationAccountId,
       );
+
+      if (!routingResult.success) {
+        logger.warn('Fund routing failed for invoice {invoiceId}: {error}', {
+          invoiceId: invoice.id,
+          error: routingResult.error.message,
+        });
+        return;
+      }
+
+      const routingInstruction = routingResult.data;
 
       // 2. Create Stripe transfer with fund routing metadata
       // Note: Legal billing doesn't use escrow - all transfers are immediate
