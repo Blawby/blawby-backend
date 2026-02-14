@@ -77,7 +77,7 @@ export const deleteInvoiceHandler: AppRouteHandler<typeof deleteInvoiceRoute> = 
     requestHeaders,
   );
 
-  return response.fromResult(c, result, 204);
+  return response.fromResult(c, result);
 };
 
 export const sendInvoiceHandler: AppRouteHandler<typeof sendInvoiceRoute> = async (c) => {

@@ -30,7 +30,10 @@ const reorderMilestonesSchema = z.object({
 
 const matterMilestoneIdParamSchema = z.object({
   id: uuidValidator,
-  milestoneId: uuidValidator,
+  milestone_id: uuidValidator.openapi({
+    param: { name: 'milestone_id', in: 'path' },
+    description: 'Milestone ID (UUID)',
+  }),
 });
 
 const listMilestonesQuerySchema = z.object({

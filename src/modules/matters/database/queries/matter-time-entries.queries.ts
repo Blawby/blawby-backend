@@ -6,6 +6,7 @@ import {
   type InsertMatterTimeEntry,
   type SelectMatterTimeEntry,
 } from '@/modules/matters/database/schema/matter-time-entries.schema';
+import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
 
 // Create matter time entry
@@ -34,17 +35,12 @@ const findMatterTimeEntryById = async (
 // List matter time entries
 const listMatterTimeEntries = async (
   matterId: string,
-  filters?: {
-    billable?: boolean;
-    startDate?: Date;
-    endDate?: Date;
-    entry_id?: string;
-  },
+  filters?: MatterTimeEntryListFilters,
 ): Promise<SelectMatterTimeEntry[]> => {
   const conditions = [eq(matterTimeEntries.matter_id, matterId)];
 
-  if (filters?.entry_id) {
-    conditions.push(eq(matterTimeEntries.id, filters.entry_id));
+  if (filters?.entryId) {
+    conditions.push(eq(matterTimeEntries.id, filters.entryId));
   }
 
   if (filters?.billable !== undefined) {

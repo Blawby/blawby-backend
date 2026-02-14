@@ -3,6 +3,7 @@ import { matterNotesQueries } from '@/modules/matters/database/queries/matter-no
 import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-notes.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterNoteListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterNoteRequest,
   UpdateMatterNoteRequest,
@@ -64,9 +65,7 @@ const listMatterNotes = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-  filters?: {
-    note_id?: string;
-  },
+  filters?: MatterNoteListFilters,
 ): Promise<Result<SelectMatterNote[]>> => {
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
@@ -75,6 +74,13 @@ const listMatterNotes = async (
   }
 
   try {
+    // Short-circuit: direct lookup when a specific note ID is provided
+    if (filters?.noteId) {
+      const note = await matterNotesQueries.findMatterNoteById(filters.noteId);
+      if (!note || note.matter_id !== matterId) return ok([]);
+      return ok([note]);
+    }
+
     const notes = await matterNotesQueries.listMatterNotes(matterId, filters);
     return ok(notes);
   } catch (error) {

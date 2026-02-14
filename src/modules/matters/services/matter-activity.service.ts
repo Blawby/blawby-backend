@@ -11,6 +11,7 @@ import {
   matterActivityLog,
   type SelectMatterActivityLog,
 } from '@/modules/matters/database/schema/matter-activity-log.schema';
+import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
@@ -49,25 +50,26 @@ const logMatterActivity = async (
  */
 const getMatterActivity = async (
   matterId: string,
-  options?: {
-    limit?: number;
-    offset?: number;
-    activity_id?: string;
-  },
+  options?: MatterActivityListFilters,
 ): Promise<Result<SelectMatterActivityLog[]>> => {
   const limit = options?.limit || 50;
   const offset = options?.offset || 0;
 
   try {
-    const conditions = [eq(matterActivityLog.matter_id, matterId)];
-    if (options?.activity_id) {
-      conditions.push(eq(matterActivityLog.id, options.activity_id));
+    // Short-circuit: direct lookup when a specific activity ID is provided
+    if (options?.activityId) {
+      const [activity] = await db
+        .select()
+        .from(matterActivityLog)
+        .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, options.activityId)))
+        .limit(1);
+      return ok(activity ? [activity] : []);
     }
 
     const activity = await db
       .select()
       .from(matterActivityLog)
-      .where(and(...conditions))
+      .where(eq(matterActivityLog.matter_id, matterId))
       .orderBy(desc(matterActivityLog.created_at))
       .limit(limit)
       .offset(offset);

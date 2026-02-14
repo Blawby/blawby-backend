@@ -1,5 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { createMemoSchema, updateMemoSchema, memoParamsSchema } from '@/modules/user-details/validations/client-memos.validation';
+import { createMemoSchema, updateMemoSchema, memoParamsSchema, clientMemoSchema } from '@/modules/user-details/validations/client-memos.validation';
 import {
   updateUserDetailsSchema, listUserDetailsSchema,
   userDetailParamsSchema, practiceParamsSchema, userDetailSchema,
@@ -79,7 +79,7 @@ export const listUserDetailsMemosRoute = createRoute({
   description: 'Get all memos for a user detail',
   request: { params: userDetailParamsSchema },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ data: z.array(z.any()) }) } }, description: 'Memos retrieved' },
+    200: { content: { 'application/json': { schema: z.object({ data: z.array(clientMemoSchema) }) } }, description: 'Memos retrieved' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
   },
 });
@@ -95,27 +95,27 @@ export const createUserDetailMemoRoute = createRoute({
     body: { content: { 'application/json': { schema: createMemoSchema } } },
   },
   responses: {
-    201: { content: { 'application/json': { schema: z.object({ data: z.any() }) } }, description: 'Memo created' },
+    201: { content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } }, description: 'Memo created' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
   },
 });
 
 export const updateUserDetailsMemoRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/memos/update/{memoId}',
+  path: '/{practice_id}/{id}/memos/update/{memo_id}',
   tags: ['UserDetails: Memos'],
   summary: 'Update user detail memo',
   description: 'Update a specific memo content',
   request: { params: memoParamsSchema, body: { content: { 'application/json': { schema: updateMemoSchema } } } },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ data: z.any() }) } }, description: 'Memo updated' },
+    200: { content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } }, description: 'Memo updated' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Memo or User detail not found' },
   },
 });
 
 export const deleteUserDetailsMemoRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/memos/delete/{memoId}',
+  path: '/{practice_id}/{id}/memos/delete/{memo_id}',
   tags: ['UserDetails: Memos'],
   summary: 'Delete user detail memo',
   description: 'Delete a specific memo',

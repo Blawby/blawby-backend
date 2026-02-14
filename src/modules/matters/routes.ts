@@ -14,32 +14,32 @@ import {
 // [REMOVED Practice Areas routes - Services are fetched from practice-details]
 
 const matterNoteParamsSchema = matterIdParamSchema.extend({
-  noteId: z.uuid().openapi({
-    param: { name: 'noteId', in: 'path' },
+  note_id: z.uuid().openapi({
+    param: { name: 'note_id', in: 'path' },
     description: 'Note ID (UUID)',
     example: '9b9a7f35-9f0e-4a2d-9e8b-5a8d71fa2f11',
   }),
 });
 
 const matterTimeEntryParamsSchema = matterIdParamSchema.extend({
-  entryId: z.uuid().openapi({
-    param: { name: 'entryId', in: 'path' },
+  entry_id: z.uuid().openapi({
+    param: { name: 'entry_id', in: 'path' },
     description: 'Time entry ID (UUID)',
     example: 'db4f6797-2bb8-4ed8-9d38-9c07f40d4b0d',
   }),
 });
 
 const matterExpenseParamsSchema = matterIdParamSchema.extend({
-  expenseId: z.uuid().openapi({
-    param: { name: 'expenseId', in: 'path' },
+  expense_id: z.uuid().openapi({
+    param: { name: 'expense_id', in: 'path' },
     description: 'Expense ID (UUID)',
     example: '5e0a120a-87ac-4e61-90ab-38d91bf6cc8d',
   }),
 });
 
 const matterMilestoneParamsSchema = matterIdParamSchema.extend({
-  milestoneId: z.uuid().openapi({
-    param: { name: 'milestoneId', in: 'path' },
+  milestone_id: z.uuid().openapi({
+    param: { name: 'milestone_id', in: 'path' },
     description: 'Milestone ID (UUID)',
     example: '9a33c3d5-0c6b-43a4-9b46-7a0d80d1e6b4',
   }),
@@ -183,7 +183,7 @@ export const createMatterNoteRoute = createRoute({
 
 export const updateMatterNoteRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/notes/update/{noteId}',
+  path: '/{practice_id}/{id}/notes/update/{note_id}',
   tags: ['Matters: Notes'],
   summary: 'Update note',
   description: 'Update a note for a matter',
@@ -199,7 +199,7 @@ export const updateMatterNoteRoute = createRoute({
 
 export const deleteMatterNoteRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/notes/delete/{noteId}',
+  path: '/{practice_id}/{id}/notes/delete/{note_id}',
   tags: ['Matters: Notes'],
   summary: 'Delete note',
   description: 'Delete a note for a matter',
@@ -250,7 +250,7 @@ export const createTimeEntryRoute = createRoute({
 
 export const updateTimeEntryRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/time-entries/update/{entryId}',
+  path: '/{practice_id}/{id}/time-entries/update/{entry_id}',
   tags: ['Matters: Time Entries'],
   summary: 'Update time entry',
   description: 'Update a time entry for a matter',
@@ -266,7 +266,7 @@ export const updateTimeEntryRoute = createRoute({
 
 export const deleteTimeEntryRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/time-entries/delete/{entryId}',
+  path: '/{practice_id}/{id}/time-entries/delete/{entry_id}',
   tags: ['Matters: Time Entries'],
   summary: 'Delete time entry',
   description: 'Delete a time entry for a matter',
@@ -341,7 +341,7 @@ export const createExpenseRoute = createRoute({
 
 export const updateExpenseRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/expenses/update/{expenseId}',
+  path: '/{practice_id}/{id}/expenses/update/{expense_id}',
   tags: ['Matters: Expenses'],
   summary: 'Update expense',
   description: 'Update an expense for a matter',
@@ -357,7 +357,7 @@ export const updateExpenseRoute = createRoute({
 
 export const deleteExpenseRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/expenses/delete/{expenseId}',
+  path: '/{practice_id}/{id}/expenses/delete/{expense_id}',
   tags: ['Matters: Expenses'],
   summary: 'Delete expense',
   description: 'Delete an expense for a matter',
@@ -408,7 +408,7 @@ export const createMilestoneRoute = createRoute({
 
 export const updateMilestoneRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/milestones/update/{milestoneId}',
+  path: '/{practice_id}/{id}/milestones/update/{milestone_id}',
   tags: ['Matters: Milestones'],
   summary: 'Update milestone',
   description: 'Update a milestone for a matter',
@@ -424,7 +424,7 @@ export const updateMilestoneRoute = createRoute({
 
 export const deleteMilestoneRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/milestones/delete/{milestoneId}',
+  path: '/{practice_id}/{id}/milestones/delete/{milestone_id}',
   tags: ['Matters: Milestones'],
   summary: 'Delete milestone',
   description: 'Delete a milestone for a matter',
