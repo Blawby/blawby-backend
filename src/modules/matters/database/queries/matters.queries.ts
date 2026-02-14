@@ -24,8 +24,10 @@ const createMatter = async (
 // Find matter by ID (excluding soft deleted)
 const findMatterById = async (
   id: string,
+  tx?: typeof db,
 ): Promise<SelectMatter | undefined> => {
-  const [matter] = await db
+  const client = tx || db;
+  const [matter] = await client
     .select()
     .from(matters)
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -36,8 +38,9 @@ const findMatterById = async (
 /**
  * Find matter by ID with relations (optimized)
  */
-const findMatterByIdWithRelations = async (id: string) => {
-  return await db.query.matters.findFirst({
+const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => {
+  const client = tx || db;
+  return await client.query.matters.findFirst({
     where: and(eq(matters.id, id), isNull(matters.deleted_at)),
     with: {
       assignees: {
@@ -63,8 +66,10 @@ const findMatterByIdWithRelations = async (id: string) => {
 // Find matter by ID (including soft deleted)
 const findMatterByIdWithDeleted = async (
   id: string,
+  tx?: typeof db,
 ): Promise<SelectMatter | undefined> => {
-  const [matter] = await db
+  const client = tx || db;
+  const [matter] = await client
     .select()
     .from(matters)
     .where(eq(matters.id, id))
@@ -135,6 +140,7 @@ const listMattersByOrganization = async (
         admin_hourly_rate: matters.admin_hourly_rate,
         attorney_hourly_rate: matters.attorney_hourly_rate,
         payment_frequency: matters.payment_frequency,
+        retainer_balance: matters.retainer_balance,
         status: matters.status,
         urgency: matters.urgency,
         responsible_attorney_id: matters.responsible_attorney_id,
@@ -318,6 +324,24 @@ const clearMatterAssignees = async (
   await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
 
+/**
+ * Update matter retainer balance
+ */
+const updateRetainerBalance = async (
+  matterId: string,
+  newBalance: number,
+  tx?: typeof db,
+): Promise<void> => {
+  const client = tx || db;
+  await client
+    .update(matters)
+    .set({
+      retainer_balance: newBalance,
+      updated_at: new Date(),
+    })
+    .where(eq(matters.id, matterId));
+};
+
 export const mattersQueries = {
   createMatter,
   findMatterById,
@@ -332,4 +356,5 @@ export const mattersQueries = {
   removeMatterAssignees,
   getMatterAssignees,
   clearMatterAssignees,
+  updateRetainerBalance,
 };

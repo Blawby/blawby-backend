@@ -1,0 +1,125 @@
+import {
+  and, or, eq, isNull,
+} from 'drizzle-orm';
+import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
+import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
+import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { userDetailsService } from '@/modules/user-details/services/user-details.service';
+import { members, users } from '@/schema/better-auth-schema';
+import { db } from '@/shared/database';
+import type { Result } from '@/shared/types/result';
+import { result } from '@/shared/utils/result';
+
+/**
+ * Resolved client data with all necessary relations for invoice creation
+ */
+export type ResolvedClientForInvoice = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  status: string;
+  organization_id: string;
+  connectedAccount: StripeConnectedAccount | null;
+  matters: SelectMatter[];
+};
+
+/**
+ * Resolves a client for invoice creation
+ * Validates client exists and pre-loads connected account and matters
+ */
+export const resolveClientForInvoice = async (
+  organizationId: string,
+  clientId: string,
+  connectedAccountId: string,
+): Promise<Result<ResolvedClientForInvoice>> => {
+  // 1. Try to find existing user_details by ID or UserID
+  let clientDetails = await db.query.userDetails.findFirst({
+    where: and(
+      or(
+        eq(userDetails.id, clientId),
+        eq(userDetails.user_id, clientId),
+      ),
+      eq(userDetails.organization_id, organizationId),
+      isNull(userDetails.deleted_at),
+    ),
+    with: {
+      user: true,
+      organization: {
+        with: {
+          stripeConnectedAccounts: {
+            where: (acc, { eq: eqOp }) => eqOp(acc.stripe_account_id, connectedAccountId),
+          },
+        },
+      },
+      matters: true,
+    },
+  });
+
+  // 2. Auto-vivify if missing but user is a member
+  if (!clientDetails) {
+    const [memberMatch] = await db
+      .select({
+        user: users,
+        organizationId: members.organizationId,
+      })
+      .from(users)
+      .innerJoin(members, and(
+        eq(users.id, members.userId),
+        eq(members.organizationId, organizationId),
+      ))
+      .where(eq(users.id, clientId))
+      .limit(1);
+
+    if (memberMatch) {
+      // Minimal DB-only insert to get the ID required for Foreign Key
+      const [newDetail] = await db.insert(userDetails).values({
+        organization_id: organizationId,
+        user_id: memberMatch.user.id,
+        status: 'active',
+      }).returning();
+
+      // Fire-and-forget background processing for Stripe and events
+      void userDetailsService.ensureClientSetup(newDetail.id, organizationId, 'system');
+
+      // Re-fetch to populate relations for the remainder of the process
+      clientDetails = await db.query.userDetails.findFirst({
+        where: eq(userDetails.id, newDetail.id),
+        with: {
+          user: true,
+          organization: {
+            with: {
+              stripeConnectedAccounts: {
+                where: (acc, { eq: eqOp }) => eqOp(acc.stripe_account_id, connectedAccountId),
+              },
+            },
+          },
+          matters: true,
+        },
+      });
+    }
+  }
+
+  if (!clientDetails) {
+    return result.notFound('Client not found or does not belong to this organization');
+  }
+
+  // Extract connected account
+  const connectedAccount = clientDetails.organization?.stripeConnectedAccounts?.[0] ?? null;
+
+  // Return normalized result
+  return result.ok({
+    id: clientDetails.id,
+    user_id: clientDetails.user_id,
+    name: clientDetails.user?.name ?? '',
+    email: clientDetails.user?.email ?? '',
+    status: clientDetails.status,
+    organization_id: clientDetails.organization_id,
+    connectedAccount,
+    matters: clientDetails.matters ?? [],
+  });
+};
+
+export const invoiceClientResolver = {
+  resolveClientForInvoice,
+};

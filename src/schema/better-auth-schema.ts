@@ -10,6 +10,7 @@ import {
   bigint,
   unique,
 } from 'drizzle-orm/pg-core';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -182,6 +183,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   members: many(members),
   invitations: many(invitations),
+  stripeConnectedAccounts: many(stripeConnectedAccounts),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
