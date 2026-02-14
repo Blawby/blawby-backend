@@ -187,32 +187,6 @@ const createInvoice = async (
   }
 };
 
-/**
- * Get invoice by ID
- */
-const getInvoiceById = async (
-  organizationId: string,
-  invoiceId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
-  if (!orgResult.success) return orgResult;
-
-  try {
-    const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
-    if (!invoice) return result.notFound('Invoice not found');
-
-    return result.ok(transformInvoiceResponse(invoice));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get invoice {invoiceId}: {error}', {
-      invoiceId,
-      error: message,
-    });
-    return result.internalError('Failed to retrieve invoice');
-  }
-};
 
 /**
  * List invoices
@@ -566,7 +540,6 @@ const voidInvoice = async (
 
 export const invoicesService = {
   createInvoice,
-  getInvoiceById,
   listInvoices,
   updateInvoice,
   deleteInvoice,

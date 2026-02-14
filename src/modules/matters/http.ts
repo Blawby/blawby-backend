@@ -7,7 +7,7 @@ const mattersApp = createHonoApp();
 
 // ==================== MATTERS ====================
 mattersApp.openapi(routes.createMatterRoute, handlers.createMatterHandler);
-mattersApp.openapi(routes.getMatterRoute, handlers.getMatterHandler);
+mattersApp.openapi(routes.getMattersRoute, handlers.getMattersHandler);
 mattersApp.openapi(routes.updateMatterRoute, handlers.updateMatterHandler);
 mattersApp.openapi(routes.deleteMatterRoute, handlers.deleteMatterHandler);
 mattersApp.openapi(routes.getMatterActivityRoute, handlers.getMatterActivityHandler);

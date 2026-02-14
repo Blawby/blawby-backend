@@ -29,8 +29,12 @@ const reorderMilestonesSchema = z.object({
 });
 
 const matterMilestoneIdParamSchema = z.object({
-  uuid: uuidValidator,
+  id: uuidValidator,
   milestoneId: uuidValidator,
+});
+
+const listMilestonesQuerySchema = z.object({
+  milestone_uuid: uuidValidator.optional(),
 });
 
 const milestoneSchema = z.object({
@@ -51,5 +55,6 @@ export const matterMilestoneValidations = {
   updateMatterMilestoneSchema,
   reorderMilestonesSchema,
   matterMilestoneIdParamSchema,
+  listMilestonesQuerySchema,
   milestoneSchema,
 };

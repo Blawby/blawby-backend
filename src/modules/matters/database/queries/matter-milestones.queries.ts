@@ -1,4 +1,4 @@
-import { eq, sql, asc } from 'drizzle-orm';
+import { eq, sql, asc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
@@ -48,11 +48,17 @@ const findMatterMilestoneById = async (
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
+  milestoneId?: string,
 ): Promise<SelectMatterMilestone[]> => {
+  const conditions = [eq(matterMilestones.matter_id, matterId)];
+  if (milestoneId) {
+    conditions.push(eq(matterMilestones.id, milestoneId));
+  }
+
   return await db
     .select()
     .from(matterMilestones)
-    .where(eq(matterMilestones.matter_id, matterId))
+    .where(and(...conditions))
     .orderBy(asc(matterMilestones.order), asc(matterMilestones.due_date));
 };
 

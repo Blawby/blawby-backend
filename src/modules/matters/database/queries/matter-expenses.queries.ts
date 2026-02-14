@@ -36,22 +36,27 @@ const listMatterExpenses = async (
   matterId: string,
   filters?: {
     billable?: boolean;
-    startDate?: string;
-    endDate?: string;
+    startDate?: Date;
+    endDate?: Date;
+    expense_uuid?: string;
   },
 ): Promise<SelectMatterExpense[]> => {
   const conditions = [eq(matterExpenses.matter_id, matterId)];
+
+  if (filters?.expense_uuid) {
+    conditions.push(eq(matterExpenses.id, filters.expense_uuid));
+  }
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterExpenses.billable, filters.billable));
   }
 
   if (filters?.startDate) {
-    conditions.push(gte(matterExpenses.date, filters.startDate));
+    conditions.push(gte(matterExpenses.date, filters.startDate.toISOString().split('T')[0]));
   }
 
   if (filters?.endDate) {
-    conditions.push(lte(matterExpenses.date, filters.endDate));
+    conditions.push(lte(matterExpenses.date, filters.endDate.toISOString().split('T')[0]));
   }
 
   return await db

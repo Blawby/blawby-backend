@@ -73,8 +73,8 @@ export const getMattersRoute = createRoute({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Matters: General'],
-  summary: 'List matters',
-  description: 'Get all matters for a practice',
+  summary: 'List matters or get by ID',
+  description: 'Get all matters for a practice. Use the `matter_uuid` query parameter to retrieve a specific matter.',
   request: {
     params: practiceIdParamSchema,
     query: matterValidations.listMattersQuerySchema,
@@ -98,23 +98,6 @@ export const getMattersRoute = createRoute({
   },
 });
 
-export const getMatterRoute = createRoute({
-  method: 'get',
-  path: '/{practice_id}/{id}',
-  tags: ['Matters: General'],
-  summary: 'Get matter by ID',
-  description: 'Get a single matter by its ID',
-  request: {
-    params: matterIdParamSchema,
-  },
-  responses: {
-    200: {
-      content: { 'application/json': { schema: z.object({ matter: matterValidations.matterSchema }) } },
-      description: 'Matter retrieved successfully',
-    },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Matter not found' },
-  },
-});
 
 export const updateMatterRoute = createRoute({
   method: 'patch',
@@ -172,9 +155,12 @@ export const listMatterNotesRoute = createRoute({
   method: 'get',
   path: '/{practice_id}/{id}/notes',
   tags: ['Matters: Notes'],
-  summary: 'List notes',
-  description: 'Get all notes for a matter',
-  request: { params: matterIdParamSchema },
+  summary: 'List notes or get by ID',
+  description: 'Get all notes for a matter. Use the `note_uuid` query parameter to retrieve a specific note.',
+  request: {
+    params: matterIdParamSchema,
+    query: matterNoteValidations.listMatterNotesQuerySchema,
+  },
   responses: {
     200: { content: { 'application/json': { schema: z.object({ notes: z.array(matterNoteValidations.matterNoteSchema) }) } }, description: 'Notes retrieved' },
   },
@@ -230,9 +216,12 @@ export const listTimeEntriesRoute = createRoute({
   method: 'get',
   path: '/{practice_id}/{id}/time-entries',
   tags: ['Matters: Time Entries'],
-  summary: 'List time entries',
-  description: 'Get all time entries for a matter',
-  request: { params: matterIdParamSchema },
+  summary: 'List time entries or get by ID',
+  description: 'Get all time entries for a matter. Use the `entry_uuid` query parameter to retrieve a specific entry.',
+  request: {
+    params: matterIdParamSchema,
+    query: matterTimeEntryValidations.listTimeEntriesQuerySchema,
+  },
   responses: {
     200: { content: { 'application/json': { schema: z.object({ timeEntries: z.array(matterTimeEntryValidations.timeEntrySchema) }) } }, description: 'Time entries retrieved' },
   },
@@ -318,9 +307,12 @@ export const listExpensesRoute = createRoute({
   method: 'get',
   path: '/{practice_id}/{id}/expenses',
   tags: ['Matters: Expenses'],
-  summary: 'List expenses',
-  description: 'Get all expenses for a matter',
-  request: { params: matterIdParamSchema },
+  summary: 'List expenses or get by ID',
+  description: 'Get all expenses for a matter. Use the `expense_uuid` query parameter to retrieve a specific expense.',
+  request: {
+    params: matterIdParamSchema,
+    query: matterExpenseValidations.listExpensesQuerySchema,
+  },
   responses: {
     200: { content: { 'application/json': { schema: z.object({ expenses: z.array(matterExpenseValidations.expenseSchema) }) } }, description: 'Expenses retrieved' },
   },
@@ -382,9 +374,12 @@ export const listMilestonesRoute = createRoute({
   method: 'get',
   path: '/{practice_id}/{id}/milestones',
   tags: ['Matters: Milestones'],
-  summary: 'List milestones',
-  description: 'Get all milestones for a matter',
-  request: { params: matterIdParamSchema },
+  summary: 'List milestones or get by ID',
+  description: 'Get all milestones for a matter. Use the `milestone_uuid` query parameter to retrieve a specific milestone.',
+  request: {
+    params: matterIdParamSchema,
+    query: matterMilestoneValidations.listMilestonesQuerySchema,
+  },
   responses: {
     200: { content: { 'application/json': { schema: z.object({ milestones: z.array(matterMilestoneValidations.milestoneSchema) }) } }, description: 'Milestones retrieved' },
   },
@@ -467,9 +462,12 @@ export const getMatterActivityRoute = createRoute({
   method: 'get',
   path: '/{practice_id}/{id}/activity',
   tags: ['Matters: General'],
-  summary: 'Get activity log',
-  description: 'Get the activity log for a matter',
-  request: { params: matterIdParamSchema },
+  summary: 'Get activity log or get by ID',
+  description: 'Get the activity log for a matter. Use the `activity_uuid` query parameter to retrieve a specific log entry.',
+  request: {
+    params: matterIdParamSchema,
+    query: matterValidations.getActivityLogQuerySchema,
+  },
   responses: {
     200: { content: { 'application/json': { schema: z.array(matterValidations.activityLogSchema) } }, description: 'Activity retrieved' },
   },

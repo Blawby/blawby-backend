@@ -1,7 +1,6 @@
 import {
   createInvoiceRoute,
   getInvoicesRoute,
-  getInvoiceRoute,
   updateInvoiceRoute,
   deleteInvoiceRoute,
   sendInvoiceRoute,
@@ -46,21 +45,6 @@ export const getInvoicesHandler: AppRouteHandler<typeof getInvoicesRoute> = asyn
   return response.fromResult(c, result);
 };
 
-export const getInvoiceHandler: AppRouteHandler<typeof getInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id, invoice_id } = c.req.valid('param');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
-
-  const result = await invoicesService.getInvoiceById(
-    practice_id,
-    invoice_id,
-    user,
-    requestHeaders,
-  );
-
-  return response.fromResult(c, result);
-};
 
 export const updateInvoiceHandler: AppRouteHandler<typeof updateInvoiceRoute> = async (c) => {
   const user = c.get('user');

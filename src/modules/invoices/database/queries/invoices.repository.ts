@@ -89,6 +89,7 @@ const findInvoiceByStripeId = async (
 const listInvoicesByOrganization = async (
   organizationId: string,
   filters?: {
+    invoice_uuid?: string;
     client_id?: string;
     matter_id?: string;
     status?: string;
@@ -105,6 +106,9 @@ const listInvoicesByOrganization = async (
     isNull(invoices.deleted_at),
   ];
 
+  if (filters?.invoice_uuid) {
+    conditions.push(eq(invoices.id, filters.invoice_uuid));
+  }
   if (filters?.client_id) {
     conditions.push(eq(invoices.client_id, filters.client_id));
   }

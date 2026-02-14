@@ -23,6 +23,7 @@ export const createUserDetailsSchema = z.object({
 export const updateUserDetailsSchema = createUserDetailsSchema.partial().openapi('UpdateUserDetails');
 
 export const listUserDetailsSchema = z.object({
+  user_uuid: z.uuid().optional(),
   search: z.string().optional(),
   status: z.enum(['lead', 'active', 'inactive', 'archived']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),

@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterActivityLog,
@@ -52,16 +52,22 @@ const getMatterActivity = async (
   options?: {
     limit?: number;
     offset?: number;
+    activity_uuid?: string;
   },
 ): Promise<Result<SelectMatterActivityLog[]>> => {
   const limit = options?.limit || 50;
   const offset = options?.offset || 0;
 
   try {
+    const conditions = [eq(matterActivityLog.matter_id, matterId)];
+    if (options?.activity_uuid) {
+      conditions.push(eq(matterActivityLog.id, options.activity_uuid));
+    }
+
     const activity = await db
       .select()
       .from(matterActivityLog)
-      .where(eq(matterActivityLog.matter_id, matterId))
+      .where(and(...conditions))
       .orderBy(desc(matterActivityLog.created_at))
       .limit(limit)
       .offset(offset);

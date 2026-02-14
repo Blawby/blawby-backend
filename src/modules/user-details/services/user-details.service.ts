@@ -311,6 +311,7 @@ const updateUserDetails = async (
 
 const listUserDetails = async (params: {
   organizationId: string;
+  user_uuid?: string;
   search?: string;
   status?: string;
   limit?: number;
@@ -329,21 +330,6 @@ const listUserDetails = async (params: {
   }
 };
 
-const getUserDetail = async (
-  id: string,
-  organizationId: string,
-): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect }>> => {
-  try {
-    const detail = await userDetailsRepository.findById(id);
-    if (!detail || detail.organization_id !== organizationId) {
-      return notFound('User detail not found');
-    }
-    return ok(detail);
-  } catch (error) {
-    logger.error('Failed to get user detail {id}: {error}', { id, error });
-    return internalError('Failed to get user detail');
-  }
-};
 
 const resolveUserForIntake = async (params: {
   userId?: string;
@@ -551,7 +537,6 @@ export const userDetailsService = {
   createUserDetails,
   updateUserDetails,
   listUserDetails,
-  getUserDetail,
   deleteUserDetail,
   createUserDetailsFromIntake,
   ensureClientSetup,

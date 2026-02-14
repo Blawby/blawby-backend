@@ -71,8 +71,9 @@ const listMatterExpenses = async (
   requestHeaders: Record<string, string>,
   filters?: {
     billable?: boolean;
-    startDate?: string;
-    endDate?: string;
+    startDate?: Date;
+    endDate?: Date;
+    expense_uuid?: string;
   },
 ): Promise<Result<SelectMatterExpense[]>> => {
   // Verify user has access to matter

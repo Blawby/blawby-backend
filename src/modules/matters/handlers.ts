@@ -1,7 +1,7 @@
+import { z } from '@hono/zod-openapi';
 import {
   createMatterRoute,
   getMattersRoute,
-  getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
   getMatterActivityRoute,
@@ -30,6 +30,11 @@ import { matterMilestonesService } from '@/modules/matters/services/matter-miles
 import { matterNotesService } from '@/modules/matters/services/matter-notes.service';
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
+import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
+import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
+import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
+import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -76,13 +81,6 @@ export const getMattersHandler: AppRouteHandler<typeof getMattersRoute> = async 
   });
 };
 
-export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { practice_id, id } = c.req.valid('param');
-
-  const result = await mattersService.getMatterById(practice_id, id, user, c.req.header());
-  return response.fromResult(c, result);
-};
 
 export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = async (c) => {
   const user = c.get('user')!;
@@ -111,14 +109,16 @@ export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityR
   if (!result.success) {
     return response.fromResult(c, result);
   }
-  const activityResult = await matterActivityService.getMatterActivity(id);
+  const query = c.req.valid('query') as z.infer<typeof matterValidations.getActivityLogQuerySchema>;
+  const activityResult = await matterActivityService.getMatterActivity(id, query);
   return response.fromResult(c, activityResult);
 };
 
 export const listMatterNotesHandler: AppRouteHandler<typeof listMatterNotesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, id } = c.req.valid('param');
-  const result = await matterNotesService.listMatterNotes(practice_id, id, user, c.req.header());
+  const query = c.req.valid('query') as z.infer<typeof matterNoteValidations.listMatterNotesQuerySchema>;
+  const result = await matterNotesService.listMatterNotes(practice_id, id, user, c.req.header(), query);
   return response.fromResult(c, result);
 };
 
@@ -155,7 +155,8 @@ export const deleteMatterNoteHandler: AppRouteHandler<typeof deleteMatterNoteRou
 export const listTimeEntriesHandler: AppRouteHandler<typeof listTimeEntriesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, id } = c.req.valid('param');
-  const result = await matterTimeEntriesService.listMatterTimeEntries(practice_id, id, user, c.req.header());
+  const query = c.req.valid('query') as z.infer<typeof matterTimeEntryValidations.listTimeEntriesQuerySchema>;
+  const result = await matterTimeEntriesService.listMatterTimeEntries(practice_id, id, user, c.req.header(), query);
   return response.fromResult(c, result);
 };
 
@@ -206,7 +207,8 @@ export const getTimeEntryStatsHandler: AppRouteHandler<typeof getTimeEntryStatsR
 export const listExpensesHandler: AppRouteHandler<typeof listExpensesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, id } = c.req.valid('param');
-  const result = await matterExpensesService.listMatterExpenses(practice_id, id, user, c.req.header());
+  const query = c.req.valid('query') as z.infer<typeof matterExpenseValidations.listExpensesQuerySchema>;
+  const result = await matterExpensesService.listMatterExpenses(practice_id, id, user, c.req.header(), query);
   return response.fromResult(c, result);
 };
 
@@ -250,7 +252,8 @@ export const deleteExpenseHandler: AppRouteHandler<typeof deleteExpenseRoute> = 
 export const listMilestonesHandler: AppRouteHandler<typeof listMilestonesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, id } = c.req.valid('param');
-  const result = await matterMilestonesService.listMatterMilestones(practice_id, id, user, c.req.header());
+  const query = c.req.valid('query') as z.infer<typeof matterMilestoneValidations.listMilestonesQuerySchema>;
+  const result = await matterMilestonesService.listMatterMilestones(practice_id, id, user, c.req.header(), query);
   return response.fromResult(c, result);
 };
 

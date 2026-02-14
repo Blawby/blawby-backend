@@ -44,8 +44,8 @@ export const getInvoicesRoute = createRoute({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Invoices'],
-  summary: 'List invoices',
-  description: 'Get all invoices for a practice',
+  summary: 'List invoices or get by ID',
+  description: 'Get all invoices for a practice. Use the `invoice_uuid` query parameter to retrieve a specific invoice.',
   request: {
     params: practiceIdParamSchema,
     query: invoiceValidations.listInvoicesQuerySchema,
@@ -66,23 +66,6 @@ export const getInvoicesRoute = createRoute({
   },
 });
 
-export const getInvoiceRoute = createRoute({
-  method: 'get',
-  path: '/{practice_id}/{invoice_id}',
-  tags: ['Invoices'],
-  summary: 'Get invoice',
-  description: 'Get a single invoice by ID',
-  request: {
-    params: invoiceUuidParamSchema,
-  },
-  responses: {
-    200: {
-      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
-      description: 'Invoice retrieved successfully',
-    },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
-  },
-});
 
 export const updateInvoiceRoute = createRoute({
   method: 'patch',
