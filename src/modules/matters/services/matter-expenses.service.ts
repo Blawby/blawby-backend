@@ -3,6 +3,7 @@ import { matterExpensesQueries } from '@/modules/matters/database/queries/matter
 import type { SelectMatterExpense } from '@/modules/matters/database/schema/matter-expenses.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterExpenseRequest,
   UpdateMatterExpenseRequest,
@@ -69,12 +70,7 @@ const listMatterExpenses = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-  filters?: {
-    billable?: boolean;
-    startDate?: Date;
-    endDate?: Date;
-    expense_id?: string;
-  },
+  filters?: MatterExpenseListFilters,
 ): Promise<Result<SelectMatterExpense[]>> => {
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
@@ -83,6 +79,13 @@ const listMatterExpenses = async (
   }
 
   try {
+    // Short-circuit: direct lookup when a specific expense ID is provided
+    if (filters?.expenseId) {
+      const expense = await matterExpensesQueries.findMatterExpenseById(filters.expenseId);
+      if (!expense || expense.matter_id !== matterId) return ok([]);
+      return ok([expense]);
+    }
+
     const expenses = await matterExpensesQueries.listMatterExpenses(matterId, filters);
     return ok(expenses);
   } catch (error) {

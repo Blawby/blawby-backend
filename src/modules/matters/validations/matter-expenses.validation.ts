@@ -21,14 +21,17 @@ const updateMatterExpenseSchema = z.object({
 
 const matterExpenseIdParamSchema = z.object({
   id: uuidValidator,
-  expenseId: uuidValidator,
+  expense_id: uuidValidator.openapi({
+    param: { name: 'expense_id', in: 'path' },
+    description: 'Expense ID (UUID)',
+  }),
 });
 
 const listExpensesQuerySchema = z.object({
   expense_id: uuidValidator.optional(),
   billable: z.coerce.boolean().optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
+  start_date: z.coerce.date().optional(),
+  end_date: z.coerce.date().optional(),
 });
 
 const expenseSchema = z.object({

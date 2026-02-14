@@ -11,6 +11,7 @@ import {
   type InsertInvoice,
   type SelectInvoice,
 } from '@/modules/invoices/database/schema/invoices.schema';
+import type { InvoiceListFilters } from '@/modules/invoices/types/invoice-filters.types';
 import { type InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
@@ -88,14 +89,7 @@ const findInvoiceByStripeId = async (
  */
 const listInvoicesByOrganization = async (
   organizationId: string,
-  filters?: {
-    invoice_id?: string;
-    client_id?: string;
-    matter_id?: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-  },
+  filters?: InvoiceListFilters,
 ): Promise<{ invoices: InvoiceWithRelations[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
@@ -106,14 +100,14 @@ const listInvoicesByOrganization = async (
     isNull(invoices.deleted_at),
   ];
 
-  if (filters?.invoice_id) {
-    conditions.push(eq(invoices.id, filters.invoice_id));
+  if (filters?.invoiceId) {
+    conditions.push(eq(invoices.id, filters.invoiceId));
   }
-  if (filters?.client_id) {
-    conditions.push(eq(invoices.client_id, filters.client_id));
+  if (filters?.clientId) {
+    conditions.push(eq(invoices.client_id, filters.clientId));
   }
-  if (filters?.matter_id) {
-    conditions.push(eq(invoices.matter_id, filters.matter_id));
+  if (filters?.matterId) {
+    conditions.push(eq(invoices.matter_id, filters.matterId));
   }
   if (filters?.status) {
     conditions.push(eq(invoices.status, filters.status));

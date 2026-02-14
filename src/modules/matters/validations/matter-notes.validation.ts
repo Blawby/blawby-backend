@@ -12,7 +12,10 @@ const updateMatterNoteSchema = z.object({
 
 const matterNoteIdParamSchema = z.object({
   id: uuidValidator,
-  noteId: uuidValidator,
+  note_id: uuidValidator.openapi({
+    param: { name: 'note_id', in: 'path' },
+    description: 'Note ID (UUID)',
+  }),
 });
 
 const listMatterNotesQuerySchema = z.object({

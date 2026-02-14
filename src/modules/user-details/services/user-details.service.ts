@@ -311,7 +311,7 @@ const updateUserDetails = async (
 
 const listUserDetails = async (params: {
   organizationId: string;
-  client_id?: string;
+  clientId?: string;
   search?: string;
   status?: string;
   limit?: number;

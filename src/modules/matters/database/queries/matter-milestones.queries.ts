@@ -5,6 +5,7 @@ import {
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
+import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
@@ -48,11 +49,11 @@ const findMatterMilestoneById = async (
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
-  filters?: { milestone_id?: string },
+  filters?: MatterMilestoneListFilters,
 ): Promise<SelectMatterMilestone[]> => {
   const conditions = [eq(matterMilestones.matter_id, matterId)];
-  if (filters?.milestone_id) {
-    conditions.push(eq(matterMilestones.id, filters.milestone_id));
+  if (filters?.milestoneId) {
+    conditions.push(eq(matterMilestones.id, filters.milestoneId));
   }
 
   return await db

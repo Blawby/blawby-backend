@@ -6,6 +6,7 @@ import {
   type InsertMatterExpense,
   type SelectMatterExpense,
 } from '@/modules/matters/database/schema/matter-expenses.schema';
+import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
 
 // Create matter expense
@@ -31,20 +32,22 @@ const findMatterExpenseById = async (
   return expense;
 };
 
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // List matter expenses
 const listMatterExpenses = async (
   matterId: string,
-  filters?: {
-    billable?: boolean;
-    startDate?: Date;
-    endDate?: Date;
-    expense_id?: string;
-  },
+  filters?: MatterExpenseListFilters,
 ): Promise<SelectMatterExpense[]> => {
   const conditions = [eq(matterExpenses.matter_id, matterId)];
 
-  if (filters?.expense_id) {
-    conditions.push(eq(matterExpenses.id, filters.expense_id));
+  if (filters?.expenseId) {
+    conditions.push(eq(matterExpenses.id, filters.expenseId));
   }
 
   if (filters?.billable !== undefined) {
@@ -52,11 +55,11 @@ const listMatterExpenses = async (
   }
 
   if (filters?.startDate) {
-    conditions.push(gte(matterExpenses.date, filters.startDate.toISOString().split('T')[0]));
+    conditions.push(gte(matterExpenses.date, formatLocalDate(filters.startDate)));
   }
 
   if (filters?.endDate) {
-    conditions.push(lte(matterExpenses.date, filters.endDate.toISOString().split('T')[0]));
+    conditions.push(lte(matterExpenses.date, formatLocalDate(filters.endDate)));
   }
 
   return await db

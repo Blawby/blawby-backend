@@ -201,7 +201,19 @@ const listInvoices = async (
   if (!orgResult.success) return orgResult;
 
   try {
-    const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(organizationId, filters);
+    // Short-circuit: direct lookup when a specific invoice ID is provided
+    if (filters.invoice_id) {
+      const invoice = await invoicesRepository.findInvoiceById(filters.invoice_id, organizationId);
+      if (!invoice) return result.ok({ invoices: [], total: 0 });
+      return result.ok({ invoices: [transformInvoiceResponse(invoice)], total: 1 });
+    }
+
+    const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(organizationId, {
+      ...filters,
+      invoiceId: filters.invoice_id,
+      clientId: filters.client_id,
+      matterId: filters.matter_id,
+    });
 
     return result.ok({
       invoices: list.map((i) => transformInvoiceResponse(i)),

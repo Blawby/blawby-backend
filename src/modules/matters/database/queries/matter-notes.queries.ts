@@ -4,6 +4,7 @@ import {
   type InsertMatterNote,
   type SelectMatterNote,
 } from '@/modules/matters/database/schema/matter-notes.schema';
+import type { MatterNoteListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
 
 // Create matter note
@@ -32,11 +33,11 @@ const findMatterNoteById = async (
 // List matter notes
 const listMatterNotes = async (
   matterId: string,
-  filters?: { note_id?: string },
+  filters?: MatterNoteListFilters,
 ): Promise<SelectMatterNote[]> => {
   const conditions = [eq(matterNotes.matter_id, matterId)];
-  if (filters?.note_id) {
-    conditions.push(eq(matterNotes.id, filters.note_id));
+  if (filters?.noteId) {
+    conditions.push(eq(matterNotes.id, filters.noteId));
   }
 
   return await db

@@ -7,6 +7,7 @@ import {
   type InsertMatter,
   type SelectMatter,
 } from '@/modules/matters/database/schema/matters.schema';
+import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
 import { db } from '@/shared/database';
 
@@ -80,17 +81,7 @@ const findMatterByIdWithDeleted = async (
 // List matters by organization with filters
 const listMattersByOrganization = async (
   organizationId: string,
-  filters?: {
-    status?: string;
-    practice_service_id?: string;
-    client_id?: string;
-    matter_id?: string;
-
-    assignee_id?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  },
+  filters?: MatterListFilters,
 ): Promise<{ matters: SelectMatter[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
