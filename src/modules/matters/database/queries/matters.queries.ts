@@ -7,6 +7,7 @@ import {
   type InsertMatter,
   type SelectMatter,
 } from '@/modules/matters/database/schema/matters.schema';
+import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
 import { db } from '@/shared/database';
 
@@ -80,16 +81,7 @@ const findMatterByIdWithDeleted = async (
 // List matters by organization with filters
 const listMattersByOrganization = async (
   organizationId: string,
-  filters?: {
-    status?: string;
-    practice_service_id?: string;
-    client_id?: string;
-
-    assignee_id?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  },
+  filters?: MatterListFilters,
 ): Promise<{ matters: SelectMatter[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
@@ -104,12 +96,16 @@ const listMattersByOrganization = async (
     conditions.push(eq(matters.status, filters.status));
   }
 
-  if (filters?.practice_service_id) {
-    conditions.push(eq(matters.practice_service_id, filters.practice_service_id));
+  if (filters?.practiceServiceId) {
+    conditions.push(eq(matters.practice_service_id, filters.practiceServiceId));
   }
 
-  if (filters?.client_id) {
-    conditions.push(eq(matters.client_id, filters.client_id));
+  if (filters?.clientId) {
+    conditions.push(eq(matters.client_id, filters.clientId));
+  }
+
+  if (filters?.matterId) {
+    conditions.push(eq(matters.id, filters.matterId));
   }
 
 
@@ -122,7 +118,7 @@ const listMattersByOrganization = async (
   let results: SelectMatter[];
 
   // Handle assignee filter separately with join
-  if (filters?.assignee_id) {
+  if (filters?.assigneeId) {
     results = await db
       .select({
         id: matters.id,
@@ -161,7 +157,7 @@ const listMattersByOrganization = async (
       .where(
         and(
           ...conditions,
-          eq(matterAssignees.user_id, filters.assignee_id),
+          eq(matterAssignees.user_id, filters.assigneeId),
         ),
       )
       .orderBy(desc(matters.created_at))
@@ -179,7 +175,7 @@ const listMattersByOrganization = async (
 
   // Get total count (must include assignee join if filtering by assignee)
   let countResult: { count: number };
-  if (filters?.assignee_id) {
+  if (filters?.assigneeId) {
     [countResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(matters)
@@ -187,7 +183,7 @@ const listMattersByOrganization = async (
       .where(
         and(
           ...conditions,
-          eq(matterAssignees.user_id, filters.assignee_id),
+          eq(matterAssignees.user_id, filters.assigneeId),
         ),
       );
   } else {

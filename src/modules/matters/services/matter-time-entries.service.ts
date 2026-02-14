@@ -3,6 +3,7 @@ import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/mat
 import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterTimeEntryRequest,
   UpdateMatterTimeEntryRequest,
@@ -88,11 +89,7 @@ const listMatterTimeEntries = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-  filters?: {
-    billable?: boolean;
-    startDate?: Date;
-    endDate?: Date;
-  },
+  filters?: MatterTimeEntryListFilters,
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
@@ -101,6 +98,15 @@ const listMatterTimeEntries = async (
   }
 
   try {
+    // Short-circuit: direct lookup when a specific entry ID is provided.
+    // When entryId is set, other filters (billable, startDate, endDate) are
+    // intentionally ignored — this path is for single-resource retrieval.
+    if (filters?.entryId) {
+      const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(filters.entryId);
+      if (!entry || entry.matter_id !== matterId) return ok([]);
+      return ok([entry]);
+    }
+
     const entries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId, filters);
     return ok(entries);
   } catch (error) {

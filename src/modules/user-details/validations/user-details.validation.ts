@@ -23,6 +23,7 @@ export const createUserDetailsSchema = z.object({
 export const updateUserDetailsSchema = createUserDetailsSchema.partial().openapi('UpdateUserDetails');
 
 export const listUserDetailsSchema = z.object({
+  client_id: z.uuid().optional(),
   search: z.string().optional(),
   status: z.enum(['lead', 'active', 'inactive', 'archived']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -30,12 +31,12 @@ export const listUserDetailsSchema = z.object({
 }).openapi('ListUserDetails');
 
 export const userDetailParamsSchema = z.object({
-  practiceId: z.uuid('Invalid practice ID'),
-  uuid: z.uuid('Invalid user detail ID'),
+  practice_id: z.uuid('Invalid practice ID'),
+  id: z.uuid('Invalid user detail ID'),
 }).openapi('UserDetailParams');
 
 export const practiceParamsSchema = z.object({
-  practiceId: z.uuid('Invalid practice ID'),
+  practice_id: z.uuid('Invalid practice ID'),
 }).openapi('PracticeParams');
 
 // Alias for backwards compatibility

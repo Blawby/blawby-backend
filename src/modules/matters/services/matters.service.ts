@@ -212,7 +212,16 @@ const listMatters = async (
   }
 
   try {
-    const listResult = await mattersQueries.listMattersByOrganization(organizationId, filters);
+    const listResult = await mattersQueries.listMattersByOrganization(organizationId, {
+      status: filters.status,
+      practiceServiceId: filters.practice_service_id,
+      clientId: filters.client_id,
+      matterId: filters.matter_id,
+      assigneeId: filters.assignee_id,
+      search: filters.search,
+      page: filters.page,
+      limit: filters.limit,
+    });
     return result.ok({
       matters: listResult.matters.map((m) => ({
         ...m,

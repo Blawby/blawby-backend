@@ -101,11 +101,14 @@ const updateMatterSchema = z.object({
 }).strict();
 
 const matterIdParamSchema = z.object({
-  uuid: uuidValidator,
+  id: uuidValidator.openapi({
+    param: { name: 'id', in: 'path' },
+    description: 'Matter ID (UUID)',
+  }),
 });
 
 const listMattersQuerySchema = z.object({
-  matter_uuid: uuidValidator.optional(),
+  matter_id: uuidValidator.optional(),
   status: matterStatusEnum.optional(),
   practice_service_id: uuidValidator.optional(),
   client_id: uuidValidator.optional(),
@@ -113,6 +116,12 @@ const listMattersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
+});
+
+const getActivityLogQuerySchema = z.object({
+  activity_id: uuidValidator.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 const matterSchema = z.object({
@@ -169,6 +178,7 @@ export const matterValidations = {
   updateMatterSchema,
   matterIdParamSchema,
   listMattersQuerySchema,
+  getActivityLogQuerySchema,
   matterSchema,
   activityLogSchema,
 };

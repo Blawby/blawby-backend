@@ -29,8 +29,15 @@ const reorderMilestonesSchema = z.object({
 });
 
 const matterMilestoneIdParamSchema = z.object({
-  uuid: uuidValidator,
-  milestoneId: uuidValidator,
+  id: uuidValidator,
+  milestone_id: uuidValidator.openapi({
+    param: { name: 'milestone_id', in: 'path' },
+    description: 'Milestone ID (UUID)',
+  }),
+});
+
+const listMilestonesQuerySchema = z.object({
+  milestone_id: uuidValidator.optional(),
 });
 
 const milestoneSchema = z.object({
@@ -51,5 +58,6 @@ export const matterMilestoneValidations = {
   updateMatterMilestoneSchema,
   reorderMilestonesSchema,
   matterMilestoneIdParamSchema,
+  listMilestonesQuerySchema,
   milestoneSchema,
 };

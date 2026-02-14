@@ -3,6 +3,7 @@ import { matterMilestonesQueries } from '@/modules/matters/database/queries/matt
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterMilestoneRequest,
   UpdateMatterMilestoneRequest,
@@ -70,6 +71,7 @@ const listMatterMilestones = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
+  filters?: MatterMilestoneListFilters,
 ): Promise<Result<SelectMatterMilestone[]>> => {
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
@@ -78,7 +80,14 @@ const listMatterMilestones = async (
   }
 
   try {
-    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId);
+    // Short-circuit: direct lookup when a specific milestone ID is provided
+    if (filters?.milestoneId) {
+      const milestone = await matterMilestonesQueries.findMatterMilestoneById(filters.milestoneId);
+      if (!milestone || milestone.matter_id !== matterId) return ok([]);
+      return ok([milestone]);
+    }
+
+    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId, filters);
     return ok(milestones);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

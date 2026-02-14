@@ -1,10 +1,11 @@
-import { eq, sql, asc } from 'drizzle-orm';
+import { eq, sql, asc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
+import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
@@ -48,11 +49,17 @@ const findMatterMilestoneById = async (
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
+  filters?: MatterMilestoneListFilters,
 ): Promise<SelectMatterMilestone[]> => {
+  const conditions = [eq(matterMilestones.matter_id, matterId)];
+  if (filters?.milestoneId) {
+    conditions.push(eq(matterMilestones.id, filters.milestoneId));
+  }
+
   return await db
     .select()
     .from(matterMilestones)
-    .where(eq(matterMilestones.matter_id, matterId))
+    .where(and(...conditions))
     .orderBy(asc(matterMilestones.order), asc(matterMilestones.due_date));
 };
 
