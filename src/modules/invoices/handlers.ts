@@ -49,13 +49,13 @@ export const getInvoicesHandler: AppRouteHandler<typeof getInvoicesRoute> = asyn
 export const updateInvoiceHandler: AppRouteHandler<typeof updateInvoiceRoute> = async (c) => {
   const user = c.get('user');
   if (!user) return response.unauthorized(c);
-  const { practice_id, invoice_id } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const data = c.req.valid('json');
   const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
   const result = await invoicesService.updateInvoice(
     practice_id,
-    invoice_id,
+    id,
     data,
     user,
     requestHeaders,
@@ -67,12 +67,12 @@ export const updateInvoiceHandler: AppRouteHandler<typeof updateInvoiceRoute> = 
 export const deleteInvoiceHandler: AppRouteHandler<typeof deleteInvoiceRoute> = async (c) => {
   const user = c.get('user');
   if (!user) return response.unauthorized(c);
-  const { practice_id, invoice_id } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
   const result = await invoicesService.deleteInvoice(
     practice_id,
-    invoice_id,
+    id,
     user,
     requestHeaders,
   );
@@ -83,12 +83,12 @@ export const deleteInvoiceHandler: AppRouteHandler<typeof deleteInvoiceRoute> = 
 export const sendInvoiceHandler: AppRouteHandler<typeof sendInvoiceRoute> = async (c) => {
   const user = c.get('user');
   if (!user) return response.unauthorized(c);
-  const { practice_id, invoice_id } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
   const result = await invoicesService.sendInvoice(
     practice_id,
-    invoice_id,
+    id,
     user,
     requestHeaders,
   );
@@ -99,12 +99,12 @@ export const sendInvoiceHandler: AppRouteHandler<typeof sendInvoiceRoute> = asyn
 export const syncInvoiceHandler: AppRouteHandler<typeof syncInvoiceRoute> = async (c) => {
   const user = c.get('user');
   if (!user) return response.unauthorized(c);
-  const { practice_id, invoice_id } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
   const result = await invoicesService.syncInvoice(
     practice_id,
-    invoice_id,
+    id,
     user,
     requestHeaders,
   );
@@ -115,12 +115,12 @@ export const syncInvoiceHandler: AppRouteHandler<typeof syncInvoiceRoute> = asyn
 export const voidInvoiceHandler: AppRouteHandler<typeof voidInvoiceRoute> = async (c) => {
   const user = c.get('user');
   if (!user) return response.unauthorized(c);
-  const { practice_id, invoice_id } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
   const result = await invoicesService.voidInvoice(
     practice_id,
-    invoice_id,
+    id,
     user,
     requestHeaders,
   );

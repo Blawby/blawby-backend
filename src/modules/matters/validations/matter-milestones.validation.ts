@@ -34,7 +34,7 @@ const matterMilestoneIdParamSchema = z.object({
 });
 
 const listMilestonesQuerySchema = z.object({
-  milestone_uuid: uuidValidator.optional(),
+  milestone_id: uuidValidator.optional(),
 });
 
 const milestoneSchema = z.object({

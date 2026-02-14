@@ -48,11 +48,11 @@ const findMatterMilestoneById = async (
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
-  milestoneId?: string,
+  filters?: { milestone_id?: string },
 ): Promise<SelectMatterMilestone[]> => {
   const conditions = [eq(matterMilestones.matter_id, matterId)];
-  if (milestoneId) {
-    conditions.push(eq(matterMilestones.id, milestoneId));
+  if (filters?.milestone_id) {
+    conditions.push(eq(matterMilestones.id, filters.milestone_id));
   }
 
   return await db

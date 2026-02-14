@@ -25,7 +25,7 @@ const matterTimeEntryIdParamSchema = z.object({
 });
 
 const listTimeEntriesQuerySchema = z.object({
-  entry_uuid: uuidValidator.optional(),
+  entry_id: uuidValidator.optional(),
   billable: z.coerce.boolean().optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),

@@ -16,7 +16,7 @@ const matterNoteIdParamSchema = z.object({
 });
 
 const listMatterNotesQuerySchema = z.object({
-  note_uuid: uuidValidator.optional(),
+  note_id: uuidValidator.optional(),
 });
 
 const matterNoteSchema = z.object({
