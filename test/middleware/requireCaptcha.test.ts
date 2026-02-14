@@ -1,32 +1,28 @@
-import { test } from 'tap';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { requireCaptcha } from '../../src/shared/middleware/requireCaptcha';
-import * as validationUtils from '../../src/shared/utils/captchaValidation';
+import { requireCaptcha } from '@/shared/middleware/requireCaptcha';
+import * as validationUtils from '@/shared/utils/captchaValidation';
 
-// Mock validation utility
-const originalValidate = validationUtils.validateCaptchaToken;
-
-test('requireCaptcha middleware', async (t) => {
-  t.teardown(() => {
-    // Restore original function
-    (validationUtils as any).validateCaptchaToken = originalValidate;
+describe('requireCaptcha middleware', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  t.test('should return 403 if token is missing', async (t) => {
+  it('should return 403 if token is missing', async () => {
     const app = new Hono();
     app.use('/protected', requireCaptcha());
     app.get('/protected', (c) => c.text('ok'));
 
     const res = await app.request('http://localhost/protected');
-    t.equal(res.status, 403);
-    const body = await res.json();
-    t.equal(body.error, 'Forbidden');
-    t.equal(body.message, 'Captcha token is missing');
+    expect(res.status).toBe(403);
+    const body = await res.json() as { error: string; message: string };
+    expect(body.error).toBe('Forbidden');
+    expect(body.message).toBe('Captcha token is missing');
   });
 
-  t.test('should return 403 if validation fails', async (t) => {
+  it('should return 403 if validation fails', async () => {
     // Mock failure
-    (validationUtils as any).validateCaptchaToken = async () => false;
+    vi.spyOn(validationUtils, 'validateCaptchaToken').mockResolvedValue(false);
 
     const app = new Hono();
     app.use('/protected', requireCaptcha());
@@ -38,15 +34,15 @@ test('requireCaptcha middleware', async (t) => {
       },
     });
 
-    t.equal(res.status, 403);
-    const body = await res.json();
-    t.equal(body.error, 'Forbidden');
-    t.equal(body.message, 'Captcha validation failed');
+    expect(res.status).toBe(403);
+    const body = await res.json() as { error: string; message: string };
+    expect(body.error).toBe('Forbidden');
+    expect(body.message).toBe('Captcha validation failed');
   });
 
-  t.test('should pass if validation succeeds', async (t) => {
+  it('should pass if validation succeeds', async () => {
     // Mock success
-    (validationUtils as any).validateCaptchaToken = async () => true;
+    vi.spyOn(validationUtils, 'validateCaptchaToken').mockResolvedValue(true);
 
     const app = new Hono();
     app.use('/protected', requireCaptcha());
@@ -58,13 +54,13 @@ test('requireCaptcha middleware', async (t) => {
       },
     });
 
-    t.equal(res.status, 200);
-    t.equal(await res.text(), 'ok');
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('ok');
   });
 
-  t.test('should accept x-turnstile-token header alias', async (t) => {
+  it('should accept x-turnstile-token header alias', async () => {
     // Mock success
-    (validationUtils as any).validateCaptchaToken = async () => true;
+    vi.spyOn(validationUtils, 'validateCaptchaToken').mockResolvedValue(true);
 
     const app = new Hono();
     app.use('/protected', requireCaptcha());
@@ -76,6 +72,6 @@ test('requireCaptcha middleware', async (t) => {
       },
     });
 
-    t.equal(res.status, 200);
+    expect(res.status).toBe(200);
   });
 });

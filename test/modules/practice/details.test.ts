@@ -1,76 +1,34 @@
-import { test } from 'tap';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { db } from '@/shared/database';
 import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
-import { upsertPracticeDetailsService } from '@/modules/practice/services/practice-details.service';
+import { upsertPracticeDetails } from '@/modules/practice/services/practice-details.service';
 import { eq } from 'drizzle-orm';
-import { organizations, users, members, sessions } from '@/schema/better-auth-schema';
-import * as schema from '@/schema/better-auth-schema';
+import { organizations, users, sessions } from '@/schema/better-auth-schema';
+import { createTestContext } from '@test/helpers/auth';
 
 // Mock DB and user data for testing service directly
 // Note: Integration testing with Hono's app.request requires setting up the entire auth context mock,
 // which is complex. Testing the service layer directly is more reliable for this verification step.
 
-test('Practice Details Service', async (t) => {
-  // Create test dependencies
-  const user = {
-    id: crypto.randomUUID(),
-    email: 'test@example.com',
-    name: 'Test User',
-    emailVerified: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+describe('Practice Details Service', () => {
+  let context: Awaited<ReturnType<typeof createTestContext>>;
 
-  const orgId = crypto.randomUUID();
-  const sessionToken = crypto.randomUUID();
-
-  // Setup: Create Organization and User in DB
-  await db.insert(users).values({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    emailVerified: user.emailVerified,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
+  beforeAll(async () => {
+    context = await createTestContext('owner');
   });
 
-  await db.insert(organizations).values({
-    id: orgId,
-    name: 'Test Practice',
-    slug: 'test-practice-' + crypto.randomUUID(), // Ensure distinct slug
-    createdAt: new Date(),
-    updatedAt: new Date(),
+  afterAll(async () => {
+    // Cleanup
+    if (context) {
+      await db.delete(organizations).where(eq(organizations.id, context.org.id));
+      await db.delete(users).where(eq(users.id, context.user.id));
+      await db.delete(sessions).where(eq(sessions.userId, context.user.id));
+    }
   });
-
-  // Authorize user as member
-  await db.insert(schema.members).values({
-    id: crypto.randomUUID(),
-    organizationId: orgId,
-    userId: user.id,
-    role: 'owner',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
-  // Create Session
-  await db.insert(sessions).values({
-    id: crypto.randomUUID(),
-    token: sessionToken,
-    userId: user.id,
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60), // 1 hour
-    ipAddress: '127.0.0.1',
-    userAgent: 'test',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
-  const headers = {
-    Authorization: `Bearer ${sessionToken}`,
-  };
 
   // Test Creation with Addresses
-  await t.test('createPracticeDetailsService splits address data', async (t) => {
+  it('createPracticeDetailsService splits address data', async () => {
     const inputData = {
       business_phone: '+15555555555',
       website: 'https://practice.com',
@@ -82,41 +40,62 @@ test('Practice Details Service', async (t) => {
       },
     };
 
-    const result = await upsertPracticeDetailsService(orgId, inputData, user, headers);
+    const headers = {
+      Authorization: `Bearer ${context.user.sessionToken}`
+    };
 
-    t.ok(result, 'Result returned');
-    t.equal(result.business_phone, inputData.business_phone);
-    t.equal(result.website, inputData.website);
-    t.same(result.address, {
+    // We need a user object compatible with what expected by upsertPracticeDetailsService
+    // It likely expects the user from the session or similar.
+    // The original test mocked `user` object passed to service.
+    // Let's see the signature of upsertPracticeDetailsService in the original test:
+    // upsertPracticeDetailsService(orgId, inputData, user, headers);
+    // The user object in original test had: id, email, name, emailVerified, createdAt, updatedAt.
+    // Our context.user has similar fields.
+
+    const userForService = {
+      id: context.user.id,
+      email: context.user.email,
+      name: context.user.name,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await upsertPracticeDetails(context.org.id, inputData, userForService, headers);
+
+    expect(result).toBeTruthy();
+    expect(result.business_phone).toBe(inputData.business_phone);
+    expect(result.website).toBe(inputData.website);
+    expect(result.address).toMatchObject({
       line1: '123 Main St',
       line2: null, // Default
       city: 'Test City',
       state: null, // nullable in DB
       postal_code: null,
       country: 'US',
-    } as any, 'Address returned correctly');
+    });
 
     // Verify DB state
     const [details] = await db
       .select()
       .from(practiceDetails)
-      .where(eq(practiceDetails.organization_id, orgId));
+      .where(eq(practiceDetails.organization_id, context.org.id));
 
-    t.ok(details, 'Practice details saved');
-    t.ok(details.address_id, 'Address ID linked');
+    expect(details).toBeTruthy();
+    expect(details.address_id).toBeTruthy();
 
     const [address] = await db
       .select()
       .from(addresses)
       .where(eq(addresses.id, details.address_id!));
 
-    t.ok(address, 'Address saved');
-    t.equal(address.line1, inputData.address.line1);
-    t.equal(address.city, inputData.address.city);
-    t.equal(address.organization_id, orgId);
+    expect(address).toBeTruthy();
+    expect(address.line1).toBe(inputData.address.line1);
+    expect(address.city).toBe(inputData.address.city);
+    expect(address.organization_id).toBe(context.org.id);
   });
 
-  await t.test('updatePracticeDetailsService updates existing address', async (t) => {
+  it('updatePracticeDetailsService updates existing address', async () => {
     const updateData = {
       intro_message: 'New Intro',
       address: {
@@ -124,25 +103,38 @@ test('Practice Details Service', async (t) => {
       }
     };
 
-    await upsertPracticeDetailsService(orgId, updateData, user, headers);
+    const headers = {
+      Authorization: `Bearer ${context.user.sessionToken}`
+    };
+
+    const userForService = {
+      id: context.user.id,
+      email: context.user.email,
+      name: context.user.name,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Type assertion or partial match might be needed if updateData matches expected input type
+    // The service handles partial updates?
+    // Original test: upsertPracticeDetailsService(orgId, updateData, user, headers);
+    // Just blindly passing updateData.
+
+    await upsertPracticeDetails(context.org.id, updateData as any, userForService, headers);
 
     // Verify DB state again
     const [details] = await db
       .select()
       .from(practiceDetails)
-      .where(eq(practiceDetails.organization_id, orgId));
+      .where(eq(practiceDetails.organization_id, context.org.id));
 
     const [address] = await db
       .select()
       .from(addresses)
       .where(eq(addresses.id, details.address_id!));
 
-    t.equal(address.line1, '456 New St', 'Address updated');
-    t.equal(details.intro_message, 'New Intro', 'Details updated');
+    expect(address.line1).toBe('456 New St');
+    expect(details.intro_message).toBe('New Intro');
   });
-
-  // Cleanup
-  await db.delete(organizations).where(eq(organizations.id, orgId));
-  await db.delete(users).where(eq(users.id, user.id));
-  await db.delete(sessions).where(eq(sessions.userId, user.id));
 });

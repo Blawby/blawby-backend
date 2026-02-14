@@ -105,7 +105,7 @@ const getPracticeDetails = async (
 /**
  * Upsert practice details (Create or Update)
  */
-const upsertPracticeDetails = async (
+export const upsertPracticeDetails = async (
   organizationId: string,
   data: UpsertPracticeDetailsRequest,
   user: User,
