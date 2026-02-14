@@ -38,13 +38,13 @@ const listMatterExpenses = async (
     billable?: boolean;
     startDate?: Date;
     endDate?: Date;
-    expense_uuid?: string;
+    expense_id?: string;
   },
 ): Promise<SelectMatterExpense[]> => {
   const conditions = [eq(matterExpenses.matter_id, matterId)];
 
-  if (filters?.expense_uuid) {
-    conditions.push(eq(matterExpenses.id, filters.expense_uuid));
+  if (filters?.expense_id) {
+    conditions.push(eq(matterExpenses.id, filters.expense_id));
   }
 
   if (filters?.billable !== undefined) {

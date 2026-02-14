@@ -71,7 +71,7 @@ const listMatterMilestones = async (
   user: User,
   requestHeaders: Record<string, string>,
   filters?: {
-    milestone_uuid?: string;
+    milestone_id?: string;
   },
 ): Promise<Result<SelectMatterMilestone[]>> => {
   // Verify user has access to matter
@@ -81,7 +81,7 @@ const listMatterMilestones = async (
   }
 
   try {
-    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId, filters?.milestone_uuid);
+    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId, filters);
     return ok(milestones);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

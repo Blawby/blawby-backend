@@ -74,7 +74,7 @@ export const getMattersRoute = createRoute({
   path: '/{practice_id}',
   tags: ['Matters: General'],
   summary: 'List matters or get by ID',
-  description: 'Get all matters for a practice. Use the `matter_uuid` query parameter to retrieve a specific matter.',
+  description: 'Get all matters for a practice. Use the `matter_id` query parameter to retrieve a specific matter.',
   request: {
     params: practiceIdParamSchema,
     query: matterValidations.listMattersQuerySchema,
@@ -156,7 +156,7 @@ export const listMatterNotesRoute = createRoute({
   path: '/{practice_id}/{id}/notes',
   tags: ['Matters: Notes'],
   summary: 'List notes or get by ID',
-  description: 'Get all notes for a matter. Use the `note_uuid` query parameter to retrieve a specific note.',
+  description: 'Get all notes for a matter. Use the `note_id` query parameter to retrieve a specific note.',
   request: {
     params: matterIdParamSchema,
     query: matterNoteValidations.listMatterNotesQuerySchema,
@@ -183,7 +183,7 @@ export const createMatterNoteRoute = createRoute({
 
 export const updateMatterNoteRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/notes/{noteId}',
+  path: '/{practice_id}/{id}/notes/update/{noteId}',
   tags: ['Matters: Notes'],
   summary: 'Update note',
   description: 'Update a note for a matter',
@@ -199,7 +199,7 @@ export const updateMatterNoteRoute = createRoute({
 
 export const deleteMatterNoteRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/notes/{noteId}',
+  path: '/{practice_id}/{id}/notes/delete/{noteId}',
   tags: ['Matters: Notes'],
   summary: 'Delete note',
   description: 'Delete a note for a matter',
@@ -217,7 +217,7 @@ export const listTimeEntriesRoute = createRoute({
   path: '/{practice_id}/{id}/time-entries',
   tags: ['Matters: Time Entries'],
   summary: 'List time entries or get by ID',
-  description: 'Get all time entries for a matter. Use the `entry_uuid` query parameter to retrieve a specific entry.',
+  description: 'Get all time entries for a matter. Use the `entry_id` query parameter to retrieve a specific entry.',
   request: {
     params: matterIdParamSchema,
     query: matterTimeEntryValidations.listTimeEntriesQuerySchema,
@@ -250,7 +250,7 @@ export const createTimeEntryRoute = createRoute({
 
 export const updateTimeEntryRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/time-entries/{entryId}',
+  path: '/{practice_id}/{id}/time-entries/update/{entryId}',
   tags: ['Matters: Time Entries'],
   summary: 'Update time entry',
   description: 'Update a time entry for a matter',
@@ -266,7 +266,7 @@ export const updateTimeEntryRoute = createRoute({
 
 export const deleteTimeEntryRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/time-entries/{entryId}',
+  path: '/{practice_id}/{id}/time-entries/delete/{entryId}',
   tags: ['Matters: Time Entries'],
   summary: 'Delete time entry',
   description: 'Delete a time entry for a matter',
@@ -308,7 +308,7 @@ export const listExpensesRoute = createRoute({
   path: '/{practice_id}/{id}/expenses',
   tags: ['Matters: Expenses'],
   summary: 'List expenses or get by ID',
-  description: 'Get all expenses for a matter. Use the `expense_uuid` query parameter to retrieve a specific expense.',
+  description: 'Get all expenses for a matter. Use the `expense_id` query parameter to retrieve a specific expense.',
   request: {
     params: matterIdParamSchema,
     query: matterExpenseValidations.listExpensesQuerySchema,
@@ -341,7 +341,7 @@ export const createExpenseRoute = createRoute({
 
 export const updateExpenseRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/expenses/{expenseId}',
+  path: '/{practice_id}/{id}/expenses/update/{expenseId}',
   tags: ['Matters: Expenses'],
   summary: 'Update expense',
   description: 'Update an expense for a matter',
@@ -357,7 +357,7 @@ export const updateExpenseRoute = createRoute({
 
 export const deleteExpenseRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/expenses/{expenseId}',
+  path: '/{practice_id}/{id}/expenses/delete/{expenseId}',
   tags: ['Matters: Expenses'],
   summary: 'Delete expense',
   description: 'Delete an expense for a matter',
@@ -375,7 +375,7 @@ export const listMilestonesRoute = createRoute({
   path: '/{practice_id}/{id}/milestones',
   tags: ['Matters: Milestones'],
   summary: 'List milestones or get by ID',
-  description: 'Get all milestones for a matter. Use the `milestone_uuid` query parameter to retrieve a specific milestone.',
+  description: 'Get all milestones for a matter. Use the `milestone_id` query parameter to retrieve a specific milestone.',
   request: {
     params: matterIdParamSchema,
     query: matterMilestoneValidations.listMilestonesQuerySchema,
@@ -408,7 +408,7 @@ export const createMilestoneRoute = createRoute({
 
 export const updateMilestoneRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/milestones/{milestoneId}',
+  path: '/{practice_id}/{id}/milestones/update/{milestoneId}',
   tags: ['Matters: Milestones'],
   summary: 'Update milestone',
   description: 'Update a milestone for a matter',
@@ -424,7 +424,7 @@ export const updateMilestoneRoute = createRoute({
 
 export const deleteMilestoneRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/milestones/{milestoneId}',
+  path: '/{practice_id}/{id}/milestones/delete/{milestoneId}',
   tags: ['Matters: Milestones'],
   summary: 'Delete milestone',
   description: 'Delete a milestone for a matter',
@@ -463,7 +463,7 @@ export const getMatterActivityRoute = createRoute({
   path: '/{practice_id}/{id}/activity',
   tags: ['Matters: General'],
   summary: 'Get activity log or get by ID',
-  description: 'Get the activity log for a matter. Use the `activity_uuid` query parameter to retrieve a specific log entry.',
+  description: 'Get the activity log for a matter. Use the `activity_id` query parameter to retrieve a specific log entry.',
   request: {
     params: matterIdParamSchema,
     query: matterValidations.getActivityLogQuerySchema,

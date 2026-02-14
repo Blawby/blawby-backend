@@ -84,7 +84,7 @@ const listMattersByOrganization = async (
     status?: string;
     practice_service_id?: string;
     client_id?: string;
-    matter_uuid?: string;
+    matter_id?: string;
 
     assignee_id?: string;
     search?: string;
@@ -113,8 +113,8 @@ const listMattersByOrganization = async (
     conditions.push(eq(matters.client_id, filters.client_id));
   }
 
-  if (filters?.matter_uuid) {
-    conditions.push(eq(matters.id, filters.matter_uuid));
+  if (filters?.matter_id) {
+    conditions.push(eq(matters.id, filters.matter_id));
   }
 
 

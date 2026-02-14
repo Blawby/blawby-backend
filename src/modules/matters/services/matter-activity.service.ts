@@ -52,7 +52,7 @@ const getMatterActivity = async (
   options?: {
     limit?: number;
     offset?: number;
-    activity_uuid?: string;
+    activity_id?: string;
   },
 ): Promise<Result<SelectMatterActivityLog[]>> => {
   const limit = options?.limit || 50;
@@ -60,8 +60,8 @@ const getMatterActivity = async (
 
   try {
     const conditions = [eq(matterActivityLog.matter_id, matterId)];
-    if (options?.activity_uuid) {
-      conditions.push(eq(matterActivityLog.id, options.activity_uuid));
+    if (options?.activity_id) {
+      conditions.push(eq(matterActivityLog.id, options.activity_id));
     }
 
     const activity = await db

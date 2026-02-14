@@ -65,7 +65,7 @@ const listMatterNotes = async (
   user: User,
   requestHeaders: Record<string, string>,
   filters?: {
-    note_uuid?: string;
+    note_id?: string;
   },
 ): Promise<Result<SelectMatterNote[]>> => {
   // Verify user has access to matter
@@ -75,7 +75,7 @@ const listMatterNotes = async (
   }
 
   try {
-    const notes = await matterNotesQueries.listMatterNotes(matterId, filters?.note_uuid);
+    const notes = await matterNotesQueries.listMatterNotes(matterId, filters);
     return ok(notes);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

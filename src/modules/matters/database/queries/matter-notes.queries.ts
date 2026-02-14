@@ -32,11 +32,11 @@ const findMatterNoteById = async (
 // List matter notes
 const listMatterNotes = async (
   matterId: string,
-  noteId?: string,
+  filters?: { note_id?: string },
 ): Promise<SelectMatterNote[]> => {
   const conditions = [eq(matterNotes.matter_id, matterId)];
-  if (noteId) {
-    conditions.push(eq(matterNotes.id, noteId));
+  if (filters?.note_id) {
+    conditions.push(eq(matterNotes.id, filters.note_id));
   }
 
   return await db

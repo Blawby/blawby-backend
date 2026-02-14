@@ -92,7 +92,7 @@ const listMatterTimeEntries = async (
     billable?: boolean;
     startDate?: Date;
     endDate?: Date;
-    entry_uuid?: string;
+    entry_id?: string;
   },
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
   // Verify user has access to matter

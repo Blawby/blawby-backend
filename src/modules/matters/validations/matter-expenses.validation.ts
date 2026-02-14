@@ -25,7 +25,7 @@ const matterExpenseIdParamSchema = z.object({
 });
 
 const listExpensesQuerySchema = z.object({
-  expense_uuid: uuidValidator.optional(),
+  expense_id: uuidValidator.optional(),
   billable: z.coerce.boolean().optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),

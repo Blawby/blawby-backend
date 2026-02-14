@@ -73,7 +73,7 @@ const listMatterExpenses = async (
     billable?: boolean;
     startDate?: Date;
     endDate?: Date;
-    expense_uuid?: string;
+    expense_id?: string;
   },
 ): Promise<Result<SelectMatterExpense[]>> => {
   // Verify user has access to matter
