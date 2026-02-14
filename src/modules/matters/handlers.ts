@@ -1,5 +1,6 @@
 import {
   createMatterRoute,
+  getMattersRoute,
   getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
@@ -51,15 +52,10 @@ export const createMatterHandler: AppRouteHandler<typeof createMatterRoute> = as
   return response.fromResult(c, result);
 };
 
-export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c) => {
+export const getMattersHandler: AppRouteHandler<typeof getMattersRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id } = c.req.valid('param');
   const query = c.req.valid('query');
-
-  if (query.matter_uuid) {
-    const result = await mattersService.getMatterById(practice_id, query.matter_uuid, user, c.req.header());
-    return response.fromResult(c, result);
-  }
 
   const result = await mattersService.listMatters(practice_id, {
     ...query,
@@ -80,11 +76,19 @@ export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c
   });
 };
 
+export const getMatterHandler: AppRouteHandler<typeof getMatterRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id } = c.req.valid('param');
+
+  const result = await mattersService.getMatterById(practice_id, id, user, c.req.header());
+  return response.fromResult(c, result);
+};
+
 export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await mattersService.updateMatter(practice_id, uuid, validatedBody, user, c.req.header());
+  const result = await mattersService.updateMatter(practice_id, id, validatedBody, user, c.req.header());
 
   if (result.success) {
     return response.ok(c, { matter: result.data });
@@ -95,44 +99,44 @@ export const updateMatterHandler: AppRouteHandler<typeof updateMatterRoute> = as
 
 export const deleteMatterHandler: AppRouteHandler<typeof deleteMatterRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await mattersService.deleteMatter(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await mattersService.deleteMatter(practice_id, id, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await mattersService.getMatterById(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await mattersService.getMatterById(practice_id, id, user, c.req.header());
   if (!result.success) {
     return response.fromResult(c, result);
   }
-  const activityResult = await matterActivityService.getMatterActivity(uuid);
+  const activityResult = await matterActivityService.getMatterActivity(id);
   return response.fromResult(c, activityResult);
 };
 
 export const listMatterNotesHandler: AppRouteHandler<typeof listMatterNotesRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await matterNotesService.listMatterNotes(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await matterNotesService.listMatterNotes(practice_id, id, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const createMatterNoteHandler: AppRouteHandler<typeof createMatterNoteRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await matterNotesService.createMatterNote(practice_id, uuid, validatedBody, user, c.req.header());
+  const result = await matterNotesService.createMatterNote(practice_id, id, validatedBody, user, c.req.header());
   return response.fromResult(c, result, 201);
 };
 
 export const updateMatterNoteHandler: AppRouteHandler<typeof updateMatterNoteRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, noteId } = c.req.valid('param');
+  const { practice_id, id, noteId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterNotesService.updateMatterNote(
     practice_id,
-    uuid,
+    id,
     noteId,
     validatedBody,
     user,
@@ -143,34 +147,34 @@ export const updateMatterNoteHandler: AppRouteHandler<typeof updateMatterNoteRou
 
 export const deleteMatterNoteHandler: AppRouteHandler<typeof deleteMatterNoteRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, noteId } = c.req.valid('param');
-  const result = await matterNotesService.deleteMatterNote(practice_id, uuid, noteId, user, c.req.header());
+  const { practice_id, id, noteId } = c.req.valid('param');
+  const result = await matterNotesService.deleteMatterNote(practice_id, id, noteId, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const listTimeEntriesHandler: AppRouteHandler<typeof listTimeEntriesRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await matterTimeEntriesService.listMatterTimeEntries(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await matterTimeEntriesService.listMatterTimeEntries(practice_id, id, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const createTimeEntryHandler: AppRouteHandler<typeof createTimeEntryRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterTimeEntriesService
-    .createMatterTimeEntry(practice_id, uuid, validatedBody, user, c.req.header());
+    .createMatterTimeEntry(practice_id, id, validatedBody, user, c.req.header());
   return response.fromResult(c, result, 201);
 };
 
 export const updateTimeEntryHandler: AppRouteHandler<typeof updateTimeEntryRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, entryId } = c.req.valid('param');
+  const { practice_id, id, entryId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterTimeEntriesService.updateMatterTimeEntry(
     practice_id,
-    uuid,
+    id,
     entryId,
     validatedBody,
     user,
@@ -181,10 +185,10 @@ export const updateTimeEntryHandler: AppRouteHandler<typeof updateTimeEntryRoute
 
 export const deleteTimeEntryHandler: AppRouteHandler<typeof deleteTimeEntryRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, entryId } = c.req.valid('param');
+  const { practice_id, id, entryId } = c.req.valid('param');
   const result = await matterTimeEntriesService.deleteMatterTimeEntry(
     practice_id,
-    uuid,
+    id,
     entryId,
     user,
     c.req.header(),
@@ -194,34 +198,34 @@ export const deleteTimeEntryHandler: AppRouteHandler<typeof deleteTimeEntryRoute
 
 export const getTimeEntryStatsHandler: AppRouteHandler<typeof getTimeEntryStatsRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await matterTimeEntriesService.getTimeEntryStats(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await matterTimeEntriesService.getTimeEntryStats(practice_id, id, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const listExpensesHandler: AppRouteHandler<typeof listExpensesRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await matterExpensesService.listMatterExpenses(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await matterExpensesService.listMatterExpenses(practice_id, id, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const createExpenseHandler: AppRouteHandler<typeof createExpenseRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterExpensesService
-    .createMatterExpense(practice_id, uuid, validatedBody, user, c.req.header());
+    .createMatterExpense(practice_id, id, validatedBody, user, c.req.header());
   return response.fromResult(c, result, 201);
 };
 
 export const updateExpenseHandler: AppRouteHandler<typeof updateExpenseRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, expenseId } = c.req.valid('param');
+  const { practice_id, id, expenseId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterExpensesService.updateMatterExpense(
     practice_id,
-    uuid,
+    id,
     expenseId,
     validatedBody,
     user,
@@ -232,10 +236,10 @@ export const updateExpenseHandler: AppRouteHandler<typeof updateExpenseRoute> = 
 
 export const deleteExpenseHandler: AppRouteHandler<typeof deleteExpenseRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, expenseId } = c.req.valid('param');
+  const { practice_id, id, expenseId } = c.req.valid('param');
   const result = await matterExpensesService.deleteMatterExpense(
     practice_id,
-    uuid,
+    id,
     expenseId,
     user,
     c.req.header(),
@@ -245,18 +249,18 @@ export const deleteExpenseHandler: AppRouteHandler<typeof deleteExpenseRoute> = 
 
 export const listMilestonesHandler: AppRouteHandler<typeof listMilestonesRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
-  const result = await matterMilestonesService.listMatterMilestones(practice_id, uuid, user, c.req.header());
+  const { practice_id, id } = c.req.valid('param');
+  const result = await matterMilestonesService.listMatterMilestones(practice_id, id, user, c.req.header());
   return response.fromResult(c, result);
 };
 
 export const createMilestoneHandler: AppRouteHandler<typeof createMilestoneRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterMilestonesService.createMatterMilestone(
     practice_id,
-    uuid,
+    id,
     {
       ...validatedBody,
       order: validatedBody.order ?? 0,
@@ -269,11 +273,11 @@ export const createMilestoneHandler: AppRouteHandler<typeof createMilestoneRoute
 
 export const updateMilestoneHandler: AppRouteHandler<typeof updateMilestoneRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, milestoneId } = c.req.valid('param');
+  const { practice_id, id, milestoneId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterMilestonesService.updateMatterMilestone(
     practice_id,
-    uuid,
+    id,
     milestoneId,
     validatedBody,
     user,
@@ -284,10 +288,10 @@ export const updateMilestoneHandler: AppRouteHandler<typeof updateMilestoneRoute
 
 export const deleteMilestoneHandler: AppRouteHandler<typeof deleteMilestoneRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid, milestoneId } = c.req.valid('param');
+  const { practice_id, id, milestoneId } = c.req.valid('param');
   const result = await matterMilestonesService.deleteMatterMilestone(
     practice_id,
-    uuid,
+    id,
     milestoneId,
     user,
     c.req.header(),
@@ -297,9 +301,9 @@ export const deleteMilestoneHandler: AppRouteHandler<typeof deleteMilestoneRoute
 
 export const reorderMilestonesHandler: AppRouteHandler<typeof reorderMilestonesRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, uuid } = c.req.valid('param');
+  const { practice_id, id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterMilestonesService
-    .reorderMilestones(practice_id, uuid, validatedBody, user, c.req.header());
+    .reorderMilestones(practice_id, id, validatedBody, user, c.req.header());
   return response.fromResult(c, result);
 };

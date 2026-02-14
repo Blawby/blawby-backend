@@ -9,14 +9,15 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-
+import {
+  billingTransactions,
+  invoices,
+} from '@/modules/invoices/database/schema';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
-import { userDetailsSchema } from '@/modules/user-details/database/schema/user-details.schema';
+import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { organizations, users } from '@/schema';
-
-const { userDetails } = userDetailsSchema;
 
 export const matters = pgTable(
   'matters',
@@ -52,6 +53,8 @@ export const matters = pgTable(
 
     // Payment settings
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
+
+    retainer_balance: integer('retainer_balance').notNull().default(0),
 
     // Status
     status: varchar('status', { length: 40 }).notNull().default('first_contact'),
@@ -94,6 +97,7 @@ export const matters = pgTable(
     index('matters_practice_service_idx').on(table.practice_service_id),
     index('matters_deleted_at_idx').on(table.deleted_at),
     index('matters_created_at_idx').on(table.created_at),
+    index('matters_retainer_balance_idx').on(table.retainer_balance),
   ],
 );
 
@@ -128,6 +132,8 @@ export const mattersRelations = relations(matters, ({ one, many }) => ({
   }),
   assignees: many(matterAssignees),
   milestones: many(matterMilestones),
+  invoices: many(invoices),
+  billingTransactions: many(billingTransactions),
 }));
 
 export type InsertMatter = typeof matters.$inferInsert;

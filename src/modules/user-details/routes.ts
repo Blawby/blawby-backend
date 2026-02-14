@@ -1,9 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import { createMemoSchema, updateMemoSchema, memoParamsSchema } from '@/modules/user-details/validations/client-memos.validation';
 import {
-  createMemoSchema, updateMemoSchema, memoParamsSchema,
-} from '@/modules/user-details/validations/client-memos.validation';
-import {
-  createUserDetailsSchema, updateUserDetailsSchema, listUserDetailsSchema,
+  updateUserDetailsSchema, listUserDetailsSchema,
   userDetailParamsSchema, practiceParamsSchema, userDetailSchema,
 } from '@/modules/user-details/validations/user-details.validation';
 
@@ -40,21 +38,7 @@ export const listUserDetailsRoute = createRoute({
   },
 });
 
-export const createUserDetailsRoute = createRoute({
-  method: 'post',
-  path: '/practice/{practiceId}/user-details',
-  tags: ['UserDetails'],
-  summary: 'Create user detail',
-  description: 'Add a new user detail (client) to the organization',
-  request: {
-    params: practiceParamsSchema,
-    body: { content: { 'application/json': { schema: createUserDetailsSchema } } },
-  },
-  responses: {
-    201: { content: { 'application/json': { schema: z.object({ data: userDetailSchema }) } }, description: 'User detail created' },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-  },
-});
+// Note: No POST/create route - clients are created via intake or invitation flows
 
 export const getUserDetailRoute = createRoute({
   method: 'get',

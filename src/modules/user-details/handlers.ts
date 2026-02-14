@@ -1,6 +1,5 @@
 import type {
   listUserDetailsRoute as listClientsRoute,
-  createUserDetailsRoute as createClientRoute,
   getUserDetailRoute as getClientRoute,
   updateUserDetailsRoute as updateClientRoute,
   deleteUserDetailRoute as deleteClientRoute,
@@ -30,19 +29,7 @@ export const listUserDetailsHandler: AppRouteHandler<typeof listClientsRoute> = 
   return response.ok(c, result.data);
 };
 
-export const createUserDetailsHandler: AppRouteHandler<typeof createClientRoute> = async (c) => {
-  const { practiceId: organizationId } = c.req.valid('param');
-  const body = c.req.valid('json');
-  const user = c.get('user')!;
-
-  const result = await clientsService.createUserDetails(organizationId, body, user.id);
-
-  if (!result.success) {
-    return response.fromResult(c, result);
-  }
-
-  return response.created(c, { data: result.data });
-};
+// Note: No createUserDetailsHandler - clients are created via intake or invitation flows
 
 export const getUserDetailHandler: AppRouteHandler<typeof getClientRoute> = async (c) => {
   const { practiceId: organizationId, uuid } = c.req.valid('param');
