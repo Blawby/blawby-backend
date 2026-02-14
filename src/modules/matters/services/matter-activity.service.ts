@@ -14,6 +14,7 @@ import {
 import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
+import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
 
@@ -49,11 +50,21 @@ const logMatterActivity = async (
  * Get matter activity log
  */
 const getMatterActivity = async (
+  organizationId: string,
   matterId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
   options?: MatterActivityListFilters,
 ): Promise<Result<SelectMatterActivityLog[]>> => {
-  const limit = options?.limit || 50;
-  const offset = options?.offset || 0;
+  // Verify user has access to matter (lazy import to avoid circular dependency)
+  const { mattersService } = await import('@/modules/matters/services/matters.service');
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult as Result<never>;
+  }
+
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
 
   try {
     // Short-circuit: direct lookup when a specific activity ID is provided

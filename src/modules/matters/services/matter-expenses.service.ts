@@ -79,7 +79,9 @@ const listMatterExpenses = async (
   }
 
   try {
-    // Short-circuit: direct lookup when a specific expense ID is provided
+    // Short-circuit: direct lookup when a specific expense ID is provided.
+    // When expenseId is set, other filters (billable, startDate, endDate) are
+    // intentionally ignored — this path is for single-resource retrieval.
     if (filters?.expenseId) {
       const expense = await matterExpensesQueries.findMatterExpenseById(filters.expenseId);
       if (!expense || expense.matter_id !== matterId) return ok([]);
