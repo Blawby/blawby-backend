@@ -98,7 +98,9 @@ const listMatterTimeEntries = async (
   }
 
   try {
-    // Short-circuit: direct lookup when a specific entry ID is provided
+    // Short-circuit: direct lookup when a specific entry ID is provided.
+    // When entryId is set, other filters (billable, startDate, endDate) are
+    // intentionally ignored — this path is for single-resource retrieval.
     if (filters?.entryId) {
       const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(filters.entryId);
       if (!entry || entry.matter_id !== matterId) return ok([]);

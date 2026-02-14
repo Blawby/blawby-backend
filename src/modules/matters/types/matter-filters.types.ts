@@ -6,10 +6,10 @@
 /** Filters for listMattersByOrganization */
 export type MatterListFilters = {
   status?: string;
-  practice_service_id?: string;
-  client_id?: string;
-  matter_id?: string;
-  assignee_id?: string;
+  practiceServiceId?: string;
+  clientId?: string;
+  matterId?: string;
+  assigneeId?: string;
   search?: string;
   page?: number;
   limit?: number;

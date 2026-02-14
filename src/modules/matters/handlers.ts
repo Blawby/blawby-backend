@@ -97,16 +97,21 @@ export const deleteMatterHandler: AppRouteHandler<typeof deleteMatterRoute> = as
 };
 
 export const getMatterActivityHandler: AppRouteHandler<typeof getMatterActivityRoute> = async (c) => {
-  const { id } = c.req.valid('param');
+  const user = c.get('user')!;
+  const { practice_id, id } = c.req.valid('param');
   const query = c.req.valid('query');
 
-  const result = await matterActivityService.getMatterActivity(id, {
+  const activityResult = await matterActivityService.getMatterActivity(practice_id, id, user, c.req.header(), {
     limit: query.limit,
     offset: query.offset,
     activityId: query.activity_id,
   });
 
-  return response.fromResult(c, result);
+  if (!activityResult.success) {
+    return response.fromResult(c, activityResult);
+  }
+
+  return c.json({ activities: activityResult.data }, 200);
 };
 
 export const listMatterNotesHandler: AppRouteHandler<typeof listMatterNotesRoute> = async (c) => {

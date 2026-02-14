@@ -469,6 +469,6 @@ export const getMatterActivityRoute = createRoute({
     query: matterValidations.getActivityLogQuerySchema,
   },
   responses: {
-    200: { content: { 'application/json': { schema: z.array(matterValidations.activityLogSchema) } }, description: 'Activity retrieved' },
+    200: { content: { 'application/json': { schema: z.object({ activities: z.array(matterValidations.activityLogSchema) }) } }, description: 'Activity retrieved' },
   },
 });
