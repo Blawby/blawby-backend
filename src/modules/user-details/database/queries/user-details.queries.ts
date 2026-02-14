@@ -94,6 +94,7 @@ const softDelete = async (
 
 const listClients = async (params: {
   organizationId: string;
+  user_uuid?: string;
   search?: string;
   status?: string;
   limit?: number;
@@ -103,13 +104,17 @@ const listClients = async (params: {
   total: number;
 }> => {
   const {
-    organizationId, search, status, limit = 20, offset = 0,
+    organizationId, user_uuid, search, status, limit = 20, offset = 0,
   } = params;
 
   const conditions: SQL[] = [
     eq(userDetails.organization_id, organizationId),
     sql`${userDetails.deleted_at} IS NULL`,
   ];
+
+  if (user_uuid) {
+    conditions.push(eq(userDetails.id, user_uuid));
+  }
 
   if (status) {
     conditions.push(eq(userDetails.status, status));

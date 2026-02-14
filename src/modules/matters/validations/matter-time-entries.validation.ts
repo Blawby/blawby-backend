@@ -20,8 +20,15 @@ const updateMatterTimeEntrySchema = z.object({
 );
 
 const matterTimeEntryIdParamSchema = z.object({
-  uuid: uuidValidator,
+  id: uuidValidator,
   entryId: uuidValidator,
+});
+
+const listTimeEntriesQuerySchema = z.object({
+  entry_uuid: uuidValidator.optional(),
+  billable: z.coerce.boolean().optional(),
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
 });
 
 const timeEntrySchema = z.object({
@@ -42,5 +49,6 @@ export const matterTimeEntryValidations = {
   createMatterTimeEntrySchema,
   updateMatterTimeEntrySchema,
   matterTimeEntryIdParamSchema,
+  listTimeEntriesQuerySchema,
   timeEntrySchema,
 };

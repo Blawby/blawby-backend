@@ -115,6 +115,12 @@ const listMattersQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+const getActivityLogQuerySchema = z.object({
+  activity_uuid: uuidValidator.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 const matterSchema = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
@@ -169,6 +175,7 @@ export const matterValidations = {
   updateMatterSchema,
   matterIdParamSchema,
   listMattersQuerySchema,
+  getActivityLogQuerySchema,
   matterSchema,
   activityLogSchema,
 };

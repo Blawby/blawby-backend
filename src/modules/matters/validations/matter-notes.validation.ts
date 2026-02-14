@@ -11,8 +11,12 @@ const updateMatterNoteSchema = z.object({
 });
 
 const matterNoteIdParamSchema = z.object({
-  uuid: uuidValidator,
+  id: uuidValidator,
   noteId: uuidValidator,
+});
+
+const listMatterNotesQuerySchema = z.object({
+  note_uuid: uuidValidator.optional(),
 });
 
 const matterNoteSchema = z.object({
@@ -29,5 +33,6 @@ export const matterNoteValidations = {
   createMatterNoteSchema,
   updateMatterNoteSchema,
   matterNoteIdParamSchema,
+  listMatterNotesQuerySchema,
   matterNoteSchema,
 };

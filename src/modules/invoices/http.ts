@@ -8,7 +8,6 @@ const app = createHonoApp();
 // ==================== INVOICES ====================
 app.openapi(routes.createInvoiceRoute, handlers.createInvoiceHandler);
 app.openapi(routes.getInvoicesRoute, handlers.getInvoicesHandler);
-app.openapi(routes.getInvoiceRoute, handlers.getInvoiceHandler);
 app.openapi(routes.updateInvoiceRoute, handlers.updateInvoiceHandler);
 app.openapi(routes.deleteInvoiceRoute, handlers.deleteInvoiceHandler);
 app.openapi(routes.sendInvoiceRoute, handlers.sendInvoiceHandler);

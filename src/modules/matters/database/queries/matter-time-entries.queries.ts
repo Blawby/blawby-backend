@@ -38,9 +38,14 @@ const listMatterTimeEntries = async (
     billable?: boolean;
     startDate?: Date;
     endDate?: Date;
+    entry_uuid?: string;
   },
 ): Promise<SelectMatterTimeEntry[]> => {
   const conditions = [eq(matterTimeEntries.matter_id, matterId)];
+
+  if (filters?.entry_uuid) {
+    conditions.push(eq(matterTimeEntries.id, filters.entry_uuid));
+  }
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterTimeEntries.billable, filters.billable));

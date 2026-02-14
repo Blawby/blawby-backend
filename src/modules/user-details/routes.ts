@@ -23,8 +23,8 @@ export const listUserDetailsRoute = createRoute({
   method: 'get',
   path: '/practice/{practiceId}/user-details',
   tags: ['UserDetails'],
-  summary: 'List user details',
-  description: 'Get all user details for an organization',
+  summary: 'List user details or get by ID',
+  description: 'Get all user details for an organization. Use the `user_uuid` query parameter to retrieve a specific record.',
   request: {
     params: practiceParamsSchema,
     query: listUserDetailsSchema,
@@ -39,19 +39,6 @@ export const listUserDetailsRoute = createRoute({
 });
 
 // Note: No POST/create route - clients are created via intake or invitation flows
-
-export const getUserDetailRoute = createRoute({
-  method: 'get',
-  path: '/practice/{practiceId}/user-details/{uuid}',
-  tags: ['UserDetails'],
-  summary: 'Get user detail',
-  description: 'Get a specific user detail by ID',
-  request: { params: userDetailParamsSchema },
-  responses: {
-    200: { content: { 'application/json': { schema: z.object({ data: userDetailSchema }) } }, description: 'User detail details' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
-  },
-});
 
 export const updateUserDetailsRoute = createRoute({
   method: 'put',
