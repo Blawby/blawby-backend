@@ -1,1 +1,0 @@
-ALTER TABLE "practice_details" ADD COLUMN "accent_color" text;
