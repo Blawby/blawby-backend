@@ -14,7 +14,7 @@ const seeds = [
   },
   {
     key: 'email_from_address',
-    value: 'notifcations@blawby.com',
+    value: 'notifications@blawby.com',
     type: 'string' as const,
     description: 'Default sender email address',
   },

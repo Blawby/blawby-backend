@@ -8,11 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getLogger } from '@logtape/logtape';
 import { Resend } from 'resend';
-import type { EmailJobPayload, EmailSendOptions } from './email.types';
+import type { EmailJobPayload, EmailSendOptions, EmailTemplateName } from './email.types';
 import { db } from '@/shared/database/connection';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
-import { renderTemplate } from '@/shared/services/email/templates';
+import { renderTemplate, type TemplateDataMap } from '@/shared/services/email/templates';
 
 const logger = getLogger(['shared', 'services', 'email']);
 
@@ -31,7 +31,7 @@ const getResendClient = (): Resend => {
 };
 
 // Default email configuration
-const DEFAULT_FROM = 'notifcations@blawby.com';
+const DEFAULT_FROM = 'notifications@blawby.com';
 const DEFAULT_FROM_NAME = 'Blawby';
 
 /**
@@ -76,7 +76,10 @@ export const sendEmail = async (
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
   try {
     // Render the template to HTML
-    const html = renderTemplate(payload.template, payload.data as any);
+    const html = renderTemplate(
+      payload.template as EmailTemplateName,
+      payload.data as unknown as TemplateDataMap[EmailTemplateName],
+    );
 
     // Development: Save to file for instant preview
     if (process.env.NODE_ENV !== 'production') {

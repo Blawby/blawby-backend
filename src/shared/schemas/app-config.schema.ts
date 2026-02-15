@@ -20,16 +20,12 @@ export const appConfig = pgTable('app_configs', {
 
 // Zod schemas
 export const createAppConfigSchema = createInsertSchema(appConfig, {
-  value: z.any(), // Allow any JSON-compatible value
+  value: z.unknown(), // Allow any JSON-compatible value
 });
 
 export const selectAppConfigSchema = createSelectSchema(appConfig, {
-  value: z.any(),
+  value: z.unknown(),
 });
 
 export type AppConfig = typeof appConfig.$inferSelect;
 export type NewAppConfig = typeof appConfig.$inferInsert;
-
-export const appConfigSchema = {
-  appConfig,
-};
