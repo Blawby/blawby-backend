@@ -138,8 +138,13 @@ const practiceClientIntakeStatusResponseSchema = z.object({
         },
       }),
     }).optional(),
-    succeeded_at: z.string().optional(),
-    created_at: z.string(),
+    succeeded_at: z.iso.datetime().optional(),
+    created_at: z.iso.datetime(),
+    urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
+    desired_outcome: z.string().optional(),
+    court_date: z.iso.datetime().optional(),
+    has_documents: z.boolean().optional(),
+    case_strength: z.number().optional(),
   }).optional(),
   error: z.string().optional(),
 });
@@ -182,8 +187,62 @@ const internalServerErrorResponseSchema = z.object({
 });
 
 const triggerIntakeInvitationResponseSchema = z.object({
-  success: z.boolean(),
   message: z.string(),
+});
+
+const listIntakesQuerySchema = z.object({
+  status: z.enum(['open', 'succeeded', 'expired', 'canceled', 'failed', 'converted']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  intake_id: z.uuid().optional(),
+});
+
+const listIntakesResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({
+    intakes: z.array(z.object({
+      uuid: z.uuid(),
+      organization_id: z.uuid(),
+      amount: z.number(),
+      currency: z.string(),
+      status: z.string(),
+      conversation_id: z.uuid().nullable(),
+      stripe_charge_id: z.string().nullable(),
+      urgency: z.enum(['routine', 'time_sensitive', 'emergency']).nullable(),
+      court_date: z.iso.datetime().nullable(),
+      case_strength: z.number().nullable(),
+      desired_outcome: z.string().nullable(),
+      has_documents: z.boolean().nullable(),
+      metadata: z.object({
+        email: z.string(),
+        name: z.string(),
+        phone: z.string().optional(),
+        on_behalf_of: z.string().optional(),
+        opposing_party: z.string().optional(),
+        description: z.string().optional(),
+      }),
+      succeeded_at: z.iso.datetime().nullable(),
+      created_at: z.iso.datetime(),
+    })),
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+    total_pages: z.number(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+const convertIntakeSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  responsible_attorney_id: z.uuid().optional(),
+  practice_service_id: z.uuid().optional(),
+});
+
+const convertIntakeResponseSchema = z.object({
+  matter_id: z.uuid(),
 });
 
 export const intakeValidations = {
@@ -201,6 +260,10 @@ export const intakeValidations = {
   practiceClientIntakePostPayStatusResponseSchema,
   claimPracticeClientIntakeResponseSchema,
   triggerIntakeInvitationResponseSchema,
+  listIntakesQuerySchema,
+  listIntakesResponseSchema,
+  convertIntakeSchema,
+  convertIntakeResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,
   internalServerErrorResponseSchema,
