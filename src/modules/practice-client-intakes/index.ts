@@ -4,12 +4,12 @@
  * Main entry point for the practice client intakes module
  */
 
-import practiceClientIntakesApp from './http';
+import practiceClientIntakesApp from '@/modules/practice-client-intakes/http';
 
 export default practiceClientIntakesApp;
 
 // Export types
-export * from './types/practice-client-intakes.types';
+export * from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 
 // Export schemas for migrations
-export * from './database/schema/practice-client-intakes.schema';
+export * from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';

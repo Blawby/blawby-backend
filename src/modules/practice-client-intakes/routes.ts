@@ -506,6 +506,14 @@ export const convertIntakeRoute = createRoute({
       },
       description: 'Bad request - intake not eligible for conversion',
     },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized - authentication required',
+    },
     409: {
       content: {
         'application/json': {

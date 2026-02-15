@@ -138,6 +138,11 @@ export const listIntakesHandler: AppRouteHandler<typeof listIntakesRoute> = asyn
 export const convertIntakeHandler: AppRouteHandler<typeof convertIntakeRoute> = async (c) => {
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
+  const userId = c.get('userId');
+
+  if (!userId) {
+    return response.unauthorized(c, 'Authentication required to convert intake');
+  }
 
   // We need organizationId for the service call, so we fetch the intake record first.
   const intake = await practiceClientIntakesRepository.findById(uuid);
