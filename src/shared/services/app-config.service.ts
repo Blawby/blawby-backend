@@ -68,6 +68,10 @@ const set = async (
     })
     .returning();
 
+  if (!updatedConfig) {
+    throw new Error(`Failed to set app config for key "${key}": No record returned from database.`);
+  }
+
   return updatedConfig;
 };
 
