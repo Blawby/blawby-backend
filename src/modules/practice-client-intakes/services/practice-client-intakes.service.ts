@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { eq, sql } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
+import { z } from 'zod';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
@@ -25,6 +26,7 @@ import type {
   IntakePostPayStatusResponse as PracticeClientIntakePostPayStatusResponse,
   ClaimPracticeClientIntakeResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { userDetailsService } from '@/modules/user-details/services/user-details.service';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
@@ -39,6 +41,56 @@ import { stripe } from '@/shared/utils/stripe-client';
 const { practiceClientIntakes, practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
 
 const logger = getLogger(['practice-client-intakes', 'service']);
+
+const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadata | null => {
+  if (!rawMetadata) return null;
+  try {
+    return practiceClientIntakeMetadataSchema.parse(rawMetadata);
+  } catch {
+    return null;
+  }
+};
+
+const formatIntakeResponse = (
+  intake: SelectPracticeClientIntake,
+  options?: { requestingUserId?: string; isAdmin?: boolean },
+) => {
+  const { requestingUserId, isAdmin = false } = options ?? {};
+  const metadata = parseMetadata(intake.metadata);
+  const isAuthorized = isAdmin || (metadata?.user_id && requestingUserId
+    ? metadata.user_id === requestingUserId
+    : false);
+
+  return {
+    uuid: intake.id,
+    organization_id: intake.organization_id,
+    amount: intake.amount,
+    currency: intake.currency,
+    status: intake.status,
+    address_id: isAuthorized ? intake.address_id ?? undefined : undefined,
+    conversation_id: isAuthorized ? intake.conversation_id ?? null : null,
+    stripe_charge_id: intake.stripe_charge_id ?? null,
+    metadata: isAuthorized && metadata
+      ? {
+        email: metadata.email,
+        name: metadata.name,
+        phone: metadata.phone ?? undefined,
+        on_behalf_of: metadata.on_behalf_of ?? undefined,
+        opposing_party: metadata.opposing_party ?? undefined,
+        description: metadata.description ?? undefined,
+      }
+      : { email: '', name: '' },
+    succeeded_at: intake.succeeded_at?.toISOString() ?? null,
+    created_at: intake.created_at.toISOString(),
+    urgency: (intake.urgency === 'routine' || intake.urgency === 'time_sensitive' || intake.urgency === 'emergency'
+      ? intake.urgency as 'routine' | 'time_sensitive' | 'emergency'
+      : null),
+    desired_outcome: intake.desired_outcome ?? null,
+    court_date: intake.court_date?.toISOString() ?? null,
+    has_documents: intake.has_documents ?? null,
+    case_strength: intake.case_strength ?? null,
+  };
+};
 
 // result utilities are accessed via result object (Standard #6)
 
@@ -496,43 +548,9 @@ const getPracticeClientIntakeStatus = async (
       return result.notFound(`Practice client intake with UUID '${uuid}' not found`);
     }
 
-    // Validate and parse metadata if present
-    let metadata: PracticeClientIntakeMetadata | null = null;
-    if (practiceClientIntake.metadata) {
-      try {
-        metadata = practiceClientIntakeMetadataSchema.parse(practiceClientIntake.metadata);
-      } catch {
-        // If metadata doesn't match schema, return null
-        metadata = null;
-      }
-    }
-
-    const isOwner = metadata?.user_id && requestingUserId
-      ? metadata.user_id === requestingUserId
-      : false;
-
     return result.ok({
       success: true,
-      data: {
-        uuid: practiceClientIntake.id,
-        organization_id: practiceClientIntake.organization_id,
-        amount: practiceClientIntake.amount,
-        currency: practiceClientIntake.currency,
-        status: practiceClientIntake.status,
-        address_id: isOwner ? practiceClientIntake.address_id || undefined : undefined,
-        conversation_id: isOwner ? practiceClientIntake.conversation_id || undefined : undefined,
-        stripe_charge_id: practiceClientIntake.stripe_charge_id || undefined,
-        metadata: isOwner ? metadata ?? undefined : undefined,
-        succeeded_at: practiceClientIntake.succeeded_at?.toISOString() || undefined,
-        created_at: practiceClientIntake.created_at.toISOString(),
-        urgency: (practiceClientIntake.urgency === 'routine' || practiceClientIntake.urgency === 'time_sensitive' || practiceClientIntake.urgency === 'emergency'
-          ? practiceClientIntake.urgency
-          : undefined),
-        desired_outcome: practiceClientIntake.desired_outcome ?? undefined,
-        court_date: practiceClientIntake.court_date?.toISOString() ?? undefined,
-        has_documents: practiceClientIntake.has_documents ?? undefined,
-        case_strength: practiceClientIntake.case_strength ?? undefined,
-      },
+      data: formatIntakeResponse(practiceClientIntake, { requestingUserId }) as PracticeClientIntakeStatus['data'],
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
@@ -773,9 +791,10 @@ const listIntakes = async (
     search?: string;
     from?: string;
     to?: string;
+    intake_id?: string;
   },
 ): Promise<PaginatedResultWithMeta<
-  SelectPracticeClientIntake & { metadata?: PracticeClientIntakeMetadata },
+  NonNullable<z.infer<typeof intakeValidations.listIntakesResponseSchema>['data']>['intakes'][number],
   'intakes'
 >> => {
   try {
@@ -788,14 +807,12 @@ const listIntakes = async (
     const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
       organizationId,
       ...query,
+      intakeId: query.intake_id,
     });
 
     const total_pages = Math.ceil(total / query.limit);
 
-    const formattedIntakes = intakes.map((intake) => ({
-      ...intake,
-      metadata: (intake.metadata as PracticeClientIntakeMetadata) ?? null,
-    }));
+    const formattedIntakes = intakes.map((intake) => formatIntakeResponse(intake, { isAdmin: true }));
 
     return result.ok({
       intakes: formattedIntakes,
@@ -837,16 +854,21 @@ const convertIntakeToMatter = async (
     }
 
     if (intake.status === 'converted') {
-      // Find existing matter to return its ID (idempotency)
-      // This is a bit tricky without a direct query, but we can return conflict or look it up
-      return result.conflict('Intake has already been converted to a matter');
+      const existingMatter = await mattersQueries.findByIntakeUuid(uuid);
+      if (existingMatter) {
+        return result.ok({ matter_id: existingMatter.id });
+      }
+      return result.conflict('Intake is marked as converted but no associated matter was found');
     }
 
     if (intake.status !== 'succeeded') {
       return result.badRequest('Only successful intakes can be converted to matters');
     }
 
-    const metadata = intake.metadata as PracticeClientIntakeMetadata;
+    const metadata = intake.metadata as PracticeClientIntakeMetadata | null;
+    if (!metadata) {
+      return result.badRequest('Intake metadata is missing');
+    }
 
     const matterId = await db.transaction(async (tx) => {
       // 1. Create Matter
@@ -865,7 +887,7 @@ const convertIntakeToMatter = async (
         opposing_counsel: metadata.opposing_counsel,
         responsible_attorney_id: data.responsible_attorney_id,
         practice_service_id: data.practice_service_id,
-      });
+      }, tx);
 
       // 2. Update Intake Status
       await practiceClientIntakesRepository.updateStatus(uuid, 'converted', tx);

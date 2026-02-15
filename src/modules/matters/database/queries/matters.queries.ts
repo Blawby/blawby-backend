@@ -14,8 +14,9 @@ import { db } from '@/shared/database';
 // Create matter
 const createMatter = async (
   data: InsertMatter,
+  tx: typeof db = db,
 ): Promise<SelectMatter> => {
-  const [matter] = await db
+  const [matter] = await tx
     .insert(matters)
     .values(data)
     .returning();
@@ -74,6 +75,19 @@ const findMatterByIdWithDeleted = async (
     .select()
     .from(matters)
     .where(eq(matters.id, id))
+    .limit(1);
+  return matter;
+};
+
+// Find matter by intake UUID
+const findByIntakeUuid = async (
+  intakeUuid: string,
+  tx: typeof db = db,
+): Promise<SelectMatter | undefined> => {
+  const [matter] = await tx
+    .select()
+    .from(matters)
+    .where(eq(matters.intake_uuid, intakeUuid))
     .limit(1);
   return matter;
 };
@@ -356,4 +370,5 @@ export const mattersQueries = {
   getMatterAssignees,
   clearMatterAssignees,
   updateRetainerBalance,
+  findByIntakeUuid,
 };

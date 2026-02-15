@@ -22,7 +22,7 @@ export const convertIntakeHandler = async (c: Context) => {
 
   const validatedBody = intakeValidations.convertIntakeSchema.safeParse(body);
   if (!validatedBody.success) {
-    return response.badRequest(c, 'Invalid request body', validatedBody.error.flatten());
+    return response.badRequest(c, 'Invalid request body', validatedBody.error);
   }
 
   const result = await practiceClientIntakesService.convertIntakeToMatter(
