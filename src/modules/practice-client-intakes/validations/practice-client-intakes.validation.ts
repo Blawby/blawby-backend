@@ -203,12 +203,12 @@ const listIntakesResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     intakes: z.array(z.object({
-      uuid: z.string().uuid(),
-      organization_id: z.string().uuid(),
+      uuid: z.uuid(),
+      organization_id: z.uuid(),
       amount: z.number(),
       currency: z.string(),
       status: z.string(),
-      conversation_id: z.string().uuid().nullable(),
+      conversation_id: z.uuid().nullable(),
       stripe_charge_id: z.string().nullable(),
       urgency: z.enum(['routine', 'time_sensitive', 'emergency']).nullable(),
       court_date: z.iso.datetime().nullable(),
@@ -235,20 +235,13 @@ const listIntakesResponseSchema = z.object({
 });
 
 const convertIntakeSchema = z.object({
-  responsible_attorney_id: z.string().uuid().optional(),
-  billing_type: z.enum(['hourly', 'fixed', 'contingency', 'pro_bono']).optional(),
-  description: z.string().optional(),
+  title: z.string().min(1).max(255).optional(),
+  responsible_attorney_id: z.uuid().optional(),
+  practice_service_id: z.uuid().optional(),
 });
 
 const convertIntakeResponseSchema = z.object({
-  success: z.boolean(),
-  data: z.object({
-    matter_id: z.string().uuid(),
-    matter_status: z.string(),
-    conversation_id: z.string().uuid().nullable(),
-    invite_sent: z.boolean(),
-  }).optional(),
-  error: z.string().optional(),
+  matter_id: z.uuid(),
 });
 
 export const intakeValidations = {

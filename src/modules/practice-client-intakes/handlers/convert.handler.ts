@@ -11,11 +11,16 @@ import { response } from '@/shared/utils/responseUtils';
  */
 export const convertIntakeHandler = async (c: Context) => {
   const uuid = c.req.param('uuid');
-  const organizationId = c.get('organizationId'); // Assumes auth middleware sets this
+  const organizationId = c.get('organizationId');
 
-  const body = await c.req.json();
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return response.badRequest(c, 'Invalid JSON body');
+  }
+
   const validatedBody = intakeValidations.convertIntakeSchema.safeParse(body);
-
   if (!validatedBody.success) {
     return response.badRequest(c, 'Invalid request body', validatedBody.error.flatten());
   }

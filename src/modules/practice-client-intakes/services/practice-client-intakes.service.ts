@@ -525,8 +525,14 @@ const getPracticeClientIntakeStatus = async (
         metadata: isOwner ? metadata ?? undefined : undefined,
         succeeded_at: practiceClientIntake.succeeded_at?.toISOString() || undefined,
         created_at: practiceClientIntake.created_at.toISOString(),
+        urgency: (practiceClientIntake.urgency === 'routine' || practiceClientIntake.urgency === 'time_sensitive' || practiceClientIntake.urgency === 'emergency'
+          ? practiceClientIntake.urgency
+          : undefined),
+        desired_outcome: practiceClientIntake.desired_outcome ?? undefined,
+        court_date: practiceClientIntake.court_date?.toISOString() ?? undefined,
+        has_documents: practiceClientIntake.has_documents ?? undefined,
+        case_strength: practiceClientIntake.case_strength ?? undefined,
       },
-
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
@@ -753,6 +759,11 @@ const triggerIntakeInvitation = async (
 /**
  * List practice client intakes with filtering and pagination
  */
+const parseValidDate = (value: string): Date | null => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const listIntakes = async (
   organizationId: string,
   query: {
@@ -768,6 +779,12 @@ const listIntakes = async (
   'intakes'
 >> => {
   try {
+    if (query.from && !parseValidDate(query.from)) {
+      return result.badRequest('Invalid date: from');
+    }
+    if (query.to && !parseValidDate(query.to)) {
+      return result.badRequest('Invalid date: to');
+    }
     const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
       organizationId,
       ...query,

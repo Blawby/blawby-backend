@@ -134,11 +134,17 @@ const findByOrganizationId = async ({
   }
 
   if (from) {
-    conditions.push(gte(practiceClientIntakes.created_at, new Date(from)));
+    const fromDate = new Date(from);
+    if (!Number.isNaN(fromDate.getTime())) {
+      conditions.push(gte(practiceClientIntakes.created_at, fromDate));
+    }
   }
 
   if (to) {
-    conditions.push(lte(practiceClientIntakes.created_at, new Date(to)));
+    const toDate = new Date(to);
+    if (!Number.isNaN(toDate.getTime())) {
+      conditions.push(lte(practiceClientIntakes.created_at, toDate));
+    }
   }
 
   const whereClause = and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
