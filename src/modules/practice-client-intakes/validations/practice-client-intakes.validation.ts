@@ -197,6 +197,7 @@ const listIntakesQuerySchema = z.object({
   search: z.string().optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
+  intake_id: z.uuid().optional(),
 });
 
 const listIntakesResponseSchema = z.object({

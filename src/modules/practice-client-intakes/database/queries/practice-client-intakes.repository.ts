@@ -1,7 +1,6 @@
 import {
   eq, desc, and, gte, lte, or, ilike, sql,
 } from 'drizzle-orm';
-
 import {
   practiceClientIntakesSchema,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
@@ -9,10 +8,63 @@ import type {
   InsertPracticeClientIntake,
   SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-
 import { db } from '@/shared/database';
+import { escapeLikeWildcards } from '@/shared/utils/database';
 
 const { practiceClientIntakes } = practiceClientIntakesSchema;
+
+const buildIntakeConditions = ({
+  organizationId,
+  status,
+  search,
+  from,
+  to,
+  intakeId,
+}: {
+  organizationId: string;
+  status?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  intakeId?: string;
+}) => {
+  const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
+
+  if (intakeId) {
+    conditions.push(eq(practiceClientIntakes.id, intakeId));
+  }
+
+  if (status) {
+    conditions.push(eq(practiceClientIntakes.status, status));
+  }
+
+  if (search) {
+    const escapedSearch = escapeLikeWildcards(search);
+    conditions.push(
+      or(
+        ilike(sql`${practiceClientIntakes.metadata}->>'email'`, `%${escapedSearch}%`),
+        ilike(sql`${practiceClientIntakes.metadata}->>'name'`, `%${escapedSearch}%`),
+        ilike(sql`${practiceClientIntakes.metadata}->>'opposing_party'`, `%${escapedSearch}%`),
+      )!,
+    );
+  }
+
+  if (from) {
+    const fromDate = new Date(from);
+    if (!Number.isNaN(fromDate.getTime())) {
+      conditions.push(gte(practiceClientIntakes.created_at, fromDate));
+    }
+  }
+
+  if (to) {
+    const toDate = new Date(to);
+    if (!Number.isNaN(toDate.getTime())) {
+      conditions.push(lte(practiceClientIntakes.created_at, toDate));
+    }
+  }
+
+  return and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
+};
 
 const create = async (
   data: InsertPracticeClientIntake,
@@ -106,6 +158,7 @@ const findByOrganizationId = async ({
   search,
   from,
   to,
+  intakeId,
   page = 1,
   limit = 20,
 }: {
@@ -114,40 +167,18 @@ const findByOrganizationId = async ({
   search?: string;
   from?: string;
   to?: string;
+  intakeId?: string;
   page?: number;
   limit?: number;
 }): Promise<{ intakes: SelectPracticeClientIntake[]; total: number }> => {
-  const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
-
-  if (status) {
-    conditions.push(eq(practiceClientIntakes.status, status));
-  }
-
-  if (search) {
-    conditions.push(
-      or(
-        ilike(sql`${practiceClientIntakes.metadata}->>'email'`, `%${search}%`),
-        ilike(sql`${practiceClientIntakes.metadata}->>'name'`, `%${search}%`),
-        ilike(sql`${practiceClientIntakes.metadata}->>'opposing_party'`, `%${search}%`),
-      )!,
-    );
-  }
-
-  if (from) {
-    const fromDate = new Date(from);
-    if (!Number.isNaN(fromDate.getTime())) {
-      conditions.push(gte(practiceClientIntakes.created_at, fromDate));
-    }
-  }
-
-  if (to) {
-    const toDate = new Date(to);
-    if (!Number.isNaN(toDate.getTime())) {
-      conditions.push(lte(practiceClientIntakes.created_at, toDate));
-    }
-  }
-
-  const whereClause = and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
+  const whereClause = buildIntakeConditions({
+    organizationId,
+    status,
+    search,
+    from,
+    to,
+    intakeId,
+  });
 
   const [totalResult] = await db
     .select({ count: sql<number>`count(*)` })
@@ -176,15 +207,11 @@ const getStats = async (
   count: number;
   succeededCount: number;
 }> => {
-  const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
-
-  if (startDate) {
-    conditions.push(gte(practiceClientIntakes.created_at, startDate));
-  }
-
-  if (endDate) {
-    conditions.push(lte(practiceClientIntakes.created_at, endDate));
-  }
+  const whereClause = buildIntakeConditions({
+    organizationId,
+    from: startDate?.toISOString(),
+    to: endDate?.toISOString(),
+  });
 
   const results = await db
     .select({
@@ -192,7 +219,7 @@ const getStats = async (
       status: practiceClientIntakes.status,
     })
     .from(practiceClientIntakes)
-    .where(and(...conditions));
+    .where(whereClause);
 
   const totalAmount = results.reduce((sum, row) => sum + row.totalAmount, 0);
   const count = results.length;

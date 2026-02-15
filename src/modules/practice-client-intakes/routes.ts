@@ -430,8 +430,8 @@ export const listIntakesRoute = createRoute({
   method: 'get',
   path: '/{practice_id}/client-intakes',
   tags: ['Practice Client Intakes'],
-  summary: 'List practice client intakes',
-  description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Privacy-sensitive fields (income, household_size) are excluded from this response.',
+  summary: 'List practice client intakes or get by ID',
+  description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Use the `intake_id` query parameter to retrieve a specific intake. Privacy-sensitive fields (income, household_size) are excluded from this response.',
   request: {
     params: z.object({
       practice_id: z.uuid().openapi({
