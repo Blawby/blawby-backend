@@ -152,5 +152,5 @@ export const convertIntakeHandler: AppRouteHandler<typeof convertIntakeRoute> = 
 
   const result = await practiceClientIntakesService.convertIntakeToMatter(uuid, intake.organization_id, body);
 
-  return response.fromResult(c, result);
+  return response.fromResult(c, result, 201);
 };
