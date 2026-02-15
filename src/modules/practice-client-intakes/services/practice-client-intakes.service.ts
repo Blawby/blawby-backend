@@ -27,6 +27,7 @@ import { userDetailsService } from '@/modules/user-details/services/user-details
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
+import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
 import type { Result } from '@/shared/types/result';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
@@ -723,10 +724,15 @@ const triggerIntakeInvitation = async (
     // 4. Send magic link via Better Auth
     const auth = createBetterAuthInstance(db);
 
+    // Fetch intake redirect path from app config
+    const intakeRedirectUrl = await appConfigService.get<string>('intake_redirect_url');
+    const redirectPath = intakeRedirectUrl || 'auth/accept-invitation';
+    const separator = redirectPath.includes('?') ? '&' : '?';
+
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: `${getMatchingFrontendUrl(requestHeaders.get('origin'))}/auth/accept-invitation?data=${encodedData}`,
+        callbackURL: `${getMatchingFrontendUrl(requestHeaders.get('origin'))}/${redirectPath}${separator}data=${encodedData}`,
       },
       headers: requestHeaders,
     });
