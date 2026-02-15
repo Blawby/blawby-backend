@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { eq, sql } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
+import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
@@ -12,6 +13,7 @@ import {
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type {
   InsertPracticeClientIntake,
+  SelectPracticeClientIntake,
   PracticeClientIntakeMetadata,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type {
@@ -29,13 +31,12 @@ import { db } from '@/shared/database';
 import { IntakePaymentCreated } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
-import type { Result } from '@/shared/types/result';
+import type { Result, PaginatedResultWithMeta } from '@/shared/types/result';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const { practiceClientIntakes, practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
-
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
@@ -749,6 +750,122 @@ const triggerIntakeInvitation = async (
   }
 };
 
+/**
+ * List practice client intakes with filtering and pagination
+ */
+const listIntakes = async (
+  organizationId: string,
+  query: {
+    status?: string;
+    page: number;
+    limit: number;
+    search?: string;
+    from?: string;
+    to?: string;
+  },
+): Promise<PaginatedResultWithMeta<
+  SelectPracticeClientIntake & { metadata?: PracticeClientIntakeMetadata },
+  'intakes'
+>> => {
+  try {
+    const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
+      organizationId,
+      ...query,
+    });
+
+    const total_pages = Math.ceil(total / query.limit);
+
+    const formattedIntakes = intakes.map((intake) => ({
+      ...intake,
+      metadata: (intake.metadata as PracticeClientIntakeMetadata) ?? null,
+    }));
+
+    return result.ok({
+      intakes: formattedIntakes,
+      total,
+      page: query.page,
+      limit: query.limit,
+      total_pages,
+    });
+  } catch (error) {
+    logger.error('Failed to list intakes for organization {organizationId}: {error}', {
+      organizationId,
+      error,
+    });
+    return result.internalError('Failed to list intakes');
+  }
+};
+
+/**
+ * Convert a completed intake to a Matter
+ */
+const convertIntakeToMatter = async (
+  uuid: string,
+  organizationId: string,
+  data: {
+    title?: string;
+    responsible_attorney_id?: string;
+    practice_service_id?: string;
+  },
+): Promise<Result<{ matter_id: string }>> => {
+  try {
+    const intake = await practiceClientIntakesRepository.findById(uuid);
+
+    if (!intake) {
+      return result.notFound('Intake not found');
+    }
+
+    if (intake.organization_id !== organizationId) {
+      return result.forbidden('Access denied');
+    }
+
+    if (intake.status === 'converted') {
+      // Find existing matter to return its ID (idempotency)
+      // This is a bit tricky without a direct query, but we can return conflict or look it up
+      return result.conflict('Intake has already been converted to a matter');
+    }
+
+    if (intake.status !== 'succeeded') {
+      return result.badRequest('Only successful intakes can be converted to matters');
+    }
+
+    const metadata = intake.metadata as PracticeClientIntakeMetadata;
+
+    const matterId = await db.transaction(async (tx) => {
+      // 1. Create Matter
+      const matter = await mattersQueries.createMatter({
+        organization_id: organizationId,
+        billing_type: 'fixed', // Default for intake matters
+        client_id: metadata.user_id,
+        title: data.title ?? `Intake: ${metadata.name}`,
+        description: metadata.description,
+        status: 'intake_pending',
+        urgency: intake.urgency ?? 'routine',
+        intake_uuid: uuid,
+        conversation_id: intake.conversation_id,
+        on_behalf_of: metadata.on_behalf_of,
+        opposing_party: metadata.opposing_party,
+        opposing_counsel: metadata.opposing_counsel,
+        responsible_attorney_id: data.responsible_attorney_id,
+        practice_service_id: data.practice_service_id,
+      });
+
+      // 2. Update Intake Status
+      await practiceClientIntakesRepository.updateStatus(uuid, 'converted', tx);
+
+      return matter.id;
+    });
+
+    return result.ok({ matter_id: matterId });
+  } catch (error) {
+    logger.error('Failed to convert intake {uuid} to matter: {error}', {
+      uuid,
+      error,
+    });
+    return result.internalError('Failed to convert intake to matter');
+  }
+};
+
 
 export const practiceClientIntakesService = {
   getPracticeClientIntakeSettings,
@@ -759,4 +876,6 @@ export const practiceClientIntakesService = {
   getPracticeClientIntakePostPayStatus,
   claimPracticeClientIntakePayment,
   triggerIntakeInvitation,
+  listIntakes,
+  convertIntakeToMatter,
 };

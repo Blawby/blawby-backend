@@ -421,3 +421,106 @@ export const triggerIntakeInvitationRoute = createRoute({
     },
   },
 });
+
+/**
+ * GET /api/practice/{practice_id}/client-intakes
+ * List practice client intakes (legal staff only)
+ */
+export const listIntakesRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/client-intakes',
+  tags: ['Practice Client Intakes'],
+  summary: 'List practice client intakes',
+  description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Privacy-sensitive fields (income, household_size) are excluded from this response.',
+  request: {
+    params: z.object({
+      practice_id: z.string().uuid().openapi({
+        param: { name: 'practice_id', in: 'path' },
+        description: 'Practice organization ID',
+      }),
+    }),
+    query: intakeValidations.listIntakesQuerySchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.listIntakesResponseSchema,
+        },
+      },
+      description: 'List of intakes retrieved successfully.',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * POST /api/practice/client-intakes/{uuid}/convert
+ * Converts a successful intake to a Matter
+ */
+export const convertIntakeRoute = createRoute({
+  method: 'post',
+  path: '/{uuid}/convert',
+  tags: ['Practice Client Intakes'],
+  summary: 'Convert intake to matter',
+  description: 'Converts a successful (paid) client intake into a formal Matter. Copies metadata (title, client info, case details) and links the intake and any associated conversation to the new Matter. Idempotent: returns error if already converted.',
+  request: {
+    params: uuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.convertIntakeSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.convertIntakeResponseSchema,
+        },
+      },
+      description: 'Intake converted successfully. Returns the new Matter ID.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - intake not eligible for conversion',
+    },
+    409: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Conflict - intake already converted',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});

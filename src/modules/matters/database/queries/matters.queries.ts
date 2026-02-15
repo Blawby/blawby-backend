@@ -151,6 +151,9 @@ const listMattersByOrganization = async (
         deleted_by: matters.deleted_by,
         created_at: matters.created_at,
         updated_at: matters.updated_at,
+        conversation_id: matters.conversation_id,
+        intake_uuid: matters.intake_uuid,
+        on_behalf_of: matters.on_behalf_of,
       })
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
