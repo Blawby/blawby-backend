@@ -101,8 +101,8 @@ const updateMatterSchema = z.object({
   conversation_id: uuidValidator.optional(),
   intake_uuid: uuidValidator.optional(),
   on_behalf_of: z.string().optional(),
-  open_date: z.iso.datetime().optional(),
-  close_date: z.iso.datetime().optional(),
+  open_date: z.coerce.date().optional(),
+  close_date: z.coerce.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(),
 }).strict();
 

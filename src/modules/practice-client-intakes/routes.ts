@@ -434,7 +434,7 @@ export const listIntakesRoute = createRoute({
   description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Privacy-sensitive fields (income, household_size) are excluded from this response.',
   request: {
     params: z.object({
-      practice_id: z.string().uuid().openapi({
+      practice_id: z.uuid().openapi({
         param: { name: 'practice_id', in: 'path' },
         description: 'Practice organization ID',
       }),
