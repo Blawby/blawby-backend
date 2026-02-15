@@ -218,6 +218,13 @@
       "when": 1771055573504,
       "tag": "0030_curved_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1771161769202,
+      "tag": "0031_cooing_saracen",
+      "breakpoints": true
     }
   ]
 }
