@@ -10,6 +10,7 @@ import { getLogger } from '@logtape/logtape';
 import { Resend } from 'resend';
 import type { EmailJobPayload, EmailSendOptions } from './email.types';
 import { db } from '@/shared/database/connection';
+import { appConfigService } from '@/shared/services/app-config.service';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
 import { renderTemplate } from '@/shared/services/email/templates';
 
@@ -105,8 +106,14 @@ export const sendEmail = async (
       return { success: true, messageId: 'local_preview' };
     }
 
+    // Get "from" details from app config
+    const [fromAddress, fromName] = await Promise.all([
+      appConfigService.get<string>('email_from_address'),
+      appConfigService.get<string>('email_from_name'),
+    ]);
+
     const result = await getResendClient().emails.send({
-      from: options.from || `${DEFAULT_FROM_NAME} <${DEFAULT_FROM}>`,
+      from: options.from || `${fromName || DEFAULT_FROM_NAME} <${fromAddress || DEFAULT_FROM}>`,
       to: payload.to,
       subject: payload.subject,
       html,
