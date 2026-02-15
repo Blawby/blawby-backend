@@ -3,7 +3,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, not, inArray } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
@@ -165,25 +165,32 @@ export const handlePracticeClientIntakeFailed = async ({
     if (!practiceClientIntake) return;
 
     await db.transaction(async (tx) => {
-      await tx
+      const updateResult = await tx
         .update(practiceClientIntakes)
         .set({
           status: 'failed',
           stripe_payment_intent_id: paymentIntent.id,
           updated_at: new Date(),
         })
-        .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
+        .where(
+          and(
+            eq(practiceClientIntakes.id, practiceClientIntake.id),
+            eq(practiceClientIntakes.status, 'open'),
+          ),
+        );
 
-      await IntakePaymentFailed.dispatch({
-        stripe_payment_intent_id: paymentIntent.id,
-        intake_payment_id: practiceClientIntake.id,
-        error: paymentIntent.last_payment_error?.message,
-      }, {
-        actorId: WEBHOOK_ACTOR_UUID,
-        actorType: 'webhook',
-        organizationId: practiceClientIntake.organization_id,
-        tx,
-      });
+      if (updateResult.rowCount === 1) {
+        await IntakePaymentFailed.dispatch({
+          stripe_payment_intent_id: paymentIntent.id,
+          intake_payment_id: practiceClientIntake.id,
+          error: paymentIntent.last_payment_error?.message,
+        }, {
+          actorId: WEBHOOK_ACTOR_UUID,
+          actorType: 'webhook',
+          organizationId: practiceClientIntake.organization_id,
+          tx,
+        });
+      }
     });
 
     logger.warn('Payment failed', { intakeId: practiceClientIntake.id, eventId });
@@ -208,24 +215,31 @@ export const handlePracticeClientIntakeCanceled = async ({
     if (!practiceClientIntake) return;
 
     await db.transaction(async (tx) => {
-      await tx
+      const updateResult = await tx
         .update(practiceClientIntakes)
         .set({
           status: 'canceled',
           stripe_payment_intent_id: paymentIntent.id,
           updated_at: new Date(),
         })
-        .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
+        .where(
+          and(
+            eq(practiceClientIntakes.id, practiceClientIntake.id),
+            eq(practiceClientIntakes.status, 'open'),
+          ),
+        );
 
-      await IntakePaymentCanceled.dispatch({
-        stripe_payment_intent_id: paymentIntent.id,
-        intake_payment_id: practiceClientIntake.id,
-      }, {
-        actorId: WEBHOOK_ACTOR_UUID,
-        actorType: 'webhook',
-        organizationId: practiceClientIntake.organization_id,
-        tx,
-      });
+      if (updateResult.rowCount === 1) {
+        await IntakePaymentCanceled.dispatch({
+          stripe_payment_intent_id: paymentIntent.id,
+          intake_payment_id: practiceClientIntake.id,
+        }, {
+          actorId: WEBHOOK_ACTOR_UUID,
+          actorType: 'webhook',
+          organizationId: practiceClientIntake.organization_id,
+          tx,
+        });
+      }
     });
 
     logger.info('Payment canceled', { intakeId: practiceClientIntake.id, eventId });
@@ -248,14 +262,30 @@ export const handlePracticeClientIntakeCheckoutSessionCompleted = async (
       return;
     }
 
+    // Only update if not in a terminal state
+    const terminalStatuses = ['succeeded', 'failed', 'canceled', 'converted'];
+    if (terminalStatuses.includes(practiceClientIntake.status)) {
+      logger.info('Checkout session completed but intake already in terminal state', {
+        intakeId: practiceClientIntake.id,
+        status: practiceClientIntake.status,
+        sessionId: session.id,
+      });
+      return;
+    }
+
     await db
       .update(practiceClientIntakes)
       .set({
         stripe_checkout_session_id: session.id,
-        status: 'open', // Ensure it's open if it was somehow different
+        status: 'open',
         updated_at: new Date(),
       })
-      .where(eq(practiceClientIntakes.id, practiceClientIntake.id));
+      .where(
+        and(
+          eq(practiceClientIntakes.id, practiceClientIntake.id),
+          not(inArray(practiceClientIntakes.status, terminalStatuses)),
+        ),
+      );
 
     logger.info('Checkout session completed and linked', { intakeId: practiceClientIntake.id });
   } catch (error) {

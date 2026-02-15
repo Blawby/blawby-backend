@@ -27,6 +27,7 @@ import type {
   ClaimPracticeClientIntakeResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
 import { userDetailsService } from '@/modules/user-details/services/user-details.service';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
@@ -871,11 +872,25 @@ const convertIntakeToMatter = async (
     }
 
     const matterId = await db.transaction(async (tx) => {
-      // 1. Create Matter
+      // 1. Verify client_id exists in user_details if provided
+      let clientId: string | undefined = undefined;
+      if (metadata.user_id) {
+        const userDetailsRecord = await userDetailsRepository.findById(metadata.user_id);
+        if (userDetailsRecord) {
+          clientId = metadata.user_id;
+        } else {
+          logger.warn('User ID {userId} from intake metadata not found in user_details, creating matter without client_id', {
+            userId: metadata.user_id,
+            intakeUuid: uuid,
+          });
+        }
+      }
+
+      // 2. Create Matter
       const matter = await mattersQueries.createMatter({
         organization_id: organizationId,
         billing_type: 'fixed', // Default for intake matters
-        client_id: metadata.user_id,
+        client_id: clientId,
         title: data.title ?? `Intake: ${metadata.name}`,
         description: metadata.description,
         status: 'intake_pending',
@@ -889,7 +904,7 @@ const convertIntakeToMatter = async (
         practice_service_id: data.practice_service_id,
       }, tx);
 
-      // 2. Update Intake Status
+      // 3. Update Intake Status
       await practiceClientIntakesRepository.updateStatus(uuid, 'converted', tx);
 
       return matter.id;
