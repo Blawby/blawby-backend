@@ -2,6 +2,8 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { zValidator } from '@hono/zod-validator';
 import { getLogger } from '@logtape/logtape';
 import type { Context } from 'hono';
+import { convertIntakeHandler } from '@/modules/practice-client-intakes/handlers/convert.handler';
+import { listIntakesHandler } from '@/modules/practice-client-intakes/handlers/list.handler';
 import * as routes from '@/modules/practice-client-intakes/routes';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
 import {
@@ -172,6 +174,9 @@ const triggerIntakeInvitationHandler: AppRouteHandler<typeof routes.triggerIntak
 };
 
 app.openapi(routes.triggerIntakeInvitationRoute, triggerIntakeInvitationHandler);
+
+app.openapi(routes.listIntakesRoute, listIntakesHandler);
+app.openapi(routes.convertIntakeRoute, convertIntakeHandler);
 
 registerOpenApiRoutes(app, routes);
 

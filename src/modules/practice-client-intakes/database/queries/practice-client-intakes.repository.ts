@@ -1,4 +1,6 @@
-import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import {
+  eq, desc, and, gte, lte, or, ilike, sql,
+} from 'drizzle-orm';
 
 import {
   practiceClientIntakesSchema,
@@ -85,8 +87,9 @@ const update = async (
 const updateStatus = async (
   id: string,
   status: string,
+  tx: typeof db = db,
 ): Promise<SelectPracticeClientIntake> => {
-  const [updated] = await db
+  const [updated] = await tx
     .update(practiceClientIntakes)
     .set({ status, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
@@ -97,18 +100,65 @@ const updateStatus = async (
   return updated;
 };
 
-const listByOrganization = async (
-  organizationId: string,
-  limit = 100,
-  offset = 0,
-): Promise<SelectPracticeClientIntake[]> => {
-  return await db
+const findByOrganizationId = async ({
+  organizationId,
+  status,
+  search,
+  from,
+  to,
+  page = 1,
+  limit = 20,
+}: {
+  organizationId: string;
+  status?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ intakes: SelectPracticeClientIntake[]; total: number }> => {
+  const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
+
+  if (status) {
+    conditions.push(eq(practiceClientIntakes.status, status));
+  }
+
+  if (search) {
+    conditions.push(
+      or(
+        ilike(sql`${practiceClientIntakes.metadata}->>'email'`, `%${search}%`),
+        ilike(sql`${practiceClientIntakes.metadata}->>'name'`, `%${search}%`),
+        ilike(sql`${practiceClientIntakes.metadata}->>'opposing_party'`, `%${search}%`),
+      )!,
+    );
+  }
+
+  if (from) {
+    conditions.push(gte(practiceClientIntakes.created_at, new Date(from)));
+  }
+
+  if (to) {
+    conditions.push(lte(practiceClientIntakes.created_at, new Date(to)));
+  }
+
+  const whereClause = and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
+
+  const [totalResult] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(practiceClientIntakes)
+    .where(whereClause);
+
+  const total = Number(totalResult?.count ?? 0);
+
+  const intakes = await db
     .select()
     .from(practiceClientIntakes)
-    .where(eq(practiceClientIntakes.organization_id, organizationId))
+    .where(whereClause)
     .orderBy(desc(practiceClientIntakes.created_at))
     .limit(limit)
-    .offset(offset);
+    .offset((page - 1) * limit);
+
+  return { intakes, total };
 };
 
 const getStats = async (
@@ -157,7 +207,7 @@ export const practiceClientIntakesRepository = {
   findByStripeCheckoutSessionId,
   update,
   updateStatus,
-  listByOrganization,
+  findByOrganizationId,
   getStats,
 };
 
