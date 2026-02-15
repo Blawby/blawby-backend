@@ -191,7 +191,7 @@ const triggerIntakeInvitationResponseSchema = z.object({
 });
 
 const listIntakesQuerySchema = z.object({
-  status: z.enum(['open', 'succeeded', 'expired', 'canceled', 'failed']).optional(),
+  status: z.enum(['open', 'succeeded', 'expired', 'canceled', 'failed', 'converted']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),

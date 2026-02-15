@@ -87,7 +87,7 @@ const findByIntakeUuid = async (
   const [matter] = await tx
     .select()
     .from(matters)
-    .where(eq(matters.intake_uuid, intakeUuid))
+    .where(and(eq(matters.intake_uuid, intakeUuid), isNull(matters.deleted_at)))
     .limit(1);
   return matter;
 };
