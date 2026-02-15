@@ -7,14 +7,14 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 import {
   handlePracticeClientIntakeSucceeded,
   handlePracticeClientIntakeFailed,
   handlePracticeClientIntakeCanceled,
-} from '@/modules/practice-client-intakes/handlers';
-import { findPracticeClientIntakeByPaymentIntent } from '@/modules/practice-client-intakes/handlers/helpers';
-import { handlePracticeClientIntakeCheckoutSessionCompleted } from '@/modules/practice-client-intakes/handlers/checkout-session';
+  findPracticeClientIntakeByPaymentIntent,
+  handlePracticeClientIntakeCheckoutSessionCompleted,
+} from '@/modules/practice-client-intakes/webhooks';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
@@ -42,7 +42,8 @@ export const practiceClientIntakesWebhooksService = {
       const event = webhookEvent.payload as Stripe.Event;
 
       if (event.type === 'checkout.session.completed') {
-        await handlePracticeClientIntakeCheckoutSessionCompleted(event);
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handlePracticeClientIntakeCheckoutSessionCompleted(session);
         await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
         logger.info('Successfully processed practice client intake checkout session event: {eventId}', { eventId });
         return ok(undefined);
