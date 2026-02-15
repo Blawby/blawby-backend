@@ -27,6 +27,7 @@ export default [
         caughtErrorsIgnorePattern: '^_',
       }],
       '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-deprecated': 'error',
       'prefer-const': 'error',
 
       // @stylistic/eslint-plugin rules (comprehensive formatting)

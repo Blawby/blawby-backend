@@ -45,13 +45,16 @@ const createMatterSchema = z.object({
   judge: z.string().max(255).optional(),
   opposing_party: z.string().max(255).optional(),
   opposing_counsel: z.string().max(255).optional(),
-  open_date: z.string().datetime().optional(),
-  close_date: z.string().datetime().optional(),
+  conversation_id: uuidValidator.optional(),
+  intake_uuid: uuidValidator.optional(),
+  on_behalf_of: z.string().optional(),
+  open_date: z.coerce.date().optional(),
+  close_date: z.coerce.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(), // User IDs to assign
   milestones: z.array(z.object({
     description: z.string().min(1).max(255),
     amount: z.number().int().min(0), // in cents
-    due_date: z.string().or(z.date()),
+    due_date: z.coerce.date(),
     order: z.number().int().min(0).default(0),
   })).optional(),
 }).refine(
@@ -95,8 +98,11 @@ const updateMatterSchema = z.object({
   judge: z.string().max(255).optional(),
   opposing_party: z.string().max(255).optional(),
   opposing_counsel: z.string().max(255).optional(),
-  open_date: z.string().datetime().optional(),
-  close_date: z.string().datetime().optional(),
+  conversation_id: uuidValidator.optional(),
+  intake_uuid: uuidValidator.optional(),
+  on_behalf_of: z.string().optional(),
+  open_date: z.coerce.date().optional(),
+  close_date: z.coerce.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(),
 }).strict();
 
@@ -148,6 +154,9 @@ const matterSchema = z.object({
   judge: z.string().nullable(),
   opposing_party: z.string().nullable(),
   opposing_counsel: z.string().nullable(),
+  conversation_id: z.uuid().nullable(),
+  intake_uuid: z.uuid().nullable(),
+  on_behalf_of: z.string().nullable(),
   open_date: z.iso.datetime().nullable(),
   close_date: z.iso.datetime().nullable(),
   deleted_at: z.iso.datetime().nullable(),

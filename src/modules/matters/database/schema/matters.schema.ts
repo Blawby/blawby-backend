@@ -82,6 +82,11 @@ export const matters = pgTable(
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     deleted_by: uuid('deleted_by').references(() => users.id),
 
+    // Intake and Conversation linking
+    conversation_id: uuid('conversation_id'),
+    intake_uuid: uuid('intake_uuid'),
+    on_behalf_of: text('on_behalf_of'),
+
     // Timestamps
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
@@ -98,6 +103,8 @@ export const matters = pgTable(
     index('matters_deleted_at_idx').on(table.deleted_at),
     index('matters_created_at_idx').on(table.created_at),
     index('matters_retainer_balance_idx').on(table.retainer_balance),
+    index('matters_intake_uuid_idx').on(table.intake_uuid),
+    index('matters_conversation_id_idx').on(table.conversation_id),
   ],
 );
 

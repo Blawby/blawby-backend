@@ -1,5 +1,6 @@
-import { eq, desc, and, gte, lte } from 'drizzle-orm';
-
+import {
+  eq, desc, and, gte, lte, or, ilike, sql,
+} from 'drizzle-orm';
 import {
   practiceClientIntakesSchema,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
@@ -7,10 +8,63 @@ import type {
   InsertPracticeClientIntake,
   SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-
 import { db } from '@/shared/database';
+import { escapeLikeWildcards } from '@/shared/utils/database';
 
 const { practiceClientIntakes } = practiceClientIntakesSchema;
+
+const buildIntakeConditions = ({
+  organizationId,
+  status,
+  search,
+  from,
+  to,
+  intakeId,
+}: {
+  organizationId: string;
+  status?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  intakeId?: string;
+}) => {
+  const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
+
+  if (intakeId) {
+    conditions.push(eq(practiceClientIntakes.id, intakeId));
+  }
+
+  if (status) {
+    conditions.push(eq(practiceClientIntakes.status, status));
+  }
+
+  if (search) {
+    const escapedSearch = escapeLikeWildcards(search);
+    conditions.push(
+      or(
+        ilike(sql`${practiceClientIntakes.metadata}->>'email'`, `%${escapedSearch}%`),
+        ilike(sql`${practiceClientIntakes.metadata}->>'name'`, `%${escapedSearch}%`),
+        ilike(sql`${practiceClientIntakes.metadata}->>'opposing_party'`, `%${escapedSearch}%`),
+      )!,
+    );
+  }
+
+  if (from) {
+    const fromDate = new Date(from);
+    if (!Number.isNaN(fromDate.getTime())) {
+      conditions.push(gte(practiceClientIntakes.created_at, fromDate));
+    }
+  }
+
+  if (to) {
+    const toDate = new Date(to);
+    if (!Number.isNaN(toDate.getTime())) {
+      conditions.push(lte(practiceClientIntakes.created_at, toDate));
+    }
+  }
+
+  return and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
+};
 
 const create = async (
   data: InsertPracticeClientIntake,
@@ -85,8 +139,9 @@ const update = async (
 const updateStatus = async (
   id: string,
   status: string,
+  tx: typeof db = db,
 ): Promise<SelectPracticeClientIntake> => {
-  const [updated] = await db
+  const [updated] = await tx
     .update(practiceClientIntakes)
     .set({ status, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
@@ -97,18 +152,50 @@ const updateStatus = async (
   return updated;
 };
 
-const listByOrganization = async (
-  organizationId: string,
-  limit = 100,
-  offset = 0,
-): Promise<SelectPracticeClientIntake[]> => {
-  return await db
+const findByOrganizationId = async ({
+  organizationId,
+  status,
+  search,
+  from,
+  to,
+  intakeId,
+  page = 1,
+  limit = 20,
+}: {
+  organizationId: string;
+  status?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  intakeId?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ intakes: SelectPracticeClientIntake[]; total: number }> => {
+  const whereClause = buildIntakeConditions({
+    organizationId,
+    status,
+    search,
+    from,
+    to,
+    intakeId,
+  });
+
+  const [totalResult] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(practiceClientIntakes)
+    .where(whereClause);
+
+  const total = Number(totalResult?.count ?? 0);
+
+  const intakes = await db
     .select()
     .from(practiceClientIntakes)
-    .where(eq(practiceClientIntakes.organization_id, organizationId))
+    .where(whereClause)
     .orderBy(desc(practiceClientIntakes.created_at))
     .limit(limit)
-    .offset(offset);
+    .offset((page - 1) * limit);
+
+  return { intakes, total };
 };
 
 const getStats = async (
@@ -120,15 +207,11 @@ const getStats = async (
   count: number;
   succeededCount: number;
 }> => {
-  const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
-
-  if (startDate) {
-    conditions.push(gte(practiceClientIntakes.created_at, startDate));
-  }
-
-  if (endDate) {
-    conditions.push(lte(practiceClientIntakes.created_at, endDate));
-  }
+  const whereClause = buildIntakeConditions({
+    organizationId,
+    from: startDate?.toISOString(),
+    to: endDate?.toISOString(),
+  });
 
   const results = await db
     .select({
@@ -136,7 +219,7 @@ const getStats = async (
       status: practiceClientIntakes.status,
     })
     .from(practiceClientIntakes)
-    .where(and(...conditions));
+    .where(whereClause);
 
   const totalAmount = results.reduce((sum, row) => sum + row.totalAmount, 0);
   const count = results.length;
@@ -157,7 +240,7 @@ export const practiceClientIntakesRepository = {
   findByStripeCheckoutSessionId,
   update,
   updateStatus,
-  listByOrganization,
+  findByOrganizationId,
   getStats,
 };
 
