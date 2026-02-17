@@ -9,8 +9,8 @@ import type {
   UpdateMatterMilestoneRequest,
   ReorderMilestonesRequest,
 } from '@/modules/matters/types/matter.types';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'milestones']);
@@ -19,14 +19,12 @@ const logger = getLogger(['matters', 'services', 'milestones']);
  * Create a matter milestone
  */
 const createMatterMilestone = async (
-  organizationId: string,
   matterId: string,
   data: CreateMatterMilestoneRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterMilestone>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -44,11 +42,12 @@ const createMatterMilestone = async (
 
     // Log activity
     const amountFormatted = (data.amount / 100).toFixed(2);
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.MILESTONE_CREATED,
-      `${user.name || user.email} created milestone: ${data.description} ($${amountFormatted})`,
-      user.id,
+      `${userName} created milestone: ${data.description} ($${amountFormatted})`,
+      ctx.userId,
       { amount: data.amount, due_date: data.due_date, changed_fields: changedFields },
     );
 
@@ -67,14 +66,12 @@ const createMatterMilestone = async (
  * List matter milestones
  */
 const listMatterMilestones = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  filters?: MatterMilestoneListFilters,
+  filters: MatterMilestoneListFilters | undefined,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterMilestone[]>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -103,15 +100,13 @@ const listMatterMilestones = async (
  * Update matter milestone
  */
 const updateMatterMilestone = async (
-  organizationId: string,
   matterId: string,
   milestoneId: string,
   data: UpdateMatterMilestoneRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterMilestone>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -154,11 +149,12 @@ const updateMatterMilestone = async (
     }
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.MILESTONE_UPDATED,
-      `${user.name || user.email} updated milestone: ${updated.description}`,
-      user.id,
+      `${userName} updated milestone: ${updated.description}`,
+      ctx.userId,
       { changed_fields: changedFields },
     );
 
@@ -167,8 +163,8 @@ const updateMatterMilestone = async (
       await matterActivityService.logMatterActivity(
         matterId,
         matterActivityService.ActivityAction.MILESTONE_COMPLETED,
-        `${user.name || user.email} completed milestone: ${milestone.description}`,
-        user.id,
+        `${userName} completed milestone: ${milestone.description}`,
+        ctx.userId,
         { changed_fields: ['status'] },
       );
     }
@@ -188,14 +184,12 @@ const updateMatterMilestone = async (
  * Delete matter milestone
  */
 const deleteMatterMilestone = async (
-  organizationId: string,
   matterId: string,
   milestoneId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -210,11 +204,12 @@ const deleteMatterMilestone = async (
     await matterMilestonesQueries.deleteMatterMilestone(milestoneId);
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.MILESTONE_DELETED,
-      `${user.name || user.email} deleted milestone: ${milestone.description}`,
-      user.id,
+      `${userName} deleted milestone: ${milestone.description}`,
+      ctx.userId,
       { changed_fields: ['deleted'] },
     );
 
@@ -233,14 +228,12 @@ const deleteMatterMilestone = async (
  * Reorder milestones
  */
 const reorderMilestones = async (
-  organizationId: string,
   matterId: string,
   data: ReorderMilestonesRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -257,11 +250,12 @@ const reorderMilestones = async (
     await matterMilestonesQueries.reorderMilestones(data.milestones);
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.MILESTONE_UPDATED,
-      `${user.name || user.email} reordered milestones`,
-      user.id,
+      `${userName} reordered milestones`,
+      ctx.userId,
       { changed_fields: ['order'] },
     );
 
@@ -280,10 +274,8 @@ const reorderMilestones = async (
  * Get milestone statistics
  */
 const getMilestoneStats = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{
   total: number;
   pending: number;
@@ -295,7 +287,7 @@ const getMilestoneStats = async (
   completionPercentage: number;
 }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }

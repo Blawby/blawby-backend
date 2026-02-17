@@ -8,8 +8,8 @@ import type {
   CreateMatterTimeEntryRequest,
   UpdateMatterTimeEntryRequest,
 } from '@/modules/matters/types/matter.types';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'time-entries']);
@@ -25,74 +25,62 @@ const calculateDuration = (startTime: Date, endTime: Date): number => {
  * Create a matter time entry
  */
 const createMatterTimeEntry = async (
-  organizationId: string,
   matterId: string,
   data: CreateMatterTimeEntryRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterTimeEntry>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
 
-  try {
-    const startTime = new Date(data.start_time);
-    const endTime = new Date(data.end_time);
-    const duration = calculateDuration(startTime, endTime);
+  const startTime = new Date(data.start_time);
+  const endTime = new Date(data.end_time);
+  const duration = calculateDuration(startTime, endTime);
 
-    const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
-      matter_id: matterId,
-      user_id: user.id,
-      start_time: startTime,
-      end_time: endTime,
-      duration,
-      description: data.description,
-      billable: data.billable,
-    });
-    const changedFields = [
-      'start_time',
-      'end_time',
-      'duration',
-      ...(data.billable !== undefined ? ['billable'] : []),
-      ...(data.description !== undefined ? ['description'] : []),
-    ];
+  const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
+    matter_id: matterId,
+    user_id: ctx.userId,
+    start_time: startTime,
+    end_time: endTime,
+    duration,
+    description: data.description,
+    billable: data.billable,
+  });
+  const changedFields = [
+    'start_time',
+    'end_time',
+    'duration',
+    ...(data.billable !== undefined ? ['billable'] : []),
+    ...(data.description !== undefined ? ['description'] : []),
+  ];
 
-    // Log activity
-    const hours = Math.floor(duration / 3600);
-    const minutes = Math.floor((duration % 3600) / 60);
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
-      `${user.name || user.email} logged ${hours}h ${minutes}m${data.billable ? ' (billable)' : ''}`,
-      user.id,
-      { duration, billable: data.billable, changed_fields: changedFields },
-    );
+  // Log activity
+  const hours = Math.floor(duration / 3600);
+  const minutes = Math.floor((duration % 3600) / 60);
+  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+  await matterActivityService.logMatterActivity(
+    matterId,
+    matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
+    `${userName} logged ${hours}h ${minutes}m${data.billable ? ' (billable)' : ''}`,
+    ctx.userId,
+    { duration, billable: data.billable, changed_fields: changedFields },
+  );
 
-    return ok(entry);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to create time entry {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  return ok(entry);
 };
 
 /**
  * List matter time entries
  */
 const listMatterTimeEntries = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  filters?: MatterTimeEntryListFilters,
+  filters: MatterTimeEntryListFilters | undefined,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
@@ -123,15 +111,13 @@ const listMatterTimeEntries = async (
  * Update matter time entry
  */
 const updateMatterTimeEntry = async (
-  organizationId: string,
   matterId: string,
   entryId: string,
   data: UpdateMatterTimeEntryRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterTimeEntry>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
@@ -174,11 +160,12 @@ const updateMatterTimeEntry = async (
     }
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.TIME_ENTRY_UPDATED,
-      `${user.name || user.email} updated a time entry`,
-      user.id,
+      `${userName} updated a time entry`,
+      ctx.userId,
       { changed_fields: changedFields },
     );
 
@@ -197,14 +184,12 @@ const updateMatterTimeEntry = async (
  * Delete matter time entry
  */
 const deleteMatterTimeEntry = async (
-  organizationId: string,
   matterId: string,
   entryId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }
@@ -219,11 +204,12 @@ const deleteMatterTimeEntry = async (
     await matterTimeEntriesQueries.deleteMatterTimeEntry(entryId);
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.TIME_ENTRY_DELETED,
-      `${user.name || user.email} deleted a time entry`,
-      user.id,
+      `${userName} deleted a time entry`,
+      ctx.userId,
       { changed_fields: ['deleted'] },
     );
 
@@ -242,10 +228,8 @@ const deleteMatterTimeEntry = async (
  * Get time entry statistics
  */
 const getTimeEntryStats = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{
   totalBillableSeconds: number;
   totalSeconds: number;
@@ -253,7 +237,7 @@ const getTimeEntryStats = async (
   totalHours: number;
 }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }

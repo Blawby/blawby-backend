@@ -8,8 +8,8 @@ import type {
   CreateMatterNoteRequest,
   UpdateMatterNoteRequest,
 } from '@/modules/matters/types/matter.types';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'notes']);
@@ -18,57 +18,45 @@ const logger = getLogger(['matters', 'services', 'notes']);
  * Create a matter note
  */
 const createMatterNote = async (
-  organizationId: string,
   matterId: string,
   data: CreateMatterNoteRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterNote>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
 
-  try {
-    const note = await matterNotesQueries.createMatterNote({
-      matter_id: matterId,
-      user_id: user.id,
-      content: data.content,
-    });
+  const note = await matterNotesQueries.createMatterNote({
+    matter_id: matterId,
+    user_id: ctx.userId,
+    content: data.content,
+  });
 
-    // Log activity
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.NOTE_ADDED,
-      `${user.name || user.email} added a note`,
-      user.id,
-      { changed_fields: ['content'] },
-    );
+  // Log activity
+  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+  await matterActivityService.logMatterActivity(
+    matterId,
+    matterActivityService.ActivityAction.NOTE_ADDED,
+    `${userName} added a note`,
+    ctx.userId,
+    { changed_fields: ['content'] },
+  );
 
-    return ok(note);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to create matter note {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  return ok(note);
 };
 
 /**
  * List matter notes
  */
 const listMatterNotes = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  filters?: MatterNoteListFilters,
+  filters: MatterNoteListFilters | undefined,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterNote[]>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -97,15 +85,13 @@ const listMatterNotes = async (
  * Update matter note
  */
 const updateMatterNote = async (
-  organizationId: string,
   matterId: string,
   noteId: string,
   data: UpdateMatterNoteRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterNote>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -124,11 +110,12 @@ const updateMatterNote = async (
     }
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.NOTE_UPDATED,
-      `${user.name || user.email} updated a note`,
-      user.id,
+      `${userName} updated a note`,
+      ctx.userId,
       { changed_fields: changedFields },
     );
 
@@ -147,14 +134,12 @@ const updateMatterNote = async (
  * Delete matter note
  */
 const deleteMatterNote = async (
-  organizationId: string,
   matterId: string,
   noteId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -169,11 +154,12 @@ const deleteMatterNote = async (
     await matterNotesQueries.deleteMatterNote(noteId);
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.NOTE_DELETED,
-      `${user.name || user.email} deleted a note`,
-      user.id,
+      `${userName} deleted a note`,
+      ctx.userId,
       { changed_fields: ['deleted'] },
     );
 

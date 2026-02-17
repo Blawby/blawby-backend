@@ -37,7 +37,7 @@ const logger = getLogger(['events', 'system']);
 type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | boolean>;
 
 // Dispatch options type
-type DispatchOptions = {
+export type DispatchOptions = {
   actorId?: string;
   actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
   organizationId?: string;
@@ -47,9 +47,10 @@ type DispatchOptions = {
 };
 
 // Event class type - infers payload type T from constructor parameter
-type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
+export type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
   type: string;
   new(payload: T, actorId?: string, organizationId?: string): BaseEvent<T>;
+  dispatch(payload: T, options?: DispatchOptions): string | Promise<string>;
 };
 
 // Global handler registry - populated by Event.listen()

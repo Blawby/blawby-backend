@@ -8,7 +8,35 @@ import { matterMilestoneValidations } from '@/modules/matters/validations/matter
 import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
 import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
+// Export schemas
+export const createMatterRequestSchema = matterValidations.createMatterSchema;
+export const updateMatterRequestSchema = matterValidations.updateMatterSchema;
+export const listMattersQuerySchema = matterValidations.listMattersQuerySchema;
+export const matterResponseSchema = matterValidations.matterSchema;
+export const matterInternalResponseSchema = matterValidations.matterSchema; // internal same as public for now
 
+export const createMatterExpenseRequestSchema = matterExpenseValidations.createMatterExpenseSchema;
+export const updateMatterExpenseRequestSchema = matterExpenseValidations.updateMatterExpenseSchema;
+export const matterExpenseResponseSchema = matterExpenseValidations.expenseSchema;
+export const listMatterExpensesQuerySchema = matterExpenseValidations.listExpensesQuerySchema;
+
+export const getActivityLogQuerySchema = matterValidations.getActivityLogQuerySchema;
+
+export const createMatterMilestoneRequestSchema = matterMilestoneValidations.createMatterMilestoneSchema;
+export const updateMatterMilestoneRequestSchema = matterMilestoneValidations.updateMatterMilestoneSchema;
+export const reorderMatterMilestonesRequestSchema = matterMilestoneValidations.reorderMilestonesSchema;
+export const matterMilestoneResponseSchema = matterMilestoneValidations.milestoneSchema;
+export const listMatterMilestonesQuerySchema = matterMilestoneValidations.listMilestonesQuerySchema;
+
+export const createMatterNoteRequestSchema = matterNoteValidations.createMatterNoteSchema;
+export const updateMatterNoteRequestSchema = matterNoteValidations.updateMatterNoteSchema;
+export const matterNoteResponseSchema = matterNoteValidations.matterNoteSchema;
+export const listMatterNotesQuerySchema = matterNoteValidations.listMatterNotesQuerySchema;
+
+export const createMatterTimeEntryRequestSchema = matterTimeEntryValidations.createMatterTimeEntrySchema;
+export const updateMatterTimeEntryRequestSchema = matterTimeEntryValidations.updateMatterTimeEntrySchema;
+export const matterTimeEntryResponseSchema = matterTimeEntryValidations.timeEntrySchema;
+export const listMatterTimeEntriesQuerySchema = matterTimeEntryValidations.listTimeEntriesQuerySchema;
 
 /**
  * Matter with relations
@@ -26,6 +54,28 @@ export type MatterWithRelations = SelectMatter & {
     name: string;
     email: string;
   };
+};
+
+/**
+ * Matter record as returned by the service layer.
+ *
+ * Dates remain as `Date` objects (Drizzle's native `mode: 'date'`).
+ * Hono/OpenAPI serialisation handles the Date→string conversion at
+ * the boundary, so services never need `.toISOString()` calls.
+ */
+export type MatterRecord = SelectMatter & {
+  assignees?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  }>;
+  milestones?: SelectMatterMilestone[];
+  client?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 };
 
 /**

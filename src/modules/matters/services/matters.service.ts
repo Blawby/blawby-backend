@@ -1,4 +1,10 @@
-import { getLogger } from '@logtape/logtape';
+/**
+ * Matters Service
+ *
+ * Core business logic for managing legal matters/cases
+ */
+
+import { ForbiddenError } from '@casl/ability';
 import { isEqual } from 'es-toolkit';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
@@ -8,11 +14,11 @@ import type {
   CreateMatterRequest,
   UpdateMatterRequest,
   ListMattersQuery,
-  MatterResponse,
+  MatterRecord,
 } from '@/modules/matters/types/matter.types';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
-import { getFullOrganization } from '@/modules/practice/services/organization.service';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import {
   MatterCreated,
@@ -20,31 +26,19 @@ import {
   MatterDeleted,
   MatterStatusChanged,
 } from '@/shared/events/definitions';
-import type { User } from '@/shared/types/BetterAuth';
-import type { Result, PaginatedResult } from '@/shared/types/result';
+import type { PaginatedResult, Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
-const logger = getLogger(['matters', 'service']);
-
 /**
- * Create a matter
+ * Create a new matter
  */
 const createMatter = async (
-  organizationId: string,
   data: CreateMatterRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<MatterResponse>> => {
-  // Verify user has access to organization
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
-  if (!orgResult.success) {
-    logger.error('Failed to create matter: Organization not found or access denied {organizationId} {userId}', {
-      organizationId,
-      userId: user.id,
-      error: orgResult.error,
-    });
-    return orgResult;
-  }
+  ctx: ServiceContext,
+): Promise<Result<MatterRecord>> => {
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Matter');
 
   // Extract assignees and milestones from data
   const { assignee_ids, milestones, ...matterData } = data;
@@ -52,7 +46,7 @@ const createMatter = async (
   // Validate client_id if provided
   if (data.client_id) {
     const client = await userDetailsRepository.findById(data.client_id);
-    if (!client || client.organization_id !== organizationId) {
+    if (!client || client.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid client_id or client does not belong to this organization');
     }
   }
@@ -60,223 +54,162 @@ const createMatter = async (
   // Validate practice_service_id if provided
   if (data.practice_service_id) {
     const service = await practiceServicesRepository.findById(data.practice_service_id);
-    if (!service || service.organization_id !== organizationId) {
+    if (!service || service.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid practice_service_id or service does not belong to this organization');
     }
   }
 
-  try {
-    // Create matter in transaction
-    const matter = await db.transaction(async (tx) => {
-      // Convert date strings to Date objects
-      const dbData = {
-        ...matterData,
-        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
-        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
-      };
+  // Create matter in transaction
+  const matter = await db.transaction(async (tx) => {
+    // Convert date strings to Date objects
+    const dbData = {
+      ...matterData,
+      open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+      close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+    };
 
-      // Create the matter
-      const [newMatter] = await tx
-        .insert(matters)
-        .values({
-          organization_id: organizationId,
-          ...dbData,
-        })
-        .returning();
+    // Create the matter
+    const [newMatter] = await tx
+      .insert(matters)
+      .values({
+        organization_id: ctx.organizationId,
+        ...dbData,
+      })
+      .returning();
 
-      // Add assignees if provided
-      if (assignee_ids && assignee_ids.length > 0) {
-        await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids, tx);
-      }
-
-      if (milestones && milestones.length > 0) {
-        await matterMilestonesQueries.createMatterMilestones(
-          milestones.map((milestone) => ({
-            matter_id: newMatter.id,
-            description: milestone.description,
-            amount: milestone.amount,
-            due_date: typeof milestone.due_date === 'string' ? milestone.due_date : milestone.due_date.toISOString().split('T')[0],
-            order: milestone.order,
-            status: 'pending' as const,
-          })),
-          tx,
-        );
-      }
-
-      // Log activity
-      await matterActivityService.logMatterActivity(
-        newMatter.id,
-        matterActivityService.ActivityAction.MATTER_CREATED,
-        `Matter "${newMatter.title}" was created`,
-        user.id,
-        { billing_type: newMatter.billing_type, status: newMatter.status },
-        tx,
-      );
-
-      // Dispatch event
-      await MatterCreated.dispatch(
-        {
-          matter_id: newMatter.id,
-          organization_id: organizationId,
-          title: newMatter.title,
-          billing_type: newMatter.billing_type,
-        },
-        { tx, actorId: user.id, organizationId },
-      );
-
-      return newMatter;
-    });
-
-    return result.ok({
-      ...matter,
-      created_at: matter.created_at.toISOString(),
-      updated_at: matter.updated_at.toISOString(),
-    } as MatterResponse);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to create matter {organizationId} {userId}: {error}', {
-      organizationId,
-      userId: user.id,
-      error: message,
-    });
-    return result.internalError(message);
-  }
-};
-
-/**
- * Get matter by ID with relations
- */
-const getMatterById = async (
-  organizationId: string,
-  matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<MatterResponse>> => {
-  // Verify user has access to organization
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
-  if (!orgResult.success) {
-    logger.error('Failed to get matter: Organization not found or access denied {organizationId} {userId}', {
-      organizationId,
-      userId: user.id,
-      error: orgResult.error,
-    });
-    return orgResult;
-  }
-
-  try {
-    const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
-
-    if (!matter || matter.organization_id !== organizationId) {
-      logger.warn('Matter not found or does not belong to organization {matterId} {organizationId}', {
-        matterId,
-        organizationId,
-      });
-      return result.notFound('Matter not found');
+    // Add assignees if provided
+    if (assignee_ids && assignee_ids.length > 0) {
+      await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids, tx);
     }
 
-    return result.ok({
-      ...matter,
-      assignees: matter.assignees.map((a) => a.user),
-      created_at: matter.created_at.toISOString(),
-      updated_at: matter.updated_at.toISOString(),
-      deleted_at: matter.deleted_at?.toISOString(),
-    } as MatterResponse);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get matter {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return result.internalError(message);
-  }
+    if (milestones && milestones.length > 0) {
+      await matterMilestonesQueries.createMatterMilestones(
+        milestones.map((milestone) => ({
+          matter_id: newMatter.id,
+          description: milestone.description,
+          amount: milestone.amount,
+          due_date: typeof milestone.due_date === 'string' ? milestone.due_date : milestone.due_date.toISOString().split('T')[0],
+          order: milestone.order,
+          status: 'pending' as const,
+        })),
+        tx,
+      );
+    }
+
+    // Log activity
+    await matterActivityService.logMatterActivity(
+      newMatter.id,
+      matterActivityService.ActivityAction.MATTER_CREATED,
+      `Matter "${newMatter.title}" was created`,
+      ctx.userId,
+      { billing_type: newMatter.billing_type, status: newMatter.status },
+      tx,
+    );
+
+    // Dispatch event using ctx.emit
+    await ctx.emit(
+      MatterCreated,
+      {
+        matter_id: newMatter.id,
+        organization_id: ctx.organizationId,
+        title: newMatter.title,
+        billing_type: newMatter.billing_type,
+      },
+      tx,
+    );
+
+    return newMatter;
+  });
+
+  return result.ok({
+    ...matter,
+  } as MatterRecord);
 };
 
 /**
- * List matters with filters
+ * Get matter by ID
  */
-const listMatters = async (
-  organizationId: string,
-  filters: ListMattersQuery,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<PaginatedResult<MatterResponse, 'matters'>> => {
-  // Verify user has access to organization
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
-  if (!orgResult.success) {
-    logger.error('Failed to list matters: Organization not found or access denied {organizationId} {userId}', {
-      organizationId,
-      userId: user.id,
-      error: orgResult.error,
-    });
-    return orgResult;
+const getMatterById = async (
+  matterId: string,
+  ctx: ServiceContext,
+): Promise<Result<MatterRecord>> => {
+  const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
+
+  if (!matter || matter.organization_id !== ctx.organizationId) {
+    return result.notFound('Matter not found');
   }
 
-  try {
-    const listResult = await mattersQueries.listMattersByOrganization(organizationId, {
-      status: filters.status,
-      practiceServiceId: filters.practice_service_id,
-      clientId: filters.client_id,
-      matterId: filters.matter_id,
-      assigneeId: filters.assignee_id,
-      search: filters.search,
-      page: filters.page,
-      limit: filters.limit,
-    });
-    return result.ok({
-      matters: listResult.matters.map((m) => ({
-        ...m,
-        created_at: m.created_at.toISOString(),
-        updated_at: m.updated_at.toISOString(),
-        deleted_at: m.deleted_at?.toISOString(),
-      })) as MatterResponse[],
-      total: listResult.total,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to list matters {organizationId}: {error}', {
-      organizationId,
-      error: message,
-    });
-    return result.internalError(message);
-  }
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Matter', matter));
+
+  return result.ok({
+    ...matter,
+    assignees: matter.assignees.map((a) => a.user),
+  } as MatterRecord);
+};
+
+/**
+ * List matters
+ */
+const listMatters = async (
+  filters: ListMattersQuery,
+  ctx: ServiceContext,
+): Promise<PaginatedResult<MatterRecord, 'matters'>> => {
+  // CASL Check - check capability to read matters generally
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+
+  const listResult = await mattersQueries.listMattersByOrganization(ctx.organizationId, {
+    status: filters.status,
+    practiceServiceId: filters.practice_service_id,
+    clientId: filters.client_id,
+    matterId: filters.matter_id,
+    assigneeId: filters.assignee_id,
+    search: filters.search,
+    page: filters.page,
+    limit: filters.limit,
+  });
+
+  return result.ok({
+    matters: listResult.matters as MatterRecord[],
+    total: listResult.total,
+  });
 };
 
 /**
  * Update matter
  */
 const updateMatter = async (
-  organizationId: string,
   matterId: string,
   data: UpdateMatterRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<MatterResponse>> => {
-  // Verify access
-  const existingResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
-  if (!existingResult.success) {
-    return existingResult;
+  ctx: ServiceContext,
+): Promise<Result<MatterRecord>> => {
+  // 1. Fetch existing for authorization
+  const existing = await mattersQueries.findMatterByIdWithRelations(matterId);
+
+  if (!existing || existing.organization_id !== ctx.organizationId) {
+    return result.notFound('Matter not found');
   }
-  const existingMatter = existingResult.data;
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('Matter', existing));
 
   // Extract assignees from data
   const { assignee_ids, ...matterData } = data;
+  const existingRecord: Record<string, unknown> = { ...existing };
   const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
     if (value === undefined) return acc;
-    const existingValue = (existingMatter as Record<string, unknown>)[key];
-    // Normalize dates for comparison (existing values from DB are Date objects or ISO strings)
+    const existingValue = existingRecord[key];
+    // Normalize dates for comparison (existing values from DB are Date objects)
     const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
-    // Values from validation are always strings for date fields
-    const normalizedNext = (typeof value === 'string' && (key === 'open_date' || key === 'close_date'))
-      ? value
-      : value;
-    if (!isEqual(normalizedExisting, normalizedNext)) {
+    if (!isEqual(normalizedExisting, value)) {
       acc.push(key);
     }
     return acc;
   }, []);
+
   if (assignee_ids !== undefined) {
-    const existingAssignees = Array.isArray(existingMatter.assignees)
-      ? existingMatter.assignees.map((assignee) => assignee.id).filter(Boolean)
+    const existingAssignees = Array.isArray(existing.assignees)
+      ? existing.assignees.map((assignee) => assignee.user.id).filter(Boolean)
       : [];
     const normalizedExisting = [...existingAssignees].sort().join(',');
     const normalizedNext = [...assignee_ids].sort().join(',');
@@ -288,7 +221,7 @@ const updateMatter = async (
   // Validate client_id if provided
   if (data.client_id) {
     const client = await userDetailsRepository.findById(data.client_id);
-    if (!client || client.organization_id !== organizationId) {
+    if (!client || client.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid client_id or client does not belong to this organization');
     }
   }
@@ -296,203 +229,171 @@ const updateMatter = async (
   // Validate practice_service_id if provided
   if (data.practice_service_id) {
     const service = await practiceServicesRepository.findById(data.practice_service_id);
-    if (!service || service.organization_id !== organizationId) {
+    if (!service || service.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid practice_service_id or service does not belong to this organization');
     }
   }
 
-  try {
-    const transactionResult = await db.transaction(async (tx) => {
-      // Convert date strings to Date objects
-      const dbData = {
-        ...matterData,
-        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
-        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
-      };
+  const transactionResult = await db.transaction(async (tx) => {
+    // Convert date strings to Date objects
+    const dbData = {
+      ...matterData,
+      open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+      close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+    };
 
-      // Update the matter
-      const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
+    // Update the matter
+    const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
 
-      if (!updated) {
-        throw new Error('Failed to update matter');
+    if (!updated) {
+      throw new Error('Failed to update matter');
+    }
+
+    // Update assignees if provided
+    if (assignee_ids !== undefined) {
+      // Clear existing assignees and add new ones
+      await mattersQueries.clearMatterAssignees(matterId, tx);
+      if (assignee_ids.length > 0) {
+        await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
       }
+    }
 
-      // Update assignees if provided
-      if (assignee_ids !== undefined) {
-        // Clear existing assignees and add new ones
-        await mattersQueries.clearMatterAssignees(matterId, tx);
-        if (assignee_ids.length > 0) {
-          await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
-        }
-      }
+    // Log activity
+    if (changedFields.length > 0) {
+      await matterActivityService.logMatterActivity(
+        matterId,
+        matterActivityService.ActivityAction.MATTER_UPDATED,
+        `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
+        ctx.userId,
+        { changes: matterData, changed_fields: changedFields },
+        tx,
+      );
+    } else {
+      await matterActivityService.logMatterActivity(
+        matterId,
+        matterActivityService.ActivityAction.MATTER_UPDATED,
+        `Matter "${updated.title}" update attempted (no changes)`,
+        ctx.userId,
+        { changes: matterData, changed_fields: changedFields },
+        tx,
+      );
+    }
 
-      // Log activity
-      if (changedFields.length > 0) {
-        await matterActivityService.logMatterActivity(
-          matterId,
-          matterActivityService.ActivityAction.MATTER_UPDATED,
-          `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
-          user.id,
-          { changes: matterData, changed_fields: changedFields },
-          tx,
-        );
-      } else {
-        await matterActivityService.logMatterActivity(
-          matterId,
-          matterActivityService.ActivityAction.MATTER_UPDATED,
-          `Matter "${updated.title}" update attempted (no changes)`,
-          user.id,
-          { changes: matterData, changed_fields: changedFields },
-          tx,
-        );
-      }
-
-      // Check for status change
-      if (data.status && data.status !== existingMatter.status) {
-        await matterActivityService.logMatterActivity(
-          matterId,
-          matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
-          `Matter status changed from "${existingMatter.status}" to "${data.status}"`,
-          user.id,
-          { oldStatus: existingMatter.status, newStatus: data.status, changed_fields: ['status'] },
-          tx,
-        );
-
-        await MatterStatusChanged.dispatch(
-          {
-            matter_id: matterId,
-            organization_id: organizationId,
-            old_status: existingMatter.status,
-            new_status: data.status,
-          },
-          { tx, actorId: user.id, organizationId },
-        );
-      }
-
-      // Dispatch update event
-      await MatterUpdated.dispatch(
-        {
-          matter_id: matterId,
-          organization_id: organizationId,
-          changes: matterData as Record<string, unknown>,
-        },
-        { tx, actorId: user.id, organizationId },
+    // Check for status change
+    if (data.status && data.status !== existing.status) {
+      await matterActivityService.logMatterActivity(
+        matterId,
+        matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
+        `Matter status changed from "${existing.status}" to "${data.status}"`,
+        ctx.userId,
+        { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
+        tx,
       );
 
-      return updated;
-    });
+      await ctx.emit(
+        MatterStatusChanged,
+        {
+          matter_id: matterId,
+          organization_id: ctx.organizationId,
+          old_status: existing.status,
+          new_status: data.status,
+        },
+        tx,
+      );
+    }
 
-    return result.ok({
-      ...transactionResult,
-      created_at: transactionResult.created_at.toISOString(),
-      updated_at: transactionResult.updated_at.toISOString(),
-      deleted_at: transactionResult.deleted_at?.toISOString(),
-    } as MatterResponse);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to update matter {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return result.internalError(message);
-  }
+    // Dispatch update event
+    await ctx.emit(
+      MatterUpdated,
+      {
+        matter_id: matterId,
+        organization_id: ctx.organizationId,
+        changes: { ...matterData },
+      },
+      tx,
+    );
+
+    return updated;
+  });
+
+  return result.ok({
+    ...transactionResult,
+  } as MatterRecord);
 };
 
 /**
  * Delete matter (soft delete)
  */
 const deleteMatter = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
-  // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
-  if (!matterResult.success) {
-    return matterResult;
+  // 1. Fetch for authorization
+  const existing = await mattersQueries.findMatterByIdWithRelations(matterId);
+
+  if (!existing || existing.organization_id !== ctx.organizationId) {
+    return result.notFound('Matter not found');
   }
 
-  try {
-    await db.transaction(async (tx) => {
-      const deleted = await mattersQueries.softDeleteMatter(matterId, user.id, tx);
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Matter', existing));
 
-      if (!deleted) {
-        throw new Error('Failed to delete matter');
-      }
+  await db.transaction(async (tx) => {
+    const deletedMatter = await mattersQueries.softDeleteMatter(matterId, ctx.userId, tx);
 
-      // Log activity
-      await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MATTER_DELETED,
-        `Matter "${deleted.title}" was deleted`,
-        user.id,
-        undefined,
-        tx,
-      );
+    if (!deletedMatter) {
+      throw new Error('Failed to delete matter');
+    }
 
-      // Dispatch event
-      await MatterDeleted.dispatch(
-        {
-          matter_id: matterId,
-          organization_id: organizationId,
-        },
-        { tx, actorId: user.id, organizationId },
-      );
-
-      return deleted;
-    });
-
-    return result.ok({ success: true });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to delete matter {matterId}: {error}', {
+    // Log activity
+    await matterActivityService.logMatterActivity(
       matterId,
-      error: message,
-    });
-    return result.internalError(message);
-  }
+      matterActivityService.ActivityAction.MATTER_DELETED,
+      `Matter "${deletedMatter.title}" was deleted`,
+      ctx.userId,
+      undefined,
+      tx,
+    );
+
+    // Dispatch event
+    await ctx.emit(
+      MatterDeleted,
+      {
+        matter_id: matterId,
+        organization_id: ctx.organizationId,
+      },
+      tx,
+    );
+
+    return deletedMatter;
+  });
+
+  return result.ok({ success: true });
 };
 
 /**
  * Get matter counts by status
  */
 const getMatterCounts = async (
-  organizationId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<Record<string, number>>> => {
-  // Verify user has access to organization
-  const orgResult = await getFullOrganization(organizationId, user, requestHeaders);
-  if (!orgResult.success) {
-    logger.error('Failed to get matter counts: Organization not found or access denied {organizationId} {userId}', {
-      organizationId,
-      userId: user.id,
-      error: orgResult.error,
-    });
-    return orgResult;
-  }
+  // CASL Check - generally read matters
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
 
-  try {
-    const counts = await mattersQueries.getMatterCountsByStatus(organizationId);
+  const counts = await mattersQueries.getMatterCountsByStatus(ctx.organizationId);
 
-    // Transform to object format
-    const transformed = counts.reduce((acc: Record<string, number>, { status, count }) => {
-      acc[status] = count;
-      return acc;
-    }, {} as Record<string, number>);
+  // Transform to object format
+  const transformed = counts.reduce((acc: Record<string, number>, { status, count }) => {
+    acc[status] = count;
+    return acc;
+  }, {} as Record<string, number>);
 
-    return result.ok(transformed);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get matter counts {organizationId}: {error}', {
-      organizationId,
-      error: message,
-    });
-    return result.internalError(message);
-  }
+  return result.ok(transformed);
 };
 
+/**
+ * Matters Service Export
+ */
 export const mattersService = {
   createMatter,
   getMatterById,
@@ -501,3 +402,5 @@ export const mattersService = {
   deleteMatter,
   getMatterCounts,
 };
+
+export default mattersService;

@@ -8,8 +8,8 @@ import type {
   CreateMatterExpenseRequest,
   UpdateMatterExpenseRequest,
 } from '@/modules/matters/types/matter.types';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'expenses']);
@@ -18,14 +18,12 @@ const logger = getLogger(['matters', 'services', 'expenses']);
  * Create a matter expense
  */
 const createMatterExpense = async (
-  organizationId: string,
   matterId: string,
   data: CreateMatterExpenseRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterExpense>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -33,7 +31,7 @@ const createMatterExpense = async (
   try {
     const expense = await matterExpensesQueries.createMatterExpense({
       matter_id: matterId,
-      user_id: user.id,
+      user_id: ctx.userId,
       description: data.description,
       amount: data.amount,
       date: data.date,
@@ -43,11 +41,12 @@ const createMatterExpense = async (
 
     // Log activity
     const amountFormatted = (data.amount / 100).toFixed(2);
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.EXPENSE_ADDED,
-      `${user.name || user.email} added expense: ${data.description} ($${amountFormatted})${data.billable ? ' (billable)' : ''}`,
-      user.id,
+      `${userName} added expense: ${data.description} ($${amountFormatted})${data.billable ? ' (billable)' : ''}`,
+      ctx.userId,
       { amount: data.amount, billable: data.billable, changed_fields: changedFields },
     );
 
@@ -66,14 +65,12 @@ const createMatterExpense = async (
  * List matter expenses
  */
 const listMatterExpenses = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  filters?: MatterExpenseListFilters,
+  filters: MatterExpenseListFilters | undefined,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterExpense[]>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -104,15 +101,13 @@ const listMatterExpenses = async (
  * Update matter expense
  */
 const updateMatterExpense = async (
-  organizationId: string,
   matterId: string,
   expenseId: string,
   data: UpdateMatterExpenseRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterExpense>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -140,11 +135,12 @@ const updateMatterExpense = async (
     }
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.EXPENSE_UPDATED,
-      `${user.name || user.email} updated an expense`,
-      user.id,
+      `${userName} updated an expense`,
+      ctx.userId,
       { changed_fields: changedFields },
     );
 
@@ -163,14 +159,12 @@ const updateMatterExpense = async (
  * Delete matter expense
  */
 const deleteMatterExpense = async (
-  organizationId: string,
   matterId: string,
   expenseId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -185,11 +179,12 @@ const deleteMatterExpense = async (
     await matterExpensesQueries.deleteMatterExpense(expenseId);
 
     // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
       matterId,
       matterActivityService.ActivityAction.EXPENSE_DELETED,
-      `${user.name || user.email} deleted an expense`,
-      user.id,
+      `${userName} deleted an expense`,
+      ctx.userId,
       { changed_fields: ['deleted'] },
     );
 
@@ -208,10 +203,8 @@ const deleteMatterExpense = async (
  * Get expense statistics
  */
 const getExpenseStats = async (
-  organizationId: string,
   matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  ctx: ServiceContext,
 ): Promise<Result<{
   totalBillableCents: number;
   totalCents: number;
@@ -219,7 +212,7 @@ const getExpenseStats = async (
   total: number;
 }>> => {
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
