@@ -4,12 +4,10 @@
  * Main entry point for the matters module
  */
 
-import mattersApp from './http';
+import mattersApp from '@/modules/matters/http';
 
 export default mattersApp;
 
-// Export types
-export * from './types/matter.types';
-
-// Export schemas for migrations
-export * from './database/schema';
+// Export internal types/schemas if needed, but primarily access via http/routes
+export * from '@/modules/matters/types/matter.types';
+export * from '@/modules/matters/database/schema/matters.schema';

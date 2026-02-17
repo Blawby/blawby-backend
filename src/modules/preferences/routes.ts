@@ -1,8 +1,6 @@
-import { createRoute, z } from '@hono/zod-openapi';
-
-import {
-  preferenceValidations,
-} from './validations/preferences.validation';
+import { z } from '@hono/zod-openapi';
+import { preferenceValidations } from './validations/preferences.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
 
 /**
  * OpenAPI param schema for category
@@ -24,7 +22,7 @@ const categoryParamOpenAPISchema = z.object({
  * GET /api/preferences
  * Get all preferences for the authenticated user
  */
-export const getAllPreferencesRoute = createRoute({
+export const getAllPreferencesRoute = routeBuilder.build({
   method: 'get',
   path: '/',
   tags: ['Preferences'],
@@ -40,22 +38,6 @@ export const getAllPreferencesRoute = createRoute({
       },
       description: 'Preferences retrieved successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Preferences not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
 
@@ -63,7 +45,7 @@ export const getAllPreferencesRoute = createRoute({
  * GET /api/preferences/:category
  * Get preferences by category
  */
-export const getCategoryPreferencesRoute = createRoute({
+export const getCategoryPreferencesRoute = routeBuilder.build({
   method: 'get',
   path: '/{category}',
   tags: ['Preferences'],
@@ -82,14 +64,6 @@ export const getCategoryPreferencesRoute = createRoute({
       },
       description: 'Category preferences retrieved successfully',
     },
-    500: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
 
@@ -97,7 +71,7 @@ export const getCategoryPreferencesRoute = createRoute({
  * PUT /api/preferences/:category
  * Update preferences by category
  */
-export const updateCategoryPreferencesRoute = createRoute({
+export const updateCategoryPreferencesRoute = routeBuilder.build({
   method: 'put',
   path: '/{category}',
   tags: ['Preferences'],
@@ -138,22 +112,5 @@ export const updateCategoryPreferencesRoute = createRoute({
       },
       description: 'Preferences updated successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid category or request data',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
-
