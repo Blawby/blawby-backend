@@ -388,12 +388,15 @@ const updatePracticeClientIntake = async (
 ): Promise<Result<{ success: boolean; message: string }>> => {
   try {
     const { amount, court_date, ...restUpdateData } = body;
-
     const dataToUpdate: Partial<SelectPracticeClientIntake> = {
       ...restUpdateData,
       ...(typeof amount !== 'undefined' && { amount }),
       ...(court_date && { court_date: new Date(court_date) }),
     };
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return result.badRequest('No fields to update provided.');
+    }
 
     const existingIntake = await practiceClientIntakesRepository.findById(uuid);
     if (!existingIntake) {
