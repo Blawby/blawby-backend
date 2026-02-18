@@ -71,8 +71,8 @@ export const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
 
 export const updatePracticeClientIntakeHandler: AppRouteHandler<typeof updatePracticeClientIntakeRoute> = async (c) => {
   const { uuid } = c.req.valid('param');
-  const { amount } = c.req.valid('json');
-  const result = await practiceClientIntakesService.updatePracticeClientIntake(uuid, amount);
+  const body = c.req.valid('json');
+  const result = await practiceClientIntakesService.updatePracticeClientIntake(uuid, body);
   return response.fromResult(c, result);
 };
 
