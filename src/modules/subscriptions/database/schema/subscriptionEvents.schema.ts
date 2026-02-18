@@ -14,6 +14,7 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { subscriptionPlans } from './subscriptionPlans.schema';
+import { subscriptions } from '@/schema/better-auth-schema';
 
 // Event type enum
 export const SUBSCRIPTION_EVENT_TYPES = [
@@ -84,6 +85,10 @@ export const subscriptionEventsRelations = relations(subscriptionEvents, ({ one 
   toPlan: one(subscriptionPlans, {
     fields: [subscriptionEvents.to_plan_id],
     references: [subscriptionPlans.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [subscriptionEvents.subscription_id],
+    references: [subscriptions.id],
   }),
 }));
 

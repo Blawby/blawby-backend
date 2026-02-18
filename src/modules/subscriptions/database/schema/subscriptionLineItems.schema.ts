@@ -16,6 +16,8 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
+import { subscriptionPlans } from './subscriptionPlans.schema';
+import { subscriptions } from '@/schema/better-auth-schema';
 
 // Item type enum
 export const SUBSCRIPTION_ITEM_TYPES = [
@@ -67,10 +69,11 @@ export const subscriptionLineItemsRelations = relations(subscriptionLineItems, (
     fields: [subscriptionLineItems.stripe_price_id],
     references: [subscriptionPlans.stripe_monthly_price_id],
   }),
+  subscription: one(subscriptions, {
+    fields: [subscriptionLineItems.subscription_id],
+    references: [subscriptions.id],
+  }),
 }));
-
-// Import related schemas for relations
-import { subscriptionPlans } from './subscriptionPlans.schema';
 
 // Type exports
 export type SubscriptionLineItem = typeof subscriptionLineItems.$inferSelect;
