@@ -134,7 +134,7 @@ export const createPracticeClientIntakeRoute = createRoute({
   path: '/create',
   tags: ['Practice Client Intakes'],
   summary: 'Create practice client intake',
-  description: 'Creates a Stripe Payment Link for a practice client intake. The client is redirected to the returned `payment_link_url` to complete payment on Stripe\'s hosted payment page. All endpoints are public (no authentication required).',
+  description: "Creates a Stripe Payment Link for a practice client intake. The client is redirected to the returned `payment_link_url` to complete payment on Stripe's hosted payment page. All endpoints are public (no authentication required). Can include optional fields for case triage such as urgency, desired outcome, court date, etc.",
   request: {
     body: {
       content: {
@@ -181,7 +181,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
   path: '/{uuid}',
   tags: ['Practice Client Intakes'],
   summary: 'Update practice client intake',
-  description: 'Updates the payment amount for a practice client intake by creating a new Stripe Payment Link and deactivating the old one. The UUID is obtained from the create endpoint response. Only works if the payment has not been completed or expired. Returns a new `payment_link_url` for the client to complete payment with the updated amount.',
+  description: 'Updates the payment amount for a practice client intake by creating a new Stripe Payment Link and deactivating the old one. The UUID is obtained from the create endpoint response. Only works if the payment has not been completed or expired. Returns a new `payment_link_url` for the client to complete payment with the updated amount. Can also update optional fields for case triage such as urgency, desired outcome, court date, etc.',
   request: {
     params: uuidParamOpenAPISchema,
     body: {
