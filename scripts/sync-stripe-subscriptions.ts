@@ -5,7 +5,6 @@ import { organizations, subscriptions } from '../src/schema/better-auth-schema';
 import { db } from '../src/shared/database';
 import { stripe } from '../src/shared/utils/stripe-client';
 import { subscriptionRepository } from '../src/modules/subscriptions/database/queries/subscription.repository';
-import { subscriptionLineItems } from '../src/modules/subscriptions/database/schema/subscriptionLineItems.schema';
 
 // Logger wrapper
 const logger = {
@@ -109,17 +108,14 @@ async function hydrateSubscriptionData(
       }
     }
 
-    // 3. Sync Line Items (delete + batch insert for clean state)
-    await subscriptionRepository.deleteLineItemsBySubscriptionId(tx, localSub.id);
-
+    // 3. Sync Line Items (upsert to handle unique constraint on stripe_subscription_item_id)
     for (const rawItem of rawItems) {
       const parsed = parseStripeItem(rawItem);
       if (!parsed.itemId || !parsed.priceId) {
         logger.warn(`Skipping line item with missing ID or price ID for ${localSub.id}`);
         continue;
       }
-      await tx.insert(subscriptionLineItems
-      ).values({
+      await subscriptionRepository.upsertLineItem(tx, {
         subscription_id: localSub.id,
         stripe_subscription_item_id: parsed.itemId,
         stripe_price_id: parsed.priceId,
