@@ -17,21 +17,12 @@ type NodeEnvironment = 'development' | 'production';
  */
 export const getAppEnv = (): AppEnvironment => {
   const appEnv = process.env.APP_ENV?.toLowerCase();
-  const nodeEnv = process.env.NODE_ENV?.toLowerCase();
+
 
   if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production' || appEnv === 'test') {
     return appEnv;
   }
 
-  // Fallback to NODE_ENV
-  if (nodeEnv === 'development' || nodeEnv === 'production') {
-    return nodeEnv;
-  }
-
-  // Special fallback for NODE_ENV=test
-  if (nodeEnv === 'test') {
-    return 'test';
-  }
 
   // Default to development
   return 'development';

@@ -402,6 +402,11 @@ const updatePracticeClientIntake = async (
       ...(court_date && { court_date: new Date(court_date) }),
     };
 
+    const existingIntake = await practiceClientIntakesRepository.findById(uuid);
+    if (!existingIntake) {
+      return result.notFound(`Practice client intake with UUID '${uuid}' not found`);
+    }
+
     await practiceClientIntakesRepository.update(uuid, dataToUpdate);
 
     return result.ok({ success: true, message: 'Intake updated successfully.' });

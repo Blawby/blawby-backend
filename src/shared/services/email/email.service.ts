@@ -13,7 +13,7 @@ import { db } from '@/shared/database/connection';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
 import { renderTemplate, type TemplateDataMap } from '@/shared/services/email/templates';
-import { isProduction, isTest } from '@/shared/utils/env';
+import { isProduction, isTest, isProductionLike } from '@/shared/utils/env';
 
 const logger = getLogger(['shared', 'services', 'email']);
 
