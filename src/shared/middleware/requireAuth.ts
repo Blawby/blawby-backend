@@ -16,10 +16,7 @@ import { response } from '@/shared/utils/responseUtils';
 export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => {
   return async (c, next) => {
     try {
-      // STEP 2: Existing session validation
       const authInstance = createBetterAuthInstance(db);
-
-      // Get session from Better Auth
       const session = await authInstance.api.getSession({
         headers: c.req.raw.headers,
       });

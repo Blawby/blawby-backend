@@ -2,14 +2,18 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
+    "rootDir": ".",
     "noEmit": true,
     "types": [
       "vitest/globals",
       "node"
     ],
     "paths": {
-      "@test/*": [
+      "@/test/*": [
         "./*"
+      ],
+      "@/*": [
+        "../src/*"
       ]
     }
   },

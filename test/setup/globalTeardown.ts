@@ -1,4 +1,4 @@
-import pg from 'pg';
+import { Client } from 'pg';
 import { config } from '@dotenvx/dotenvx';
 
 // Load test environment variables so we can read POSTGRES_USER/PASSWORD
@@ -8,7 +8,6 @@ export default async function globalTeardown() {
   console.log('\n🧹 Cleaning up test database...');
 
   const testDbName = 'blawby_test';
-  const { Client } = pg;
   const client = new Client({
     host: '127.0.0.1',
     port: 5432,

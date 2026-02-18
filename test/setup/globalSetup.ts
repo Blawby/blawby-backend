@@ -1,8 +1,8 @@
-import { execSync } from 'child_process';
 import { config } from '@dotenvx/dotenvx';
+import { execSync } from 'child_process';
 import { Client } from 'pg';
 
-// Load test environment variables
+// Load test environment variables from .env.test first
 config({ path: '.env.test' });
 
 export default async function globalSetup() {

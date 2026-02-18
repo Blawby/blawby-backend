@@ -1,12 +1,12 @@
-import { testDb } from './db';
-import { users, organizations } from '@/schema/better-auth-schema';
+import { getTestDb } from './db';
+import { users, organizations, members } from '@/schema';
 import crypto from 'crypto';
 import { faker } from '@faker-js/faker';
 import { auth } from '@/shared/auth/better-auth'; // Factory function
-import type { User, Session } from '@/shared/types/BetterAuth'; // Adjust import if needed
+import type { User, Session } from '@/shared/types/better-auth'; // Adjust import if needed
 
 // Initialize Better Auth with testDb
-const betterAuth = auth(testDb);
+const betterAuth = auth(getTestDb());
 
 export interface TestUser {
   id: string;
@@ -40,19 +40,15 @@ export async function createTestUser(overrides: Partial<typeof users.$inferInser
     asResponse: false // Return data directly
   });
 
-  if (!response?.user || !response?.session) {
+  if (!response?.user || !response?.token) {
     throw new Error('Failed to create test user via Better Auth');
   }
-
-  // If ID override was requested, we might need to update it (but usually we accept generated ID)
-  // If strict ID control is needed, we'd update DB after creation, but Better Auth handles IDs.
-  // For now, return what Better Auth created.
 
   return {
     id: response.user.id,
     email: response.user.email,
     name: response.user.name,
-    sessionToken: response.session.token,
+    sessionToken: response.token,
   };
 }
 
@@ -66,7 +62,7 @@ export async function createTestOrganization(
   const slug = overrides.slug || faker.helpers.slugify(faker.company.name()).toLowerCase() + '-' + Date.now();
   const name = overrides.name || faker.company.name();
 
-  await testDb.insert(organizations).values({
+  await getTestDb().insert(organizations).values({
     id: orgId,
     name,
     slug,
@@ -86,7 +82,7 @@ export async function addUserToOrganization(
   orgId: string,
   role: 'owner' | 'admin' | 'member' = 'member'
 ) {
-  await testDb.insert(members).values({
+  await getTestDb().insert(members).values({
     id: crypto.randomUUID(),
     organizationId: orgId,
     userId,

@@ -36,6 +36,7 @@ export const request = supertest(getRequestListener(app.fetch));
 export function authenticatedRequest(sessionToken: string) {
   const agent = supertest.agent(getRequestListener(app.fetch));
   // agent.set sets default headers for all requests made by this agent
+  agent.set('Authorization', `Bearer ${sessionToken}`);
   agent.set('Cookie', `better-auth.session_token=${sessionToken}`);
   return agent;
 }

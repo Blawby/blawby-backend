@@ -6,7 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
+import { eq } from 'drizzle-orm';
 import { preferences } from '@/modules/preferences/schema/preferences.schema';
 import type { Preferences } from '@/modules/preferences/schema/preferences.schema';
 import type {
@@ -18,7 +18,7 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
 } from '@/modules/preferences/types/preferences.types';
-import { eq } from 'drizzle-orm';
+import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError, notFound, badRequest } from '@/shared/utils/result';
 
