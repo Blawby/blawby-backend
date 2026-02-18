@@ -8,7 +8,7 @@
  * - APP_ENV: Used by application logic ('development' | 'staging' | 'production')
  */
 
-type AppEnvironment = 'development' | 'staging' | 'production';
+type AppEnvironment = 'development' | 'staging' | 'production' | 'test';
 type NodeEnvironment = 'development' | 'production';
 
 /**
@@ -17,16 +17,12 @@ type NodeEnvironment = 'development' | 'production';
  */
 export const getAppEnv = (): AppEnvironment => {
   const appEnv = process.env.APP_ENV?.toLowerCase();
-  const nodeEnv = process.env.NODE_ENV?.toLowerCase();
 
-  if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production') {
+
+  if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production' || appEnv === 'test') {
     return appEnv;
   }
 
-  // Fallback to NODE_ENV
-  if (nodeEnv === 'development' || nodeEnv === 'production') {
-    return nodeEnv;
-  }
 
   // Default to development
   return 'development';
@@ -45,6 +41,13 @@ export const getNodeEnv = (): NodeEnvironment => {
  */
 export const isDevelopment = (): boolean => {
   return getAppEnv() === 'development';
+};
+
+/**
+ * Check if running in test environment
+ */
+export const isTest = (): boolean => {
+  return getAppEnv() === 'test';
 };
 
 /**

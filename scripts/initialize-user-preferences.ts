@@ -69,7 +69,7 @@ const main = async (): Promise<void> => {
 
     // Get users who already have preferences
     const usersWithPreferences = await db
-      .select({ userId: preferences.userId })
+      .select({ userId: preferences.user_id })
       .from(preferences);
 
     const userIdsWithPreferences = new Set(usersWithPreferences.map(p => p.userId));
@@ -114,7 +114,7 @@ const main = async (): Promise<void> => {
       for (const user of batch) {
         try {
           await db.insert(preferences).values({
-            userId: user.id,
+            user_id: user.id,
             notifications: DEFAULT_NOTIFICATION_PREFERENCES,
             general: {},
             security: {},

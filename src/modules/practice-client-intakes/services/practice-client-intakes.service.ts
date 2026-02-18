@@ -89,6 +89,8 @@ const formatIntakeResponse = (
     desired_outcome: intake.desired_outcome ?? null,
     court_date: intake.court_date?.toISOString() ?? null,
     has_documents: intake.has_documents ?? null,
+    income: intake.income ?? null,
+    household_size: intake.household_size ?? null,
     case_strength: intake.case_strength ?? null,
   };
 };
@@ -321,6 +323,14 @@ const createPracticeClientIntake = async (
         },
         client_ip: request.clientIp,
         user_agent: request.userAgent,
+        // AI & Triage Fields
+        urgency: request.urgency,
+        desired_outcome: request.desired_outcome,
+        court_date: request.court_date ? new Date(request.court_date) : undefined,
+        has_documents: request.has_documents,
+        income: request.income,
+        household_size: request.household_size,
+        case_strength: request.case_strength,
       };
 
       return await practiceClientIntakesRepository.create(practiceClientIntakeData, tx);
@@ -353,6 +363,13 @@ const createPracticeClientIntake = async (
           name: organization.name,
           logo: organization.logo ?? undefined,
         },
+        urgency: request.urgency,
+        desired_outcome: request.desired_outcome,
+        court_date: request.court_date,
+        has_documents: request.has_documents,
+        income: request.income,
+        household_size: request.household_size,
+        case_strength: request.case_strength,
       },
     });
   } catch (error) {
@@ -366,10 +383,33 @@ const createPracticeClientIntake = async (
  * Note: Payment Links cannot be updated directly. This creates a new Payment Link with the updated amount.
  */
 const updatePracticeClientIntake = async (
-  _uuid: string,
-  _amount: number,
-): Promise<Result<void>> => {
-  return result.badRequest('Updating practice client intakes is no longer supported. Create a new intake instead.');
+  uuid: string,
+  body: z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>,
+): Promise<Result<{ success: boolean; message: string }>> => {
+  try {
+    const { amount, court_date, ...restUpdateData } = body;
+    const dataToUpdate: Partial<SelectPracticeClientIntake> = {
+      ...restUpdateData,
+      ...(typeof amount !== 'undefined' && { amount }),
+      ...(court_date && { court_date: new Date(court_date) }),
+    };
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return result.badRequest('No fields to update provided.');
+    }
+
+    const existingIntake = await practiceClientIntakesRepository.findById(uuid);
+    if (!existingIntake) {
+      return result.notFound(`Practice client intake with UUID '${uuid}' not found`);
+    }
+
+    await practiceClientIntakesRepository.update(uuid, dataToUpdate);
+
+    return result.ok({ success: true, message: 'Intake updated successfully.' });
+  } catch (error) {
+    logger.error('Failed to update practice client intake for {uuid}: {error}', { error, uuid });
+    return result.internalError('Failed to update practice client intake');
+  }
 };
 
 /**
