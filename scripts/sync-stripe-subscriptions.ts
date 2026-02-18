@@ -46,6 +46,15 @@ const main = async function main() {
         const stripeResponse = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
         const stripeSub = stripeResponse as unknown as Record<string, unknown>;
 
+        // Stripe API v2025+ moved current_period_start/end from top-level into items.data[].
+        // Read from the first item as a primary source, with top-level fallback.
+        const items = stripeSub.items as Record<string, unknown> | undefined;
+        const itemsData = (items?.data as Array<Record<string, unknown>>) ?? [];
+        const firstItem = itemsData[0];
+
+        const periodStart = firstItem?.current_period_start ?? stripeSub.current_period_start;
+        const periodEnd = firstItem?.current_period_end ?? stripeSub.current_period_end;
+
         const updates: Partial<typeof subscriptions.$inferInsert> = {};
         const changes: string[] = [];
 
@@ -56,22 +65,26 @@ const main = async function main() {
         }
 
         // Check Period Start
-        const stripePeriodStart = new Date((stripeSub.current_period_start as number) * 1000);
-        if (stripePeriodStart.getTime() !== sub.periodStart?.getTime()) {
-          updates.periodStart = stripePeriodStart;
-          changes.push(`Period Start: ${sub.periodStart?.toISOString()} -> ${stripePeriodStart.toISOString()}`);
+        if (typeof periodStart === 'number') {
+          const stripePeriodStart = new Date(periodStart * 1000);
+          if (stripePeriodStart.getTime() !== sub.periodStart?.getTime()) {
+            updates.periodStart = stripePeriodStart;
+            changes.push(`Period Start: ${sub.periodStart?.toISOString()} -> ${stripePeriodStart.toISOString()}`);
+          }
         }
 
         // Check Period End
-        const stripePeriodEnd = new Date((stripeSub.current_period_end as number) * 1000);
-        if (stripePeriodEnd.getTime() !== sub.periodEnd?.getTime()) {
-          updates.periodEnd = stripePeriodEnd;
-          changes.push(`Period End: ${sub.periodEnd?.toISOString()} -> ${stripePeriodEnd.toISOString()}`);
+        if (typeof periodEnd === 'number') {
+          const stripePeriodEnd = new Date(periodEnd * 1000);
+          if (stripePeriodEnd.getTime() !== sub.periodEnd?.getTime()) {
+            updates.periodEnd = stripePeriodEnd;
+            changes.push(`Period End: ${sub.periodEnd?.toISOString()} -> ${stripePeriodEnd.toISOString()}`);
+          }
         }
 
         // Check Cancel At Period End
-        if (stripeSub.cancel_at_period_end !== sub.cancelAtPeriodEnd) {
-          updates.cancelAtPeriodEnd = stripeSub.cancel_at_period_end as boolean;
+        if (typeof stripeSub.cancel_at_period_end === 'boolean' && stripeSub.cancel_at_period_end !== sub.cancelAtPeriodEnd) {
+          updates.cancelAtPeriodEnd = stripeSub.cancel_at_period_end;
           changes.push(`Cancel At Period End: ${sub.cancelAtPeriodEnd} -> ${stripeSub.cancel_at_period_end}`);
         }
 
