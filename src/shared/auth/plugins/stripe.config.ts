@@ -88,6 +88,82 @@ const syncSubscriptionToOrg = async (
 
   // 3. TRANSACTION: Update Org, Line Items, and Logs atomically
   await db.transaction(async (tx) => {
+    // Check for existing active subscription (Race Condition Handling)
+    const [existingOrg] = await tx
+      .select({ activeSubscriptionId: schema.organizations.activeSubscriptionId })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId!))
+      .limit(1);
+
+    if (existingOrg?.activeSubscriptionId && existingOrg.activeSubscriptionId !== subscriptionId) {
+      const [oldSub] = await tx
+        .select()
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, existingOrg.activeSubscriptionId))
+        .limit(1);
+
+      if (oldSub) {
+        // Compare creation timestamps
+        // Incoming: stripeSubscription.created (Unix timestamp)
+        // Existing: oldSub.createdAt (Date object)
+        const incomingCreated = new Date(stripeSubscription.created * 1000);
+        const existingCreated = oldSub.createdAt;
+
+        if (incomingCreated < existingCreated) {
+          logger.warn('[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is OLDER than active subscription {existingId}. Canceling incoming.', {
+            incomingId: subscriptionId,
+            existingId: oldSub.id,
+            incomingCreated,
+            existingCreated,
+          });
+
+          // Cancel the incoming stale subscription in Stripe
+          try {
+            const stripeClient = getStripeInstance();
+            await stripeClient.subscriptions.cancel(stripeSubscription.id);
+            logger.info('[Stripe Plugin] Canceled stale incoming subscription {stripeId} in Stripe.', { stripeId: stripeSubscription.id });
+          } catch (err) {
+            logger.error('[Stripe Plugin] Failed to cancel stale incoming subscription in Stripe: {error}', { error: err });
+          }
+
+          // Mark as canceled in DB
+          await tx
+            .update(schema.subscriptions)
+            .set({ status: 'canceled', updatedAt: new Date() })
+            .where(eq(schema.subscriptions.id, subscriptionId));
+
+          // ABORT sync to prevent overwriting the valid active subscription
+          return;
+        } else {
+          logger.warn('[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is NEWER than active subscription {existingId}. Canceling existing.', {
+            incomingId: subscriptionId,
+            existingId: oldSub.id,
+            incomingCreated,
+            existingCreated,
+          });
+
+          // Cancel the existing (now stale) subscription in Stripe
+          if (oldSub.stripeSubscriptionId) {
+            try {
+              const stripeClient = getStripeInstance();
+              await stripeClient.subscriptions.cancel(oldSub.stripeSubscriptionId);
+              logger.info('[Stripe Plugin] Canceled stale existing subscription {stripeId} in Stripe.', { stripeId: oldSub.stripeSubscriptionId });
+            } catch (err) {
+              logger.error('[Stripe Plugin] Failed to cancel stale existing subscription in Stripe: {error}', { error: err });
+            }
+          }
+
+          // Mark existing as canceled in DB
+          await tx
+            .update(schema.subscriptions)
+            .set({ status: 'canceled', updatedAt: new Date() })
+            .where(eq(schema.subscriptions.id, oldSub.id));
+
+          // Proceed to update organization with new subscription
+        }
+      }
+    }
+
     logger.debug('[Stripe Plugin] Updating activeSubscriptionId for Org {organizationId} to {subscriptionId}', {
       organizationId,
       subscriptionId,
