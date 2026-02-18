@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import type Stripe from 'stripe';
+import { eq, and, lte, isNotNull } from 'drizzle-orm';
+import { Stripe } from 'stripe';
 
 import { db } from '@/shared/database';
 import {
@@ -135,6 +135,23 @@ export const stripeWebhookEventsRepository = {
         processed: false,
       })
       .where(eq(webhookEvents.id, id));
+  },
+
+  /**
+   * Get generic webhook events that need retrying.
+   */
+  async getEventsToRetry(): Promise<WebhookEvent[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(webhookEvents)
+      .where(
+        and(
+          eq(webhookEvents.processed, false),
+          isNotNull(webhookEvents.nextRetryAt),
+          lte(webhookEvents.nextRetryAt, now),
+        ),
+      );
   },
 };
 

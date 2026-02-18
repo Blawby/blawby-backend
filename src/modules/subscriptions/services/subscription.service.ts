@@ -6,13 +6,18 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, and } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
+import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
 import type {
-  CreateSubscriptionRequest,
   CancelSubscriptionRequest,
-  Subscription,
   SubscriptionAPI,
+  CreateSubscriptionRequest,
+  GetCurrentSubscriptionResponse,
+  SubscriptionPlanResponse,
+  LineItemResponse,
+  EventResponse,
 } from '@/modules/subscriptions/types/subscription.types';
 import { organizations, subscriptions } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
@@ -26,12 +31,15 @@ const logger = getLogger(['subscriptions', 'services', 'subscription']);
 /**
  * List all available subscription plans
  */
-const listPlans = async (): Promise<
-  Result<Awaited<ReturnType<typeof subscriptionRepository.findAllActivePlans>>>
-> => {
+const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }>> => {
   try {
     const plans = await subscriptionRepository.findAllActivePlans(db);
-    return ok(plans);
+
+    // The repository returns plans which are already snake_case in the schema
+    // so we can return them directly.
+    return ok({
+      plans: plans as SubscriptionPlanResponse[],
+    });
   } catch (error) {
     logger.error('Failed to list plans: {error}', { error });
     return internalError('Failed to retrieve subscription plans');
@@ -45,151 +53,90 @@ const getCurrentSubscription = async (
   organizationId: string,
   _user: User,
   _requestHeaders: Record<string, string>,
-): Promise<Result<{
-  subscription: Subscription | null;
-  line_items: any[];
-  events: any[];
-}>> => {
+): Promise<Result<GetCurrentSubscriptionResponse>> => {
   try {
-    // Get organization to find active subscription ID
-    const [organization] = await db
-      .select()
+    // Manual query to handle text vs uuid type mismatch in database
+    // We fetch the organization and join with subscription using explicit casting
+    // Select all fields with explicit snake_case aliases to match our custom types
+    const result = await db
+      .select({
+        activeSubscriptionId: organizations.activeSubscriptionId,
+        subscription: {
+          id: subscriptions.id,
+          plan: subscriptions.plan,
+          reference_id: subscriptions.referenceId,
+          stripe_customer_id: subscriptions.stripeCustomerId,
+          stripe_subscription_id: subscriptions.stripeSubscriptionId,
+          status: subscriptions.status,
+          period_start: subscriptions.periodStart,
+          period_end: subscriptions.periodEnd,
+          cancel_at_period_end: subscriptions.cancelAtPeriodEnd,
+          seats: subscriptions.seats,
+          trial_start: subscriptions.trialStart,
+          trial_end: subscriptions.trialEnd,
+          created_at: subscriptions.createdAt,
+          updated_at: subscriptions.updatedAt,
+        },
+      })
       .from(organizations)
+      .leftJoin(
+        subscriptions,
+        sql`${organizations.activeSubscriptionId}::text = ${subscriptions.id}::text`,
+      )
       .where(eq(organizations.id, organizationId))
       .limit(1);
 
-    if (!organization) {
+    const organizationData = result[0];
+
+    if (!organizationData) {
       return notFound('Organization not found');
     }
 
     // If no active subscription, return null
-    if (!organization.activeSubscriptionId) {
+    if (!organizationData.subscription) {
       return ok({
         subscription: null,
-        line_items: [],
-        events: [],
       });
     }
 
-    // Get subscription from Better Auth database
-    const [subscriptionRecord] = await db
-      .select()
-      .from(subscriptions)
-      .where(
-        and(
-          eq(subscriptions.id, organization.activeSubscriptionId),
-          eq(subscriptions.referenceId, organizationId),
-        ),
-      )
-      .limit(1);
+    const subscriptionRecord = organizationData.subscription;
 
-    if (!subscriptionRecord) {
-      return ok({
-        subscription: null,
-        line_items: [],
-        events: [],
-      });
-    }
+    // Fetch line items, events, and plan details
+    const [lineItems, events, planResult] = await Promise.all([
+      db.query.subscriptionLineItems.findMany({
+        where: sql`${subscriptionLineItems.subscription_id}::text = ${subscriptionRecord.id}::text`,
+      }),
+      db.query.subscriptionEvents.findMany({
+        where: sql`${subscriptionEvents.subscription_id}::text = ${subscriptionRecord.id}::text`,
+      }),
+      subscriptionRepository.findPlanByName(db, subscriptionRecord.plan),
+    ]);
 
-    // Map database record to Subscription type with snake_case for API
-    const planResult = await subscriptionRepository.findPlanByName(db, subscriptionRecord.plan);
-    const subscription = {
-      id: subscriptionRecord.id,
-      status: subscriptionRecord.status,
-      plan: planResult || null,
-      current_period_start: subscriptionRecord.periodStart
-        ? Math.floor(subscriptionRecord.periodStart.getTime() / 1000)
-        : null,
-      current_period_end: subscriptionRecord.periodEnd
-        ? Math.floor(subscriptionRecord.periodEnd.getTime() / 1000)
-        : null,
-      cancel_at_period_end: subscriptionRecord.cancelAtPeriodEnd || false,
-      reference_id: subscriptionRecord.referenceId,
-      stripe_customer_id: subscriptionRecord.stripeCustomerId,
-      stripe_subscription_id: subscriptionRecord.stripeSubscriptionId,
-      created_at: subscriptionRecord.createdAt.toISOString(),
-      updated_at: subscriptionRecord.updatedAt.toISOString(),
-    };
+    const { plan: _, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
 
-    // Get line items and events from our database
-    const line_items = await subscriptionRepository.findLineItemsBySubscriptionId(
-      db,
-      subscription.id,
-    );
-    const events = await subscriptionRepository.findEventsBySubscriptionId(db, subscription.id);
-
+    // Construct the response by spreading the raw DB record (which contains snake_case keys from the aliased select)
+    // and adding the details. The 'plan' from the DB record is just a string name,
+    // we override it here with the full plan object.
     return ok({
-      subscription,
-      line_items: line_items as any[],
-      events: events as any[],
-    } as any);
+      subscription: {
+        ...subscriptionRecordWithoutPlanName,
+        line_items: lineItems as LineItemResponse[],
+        events: events as EventResponse[],
+        plan: planResult
+          ? {
+            ...planResult,
+            metadata: planResult.metadata ?? null,
+            metered_items: planResult.metered_items ?? null,
+          }
+          : null,
+      },
+    });
   } catch (error) {
     logger.error('Failed to get current subscription for org {organizationId}: {error}', {
       organizationId,
       error,
     });
     return internalError('Failed to retrieve current subscription');
-  }
-};
-
-/**
- * Ensure Stripe customer exists for organization
- * Creates customer with organization's billing email if it doesn't exist
- */
-const ensureOrganizationCustomer = async (
-  organizationId: string,
-  userEmail: string,
-): Promise<Result<string>> => {
-  try {
-    const [organization] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
-
-    if (!organization) {
-      return notFound('Organization not found');
-    }
-
-    // If customer already exists, return it
-    if (organization.stripeCustomerId) {
-      return ok(organization.stripeCustomerId);
-    }
-
-    // Create Stripe customer for organization with idempotency key to prevent duplicates
-    const { getStripeInstance } = await import('@/shared/utils/stripe-client');
-    const stripeInstance = getStripeInstance();
-    const idempotencyKey = `org_customer_${organizationId}`;
-
-    const customer = await stripeInstance.customers.create(
-      {
-        email: organization.billingEmail || userEmail,
-        name: organization.name,
-        metadata: {
-          organization_id: organizationId,
-          iolta_compliant: 'true',
-          type: 'platform_billing',
-        },
-        // NO stripeAccount param = platform account (IOLTA compliant)
-      },
-      { idempotencyKey },
-    );
-
-    // Save customer ID to organization
-    await db
-      .update(organizations)
-      .set({
-        stripeCustomerId: customer.id,
-      })
-      .where(eq(organizations.id, organizationId));
-
-    return ok(customer.id);
-  } catch (error) {
-    logger.error('Failed to ensure organization customer for org {organizationId}: {error}', {
-      organizationId,
-      error,
-    });
-    return internalError('Failed to setup billing customer');
   }
 };
 
@@ -234,11 +181,6 @@ const createSubscription = async (
     // Use plan name for Better Auth (Better Auth expects plan name, not UUID)
     const planName = plan.name;
 
-    // Ensure Stripe customer exists for organization
-    const customerResult = await ensureOrganizationCustomer(organizationId, user.email);
-    if (!customerResult.success) {
-      return customerResult;
-    }
 
     // Check if organization already has an active subscription
     if (organization.activeSubscriptionId) {
@@ -306,10 +248,10 @@ const cancelSubscription = async (
     const subscriptionAPI = authInstance.api as unknown as SubscriptionAPI;
     const result = await subscriptionAPI.cancelSubscription({
       body: {
-        subscriptionId,
-        referenceId: organizationId,
-        customerType: 'organization',
-        returnUrl: data.return_url || '/dashboard',
+        subscription_id: subscriptionId,
+        reference_id: organizationId,
+        customer_type: 'organization',
+        return_url: data.return_url || '/dashboard',
         immediately: data.immediately ?? false,
       },
       headers: requestHeaders,

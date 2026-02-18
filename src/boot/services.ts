@@ -4,7 +4,7 @@
  * Initialize external services and connections
  */
 
-import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
+import { stripeRetriesService } from '@/modules/webhooks/services/stripe-retries.service';
 
 /**
  * Initialize external services
@@ -18,8 +18,8 @@ export const bootServices = (): void => {
   // - initializeAnalytics()
 
   // Retry any failed/stuck webhooks on boot
-  // This recovers events lost during server restarts (common in dev)
-  void onboardingWebhooksService.retryFailedWebhooks();
+  // This recovers events lost during server restarts (common in dev/staging)
+  void stripeRetriesService.retryFailedWebhooks();
 
   console.info('✅ External services initialized successfully');
 };

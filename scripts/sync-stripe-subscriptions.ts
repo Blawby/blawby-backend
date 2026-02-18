@@ -6,6 +6,8 @@ import { db } from '../src/shared/database';
 import { stripe } from '../src/shared/utils/stripe-client';
 import { subscriptionRepository } from '../src/modules/subscriptions/database/queries/subscription.repository';
 
+import { Stripe } from 'stripe';
+
 // Logger wrapper
 const logger = {
   info: (msg: string, ...args: unknown[]) => console.log(`[INFO] ${msg}`, ...args),
@@ -27,30 +29,15 @@ const logger = {
  */
 
 /** Extract period dates from a Stripe subscription response. */
-function extractPeriodDates(stripeSub: Record<string, unknown>) {
-  const items = stripeSub.items as Record<string, unknown> | undefined;
-  const itemsData = (items?.data as Array<Record<string, unknown>>) ?? [];
-  const firstItem = itemsData[0];
-
-  const start = firstItem?.current_period_start ?? stripeSub.current_period_start;
-  const end = firstItem?.current_period_end ?? stripeSub.current_period_end;
+function extractPeriodDates(stripeSub: Stripe.Subscription) {
+  // Cast to access period dates which sometimes have varying availability in SDK types
+  const sub = stripeSub as unknown as { current_period_start: number; current_period_end: number };
+  const start = sub.current_period_start;
+  const end = sub.current_period_end;
 
   return {
     periodStart: typeof start === 'number' ? new Date(start * 1000) : null,
     periodEnd: typeof end === 'number' ? new Date(end * 1000) : null,
-  };
-}
-
-/** Safely extract line item fields from an untyped Stripe item. */
-function parseStripeItem(item: Record<string, unknown>) {
-  const price = item.price as Record<string, unknown> | undefined;
-  return {
-    itemId: item.id as string | undefined,
-    priceId: price?.id as string | undefined,
-    nickname: price?.nickname as string | undefined,
-    product: price?.product as string | undefined,
-    quantity: (item.quantity as number) || 1,
-    unitAmount: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
   };
 }
 
@@ -62,13 +49,13 @@ function parseStripeItem(item: Record<string, unknown>) {
  */
 async function hydrateSubscriptionData(
   localSub: typeof subscriptions.$inferSelect,
-  stripeSub: Record<string, unknown>,
+  stripeSub: Stripe.Subscription,
   isDryRun: boolean,
 ) {
-  const stripeSubId = stripeSub.id as string;
-  const stripeCustomerId = stripeSub.customer as string;
-  const status = stripeSub.status as string;
-  const rawItems = ((stripeSub.items as Record<string, unknown>)?.data as Array<Record<string, unknown>>) ?? [];
+  const stripeSubId = stripeSub.id;
+  const stripeCustomerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
+  const status = stripeSub.status;
+  const rawItems = stripeSub.items.data;
 
   // Only proceed with hydration if active or trialing
   if (status !== 'active' && status !== 'trialing') return;
@@ -79,22 +66,43 @@ async function hydrateSubscriptionData(
   }
 
   await db.transaction(async (tx) => {
+    let orgId = localSub.referenceId;
+
+    // 0. If referenceId is missing, try to find organization by Stripe Customer ID
+    if (!orgId && stripeCustomerId) {
+      const org = await tx.query.organizations.findFirst({
+        where: eq(organizations.stripeCustomerId, stripeCustomerId),
+      });
+
+      if (org) {
+        orgId = org.id;
+        // Update subscription with found referenceId
+        await tx.update(subscriptions)
+          .set({ referenceId: org.id, updatedAt: new Date() })
+          .where(eq(subscriptions.id, localSub.id));
+        logger.info(`Linked Subscription ${localSub.id} to Organization ${org.id} via Customer ID ${stripeCustomerId}`);
+      } else {
+        logger.warn(`Could not find Organization for Customer ID ${stripeCustomerId} (Subscription ${localSub.id})`);
+      }
+    }
+
     // 1. Update Organization (Link Active Subscription)
-    if (localSub.referenceId) {
+    if (orgId) {
       await tx.update(organizations)
         .set({
           activeSubscriptionId: localSub.id,
           stripeCustomerId,
         })
-        .where(eq(organizations.id, localSub.referenceId));
-      logger.info(`Updated Organization ${localSub.referenceId}: Linked active record ${localSub.id}`);
+        .where(eq(organizations.id, orgId));
+      logger.info(`Updated Organization ${orgId}: Linked active record ${localSub.id}`);
     }
 
     // 2. Resolve Plan Name from first item's price
     if (rawItems.length > 0) {
-      const parsed = parseStripeItem(rawItems[0]);
-      if (parsed.priceId) {
-        const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, parsed.priceId);
+      const firstItem = rawItems[0];
+      const priceId = firstItem.price.id;
+      if (priceId) {
+        const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, priceId);
         if (dbPlan) {
           if (localSub.plan !== dbPlan.name) {
             await tx.update(subscriptions)
@@ -103,28 +111,35 @@ async function hydrateSubscriptionData(
             logger.info(`Updated Subscription ${localSub.id}: Fixed plan name '${localSub.plan}' -> '${dbPlan.name}'`);
           }
         } else {
-          logger.warn(`Could not resolve plan for price ID ${parsed.priceId}`);
+          logger.warn(`Could not resolve plan for price ID ${priceId}`);
         }
       }
     }
 
     // 3. Sync Line Items (upsert to handle unique constraint on stripe_subscription_item_id)
-    for (const rawItem of rawItems) {
-      const parsed = parseStripeItem(rawItem);
-      if (!parsed.itemId || !parsed.priceId) {
-        logger.warn(`Skipping line item with missing ID or price ID for ${localSub.id}`);
-        continue;
+    if (rawItems.length === 0) {
+      logger.warn(`[HYDRATE] No line items found in Stripe object for ${localSub.id}`);
+    } else {
+      logger.info(`[HYDRATE] Processing ${rawItems.length} line items for ${localSub.id}...`);
+    }
+
+    for (const item of rawItems) {
+      const price = item.price;
+      try {
+        await subscriptionRepository.upsertLineItem(tx, {
+          subscription_id: localSub.id,
+          stripe_subscription_item_id: item.id,
+          stripe_price_id: price.id,
+          item_type: 'base_fee',
+          description: price.nickname || (typeof price.product === 'string' ? price.product : null),
+          quantity: item.quantity || 1,
+          unit_amount: price.unit_amount ? (price.unit_amount / 100).toString() : null,
+          metadata: {},
+        });
+        logger.info(`[HYDRATE] Synced line item ${item.id} for ${localSub.id}`);
+      } catch (err) {
+        logger.error(`[HYDRATE] Failed to sync line item ${item.id}:`, err);
       }
-      await subscriptionRepository.upsertLineItem(tx, {
-        subscription_id: localSub.id,
-        stripe_subscription_item_id: parsed.itemId,
-        stripe_price_id: parsed.priceId,
-        item_type: 'base_fee',
-        description: parsed.nickname || parsed.product,
-        quantity: parsed.quantity,
-        unit_amount: parsed.unitAmount ? (parsed.unitAmount / 100).toString() : null,
-        metadata: {},
-      });
     }
     logger.info(`Synced ${rawItems.length} line items for ${localSub.id}`);
   });
@@ -132,14 +147,14 @@ async function hydrateSubscriptionData(
 
 /** Build an updates object by comparing Stripe data with local subscription. */
 function buildUpdates(
-  stripeSub: Record<string, unknown>,
+  stripeSub: Stripe.Subscription,
   localSub: typeof subscriptions.$inferSelect,
 ) {
   const updates: Partial<typeof subscriptions.$inferInsert> = {};
   const changes: string[] = [];
 
   // Status
-  if (typeof stripeSub.status === 'string' && stripeSub.status !== localSub.status) {
+  if (stripeSub.status !== localSub.status) {
     updates.status = stripeSub.status;
     changes.push(`Status: ${localSub.status} -> ${stripeSub.status}`);
   }
@@ -158,10 +173,7 @@ function buildUpdates(
   }
 
   // Cancel at period end
-  if (
-    typeof stripeSub.cancel_at_period_end === 'boolean' &&
-    stripeSub.cancel_at_period_end !== localSub.cancelAtPeriodEnd
-  ) {
+  if (stripeSub.cancel_at_period_end !== localSub.cancelAtPeriodEnd) {
     updates.cancelAtPeriodEnd = stripeSub.cancel_at_period_end;
     changes.push(`Cancel At Period End: ${localSub.cancelAtPeriodEnd} -> ${stripeSub.cancel_at_period_end}`);
   }
@@ -201,8 +213,7 @@ Options:
       if (!sub.stripeSubscriptionId) continue;
 
       try {
-        const stripeResponse = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
-        const stripeSub = stripeResponse as unknown as Record<string, unknown>;
+        const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
         const { updates, changes } = buildUpdates(stripeSub, sub);
 
         const needsUpdate = Object.keys(updates).length > 0;
@@ -365,7 +376,7 @@ Options:
         }
 
         // Process Winner -> Update and Hydrate
-        const stripeSub = winnerStripeSub as unknown as Record<string, unknown>;
+        const stripeSub = winnerStripeSub;
         const { updates, changes } = buildUpdates(stripeSub, winnerLocalSub);
 
         updates.stripeSubscriptionId = winnerStripeSub.id;
