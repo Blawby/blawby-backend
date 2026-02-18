@@ -387,18 +387,11 @@ const updatePracticeClientIntake = async (
   body: z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>,
 ): Promise<Result<{ success: boolean; message: string }>> => {
   try {
-    const { amount, ...updateData } = body;
-
-    const fieldsToUpdate = Object.keys(updateData);
-    if (fieldsToUpdate.length === 0) {
-      return result.badRequest('No fields to update provided.');
-    }
-
-    const { court_date, ...restUpdateData } = updateData;
+    const { amount, court_date, ...restUpdateData } = body;
 
     const dataToUpdate: Partial<SelectPracticeClientIntake> = {
-      amount,
       ...restUpdateData,
+      ...(typeof amount !== 'undefined' && { amount }),
       ...(court_date && { court_date: new Date(court_date) }),
     };
 
