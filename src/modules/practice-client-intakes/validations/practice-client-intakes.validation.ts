@@ -22,10 +22,24 @@ const createPracticeClientIntakeSchema = z.object({
     description: 'Conversation ID associated with the client intake',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
+  urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
+  desired_outcome: z.string().optional(),
+  court_date: z.iso.datetime().optional(),
+  has_documents: z.boolean().optional(),
+  income: z.number().int().optional(),
+  household_size: z.number().int().optional(),
+  case_strength: z.number().min(0).max(1).optional(),
 });
 
 const updatePracticeClientIntakeSchema = z.object({
   amount: z.number().int().min(50).max(99999999),
+  urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
+  desired_outcome: z.string().optional(),
+  court_date: z.iso.datetime().optional(),
+  has_documents: z.boolean().optional(),
+  income: z.number().int().optional(),
+  household_size: z.number().int().optional(),
+  case_strength: z.number().min(0).max(1).optional(),
 });
 
 const slugParamSchema = z.object({
@@ -78,6 +92,13 @@ const createPracticeClientIntakeResponseSchema = z.object({
       name: z.string(),
       logo: z.string().optional(),
     }),
+    urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
+    desired_outcome: z.string().optional(),
+    court_date: z.iso.datetime().optional(),
+    has_documents: z.boolean().optional(),
+    income: z.number().int().optional(),
+    household_size: z.number().int().optional(),
+    case_strength: z.number().min(0).max(1).optional(),
   }).optional(),
   error: z.string().optional(),
 });
@@ -93,14 +114,7 @@ const createPracticeClientIntakeCheckoutSessionResponseSchema = z.object({
 
 const updatePracticeClientIntakeResponseSchema = z.object({
   success: z.boolean(),
-  data: z.object({
-    uuid: z.uuid(),
-    payment_link_url: z.url(),
-    amount: z.number(),
-    currency: z.string(),
-    status: z.string(),
-  }).optional(),
-  error: z.string().optional(),
+  message: z.string(),
 });
 
 const practiceClientIntakeStatusResponseSchema = z.object({
@@ -144,6 +158,8 @@ const practiceClientIntakeStatusResponseSchema = z.object({
     desired_outcome: z.string().optional(),
     court_date: z.iso.datetime().optional(),
     has_documents: z.boolean().optional(),
+    income: z.number().int().optional(),
+    household_size: z.number().int().optional(),
     case_strength: z.number().optional(),
   }).optional(),
   error: z.string().optional(),
@@ -216,6 +232,8 @@ const listIntakesResponseSchema = z.object({
       case_strength: z.number().nullable(),
       desired_outcome: z.string().nullable(),
       has_documents: z.boolean().nullable(),
+      income: z.number().int().nullable(),
+      household_size: z.number().int().nullable(),
       metadata: z.object({
         email: z.string(),
         name: z.string(),
