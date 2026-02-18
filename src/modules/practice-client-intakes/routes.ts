@@ -181,7 +181,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
   path: '/{uuid}',
   tags: ['Practice Client Intakes'],
   summary: 'Update practice client intake',
-  description: 'Updates the payment amount for a practice client intake by creating a new Stripe Payment Link and deactivating the old one. The UUID is obtained from the create endpoint response. Only works if the payment has not been completed or expired. Returns a new `payment_link_url` for the client to complete payment with the updated amount. Can also update optional fields for case triage such as urgency, desired outcome, court date, etc.',
+  description: 'Updates practice client intake details in the database. Can update fields for case triage such as urgency, desired outcome, court date, etc. Returns success status.',
   request: {
     params: uuidParamOpenAPISchema,
     body: {
@@ -199,7 +199,7 @@ export const updatePracticeClientIntakeRoute = createRoute({
           schema: intakeValidations.updatePracticeClientIntakeResponseSchema,
         },
       },
-      description: 'Practice client intake updated successfully. Returns the intake UUID, new Stripe Payment Link URL (old link is deactivated), updated payment amount, currency, and status. The new `payment_link_url` should be used to redirect the client to Stripe\'s hosted payment page with the updated amount.',
+      description: 'Intake updated successfully.',
     },
     400: {
       content: {
@@ -431,7 +431,7 @@ export const listIntakesRoute = createRoute({
   path: '/{practice_id}',
   tags: ['Practice Client Intakes'],
   summary: 'List practice client intakes or get by ID',
-  description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Use the `intake_id` query parameter to retrieve a specific intake. Privacy-sensitive fields (income, household_size) are excluded from this response.',
+  description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Use the `intake_id` query parameter to retrieve a specific intake.',
   request: {
     params: z.object({
       practice_id: z.uuid().openapi({

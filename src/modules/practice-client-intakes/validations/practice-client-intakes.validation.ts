@@ -32,7 +32,7 @@ const createPracticeClientIntakeSchema = z.object({
 });
 
 const updatePracticeClientIntakeSchema = z.object({
-  amount: z.number().int().min(50).max(99999999),
+  amount: z.number().int().min(50).max(99999999).optional(),
   urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
   desired_outcome: z.string().optional(),
   court_date: z.iso.datetime().optional(),
@@ -158,8 +158,8 @@ const practiceClientIntakeStatusResponseSchema = z.object({
     desired_outcome: z.string().optional(),
     court_date: z.iso.datetime().optional(),
     has_documents: z.boolean().optional(),
-    income: z.number().int().optional(),
-    household_size: z.number().int().optional(),
+    income: z.number().int().nullable(),
+    household_size: z.number().int().nullable(),
     case_strength: z.number().optional(),
   }).optional(),
   error: z.string().optional(),
