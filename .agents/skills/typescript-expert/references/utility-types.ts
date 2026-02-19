@@ -78,21 +78,27 @@ export type DeepReadonly<T> = T extends (...args: any[]) => any
 /**
  * Make all properties deeply optional.
  */
-export type DeepPartial<T> = T extends object
+export type DeepPartial<T> = T extends (...args: any[]) => any
+  ? T
+  : T extends object
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : T
 
 /**
  * Make all properties deeply required.
  */
-export type DeepRequired<T> = T extends object
+export type DeepRequired<T> = T extends (...args: any[]) => any
+  ? T
+  : T extends object
   ? { [K in keyof T]-?: DeepRequired<T[K]> }
   : T
 
 /**
  * Make all properties deeply mutable (remove readonly).
  */
-export type DeepMutable<T> = T extends object
+export type DeepMutable<T> = T extends (...args: any[]) => any
+  ? T
+  : T extends object
   ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
   : T
 
@@ -175,8 +181,9 @@ export type AtLeast<T, N extends number> = [...Tuple<T, N>, ...T[]]
 
 /**
  * Get function arguments as tuple.
+ * Alias for implicit Parameters<T>
  */
-export type Arguments<T> = T extends (...args: infer A) => any ? A : never
+export type Arguments<T extends (...args: any) => any> = Parameters<T>
 
 /**
  * Get first argument of function.

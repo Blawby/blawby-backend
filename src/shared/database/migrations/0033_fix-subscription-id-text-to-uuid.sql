@@ -3,13 +3,20 @@ DROP INDEX IF EXISTS "subscription_events_subscription_idx";--> statement-breakp
 DROP INDEX IF EXISTS "subscription_line_items_subscription_idx";--> statement-breakpoint
 
 -- Step 2: Delete orphaned rows where subscription_id doesn't match any existing subscription
+-- Step 2: Delete orphaned rows where subscription_id doesn't match any existing subscription OR has invalid UUID format
 DELETE FROM "subscription_events"
 WHERE "subscription_id" IS NOT NULL
-  AND "subscription_id"::uuid NOT IN (SELECT "id" FROM "subscriptions");--> statement-breakpoint
+  AND (
+    "subscription_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    OR "subscription_id"::uuid NOT IN (SELECT "id" FROM "subscriptions")
+  );--> statement-breakpoint
 
 DELETE FROM "subscription_line_items"
 WHERE "subscription_id" IS NOT NULL
-  AND "subscription_id"::uuid NOT IN (SELECT "id" FROM "subscriptions");--> statement-breakpoint
+  AND (
+    "subscription_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    OR "subscription_id"::uuid NOT IN (SELECT "id" FROM "subscriptions")
+  );--> statement-breakpoint
 
 -- Step 3: Cast text columns to uuid using USING clause
 ALTER TABLE "subscription_events" ALTER COLUMN "subscription_id" SET DATA TYPE uuid USING "subscription_id"::uuid;--> statement-breakpoint

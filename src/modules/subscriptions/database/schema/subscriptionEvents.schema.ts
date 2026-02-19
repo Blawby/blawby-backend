@@ -13,7 +13,7 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
-import { subscriptionPlans } from './subscriptionPlans.schema';
+import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 import { subscriptions } from '@/schema/better-auth-schema';
 
 // Event type enum

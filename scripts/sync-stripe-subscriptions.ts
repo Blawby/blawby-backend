@@ -131,8 +131,8 @@ async function hydrateSubscriptionData(
           stripe_price_id: price.id,
           item_type: 'base_fee',
           description: price.nickname || (typeof price.product === 'string' ? price.product : null),
-          quantity: item.quantity || 1,
-          unit_amount: price.unit_amount ? (price.unit_amount / 100).toString() : null,
+          quantity: item.quantity ?? 1,
+          unit_amount: price.unit_amount != null ? (price.unit_amount / 100).toString() : null,
           metadata: {},
         });
         logger.info(`[HYDRATE] Synced line item ${item.id} for ${localSub.id}`);
