@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { Client } from 'pg';
 
 // Load test environment variables from .env.test first
-config({ path: '.env.test' });
+config({ path: '.env.test', override: true });
 
 export default async function globalSetup() {
   console.log('🧪 Setting up test database...');

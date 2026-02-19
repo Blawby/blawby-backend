@@ -1,4 +1,4 @@
-import * as handlers from '@/modules/matters/handlers';
+import * as handlers from '@/modules/matters/handlers/index';
 import * as routes from '@/modules/matters/routes';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
@@ -7,6 +7,7 @@ const mattersApp = createHonoApp();
 
 // ==================== MATTERS ====================
 mattersApp.openapi(routes.createMatterRoute, handlers.createMatterHandler);
+mattersApp.openapi(routes.getMattersRoute, handlers.getMattersHandler);
 mattersApp.openapi(routes.getMatterRoute, handlers.getMatterHandler);
 mattersApp.openapi(routes.updateMatterRoute, handlers.updateMatterHandler);
 mattersApp.openapi(routes.deleteMatterRoute, handlers.deleteMatterHandler);
