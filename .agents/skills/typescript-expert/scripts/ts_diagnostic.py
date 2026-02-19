@@ -5,22 +5,29 @@ Analyzes TypeScript projects for configuration, performance, and common issues.
 """
 
 import subprocess
-import sys
-import os
 import json
 from pathlib import Path
+import re
 
-import shlex
+def _strip_jsonc(content: str) -> str:
+    """Strip JSONC comments and trailing commas."""
+    # Remove single line comments
+    content = re.sub(r"//.*", "", content)
+    # Remove multi-line comments
+    content = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+    # Remove trailing commas
+    content = re.sub(r",\s*([\]}])", r"\1", content)
+    return content
 
 def run_cmd(cmd: str) -> str:
     """Run shell command and return output."""
+    # Intentionally use shell=True to support pipes and redirections
     try:
-        args = shlex.split(cmd)
-        result = subprocess.run(args, shell=False, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         return result.stdout + result.stderr
     except subprocess.SubprocessError as e:
         return str(e)
-    except Exception as e:
+    except (OSError, ValueError) as e:
         return str(e)
 
 def check_versions():
@@ -45,8 +52,9 @@ def check_tsconfig():
         return
     
     try:
-        with open(tsconfig_path) as f:
-            config = json.load(f)
+        with open(tsconfig_path, 'r') as f:
+            content = f.read()
+            config = json.loads(_strip_jsonc(content))
         
         compiler_opts = config.get("compilerOptions", {})
         
@@ -147,27 +155,36 @@ def check_type_errors():
     else:
         print("  ✅ No type errors")
 
-def check_any_usage():
+def check_any_usage(project_root: str = "."):
     """Check for any type usage."""
     print("\n⚠️ 'any' Type Usage:")
     print("-" * 40)
     
-    result = run_cmd("grep -r ': any' --include='*.ts' --include='*.tsx' src/ 2>/dev/null | wc -l")
+    src_path = os.path.join(project_root, "src") if project_root != "." else "src/"
+    # Fallback if src doesn't exist
+    if not os.path.exists("src") and project_root == ".":
+        src_path = "."
+        
+    result = run_cmd(f"grep -r ': any' --include='*.ts' --include='*.tsx' {src_path} 2>/dev/null | wc -l")
     count = result.strip()
     if count and count != "0":
         print(f"  ⚠️ Found {count} occurrences of ': any'")
-        sample = run_cmd("grep -rn ': any' --include='*.ts' --include='*.tsx' src/ 2>/dev/null | head -5")
+        sample = run_cmd(f"grep -rn ': any' --include='*.ts' --include='*.tsx' {src_path} 2>/dev/null | head -5")
         if sample:
             print(sample)
     else:
         print("  ✅ No explicit 'any' types found")
 
-def check_type_assertions():
+def check_type_assertions(project_root: str = "."):
     """Check for type assertions."""
     print("\n⚠️ Type Assertions (as):")
     print("-" * 40)
     
-    result = run_cmd("grep -r ' as ' --include='*.ts' --include='*.tsx' src/ 2>/dev/null | grep -v 'import' | wc -l")
+    src_path = os.path.join(project_root, "src") if project_root != "." else "src/"
+    if not os.path.exists("src") and project_root == ".":
+        src_path = "."
+
+    result = run_cmd(f"grep -r ' as ' --include='*.ts' --include='*.tsx' {src_path} 2>/dev/null | grep -v 'import' | wc -l")
     count = result.strip()
     if count and count != "0":
         print(f"  ⚠️ Found {count} type assertions")

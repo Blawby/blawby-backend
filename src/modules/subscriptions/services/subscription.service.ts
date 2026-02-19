@@ -6,7 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { sql, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
 import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
@@ -29,6 +29,13 @@ import type { Result } from '@/shared/types/result';
 import { ok, badRequest, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['subscriptions', 'services', 'subscription']);
+
+/**
+ * Helper to safely cast authed API to SubscriptionAPI
+ */
+const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInstance>): SubscriptionAPI => {
+  return authInstance.api as unknown as SubscriptionAPI;
+};
 
 // Helper to map Better Auth camelCase subscription to our snake_case response
 const mapToSubscriptionResponse = (sub: BetterAuthSubscription): SubscriptionResponse => ({
@@ -101,7 +108,7 @@ const getCurrentSubscription = async (
       .from(organizations)
       .leftJoin(
         subscriptions,
-        sql`${organizations.activeSubscriptionId}::text = ${subscriptions.id}::text`,
+        eq(organizations.activeSubscriptionId, subscriptions.id),
       )
       .where(eq(organizations.id, organizationId))
       .limit(1);
@@ -124,15 +131,46 @@ const getCurrentSubscription = async (
     // Fetch line items, events, and plan details
     const [lineItems, events, planResult] = await Promise.all([
       db.query.subscriptionLineItems.findMany({
-        where: sql`${subscriptionLineItems.subscription_id}::text = ${subscriptionRecord.id}::text`,
+        where: eq(subscriptionLineItems.subscription_id, subscriptionRecord.id),
       }),
       db.query.subscriptionEvents.findMany({
-        where: sql`${subscriptionEvents.subscription_id}::text = ${subscriptionRecord.id}::text`,
+        where: eq(subscriptionEvents.subscription_id, subscriptionRecord.id),
       }),
       subscriptionRepository.findPlanByName(db, subscriptionRecord.plan),
     ]);
 
     const { plan: _, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
+
+    // Map DB rows to response types to avoid unsafe casts
+    const mappedLineItems: LineItemResponse[] = lineItems.map((item) => ({
+      id: item.id,
+      subscription_id: item.subscription_id,
+      stripe_subscription_item_id: item.stripe_subscription_item_id,
+      stripe_price_id: item.stripe_price_id,
+      item_type: item.item_type,
+      description: item.description,
+      quantity: item.quantity,
+      unit_amount: item.unit_amount,
+      metadata: item.metadata as Record<string, string> | null,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    }));
+
+    const mappedEvents: EventResponse[] = events.map((event) => ({
+      id: event.id,
+      subscription_id: event.subscription_id,
+      plan_id: event.plan_id,
+      event_type: event.event_type,
+      from_status: event.from_status,
+      to_status: event.to_status,
+      from_plan_id: event.from_plan_id,
+      to_plan_id: event.to_plan_id,
+      triggered_by: event.triggered_by,
+      triggered_by_type: event.triggered_by_type,
+      metadata: event.metadata as Record<string, unknown> | null,
+      error_message: event.error_message,
+      created_at: event.created_at,
+    }));
 
     // Construct the response by spreading the raw DB record (which contains snake_case keys from the aliased select)
     // and adding the details. The 'plan' from the DB record is just a string name,
@@ -140,8 +178,8 @@ const getCurrentSubscription = async (
     return ok({
       subscription: {
         ...subscriptionRecordWithoutPlanName,
-        line_items: lineItems as LineItemResponse[],
-        events: events as EventResponse[],
+        line_items: mappedLineItems,
+        events: mappedEvents,
         plan: planResult
           ? {
             ...planResult,
@@ -208,15 +246,15 @@ const createSubscription = async (
     }
 
     // Create subscription via Better Auth
-    const api = authInstance.api as unknown as SubscriptionAPI;
+    const api = getSubscriptionApi(authInstance);
     const result = await api.upgradeSubscription({
       body: {
         plan: planName,
-        referenceId: organizationId,
-        customerType: 'organization',
-        successUrl: data.success_url || '/dashboard',
-        cancelUrl: data.cancel_url || '/pricing',
-        disableRedirect: data.disable_redirect || false,
+        reference_id: organizationId,
+        customer_type: 'organization',
+        success_url: data.success_url || '/dashboard',
+        cancel_url: data.cancel_url || '/pricing',
+        disable_redirect: data.disable_redirect || false,
       },
       headers: requestHeaders,
     });
@@ -265,7 +303,7 @@ const cancelSubscription = async (
     }
 
     // Cancel subscription via Better Auth
-    const subscriptionAPI = authInstance.api as unknown as SubscriptionAPI;
+    const subscriptionAPI = getSubscriptionApi(authInstance);
     const result = await subscriptionAPI.cancelSubscription({
       body: {
         subscription_id: subscriptionId,

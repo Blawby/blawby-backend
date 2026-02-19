@@ -36,16 +36,16 @@ export type ListSubscriptionsQuery = {
 export type UpgradeSubscriptionBody = {
   plan: string;
   annual?: boolean;
-  referenceId?: string;
-  subscriptionId?: string;
+  reference_id?: string;
+  subscription_id?: string;
   metadata?: Record<string, unknown>;
-  customerType?: 'user' | 'organization';
+  customer_type?: 'user' | 'organization';
   seats?: number;
   locale?: string;
-  successUrl: string;
-  cancelUrl: string;
-  returnUrl?: string;
-  disableRedirect?: boolean;
+  success_url: string;
+  cancel_url: string;
+  return_url?: string;
+  disable_redirect?: boolean;
 };
 
 export type CancelSubscriptionBody = {
@@ -57,9 +57,9 @@ export type CancelSubscriptionBody = {
 };
 
 export type RestoreSubscriptionBody = {
-  subscriptionId: string;
-  referenceId?: string;
-  customerType?: 'user' | 'organization';
+  subscription_id: string;
+  reference_id?: string;
+  customer_type?: 'user' | 'organization';
 };
 
 
