@@ -17,6 +17,8 @@ import {
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
+import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
 
 export const subscriptionPlans = pgTable(
   'subscription_plans',
@@ -35,6 +37,7 @@ export const subscriptionPlans = pgTable(
     monthly_price: decimal('monthly_price', { precision: 10, scale: 2 }),
     yearly_price: decimal('yearly_price', { precision: 10, scale: 2 }),
     currency: text('currency').default('usd').notNull(),
+    image: text('image'),
 
     // Features and Limits
     features: jsonb('features').$type<string[]>().notNull().default([]),
@@ -86,10 +89,6 @@ export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }
   lineItems: many(subscriptionLineItems),
   events: many(subscriptionEvents),
 }));
-
-// Import related schemas for relations
-import { subscriptionLineItems } from './subscriptionLineItems.schema';
-import { subscriptionEvents } from './subscriptionEvents.schema';
 
 // Type exports
 export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
