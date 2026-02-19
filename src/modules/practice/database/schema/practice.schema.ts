@@ -4,7 +4,7 @@ import {
   uniqueIndex, index,
 } from 'drizzle-orm/pg-core';
 import { addresses } from './addresses.schema';
-import { PracticeDetailsSupportedStates } from '@/modules/practice/types/practice-details.types';
+import type { PracticeDetailsSupportedStates } from '@/modules/practice/types/practice-details.types';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 // Drizzle table definition
