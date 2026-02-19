@@ -1,10 +1,9 @@
+import { z } from '@hono/zod-openapi';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
+import { supportedStatesItemSchema } from '@/modules/practice/validations/practice.validation';
 
-export type PracticeDetailsSupportedStates = {
-  country: string;
-  states?: string[];
-};
+export type PracticeDetailsSupportedStates = Readonly<z.infer<typeof supportedStatesItemSchema>>;
 
 export type PracticeDetailsResponse = Omit<
   PracticeDetails,
