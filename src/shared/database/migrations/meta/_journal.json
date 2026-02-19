@@ -246,6 +246,13 @@
       "when": 1771475967551,
       "tag": "0034_nostalgic_mattie_franklin",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1771501580975,
+      "tag": "0035_bumpy_old_lace",
+      "breakpoints": true
     }
   ]
 }

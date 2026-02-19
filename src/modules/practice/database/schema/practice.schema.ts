@@ -1,10 +1,10 @@
 import { relations } from 'drizzle-orm';
 import {
-  pgTable, uuid, text, timestamp, integer, boolean,
+  pgTable, uuid, text, timestamp, integer, boolean, jsonb,
   uniqueIndex, index,
 } from 'drizzle-orm/pg-core';
-
 import { addresses } from './addresses.schema';
+import type { PracticeDetailsSupportedStates } from '@/modules/practice/types/practice-details.types';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 // Drizzle table definition
@@ -33,6 +33,7 @@ export const practiceDetails = pgTable('practice_details', {
   billing_increment_minutes: integer('billing_increment_minutes').default(1).notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
+  supported_states: jsonb('supported_states').$type<PracticeDetailsSupportedStates[]>(),
 });
 
 // Practice services table (normalized)

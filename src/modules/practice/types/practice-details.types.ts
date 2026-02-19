@@ -1,5 +1,9 @@
+import { z } from '@hono/zod-openapi';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
+import { supportedStatesItemSchema } from '@/modules/practice/validations/practice.validation';
+
+export type PracticeDetailsSupportedStates = Readonly<z.infer<typeof supportedStatesItemSchema>>;
 
 export type PracticeDetailsResponse = Omit<
   PracticeDetails,
@@ -13,6 +17,7 @@ export type PracticeDetailsResponse = Omit<
   payment_link_enabled?: boolean;
   payment_link_prefill_amount?: number;
   billing_increment_minutes?: number;
+  supported_states: PracticeDetailsSupportedStates[] | null;
 };
 
 export type UpsertPracticeDetailsRequest = {
@@ -28,6 +33,7 @@ export type UpsertPracticeDetailsRequest = {
   is_public?: boolean;
   billing_increment_minutes?: number;
   services?: Array<{ id?: string; name: string; key: string }>;
+  supported_states?: PracticeDetailsSupportedStates[];
   // Nested Address fields
   address?: AddressData;
 };

@@ -89,6 +89,7 @@ const getPracticeDetails = async (
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       is_public: fetchedDetails?.is_public ?? false,
       billing_increment_minutes: fetchedDetails?.billing_increment_minutes ?? 1,
+      supported_states: fetchedDetails?.supported_states ?? null,
       name: organizationResult.data.name,
       logo: organizationResult.data.logo,
       payment_link_enabled: organization?.paymentLinkEnabled ?? false,
@@ -168,6 +169,7 @@ const upsertPracticeDetails = async (
           accent_color: data.accent_color ?? undefined,
           is_public: data.is_public ?? undefined,
           billing_increment_minutes: data.billing_increment_minutes ?? undefined,
+          supported_states: data.supported_states ?? undefined,
         })
         .onConflictDoUpdate({
           target: practiceDetailsTable.organization_id,
@@ -184,6 +186,7 @@ const upsertPracticeDetails = async (
             accent_color: data.accent_color ?? undefined,
             is_public: data.is_public ?? undefined,
             billing_increment_minutes: data.billing_increment_minutes ?? undefined,
+            supported_states: data.supported_states ?? undefined,
             updated_at: new Date(),
           },
         })
@@ -343,6 +346,7 @@ const getPracticeDetailsBySlug = async (
       address: addressData,
       services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
       billing_increment_minutes: fetchedDetails.billing_increment_minutes ?? 1,
+      supported_states: fetchedDetails.supported_states ?? null,
       name: organization.name,
       logo: organization.logo,
       payment_link_enabled: organization.paymentLinkEnabled ?? false,
