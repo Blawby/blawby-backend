@@ -37,6 +37,42 @@ const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInst
   return authInstance.api as unknown as SubscriptionAPI;
 };
 
+/**
+ * Type guard for Record<string, string>
+ */
+const isRecordStringString = (obj: unknown): obj is Record<string, string> => {
+  if (typeof obj !== 'object' || obj === null) return false;
+  return Object.values(obj).every((val) => typeof val === 'string');
+};
+
+/**
+ * Type guard for Record<string, unknown>
+ */
+const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => {
+  return typeof obj === 'object' && obj !== null;
+};
+
+/**
+ * Helper to safely parse and validate metadata
+ */
+const parseMetadata = <T>(
+  data: unknown,
+  guard: (obj: unknown) => obj is T,
+): T | null => {
+  if (data === null || data === undefined) return null;
+
+  let parsed = data;
+  if (typeof data === 'string') {
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+
+  return guard(parsed) ? parsed : null;
+};
+
 // Helper to map Better Auth camelCase subscription to our snake_case response
 const mapToSubscriptionResponse = (sub: BetterAuthSubscription): SubscriptionResponse => ({
   id: sub.id,
@@ -151,7 +187,7 @@ const getCurrentSubscription = async (
       description: item.description,
       quantity: item.quantity,
       unit_amount: item.unit_amount,
-      metadata: item.metadata as Record<string, string> | null,
+      metadata: parseMetadata(item.metadata, isRecordStringString),
       created_at: item.created_at,
       updated_at: item.updated_at,
     }));
@@ -167,7 +203,7 @@ const getCurrentSubscription = async (
       to_plan_id: event.to_plan_id,
       triggered_by: event.triggered_by,
       triggered_by_type: event.triggered_by_type,
-      metadata: event.metadata as Record<string, unknown> | null,
+      metadata: parseMetadata(event.metadata, isRecordStringUnknown),
       error_message: event.error_message,
       created_at: event.created_at,
     }));
