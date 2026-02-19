@@ -6,9 +6,8 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import type Stripe from 'stripe';
-
-import { subscriptionRepository } from '../database/queries/subscription.repository';
+import type { Stripe } from 'stripe';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
