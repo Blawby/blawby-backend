@@ -59,10 +59,10 @@ const cancelSubscriptionSchema = z.object({
 });
 
 /**
- * Subscription plan response schema
+ * Subscription plan response schema (matches subscription_plans table - snake_case)
  */
 const subscriptionPlanResponseSchema = z.object({
-  id: z.uuid(),
+  id: z.string(),
   name: z.string(),
   display_name: z.string(),
   description: z.string().nullable(),
@@ -78,54 +78,82 @@ const subscriptionPlanResponseSchema = z.object({
     invoices_per_month: z.number(),
     storage_gb: z.number(),
   }),
+  metered_items: z.array(z.object({
+    price_id: z.string(),
+    meter_name: z.string(),
+    type: z.string(),
+  })).nullable().optional(),
   is_active: z.boolean(),
   is_public: z.boolean(),
   sort_order: z.number(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  metadata: z.record(z.string(), z.string()).nullable().optional(),
+  created_at: z.date(),
+  updated_at: z.date(),
 });
 
 /**
- * Subscription response schema
+ * Subscription response schema (matches subscriptions table - snake_case)
  */
 const subscriptionResponseSchema = z.object({
-  id: z.uuid(),
+  id: z.string(),
+  plan: z.string(),
   reference_id: z.string().nullable(),
   stripe_customer_id: z.string().nullable(),
   stripe_subscription_id: z.string().nullable(),
   status: z.string(),
-  plan: subscriptionPlanResponseSchema.nullable(),
-  current_period_start: z.string().nullable(),
-  current_period_end: z.string().nullable(),
-  cancel_at_period_end: z.boolean(),
-  canceled_at: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  period_start: z.date().nullable(),
+  period_end: z.date().nullable(),
+  cancel_at_period_end: z.boolean().nullable(),
+  seats: z.number().nullable(),
+  trial_start: z.date().nullable(),
+  trial_end: z.date().nullable(),
+  created_at: z.date(),
+  updated_at: z.date(),
+});
+
+/**
+ * Line item schema (matches subscription_line_items table - snake_case)
+ */
+const lineItemResponseSchema = z.object({
+  id: z.string(),
+  subscription_id: z.string(),
+  stripe_subscription_item_id: z.string(),
+  stripe_price_id: z.string(),
+  item_type: z.string(),
+  description: z.string().nullable(),
+  quantity: z.number(),
+  unit_amount: z.string().nullable(),
+  metadata: z.record(z.string(), z.string()).nullable().optional(),
+  created_at: z.date(),
+  updated_at: z.date(),
+});
+
+/**
+ * Event schema (matches subscription_events table - snake_case)
+ */
+const eventResponseSchema = z.object({
+  id: z.string(),
+  subscription_id: z.string(),
+  plan_id: z.string().nullable(),
+  event_type: z.string(),
+  from_status: z.string().nullable(),
+  to_status: z.string().nullable(),
+  from_plan_id: z.string().nullable(),
+  to_plan_id: z.string().nullable(),
+  triggered_by: z.string().nullable(),
+  triggered_by_type: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  error_message: z.string().nullable(),
+  created_at: z.date(),
 });
 
 /**
  * Subscription with details response schema
  */
 const subscriptionWithDetailsResponseSchema = subscriptionResponseSchema.extend({
-  line_items: z.array(
-    z.object({
-      id: z.uuid(),
-      stripe_price_id: z.string(),
-      item_type: z.string(),
-      quantity: z.number(),
-      unit_amount: z.string().nullable(),
-      description: z.string().nullable(),
-    }),
-  ),
-  events: z.array(
-    z.object({
-      id: z.uuid(),
-      event_type: z.string(),
-      to_status: z.string().nullable(),
-      triggered_by_type: z.string(),
-      created_at: z.string(),
-    }),
-  ),
+  plan: subscriptionPlanResponseSchema.nullable(),
+  line_items: z.array(lineItemResponseSchema),
+  events: z.array(eventResponseSchema),
 });
 
 /**
