@@ -23,7 +23,7 @@ export const users = pgTable('users', {
   phone: text('phone'),
   phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
-  stripeCustomerId: text('stripe_customer_id'), // Stripe customer ID for billing
+  stripeCustomerId: text('stripe_customer_id'), // Platform customer ID for user billing/preferences (Platform account)
   role: text('role'), // Admin plugin: user role
   banned: boolean('banned'), // Admin plugin: banned status
   banReason: text('ban_reason'), // Admin plugin: reason for ban
@@ -102,7 +102,7 @@ export const organizations = pgTable('organizations', {
   metadata: text('metadata'),
 
   // Billing fields for platform subscription
-  stripeCustomerId: text('stripe_customer_id'), // Platform customer for billing
+  stripeCustomerId: text('stripe_customer_id'), // Platform customer for SaaS subscription billing (Platform account)
   stripePaymentMethodId: text('stripe_payment_method_id'),
   billingEmail: text('billing_email'),
   activeSubscriptionId: uuid('active_subscription_id'),
@@ -149,6 +149,32 @@ export const invitations = pgTable('invitations', {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+
+/**
+ * Subscriptions table for Better Auth Stripe plugin
+ * This table stores subscription data managed by Better Auth
+ */
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  plan: text('plan').notNull(),
+  referenceId: uuid('reference_id'), // Organization ID or User ID
+  stripeCustomerId: text('stripe_customer_id'),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  status: text('status').default('incomplete').notNull(),
+  periodStart: timestamp('period_start'),
+  periodEnd: timestamp('period_end'),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false),
+  seats: integer('seats'),
+  trialStart: timestamp('trial_start'),
+  trialEnd: timestamp('trial_end'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 
 /**
  * Rate Limits table for Better Auth's built-in rate limiting
@@ -222,30 +248,3 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   }),
 }));
 
-// ============================================================================
-// Better Auth Stripe Plugin
-// ============================================================================
-
-/**
- * Subscriptions table for Better Auth Stripe plugin
- * This table stores subscription data managed by Better Auth
- */
-export const subscriptions = pgTable('subscriptions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  plan: text('plan').notNull(),
-  referenceId: uuid('reference_id'), // Organization ID or User ID
-  stripeCustomerId: text('stripe_customer_id'),
-  stripeSubscriptionId: text('stripe_subscription_id'),
-  status: text('status').default('incomplete').notNull(),
-  periodStart: timestamp('period_start'),
-  periodEnd: timestamp('period_end'),
-  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false),
-  seats: integer('seats'),
-  trialStart: timestamp('trial_start'),
-  trialEnd: timestamp('trial_end'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
