@@ -667,7 +667,7 @@ function processValue(value: unknown) {
 ## Best Practices
 
 1. **Use `unknown` over `any`**: Enforce type checking
-2. **Prefer `interface` for object shapes**: Better error messages
+2. **Prefer `type` aliases for object shapes**: Follow project conventions for simple data structures
 3. **Use `type` for unions and complex types**: More flexible
 4. **Leverage type inference**: Let TypeScript infer when possible
 5. **Create helper types**: Build reusable type utilities

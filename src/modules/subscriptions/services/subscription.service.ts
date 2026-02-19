@@ -18,6 +18,8 @@ import type {
   SubscriptionPlanResponse,
   LineItemResponse,
   EventResponse,
+  SubscriptionResponse,
+  BetterAuthSubscription,
 } from '@/modules/subscriptions/types/subscription.types';
 import { organizations, subscriptions } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
@@ -27,6 +29,24 @@ import type { Result } from '@/shared/types/result';
 import { ok, badRequest, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['subscriptions', 'services', 'subscription']);
+
+// Helper to map Better Auth camelCase subscription to our snake_case response
+const mapToSubscriptionResponse = (sub: BetterAuthSubscription): SubscriptionResponse => ({
+  id: sub.id,
+  plan: sub.plan,
+  reference_id: sub.referenceId,
+  stripe_customer_id: sub.stripeCustomerId,
+  stripe_subscription_id: sub.stripeSubscriptionId,
+  status: sub.status,
+  period_start: sub.periodStart,
+  period_end: sub.periodEnd,
+  cancel_at_period_end: sub.cancelAtPeriodEnd,
+  seats: sub.seats,
+  trial_start: sub.trialStart,
+  trial_end: sub.trialEnd,
+  created_at: sub.createdAt,
+  updated_at: sub.updatedAt,
+});
 
 /**
  * List all available subscription plans
@@ -224,7 +244,7 @@ const cancelSubscription = async (
   data: CancelSubscriptionRequest,
   _user: User,
   requestHeaders: Record<string, string>,
-): Promise<Result<{ subscription: unknown; message: string }>> => {
+): Promise<Result<{ subscription: SubscriptionResponse; message: string }>> => {
   try {
     const authInstance = createBetterAuthInstance(db);
 
@@ -258,7 +278,7 @@ const cancelSubscription = async (
     });
 
     return ok({
-      subscription: result,
+      subscription: mapToSubscriptionResponse(result),
       message: data.immediately
         ? 'Subscription cancelled immediately'
         : 'Subscription will be cancelled at the end of the billing period',

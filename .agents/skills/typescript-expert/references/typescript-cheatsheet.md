@@ -40,7 +40,7 @@ type Point = {
   y: number
 }
 
-// Interface (preferred for objects)
+// Interface (legacy/library use)
 interface User {
   id: string
   name: string
@@ -352,8 +352,8 @@ declare global {
 ## Best Practices
 
 ```typescript
-// ✅ Prefer interface for objects
-interface User {
+// ✅ Prefer type aliases for objects
+type User = {
   name: string
 }
 

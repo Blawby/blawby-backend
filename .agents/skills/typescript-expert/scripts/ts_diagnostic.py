@@ -10,11 +10,16 @@ import os
 import json
 from pathlib import Path
 
+import shlex
+
 def run_cmd(cmd: str) -> str:
     """Run shell command and return output."""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        args = shlex.split(cmd)
+        result = subprocess.run(args, shell=False, capture_output=True, text=True)
         return result.stdout + result.stderr
+    except subprocess.SubprocessError as e:
+        return str(e)
     except Exception as e:
         return str(e)
 
