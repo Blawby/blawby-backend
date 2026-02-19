@@ -65,8 +65,10 @@ export const billingTransactionsRepository = {
    */
   async listByInvoiceId(
     invoiceId: string,
+    tx?: typeof db,
   ): Promise<SelectBillingTransaction[]> {
-    return await db
+    const client = tx || db;
+    return await client
       .select()
       .from(billingTransactions)
       .where(eq(billingTransactions.invoice_id, invoiceId));

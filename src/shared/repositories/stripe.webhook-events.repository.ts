@@ -1,4 +1,7 @@
-import { eq, and, lte, isNotNull } from 'drizzle-orm';
+import { getLogger } from '@logtape/logtape';
+import {
+  eq, and, lte, isNotNull, isNull, gte,
+} from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 
 import { db } from '@/shared/database';
@@ -7,6 +10,8 @@ import {
   type WebhookEvent,
   type NewWebhookEvent,
 } from '@/shared/schemas/stripe.webhook-events.schema';
+
+const logger = getLogger(['shared', 'repositories', 'stripe-webhook-events']);
 
 /**
  * Shared Webhook Events Repository
@@ -125,6 +130,14 @@ export const stripeWebhookEventsRepository = {
       ? new Date(Date.now() + Math.pow(2, retryCount) * 60 * 1000) // Exponential backoff
       : null;
 
+    if (!hasMoreRetries) {
+      logger.error('DEAD LETTER: Webhook event {id} exhausted all {maxRetries} retries. Last error: {error}', {
+        id,
+        maxRetries: event.maxRetries,
+        error,
+      });
+    }
+
     await db
       .update(webhookEvents)
       .set({
@@ -150,6 +163,22 @@ export const stripeWebhookEventsRepository = {
           eq(webhookEvents.processed, false),
           isNotNull(webhookEvents.nextRetryAt),
           lte(webhookEvents.nextRetryAt, now),
+        ),
+      );
+  },
+
+  /**
+   * Get dead-lettered events (unprocessed and no more retries).
+   */
+  async getDeadLetteredEvents(): Promise<WebhookEvent[]> {
+    return await db
+      .select()
+      .from(webhookEvents)
+      .where(
+        and(
+          eq(webhookEvents.processed, false),
+          isNull(webhookEvents.nextRetryAt),
+          gte(webhookEvents.retryCount, webhookEvents.maxRetries),
         ),
       );
   },

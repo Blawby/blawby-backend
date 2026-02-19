@@ -305,18 +305,15 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some((prefix) => event.type.startsWith(prefix));
 
         if (needsProcessing) {
-          try {
-            await addWebhookJob(webhookEvent.id, event.id, event.type);
-          } catch (err) {
-            logger.error('Failed to add webhook job: {error}', { error: err });
-          }
+          await addWebhookJob(webhookEvent.id, event.id, event.type);
         }
       } catch (error) {
         logger.error('❌ Webhook Error {eventId}: {error}', {
           eventId: event.id,
           error: error instanceof Error ? error.message : String(error),
         });
-        // Do not throw; prevent Stripe from retrying infinitely on logic errors
+        // RE-THROW so Better Auth returns non-200 and Stripe retries
+        throw error;
       }
     },
 
@@ -412,25 +409,26 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
       }) => {
         if (!subscription.referenceId) return;
 
+        // Fetch Stripe subscription for line item sync (Better Auth does not pass it here)
+        // OUTSIDE transaction to avoid connection pool pressure
+        let stripeSub: Stripe.Subscription | null = null;
+        if (subscription.stripeSubscriptionId) {
+          try {
+            const stripe = getStripeInstance();
+            stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+          } catch (err) {
+            logger.warn('[Stripe Plugin] Failed to fetch Stripe subscription for line item sync', {
+              subscriptionId: subscription.id,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
         await db.transaction(async (tx) => {
           // Update active subscription pointer
           await tx.update(schema.organizations)
             .set({ activeSubscriptionId: subscription.id })
             .where(eq(schema.organizations.id, subscription.referenceId!));
-
-          // Fetch Stripe subscription for line item sync (Better Auth does not pass it here)
-          let stripeSub: Stripe.Subscription | null = null;
-          if (subscription.stripeSubscriptionId) {
-            try {
-              const stripe = getStripeInstance();
-              stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
-            } catch (err) {
-              logger.warn('[Stripe Plugin] Failed to fetch Stripe subscription for line item sync', {
-                subscriptionId: subscription.id,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-          }
 
           // Sync line items if available
           if (stripeSub?.items?.data) {

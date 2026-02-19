@@ -43,6 +43,14 @@ export const practiceClientIntakesWebhooksService = {
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Skip subscription checkouts (handled by Better Auth)
+        if (session.mode === 'subscription') {
+          await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
+          logger.info('Skipping subscription checkout session event: {eventId}', { eventId });
+          return ok(undefined);
+        }
+
         await handlePracticeClientIntakeCheckoutSessionCompleted(session);
         await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
         logger.info('Successfully processed practice client intake checkout session event: {eventId}', { eventId });
