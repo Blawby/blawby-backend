@@ -123,6 +123,7 @@ const createPractice = async (params: {
       intro_message,
       overview,
       is_public,
+      supported_states,
       services,
       address,
       ...organizationData
@@ -164,11 +165,12 @@ const createPractice = async (params: {
           consultation_fee: consultation_fee || null,
           payment_url: payment_url || null,
           calendly_url: calendly_url || null,
-          billing_increment_minutes: billing_increment_minutes ?? 1,
           website: website || null,
           intro_message: intro_message || null,
           overview: overview || null,
           is_public: is_public ?? false,
+          billing_increment_minutes: billing_increment_minutes ?? 1,
+          supported_states: supported_states || null,
           address_id: addressId,
         };
 
@@ -257,6 +259,7 @@ const updatePractice = async (
       intro_message,
       overview,
       is_public,
+      supported_states,
       services,
       address,
       ...organizationData
@@ -319,11 +322,12 @@ const updatePractice = async (
           consultation_fee: consultation_fee ?? undefined,
           payment_url: payment_url ?? undefined,
           calendly_url: calendly_url ?? undefined,
-          billing_increment_minutes: billing_increment_minutes ?? undefined,
           website: website ?? undefined,
           intro_message: intro_message ?? undefined,
           overview: overview ?? undefined,
           is_public: is_public ?? undefined,
+          billing_increment_minutes: billing_increment_minutes ?? undefined,
+          supported_states: supported_states ?? undefined,
           address_id: addressId,
         };
 

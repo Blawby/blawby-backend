@@ -49,6 +49,18 @@ const practiceDetailsValidationSchema = z.object({
     .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
   // Nested Address
   address: addressSchema.optional(),
+  supported_states: z.array(z.object({
+    country: z.string().regex(/^[A-Z]{2}$/).openapi({ example: 'US' }),
+    states: z.array(z.string().min(1).max(10).transform((val) => val.toUpperCase()))
+      .optional()
+      .refine((items) => !items || new Set(items).size === items.length, {
+        message: 'States must be unique',
+      })
+      .openapi({ example: ['NY', 'NJ'] }),
+  })).optional().openapi({
+    description: 'List of supported countries and states',
+    example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
+  }),
 });
 
 /**
@@ -397,7 +409,7 @@ const practiceDetailsResponseSchema = z
     overview: z.string().nullable().openapi({ example: 'Overview text' }),
     accent_color: z.string().nullable().openapi({ example: '#3B82F6' }),
     is_public: z.boolean().openapi({ example: true }),
-    organization_id: z.string().uuid().openapi({
+    organization_id: z.uuid().openapi({
       description: 'Organization UUID for the practice',
       example: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab',
     }),
@@ -438,6 +450,13 @@ const practiceDetailsResponseSchema = z
     updatedAt: z.date().optional().openapi({
       description: 'Organization last update timestamp',
       example: '2024-01-01T00:00:00Z',
+    }),
+    supported_states: z.array(z.object({
+      country: z.string().openapi({ example: 'US' }),
+      states: z.array(z.string()).optional().openapi({ example: ['NY', 'NJ'] }),
+    })).nullable().openapi({
+      description: 'List of supported countries and states',
+      example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
     }),
   })
   .openapi('PracticeDetailsResponse');
