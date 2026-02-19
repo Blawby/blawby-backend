@@ -391,7 +391,7 @@ When reviewing TypeScript/JavaScript code, focus on these domain-specific aspect
 ## Quick Decision Trees
 
 ### "Which tool should I use?"
-```
+```text
 Type checking only? → tsc
 Type checking + linting speed critical? → Biome  
 Type checking + comprehensive linting? → ESLint + typescript-eslint
@@ -400,7 +400,7 @@ Build tool? → Project size <10 packages? Turborepo. Else? Nx
 ```
 
 ### "How do I fix this performance issue?"
-```
+```text
 Slow type checking? → skipLibCheck, incremental, project references
 Slow builds? → Check bundler config, enable caching
 Slow tests? → Vitest with threads, avoid type checking in tests

@@ -1,5 +1,5 @@
 import { eq, and, lte, isNotNull } from 'drizzle-orm';
-import { Stripe } from 'stripe';
+import type { Stripe } from 'stripe';
 
 import { db } from '@/shared/database';
 import {

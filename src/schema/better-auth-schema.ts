@@ -11,8 +11,6 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
-import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
-import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -250,7 +248,3 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
   }),
 }));
 
-export const subscriptionsRelations = relations(subscriptions, ({ many }) => ({
-  lineItems: many(subscriptionLineItems),
-  events: many(subscriptionEvents),
-}));

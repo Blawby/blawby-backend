@@ -5,8 +5,7 @@ import { organizations, subscriptions } from '../src/schema/better-auth-schema';
 import { db } from '../src/shared/database';
 import { stripe } from '../src/shared/utils/stripe-client';
 import { subscriptionRepository } from '../src/modules/subscriptions/database/queries/subscription.repository';
-
-import { Stripe } from 'stripe';
+import type { Stripe } from 'stripe';
 
 // Logger wrapper
 const logger = {

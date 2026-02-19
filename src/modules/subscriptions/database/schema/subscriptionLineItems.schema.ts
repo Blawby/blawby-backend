@@ -16,7 +16,7 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
-import { subscriptionPlans } from './subscriptionPlans.schema';
+import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 import { subscriptions } from '@/schema/better-auth-schema';
 
 // Item type enum
@@ -36,7 +36,9 @@ export const subscriptionLineItems = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Link to Better Auth subscription
-    subscription_id: text('subscription_id').notNull(),
+    subscription_id: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
 
     // Stripe IDs
     stripe_subscription_item_id: text('stripe_subscription_item_id').notNull().unique(),
@@ -68,10 +70,6 @@ export const subscriptionLineItemsRelations = relations(subscriptionLineItems, (
   plan: one(subscriptionPlans, {
     fields: [subscriptionLineItems.stripe_price_id],
     references: [subscriptionPlans.stripe_monthly_price_id],
-  }),
-  subscription: one(subscriptions, {
-    fields: [subscriptionLineItems.subscription_id],
-    references: [subscriptions.id],
   }),
 }));
 

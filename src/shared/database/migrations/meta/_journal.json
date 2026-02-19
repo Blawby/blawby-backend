@@ -232,6 +232,13 @@
       "when": 1771171616055,
       "tag": "0032_last_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1771471498773,
+      "tag": "0033_fix-subscription-id-text-to-uuid",
+      "breakpoints": true
     }
   ]
 }

@@ -13,7 +13,16 @@ const logger = getLogger(['shared', 'webhook-retries']);
 /**
    * Scan for failed events and re-queue them.
    */
-const retryFailedWebhooks = async (): Promise<void> => {
+const ONBOARDING_EVENT_PREFIXES = [
+  'account.',
+  'capability.',
+  'account.external_account.',
+] as const;
+
+/**
+ * Scan for failed events and re-queue them.
+ */
+async function retryFailedWebhooks(): Promise<void> {
   try {
     const eventsToRetry = await stripeWebhookEventsRepository.getEventsToRetry();
 
@@ -26,9 +35,7 @@ const retryFailedWebhooks = async (): Promise<void> => {
     for (const event of eventsToRetry) {
       try {
         // Route back to the appropriate queue
-        const isOnboarding = event.eventType.startsWith('account.')
-          || event.eventType.startsWith('capability.')
-          || event.eventType.startsWith('account.external_account.');
+        const isOnboarding = ONBOARDING_EVENT_PREFIXES.some((prefix) => event.eventType.startsWith(prefix));
 
         if (isOnboarding) {
           await addOnboardingWebhookJob(event.id, event.stripeEventId, event.eventType);
@@ -52,7 +59,7 @@ const retryFailedWebhooks = async (): Promise<void> => {
       error: error instanceof Error ? error.message : String(error),
     });
   }
-};
+}
 
 export const stripeRetriesService = {
   retryFailedWebhooks,

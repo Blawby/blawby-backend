@@ -42,7 +42,9 @@ export const subscriptionEvents = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Link to Better Auth subscription
-    subscription_id: text('subscription_id').notNull(),
+    subscription_id: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
 
     // Link to plan (optional, for plan changes)
     plan_id: uuid('plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
@@ -85,10 +87,6 @@ export const subscriptionEventsRelations = relations(subscriptionEvents, ({ one 
   toPlan: one(subscriptionPlans, {
     fields: [subscriptionEvents.to_plan_id],
     references: [subscriptionPlans.id],
-  }),
-  subscription: one(subscriptions, {
-    fields: [subscriptionEvents.subscription_id],
-    references: [subscriptions.id],
   }),
 }));
 

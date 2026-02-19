@@ -68,6 +68,24 @@ export type UpgradeSubscriptionResponse = {
   url?: string;
 };
 
+// Better Auth internal subscription object (camelCase)
+export type BetterAuthSubscription = {
+  id: string;
+  plan: string;
+  referenceId: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  status: string;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  cancelAtPeriodEnd: boolean | null;
+  seats: number | null;
+  trialStart: Date | null;
+  trialEnd: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 // ============================================================================
 // API METHOD TYPES
 // ============================================================================
@@ -79,7 +97,7 @@ export type SubscriptionAPI = {
   listActiveSubscriptions: (args: {
     query: ListSubscriptionsQuery;
     headers: Record<string, string>;
-  }) => Promise<SubscriptionResponse[]>;
+  }) => Promise<BetterAuthSubscription[]>;
   upgradeSubscription: (args: {
     body: UpgradeSubscriptionBody;
     headers: Record<string, string>;
@@ -87,11 +105,11 @@ export type SubscriptionAPI = {
   cancelSubscription: (args: {
     body: CancelSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<unknown>;
+  }) => Promise<BetterAuthSubscription>;
   restoreSubscription?: (args: {
     body: RestoreSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<unknown>;
+  }) => Promise<BetterAuthSubscription>;
 };
 
 // Response types manually defined to match snake_case DB columns

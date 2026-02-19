@@ -31,7 +31,7 @@ There are **3 webhook endpoints** receiving Stripe events:
 
 ### Event Flow for Subscription Lifecycle
 
-```
+```text
 Stripe sends customer.subscription.* event
   │
   ├─► /api/auth/stripe/webhook (Better Auth)
@@ -87,7 +87,7 @@ Your hooks in `stripe.config.ts` manage:
 **File**: `src/shared/auth/plugins/stripe.config.ts:203`
 
 Events queued to Graphile Worker:
-```
+```text
 product.*           → subscriptionWebhooksService (plan catalog sync)
 price.*             → subscriptionWebhooksService (plan catalog sync)
 account.*           → onboardingWebhooksService
@@ -97,7 +97,7 @@ charge.*            → practiceClientIntakesWebhooksService (charge.succeeded o
 ```
 
 Events NOT queued (handled by Better Auth internally):
-```
+```text
 customer.subscription.*    → Better Auth hooks → YOUR callbacks
 checkout.session.completed → Better Auth hooks → YOUR callbacks
 invoice.*                  → NOT handled here (handled via /api/webhooks/stripe/account)
@@ -107,7 +107,7 @@ invoice.*                  → NOT handled here (handled via /api/webhooks/strip
 
 **File**: `src/workers/tasks/process-stripe-webhook.ts:76-106`
 
-```
+```text
 subscriptionWebhooksService.isSubscriptionWebhookEvent  → product.* | price.*
 isSubscriptionEvent                                      → customer.subscription.* (no-op, marks processed)
 isOnboardingEvent                                        → account.* | capability.*
