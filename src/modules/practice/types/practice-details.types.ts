@@ -17,7 +17,7 @@ export type PracticeDetailsResponse = Omit<
   payment_link_enabled?: boolean;
   payment_link_prefill_amount?: number;
   billing_increment_minutes?: number;
-  supported_states?: PracticeDetailsSupportedStates[] | null;
+  supported_states: PracticeDetailsSupportedStates[] | null;
 };
 
 export type UpsertPracticeDetailsRequest = {
