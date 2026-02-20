@@ -11,6 +11,7 @@ import { addWebhookJob } from '@/shared/queue/queue.manager';
 import {
   createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
+import { appConfigService } from '@/shared/services/app-config.service';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['shared', 'auth', 'plugins', 'stripe']);
@@ -40,13 +41,6 @@ const syncSubscriptionToOrg = async (
     eventType,
     trigger,
   } = params;
-
-  logger.info('[Stripe Plugin] Syncing subscription {subscriptionId} to Org {referenceId} (Trigger: {trigger}, Event: {eventType})', {
-    subscriptionId,
-    referenceId,
-    trigger,
-    eventType,
-  });
 
 
   // 1. Resolve Customer ID
@@ -80,11 +74,6 @@ const syncSubscriptionToOrg = async (
     return;
   }
 
-  logger.info('[Stripe Plugin] Resolved Organization ID: {organizationId} for subscription {subscriptionId} (Method: {lookupMethod})', {
-    organizationId,
-    subscriptionId,
-    lookupMethod: referenceId ? 'referenceId' : 'customerIdLookup',
-  });
 
   // 3. TRANSACTION: Update Org, Line Items, and Logs atomically
   await db.transaction(async (tx) => {
@@ -164,10 +153,6 @@ const syncSubscriptionToOrg = async (
       }
     }
 
-    logger.debug('[Stripe Plugin] Updating activeSubscriptionId for Org {organizationId} to {subscriptionId}', {
-      organizationId,
-      subscriptionId,
-    });
     // A. Update Organization Active Subscription
     const updated = await tx
       .update(schema.organizations)
@@ -226,7 +211,10 @@ const syncSubscriptionToOrg = async (
     });
   });
 
-  // 4. Idempotency Check before dispatching
+  // 4. Metered items are now handled by proxy interception at checkout/portal creation.
+  // No longer needed: ensureSubscriptionMeteredItems.
+
+  // 5. Idempotency Check before dispatching
   const existingEvents = await subscriptionRepository.findEventsBySubscriptionIdAndType(
     db, subscriptionId, 'created',
   );
@@ -251,7 +239,7 @@ const syncSubscriptionToOrg = async (
  */
 export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> => {
   return stripePlugin({
-    stripeClient: getStripeInstance(),
+    stripeClient: createProxiedStripeClient(getStripeInstance()),
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
     createCustomerOnSignUp: false,
 
@@ -357,11 +345,6 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         plan: { name: string };
         stripeSubscription: Stripe.Subscription;
       }) => {
-        logger.debug('[Stripe Plugin] checkout.session.completed hook triggered', {
-          subscriptionId: subscription.id,
-          referenceId: subscription.referenceId,
-          stripeCustomerId: subscription.stripeCustomerId,
-        });
         await syncSubscriptionToOrg(db, {
           stripeSubscription,
           subscriptionId: subscription.id,
@@ -497,3 +480,76 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
     },
   });
 };
+
+/**
+ * Creates a proxied Stripe client that recursively wraps the SDK
+ * and intercepts session creation to inject metered items.
+ */
+const createProxiedStripeClient = (stripe: Stripe): Stripe => {
+  const wrap = (obj: Record<string, unknown>, path: string): unknown => {
+    return new Proxy(obj, {
+      get(target, prop, receiver) {
+        const val = Reflect.get(target, prop, receiver);
+        if (val === null || val === undefined) return val;
+
+        const propName = String(prop);
+        const currentPath = path ? `${path}.${propName}` : propName;
+
+        if (typeof val === 'function') {
+          return async (...args: unknown[]) => {
+            // Path-based Interception
+            if (currentPath === 'checkout.sessions.create') {
+              const params = args[0] as Stripe.Checkout.SessionCreateParams | undefined;
+              await injectMeteredItems(params?.line_items);
+            } else if (currentPath === 'billingPortal.sessions.create') {
+              const params = args[0] as Stripe.BillingPortal.SessionCreateParams | undefined;
+              if (params?.flow_data?.type === 'subscription_update_confirm' && params.flow_data.subscription_update_confirm) {
+                await injectMeteredItems(params.flow_data.subscription_update_confirm.items);
+              }
+            }
+            return (val as (...a: unknown[]) => unknown).apply(target, args);
+          };
+        }
+
+        if (typeof val === 'object' && !Array.isArray(val)) {
+          return wrap(val as Record<string, unknown>, currentPath);
+        }
+
+        return val;
+      },
+    });
+  };
+  return wrap(stripe as unknown as Record<string, unknown>, '') as Stripe;
+};
+
+/**
+ * Injects metered price IDs from app_config into a list of Stripe items.
+ */
+async function injectMeteredItems(items: unknown[] | undefined): Promise<void> {
+  if (!items) return;
+
+  try {
+    const meteredIds = await appConfigService.get<string[]>('metered_price_ids') || [];
+    if (meteredIds.length === 0) return;
+
+    // Use a loose check for 'price' property safely across different Stripe item types
+    const existing = new Set(items.map((i) => (i as Record<string, unknown>).price));
+
+    const newItemsToAdd: Array<{ price: string }> = [];
+    meteredIds.forEach((id) => {
+      if (!existing.has(id)) {
+        newItemsToAdd.push({ price: id });
+      }
+    });
+
+    if (newItemsToAdd.length > 0) {
+      const typedItems = items as Array<{ price: string }>;
+      typedItems.push(...newItemsToAdd);
+      logger.info('[Stripe Proxy] Bundled {count} metered prices into session', {
+        count: newItemsToAdd.length,
+      });
+    }
+  } catch (err) {
+    logger.error('[Stripe Proxy] Injection error: {error}', { error: err });
+  }
+}

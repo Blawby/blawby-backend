@@ -209,8 +209,8 @@ const listInvoices = async (
     }
 
     const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(organizationId, {
-      clientId: filters.client_id,
-      matterId: filters.matter_id,
+      client_id: filters.client_id,
+      matter_id: filters.matter_id,
       status: filters.status,
       page: filters.page,
       limit: filters.limit,

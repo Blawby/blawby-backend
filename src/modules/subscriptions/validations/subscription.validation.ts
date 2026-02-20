@@ -52,7 +52,7 @@ const cancelSubscriptionSchema = z.object({
     description: 'Reason for cancellation',
     example: 'Switching to a different plan',
   }),
-  return_url: z.string().optional().openapi({
+  return_url: z.string().openapi({
     description: 'URL to redirect to after cancellation (for Stripe Billing Portal)',
     example: '/dashboard',
   }),
@@ -183,8 +183,14 @@ const createSubscriptionResponseSchema = z.object({
  * Cancel subscription response schema
  */
 const cancelSubscriptionResponseSchema = z.object({
-  subscription: subscriptionResponseSchema,
-  message: z.string(),
+  url: z.string().openapi({
+    description: 'Stripe Billing Portal URL for confirming the cancellation',
+    example: 'https://billing.stripe.com/session/...',
+  }),
+  redirect: z.boolean().openapi({
+    description: 'Whether the client should redirect to the URL',
+    example: true,
+  }),
 });
 
 /**

@@ -10,9 +10,10 @@ import {
   pgEnum,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
-import { invoiceLineItems } from '@/modules/invoices/database/schema/invoice-line-items.schema';
-import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
+import { billingTransactions } from './billing-transactions.schema';
+import { invoiceLineItems } from './invoice-line-items.schema';
+import { paymentLinks } from './payment-links.schema';
+
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
@@ -56,6 +57,7 @@ export const invoices = pgTable(
     total: integer('total').notNull().default(0),
     amount_paid: integer('amount_paid').notNull().default(0),
     amount_due: integer('amount_due').notNull().default(0),
+    application_fee_amount: integer('application_fee_amount').notNull().default(0),
 
     issue_date: timestamp('issue_date', { withTimezone: true, mode: 'date' }),
     due_date: timestamp('due_date', { withTimezone: true, mode: 'date' }),
@@ -120,8 +122,13 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   }),
   lineItems: many(invoiceLineItems),
   paymentLinks: many(paymentLinks),
-  transactions: many(billingTransactions),
+  billingTransactions: many(billingTransactions),
 }));
+
+export const invoicesSchema = {
+  invoices,
+  invoicesRelations,
+};
 
 export type InsertInvoice = typeof invoices.$inferInsert;
 export type SelectInvoice = typeof invoices.$inferSelect;

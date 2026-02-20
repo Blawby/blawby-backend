@@ -5,10 +5,13 @@
  * Metered items are stored in subscription_plans.metered_items JSONB field
  */
 
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import * as schema from '@/schema';
+
+const logger = getLogger(['subscriptions', 'constants', 'metered-products']);
 
 /**
  * Metered item from database
@@ -20,14 +23,43 @@ export type MeteredItem = {
 };
 
 /**
- * Standard metered item types used across the platform
+ * Stripe Meter Event Names
+ * These correspond to the event_name used in Stripe Billing Meters
+ */
+export enum StripeMeterNames {
+  ACTIVE_USER_COUNT = 'active_user_count',
+  INVOICE_FEE = 'invoice_fee',
+  PAYOUT_FEE = 'payout_fee',
+  PAYMENT_FEE = 'team_custom_payment'
+}
+
+/**
+ * Standard metered item types used across the platform (Internal IDs)
  */
 export const METERED_TYPES = {
   INVOICE_FEE: 'metered_invoice_fee',
   USER_SEAT: 'metered_users',
-  PAYMENT_FEE: 'metered_custom_payment_fee',
   PAYOUT_FEE: 'metered_payout_fee',
+  INTAKE_FEE: 'metered_intake_fee',
 } as const;
+
+/**
+ * Mapping between Internal Types and Stripe Meter Names
+ */
+export const METERED_TYPE_TO_STRIPE_EVENT: Record<string, StripeMeterNames> = {
+  [METERED_TYPES.INVOICE_FEE]: StripeMeterNames.INVOICE_FEE,
+  [METERED_TYPES.USER_SEAT]: StripeMeterNames.ACTIVE_USER_COUNT,
+  [METERED_TYPES.PAYOUT_FEE]: StripeMeterNames.PAYOUT_FEE,
+  [METERED_TYPES.INTAKE_FEE]: StripeMeterNames.PAYOUT_FEE,
+};
+
+/**
+ * Get internal metered type from Stripe Meter Name
+ */
+export const getInternalTypeFromMeterName = (meterName: string): string | undefined => {
+  const entry = Object.entries(METERED_TYPE_TO_STRIPE_EVENT).find(([, name]) => name === meterName);
+  return entry ? entry[0] : undefined;
+};
 
 /**
  * Get metered items for an organization's active subscription plan
@@ -48,7 +80,7 @@ export const getMeteredItemsForOrganization = async (
     .limit(1);
 
   if (!org?.activeSubscriptionId) {
-    console.log(`No active subscription for organization: ${organizationId}`);
+    logger.debug('No active subscription for organization: {organizationId}', { organizationId });
     return [];
   }
 
@@ -60,7 +92,7 @@ export const getMeteredItemsForOrganization = async (
     .limit(1);
 
   if (!betterAuthSub?.plan) {
-    console.log(`No plan found for subscription: ${org.activeSubscriptionId}`);
+    logger.warn('No plan found for subscription: {subscriptionId}', { subscriptionId: org.activeSubscriptionId });
     return [];
   }
 
@@ -72,7 +104,7 @@ export const getMeteredItemsForOrganization = async (
     .limit(1);
 
   if (!plan) {
-    console.log(`Plan not found: ${betterAuthSub.plan}`);
+    logger.warn('Plan not found: {planName}', { planName: betterAuthSub.plan });
     return [];
   }
 

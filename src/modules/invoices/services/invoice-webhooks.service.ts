@@ -19,7 +19,6 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['invoices', 'webhooks-service']);
 
-
 /**
  * Handle invoice.paid event
  */
@@ -31,140 +30,160 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
       return result.ok(undefined);
     }
 
-    await db.transaction(async (tx) => {
-      await invoicesRepository.updateInvoice(
-        invoice.id,
-        invoice.organization_id,
-        {
-          status: 'paid',
-          amount_paid: stripeInvoice.amount_paid,
-          amount_due: stripeInvoice.amount_remaining,
-          paid_at: stripeInvoice.status_transitions.paid_at
-            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-            : null,
-        },
-        tx,
-      );
+    // --- PHASE 1: PRE-CALCULATION & ROUTING ---
 
-      let charge_id: string | null = null;
-      if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
-        charge_id = stripeInvoice.charge;
-      }
+    let destinationAccountId = invoice.connected_account_id;
+    if (stripeInvoice.on_behalf_of) {
+      destinationAccountId = typeof stripeInvoice.on_behalf_of === 'string'
+        ? stripeInvoice.on_behalf_of
+        : stripeInvoice.on_behalf_of.id;
+    }
 
-      let destinationAccountId = invoice.connected_account_id;
-      if (stripeInvoice.on_behalf_of) {
-        destinationAccountId = typeof stripeInvoice.on_behalf_of === 'string'
-          ? stripeInvoice.on_behalf_of
-          : stripeInvoice.on_behalf_of.id;
-      }
+    const routingResult = fundRouterService.routePayment(
+      invoice,
+      destinationAccountId,
+    );
 
-      // 1. Determine fund routing based on invoice type
-      const routingResult = fundRouterService.routePayment(
-        invoice,
-        destinationAccountId,
-      );
-
-      if (!routingResult.success) {
-        logger.warn('Fund routing failed for invoice {invoiceId}: {error}', {
-          invoiceId: invoice.id,
-          error: routingResult.error.message,
-        });
-        return;
-      }
-
-      const routingInstruction = routingResult.data;
-
-      // 2. Create Stripe transfer with fund routing metadata
-      // Note: Legal billing doesn't use escrow - all transfers are immediate
-      if (!routingInstruction.holdForApproval) {
-        const transfer = await stripe.transfers.create({
-          amount: stripeInvoice.amount_paid,
-          currency: 'usd',
-          destination: routingInstruction.destination,
-          metadata: routingInstruction.metadata,
-        });
-
-        logger.info('Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}', {
-          transferId: transfer.id,
-          invoiceId: invoice.id,
-          fundDestination: routingInstruction.metadata.fund_destination,
-        });
-
-        // 3. Create billing_transaction record with transfer ID
-        await billingTransactionsRepository.createTransaction({
-          invoice_id: invoice.id,
-          matter_id: invoice.matter_id,
-          amount: stripeInvoice.amount_paid,
-          type: 'payout',
-          status: 'completed',
-          destination_account_id: destinationAccountId,
-          stripe_transfer_id: transfer.id,
-          completed_at: stripeInvoice.status_transitions.paid_at
-            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-            : null,
-          metadata: {
-            stripe_invoice_id: stripeInvoice.id,
-            stripe_charge_id: charge_id,
-            invoice_type: invoice.invoice_type,
-            fund_destination: routingInstruction.metadata.fund_destination,
-          },
-        }, tx);
-      }
-
-      // 4. Update retainer balance (if applicable)
-      if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
-        const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-        if (matter) {
-          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
-
-          logger.info('Incrementing retainer balance for matter {matterId} (deposit): {oldBalance} -> {newBalance}', {
-            matterId: invoice.matter_id,
-            oldBalance: matter.retainer_balance,
-            newBalance,
-          });
-
-          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
-        }
-      } else if (invoice.matter_id && invoice.payment_from_retainer) {
-        // Handle payment from retainer (decrement balance)
-        const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-        if (matter) {
-          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
-
-          logger.info('Decrementing retainer balance for matter {matterId} (payment): {oldBalance} -> {newBalance}', {
-            matterId: invoice.matter_id,
-            oldBalance: matter.retainer_balance,
-            newBalance,
-          });
-
-          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
-        }
-      }
-
-      // 5. Record metered usage for platform fee
-      await meteredProductsService.reportMeteredUsage(
-        tx,
-        invoice.organization_id,
-        METERED_TYPES.INVOICE_FEE,
-        1, // 1 invoice processed
-      );
-
-      await InvoicePaid.dispatch({
-        invoice_id: invoice.id,
-        organization_id: invoice.organization_id,
-        matter_id: invoice.matter_id,
-        stripe_invoice_id: stripeInvoice.id,
-        amount_paid: stripeInvoice.amount_paid,
-        retainer_deducted: !!invoice.payment_from_retainer,
-        retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
-      }, {
-        actorId: 'webhook',
-        actorType: 'webhook',
-        organizationId: invoice.organization_id,
-        tx,
-        critical: true,
+    if (!routingResult.success) {
+      logger.warn('Fund routing failed for invoice {invoiceId}: {error}', {
+        invoiceId: invoice.id,
+        error: routingResult.error.message,
       });
+      return result.internalError('Fund routing failed');
+    }
+
+    const routingInstruction = routingResult.data;
+    let billingTxId: string | null = null;
+
+    // --- PHASE 2: DB TRANSACTION (Idempotent Status Update & Pending Record) ---
+
+    await db.transaction(async (tx) => {
+      // 1. Update invoice status
+      if (invoice.status !== 'paid') {
+        await invoicesRepository.updateInvoice(
+          invoice.id,
+          invoice.organization_id,
+          {
+            status: 'paid',
+            amount_paid: stripeInvoice.amount_paid,
+            amount_due: stripeInvoice.amount_remaining,
+            application_fee_amount: routingInstruction.applicationFeeAmount,
+            paid_at: stripeInvoice.status_transitions.paid_at
+              ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+              : null,
+          },
+          tx,
+        );
+
+        // 2. Record metered usage for platform fee
+        await meteredProductsService.reportMeteredUsage(
+          tx,
+          invoice.organization_id,
+          METERED_TYPES.INVOICE_FEE,
+          1,
+        );
+
+        // 3. Update retainer balance (if applicable)
+        if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
+          const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
+          if (matter) {
+            const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
+            await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+          }
+        } else if (invoice.matter_id && invoice.payment_from_retainer) {
+          const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
+          if (matter) {
+            const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+            await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+          }
+        }
+
+        // 4. Dispatch events
+        await InvoicePaid.dispatch({
+          invoice_id: invoice.id,
+          organization_id: invoice.organization_id,
+          matter_id: invoice.matter_id,
+          stripe_invoice_id: stripeInvoice.id,
+          amount_paid: stripeInvoice.amount_paid,
+          retainer_deducted: !!invoice.payment_from_retainer,
+          retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
+        }, {
+          actorId: 'webhook',
+          actorType: 'webhook',
+          organizationId: invoice.organization_id,
+          tx,
+          critical: true,
+        });
+      }
+
+      // 5. Handle Billing Transaction (Payout)
+      if (!routingInstruction.holdForApproval) {
+        const existingTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id, tx);
+        const payoutTx = existingTxs.find((t) => t.type === 'payout');
+
+        if (payoutTx) {
+          if (payoutTx.status !== 'completed') {
+            billingTxId = payoutTx.id;
+          }
+        } else {
+          // Create "pending" transaction
+          let charge_id: string | null = null;
+          if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
+            charge_id = stripeInvoice.charge;
+          }
+
+          const newTx = await billingTransactionsRepository.createTransaction({
+            organization_id: invoice.organization_id,
+            invoice_id: invoice.id,
+            matter_id: invoice.matter_id,
+            amount: stripeInvoice.amount_paid,
+            application_fee_amount: routingInstruction.applicationFeeAmount,
+            type: 'payout',
+            status: 'pending',
+            destination_account_id: destinationAccountId,
+            completed_at: stripeInvoice.status_transitions.paid_at
+              ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+              : null,
+            metadata: {
+              stripe_invoice_id: stripeInvoice.id,
+              stripe_charge_id: charge_id,
+              invoice_type: invoice.invoice_type,
+              fund_destination: routingInstruction.metadata.fund_destination,
+              application_fee_amount: routingInstruction.applicationFeeAmount,
+            },
+          }, tx);
+          billingTxId = newTx.id;
+        }
+      }
     });
+
+    // --- PHASE 3: EXTERNAL API CALL (Stripe Transfer) ---
+
+    if (billingTxId && routingInstruction) {
+      const transfer = await stripe.transfers.create({
+        amount: stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount,
+        currency: 'usd',
+        destination: routingInstruction.destination,
+        metadata: {
+          ...routingInstruction.metadata,
+          payout_amount: (stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount).toString(),
+        },
+      });
+
+      // --- PHASE 4: FINAL DB UPDATE ---
+
+      await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
+        stripe_transfer_id: transfer.id,
+      });
+
+      // Record metered usage for payout fee
+      await meteredProductsService.reportMeteredUsage(
+        db,
+        invoice.organization_id,
+        METERED_TYPES.PAYOUT_FEE,
+        1,
+      );
+    }
 
     logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });
     return result.ok(undefined);
@@ -345,4 +364,3 @@ export const invoiceWebhooksService = {
   handleInvoiceVoided,
   handleInvoiceDeleted,
 };
-

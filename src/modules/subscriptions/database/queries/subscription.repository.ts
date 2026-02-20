@@ -7,10 +7,8 @@
  * - Subscription Events
  */
 
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, or, isNotNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-
-import * as schema from '@/schema';
 import type {
   NewSubscriptionEvent,
   SubscriptionEvent,
@@ -18,6 +16,7 @@ import type {
 } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
 import type { NewSubscriptionLineItem, SubscriptionLineItem } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
 import type { NewSubscriptionPlan, SubscriptionPlan } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
+import * as schema from '@/schema';
 
 /**
  * --- Subscription Events Operations ---
@@ -192,7 +191,15 @@ const findAllActivePlans = async (
   return await db
     .select()
     .from(schema.subscriptionPlans)
-    .where(eq(schema.subscriptionPlans.is_active, true))
+    .where(
+      and(
+        eq(schema.subscriptionPlans.is_active, true),
+        or(
+          isNotNull(schema.subscriptionPlans.stripe_monthly_price_id),
+          isNotNull(schema.subscriptionPlans.stripe_yearly_price_id),
+        ),
+      ),
+    )
     .orderBy(schema.subscriptionPlans.sort_order);
 };
 
