@@ -10,9 +10,9 @@ import {
   pgEnum,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { billingTransactions } from './billing-transactions.schema';
-import { invoiceLineItems } from './invoice-line-items.schema';
-import { paymentLinks } from './payment-links.schema';
+import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
+import { invoiceLineItems } from '@/modules/invoices/database/schema/invoice-line-items.schema';
+import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
 
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';

@@ -158,7 +158,7 @@ export const invitations = pgTable('invitations', {
 export const subscriptions = pgTable('subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   plan: text('plan').notNull(),
-  referenceId: text('reference_id'), // Organization ID or User ID
+  referenceId: uuid('reference_id'), // Organization ID or User ID
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
   status: text('status').default('incomplete').notNull(),

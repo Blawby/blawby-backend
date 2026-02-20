@@ -117,23 +117,22 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
     const limits = extractLimits(metadata);
     const features = extractFeatures(product);
 
-    // Extract metered items from prices
-    const meteredItems = prices.data
-      .filter((price) => price.recurring?.usage_type === 'metered')
-      .map((price) => {
-        const meterName = price.lookup_key || price.metadata.meter_event_name;
-        if (!meterName) return null;
-
-        const type = getInternalTypeFromMeterName(meterName);
-        if (!type) return null;
-
-        return {
-          price_id: price.id,
-          meter_name: meterName,
-          type,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
+    // Extract metered items from prices by fetching meter event_name from Stripe
+    const meteredItemsRaw = await Promise.all(
+      prices.data
+        .filter((price) => price.recurring?.usage_type === 'metered' && price.recurring?.meter)
+        .map(async (price) => {
+          const meterId = price.recurring!.meter as string;
+          const meter = await stripe.billing.meters.retrieve(meterId);
+          const meterName = meter.event_name;
+          const type = getInternalTypeFromMeterName(meterName);
+          if (!type) return null;
+          return { price_id: price.id, meter_name: meterName, type };
+        }),
+    );
+    const meteredItems = meteredItemsRaw.filter(
+      (item): item is NonNullable<typeof item> => item !== null,
+    );
 
     // Prepare plan data
     const planData = {

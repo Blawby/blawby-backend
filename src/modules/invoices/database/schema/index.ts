@@ -1,9 +1,9 @@
-export * from './invoices.schema';
-export * from './invoice-line-items.schema';
-export * from './payment-links.schema';
-export * from './billing-transactions.schema';
+export * from '@/modules/invoices/database/schema/invoices.schema';
+export * from '@/modules/invoices/database/schema/invoice-line-items.schema';
+export * from '@/modules/invoices/database/schema/payment-links.schema';
+export * from '@/modules/invoices/database/schema/billing-transactions.schema';
 
-export { invoicesSchema } from './invoices.schema';
-export { invoiceLineItemsSchema } from './invoice-line-items.schema';
-export { paymentLinksSchema } from './payment-links.schema';
-export { billingTransactionsSchema } from './billing-transactions.schema';
+export { invoicesSchema } from '@/modules/invoices/database/schema/invoices.schema';
+export { invoiceLineItemsSchema } from '@/modules/invoices/database/schema/invoice-line-items.schema';
+export { paymentLinksSchema } from '@/modules/invoices/database/schema/payment-links.schema';
+export { billingTransactionsSchema } from '@/modules/invoices/database/schema/billing-transactions.schema';

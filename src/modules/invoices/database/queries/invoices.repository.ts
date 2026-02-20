@@ -4,17 +4,17 @@ import {
 import type {
   InvoiceWithRelations,
   InvoiceListFilters,
-} from '../../types/invoices.types';
+} from '@/modules/invoices/types/invoices.types';
 import {
   invoicesSchema,
   invoiceLineItemsSchema,
-} from '../schema';
+} from '@/modules/invoices/database/schema';
 import type {
   InsertInvoice,
   SelectInvoice,
   InsertInvoiceLineItem,
   SelectInvoiceLineItem,
-} from '../schema';
+} from '@/modules/invoices/database/schema';
 import { db } from '@/shared/database';
 
 const { invoices } = invoicesSchema;

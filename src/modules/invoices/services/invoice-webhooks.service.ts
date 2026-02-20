@@ -32,11 +32,16 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
 
     // --- PHASE 1: PRE-CALCULATION & ROUTING ---
 
-    let destinationAccountId = invoice.connected_account_id;
+    let destinationAccountId = invoice.connectedAccount?.stripe_account_id;
     if (stripeInvoice.on_behalf_of) {
       destinationAccountId = typeof stripeInvoice.on_behalf_of === 'string'
         ? stripeInvoice.on_behalf_of
         : stripeInvoice.on_behalf_of.id;
+    }
+
+    if (!destinationAccountId) {
+      logger.warn('Missing Stripe account ID for connected account on invoice {invoiceId}', { invoiceId: invoice.id });
+      return result.badRequest('Missing Stripe account ID for connected account');
     }
 
     const routingResult = fundRouterService.routePayment(
@@ -172,17 +177,30 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
 
       // --- PHASE 4: FINAL DB UPDATE ---
 
-      await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
-        stripe_transfer_id: transfer.id,
-      });
+      try {
+        await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
+          stripe_transfer_id: transfer.id,
+        });
 
-      // Record metered usage for payout fee
-      await meteredProductsService.reportMeteredUsage(
-        db,
-        invoice.organization_id,
-        METERED_TYPES.PAYOUT_FEE,
-        1,
-      );
+        // Record metered usage for payout fee
+        await meteredProductsService.reportMeteredUsage(
+          db,
+          invoice.organization_id,
+          METERED_TYPES.PAYOUT_FEE,
+          1,
+        );
+      } catch (dbError) {
+        // Transfer succeeded but DB update failed — record the transfer ID for manual reconciliation
+        logger.error('Stripe transfer {transferId} succeeded but DB update failed for billing tx {billingTxId}: {error}', {
+          transferId: transfer.id,
+          billingTxId,
+          error: dbError instanceof Error ? dbError.message : 'Unknown error',
+        });
+        await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'pending', {
+          stripe_transfer_id: transfer.id,
+          last_error: `DB update failed after successful transfer: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+        });
+      }
     }
 
     logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });

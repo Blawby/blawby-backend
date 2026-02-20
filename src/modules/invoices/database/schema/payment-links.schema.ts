@@ -7,7 +7,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { invoices } from './invoices.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { organizations } from '@/schema';
 
 export const paymentLinks = pgTable(
