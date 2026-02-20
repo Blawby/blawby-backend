@@ -170,11 +170,16 @@ export const updateIntakeTriageStatusHandler: AppRouteHandler<typeof updateIntak
     return response.unauthorized(c, 'Authentication required to update intake triage status');
   }
 
+  const activeOrganizationId = c.get('activeOrganizationId');
+  if (!activeOrganizationId) {
+    return response.forbidden(c, 'No active organization selected');
+  }
+
   const intake = await practiceClientIntakesRepository.findById(uuid);
   if (!intake) {
     return response.notFound(c, 'Practice client intake not found');
   }
 
-  const result = await practiceClientIntakesService.updateIntakeTriageStatus(uuid, intake.organization_id, body);
+  const result = await practiceClientIntakesService.updateIntakeTriageStatus(uuid, activeOrganizationId, body);
   return response.fromResult(c, result);
 };

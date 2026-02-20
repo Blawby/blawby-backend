@@ -2,22 +2,22 @@
 
 ## Status
 
-✅ **APIs are operational** - All endpoints are registered and functional. The module is mounted at `/api/practice/client-intakes` and all routes are publicly accessible (no authentication required).
+✅ **APIs are operational** - All endpoints are registered and functional. The module is mounted at `/api/practice/client-intakes`.
 
 ## Purpose and Boundaries
 
-The Practice Client Intakes module handles the complete payment flow for client intake forms. It enables law practices to collect payments directly from clients through a public-facing intake form. This module integrates with Stripe to process payments through connected accounts, allowing practices to receive funds directly.
+The Practice Client Intakes module handles intake creation plus optional payment flow. It enables law practices to collect client intake information and, when required by organization settings, collect payment through Stripe connected accounts.
 
 **Boundaries:**
 - Handles payment intent creation, updates, and status tracking
 - Manages client intake metadata (contact info, case details)
-- Integrates with Stripe Connected Accounts for payment processing
+- Integrates with Stripe Connected Accounts when payment is required
 - Publishes events for payment lifecycle (succeeded, failed, canceled)
-- **Does NOT handle**: User authentication (all endpoints are public), practice management, or client relationship management
+- **Does NOT handle**: practice management or client relationship management
 
 ## Routes/Endpoints
 
-All endpoints are **public** (no authentication required). The module is mounted at `/api/practice/client-intakes`.
+The module is mounted at `/api/practice/client-intakes`.
 
 ### 1. GET `/:slug/intake`
 **Public endpoint** - Retrieves practice details and payment settings for a practice's intake form.
@@ -58,7 +58,7 @@ All endpoints are **public** (no authentication required). The module is mounted
 ---
 
 ### 2. POST `/create`
-**Public endpoint** - Creates a Stripe Payment Link for a practice client intake.
+Creates a practice client intake. Stripe checkout is created only when payment is required by organization settings.
 
 **Request Body:**
 ```json
@@ -76,7 +76,7 @@ All endpoints are **public** (no authentication required). The module is mounted
 
 **Field Validation:**
 - `slug`: string, 1-100 chars
-- `amount`: integer, 50-99999999 (cents, i.e., $0.50 - $999,999.99)
+- `amount`: integer, 0-99999999 (cents)
 - `email`: valid email, max 255 chars
 - `name`: string, 1-200 chars
 - `phone`: string, max 50 chars (optional)
@@ -106,12 +106,12 @@ All endpoints are **public** (no authentication required). The module is mounted
 - `400 Bad Request`: Validation failed or payment link creation error
 - `500 Internal Server Error`: Stripe API error or database error
 
-**Use Case:** Frontend calls this when client submits the intake form. The `payment_link_url` is used to redirect the client to Stripe's hosted payment page.
+**Use Case:** Frontend calls this when client submits the intake form. If `payment_link_url` is present, redirect to Stripe. If `payment_link_url` is `null`, the intake is already in succeeded status.
 
 ---
 
 ### 3. PUT `/:uuid`
-**Public endpoint** - Updates the payment amount by creating a new Payment Link.
+Updates intake fields, including payment amount.
 
 **Path Parameters:**
 - `uuid` (UUID, required): Practice client intake UUID from create response
@@ -145,14 +145,12 @@ All endpoints are **public** (no authentication required). The module is mounted
 - `404 Not Found`: Intake not found
 - `500 Internal Server Error`: Stripe API error
 
-**Use Case:** Frontend calls this if the client wants to adjust the payment amount. The old Payment Link is deactivated and a new one is created with the updated amount.
-
-**Note:** Payment Links cannot be updated directly. This endpoint creates a new Payment Link and deactivates the old one.
+**Use Case:** Frontend calls this to update intake fields after creation.
 
 ---
 
 ### 4. GET `/:uuid/status`
-**Public endpoint** - Retrieves the current status of a practice client intake payment.
+Retrieves the current status of a practice client intake.
 
 **Path Parameters:**
 - `uuid` (UUID, required): Practice client intake UUID from create response
@@ -182,18 +180,18 @@ All endpoints are **public** (no authentication required). The module is mounted
 ```
 
 **Status Values:**
-- `open`: Payment Link is active and awaiting payment
-- `completed`: Payment Link has been completed (payment succeeded)
-- `expired`: Payment Link has expired
-- `succeeded`: Payment completed successfully (mapped from `completed` for consistency)
-- `canceled`: Payment was canceled
-- `failed`: Payment failed
+- `open`: awaiting payment
+- `succeeded`: payment completed or intake succeeded directly
+- `expired`: payment expired
+- `canceled`: payment canceled
+- `failed`: payment failed
+- `converted`: converted to matter
 
 **Error Responses:**
 - `404 Not Found`: Intake not found
 - `500 Internal Server Error`: Database error
 
-**Use Case:** Frontend polls this endpoint to check payment status after redirecting client to the Payment Link, or displays status on a confirmation page after the client returns from Stripe's hosted page.
+**Use Case:** Frontend polls this endpoint for intake/payment progression and final state.
 
 ---
 

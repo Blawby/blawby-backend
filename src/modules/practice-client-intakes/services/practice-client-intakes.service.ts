@@ -11,6 +11,7 @@ import { onboardingRepository } from '@/modules/onboarding/database/queries/onbo
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   practiceClientIntakesSchema,
@@ -247,14 +248,26 @@ const getPracticeClientIntakeSettings = async (
  * Create a new practice client intake
  */
 const createPracticeClientIntake = async (
-  request: CreatePracticeClientIntakeRequest & { clientIp?: string; userAgent?: string; origin?: string | null },
+  request: CreatePracticeClientIntakeRequest & {
+    clientIp?: string;
+    userAgent?: string;
+    origin?: string | null;
+  },
 ): Promise<Result<CreatePracticeClientIntakeResponse | PracticeClientIntakeSettings>> => {
   try {
-    const shouldBypassPayment = request.bypass_payment === true || request.amount === 0;
     const organization = await organizationRepository.findBySlug(request.slug);
 
     if (!organization) {
       return result.notFound(`Organization with slug '${request.slug}' not found`);
+    }
+
+    const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+    const consultationFee = practiceDetails?.consultation_fee ?? 0;
+    const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
+    const shouldBypassPayment = !requiresPayment || request.amount === 0;
+
+    if (requiresPayment && request.amount < 50) {
+      return result.badRequest('Amount must be at least 50 cents when payment is required');
     }
 
     let stripePaymentLink: Stripe.Response<Stripe.PaymentLink> | null = null;
