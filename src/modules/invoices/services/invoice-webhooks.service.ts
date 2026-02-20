@@ -143,9 +143,9 @@ const handlePhase2DbTransaction = async (
           }
         } else {
           // Create "pending" transaction
-          let charge_id: string | null = null;
+          let chargeId: string | null = null;
           if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
-            charge_id = stripeInvoice.charge;
+            chargeId = stripeInvoice.charge;
           }
 
           const newTx = await billingTransactionsRepository.createTransaction({
@@ -160,7 +160,7 @@ const handlePhase2DbTransaction = async (
             completed_at: null, // Payout is pending, set completed_at when transfer succeeds
             metadata: {
               stripe_invoice_id: stripeInvoice.id,
-              stripe_charge_id: charge_id,
+              stripe_charge_id: chargeId,
               invoice_type: invoice.invoice_type,
               fund_destination: routingInstruction.metadata.fund_destination,
               application_fee_amount: routingInstruction.applicationFeeAmount,
@@ -456,10 +456,17 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
 };
 
 /**
+ * Helper to narrow an object with a specific string property
+ */
+function hasStringProp<T extends string>(obj: unknown, key: T): obj is Record<T, string> {
+  return !!obj && typeof obj === 'object' && key in obj && typeof (obj as Record<string, unknown>)[key] === 'string';
+}
+
+/**
  * Type guard for Stripe Invoice
  */
 const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice => {
-  return !!obj && typeof obj === 'object' && 'object' in obj && (obj as { object: string }).object === 'invoice';
+  return hasStringProp(obj, 'object') && obj.object === 'invoice';
 };
 
 /**

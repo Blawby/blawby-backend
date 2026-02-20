@@ -518,7 +518,10 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                 if (currentPath === 'checkout.sessions.create') {
                   const params = currentArgs[0];
                   if (isCheckoutSessionCreateParams(params)) {
-                    params.line_items = await injectMeteredItems(params.line_items);
+                    const injected = await injectMeteredItems(params.line_items);
+                    if (injected !== undefined) {
+                      params.line_items = injected;
+                    }
                   }
                 } else if (currentPath === 'billingPortal.sessions.create') {
                   const params = currentArgs[0];
@@ -527,9 +530,13 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                     && params.flow_data?.type === 'subscription_update_confirm'
                     && params.flow_data.subscription_update_confirm
                   ) {
-                    params.flow_data.subscription_update_confirm.items = (await injectMeteredItems(
+                    const injected = await injectMeteredItems(
                       params.flow_data.subscription_update_confirm.items,
-                    )) as Stripe.BillingPortal.SessionCreateParams.FlowData.SubscriptionUpdateConfirm.Item[];
+                    );
+                    if (injected !== undefined) {
+                      params.flow_data.subscription_update_confirm.items = injected as
+                        Stripe.BillingPortal.SessionCreateParams.FlowData.SubscriptionUpdateConfirm.Item[];
+                    }
                   }
                 }
               } catch (injectError) {
@@ -562,26 +569,20 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
  */
 const injectMeteredItems = async <T extends { price?: string }>(
   items: T[] | undefined,
-): Promise<(T | { price: string })[]> => {
-  if (!items) return [];
+): Promise<(T | { price: string })[] | undefined> => {
+  const meteredIds = await appConfigService.get<string[]>('metered_price_ids') ?? [];
+  if (meteredIds.length === 0) return undefined;
 
-  const meteredIds = await appConfigService.get<string[]>('metered_price_ids') || [];
-  if (meteredIds.length === 0) return [...items];
+  const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
 
-  const existingPrices = new Set(items.map((item) => item.price).filter(Boolean));
-  const resultItems: (T | { price: string })[] = [...items];
+  const newEntries = meteredIds
+    .filter((id) => !existingPrices.has(id))
+    .map((id) => ({ price: id }));
 
-  let addedCount = 0;
-  meteredIds.forEach((id) => {
-    if (!existingPrices.has(id)) {
-      resultItems.push({ price: id });
-      addedCount++;
-    }
-  });
+  if (newEntries.length === 0) return undefined;
 
-  if (addedCount > 0) {
-    logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
-  }
+  const addedCount = newEntries.length;
+  logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
 
-  return resultItems;
+  return [...(items ?? []), ...newEntries];
 };
