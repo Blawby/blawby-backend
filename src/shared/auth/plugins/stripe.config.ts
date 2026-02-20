@@ -484,13 +484,13 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 /**
  * Type guards for Stripe Params
  */
-function isCheckoutSessionCreateParams(params: unknown): params is Stripe.Checkout.SessionCreateParams {
+const isCheckoutSessionCreateParams = (params: unknown): params is Stripe.Checkout.SessionCreateParams => {
   return typeof params === 'object' && params !== null && 'line_items' in params;
-}
+};
 
-function isBillingPortalSessionCreateParams(params: unknown): params is Stripe.BillingPortal.SessionCreateParams {
+const isBillingPortalSessionCreateParams = (params: unknown): params is Stripe.BillingPortal.SessionCreateParams => {
   return typeof params === 'object' && params !== null && 'flow_data' in params;
-}
+};
 
 /**
  * Creates a proxied Stripe client that recursively wraps the SDK
@@ -527,9 +527,9 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                     && params.flow_data?.type === 'subscription_update_confirm'
                     && params.flow_data.subscription_update_confirm
                   ) {
-                    params.flow_data.subscription_update_confirm.items = await injectMeteredItems(
+                    params.flow_data.subscription_update_confirm.items = (await injectMeteredItems(
                       params.flow_data.subscription_update_confirm.items,
-                    );
+                    )) as Stripe.BillingPortal.SessionCreateParams.FlowData.SubscriptionUpdateConfirm.Item[];
                   }
                 }
               } catch (injectError) {
@@ -562,19 +562,19 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
  */
 const injectMeteredItems = async <T extends { price?: string }>(
   items: T[] | undefined,
-): Promise<T[]> => {
+): Promise<(T | { price: string })[]> => {
   if (!items) return [];
 
   const meteredIds = await appConfigService.get<string[]>('metered_price_ids') || [];
   if (meteredIds.length === 0) return [...items];
 
-  const existingPrices = new Set(items.map((i) => i.price).filter(Boolean));
-  const resultItems = [...items];
+  const existingPrices = new Set(items.map((item) => item.price).filter(Boolean));
+  const resultItems: (T | { price: string })[] = [...items];
 
   let addedCount = 0;
   meteredIds.forEach((id) => {
     if (!existingPrices.has(id)) {
-      resultItems.push({ price: id } as unknown as T);
+      resultItems.push({ price: id });
       addedCount++;
     }
   });

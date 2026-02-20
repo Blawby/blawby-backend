@@ -84,23 +84,33 @@ const reportMeteredUsage = async (
     });
 
     // 4. Log event to global events table for audit trail
-    await db.insert(schema.events).values({
-      type: 'meter_usage.reported',
-      eventVersion: '1.0.0',
-      actorId: org.activeSubscriptionId || SYSTEM_ACTOR_UUID,
-      actorType: 'system',
-      organizationId: organizationId,
-      payload: {
-        meter_event_name: eventName,
-        quantity,
-        stripe_customer_id: org.stripeCustomerId,
-        metered_type: meteredType,
-      },
-      metadata: {
-        source: 'metered-products-service',
-        environment: process.env.NODE_ENV || 'development',
-      },
-    });
+    // We wrap this in its own try/catch to avoid failing the report if DB insert fails
+    try {
+      await db.insert(schema.events).values({
+        type: 'meter_usage.reported',
+        eventVersion: '1.0.0',
+        actorId: org.activeSubscriptionId || SYSTEM_ACTOR_UUID,
+        actorType: 'system',
+        organizationId: organizationId,
+        payload: {
+          meter_event_name: eventName,
+          quantity,
+          stripe_customer_id: org.stripeCustomerId,
+          metered_type: meteredType,
+        },
+        metadata: {
+          source: 'metered-products-service',
+          environment: process.env.NODE_ENV || 'development',
+        },
+      });
+    } catch (dbError) {
+      logger.error('Failed to log meter usage audit for {meteredType} (org: {organizationId}, dedupe: {dedupeId}): {error}', {
+        meteredType,
+        organizationId,
+        dedupeId: deduplicationId,
+        error: dbError instanceof Error ? dbError.message : 'Unknown error',
+      });
+    }
 
     return ok(undefined);
   } catch (error) {
@@ -122,6 +132,8 @@ const getCurrentUsage = async (
 ): Promise<Result<
   Array<{ meter_name: string; quantity: number; description: string | null }>
 >> => {
+  // TODO: Implement actual usage summary query from database or Stripe Event Summaries API.
+  // This is currently a stub for future UI features.
   return ok([]);
 };
 
@@ -143,7 +155,13 @@ const ensureSubscriptionMeteredItems = async (
     const stripe = getStripeInstance();
     const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
-    if (!subscription || subscription.status === 'canceled') {
+    // Guard: Only process active subscriptions.
+    // Treat other states (unpaid, incomplete, etc.) as ineligible for metered items.
+    if (!subscription || subscription.status !== 'active') {
+      logger.info('Skipping metered item audit for non-active subscription {subId} (status: {status})', {
+        subId: stripeSubscriptionId,
+        status: subscription?.status || 'unknown',
+      });
       return ok(undefined);
     }
 
