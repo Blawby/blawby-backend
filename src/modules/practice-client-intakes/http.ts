@@ -24,6 +24,7 @@ practiceClientIntakesApp.openapi(
 practiceClientIntakesApp.openapi(routes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
 practiceClientIntakesApp.openapi(routes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
 practiceClientIntakesApp.openapi(routes.listIntakesRoute, handlers.listIntakesHandler);
+practiceClientIntakesApp.openapi(routes.updateIntakeTriageStatusRoute, handlers.updateIntakeTriageStatusHandler);
 practiceClientIntakesApp.openapi(routes.convertIntakeRoute, handlers.convertIntakeHandler);
 
 registerOpenApiRoutes(practiceClientIntakesApp, routes);

@@ -470,11 +470,75 @@ export const listIntakesRoute = createRoute({
 });
 
 /**
- * POST /api/practice/client-intakes/{uuid}/convert
+ * PATCH /api/practice/client-intakes/{uuid}/status
+ * Updates intake triage status independently from payment/conversion status
+ */
+export const updateIntakeTriageStatusRoute = createRoute({
+  method: 'patch',
+  path: '/{uuid}/status',
+  tags: ['Practice Client Intakes'],
+  summary: 'Update intake triage status',
+  description: 'Sets practice triage decision for an intake (`accepted` or `declined`) without converting it to a matter. Declined intakes can include a reason for audit purposes.',
+  request: {
+    params: uuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.updateIntakeTriageStatusSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.updateIntakeTriageStatusResponseSchema,
+        },
+      },
+      description: 'Triage status updated successfully.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - invalid status payload',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized - authentication required',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Intake not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * PATCH /api/practice/client-intakes/{uuid}/convert
  * Converts a successful intake to a Matter
  */
 export const convertIntakeRoute = createRoute({
-  method: 'post',
+  method: 'patch',
   path: '/{uuid}/convert',
   tags: ['Practice Client Intakes'],
   summary: 'Convert intake to matter',
