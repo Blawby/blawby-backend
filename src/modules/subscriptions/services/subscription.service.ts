@@ -18,8 +18,6 @@ import type {
   SubscriptionPlanResponse,
   LineItemResponse,
   EventResponse,
-  SubscriptionResponse,
-  BetterAuthSubscription,
 } from '@/modules/subscriptions/types/subscription.types';
 import { organizations, subscriptions } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
@@ -73,23 +71,6 @@ const parseMetadata = <T>(
   return guard(parsed) ? parsed : null;
 };
 
-// Helper to map Better Auth camelCase subscription to our snake_case response
-const mapToSubscriptionResponse = (sub: BetterAuthSubscription): SubscriptionResponse => ({
-  id: sub.id,
-  plan: sub.plan,
-  reference_id: sub.referenceId,
-  stripe_customer_id: sub.stripeCustomerId,
-  stripe_subscription_id: sub.stripeSubscriptionId,
-  status: sub.status,
-  period_start: sub.periodStart,
-  period_end: sub.periodEnd,
-  cancel_at_period_end: sub.cancelAtPeriodEnd,
-  seats: sub.seats,
-  trial_start: sub.trialStart,
-  trial_end: sub.trialEnd,
-  created_at: sub.createdAt,
-  updated_at: sub.updatedAt,
-});
 
 /**
  * List all available subscription plans
@@ -311,55 +292,36 @@ const createSubscription = async (
 
 /**
  * Cancel a subscription
+ *
+ * If subscriptionId is not provided, it cancels the organization's active subscription.
  */
 const cancelSubscription = async (
-  subscriptionId: string,
   organizationId: string,
   data: CancelSubscriptionRequest,
   _user: User,
   requestHeaders: Record<string, string>,
-): Promise<Result<{ subscription: SubscriptionResponse; message: string }>> => {
+): Promise<Result<{ url: string; redirect: boolean }>> => {
   try {
     const authInstance = createBetterAuthInstance(db);
-
-    // Verify organization exists
-    const [organization] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
-
-    if (!organization) {
-      return notFound('Organization not found');
-    }
-
-    // Verify subscription belongs to organization
-    if (organization.activeSubscriptionId !== subscriptionId) {
-      return badRequest('Subscription does not belong to this organization');
-    }
-
     // Cancel subscription via Better Auth
     const subscriptionAPI = getSubscriptionApi(authInstance);
+    // Better Auth expects camelCase body parameters
     const result = await subscriptionAPI.cancelSubscription({
       body: {
-        subscription_id: subscriptionId,
-        reference_id: organizationId,
-        customer_type: 'organization',
-        return_url: data.return_url || '/dashboard',
+        referenceId: organizationId,
+        customerType: 'organization',
+        returnUrl: data.return_url || '/dashboard',
         immediately: data.immediately ?? false,
       },
       headers: requestHeaders,
     });
 
     return ok({
-      subscription: mapToSubscriptionResponse(result),
-      message: data.immediately
-        ? 'Subscription cancelled immediately'
-        : 'Subscription will be cancelled at the end of the billing period',
+      url: result.url,
+      redirect: result.redirect,
     });
   } catch (error) {
-    logger.error('Failed to cancel subscription {subscriptionId} for org {organizationId}: {error}', {
-      subscriptionId,
+    logger.error('Failed to cancel subscription for org {organizationId}: {error}', {
       organizationId,
       error,
     });

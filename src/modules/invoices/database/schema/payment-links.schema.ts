@@ -7,7 +7,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
+import { invoices } from './invoices.schema';
 import { organizations } from '@/schema';
 
 export const paymentLinks = pgTable(
@@ -62,6 +62,11 @@ export const paymentLinksRelations = relations(paymentLinks, ({ one }) => ({
     references: [invoices.id],
   }),
 }));
+
+export const paymentLinksSchema = {
+  paymentLinks,
+  paymentLinksRelations,
+};
 
 export type InsertPaymentLink = typeof paymentLinks.$inferInsert;
 export type SelectPaymentLink = typeof paymentLinks.$inferSelect;

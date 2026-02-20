@@ -79,7 +79,7 @@ export const cancelSubscriptionRoute = createRoute({
   path: '/cancel',
   tags: ['Subscriptions'],
   summary: 'Cancel subscription',
-  description: 'Cancel the current organization\'s subscription',
+  description: 'Cancel the current organization\'s subscription. Returns a Stripe Billing Portal URL for the user to confirm cancellation.',
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -97,7 +97,7 @@ export const cancelSubscriptionRoute = createRoute({
           schema: subscriptionValidations.cancelSubscriptionResponseSchema,
         },
       },
-      description: 'Subscription cancelled successfully',
+      description: 'Cancellation portal URL returned successfully',
     },
     400: {
       content: {

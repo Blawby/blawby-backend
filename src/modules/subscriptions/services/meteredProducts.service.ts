@@ -1,137 +1,29 @@
 /**
  * Metered Products Service
  *
- * Handles lazy attachment of metered products to subscriptions
- * Metered products are only attached when features are first used
+ * Handles reporting of metered usage to Stripe Billing Meters
  *
- * This service uses a database-driven approach - metered items are configured
- * in the subscription_plans.metered_items JSONB field
+ * This service uses the new Stripe Billing Meters API (v2) where usage is reported
+ * directly against a customer and meter event name, without needing to attach
+ * subscription items first.
  */
 
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
-  getMeteredItemsForOrganization,
-  getMeteredItemByType,
-} from '../constants/meteredProducts';
-import type { MeteredItem } from '../constants/meteredProducts';
-import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+  METERED_TYPE_TO_STRIPE_EVENT,
+  type MeteredItem,
+} from '@/modules/subscriptions/constants/meteredProducts';
 import * as schema from '@/schema';
 import type { Result } from '@/shared/types/result';
-import { ok, badRequest, internalError } from '@/shared/utils/result';
+import { ok, internalError } from '@/shared/utils/result';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
 
 /**
- * Ensure a metered product is attached to a subscription
- * This function is idempotent - safe to call multiple times
- *
- * @param db - Database instance
- * @param organizationId - Organization UUID
- * @param meteredItem - Metered item configuration from database
- * @returns Result with Stripe subscription item ID
- */
-const ensureMeteredProduct = async (
-  db: NodePgDatabase<typeof schema>,
-  organizationId: string,
-  meteredItem: MeteredItem,
-): Promise<Result<string>> => {
-  try {
-    // 1. Get organization's active subscription
-    const [org] = await db
-      .select()
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, organizationId))
-      .limit(1);
-
-    if (!org?.activeSubscriptionId) {
-      logger.warn('No active subscription for organization: {organizationId}', { organizationId });
-      return badRequest('No active subscription found for this organization');
-    }
-
-    // 2. Check if metered product is already attached
-    const lineItems = await subscriptionRepository.findLineItemsBySubscriptionId(
-      db,
-      org.activeSubscriptionId,
-    );
-
-    const existingItem = lineItems.find(
-      (item) => item.stripe_price_id === meteredItem.price_id,
-    );
-
-    if (existingItem) {
-      logger.debug('Metered product already attached: {meterName} (org: {organizationId})', {
-        meterName: meteredItem.meter_name,
-        organizationId,
-      });
-      return ok(existingItem.stripe_subscription_item_id);
-    }
-
-    // 3. Get Stripe subscription ID from Better Auth subscriptions table
-    const [betterAuthSub] = await db
-      .select()
-      .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, org.activeSubscriptionId))
-      .limit(1);
-
-    if (!betterAuthSub?.stripeSubscriptionId) {
-      return internalError('Stripe subscription ID not found');
-    }
-
-    // 4. Attach metered product to subscription via Stripe API
-    const stripe = getStripeInstance();
-    const subscriptionItem = await stripe.subscriptionItems.create({
-      subscription: betterAuthSub.stripeSubscriptionId,
-      price: meteredItem.price_id,
-      metadata: {
-        meter_name: meteredItem.meter_name,
-        item_type: meteredItem.type,
-        organization_id: organizationId,
-      },
-    });
-
-    // 5. Save subscription item to database
-    await subscriptionRepository.upsertLineItem(db, {
-      subscription_id: org.activeSubscriptionId,
-      stripe_subscription_item_id: subscriptionItem.id,
-      stripe_price_id: meteredItem.price_id,
-      item_type: meteredItem.type as
-        | 'metered_invoice_fee'
-        | 'metered_users'
-        | 'metered_custom_payment_fee'
-        | 'metered_payout_fee',
-      quantity: 0, // Metered items start at 0
-      unit_amount: subscriptionItem.price.unit_amount
-        ? (subscriptionItem.price.unit_amount / 100).toString()
-        : null,
-      description: meteredItem.meter_name,
-      metadata: {
-        meter_name: meteredItem.meter_name,
-        auto_attached: 'true',
-        attached_at: new Date().toISOString(),
-      },
-    });
-
-    logger.info('Attached metered product: {meterName} to organization {organizationId}', {
-      meterName: meteredItem.meter_name,
-      organizationId,
-    });
-    return ok(subscriptionItem.id);
-  } catch (error) {
-    logger.error('Failed to ensure metered product {meterName} for org {organizationId}: {error}', {
-      meterName: meteredItem.meter_name,
-      organizationId,
-      error,
-    });
-    return internalError('Failed to attach metered product');
-  }
-};
-
-/**
  * Report metered usage for a subscription by type
- * Automatically attaches the metered product if not already attached
  *
  * This function is designed to be called asynchronously (fire-and-forget)
  * and will not throw errors to avoid disrupting the main feature flow
@@ -143,53 +35,66 @@ const reportMeteredUsage = async (
   quantity: number = 1,
 ): Promise<Result<void>> => {
   try {
-    // 1. Get organization's metered items from their subscription plan
-    const meteredItems = await getMeteredItemsForOrganization(db, organizationId);
+    // 1. Get organization's Stripe Customer ID
+    const [org] = await db
+      .select({
+        stripeCustomerId: schema.organizations.stripeCustomerId,
+        activeSubscriptionId: schema.organizations.activeSubscriptionId,
+      })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1);
 
-    if (meteredItems.length === 0) {
-      logger.debug('No metered items configured for organization: {organizationId}', { organizationId });
-      return ok(undefined);
+    if (!org?.stripeCustomerId) {
+      logger.warn('No Stripe Customer ID for organization: {organizationId}', { organizationId });
+      return ok(undefined); // Not an error strictly, just can't report usage (maybe not onboarded yet)
     }
 
-    // 2. Find the specific metered item by type
-    const meteredItem = getMeteredItemByType(meteredItems, meteredType);
+    // 2. Map internal type to Stripe Meter Event Name
+    const eventName = METERED_TYPE_TO_STRIPE_EVENT[meteredType];
 
-    if (!meteredItem) {
-      logger.debug('Metered item type "{meteredType}" not configured for organization: {organizationId}', {
+    if (!eventName) {
+      logger.warn('Unknown metered type: {meteredType} (org: {organizationId})', {
         meteredType,
         organizationId,
       });
       return ok(undefined);
     }
 
-    // 3. Ensure metered product is attached (idempotent operation)
-    const result = await ensureMeteredProduct(
-      db,
-      organizationId,
-      meteredItem,
-    );
-
-    if (!result.success) {
-      return result;
-    }
-
-    const subscriptionItemId = result.data;
-
-    // 4. Report usage to Stripe
+    // 3. Report usage to Stripe Billing Meters API
     const stripe = getStripeInstance();
 
-    // Stripe API: Create usage record for the subscription item
-    // @ts-expect-error - Stripe API types may be outdated
-    await stripe.subscriptionItems.createUsageRecord(subscriptionItemId, {
-      quantity,
-      timestamp: Math.floor(Date.now() / 1000),
+    // The Stripe Billing Meters API expects a timestamp for the event
+    // Using current time as default
+    await stripe.billing.meterEvents.create({
+      event_name: eventName,
+      payload: {
+        stripe_customer_id: org.stripeCustomerId,
+        value: quantity.toString(),
+      },
     });
 
-    logger.info('Usage reported: {meterName} +{quantity} (org: {organizationId})', {
-      meterName: meteredItem.meter_name,
-      quantity,
-      organizationId,
+    // 4. Log event to global events table for audit trail
+    // We log this as a 'system' actor event
+    await db.insert(schema.events).values({
+      type: 'meter_usage.reported', // Dot notation for event types
+      eventVersion: '1.0.0',
+      actorId: org.activeSubscriptionId || '00000000-0000-0000-0000-000000000000', // Use subscription ID as actor if available
+      actorType: 'system',
+      organizationId: organizationId,
+      payload: {
+        meter_event_name: eventName,
+        quantity,
+        stripe_customer_id: org.stripeCustomerId,
+        metered_type: meteredType,
+      },
+      metadata: {
+        source: 'metered-products-service',
+        environment: process.env.NODE_ENV || 'development',
+      },
     });
+
+
     return ok(undefined);
   } catch (error) {
     // Log error but avoid throwing if possible for usage reporting
@@ -206,54 +111,78 @@ const reportMeteredUsage = async (
  * @returns Result with array of usage records
  */
 const getCurrentUsage = async (
-  db: NodePgDatabase<typeof schema>,
-  organizationId: string,
+  _db: NodePgDatabase<typeof schema>,
+  _organizationId: string,
 ): Promise<Result<
   Array<{ meter_name: string; quantity: number; description: string | null }>
 >> => {
-  try {
-    // Get organization's subscription
-    const [org] = await db
-      .select()
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, organizationId))
-      .limit(1);
+  // fetching real-time meter usage aggregated by billing period is complex
+  // and requires calling stripe.billing.meters.listEventSummaries for each meter
+  // For now, we return empty structure as this UI feature is low priority
+  return ok([]);
+};
 
-    if (!org?.activeSubscriptionId) {
-      return ok([]);
+/**
+ * Ensure subscription has all required metered items attached
+ *
+ * @param stripeSubscriptionId - Stripe Subscription ID
+ * @param meteredItems - Array of metered items from the plan
+ */
+const ensureSubscriptionMeteredItems = async (
+  stripeSubscriptionId: string,
+  meteredItems: MeteredItem[],
+): Promise<Result<void>> => {
+  try {
+    if (meteredItems.length === 0) {
+      return ok(undefined);
     }
 
-    // Get all metered line items
-    const lineItems = await subscriptionRepository.findLineItemsBySubscriptionId(
-      db,
-      org.activeSubscriptionId,
+    const stripe = getStripeInstance();
+    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+
+    if (!subscription || subscription.status === 'canceled') {
+      return ok(undefined); // Ignore canceled subscriptions
+    }
+
+    // Identify which items are missing
+    const existingPriceIds = new Set(
+      subscription.items.data.map((item) => item.price.id),
     );
 
-    const meteredItems = lineItems.filter((item) => item.item_type.startsWith('metered_'));
+    const missingItems = meteredItems.filter(
+      (item) => !existingPriceIds.has(item.price_id),
+    );
 
-    const summary = meteredItems.map((item) => {
-      const meterNameValue = (item.metadata as Record<string, unknown>)?.meter_name;
-      const meter_name = typeof meterNameValue === 'string'
-        ? meterNameValue
-        : (item.description || 'unknown');
-      return {
-        meter_name,
-        quantity: item.quantity,
-        description: item.description,
-      };
+    if (missingItems.length === 0) {
+      return ok(undefined);
+    }
+
+    logger.info('Adding missing metered items to subscription {subId}', {
+      subId: stripeSubscriptionId,
+      missingCount: missingItems.length,
     });
 
-    return ok(summary);
+    // Add missing items
+    // We add them sequentially to avoid rate limits or race conditions on the same sub
+    for (const item of missingItems) {
+      await stripe.subscriptionItems.create({
+        subscription: stripeSubscriptionId,
+        price: item.price_id,
+      });
+    }
+
+    return ok(undefined);
   } catch (error) {
-    logger.error('Failed to get current usage for org {organizationId}: {error}', { organizationId, error });
-    return internalError('Failed to retrieve usage summary');
+    logger.error('Failed to ensure metered items: {error}', { error });
+    // We return OK to not block the main sync process, but we log the error
+    return ok(undefined);
   }
 };
 
 export const meteredProductsService = {
-  ensureMeteredProduct,
   reportMeteredUsage,
   getCurrentUsage,
+  ensureSubscriptionMeteredItems,
 };
 
 export default meteredProductsService;

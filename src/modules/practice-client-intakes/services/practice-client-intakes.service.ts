@@ -3,6 +3,7 @@ import { getLogger } from '@logtape/logtape';
 import { eq, sql } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 import { z } from 'zod';
+import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
@@ -309,6 +310,7 @@ const createPracticeClientIntake = async (
         address_id: addressId,
         conversation_id: request.conversation_id,
         amount: request.amount,
+        application_fee: fundRouterService.calculateApplicationFee(request.amount),
         currency: 'usd',
         status: 'open', // Payment Link status: open, completed, expired
         metadata: {
@@ -513,6 +515,8 @@ const createPracticeClientIntakeCheckoutSession = async (
       ? `&conversation_id=${encodeURIComponent(practiceClientIntake.conversation_id)}`
       : '';
 
+    const applicationFeeAmount = fundRouterService.calculateApplicationFee(practiceClientIntake.amount);
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       client_reference_id: practiceClientIntake.id,
@@ -536,8 +540,8 @@ const createPracticeClientIntakeCheckoutSession = async (
           destination: connectedAccount.stripe_account_id,
         },
         metadata,
-        ...(practiceClientIntake.application_fee && {
-          application_fee_amount: practiceClientIntake.application_fee,
+        ...(applicationFeeAmount && {
+          application_fee_amount: applicationFeeAmount,
         }),
       },
       metadata,
