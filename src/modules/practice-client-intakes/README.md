@@ -84,6 +84,8 @@ Creates a practice client intake. Stripe checkout is created only when payment i
 - `opposing_party`: string, max 200 chars (optional)
 - `description`: string, max 500 chars (optional)
 
+**Amount limits:** `0` to `99,999,999` cents. Use `0` when payment is not required by organization settings.
+
 **Response (201 Created):**
 ```json
 {
@@ -106,7 +108,7 @@ Creates a practice client intake. Stripe checkout is created only when payment i
 - `400 Bad Request`: Validation failed or payment link creation error
 - `500 Internal Server Error`: Stripe API error or database error
 
-**Use Case:** Frontend calls this when client submits the intake form. If `payment_link_url` is present, redirect to Stripe. If `payment_link_url` is `null`, the intake is already in succeeded status.
+**Use Case:** Frontend calls this when client submits the intake form. If `payment_link_url` is present and `status` is `open`, redirect to Stripe. If `payment_link_url` is `null`, do not redirect; the intake is created with `status: "succeeded"` because payment is not required.
 
 ---
 
@@ -124,7 +126,7 @@ Updates intake fields, including payment amount.
 ```
 
 **Field Validation:**
-- `amount`: integer, 50-99999999 (cents)
+- `amount`: integer, 0-99999999 (cents)
 
 **Response (200 OK):**
 ```json

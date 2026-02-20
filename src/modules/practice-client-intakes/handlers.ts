@@ -180,6 +180,10 @@ export const updateIntakeTriageStatusHandler: AppRouteHandler<typeof updateIntak
     return response.notFound(c, 'Practice client intake not found');
   }
 
+  if (intake.organization_id !== activeOrganizationId) {
+    return response.forbidden(c, 'Access denied');
+  }
+
   const result = await practiceClientIntakesService.updateIntakeTriageStatus(uuid, activeOrganizationId, body);
   return response.fromResult(c, result);
 };

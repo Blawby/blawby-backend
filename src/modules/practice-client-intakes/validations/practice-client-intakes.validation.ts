@@ -33,7 +33,7 @@ const createPracticeClientIntakeSchema = z.object({
 });
 
 const updatePracticeClientIntakeSchema = z.object({
-  amount: z.number().int().min(50).max(99999999).optional(),
+  amount: z.number().int().min(0).max(99999999).optional(),
   urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
   desired_outcome: z.string().optional(),
   court_date: z.iso.datetime().optional(),
@@ -130,8 +130,8 @@ const practiceClientIntakeStatusResponseSchema = z.object({
       description: 'Practice triage decision state',
       example: 'pending_review',
     }),
-    triage_reason: z.string().nullable().optional(),
-    triage_decided_at: z.iso.datetime().nullable().optional(),
+    triage_reason: z.string().nullable(),
+    triage_decided_at: z.iso.datetime().nullable(),
     address_id: z.uuid().optional().openapi({
       description: 'ID of the created address record',
       example: '123e4567-e89b-12d3-a456-426614174000',
