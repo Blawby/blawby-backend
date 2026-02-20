@@ -9,7 +9,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq } from 'drizzle-orm';
+import { sql, and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   METERED_TYPE_TO_STRIPE_EVENT,
@@ -35,19 +35,18 @@ const logger = getLogger(['subscriptions', 'services', 'metered-products']);
  * @param quantity - Amount to report
  * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
-const reportMeteredUsage = async (
+const reportMeteredUsage = async function reportMeteredUsage(
   db: NodePgDatabase<typeof schema>,
   organizationId: string,
-  meteredType: string,
+  meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
   quantity: number = 1,
   deduplicationId?: string,
-): Promise<Result<void>> => {
+): Promise<Result<void>> {
   try {
     // 1. Get organization's Stripe Customer ID
     const [org] = await db
       .select({
         stripeCustomerId: schema.organizations.stripeCustomerId,
-        activeSubscriptionId: schema.organizations.activeSubscriptionId,
       })
       .from(schema.organizations)
       .where(eq(schema.organizations.id, organizationId))
@@ -89,7 +88,7 @@ const reportMeteredUsage = async (
       await db.insert(schema.events).values({
         type: 'meter_usage.reported',
         eventVersion: '1.0.0',
-        actorId: org.activeSubscriptionId || SYSTEM_ACTOR_UUID,
+        actorId: SYSTEM_ACTOR_UUID, // Always use SYSTEM_ACTOR_UUID for system items
         actorType: 'system',
         organizationId: organizationId,
         payload: {
@@ -126,15 +125,32 @@ const reportMeteredUsage = async (
  * @param organizationId - Organization UUID
  * @returns Result with array of usage records
  */
-const getCurrentUsage = async (
-  _db: NodePgDatabase<typeof schema>,
-  _organizationId: string,
+const getCurrentUsage = async function getCurrentUsage(
+  db: NodePgDatabase<typeof schema>,
+  organizationId: string,
 ): Promise<Result<
   Array<{ meter_name: string; quantity: number; description: string | null }>
->> => {
-  // TODO: Implement actual usage summary query from database or Stripe Event Summaries API.
-  // This is currently a stub for future UI features.
-  return ok([]);
+>> {
+  try {
+    const usage = await db
+      .select({
+        meter_name: sql<string>`${schema.events.payload}->>'meter_event_name'`,
+        quantity: sql<number>`CAST(SUM(CAST(${schema.events.payload}->>'quantity' AS NUMERIC)) AS INTEGER)`,
+      })
+      .from(schema.events)
+      .where(
+        and(
+          eq(schema.events.organizationId, organizationId),
+          eq(schema.events.type, 'meter_usage.reported'),
+        ),
+      )
+      .groupBy(sql`${schema.events.payload}->>'meter_event_name'`);
+
+    return ok(usage.map((u) => ({ ...u, description: null })));
+  } catch (error) {
+    logger.error('Failed to get current usage for org {organizationId}: {error}', { organizationId, error });
+    return internalError('Failed to retrieve usage data');
+  }
 };
 
 /**
@@ -143,10 +159,10 @@ const getCurrentUsage = async (
  * @param stripeSubscriptionId - Stripe Subscription ID
  * @param meteredItems - Array of metered items from the plan
  */
-const ensureSubscriptionMeteredItems = async (
+const ensureSubscriptionMeteredItems = async function ensureSubscriptionMeteredItems(
   stripeSubscriptionId: string,
   meteredItems: MeteredItem[],
-): Promise<Result<void>> => {
+): Promise<Result<void>> {
   try {
     if (meteredItems.length === 0) {
       return ok(undefined);
