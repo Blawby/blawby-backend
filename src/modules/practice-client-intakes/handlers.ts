@@ -11,6 +11,7 @@ import {
   claimPracticeClientIntakeRoute,
   triggerIntakeInvitationRoute,
   listIntakesRoute,
+  updateIntakeTriageStatusRoute,
   convertIntakeRoute,
 } from '@/modules/practice-client-intakes/routes';
 import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
@@ -150,7 +151,30 @@ export const convertIntakeHandler: AppRouteHandler<typeof convertIntakeRoute> = 
     return response.notFound(c, 'Practice client intake not found');
   }
 
-  const result = await practiceClientIntakesService.convertIntakeToMatter(uuid, intake.organization_id, body);
+  const result = await practiceClientIntakesService.convertIntakeToMatter(
+    uuid,
+    intake.organization_id,
+    userId,
+    body,
+  );
 
   return response.fromResult(c, result, 201);
+};
+
+export const updateIntakeTriageStatusHandler: AppRouteHandler<typeof updateIntakeTriageStatusRoute> = async (c) => {
+  const { uuid } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const userId = c.get('userId');
+
+  if (!userId) {
+    return response.unauthorized(c, 'Authentication required to update intake triage status');
+  }
+
+  const intake = await practiceClientIntakesRepository.findById(uuid);
+  if (!intake) {
+    return response.notFound(c, 'Practice client intake not found');
+  }
+
+  const result = await practiceClientIntakesService.updateIntakeTriageStatus(uuid, intake.organization_id, body);
+  return response.fromResult(c, result);
 };

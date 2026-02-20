@@ -8,6 +8,7 @@ export type SlugParam = z.infer<typeof intakeValidations.slugParamSchema>;
 export type UuidParam = z.infer<typeof intakeValidations.uuidParamSchema>;
 export type CheckoutSessionStatusQuery = z.infer<typeof intakeValidations.checkoutSessionStatusQuerySchema>;
 export type ClaimPracticeClientIntakeRequest = z.infer<typeof intakeValidations.claimPracticeClientIntakeSchema>;
+export type UpdateIntakeTriageStatusRequest = z.infer<typeof intakeValidations.updateIntakeTriageStatusSchema>;
 
 /**
  * Onboarding settings for client intakes
@@ -56,4 +57,7 @@ export type IntakePostPayStatusResponse = z.infer<
 >;
 export type ClaimPracticeClientIntakeResponse = z.infer<
   typeof intakeValidations.claimPracticeClientIntakeResponseSchema
+>;
+export type UpdateIntakeTriageStatusResponse = z.infer<
+  typeof intakeValidations.updateIntakeTriageStatusResponseSchema
 >;
