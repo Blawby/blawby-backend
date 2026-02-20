@@ -16,6 +16,7 @@ import {
   type MeteredItem,
 } from '@/modules/subscriptions/constants/meteredProducts';
 import * as schema from '@/schema';
+import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
@@ -26,13 +27,20 @@ const logger = getLogger(['subscriptions', 'services', 'metered-products']);
  * Report metered usage for a subscription by type
  *
  * This function is designed to be called asynchronously (fire-and-forget)
- * and will not throw errors to avoid disrupting the main feature flow
+ * and will not throw errors to avoid disrupting the main feature flow.
+ *
+ * @param db - Database instance
+ * @param organizationId - Organization UUID
+ * @param meteredType - Standardized metered type (see METERED_TYPES)
+ * @param quantity - Amount to report
+ * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async (
   db: NodePgDatabase<typeof schema>,
   organizationId: string,
   meteredType: string,
   quantity: number = 1,
+  deduplicationId?: string,
 ): Promise<Result<void>> => {
   try {
     // 1. Get organization's Stripe Customer ID
@@ -47,27 +55,28 @@ const reportMeteredUsage = async (
 
     if (!org?.stripeCustomerId) {
       logger.warn('No Stripe Customer ID for organization: {organizationId}', { organizationId });
-      return ok(undefined); // Not an error strictly, just can't report usage (maybe not onboarded yet)
+      return ok(undefined);
     }
 
     // 2. Map internal type to Stripe Meter Event Name
     const eventName = METERED_TYPE_TO_STRIPE_EVENT[meteredType];
 
     if (!eventName) {
-      logger.warn('Unknown metered type: {meteredType} (org: {organizationId})', {
+      logger.error('Unknown metered type: {meteredType} (org: {organizationId})', {
         meteredType,
         organizationId,
       });
-      return ok(undefined);
+      return internalError(`Unknown metered type: ${meteredType}`);
     }
 
     // 3. Report usage to Stripe Billing Meters API
     const stripe = getStripeInstance();
+    const dedupeSuffix = deduplicationId || Date.now().toString();
 
     // Use Stripe v2 Billing Meters API for synchronous validation and deduplication
     await stripe.v2.billing.meterEvents.create({
       event_name: eventName,
-      identifier: `${organizationId}-${meteredType}-${Date.now()}`,
+      identifier: `${organizationId}-${meteredType}-${dedupeSuffix}`,
       payload: {
         stripe_customer_id: org.stripeCustomerId,
         value: quantity.toString(),
@@ -75,11 +84,10 @@ const reportMeteredUsage = async (
     });
 
     // 4. Log event to global events table for audit trail
-    // We log this as a 'system' actor event
     await db.insert(schema.events).values({
-      type: 'meter_usage.reported', // Dot notation for event types
+      type: 'meter_usage.reported',
       eventVersion: '1.0.0',
-      actorId: org.activeSubscriptionId || '00000000-0000-0000-0000-000000000000', // Use subscription ID as actor if available
+      actorId: org.activeSubscriptionId || SYSTEM_ACTOR_UUID,
       actorType: 'system',
       organizationId: organizationId,
       payload: {
@@ -94,10 +102,8 @@ const reportMeteredUsage = async (
       },
     });
 
-
     return ok(undefined);
   } catch (error) {
-    // Log error but avoid throwing if possible for usage reporting
     logger.error('Failed to report metered usage for {meteredType}: {error}', { meteredType, error });
     return internalError('Failed to report metered usage');
   }
@@ -116,9 +122,6 @@ const getCurrentUsage = async (
 ): Promise<Result<
   Array<{ meter_name: string; quantity: number; description: string | null }>
 >> => {
-  // fetching real-time meter usage aggregated by billing period is complex
-  // and requires calling stripe.billing.meters.listEventSummaries for each meter
-  // For now, we return empty structure as this UI feature is low priority
   return ok([]);
 };
 
@@ -141,7 +144,7 @@ const ensureSubscriptionMeteredItems = async (
     const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
     if (!subscription || subscription.status === 'canceled') {
-      return ok(undefined); // Ignore canceled subscriptions
+      return ok(undefined);
     }
 
     // Identify which items are missing
@@ -163,19 +166,31 @@ const ensureSubscriptionMeteredItems = async (
     });
 
     // Add missing items
-    // We add them sequentially to avoid rate limits or race conditions on the same sub
+    let hasError = false;
     for (const item of missingItems) {
-      await stripe.subscriptionItems.create({
-        subscription: stripeSubscriptionId,
-        price: item.price_id,
-      });
+      try {
+        await stripe.subscriptionItems.create({
+          subscription: stripeSubscriptionId,
+          price: item.price_id,
+        });
+      } catch (itemErr) {
+        hasError = true;
+        logger.error('Failed to add metered item {priceId} to subscription {subId}: {error}', {
+          priceId: item.price_id,
+          subId: stripeSubscriptionId,
+          error: itemErr instanceof Error ? itemErr.message : 'Unknown error',
+        });
+      }
+    }
+
+    if (hasError) {
+      return internalError('One or more metered items failed to attach to subscription');
     }
 
     return ok(undefined);
   } catch (error) {
     logger.error('Failed to ensure metered items: {error}', { error });
-    // We return OK to not block the main sync process, but we log the error
-    return ok(undefined);
+    return internalError('Failed to ensure subscription metered items');
   }
 };
 

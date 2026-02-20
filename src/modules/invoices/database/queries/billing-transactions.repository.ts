@@ -80,4 +80,4 @@ export const billingTransactionsRepository = {
   findByStripeTransferId,
   updateTransactionStatus,
   listByInvoiceId,
-};
+} as const;

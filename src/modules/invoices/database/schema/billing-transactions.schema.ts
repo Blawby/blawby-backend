@@ -17,7 +17,6 @@ export const billingTransactions = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organization_id: uuid('organization_id')
-      .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     invoice_id: uuid('invoice_id').references(() => invoices.id, {
       onDelete: 'set null',
@@ -44,6 +43,7 @@ export const billingTransactions = pgTable(
     completed_at: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
+    index('billing_transactions_organization_idx').on(table.organization_id),
     index('billing_transactions_invoice_idx').on(table.invoice_id),
     index('billing_transactions_matter_idx').on(table.matter_id),
     index('billing_transactions_stripe_transfer_idx').on(table.stripe_transfer_id),

@@ -3,6 +3,8 @@ import type { Stripe } from 'stripe';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
+import type { TransferInstruction } from '@/modules/invoices/services/fund-router.service';
+import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
@@ -20,6 +22,219 @@ import { stripe } from '@/shared/utils/stripe-client';
 const logger = getLogger(['invoices', 'webhooks-service']);
 
 /**
+ * PHASE 1: Determine fund routing and destination account
+ */
+const handlePhase1Routing = async (
+  invoice: InvoiceWithRelations,
+  stripeInvoice: Stripe.Invoice,
+) => {
+  let destinationAccountId = invoice.connectedAccount?.stripe_account_id;
+  if (stripeInvoice.on_behalf_of) {
+    destinationAccountId = typeof stripeInvoice.on_behalf_of === 'string'
+      ? stripeInvoice.on_behalf_of
+      : stripeInvoice.on_behalf_of.id;
+  }
+
+  if (!destinationAccountId) {
+    logger.warn('Missing Stripe account ID for connected account on invoice {invoiceId}', { invoiceId: invoice.id });
+    return result.badRequest('Missing Stripe account ID for connected account');
+  }
+
+  const routingResult = fundRouterService.routePayment(
+    invoice,
+    destinationAccountId,
+  );
+
+  if (!routingResult.success) {
+    logger.warn('Fund routing failed for invoice {invoiceId}: {error}', {
+      invoiceId: invoice.id,
+      error: routingResult.error.message,
+    });
+    return result.fail(
+      routingResult.error.message,
+      routingResult.error.status,
+      routingResult.error.code,
+      routingResult.error.details,
+    );
+  }
+
+  return result.ok({
+    routingInstruction: routingResult.data,
+    destinationAccountId,
+  });
+};
+
+/**
+ * PHASE 2: Idempotent DB Transaction (Status Update & Payout Record)
+ */
+const handlePhase2DbTransaction = async (
+  invoice: InvoiceWithRelations,
+  stripeInvoice: Stripe.Invoice,
+  routingInstruction: TransferInstruction,
+  destinationAccountId: string,
+) => {
+  let billingTxId: string | null = null;
+  let isNewlyPaid = false;
+
+  await db.transaction(async (tx) => {
+    // 1. Update invoice status
+    if (invoice.status !== 'paid') {
+      isNewlyPaid = true;
+      await invoicesRepository.updateInvoice(
+        invoice.id,
+        invoice.organization_id,
+        {
+          status: 'paid',
+          amount_paid: stripeInvoice.amount_paid,
+          amount_due: stripeInvoice.amount_remaining,
+          application_fee_amount: routingInstruction.applicationFeeAmount,
+          paid_at: stripeInvoice.status_transitions.paid_at
+            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+            : null,
+        },
+        tx,
+      );
+
+      // 2. Update retainer balance (if applicable)
+      if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
+        const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
+        if (matter) {
+          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+        }
+      } else if (invoice.matter_id && invoice.payment_from_retainer) {
+        const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
+        if (matter) {
+          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+        }
+      }
+
+      // 3. Dispatch events
+      await InvoicePaid.dispatch({
+        invoice_id: invoice.id,
+        organization_id: invoice.organization_id,
+        matter_id: invoice.matter_id,
+        stripe_invoice_id: stripeInvoice.id,
+        amount_paid: stripeInvoice.amount_paid,
+        retainer_deducted: !!invoice.payment_from_retainer,
+        retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
+      }, {
+        actorId: 'webhook',
+        actorType: 'webhook',
+        organizationId: invoice.organization_id,
+        tx,
+        critical: true,
+      });
+    }
+
+    // 4. Handle Billing Transaction (Payout)
+    if (!routingInstruction.holdForApproval) {
+      const existingTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id, tx);
+      const payoutTx = existingTxs.find((t) => t.type === 'payout');
+
+      if (payoutTx) {
+        // Guard against existing transfer ID or completed status (Idempotency)
+        if (payoutTx.stripe_transfer_id || payoutTx.status === 'completed') {
+          billingTxId = null;
+        } else {
+          billingTxId = payoutTx.id;
+        }
+      } else {
+        // Create "pending" transaction
+        let charge_id: string | null = null;
+        if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
+          charge_id = stripeInvoice.charge;
+        }
+
+        const newTx = await billingTransactionsRepository.createTransaction({
+          organization_id: invoice.organization_id,
+          invoice_id: invoice.id,
+          matter_id: invoice.matter_id,
+          amount: stripeInvoice.amount_paid,
+          application_fee_amount: routingInstruction.applicationFeeAmount,
+          type: 'payout',
+          status: 'pending',
+          destination_account_id: destinationAccountId,
+          completed_at: stripeInvoice.status_transitions.paid_at
+            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+            : null,
+          metadata: {
+            stripe_invoice_id: stripeInvoice.id,
+            stripe_charge_id: charge_id,
+            invoice_type: invoice.invoice_type,
+            fund_destination: routingInstruction.metadata.fund_destination,
+            application_fee_amount: routingInstruction.applicationFeeAmount,
+          },
+        }, tx);
+        billingTxId = newTx.id;
+      }
+    }
+  });
+
+  return { billingTxId, isNewlyPaid };
+};
+
+/**
+ * PHASE 3: External Stripe Transfer and Final DB Sync
+ */
+const handlePhase3StripeTransfer = async (
+  invoice: InvoiceWithRelations,
+  stripeInvoice: Stripe.Invoice,
+  routingInstruction: TransferInstruction,
+  billingTxId: string,
+) => {
+  logger.info('Creating Stripe transfer for invoice {invoiceId}', { invoiceId: invoice.id });
+
+  const transfer = await stripe.transfers.create({
+    amount: stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount,
+    currency: stripeInvoice.currency || 'usd',
+    destination: routingInstruction.destination,
+    metadata: {
+      ...routingInstruction.metadata,
+      payout_amount: (stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount).toString(),
+    },
+  });
+
+  logger.info('Created Stripe transfer {transferId} for invoice {invoiceId}', {
+    transferId: transfer.id,
+    invoiceId: invoice.id,
+  });
+
+  try {
+    await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
+      stripe_transfer_id: transfer.id,
+    });
+
+    // Record metered usage for payout fee (Fire & Forget with clean logging)
+    meteredProductsService.reportMeteredUsage(
+      db,
+      invoice.organization_id,
+      METERED_TYPES.PAYOUT_FEE,
+      1,
+      invoice.id, // Stable key for deduplication
+    ).catch((err) => {
+      logger.error('Failed to report payout metered usage for invoice {invoiceId}, org {organizationId}: {error}', {
+        invoiceId: invoice.id,
+        organizationId: invoice.organization_id,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      });
+    });
+  } catch (dbError) {
+    // Transfer succeeded but DB update failed — record for manual reconciliation
+    logger.error('Stripe transfer {transferId} succeeded but DB update failed for billing tx {billingTxId}: {error}', {
+      transferId: transfer.id,
+      billingTxId,
+      error: dbError instanceof Error ? dbError.message : 'Unknown error',
+    });
+    await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'pending', {
+      stripe_transfer_id: transfer.id,
+      last_error: `DB update failed after successful transfer: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+    });
+  }
+};
+
+/**
  * Handle invoice.paid event
  */
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
@@ -30,180 +245,41 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
       return result.ok(undefined);
     }
 
-    // --- PHASE 1: PRE-CALCULATION & ROUTING ---
+    const phase1 = await handlePhase1Routing(invoice, stripeInvoice);
+    if (!phase1.success) return phase1;
 
-    let destinationAccountId = invoice.connectedAccount?.stripe_account_id;
-    if (stripeInvoice.on_behalf_of) {
-      destinationAccountId = typeof stripeInvoice.on_behalf_of === 'string'
-        ? stripeInvoice.on_behalf_of
-        : stripeInvoice.on_behalf_of.id;
-    }
+    const { routingInstruction, destinationAccountId } = phase1.data;
 
-    if (!destinationAccountId) {
-      logger.warn('Missing Stripe account ID for connected account on invoice {invoiceId}', { invoiceId: invoice.id });
-      return result.badRequest('Missing Stripe account ID for connected account');
-    }
-
-    const routingResult = fundRouterService.routePayment(
+    const { billingTxId, isNewlyPaid } = await handlePhase2DbTransaction(
       invoice,
+      stripeInvoice,
+      routingInstruction,
       destinationAccountId,
     );
 
-    if (!routingResult.success) {
-      logger.warn('Fund routing failed for invoice {invoiceId}: {error}', {
-        invoiceId: invoice.id,
-        error: routingResult.error.message,
-      });
-      return result.internalError('Fund routing failed');
-    }
-
-    const routingInstruction = routingResult.data;
-    let billingTxId: string | null = null;
-
-    // --- PHASE 2: DB TRANSACTION (Idempotent Status Update & Pending Record) ---
-
-    await db.transaction(async (tx) => {
-      // 1. Update invoice status
-      if (invoice.status !== 'paid') {
-        await invoicesRepository.updateInvoice(
-          invoice.id,
-          invoice.organization_id,
-          {
-            status: 'paid',
-            amount_paid: stripeInvoice.amount_paid,
-            amount_due: stripeInvoice.amount_remaining,
-            application_fee_amount: routingInstruction.applicationFeeAmount,
-            paid_at: stripeInvoice.status_transitions.paid_at
-              ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-              : null,
-          },
-          tx,
-        );
-
-        // 2. Record metered usage for platform fee
-        await meteredProductsService.reportMeteredUsage(
-          tx,
-          invoice.organization_id,
-          METERED_TYPES.INVOICE_FEE,
-          1,
-        );
-
-        // 3. Update retainer balance (if applicable)
-        if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
-          const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-          if (matter) {
-            const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
-            await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
-          }
-        } else if (invoice.matter_id && invoice.payment_from_retainer) {
-          const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-          if (matter) {
-            const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
-            await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
-          }
-        }
-
-        // 4. Dispatch events
-        await InvoicePaid.dispatch({
-          invoice_id: invoice.id,
-          organization_id: invoice.organization_id,
-          matter_id: invoice.matter_id,
-          stripe_invoice_id: stripeInvoice.id,
-          amount_paid: stripeInvoice.amount_paid,
-          retainer_deducted: !!invoice.payment_from_retainer,
-          retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
-        }, {
-          actorId: 'webhook',
-          actorType: 'webhook',
+    // Report invoice fee if newly paid
+    if (isNewlyPaid) {
+      meteredProductsService.reportMeteredUsage(
+        db,
+        invoice.organization_id,
+        METERED_TYPES.INVOICE_FEE,
+        1,
+        invoice.id, // Stable key for deduplication
+      ).catch((err) => {
+        logger.error('Failed to report invoice metered usage for invoice {invoiceId}, org {organizationId}: {error}', {
+          invoiceId: invoice.id,
           organizationId: invoice.organization_id,
-          tx,
-          critical: true,
+          error: err instanceof Error ? err.message : 'Unknown error',
         });
-      }
-
-      // 5. Handle Billing Transaction (Payout)
-      if (!routingInstruction.holdForApproval) {
-        const existingTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id, tx);
-        const payoutTx = existingTxs.find((t) => t.type === 'payout');
-
-        if (payoutTx) {
-          if (payoutTx.status !== 'completed') {
-            billingTxId = payoutTx.id;
-          }
-        } else {
-          // Create "pending" transaction
-          let charge_id: string | null = null;
-          if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
-            charge_id = stripeInvoice.charge;
-          }
-
-          const newTx = await billingTransactionsRepository.createTransaction({
-            organization_id: invoice.organization_id,
-            invoice_id: invoice.id,
-            matter_id: invoice.matter_id,
-            amount: stripeInvoice.amount_paid,
-            application_fee_amount: routingInstruction.applicationFeeAmount,
-            type: 'payout',
-            status: 'pending',
-            destination_account_id: destinationAccountId,
-            completed_at: stripeInvoice.status_transitions.paid_at
-              ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-              : null,
-            metadata: {
-              stripe_invoice_id: stripeInvoice.id,
-              stripe_charge_id: charge_id,
-              invoice_type: invoice.invoice_type,
-              fund_destination: routingInstruction.metadata.fund_destination,
-              application_fee_amount: routingInstruction.applicationFeeAmount,
-            },
-          }, tx);
-          billingTxId = newTx.id;
-        }
-      }
-    });
-
-    // --- PHASE 3: EXTERNAL API CALL (Stripe Transfer) ---
-
-    if (billingTxId && routingInstruction) {
-      const transfer = await stripe.transfers.create({
-        amount: stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount,
-        currency: 'usd',
-        destination: routingInstruction.destination,
-        metadata: {
-          ...routingInstruction.metadata,
-          payout_amount: (stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount).toString(),
-        },
       });
-
-      // --- PHASE 4: FINAL DB UPDATE ---
-
-      try {
-        await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
-          stripe_transfer_id: transfer.id,
-        });
-
-        // Record metered usage for payout fee
-        await meteredProductsService.reportMeteredUsage(
-          db,
-          invoice.organization_id,
-          METERED_TYPES.PAYOUT_FEE,
-          1,
-        );
-      } catch (dbError) {
-        // Transfer succeeded but DB update failed — record the transfer ID for manual reconciliation
-        logger.error('Stripe transfer {transferId} succeeded but DB update failed for billing tx {billingTxId}: {error}', {
-          transferId: transfer.id,
-          billingTxId,
-          error: dbError instanceof Error ? dbError.message : 'Unknown error',
-        });
-        await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'pending', {
-          stripe_transfer_id: transfer.id,
-          last_error: `DB update failed after successful transfer: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
-        });
-      }
     }
 
-    logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });
+    // Phase 3: External Transfer
+    if (billingTxId && routingInstruction) {
+      await handlePhase3StripeTransfer(invoice, stripeInvoice, routingInstruction, billingTxId);
+    }
+
+    logger.info('✅ Invoice {invoiceId} processed in webhook', { invoiceId: invoice.id });
     return result.ok(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

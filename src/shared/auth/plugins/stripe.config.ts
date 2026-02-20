@@ -482,6 +482,17 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 };
 
 /**
+ * Type guards for Stripe Params
+ */
+function isCheckoutSessionCreateParams(params: unknown): params is Stripe.Checkout.SessionCreateParams {
+  return typeof params === 'object' && params !== null && 'line_items' in params;
+}
+
+function isBillingPortalSessionCreateParams(params: unknown): params is Stripe.BillingPortal.SessionCreateParams {
+  return typeof params === 'object' && params !== null && 'flow_data' in params;
+}
+
+/**
  * Creates a proxied Stripe client that recursively wraps the SDK
  * and intercepts session creation to inject metered items.
  */
@@ -499,18 +510,36 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
           const needsInterception
             = currentPath === 'checkout.sessions.create'
             || currentPath === 'billingPortal.sessions.create';
+
           if (needsInterception) {
             return async (...args: unknown[]) => {
-              if (currentPath === 'checkout.sessions.create') {
-                const params = args[0] as Stripe.Checkout.SessionCreateParams | undefined;
-                await injectMeteredItems(params?.line_items);
-              } else if (currentPath === 'billingPortal.sessions.create') {
-                const params = args[0] as Stripe.BillingPortal.SessionCreateParams | undefined;
-                if (params?.flow_data?.type === 'subscription_update_confirm' && params.flow_data.subscription_update_confirm) {
-                  await injectMeteredItems(params.flow_data.subscription_update_confirm.items);
+              const currentArgs = [...args];
+              try {
+                if (currentPath === 'checkout.sessions.create') {
+                  const params = currentArgs[0];
+                  if (isCheckoutSessionCreateParams(params)) {
+                    params.line_items = await injectMeteredItems(params.line_items);
+                  }
+                } else if (currentPath === 'billingPortal.sessions.create') {
+                  const params = currentArgs[0];
+                  if (
+                    isBillingPortalSessionCreateParams(params)
+                    && params.flow_data?.type === 'subscription_update_confirm'
+                    && params.flow_data.subscription_update_confirm
+                  ) {
+                    params.flow_data.subscription_update_confirm.items = await injectMeteredItems(
+                      params.flow_data.subscription_update_confirm.items,
+                    );
+                  }
                 }
+              } catch (injectError) {
+                logger.error('[Stripe Proxy] Failed to inject metered items: {error}', {
+                  path: currentPath,
+                  error: injectError instanceof Error ? injectError.message : String(injectError),
+                });
+                // Continue with original args if injection fails to avoid blocking the user
               }
-              return (val as (...a: unknown[]) => unknown).apply(target, args);
+              return Reflect.apply(val, target, currentArgs);
             };
           }
           return val.bind(target);
@@ -529,32 +558,30 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
 
 /**
  * Injects metered price IDs from app_config into a list of Stripe items.
+ * returns a new array with metered items injected.
  */
-const injectMeteredItems = async (items: unknown[] | undefined): Promise<void> => {
-  if (!items) return;
+const injectMeteredItems = async <T extends { price?: string }>(
+  items: T[] | undefined,
+): Promise<T[]> => {
+  if (!items) return [];
 
-  try {
-    const meteredIds = await appConfigService.get<string[]>('metered_price_ids') || [];
-    if (meteredIds.length === 0) return;
+  const meteredIds = await appConfigService.get<string[]>('metered_price_ids') || [];
+  if (meteredIds.length === 0) return [...items];
 
-    // Use a loose check for 'price' property safely across different Stripe item types
-    const existing = new Set(items.map((i) => (i as Record<string, unknown>).price));
+  const existingPrices = new Set(items.map((i) => i.price).filter(Boolean));
+  const resultItems = [...items];
 
-    const newItemsToAdd: Array<{ price: string }> = [];
-    meteredIds.forEach((id) => {
-      if (!existing.has(id)) {
-        newItemsToAdd.push({ price: id });
-      }
-    });
-
-    if (newItemsToAdd.length > 0) {
-      const typedItems = items as Array<{ price: string }>;
-      typedItems.push(...newItemsToAdd);
-      logger.info('[Stripe Proxy] Bundled {count} metered prices into session', {
-        count: newItemsToAdd.length,
-      });
+  let addedCount = 0;
+  meteredIds.forEach((id) => {
+    if (!existingPrices.has(id)) {
+      resultItems.push({ price: id } as unknown as T);
+      addedCount++;
     }
-  } catch (err) {
-    logger.error('[Stripe Proxy] Injection error: {error}', { error: err });
+  });
+
+  if (addedCount > 0) {
+    logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
   }
+
+  return resultItems;
 };
