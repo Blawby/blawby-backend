@@ -122,12 +122,20 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
       prices.data
         .filter((price) => price.recurring?.usage_type === 'metered' && price.recurring?.meter)
         .map(async (price) => {
-          const meterId = price.recurring!.meter as string;
-          const meter = await stripe.billing.meters.retrieve(meterId);
-          const meterName = meter.event_name;
-          const type = getInternalTypeFromMeterName(meterName);
-          if (!type) return null;
-          return { price_id: price.id, meter_name: meterName, type };
+          try {
+            const meterId = price.recurring!.meter as string;
+            const meter = await stripe.billing.meters.retrieve(meterId);
+            const meterName = meter.event_name;
+            const type = getInternalTypeFromMeterName(meterName);
+            if (!type) return null;
+            return { price_id: price.id, meter_name: meterName, type };
+          } catch (err) {
+            logger.error('Failed to retrieve meter for price {priceId}: {error}', {
+              priceId: price.id,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+            return null;
+          }
         }),
     );
     const meteredItems = meteredItemsRaw.filter(

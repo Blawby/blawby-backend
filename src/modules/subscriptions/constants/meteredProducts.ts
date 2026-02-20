@@ -40,7 +40,7 @@ export const METERED_TYPES = {
   INVOICE_FEE: 'metered_invoice_fee',
   USER_SEAT: 'metered_users',
   PAYOUT_FEE: 'metered_payout_fee',
-  INTAKE_FEE: 'metered_intake_fee',
+  INTAKE_FEE: 'metered_intake_fee', // Referred to as PAYMENT_FEE in Stripe/Router context
 } as const;
 
 /**
