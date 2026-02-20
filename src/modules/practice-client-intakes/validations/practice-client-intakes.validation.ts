@@ -6,7 +6,6 @@ import { addressSchema } from '@/shared/validations/address';
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
   amount: z.number().int().min(0).max(99999999), // $0.00 to $999,999.99
-  bypass_payment: z.boolean().optional(),
   email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
