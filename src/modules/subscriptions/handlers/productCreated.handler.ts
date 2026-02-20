@@ -123,7 +123,11 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
         .filter((price) => price.recurring?.usage_type === 'metered' && price.recurring?.meter)
         .map(async (price) => {
           try {
-            const meterId = price.recurring!.meter as string;
+            const recurring = price.recurring;
+            if (!recurring || !recurring.meter) {
+              return null;
+            }
+            const meterId = recurring.meter;
             const meter = await stripe.billing.meters.retrieve(meterId);
             const meterName = meter.event_name;
             const type = getInternalTypeFromMeterName(meterName);
