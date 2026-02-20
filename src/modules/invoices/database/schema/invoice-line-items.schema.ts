@@ -8,7 +8,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { invoices } from './invoices.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matterExpenses } from '@/modules/matters/database/schema/matter-expenses.schema';
 import { matterTimeEntries } from '@/modules/matters/database/schema/matter-time-entries.schema';
 

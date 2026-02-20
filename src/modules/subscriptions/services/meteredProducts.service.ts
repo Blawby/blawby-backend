@@ -64,10 +64,10 @@ const reportMeteredUsage = async (
     // 3. Report usage to Stripe Billing Meters API
     const stripe = getStripeInstance();
 
-    // The Stripe Billing Meters API expects a timestamp for the event
-    // Using current time as default
-    await stripe.billing.meterEvents.create({
+    // Use Stripe v2 Billing Meters API for synchronous validation and deduplication
+    await stripe.v2.billing.meterEvents.create({
       event_name: eventName,
+      identifier: `${organizationId}-${meteredType}-${Date.now()}`,
       payload: {
         stripe_customer_id: org.stripeCustomerId,
         value: quantity.toString(),

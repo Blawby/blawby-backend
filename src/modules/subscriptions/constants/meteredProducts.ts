@@ -50,7 +50,7 @@ export const METERED_TYPE_TO_STRIPE_EVENT: Record<string, StripeMeterNames> = {
   [METERED_TYPES.INVOICE_FEE]: StripeMeterNames.INVOICE_FEE,
   [METERED_TYPES.USER_SEAT]: StripeMeterNames.ACTIVE_USER_COUNT,
   [METERED_TYPES.PAYOUT_FEE]: StripeMeterNames.PAYOUT_FEE,
-  [METERED_TYPES.INTAKE_FEE]: StripeMeterNames.PAYOUT_FEE,
+  [METERED_TYPES.INTAKE_FEE]: StripeMeterNames.PAYMENT_FEE,
 };
 
 /**

@@ -3,9 +3,9 @@ import { getLogger } from '@logtape/logtape';
 import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
-import { fetchStripePlans } from './fetchStripePlans';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import * as schema from '@/schema';
+import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
 import {
@@ -496,19 +496,24 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
         const currentPath = path ? `${path}.${propName}` : propName;
 
         if (typeof val === 'function') {
-          return async (...args: unknown[]) => {
-            // Path-based Interception
-            if (currentPath === 'checkout.sessions.create') {
-              const params = args[0] as Stripe.Checkout.SessionCreateParams | undefined;
-              await injectMeteredItems(params?.line_items);
-            } else if (currentPath === 'billingPortal.sessions.create') {
-              const params = args[0] as Stripe.BillingPortal.SessionCreateParams | undefined;
-              if (params?.flow_data?.type === 'subscription_update_confirm' && params.flow_data.subscription_update_confirm) {
-                await injectMeteredItems(params.flow_data.subscription_update_confirm.items);
+          const needsInterception
+            = currentPath === 'checkout.sessions.create'
+            || currentPath === 'billingPortal.sessions.create';
+          if (needsInterception) {
+            return async (...args: unknown[]) => {
+              if (currentPath === 'checkout.sessions.create') {
+                const params = args[0] as Stripe.Checkout.SessionCreateParams | undefined;
+                await injectMeteredItems(params?.line_items);
+              } else if (currentPath === 'billingPortal.sessions.create') {
+                const params = args[0] as Stripe.BillingPortal.SessionCreateParams | undefined;
+                if (params?.flow_data?.type === 'subscription_update_confirm' && params.flow_data.subscription_update_confirm) {
+                  await injectMeteredItems(params.flow_data.subscription_update_confirm.items);
+                }
               }
-            }
-            return (val as (...a: unknown[]) => unknown).apply(target, args);
-          };
+              return (val as (...a: unknown[]) => unknown).apply(target, args);
+            };
+          }
+          return val.bind(target);
         }
 
         if (typeof val === 'object' && !Array.isArray(val)) {
@@ -525,7 +530,7 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
 /**
  * Injects metered price IDs from app_config into a list of Stripe items.
  */
-async function injectMeteredItems(items: unknown[] | undefined): Promise<void> {
+const injectMeteredItems = async (items: unknown[] | undefined): Promise<void> => {
   if (!items) return;
 
   try {
@@ -552,4 +557,4 @@ async function injectMeteredItems(items: unknown[] | undefined): Promise<void> {
   } catch (err) {
     logger.error('[Stripe Proxy] Injection error: {error}', { error: err });
   }
-}
+};

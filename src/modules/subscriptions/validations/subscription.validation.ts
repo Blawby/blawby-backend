@@ -97,7 +97,7 @@ const subscriptionPlanResponseSchema = z.object({
 const subscriptionResponseSchema = z.object({
   id: z.string(),
   plan: z.string(),
-  reference_id: z.string().nullable(),
+  reference_id: z.uuid().nullable(),
   stripe_customer_id: z.string().nullable(),
   stripe_subscription_id: z.string().nullable(),
   status: z.string(),
