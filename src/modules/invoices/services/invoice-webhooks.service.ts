@@ -322,7 +322,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
     }
 
     // Phase 3: External Transfer
-    if (billingTxId && routingInstruction) {
+    if (billingTxId) {
       const phase3 = await handlePhase3StripeTransfer(invoice, stripeInvoice, routingInstruction, billingTxId);
       if (!phase3.success) return phase3;
     }
@@ -458,9 +458,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
 /**
  * Helper to narrow an object with a specific string property
  */
-function hasStringProp<T extends string>(obj: unknown, key: T): obj is Record<T, string> {
-  return !!obj && typeof obj === 'object' && key in obj && typeof (obj as Record<string, unknown>)[key] === 'string';
-}
+const hasStringProp = <T extends string>(obj: unknown, key: T): obj is Record<T, string> => !!obj && typeof obj === 'object' && key in obj && typeof (obj as Record<string, unknown>)[key] === 'string';
 
 /**
  * Type guard for Stripe Invoice

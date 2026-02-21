@@ -16,6 +16,8 @@ import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['shared', 'auth', 'plugins', 'stripe']);
 
+const METERED_PRICE_IDS_KEY = 'metered_price_ids';
+
 /**
  * SHARED HELPER: Synchronize subscription state to local DB.
  * Used by both webhook (created) and checkout (complete) events.
@@ -497,7 +499,7 @@ const isBillingPortalSessionCreateParams = (params: unknown): params is Stripe.B
  * and intercepts session creation to inject metered items.
  */
 const createProxiedStripeClient = (stripe: Stripe): Stripe => {
-  const wrap = (obj: Record<string, unknown>, path: string): unknown => {
+  const wrap = (obj: object, path: string): unknown => {
     return new Proxy(obj, {
       get(target, prop, receiver) {
         const val = Reflect.get(target, prop, receiver);
@@ -530,12 +532,29 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                     && params.flow_data?.type === 'subscription_update_confirm'
                     && params.flow_data.subscription_update_confirm
                   ) {
-                    const injected = await injectMeteredItems(
-                      params.flow_data.subscription_update_confirm.items,
-                    );
-                    if (injected !== undefined) {
-                      params.flow_data.subscription_update_confirm.items = injected as
-                        Stripe.BillingPortal.SessionCreateParams.FlowData.SubscriptionUpdateConfirm.Item[];
+                    // To inject items here, we must have existing subscription item IDs.
+                    // We look them up from the subscription being updated.
+                    const flow = params.flow_data.subscription_update_confirm;
+                    const items = flow.items || [];
+                    const subscriptionId = params.flow_data.subscription_update_confirm.subscription;
+
+                    if (subscriptionId) {
+                      const stripeClient = getStripeInstance();
+                      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+                      const meteredIds = await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY) ?? [];
+
+                      const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
+
+                      const injectedItems = meteredIds
+                        .filter((id) => existingMap.has(id))
+                        .map((id) => ({ id: existingMap.get(id)! }));
+
+                      if (injectedItems.length > 0) {
+                        flow.items = [...items, ...injectedItems];
+                        logger.info('[Stripe Proxy] Bundled {count} metered items into portal session', {
+                          count: injectedItems.length,
+                        });
+                      }
                     }
                   }
                 }
@@ -544,7 +563,7 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                   path: currentPath,
                   error: injectError instanceof Error ? injectError.message : String(injectError),
                 });
-                // Continue with original args if injection fails to avoid blocking the user
+                throw injectError; // Rethrow to avoid silent partial sessions
               }
               return Reflect.apply(val, target, currentArgs);
             };
@@ -553,14 +572,14 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
         }
 
         if (typeof val === 'object' && !Array.isArray(val)) {
-          return wrap(val as Record<string, unknown>, currentPath);
+          return wrap(val as object, currentPath);
         }
 
         return val;
       },
     });
   };
-  return wrap(stripe as unknown as Record<string, unknown>, '') as Stripe;
+  return wrap(stripe, '') as Stripe;
 };
 
 /**
@@ -570,7 +589,7 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
 const injectMeteredItems = async <T extends { price?: string }>(
   items: T[] | undefined,
 ): Promise<(T | { price: string })[] | undefined> => {
-  const meteredIds = await appConfigService.get<string[]>('metered_price_ids') ?? [];
+  const meteredIds = await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY) ?? [];
   if (meteredIds.length === 0) return undefined;
 
   const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
