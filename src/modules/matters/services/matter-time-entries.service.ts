@@ -157,10 +157,10 @@ const updateMatterTimeEntry = async (
 
     const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
     const changedFields = [];
-    if (data.start_time && entry.start_time.toISOString() !== startTime.toISOString()) {
+    if (data.start_time && entry.start_time.getTime() !== startTime.getTime()) {
       changedFields.push('start_time');
     }
-    if (data.end_time && entry.end_time.toISOString() !== endTime.toISOString()) {
+    if (data.end_time && entry.end_time.getTime() !== endTime.getTime()) {
       changedFields.push('end_time');
     }
     if (data.description !== undefined && data.description !== entry.description) {
