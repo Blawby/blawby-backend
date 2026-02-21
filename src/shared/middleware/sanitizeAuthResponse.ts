@@ -112,7 +112,7 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
 
           // Apply cleaned headers to new response
           headers.forEach((value, key) => {
-            newResponse.headers.set(key, value);
+            newResponse.headers.append(key, value);
           });
 
           c.res = newResponse;
