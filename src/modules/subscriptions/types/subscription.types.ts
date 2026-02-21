@@ -49,10 +49,10 @@ export type UpgradeSubscriptionBody = {
 };
 
 export type CancelSubscriptionBody = {
-  subscription_id: string;
-  reference_id?: string;
-  customer_type?: 'organization';
-  return_url?: string;
+  subscriptionId?: string;
+  referenceId?: string;
+  customerType?: 'organization';
+  returnUrl?: string; // Better Auth expects camelCase
   immediately?: boolean;
 };
 
@@ -105,7 +105,7 @@ export type SubscriptionAPI = {
   cancelSubscription: (args: {
     body: CancelSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<BetterAuthSubscription>;
+  }) => Promise<{ url: string; redirect: boolean }>;
   restoreSubscription?: (args: {
     body: RestoreSubscriptionBody;
     headers: Record<string, string>;
@@ -211,6 +211,6 @@ export type CreateSubscriptionResponse = {
 };
 
 export type CancelSubscriptionResponse = {
-  subscription: SubscriptionResponse;
-  message: string;
+  url: string;
+  redirect: boolean;
 };
