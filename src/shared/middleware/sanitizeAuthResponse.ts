@@ -176,11 +176,16 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
 
           // Apply cleaned headers to new response
           headers.forEach((value, key) => {
-            // Use set() for standard headers to avoid duplicates
-            // Set-Cookie is already handled via append/getSetCookie logic above
-            // but we skip it here to avoid combined string issues
-            if (key.toLowerCase() !== 'set-cookie') {
+            const isCookie = key.toLowerCase() === 'set-cookie';
+            // @ts-ignore - getSetCookie is available in modern environments
+            const hasGetSetCookie = typeof headers.getSetCookie === 'function';
+
+            if (!isCookie) {
+              // Use set() for standard headers to avoid duplicates
               newResponse.headers.set(key, value);
+            } else if (!hasGetSetCookie) {
+              // Fallback for older runtimes: append the (possibly combined) cookie string
+              newResponse.headers.append(key, value);
             }
           });
 
