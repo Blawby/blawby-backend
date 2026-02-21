@@ -1,19 +1,24 @@
 import {
   eq, and, isNull, sql, desc,
 } from 'drizzle-orm';
+import type {
+  InvoiceWithRelations,
+  InvoiceListFilters,
+} from '@/modules/invoices/types/invoices.types';
 import {
-  invoiceLineItems,
-  type InsertInvoiceLineItem,
-  type SelectInvoiceLineItem,
-} from '@/modules/invoices/database/schema/invoice-line-items.schema';
-import {
-  invoices,
-  type InsertInvoice,
-  type SelectInvoice,
-} from '@/modules/invoices/database/schema/invoices.schema';
-import type { InvoiceListFilters } from '@/modules/invoices/types/invoice-filters.types';
-import { type InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+  invoicesSchema,
+  invoiceLineItemsSchema,
+} from '@/modules/invoices/database/schema';
+import type {
+  InsertInvoice,
+  SelectInvoice,
+  InsertInvoiceLineItem,
+  SelectInvoiceLineItem,
+} from '@/modules/invoices/database/schema';
 import { db } from '@/shared/database';
+
+const { invoices } = invoicesSchema;
+const { invoiceLineItems } = invoiceLineItemsSchema;
 
 /**
  * Create a new invoice
@@ -100,14 +105,14 @@ const listInvoicesByOrganization = async (
     isNull(invoices.deleted_at),
   ];
 
-  if (filters?.invoiceId) {
-    conditions.push(eq(invoices.id, filters.invoiceId));
+  if (filters?.invoice_id) {
+    conditions.push(eq(invoices.id, filters.invoice_id));
   }
-  if (filters?.clientId) {
-    conditions.push(eq(invoices.client_id, filters.clientId));
+  if (filters?.client_id) {
+    conditions.push(eq(invoices.client_id, filters.client_id));
   }
-  if (filters?.matterId) {
-    conditions.push(eq(invoices.matter_id, filters.matterId));
+  if (filters?.matter_id) {
+    conditions.push(eq(invoices.matter_id, filters.matter_id));
   }
   if (filters?.status) {
     conditions.push(eq(invoices.status, filters.status));
@@ -206,6 +211,9 @@ const deleteInvoiceLineItems = async (
     .where(eq(invoiceLineItems.invoice_id, invoiceId));
 };
 
+/**
+ * Invoices Repository
+ */
 export const invoicesRepository = {
   createInvoice,
   findInvoiceById,
@@ -215,4 +223,4 @@ export const invoicesRepository = {
   softDeleteInvoice,
   createInvoiceLineItems,
   deleteInvoiceLineItems,
-};
+} as const;
