@@ -991,11 +991,9 @@ const convertIntakeToMatter = async (
           matter_id: existingMatter.id,
           matter: {
             ...existingMatterWithRelations,
-            created_at: existingMatterWithRelations.created_at.toISOString(),
-            updated_at: existingMatterWithRelations.updated_at.toISOString(),
-            deleted_at: existingMatterWithRelations.deleted_at?.toISOString() ?? null,
-            open_date: existingMatterWithRelations.open_date?.toISOString() ?? null,
-            close_date: existingMatterWithRelations.close_date?.toISOString() ?? null,
+            deleted_at: existingMatterWithRelations.deleted_at ?? null,
+            open_date: existingMatterWithRelations.open_date ?? null,
+            close_date: existingMatterWithRelations.close_date ?? null,
           } as MatterResponse,
         });
       }
@@ -1091,11 +1089,9 @@ const convertIntakeToMatter = async (
       matter_id: matterId,
       matter: {
         ...matter,
-        created_at: matter.created_at.toISOString(),
-        updated_at: matter.updated_at.toISOString(),
-        deleted_at: matter.deleted_at?.toISOString() ?? null,
-        open_date: matter.open_date?.toISOString() ?? null,
-        close_date: matter.close_date?.toISOString() ?? null,
+        deleted_at: matter.deleted_at ?? null,
+        open_date: matter.open_date ?? null,
+        close_date: matter.close_date ?? null,
       } as MatterResponse,
     });
   } catch (error) {

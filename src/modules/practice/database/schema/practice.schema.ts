@@ -31,8 +31,8 @@ export const practiceDetails = pgTable('practice_details', {
   accent_color: text('accent_color'),
   is_public: boolean('is_public').default(false).notNull(),
   billing_increment_minutes: integer('billing_increment_minutes').default(1).notNull(),
-  created_at: timestamp('created_at').defaultNow().notNull(),
-  updated_at: timestamp('updated_at').defaultNow().notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   supported_states: jsonb('supported_states').$type<PracticeDetailsSupportedStates[]>(),
 });
 
@@ -45,8 +45,8 @@ export const practiceServices = pgTable('practice_services', {
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
   description: text('description'),
-  created_at: timestamp('created_at').defaultNow().notNull(),
-  updated_at: timestamp('updated_at').defaultNow().notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('practice_services_org_key_idx').on(table.organization_id, table.key),
   index('practice_services_key_idx').on(table.key),

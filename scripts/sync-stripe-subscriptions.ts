@@ -5,6 +5,7 @@ import { organizations, subscriptions } from '../src/schema/better-auth-schema';
 import { db } from '../src/shared/database';
 import { stripe } from '../src/shared/utils/stripe-client';
 import { subscriptionRepository } from '../src/modules/subscriptions/database/queries/subscription.repository';
+import { fromStripeTimestamp } from '../src/shared/utils/timestamps';
 import type { Stripe } from 'stripe';
 
 // Logger wrapper
@@ -35,8 +36,8 @@ function extractPeriodDates(stripeSub: Stripe.Subscription) {
   const end = sub.current_period_end;
 
   return {
-    periodStart: typeof start === 'number' ? new Date(start * 1000) : null,
-    periodEnd: typeof end === 'number' ? new Date(end * 1000) : null,
+    periodStart: typeof start === 'number' ? fromStripeTimestamp(start) : null,
+    periodEnd: typeof end === 'number' ? fromStripeTimestamp(end) : null,
   };
 }
 

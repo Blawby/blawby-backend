@@ -112,7 +112,7 @@ export function registerPracticeListeners(): void {
         invoiceNumber: payment.invoiceNumber,
         amountPaid: payment.amount,
         amountDue: payment.amount,
-        paidAt: new Date(payload.succeeded_at).toLocaleDateString(),
+        paidAt: payload.succeeded_at,
         lineItems: items,
         paymentMethod: payment.method,
         supportEmail: business.supportEmail,
