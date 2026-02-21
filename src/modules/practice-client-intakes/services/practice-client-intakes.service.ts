@@ -83,7 +83,7 @@ const formatIntakeResponse = (
     status: intake.status,
     triage_status: normalizeTriageStatus(intake.triage_status),
     triage_reason: intake.triage_reason ?? null,
-    triage_decided_at: intake.triage_decided_at?.toISOString() ?? null,
+    triage_decided_at: intake.triage_decided_at ?? null,
     address_id: isAuthorized ? intake.address_id ?? undefined : undefined,
     conversation_id: isAuthorized ? intake.conversation_id ?? null : null,
     stripe_charge_id: intake.stripe_charge_id ?? null,
@@ -97,13 +97,13 @@ const formatIntakeResponse = (
         description: metadata.description ?? undefined,
       }
       : { email: '', name: '' },
-    succeeded_at: intake.succeeded_at?.toISOString() ?? null,
-    created_at: intake.created_at.toISOString(),
+    succeeded_at: intake.succeeded_at ?? null,
+    created_at: intake.created_at,
     urgency: (intake.urgency === 'routine' || intake.urgency === 'time_sensitive' || intake.urgency === 'emergency'
       ? intake.urgency as 'routine' | 'time_sensitive' | 'emergency'
       : null),
     desired_outcome: intake.desired_outcome ?? null,
-    court_date: intake.court_date?.toISOString() ?? null,
+    court_date: intake.court_date ?? null,
     has_documents: intake.has_documents ?? null,
     income: intake.income ?? null,
     household_size: intake.household_size ?? null,
@@ -379,7 +379,7 @@ const createPracticeClientIntake = async (
       currency: 'usd',
       client_email: request.email,
       client_name: request.name,
-      created_at: new Date().toISOString(),
+      created_at: new Date(),
     }, {
       actorId: 'organization',
       organizationId: organization.id,
@@ -399,7 +399,7 @@ const createPracticeClientIntake = async (
         },
         urgency: request.urgency,
         desired_outcome: request.desired_outcome,
-        court_date: request.court_date,
+        court_date: request.court_date ? new Date(request.court_date) : undefined,
         has_documents: request.has_documents,
         income: request.income,
         household_size: request.household_size,
@@ -884,6 +884,8 @@ const listIntakes = async (
     const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
       organizationId,
       ...query,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
       intakeId: query.intake_id,
     });
 
@@ -917,7 +919,7 @@ const updateIntakeTriageStatus = async (
     uuid: string;
     triage_status: 'pending_review' | 'accepted' | 'declined';
     triage_reason: string | null;
-    triage_decided_at: string | null;
+    triage_decided_at: Date | null;
   };
 }>> => {
   try {
@@ -945,7 +947,7 @@ const updateIntakeTriageStatus = async (
         uuid: updatedIntake.id,
         triage_status: normalizeTriageStatus(updatedIntake.triage_status),
         triage_reason: updatedIntake.triage_reason ?? null,
-        triage_decided_at: updatedIntake.triage_decided_at?.toISOString() ?? null,
+        triage_decided_at: updatedIntake.triage_decided_at ?? null,
       },
     });
   } catch (error) {
