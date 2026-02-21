@@ -377,7 +377,7 @@ const createPracticeClientIntake = async (
       currency: 'usd',
       client_email: request.email,
       client_name: request.name,
-      created_at: new Date().toISOString(),
+      created_at: new Date(),
     }, {
       actorId: 'organization',
       organizationId: organization.id,
@@ -880,6 +880,8 @@ const listIntakes = async (
     const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
       organizationId,
       ...query,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
       intakeId: query.intake_id,
     });
 
@@ -913,7 +915,7 @@ const updateIntakeTriageStatus = async (
     uuid: string;
     triage_status: 'pending_review' | 'accepted' | 'declined';
     triage_reason: string | null;
-    triage_decided_at: string | null;
+    triage_decided_at: Date | null;
   };
 }>> => {
   try {
@@ -941,7 +943,7 @@ const updateIntakeTriageStatus = async (
         uuid: updatedIntake.id,
         triage_status: normalizeTriageStatus(updatedIntake.triage_status),
         triage_reason: updatedIntake.triage_reason ?? null,
-        triage_decided_at: updatedIntake.triage_decided_at?.toISOString() ?? null,
+        triage_decided_at: updatedIntake.triage_decided_at ?? null,
       },
     });
   } catch (error) {
