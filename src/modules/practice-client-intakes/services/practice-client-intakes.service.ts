@@ -29,6 +29,7 @@ import type {
   CreateCheckoutSessionResponse as PracticeClientIntakeCheckoutSessionResponse,
   IntakePostPayStatusResponse as PracticeClientIntakePostPayStatusResponse,
   ClaimPracticeClientIntakeResponse,
+  TriageStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
@@ -46,8 +47,6 @@ import { stripe } from '@/shared/utils/stripe-client';
 const { practiceClientIntakes, practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
 
 const logger = getLogger(['practice-client-intakes', 'service']);
-
-type TriageStatus = 'pending_review' | 'accepted' | 'declined';
 
 const normalizeTriageStatus = (value: string | null | undefined): TriageStatus => {
   if (value === 'accepted' || value === 'declined') {
@@ -109,21 +108,6 @@ const formatIntakeResponse = (
     household_size: intake.household_size ?? null,
     case_strength: intake.case_strength ?? null,
   };
-};
-
-const formatMatterResponse = (
-  matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>,
-): MatterResponse => {
-  return {
-    ...matter,
-    assignees: matter.assignees?.map((assignee: { user: MatterResponse['assignees'] extends (infer U)[] ? U : never }) => assignee.user),
-    milestones: matter.milestones,
-    created_at: matter.created_at.toISOString(),
-    updated_at: matter.updated_at.toISOString(),
-    open_date: matter.open_date?.toISOString() ?? null,
-    close_date: matter.close_date?.toISOString() ?? null,
-    deleted_at: matter.deleted_at?.toISOString() ?? null,
-  } as MatterResponse;
 };
 
 // result utilities are accessed via result object (Standard #6)
@@ -1005,7 +989,7 @@ const convertIntakeToMatter = async (
         }
         return result.ok({
           matter_id: existingMatter.id,
-          matter: formatMatterResponse(existingMatterWithRelations),
+          matter: existingMatterWithRelations,
         });
       }
       return result.conflict('Intake is marked as converted but no associated matter was found');
@@ -1096,7 +1080,7 @@ const convertIntakeToMatter = async (
       return result.internalError('Matter was created but could not be loaded');
     }
 
-    return result.ok({ matter_id: matterId, matter: formatMatterResponse(matter) });
+    return result.ok({ matter_id: matterId, matter });
   } catch (error) {
     logger.error('Failed to convert intake {uuid} to matter: {error}', {
       uuid,

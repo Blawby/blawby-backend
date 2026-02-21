@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
+export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
+
 // Inferred from Zod schemas
 export type CreatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.createPracticeClientIntakeSchema>;
 export type UpdatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>;
