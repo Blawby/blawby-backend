@@ -335,7 +335,7 @@ const createPracticeClientIntake = async (
         id: intakeId,
         organization_id: organization.id,
         connected_account_id: connectedAccount?.id,
-        stripe_payment_link_id: stripePaymentLink?.id,
+        stripe_payment_link_id: stripePaymentLink?.id ?? null,
         address_id: addressId,
         conversation_id: request.conversation_id,
         amount: request.amount,
@@ -989,7 +989,14 @@ const convertIntakeToMatter = async (
         }
         return result.ok({
           matter_id: existingMatter.id,
-          matter: existingMatterWithRelations,
+          matter: {
+            ...existingMatterWithRelations,
+            created_at: existingMatterWithRelations.created_at.toISOString(),
+            updated_at: existingMatterWithRelations.updated_at.toISOString(),
+            deleted_at: existingMatterWithRelations.deleted_at?.toISOString() ?? null,
+            open_date: existingMatterWithRelations.open_date?.toISOString() ?? null,
+            close_date: existingMatterWithRelations.close_date?.toISOString() ?? null,
+          } as MatterResponse,
         });
       }
       return result.conflict('Intake is marked as converted but no associated matter was found');
@@ -1080,7 +1087,17 @@ const convertIntakeToMatter = async (
       return result.internalError('Matter was created but could not be loaded');
     }
 
-    return result.ok({ matter_id: matterId, matter });
+    return result.ok({
+      matter_id: matterId,
+      matter: {
+        ...matter,
+        created_at: matter.created_at.toISOString(),
+        updated_at: matter.updated_at.toISOString(),
+        deleted_at: matter.deleted_at?.toISOString() ?? null,
+        open_date: matter.open_date?.toISOString() ?? null,
+        close_date: matter.close_date?.toISOString() ?? null,
+      } as MatterResponse,
+    });
   } catch (error) {
     logger.error('Failed to convert intake {uuid} to matter: {error}', {
       uuid,
