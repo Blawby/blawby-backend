@@ -171,7 +171,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
   user: {
     additionalFields: {
       primaryWorkspace: {
-        type: ['client', 'practice'],
+        type: ['public', 'client', 'practice'],
         required: false,
       },
       phone: {
