@@ -28,6 +28,7 @@ const buildIntakeConditions = ({
   to?: string;
   intakeId?: string;
 }) => {
+  const triageStatuses = ['pending_review', 'accepted', 'declined'];
   const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
 
   if (intakeId) {
@@ -35,7 +36,11 @@ const buildIntakeConditions = ({
   }
 
   if (status) {
-    conditions.push(eq(practiceClientIntakes.status, status));
+    if (triageStatuses.includes(status)) {
+      conditions.push(eq(practiceClientIntakes.triage_status, status));
+    } else {
+      conditions.push(eq(practiceClientIntakes.status, status));
+    }
   }
 
   if (search) {
@@ -243,4 +248,3 @@ export const practiceClientIntakesRepository = {
   findByOrganizationId,
   getStats,
 };
-
