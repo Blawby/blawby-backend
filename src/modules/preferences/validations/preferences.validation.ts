@@ -91,7 +91,7 @@ const accountPreferencesSchema = z.object({
 });
 
 const onboardingPreferencesSchema = z.object({
-  birthday: z.string().optional(), // ISO date string
+  birthday: z.iso.date().optional(),
   primary_use_case: z.enum(PRODUCT_USAGE_OPTIONS).optional(),
   use_case_additional_info: z.string().optional(),
   completed: z.boolean().optional(),

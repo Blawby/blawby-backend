@@ -129,6 +129,7 @@ const createMatter = async (
 
     return result.ok({
       ...matter,
+      deleted_at: matter.deleted_at ?? null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -175,6 +176,7 @@ const getMatterById = async (
     return result.ok({
       ...matter,
       assignees: matter.assignees.map((a) => a.user),
+      deleted_at: matter.deleted_at ?? null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -220,6 +222,7 @@ const listMatters = async (
     return result.ok({
       matters: listResult.matters.map((m) => ({
         ...m,
+        deleted_at: m.deleted_at ?? null,
       })) as MatterResponse[],
       total: listResult.total,
     });
