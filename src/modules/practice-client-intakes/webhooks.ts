@@ -10,6 +10,8 @@ import {
   practiceClientIntakes,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
+import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
 import {
   IntakePaymentSucceeded,
@@ -18,6 +20,7 @@ import {
 } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import { sanitizeError } from '@/shared/utils/logging';
+import { calculateActualApplicationFee, resolveBalanceTransactionFee } from '@/shared/utils/stripe-fees';
 
 const logger = getLogger(['practice-client-intakes', 'webhooks']);
 
@@ -103,6 +106,21 @@ export const handlePracticeClientIntakeSucceeded = async ({
         : paymentIntent.latest_charge.id
       : undefined;
 
+    let applicationFee: number | undefined;
+    if (stripeChargeId) {
+      try {
+        const stripeFee = await resolveBalanceTransactionFee(stripeChargeId);
+        if (stripeFee !== null) {
+          applicationFee = calculateActualApplicationFee(stripeFee);
+        }
+      } catch (error) {
+        logger.warn('Failed to resolve application fee', {
+          error: sanitizeError(error),
+          chargeId: stripeChargeId,
+        });
+      }
+    }
+
     await db.transaction(async (tx) => {
       const updateResult = await tx
         .update(practiceClientIntakes)
@@ -112,6 +130,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
           stripe_charge_id: stripeChargeId,
           succeeded_at: new Date(),
           updated_at: new Date(),
+          ...(applicationFee !== undefined ? { application_fee: applicationFee } : {}),
         })
         .where(
           and(
@@ -133,6 +152,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
           client_name: practiceClientIntake.metadata?.name as string | undefined,
           user_id: practiceClientIntake.metadata?.user_id as string | undefined,
           stripe_charge_id: stripeChargeId,
+          application_fee: applicationFee,
           succeeded_at: new Date().toISOString(),
         }, {
           actorId: WEBHOOK_ACTOR_UUID,
@@ -140,6 +160,18 @@ export const handlePracticeClientIntakeSucceeded = async ({
           organizationId: practiceClientIntake.organization_id,
           tx,
         });
+
+        // Report metered usage for the application fee
+        const feeToReport = applicationFee ?? practiceClientIntake.application_fee;
+        if (feeToReport && feeToReport > 0) {
+          void meteredProductsService.reportMeteredUsage(
+            db,
+            practiceClientIntake.organization_id,
+            METERED_TYPES.INTAKE_FEE,
+            feeToReport,
+            practiceClientIntake.id,
+          );
+        }
       }
     });
 
