@@ -134,7 +134,7 @@ export const createPracticeClientIntakeRoute = createRoute({
   path: '/create',
   tags: ['Practice Client Intakes'],
   summary: 'Create practice client intake',
-  description: "Creates a Stripe Payment Link for a practice client intake. The client is redirected to the returned `payment_link_url` to complete payment on Stripe's hosted payment page. All endpoints are public (no authentication required). Can include optional fields for case triage such as urgency, desired outcome, court date, etc.",
+  description: 'Creates a practice client intake. Payment flow is determined by organization settings: if payment is required, a Stripe Payment Link is created and returned; otherwise the intake is created directly as succeeded with no Stripe redirect.',
   request: {
     body: {
       content: {
@@ -151,7 +151,7 @@ export const createPracticeClientIntakeRoute = createRoute({
           schema: intakeValidations.createPracticeClientIntakeResponseSchema,
         },
       },
-      description: 'Practice client intake created successfully. Returns the intake UUID, Stripe Payment Link URL (for client redirect), payment amount, currency, status, and organization branding. The `payment_link_url` should be used to redirect the client to Stripe\'s hosted payment page.',
+      description: 'Practice client intake created successfully. Returns intake UUID, amount, currency, status, and organization branding. `payment_link_url` is present when Stripe checkout is required; otherwise it may be null.',
     },
     400: {
       content: {
@@ -237,7 +237,7 @@ export const getPracticeClientIntakeStatusRoute = createRoute({
   path: '/{uuid}/status',
   tags: ['Practice Client Intakes'],
   summary: 'Get practice client intake status',
-  description: 'Retrieves the current status of a practice client intake payment, including payment details, client metadata, and timestamps. The UUID is obtained from the create endpoint response. Status values: `open` (awaiting payment), `completed`/`succeeded` (payment successful), `expired` (Payment Link expired), `canceled` (payment canceled), `failed` (payment failed). Used by frontend to poll for payment completion after redirecting client to Stripe\'s hosted payment page.',
+  description: 'Retrieves the current status of a practice client intake, including payment details, client metadata, triage fields, and timestamps. The UUID is obtained from the create endpoint response. Status values: `open` (awaiting payment), `succeeded` (payment complete or direct success), `expired`, `canceled`, `failed`, `converted`.',
   request: {
     params: uuidParamOpenAPISchema,
   },
@@ -470,11 +470,75 @@ export const listIntakesRoute = createRoute({
 });
 
 /**
- * POST /api/practice/client-intakes/{uuid}/convert
+ * PATCH /api/practice/client-intakes/{uuid}/status
+ * Updates intake triage status independently from payment/conversion status
+ */
+export const updateIntakeTriageStatusRoute = createRoute({
+  method: 'patch',
+  path: '/{uuid}/status',
+  tags: ['Practice Client Intakes'],
+  summary: 'Update intake triage status',
+  description: 'Sets practice triage decision for an intake (`accepted` or `declined`) without converting it to a matter. Declined intakes can include a reason for audit purposes.',
+  request: {
+    params: uuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.updateIntakeTriageStatusSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.updateIntakeTriageStatusResponseSchema,
+        },
+      },
+      description: 'Triage status updated successfully.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - invalid status payload',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized - authentication required',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Intake not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+/**
+ * PATCH /api/practice/client-intakes/{uuid}/convert
  * Converts a successful intake to a Matter
  */
 export const convertIntakeRoute = createRoute({
-  method: 'post',
+  method: 'patch',
   path: '/{uuid}/convert',
   tags: ['Practice Client Intakes'],
   summary: 'Convert intake to matter',

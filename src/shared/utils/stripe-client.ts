@@ -4,7 +4,7 @@
  * Provides a lazily-initialized Stripe client instance
  */
 
-import Stripe from 'stripe';
+import { Stripe } from 'stripe';
 
 // Lazy initialization of Stripe client
 let _stripeInstance: Stripe | null = null;

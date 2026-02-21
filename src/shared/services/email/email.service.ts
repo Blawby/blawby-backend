@@ -56,7 +56,7 @@ const saveEmailToFile = (to: string, subject: string, html: string) => {
       <div style="background: #f4f4f4; padding: 10px; border-bottom: 1px solid #ddd; font-family: sans-serif;">
         <strong>To:</strong> ${to}<br>
         <strong>Subject:</strong> ${subject}<br>
-        <strong>Time:</strong> ${new Date().toLocaleString()}
+        <strong>Time:</strong> ${new Date().toISOString()}
       </div>
       ${html}
     `;
