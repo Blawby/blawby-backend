@@ -991,8 +991,6 @@ const convertIntakeToMatter = async (
           matter_id: existingMatter.id,
           matter: {
             ...existingMatterWithRelations,
-            created_at: existingMatterWithRelations.created_at,
-            updated_at: existingMatterWithRelations.updated_at,
             deleted_at: existingMatterWithRelations.deleted_at ?? null,
             open_date: existingMatterWithRelations.open_date ?? null,
             close_date: existingMatterWithRelations.close_date ?? null,
@@ -1091,8 +1089,6 @@ const convertIntakeToMatter = async (
       matter_id: matterId,
       matter: {
         ...matter,
-        created_at: matter.created_at,
-        updated_at: matter.updated_at,
         deleted_at: matter.deleted_at ?? null,
         open_date: matter.open_date ?? null,
         close_date: matter.close_date ?? null,

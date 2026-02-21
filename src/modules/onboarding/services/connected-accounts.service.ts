@@ -303,7 +303,7 @@ export const connectedAccountsService = {
         },
         requirements: account.requirements,
         future_requirements: account.futureRequirements,
-        onboarding_completed_at: account.onboarding_completed_at || null,
+        onboarding_completed_at: account.onboarding_completed_at ?? null,
       });
     } catch (error) {
       logger.error('Failed to retrieve connected account status for {organizationId}: {error}', {

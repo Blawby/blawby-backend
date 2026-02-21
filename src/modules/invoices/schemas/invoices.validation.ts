@@ -19,7 +19,7 @@ const createInvoiceSchema = z.object({
   connected_account_id: uuidValidator,
   invoice_number: z.string().min(1, 'Invoice number is required').max(50),
   invoice_type: z.enum(['flat_fee', 'phase_fee', 'retainer_deposit']).default('flat_fee'),
-  due_date: z.iso.datetime().optional(),
+  due_date: z.iso.datetime({ offset: true }).optional(),
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required'),
@@ -27,7 +27,7 @@ const createInvoiceSchema = z.object({
 
 // Update invoice schema (only for draft invoices)
 const updateInvoiceSchema = z.object({
-  due_date: z.iso.datetime().optional(),
+  due_date: z.iso.datetime({ offset: true }).optional(),
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).optional(),
