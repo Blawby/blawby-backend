@@ -129,8 +129,8 @@ const createMatter = async (
 
     return result.ok({
       ...matter,
-      created_at: matter.created_at.toISOString(),
-      updated_at: matter.updated_at.toISOString(),
+      created_at: matter.created_at,
+      updated_at: matter.updated_at,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -177,9 +177,6 @@ const getMatterById = async (
     return result.ok({
       ...matter,
       assignees: matter.assignees.map((a) => a.user),
-      created_at: matter.created_at.toISOString(),
-      updated_at: matter.updated_at.toISOString(),
-      deleted_at: matter.deleted_at?.toISOString(),
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -225,9 +222,6 @@ const listMatters = async (
     return result.ok({
       matters: listResult.matters.map((m) => ({
         ...m,
-        created_at: m.created_at.toISOString(),
-        updated_at: m.updated_at.toISOString(),
-        deleted_at: m.deleted_at?.toISOString(),
       })) as MatterResponse[],
       total: listResult.total,
     });
@@ -384,9 +378,9 @@ const updateMatter = async (
 
     return result.ok({
       ...transactionResult,
-      created_at: transactionResult.created_at.toISOString(),
-      updated_at: transactionResult.updated_at.toISOString(),
-      deleted_at: transactionResult.deleted_at?.toISOString(),
+      created_at: transactionResult.created_at,
+      updated_at: transactionResult.updated_at,
+      deleted_at: transactionResult.deleted_at || null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

@@ -24,6 +24,7 @@ import {
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result, PaginatedResult } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['invoices', 'service']);
 
@@ -67,15 +68,15 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
 const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
   return {
     ...invoice,
-    issue_date: invoice.issue_date?.toISOString() || null,
-    due_date: invoice.due_date?.toISOString() || null,
-    paid_at: invoice.paid_at?.toISOString() || null,
-    created_at: invoice.created_at.toISOString(),
-    updated_at: invoice.updated_at.toISOString(),
+    issue_date: invoice.issue_date || null,
+    due_date: invoice.due_date || null,
+    paid_at: invoice.paid_at || null,
+    created_at: invoice.created_at,
+    updated_at: invoice.updated_at,
     line_items: invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
       ...li,
-      created_at: li.created_at.toISOString(),
-      updated_at: li.updated_at.toISOString(),
+      created_at: li.created_at,
+      updated_at: li.updated_at,
     })),
   } satisfies InvoiceResponse;
 };
@@ -478,7 +479,7 @@ const syncInvoice = async (
       amount_paid: stripeInvoice.amount_paid,
       amount_due: stripeInvoice.amount_remaining,
       paid_at: stripeInvoice.status_transitions.paid_at
-        ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+        ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
         : undefined,
     });
 

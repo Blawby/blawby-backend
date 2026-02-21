@@ -20,6 +20,7 @@ import type {
   ListUploadsQuery,
   ListUploadsResponse,
   DownloadUrlResponse,
+  AuditLogEntry,
 } from '@/modules/uploads/types/uploads.types';
 import type { Result } from '@/shared/types/result';
 import { ok, badRequest, notFound, internalError, forbidden } from '@/shared/utils/result';
@@ -232,7 +233,7 @@ export const uploadsService = {
         presigned_url: presignedUrl,
         method,
         storage_key: storage_key,
-        expires_at: expires_at.toISOString(),
+        expires_at: expires_at,
       });
     } catch (error) {
       logger.error('Failed to generate presigned URL: {error}', { error });
@@ -364,9 +365,9 @@ export const uploadsService = {
         entity_id: upload.entity_id,
         status: upload.status as 'pending' | 'verified' | 'rejected',
         is_privileged: upload.is_privileged ?? true,
-        retention_until: upload.retention_until?.toISOString() || null,
-        created_at: upload.created_at.toISOString(),
-        verified_at: upload.verified_at?.toISOString() || null,
+        retention_until: upload.retention_until || null,
+        created_at: upload.created_at,
+        verified_at: upload.verified_at || null,
         uploaded_by: upload.uploaded_by,
       });
     } catch (error) {
@@ -439,7 +440,7 @@ export const uploadsService = {
 
       return ok({
         download_url: downloadUrl,
-        expires_at: expiresAt ? expiresAt.toISOString() : null,
+        expires_at: expiresAt || null,
       });
     } catch (error) {
       logger.error('Failed to generate download URL for {uploadId}: {error}', { uploadId, error });
@@ -568,9 +569,9 @@ export const uploadsService = {
         entity_id: upload.entity_id,
         status: upload.status as 'pending' | 'verified' | 'rejected',
         is_privileged: upload.is_privileged ?? true,
-        retention_until: upload.retention_until?.toISOString() || null,
-        created_at: upload.created_at.toISOString(),
-        verified_at: upload.verified_at?.toISOString() || null,
+        retention_until: upload.retention_until || null,
+        created_at: upload.created_at,
+        verified_at: upload.verified_at || null,
         uploaded_by: upload.uploaded_by,
       }));
 
@@ -594,7 +595,7 @@ export const uploadsService = {
   async getAuditLogs(
     uploadId: string,
     organizationId: string,
-  ): Promise<Result<{ audit_logs: any[]; total: number }>> {
+  ): Promise<Result<{ audit_logs: AuditLogEntry[]; total: number }>> {
     try {
       const upload = await uploadsRepository.findById(uploadId);
       if (!upload) {
@@ -610,13 +611,13 @@ export const uploadsService = {
       const auditLogs = logs.map((log) => ({
         id: log.id,
         upload_id: log.upload_id,
-        action: log.action,
+        action: log.action as AuditLogEntry['action'],
         user_id: log.user_id,
         user_name: null, // TODO: Fetch from users table if needed
         ip_address: log.ip_address,
         user_agent: log.user_agent,
-        metadata: log.metadata,
-        created_at: log.created_at.toISOString(),
+        metadata: (log.metadata as Record<string, unknown>) ?? null,
+        created_at: log.created_at,
       }));
 
       return ok({

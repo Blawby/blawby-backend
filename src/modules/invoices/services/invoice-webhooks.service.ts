@@ -16,6 +16,7 @@ import {
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
+import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['invoices', 'webhooks-service']);
 
@@ -40,7 +41,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           amount_paid: stripeInvoice.amount_paid,
           amount_due: stripeInvoice.amount_remaining,
           paid_at: stripeInvoice.status_transitions.paid_at
-            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+            ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
             : null,
         },
         tx,
@@ -100,7 +101,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           destination_account_id: destinationAccountId,
           stripe_transfer_id: transfer.id,
           completed_at: stripeInvoice.status_transitions.paid_at
-            ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+            ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
             : null,
           metadata: {
             stripe_invoice_id: stripeInvoice.id,

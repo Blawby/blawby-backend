@@ -70,8 +70,8 @@ export const subscriptionPlans = pgTable(
     metadata: jsonb('metadata').$type<Record<string, string>>().default({}),
 
     // Timestamps
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at')
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
