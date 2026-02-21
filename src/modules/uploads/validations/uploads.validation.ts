@@ -45,7 +45,7 @@ const presignUploadResponseSchema = z.object({
   presigned_url: z.url(),
   method: z.string(),
   storage_key: z.string(),
-  expires_at: z.iso.datetime(),
+  expires_at: z.date(),
 });
 
 const confirmUploadResponseSchema = z.object({
@@ -69,15 +69,15 @@ const uploadDetailsResponseSchema = z.object({
   entity_id: z.uuid().nullable(),
   status: z.enum(['pending', 'verified', 'rejected']),
   is_privileged: z.boolean(),
-  retention_until: z.iso.datetime().nullable(),
-  created_at: z.iso.datetime(),
-  verified_at: z.iso.datetime().nullable(),
+  retention_until: z.date().nullable(),
+  created_at: z.date(),
+  verified_at: z.date().nullable(),
   uploaded_by: z.uuid().nullable(),
 });
 
 const downloadUrlResponseSchema = z.object({
   download_url: z.url(),
-  expires_at: z.iso.datetime().nullable(),
+  expires_at: z.date().nullable(),
 });
 
 const listUploadsResponseSchema = z.object({
@@ -96,7 +96,7 @@ const auditLogEntrySchema = z.object({
   ip_address: z.string().nullable(),
   user_agent: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
-  created_at: z.iso.datetime(),
+  created_at: z.date(),
 });
 
 const auditLogResponseSchema = z.object({

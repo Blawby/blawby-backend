@@ -25,21 +25,21 @@ export const webhookEvents = pgTable('webhook_events', {
 
   // Processing
   processed: boolean('processed').notNull().default(false),
-  processedAt: timestamp('processed_at'),
+  processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
 
   // Error Handling
   error: text('error'),
   errorStack: text('error_stack'),
   retryCount: integer('retry_count').notNull().default(0),
   maxRetries: integer('max_retries').notNull().default(3),
-  nextRetryAt: timestamp('next_retry_at'),
+  nextRetryAt: timestamp('next_retry_at', { withTimezone: true, mode: 'date' }),
 
   // Audit
   payload: json('payload').notNull(),
   headers: json('headers').$type<Record<string, string>>(),
   url: text('url'),
 
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
 // Zod schemas for validation

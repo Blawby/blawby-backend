@@ -5,10 +5,14 @@ import type { Stripe } from 'stripe';
 import { z } from 'zod';
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
+import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
+import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
+import type { MatterResponse } from '@/modules/matters/types/matter.types';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   practiceClientIntakesSchema,
@@ -26,6 +30,7 @@ import type {
   CreateCheckoutSessionResponse as PracticeClientIntakeCheckoutSessionResponse,
   IntakePostPayStatusResponse as PracticeClientIntakePostPayStatusResponse,
   ClaimPracticeClientIntakeResponse,
+  TriageStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
@@ -43,6 +48,13 @@ import { stripe } from '@/shared/utils/stripe-client';
 const { practiceClientIntakes, practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
 
 const logger = getLogger(['practice-client-intakes', 'service']);
+
+const normalizeTriageStatus = (value: string | null | undefined): TriageStatus => {
+  if (value === 'accepted' || value === 'declined') {
+    return value;
+  }
+  return 'pending_review';
+};
 
 const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadata | null => {
   if (!rawMetadata) return null;
@@ -69,6 +81,9 @@ const formatIntakeResponse = (
     amount: intake.amount,
     currency: intake.currency,
     status: intake.status,
+    triage_status: normalizeTriageStatus(intake.triage_status),
+    triage_reason: intake.triage_reason ?? null,
+    triage_decided_at: intake.triage_decided_at?.toISOString() ?? null,
     address_id: isAuthorized ? intake.address_id ?? undefined : undefined,
     conversation_id: isAuthorized ? intake.conversation_id ?? null : null,
     stripe_charge_id: intake.stripe_charge_id ?? null,
@@ -218,78 +233,93 @@ const getPracticeClientIntakeSettings = async (
  * Create a new practice client intake
  */
 const createPracticeClientIntake = async (
-  request: CreatePracticeClientIntakeRequest & { clientIp?: string; userAgent?: string; origin?: string | null },
+  request: CreatePracticeClientIntakeRequest & {
+    clientIp?: string;
+    userAgent?: string;
+    origin?: string | null;
+  },
 ): Promise<Result<CreatePracticeClientIntakeResponse | PracticeClientIntakeSettings>> => {
   try {
-    const settingsResult = await getPracticeClientIntakeSettings(request.slug);
-    if (!settingsResult.success || !settingsResult.data.data) {
-      return settingsResult;
+    const organization = await organizationRepository.findBySlug(request.slug);
+
+    if (!organization) {
+      return result.notFound(`Organization with slug '${request.slug}' not found`);
     }
 
-    const { organization } = settingsResult.data.data;
+    const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+    const consultationFee = practiceDetails?.consultation_fee ?? 0;
+    const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
+    const shouldBypassPayment = !requiresPayment || request.amount === 0;
 
-    // 2. Get connected account details
-    const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
-
-    if (!connectedAccount) {
-      return result.fail('Connected account not found');
+    if (requiresPayment && request.amount < 50) {
+      return result.badRequest('Amount must be at least 50 cents when payment is required');
     }
 
-    // user_id comes from authenticated session context (set by HTTP handler)
-    // No need to validate - session context is trusted
+    let stripePaymentLink: Stripe.Response<Stripe.PaymentLink> | null = null;
+    let connectedAccount: Awaited<ReturnType<typeof onboardingRepository.findByOrganizationId>> | null = null;
     const validatedUserId = request.user_id;
-
     const intakeId: string = randomUUID();
 
-    const conversationParam = request.conversation_id
-      ? `&conversation_id=${encodeURIComponent(request.conversation_id)}`
-      : '';
+    if (!shouldBypassPayment) {
+      const settingsResult = await getPracticeClientIntakeSettings(request.slug);
+      if (!settingsResult.success) {
+        return settingsResult;
+      }
 
-    const stripePaymentLink = await stripe.paymentLinks.create({
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `Client Intake - ${organization.name}`,
-              description: request.description || 'Legal consultation payment',
+      connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
+      if (!connectedAccount) {
+        return result.fail('Connected account not found');
+      }
+
+      const conversationParam = request.conversation_id
+        ? `&conversation_id=${encodeURIComponent(request.conversation_id)}`
+        : '';
+
+      stripePaymentLink = await stripe.paymentLinks.create({
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `Client Intake - ${organization.name}`,
+                description: request.description || 'Legal consultation payment',
+              },
+              unit_amount: request.amount,
             },
-            unit_amount: request.amount,
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        // Connected account appears as merchant of record
+        on_behalf_of: connectedAccount.stripe_account_id,
+        // Transfer funds to connected account (destination charges)
+        transfer_data: {
+          destination: connectedAccount.stripe_account_id,
         },
-      ],
-      // Connected account appears as merchant of record
-      on_behalf_of: connectedAccount.stripe_account_id,
-      // Transfer funds to connected account (destination charges)
-      transfer_data: {
-        destination: connectedAccount.stripe_account_id,
-      },
-      payment_intent_data: {
-        metadata: {
-          email: request.email,
-          name: request.name,
-          phone: request.phone || '',
-          on_behalf_of: request.on_behalf_of || '',
-          opposing_party: request.opposing_party || '',
-          description: request.description || '',
-          organization_id: organization.id,
-          intake_uuid: intakeId,
-          ...(request.address && { address: JSON.stringify(request.address) }),
-          ...(validatedUserId && { user_id: validatedUserId }),
+        payment_intent_data: {
+          metadata: {
+            email: request.email,
+            name: request.name,
+            phone: request.phone || '',
+            on_behalf_of: request.on_behalf_of || '',
+            opposing_party: request.opposing_party || '',
+            description: request.description || '',
+            organization_id: organization.id,
+            intake_uuid: intakeId,
+            ...(request.address && { address: JSON.stringify(request.address) }),
+            ...(validatedUserId && { user_id: validatedUserId }),
+          },
         },
-      },
-
-      after_completion: {
-        type: 'redirect',
-        redirect: {
-          url: `${getMatchingFrontendUrl(request.origin)}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
+        after_completion: {
+          type: 'redirect',
+          redirect: {
+            url: `${getMatchingFrontendUrl(request.origin)}/pay?uuid=${intakeId}&return_to=/p/${organization.slug}${conversationParam}`,
+          },
         },
-      },
-    });
+      });
+    }
 
     const practiceClientIntake = await db.transaction(async (tx) => {
-      // 4. Create address record if provided
+      // Create address record if provided
       let addressId: string | undefined;
       if (request.address) {
         const addressRecord = await upsertAddressTx(tx, {
@@ -305,14 +335,15 @@ const createPracticeClientIntake = async (
       const practiceClientIntakeData: InsertPracticeClientIntake = {
         id: intakeId,
         organization_id: organization.id,
-        connected_account_id: connectedAccount.id,
-        stripe_payment_link_id: stripePaymentLink.id,
+        connected_account_id: connectedAccount?.id,
+        stripe_payment_link_id: stripePaymentLink?.id ?? null,
         address_id: addressId,
         conversation_id: request.conversation_id,
         amount: request.amount,
         application_fee: fundRouterService.calculateApplicationFee(request.amount),
         currency: 'usd',
-        status: 'open', // Payment Link status: open, completed, expired
+        status: shouldBypassPayment ? 'succeeded' : 'open',
+        triage_status: 'pending_review',
         metadata: {
           email: request.email,
           name: request.name,
@@ -333,6 +364,7 @@ const createPracticeClientIntake = async (
         income: request.income,
         household_size: request.household_size,
         case_strength: request.case_strength,
+        ...(shouldBypassPayment && { succeeded_at: new Date() }),
       };
 
       return await practiceClientIntakesRepository.create(practiceClientIntakeData, tx);
@@ -342,7 +374,7 @@ const createPracticeClientIntake = async (
     void IntakePaymentCreated.dispatch({
       intake_payment_id: practiceClientIntake.id,
       uuid: practiceClientIntake.id,
-      stripe_payment_link_id: stripePaymentLink.id,
+      stripe_payment_link_id: stripePaymentLink?.id,
       amount: request.amount,
       currency: 'usd',
       client_email: request.email,
@@ -357,10 +389,10 @@ const createPracticeClientIntake = async (
       success: true,
       data: {
         uuid: practiceClientIntake.id,
-        payment_link_url: stripePaymentLink.url,
+        payment_link_url: stripePaymentLink?.url ?? null,
         amount: request.amount,
         currency: 'usd',
-        status: 'open',
+        status: shouldBypassPayment ? 'succeeded' : 'open',
         organization: {
           name: organization.name,
           logo: organization.logo ?? undefined,
@@ -875,18 +907,72 @@ const listIntakes = async (
   }
 };
 
+const updateIntakeTriageStatus = async (
+  uuid: string,
+  organizationId: string,
+  data: z.infer<typeof intakeValidations.updateIntakeTriageStatusSchema>,
+): Promise<Result<{
+  success: boolean;
+  data: {
+    uuid: string;
+    triage_status: 'pending_review' | 'accepted' | 'declined';
+    triage_reason: string | null;
+    triage_decided_at: string | null;
+  };
+}>> => {
+  try {
+    const intake = await practiceClientIntakesRepository.findById(uuid);
+    if (!intake) {
+      return result.notFound('Intake not found');
+    }
+
+    if (intake.organization_id !== organizationId) {
+      return result.forbidden('Access denied');
+    }
+
+    const nextTriageStatus = data.status;
+    const nextReason = nextTriageStatus === 'declined' ? data.reason?.trim() ?? null : null;
+
+    const updatedIntake = await practiceClientIntakesRepository.update(uuid, {
+      triage_status: nextTriageStatus,
+      triage_reason: nextReason,
+      triage_decided_at: new Date(),
+    });
+
+    return result.ok({
+      success: true,
+      data: {
+        uuid: updatedIntake.id,
+        triage_status: normalizeTriageStatus(updatedIntake.triage_status),
+        triage_reason: updatedIntake.triage_reason ?? null,
+        triage_decided_at: updatedIntake.triage_decided_at?.toISOString() ?? null,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to update triage status for intake {uuid}: {error}', {
+      uuid,
+      error,
+    });
+    return result.internalError('Failed to update intake triage status');
+  }
+};
+
 /**
  * Convert a completed intake to a Matter
  */
 const convertIntakeToMatter = async (
   uuid: string,
   organizationId: string,
+  actorUserId: string,
   data: {
     title?: string;
     responsible_attorney_id?: string;
     practice_service_id?: string;
+    billing_type?: 'hourly' | 'fixed' | 'contingency' | 'pro_bono';
+    status?: z.infer<typeof intakeValidations.convertIntakeSchema>['status'];
+    open_date?: string;
   },
-): Promise<Result<{ matter_id: string }>> => {
+): Promise<Result<{ matter_id: string; matter: MatterResponse }>> => {
   try {
     const intake = await practiceClientIntakesRepository.findById(uuid);
 
@@ -901,13 +987,29 @@ const convertIntakeToMatter = async (
     if (intake.status === 'converted') {
       const existingMatter = await mattersQueries.findByIntakeUuid(uuid);
       if (existingMatter) {
-        return result.ok({ matter_id: existingMatter.id });
+        const existingMatterWithRelations = await mattersQueries.findMatterByIdWithRelations(existingMatter.id);
+        if (!existingMatterWithRelations) {
+          return result.conflict('Intake is marked as converted but no associated matter was found');
+        }
+        return result.ok({
+          matter_id: existingMatter.id,
+          matter: {
+            ...existingMatterWithRelations,
+            deleted_at: existingMatterWithRelations.deleted_at ?? null,
+            open_date: existingMatterWithRelations.open_date ?? null,
+            close_date: existingMatterWithRelations.close_date ?? null,
+          } as MatterResponse,
+        });
       }
       return result.conflict('Intake is marked as converted but no associated matter was found');
     }
 
     if (intake.status !== 'succeeded') {
       return result.badRequest('Only successful intakes can be converted to matters');
+    }
+
+    if (intake.triage_status !== 'accepted') {
+      return result.badRequest('Intake must be accepted before converting to a matter');
     }
 
     const metadata = intake.metadata as PracticeClientIntakeMetadata | null;
@@ -933,11 +1035,11 @@ const convertIntakeToMatter = async (
       // 2. Create Matter
       const matter = await mattersQueries.createMatter({
         organization_id: organizationId,
-        billing_type: 'fixed', // Default for intake matters
+        billing_type: data.billing_type ?? 'fixed',
         client_id: clientId,
         title: data.title ?? `Intake: ${metadata.name}`,
         description: metadata.description,
-        status: 'intake_pending',
+        status: data.status ?? 'engagement_pending',
         urgency: intake.urgency ?? 'routine',
         intake_uuid: uuid,
         conversation_id: intake.conversation_id,
@@ -946,15 +1048,56 @@ const convertIntakeToMatter = async (
         opposing_counsel: metadata.opposing_counsel,
         responsible_attorney_id: data.responsible_attorney_id,
         practice_service_id: data.practice_service_id,
+        open_date: data.open_date ? new Date(data.open_date) : undefined,
       }, tx);
 
-      // 3. Update Intake Status
+      if (intake.court_date) {
+        await tx.insert(matterMilestones).values({
+          matter_id: matter.id,
+          description: 'Court Date from Intake',
+          amount: 0,
+          due_date: intake.court_date.toISOString().split('T')[0],
+          status: 'pending',
+          order: 999,
+        });
+      }
+
+      if (intake.desired_outcome) {
+        await tx.insert(matterNotes).values({
+          matter_id: matter.id,
+          user_id: actorUserId,
+          content: `Desired outcome: ${intake.desired_outcome}`,
+        });
+      }
+
+      if (typeof intake.case_strength === 'number') {
+        await tx.insert(matterNotes).values({
+          matter_id: matter.id,
+          user_id: actorUserId,
+          content: `Case strength score from intake: ${intake.case_strength}`,
+        });
+      }
+
+      // Update Intake Status
       await practiceClientIntakesRepository.updateStatus(uuid, 'converted', tx);
 
       return matter.id;
     });
 
-    return result.ok({ matter_id: matterId });
+    const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
+    if (!matter) {
+      return result.internalError('Matter was created but could not be loaded');
+    }
+
+    return result.ok({
+      matter_id: matterId,
+      matter: {
+        ...matter,
+        deleted_at: matter.deleted_at ?? null,
+        open_date: matter.open_date ?? null,
+        close_date: matter.close_date ?? null,
+      } as MatterResponse,
+    });
   } catch (error) {
     logger.error('Failed to convert intake {uuid} to matter: {error}', {
       uuid,
@@ -975,5 +1118,6 @@ export const practiceClientIntakesService = {
   claimPracticeClientIntakePayment,
   triggerIntakeInvitation,
   listIntakes,
+  updateIntakeTriageStatus,
   convertIntakeToMatter,
 };

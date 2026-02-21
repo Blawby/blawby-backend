@@ -42,10 +42,10 @@ export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
   futureRequirements: jsonb('future_requirements').$type<FutureRequirements>(),
   tosAcceptance: jsonb('tos_acceptance').$type<TosAcceptance>(),
   metadata: jsonb('metadata').$type<Record<string, string>>(),
-  onboarding_completed_at: timestamp('onboarding_completed_at'),
-  last_refreshed_at: timestamp('last_refreshed_at'),
-  created_at: timestamp('created_at').defaultNow().notNull(),
-  updated_at: timestamp('updated_at').defaultNow().notNull(),
+  onboarding_completed_at: timestamp('onboarding_completed_at', { withTimezone: true, mode: 'date' }),
+  last_refreshed_at: timestamp('last_refreshed_at', { withTimezone: true, mode: 'date' }),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
 export const stripeConnectedAccountsRelations = relations(

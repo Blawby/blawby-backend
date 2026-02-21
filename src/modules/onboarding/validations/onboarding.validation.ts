@@ -102,7 +102,7 @@ export const getAccountResponseSchema = z.object({
   }),
   requirements: requirementsSchema.nullish(),
   future_requirements: requirementsSchema.nullish(),
-  onboarding_completed_at: z.string().nullable().openapi({ example: '2023-01-01T00:00:00Z' }),
+  onboarding_completed_at: z.date().nullable().openapi({ example: '2023-01-01T00:00:00Z' }),
 }).openapi('GetAccountResponse');
 
 export const createSessionResponseSchema = z.object({
