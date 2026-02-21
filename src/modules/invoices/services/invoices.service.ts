@@ -68,9 +68,9 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
 const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
   return {
     ...invoice,
-    issue_date: invoice.issue_date || null,
-    due_date: invoice.due_date || null,
-    paid_at: invoice.paid_at || null,
+    issue_date: invoice.issue_date ?? null,
+    due_date: invoice.due_date ?? null,
+    paid_at: invoice.paid_at ?? null,
     created_at: invoice.created_at,
     updated_at: invoice.updated_at,
     line_items: invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({

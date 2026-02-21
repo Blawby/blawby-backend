@@ -121,7 +121,7 @@ const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 const updateUserDetailsSchema = z.object({
   phone: z.string().min(10).optional(),
   phone_country_code: z.string().optional(), // e.g., '+1', '+44'
-  dob: z.iso.datetime().optional(),
+  dob: z.iso.date().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
 });
 

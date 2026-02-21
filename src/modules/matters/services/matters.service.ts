@@ -129,8 +129,6 @@ const createMatter = async (
 
     return result.ok({
       ...matter,
-      created_at: matter.created_at,
-      updated_at: matter.updated_at,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -257,12 +255,9 @@ const updateMatter = async (
   const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
     if (value === undefined) return acc;
     const existingValue = (existingMatter as Record<string, unknown>)[key];
-    // Normalize dates for comparison (existing values from DB are Date objects or ISO strings)
+    // Normalize dates for comparison (both sides may be Date objects after z.coerce.date())
     const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
-    // Values from validation are always strings for date fields
-    const normalizedNext = (typeof value === 'string' && (key === 'open_date' || key === 'close_date'))
-      ? value
-      : value;
+    const normalizedNext = value instanceof Date ? value.toISOString() : value;
     if (!isEqual(normalizedExisting, normalizedNext)) {
       acc.push(key);
     }
@@ -378,9 +373,7 @@ const updateMatter = async (
 
     return result.ok({
       ...transactionResult,
-      created_at: transactionResult.created_at,
-      updated_at: transactionResult.updated_at,
-      deleted_at: transactionResult.deleted_at || null,
+      deleted_at: transactionResult.deleted_at ?? null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

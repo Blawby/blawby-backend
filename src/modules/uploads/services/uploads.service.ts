@@ -365,9 +365,9 @@ export const uploadsService = {
         entity_id: upload.entity_id,
         status: upload.status as 'pending' | 'verified' | 'rejected',
         is_privileged: upload.is_privileged ?? true,
-        retention_until: upload.retention_until || null,
+        retention_until: upload.retention_until ?? null,
         created_at: upload.created_at,
-        verified_at: upload.verified_at || null,
+        verified_at: upload.verified_at ?? null,
         uploaded_by: upload.uploaded_by,
       });
     } catch (error) {
@@ -440,7 +440,7 @@ export const uploadsService = {
 
       return ok({
         download_url: downloadUrl,
-        expires_at: expiresAt || null,
+        expires_at: expiresAt ?? null,
       });
     } catch (error) {
       logger.error('Failed to generate download URL for {uploadId}: {error}', { uploadId, error });
@@ -569,9 +569,9 @@ export const uploadsService = {
         entity_id: upload.entity_id,
         status: upload.status as 'pending' | 'verified' | 'rejected',
         is_privileged: upload.is_privileged ?? true,
-        retention_until: upload.retention_until || null,
+        retention_until: upload.retention_until ?? null,
         created_at: upload.created_at,
-        verified_at: upload.verified_at || null,
+        verified_at: upload.verified_at ?? null,
         uploaded_by: upload.uploaded_by,
       }));
 

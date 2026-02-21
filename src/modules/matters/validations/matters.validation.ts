@@ -177,7 +177,7 @@ const activityLogSchema = z.object({
     description: 'Additional context for the activity. For updates, includes changed_fields: string[].',
     example: { changed_fields: ['status'], oldStatus: 'first_contact', newStatus: 'intake_pending' },
   }),
-  created_at: z.iso.datetime(),
+  created_at: z.date(),
 }).openapi('ActivityLog');
 
 
