@@ -19,7 +19,7 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
   isAnonymous: boolean('is_anonymous').default(false).notNull(),
-  primaryWorkspace: text('primary_workspace'), // 'client' | 'practice'
+  primaryWorkspace: text('primary_workspace'), // 'public' | 'client' | 'practice'
   phone: text('phone'),
   phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
