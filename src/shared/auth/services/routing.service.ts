@@ -26,7 +26,7 @@ export interface RoutingClaims {
   practice_entitled: boolean; // Add entitlement info for frontend feature gating
 }
 
-interface RoutingContext {
+export interface RoutingContext {
   user: typeof users.$inferSelect;
   session: typeof sessions.$inferSelect | null;
 }
@@ -38,29 +38,23 @@ const hasPracticeEntitlement = async (organizationId: string | null): Promise<bo
   if (!organizationId) return false;
 
   try {
-    // Use the same logic as subscription service - check organization.activeSubscriptionId
-    const [org] = await db
-      .select({
-        activeSubscriptionId: organizations.activeSubscriptionId,
-      })
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
-
-    if (!org?.activeSubscriptionId) return false;
-
-    // Check subscription status - consider multiple statuses that grant practice access
     const [subscription] = await db
       .select({
         status: subscriptions.status,
       })
-      .from(subscriptions)
-      .where(eq(subscriptions.id, org.activeSubscriptionId))
+      .from(organizations)
+      .innerJoin(
+        subscriptions,
+        eq(organizations.activeSubscriptionId, subscriptions.id),
+      )
+      .where(eq(organizations.id, organizationId))
       .limit(1);
 
-    // User has practice entitlement if subscription has active-like status
-    // Imported from subscription service - single source of truth
-    return subscription ? PRACTICE_ENTITLED_STATUSES.includes(subscription.status as any) : false;
+    if (!subscription) return false;
+
+    // Use type-safe check: verify status is one of the entitled statuses
+    // Using a type-safe include check by casting the const array to a string array
+    return (PRACTICE_ENTITLED_STATUSES as readonly string[]).includes(subscription.status);
   } catch (error) {
     logger.error('Failed to check practice entitlement for org {orgId}: {error}', {
       orgId: organizationId,
@@ -70,10 +64,17 @@ const hasPracticeEntitlement = async (organizationId: string | null): Promise<bo
   }
 };
 
+interface Membership {
+  role: string;
+}
+
 /**
  * Get user's membership role in active organization
  */
-const getActiveMembership = async (userId: string, organizationId: string | null) => {
+const getActiveMembership = async (
+  userId: string,
+  organizationId: string | null,
+): Promise<Membership | null> => {
   if (!organizationId) return null;
 
   try {

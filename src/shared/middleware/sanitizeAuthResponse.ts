@@ -8,9 +8,59 @@
 
 import { getLogger } from '@logtape/logtape';
 import type { MiddlewareHandler } from 'hono';
-import { computeRoutingClaims } from '@/shared/auth/services/routing.service';
+import { computeRoutingClaims, type RoutingContext } from '@/shared/auth/services/routing.service';
 
 const logger = getLogger(['shared', 'middleware', 'sanitize-auth-response']);
+
+interface UserPayload {
+  id: string;
+  isAnonymous: boolean;
+  banned?: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+  dob?: string | null;
+  banExpires?: string | null;
+  [key: string]: unknown;
+}
+
+interface SessionPayload {
+  id: string;
+  userId: string;
+  activeOrganizationId?: string | null;
+  expiresAt: string;
+  token?: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+interface SessionResponse {
+  user: UserPayload;
+  session: SessionPayload;
+  routing?: unknown;
+}
+
+function isSessionResponse(obj: unknown): obj is SessionResponse {
+  if (!obj || typeof obj !== 'object') return false;
+  const data = obj as Record<string, unknown>;
+  return (
+    'user' in data && data.user !== null && typeof data.user === 'object' &&
+    'session' in data && data.session !== null && typeof data.session === 'object'
+  );
+}
+
+/**
+ * Validates and parses a date string, returning a Date object or null if invalid/missing.
+ */
+function parseDateSafe(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    logger.warn('Invalid date string encountered: {value}', { value });
+    return null;
+  }
+  return date;
+}
 
 /**
  * Sanitize authentication responses to remove token field from body
@@ -56,21 +106,35 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
 
         let madeChanges = false;
 
-        // Remove session.token if it exists
-        if (data && typeof data === 'object' && 'session' in data && 
-            typeof (data as any).session === 'object' && 'token' in (data as any).session) {
-          delete (data as any).session.token;
-          madeChanges = true;
-        }
+        if (isSessionResponse(data)) {
+          // Remove session.token if it exists
+          if (data.session.token) {
+            delete data.session.token;
+            madeChanges = true;
+          }
 
-        // Add routing claims to get-session responses
-        if (data && typeof data === 'object' && 'user' in data && 'session' in data) {
+          // Add routing claims to get-session responses
           try {
+            // Construct routing context with proper Date objects
+            const user = data.user;
+            const session = data.session;
+
             const routing = await computeRoutingClaims({
-              user: (data as any).user,
-              session: (data as any).session,
+              user: {
+                ...user,
+                createdAt: parseDateSafe(user.createdAt) as Date,
+                updatedAt: parseDateSafe(user.updatedAt) as Date,
+                dob: parseDateSafe(user.dob),
+                banExpires: parseDateSafe(user.banExpires),
+              } as unknown as RoutingContext['user'],
+              session: {
+                ...session,
+                expiresAt: parseDateSafe(session.expiresAt) as Date,
+                createdAt: parseDateSafe(session.createdAt) as Date,
+                updatedAt: parseDateSafe(session.updatedAt) as Date,
+              } as unknown as RoutingContext['session'],
             });
-            (data as any).routing = routing;
+            data.routing = routing;
             madeChanges = true;
           } catch (error) {
             logger.error('Failed to compute routing claims: {error}', { error });
@@ -112,8 +176,22 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
 
           // Apply cleaned headers to new response
           headers.forEach((value, key) => {
-            newResponse.headers.append(key, value);
+            // Use set() for standard headers to avoid duplicates
+            // Set-Cookie is already handled via append/getSetCookie logic above
+            // but we skip it here to avoid combined string issues
+            if (key.toLowerCase() !== 'set-cookie') {
+              newResponse.headers.set(key, value);
+            }
           });
+
+          // Re-apply Set-Cookie specifically to ensure separate headers
+          // @ts-ignore - getSetCookie is available in modern environments
+          if (typeof headers.getSetCookie === 'function') {
+            const finalCookies = headers.getSetCookie();
+            finalCookies.forEach((cookie: string) => {
+              newResponse.headers.append('Set-Cookie', cookie);
+            });
+          }
 
           c.res = newResponse;
         }
