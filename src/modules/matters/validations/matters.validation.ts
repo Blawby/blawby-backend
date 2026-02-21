@@ -157,12 +157,12 @@ const matterSchema = z.object({
   conversation_id: z.uuid().nullable(),
   intake_uuid: z.uuid().nullable(),
   on_behalf_of: z.string().nullable(),
-  open_date: z.iso.datetime().nullable(),
-  close_date: z.iso.datetime().nullable(),
-  deleted_at: z.iso.datetime().nullable(),
+  open_date: z.date().nullable(),
+  close_date: z.date().nullable(),
+  deleted_at: z.date().nullable(),
   deleted_by: z.uuid().nullable(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
   assignees: z.array(z.any()).optional(),
   milestones: z.array(z.any()).optional(),
 }).openapi('Matter');
@@ -177,7 +177,7 @@ const activityLogSchema = z.object({
     description: 'Additional context for the activity. For updates, includes changed_fields: string[].',
     example: { changed_fields: ['status'], oldStatus: 'first_contact', newStatus: 'intake_pending' },
   }),
-  created_at: z.iso.datetime(),
+  created_at: z.date(),
 }).openapi('ActivityLog');
 
 

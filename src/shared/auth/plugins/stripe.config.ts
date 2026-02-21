@@ -12,6 +12,7 @@ import {
   createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['shared', 'auth', 'plugins', 'stripe']);
 
@@ -106,7 +107,7 @@ const syncSubscriptionToOrg = async (
         // Compare creation timestamps
         // Incoming: stripeSubscription.created (Unix timestamp)
         // Existing: oldSub.createdAt (Date object)
-        const incomingCreated = new Date(stripeSubscription.created * 1000);
+        const incomingCreated = fromStripeTimestamp(stripeSubscription.created);
         const existingCreated = oldSub.createdAt;
 
         if (incomingCreated < existingCreated) {

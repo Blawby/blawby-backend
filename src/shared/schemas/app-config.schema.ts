@@ -14,8 +14,8 @@ export const appConfig = pgTable('app_configs', {
     enum: ['string', 'number', 'boolean', 'multiselect', 'json'],
   }).notNull(),
   description: text('description'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull().$onUpdate(() => new Date()),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull().$onUpdate(() => new Date()),
 });
 
 // Zod schemas

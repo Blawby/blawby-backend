@@ -65,7 +65,7 @@ export const subscriptionEvents = pgTable(
     error_message: text('error_message'),
 
     // Timestamp
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('subscription_events_subscription_idx').on(table.subscription_id),
