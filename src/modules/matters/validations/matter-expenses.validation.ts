@@ -41,8 +41,8 @@ const expenseSchema = z.object({
   amount: z.number().describe('Amount in cents'),
   date: z.string(),
   billable: z.boolean(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('Expense');
 
 

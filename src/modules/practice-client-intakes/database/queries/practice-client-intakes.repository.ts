@@ -24,8 +24,8 @@ const buildIntakeConditions = ({
   organizationId: string;
   status?: string;
   search?: string;
-  from?: string;
-  to?: string;
+  from?: Date;
+  to?: Date;
   intakeId?: string;
 }) => {
   const triageStatuses = ['pending_review', 'accepted', 'declined'];
@@ -55,17 +55,11 @@ const buildIntakeConditions = ({
   }
 
   if (from) {
-    const fromDate = new Date(from);
-    if (!Number.isNaN(fromDate.getTime())) {
-      conditions.push(gte(practiceClientIntakes.created_at, fromDate));
-    }
+    conditions.push(gte(practiceClientIntakes.created_at, from));
   }
 
   if (to) {
-    const toDate = new Date(to);
-    if (!Number.isNaN(toDate.getTime())) {
-      conditions.push(lte(practiceClientIntakes.created_at, toDate));
-    }
+    conditions.push(lte(practiceClientIntakes.created_at, to));
   }
 
   return and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
@@ -170,8 +164,8 @@ const findByOrganizationId = async ({
   organizationId: string;
   status?: string;
   search?: string;
-  from?: string;
-  to?: string;
+  from?: Date;
+  to?: Date;
   intakeId?: string;
   page?: number;
   limit?: number;
@@ -214,8 +208,8 @@ const getStats = async (
 }> => {
   const whereClause = buildIntakeConditions({
     organizationId,
-    from: startDate?.toISOString(),
-    to: endDate?.toISOString(),
+    from: startDate,
+    to: endDate,
   });
 
   const results = await db

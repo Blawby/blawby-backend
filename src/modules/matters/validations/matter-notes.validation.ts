@@ -27,8 +27,8 @@ const matterNoteSchema = z.object({
   matter_id: z.uuid(),
   user_id: z.uuid(),
   content: z.string(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('MatterNote');
 
 

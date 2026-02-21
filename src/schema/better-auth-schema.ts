@@ -206,10 +206,29 @@ export const usersRelations = relations(users, ({ many }) => ({
   invitations: many(invitations),
 }));
 
-export const organizationsRelations = relations(organizations, ({ many }) => ({
+export const organizationsRelations = relations(organizations, ({ many, one }) => ({
   members: many(members),
   invitations: many(invitations),
   stripeConnectedAccounts: many(stripeConnectedAccounts),
+  subscriptions: many(subscriptions, { relationName: 'orgSubscriptions' }),
+  activeSubscription: one(subscriptions, {
+    fields: [organizations.activeSubscriptionId],
+    references: [subscriptions.id],
+    relationName: 'activeSubscription',
+  }),
+}));
+
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [subscriptions.referenceId],
+    references: [organizations.id],
+    relationName: 'orgSubscriptions',
+  }),
+  activeForOrganization: one(organizations, {
+    fields: [subscriptions.id],
+    references: [organizations.activeSubscriptionId],
+    relationName: 'activeSubscription',
+  }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
