@@ -23,8 +23,8 @@ export const clientMemoSchema = z.object({
   client_id: z.uuid(),
   created_by: z.uuid(),
   content: z.string(),
-  event_time: z.iso.datetime().nullable(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  event_time: z.date().nullable(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('ClientMemo');
 
