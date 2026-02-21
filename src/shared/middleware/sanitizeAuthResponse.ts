@@ -40,14 +40,17 @@ interface SessionResponse {
   routing?: unknown;
 }
 
-function isSessionResponse(obj: unknown): obj is SessionResponse {
+const isSessionResponse = (obj: unknown): obj is SessionResponse => {
   if (!obj || typeof obj !== 'object') return false;
-  const data = obj as Record<string, unknown>;
   return (
-    'user' in data && data.user !== null && typeof data.user === 'object' &&
-    'session' in data && data.session !== null && typeof data.session === 'object'
+    'user' in obj
+    && obj.user !== null
+    && typeof obj.user === 'object'
+    && 'session' in obj
+    && obj.session !== null
+    && typeof obj.session === 'object'
   );
-}
+};
 
 /**
  * Validates and parses a date string, returning a Date object or null if invalid/missing.
@@ -119,19 +122,29 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
             const user = data.user;
             const session = data.session;
 
+            const userCreatedAt = parseDateSafe(user.createdAt);
+            const userUpdatedAt = parseDateSafe(user.updatedAt);
+            const sessionExpiresAt = parseDateSafe(session.expiresAt);
+            const sessionCreatedAt = parseDateSafe(session.createdAt);
+            const sessionUpdatedAt = parseDateSafe(session.updatedAt);
+
+            if (!userCreatedAt || !userUpdatedAt || !sessionExpiresAt || !sessionCreatedAt || !sessionUpdatedAt) {
+              throw new Error('Missing or invalid required dates in session response');
+            }
+
             const routing = await computeRoutingClaims({
               user: {
                 ...user,
-                createdAt: parseDateSafe(user.createdAt) as Date,
-                updatedAt: parseDateSafe(user.updatedAt) as Date,
+                createdAt: userCreatedAt,
+                updatedAt: userUpdatedAt,
                 dob: parseDateSafe(user.dob),
                 banExpires: parseDateSafe(user.banExpires),
               } as unknown as RoutingContext['user'],
               session: {
                 ...session,
-                expiresAt: parseDateSafe(session.expiresAt) as Date,
-                createdAt: parseDateSafe(session.createdAt) as Date,
-                updatedAt: parseDateSafe(session.updatedAt) as Date,
+                expiresAt: sessionExpiresAt,
+                createdAt: sessionCreatedAt,
+                updatedAt: sessionUpdatedAt,
               } as unknown as RoutingContext['session'],
             });
             data.routing = routing;
