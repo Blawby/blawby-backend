@@ -56,7 +56,7 @@ export const matters = pgTable(
     // Payment settings
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
-    retainer_balance: integer('retainer_balance').notNull().default(0),
+    retainer_balance: integer('retainer_balance').notNull().default(0), // in cents
 
     // Status
     status: varchar('status', { length: 40 }).notNull().default('first_contact'),

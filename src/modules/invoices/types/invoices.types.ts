@@ -46,6 +46,10 @@ export type ListInvoicesQuery = z.infer<typeof invoiceValidations.listInvoicesQu
 export type InvoiceResponse = z.infer<typeof invoiceValidations.invoiceSchema>;
 export type InvoiceLineItemResponse = z.infer<typeof invoiceValidations.lineItemSchema>;
 
+export type InvoiceListFilters = z.infer<typeof invoiceValidations.listInvoicesQuerySchema> & {
+  invoiceId?: string; // For compatibility with repository filters if named differently
+};
+
 export type {
   SelectInvoice,
   SelectInvoiceLineItem,

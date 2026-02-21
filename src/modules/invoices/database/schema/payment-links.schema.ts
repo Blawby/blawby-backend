@@ -63,5 +63,10 @@ export const paymentLinksRelations = relations(paymentLinks, ({ one }) => ({
   }),
 }));
 
+export const paymentLinksSchema = {
+  paymentLinks,
+  paymentLinksRelations,
+};
+
 export type InsertPaymentLink = typeof paymentLinks.$inferInsert;
 export type SelectPaymentLink = typeof paymentLinks.$inferSelect;
