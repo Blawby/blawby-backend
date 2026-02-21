@@ -13,7 +13,6 @@ import { sql, and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   METERED_TYPE_TO_STRIPE_EVENT,
-  type MeteredItem,
 } from '@/modules/subscriptions/constants/meteredProducts';
 import * as schema from '@/schema';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
@@ -22,6 +21,8 @@ import { ok, internalError } from '@/shared/utils/result';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
+
+const METER_USAGE_REPORTED = 'meter_usage.reported';
 
 /**
  * Report metered usage for a subscription by type
@@ -86,7 +87,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
     // We wrap this in its own try/catch to avoid failing the report if DB insert fails
     try {
       await db.insert(schema.events).values({
-        type: 'meter_usage.reported',
+        type: METER_USAGE_REPORTED,
         eventVersion: '1.0.0',
         actorId: SYSTEM_ACTOR_UUID, // Always use SYSTEM_ACTOR_UUID for system items
         actorType: 'system',
@@ -118,13 +119,6 @@ const reportMeteredUsage = async function reportMeteredUsage(
   }
 };
 
-/**
- * Get current usage summary for an organization
- *
- * @param db - Database instance
- * @param organizationId - Organization UUID
- * @returns Result with array of usage records
- */
 const getCurrentUsage = async function getCurrentUsage(
   db: NodePgDatabase<typeof schema>,
   organizationId: string,
@@ -132,6 +126,28 @@ const getCurrentUsage = async function getCurrentUsage(
   Array<{ meter_name: string; quantity: number; description: string | null }>
 >> {
   try {
+    // 1. Get organization's active subscription to find current period start
+    const [org] = await db
+      .select({
+        activeSubscriptionId: schema.organizations.activeSubscriptionId,
+      })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1);
+
+    let periodStart: Date | null = null;
+    if (org?.activeSubscriptionId) {
+      const [sub] = await db
+        .select({
+          periodStart: schema.subscriptions.periodStart,
+        })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, org.activeSubscriptionId))
+        .limit(1);
+      periodStart = sub?.periodStart || null;
+    }
+
+    // 2. Aggregate usage within the current period
     const usage = await db
       .select({
         meter_name: sql<string>`${schema.events.payload}->>'meter_event_name'`,
@@ -141,7 +157,8 @@ const getCurrentUsage = async function getCurrentUsage(
       .where(
         and(
           eq(schema.events.organizationId, organizationId),
-          eq(schema.events.type, 'meter_usage.reported'),
+          eq(schema.events.type, METER_USAGE_REPORTED),
+          periodStart ? sql`${schema.events.createdAt} >= ${periodStart}` : undefined,
         ),
       )
       .groupBy(sql`${schema.events.payload}->>'meter_event_name'`);
@@ -153,85 +170,9 @@ const getCurrentUsage = async function getCurrentUsage(
   }
 };
 
-/**
- * Ensure subscription has all required metered items attached
- *
- * @param stripeSubscriptionId - Stripe Subscription ID
- * @param meteredItems - Array of metered items from the plan
- */
-const ensureSubscriptionMeteredItems = async function ensureSubscriptionMeteredItems(
-  stripeSubscriptionId: string,
-  meteredItems: MeteredItem[],
-): Promise<Result<void>> {
-  try {
-    if (meteredItems.length === 0) {
-      return ok(undefined);
-    }
-
-    const stripe = getStripeInstance();
-    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-
-    // Guard: Only process active subscriptions.
-    // Treat other states (unpaid, incomplete, etc.) as ineligible for metered items.
-    if (!subscription || subscription.status !== 'active') {
-      logger.info('Skipping metered item audit for non-active subscription {subId} (status: {status})', {
-        subId: stripeSubscriptionId,
-        status: subscription?.status || 'unknown',
-      });
-      return ok(undefined);
-    }
-
-    // Identify which items are missing
-    const existingPriceIds = new Set(
-      subscription.items.data.map((item) => item.price.id),
-    );
-
-    const missingItems = meteredItems.filter(
-      (item) => !existingPriceIds.has(item.price_id),
-    );
-
-    if (missingItems.length === 0) {
-      return ok(undefined);
-    }
-
-    logger.info('Adding missing metered items to subscription {subId}', {
-      subId: stripeSubscriptionId,
-      missingCount: missingItems.length,
-    });
-
-    // Add missing items
-    let hasError = false;
-    for (const item of missingItems) {
-      try {
-        await stripe.subscriptionItems.create({
-          subscription: stripeSubscriptionId,
-          price: item.price_id,
-        });
-      } catch (itemErr) {
-        hasError = true;
-        logger.error('Failed to add metered item {priceId} to subscription {subId}: {error}', {
-          priceId: item.price_id,
-          subId: stripeSubscriptionId,
-          error: itemErr instanceof Error ? itemErr.message : 'Unknown error',
-        });
-      }
-    }
-
-    if (hasError) {
-      return internalError('One or more metered items failed to attach to subscription');
-    }
-
-    return ok(undefined);
-  } catch (error) {
-    logger.error('Failed to ensure metered items: {error}', { error });
-    return internalError('Failed to ensure subscription metered items');
-  }
-};
-
 export const meteredProductsService = {
   reportMeteredUsage,
   getCurrentUsage,
-  ensureSubscriptionMeteredItems,
 };
 
 export default meteredProductsService;
