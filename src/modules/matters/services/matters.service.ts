@@ -95,7 +95,7 @@ const createMatter = async (
             matter_id: newMatter.id,
             description: milestone.description,
             amount: milestone.amount,
-            due_date: typeof milestone.due_date === 'string' ? milestone.due_date : milestone.due_date.toISOString().split('T')[0],
+            due_date: milestone.due_date,
             order: milestone.order,
             status: 'pending' as const,
           })),
@@ -258,9 +258,9 @@ const updateMatter = async (
   const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
     if (value === undefined) return acc;
     const existingValue = (existingMatter as Record<string, unknown>)[key];
-    // Normalize dates for comparison (both sides may be Date objects after z.coerce.date())
-    const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
-    const normalizedNext = value instanceof Date ? value.toISOString() : value;
+    // Normalize dates for comparison (existing is Date from DB, input is ISO date string)
+    const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString().split('T')[0] : existingValue;
+    const normalizedNext = value;
     if (!isEqual(normalizedExisting, normalizedNext)) {
       acc.push(key);
     }

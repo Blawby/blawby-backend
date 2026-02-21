@@ -48,13 +48,13 @@ const createMatterSchema = z.object({
   conversation_id: uuidValidator.optional(),
   intake_uuid: uuidValidator.optional(),
   on_behalf_of: z.string().optional(),
-  open_date: z.coerce.date().optional(),
-  close_date: z.coerce.date().optional(),
+  open_date: z.iso.date().optional(),
+  close_date: z.iso.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(), // User IDs to assign
   milestones: z.array(z.object({
     description: z.string().min(1).max(255),
     amount: z.number().int().min(0), // in cents
-    due_date: z.coerce.date(),
+    due_date: z.iso.date(),
     order: z.number().int().min(0).default(0),
   })).optional(),
 }).refine(
@@ -101,8 +101,8 @@ const updateMatterSchema = z.object({
   conversation_id: uuidValidator.optional(),
   intake_uuid: uuidValidator.optional(),
   on_behalf_of: z.string().optional(),
-  open_date: z.coerce.date().optional(),
-  close_date: z.coerce.date().optional(),
+  open_date: z.iso.date().optional(),
+  close_date: z.iso.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(),
 }).strict();
 
