@@ -440,7 +440,7 @@ export const uploadsService = {
 
       return ok({
         download_url: downloadUrl,
-        expires_at: expiresAt ?? null,
+        expires_at: expiresAt,
       });
     } catch (error) {
       logger.error('Failed to generate download URL for {uploadId}: {error}', { uploadId, error });
