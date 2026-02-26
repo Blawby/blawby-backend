@@ -18,6 +18,13 @@ mattersApp.openapi(routes.createMatterNoteRoute, handlers.createMatterNoteHandle
 mattersApp.openapi(routes.updateMatterNoteRoute, handlers.updateMatterNoteHandler);
 mattersApp.openapi(routes.deleteMatterNoteRoute, handlers.deleteMatterNoteHandler);
 
+// ==================== MATTER TASKS ====================
+mattersApp.openapi(routes.listMatterTasksRoute, handlers.listMatterTasksHandler);
+mattersApp.openapi(routes.createMatterTaskRoute, handlers.createMatterTaskHandler);
+mattersApp.openapi(routes.updateMatterTaskRoute, handlers.updateMatterTaskHandler);
+mattersApp.openapi(routes.deleteMatterTaskRoute, handlers.deleteMatterTaskHandler);
+mattersApp.openapi(routes.generateMatterTasksRoute, handlers.generateMatterTasksHandler);
+
 // ==================== MATTER TIME ENTRIES ====================
 mattersApp.openapi(routes.listTimeEntriesRoute, handlers.listTimeEntriesHandler);
 mattersApp.openapi(routes.createTimeEntryRoute, handlers.createTimeEntryHandler);

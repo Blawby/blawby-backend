@@ -2,10 +2,12 @@ import { z } from 'zod';
 import type { SelectMatterActivityLog } from '@/modules/matters/database/schema/matter-activity-log.schema';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { SelectMatterStatusHistory } from '@/modules/matters/database/schema/matter-status-history.schema';
+import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
 import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
 import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
+import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 
@@ -21,6 +23,7 @@ export type MatterWithRelations = SelectMatter & {
     image?: string | null;
   }>;
   milestones?: SelectMatterMilestone[];
+  tasks?: SelectMatterTask[];
   customer?: {
     id: string;
     name: string;
@@ -103,6 +106,10 @@ export type ReorderMilestonesRequest = z.infer<typeof matterMilestoneValidations
 export type CreateMatterNoteRequest = z.infer<typeof matterNoteValidations.createMatterNoteSchema>;
 export type UpdateMatterNoteRequest = z.infer<typeof matterNoteValidations.updateMatterNoteSchema>;
 
+export type CreateMatterTaskRequest = z.infer<typeof matterTaskValidations.createMatterTaskSchema>;
+export type UpdateMatterTaskRequest = z.infer<typeof matterTaskValidations.updateMatterTaskSchema>;
+export type GenerateMatterTasksFromTemplateRequest = z.infer<typeof matterTaskValidations.generateTasksFromTemplateSchema>;
+
 export type CreateMatterTimeEntryRequest = z.infer<typeof matterTimeEntryValidations.createMatterTimeEntrySchema>;
 export type UpdateMatterTimeEntryRequest = z.infer<typeof matterTimeEntryValidations.updateMatterTimeEntrySchema>;
 
@@ -110,4 +117,5 @@ export type MatterResponse = z.infer<typeof matterValidations.matterSchema>;
 export type ExpenseResponse = z.infer<typeof matterExpenseValidations.expenseSchema>;
 export type MilestoneResponse = z.infer<typeof matterMilestoneValidations.milestoneSchema>;
 export type MatterNoteResponse = z.infer<typeof matterNoteValidations.matterNoteSchema>;
+export type MatterTaskResponse = z.infer<typeof matterTaskValidations.matterTaskSchema>;
 export type TimeEntryResponse = z.infer<typeof matterTimeEntryValidations.timeEntrySchema>;
