@@ -8,7 +8,7 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { matters } from './matters.schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { users } from '@/schema';
 
 export const matterTasks = pgTable(
