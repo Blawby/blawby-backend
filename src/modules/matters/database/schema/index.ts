@@ -4,5 +4,6 @@ export * from './matter-notes.schema';
 export * from './matter-time-entries.schema';
 export * from './matter-expenses.schema';
 export * from './matter-milestones.schema';
+export * from './matter-tasks.schema';
 export * from './matter-activity-log.schema';
 export * from './matter-status-history.schema';
