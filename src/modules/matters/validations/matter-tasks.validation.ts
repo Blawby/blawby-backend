@@ -50,8 +50,8 @@ const matterTaskSchema = z.object({
   status: taskStatusEnum,
   priority: taskPriorityEnum,
   stage: z.string(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('MatterTask');
 
 export const matterTaskValidations = {

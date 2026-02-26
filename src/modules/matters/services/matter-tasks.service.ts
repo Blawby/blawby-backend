@@ -9,6 +9,7 @@ import type {
   GenerateMatterTasksFromTemplateRequest,
   UpdateMatterTaskRequest,
 } from '@/modules/matters/types/matter.types';
+import { db } from '@/shared/database';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
@@ -50,7 +51,7 @@ const createMatterTask = async (
   }
 
   try {
-    const task = await matterTasksQueries.createMatterTask({
+    const [task] = await matterTasksQueries.createMatterTasks({
       matter_id: matterId,
       name: data.name,
       description: data.description ?? null,
@@ -129,15 +130,16 @@ const updateMatterTask = async (
       return notFound('Task not found');
     }
 
-    const updated = await matterTasksQueries.updateMatterTask(taskId, {
-      name: data.name,
-      description: data.description,
-      assignee_id: data.assignee_id,
-      due_date: data.due_date,
-      status: data.status,
-      priority: data.priority,
-      stage: data.stage,
-    });
+    const updates: Record<string, unknown> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.assignee_id !== undefined) updates.assignee_id = data.assignee_id;
+    if (data.due_date !== undefined) updates.due_date = data.due_date;
+    if (data.status !== undefined) updates.status = data.status;
+    if (data.priority !== undefined) updates.priority = data.priority;
+    if (data.stage !== undefined) updates.stage = data.stage;
+
+    const updated = await matterTasksQueries.updateMatterTask(taskId, updates);
 
     if (!updated) {
       return internalError('Failed to update task');
@@ -226,26 +228,34 @@ const generateMatterTasksFromTemplate = async (
     return matterResult;
   }
 
-  for (const task of data.tasks) {
-    const assigneeValidation = await validateAssignee(organizationId, task.assignee_id);
+  const uniqueAssigneeIds = [...new Set(
+    data.tasks.map((t) => t.assignee_id).filter((id): id is string => id != null),
+  )];
+
+  for (const assigneeId of uniqueAssigneeIds) {
+    const assigneeValidation = await validateAssignee(organizationId, assigneeId);
     if (!assigneeValidation.success) {
       return assigneeValidation;
     }
   }
 
   try {
-    const createdTasks = await matterTasksQueries.createMatterTasks(
-      data.tasks.map((task) => ({
-        matter_id: matterId,
-        name: task.name,
-        description: task.description ?? null,
-        assignee_id: task.assignee_id ?? null,
-        due_date: task.due_date ?? null,
-        status: task.status,
-        priority: task.priority,
-        stage: task.stage,
-      })),
-    );
+    const createdTasks = await db.transaction(async (tx) => {
+      const tasks = await matterTasksQueries.createMatterTasks(
+        data.tasks.map((task) => ({
+          matter_id: matterId,
+          name: task.name,
+          description: task.description ?? null,
+          assignee_id: task.assignee_id ?? null,
+          due_date: task.due_date ?? null,
+          status: task.status,
+          priority: task.priority,
+          stage: task.stage,
+        })),
+        tx,
+      );
+      return tasks;
+    });
 
     await matterActivityService.logMatterActivity(
       matterId,
