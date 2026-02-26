@@ -16,7 +16,4 @@ ALTER TABLE "matter_tasks" ADD CONSTRAINT "matter_tasks_matter_id_matters_id_fk"
 ALTER TABLE "matter_tasks" ADD CONSTRAINT "matter_tasks_assignee_id_users_id_fk" FOREIGN KEY ("assignee_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "matter_tasks_matter_idx" ON "matter_tasks" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "matter_tasks_assignee_idx" ON "matter_tasks" USING btree ("assignee_id");--> statement-breakpoint
-CREATE INDEX "matter_tasks_status_idx" ON "matter_tasks" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "matter_tasks_priority_idx" ON "matter_tasks" USING btree ("priority");--> statement-breakpoint
-CREATE INDEX "matter_tasks_stage_idx" ON "matter_tasks" USING btree ("stage");--> statement-breakpoint
 CREATE INDEX "matter_tasks_due_date_idx" ON "matter_tasks" USING btree ("due_date");

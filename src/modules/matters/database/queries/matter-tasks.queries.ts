@@ -9,26 +9,17 @@ import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filte
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
-const createMatterTask = async (
-  data: InsertMatterTask,
-): Promise<SelectMatterTask> => {
-  const [task] = await db
-    .insert(matterTasks)
-    .values(data)
-    .returning();
-  return task;
-};
-
 const createMatterTasks = async (
-  data: InsertMatterTask[],
+  data: InsertMatterTask | InsertMatterTask[],
   tx?: NodePgDatabase<typeof schema>,
 ): Promise<SelectMatterTask[]> => {
-  if (data.length === 0) return [];
+  const items = Array.isArray(data) ? data : [data];
+  if (items.length === 0) return [];
 
   const client = tx ?? db;
   return await client
     .insert(matterTasks)
-    .values(data)
+    .values(items)
     .returning();
 };
 
@@ -49,9 +40,6 @@ const listMatterTasks = async (
 ): Promise<SelectMatterTask[]> => {
   const conditions = [eq(matterTasks.matter_id, matterId)];
 
-  if (filters?.taskId) {
-    conditions.push(eq(matterTasks.id, filters.taskId));
-  }
   if (filters?.status) {
     conditions.push(eq(matterTasks.status, filters.status));
   }
@@ -89,7 +77,6 @@ const deleteMatterTask = async (id: string): Promise<void> => {
 };
 
 export const matterTasksQueries = {
-  createMatterTask,
   createMatterTasks,
   findMatterTaskById,
   listMatterTasks,

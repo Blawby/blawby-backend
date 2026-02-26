@@ -39,9 +39,6 @@ export const matterTasks = pgTable(
   (table) => [
     index('matter_tasks_matter_idx').on(table.matter_id),
     index('matter_tasks_assignee_idx').on(table.assignee_id),
-    index('matter_tasks_status_idx').on(table.status),
-    index('matter_tasks_priority_idx').on(table.priority),
-    index('matter_tasks_stage_idx').on(table.stage),
     index('matter_tasks_due_date_idx').on(table.due_date),
   ],
 );
