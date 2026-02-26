@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
 import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
 import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
+import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import {
@@ -41,6 +42,14 @@ const matterMilestoneParamsSchema = matterIdParamSchema.extend({
   milestone_id: z.uuid().openapi({
     param: { name: 'milestone_id', in: 'path' },
     description: 'Milestone ID (UUID)',
+    example: '9a33c3d5-0c6b-43a4-9b46-7a0d80d1e6b4',
+  }),
+});
+
+const matterTaskParamsSchema = matterIdParamSchema.extend({
+  task_id: z.uuid().openapi({
+    param: { name: 'task_id', in: 'path' },
+    description: 'Task ID (UUID)',
     example: '9a33c3d5-0c6b-43a4-9b46-7a0d80d1e6b4',
   }),
 });
@@ -207,6 +216,111 @@ export const deleteMatterNoteRoute = createRoute({
   responses: {
     200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Note deleted' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Note not found' },
+  },
+});
+
+// ==================== MATTER TASKS ====================
+
+export const listMatterTasksRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/{id}/tasks',
+  tags: ['Matters: Tasks'],
+  summary: 'List tasks or get by ID',
+  description: 'Get all tasks for a matter. Use the `task_id` query parameter to retrieve a specific task.',
+  request: {
+    params: matterIdParamSchema,
+    query: matterTaskValidations.listMatterTasksQuerySchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ tasks: z.array(matterTaskValidations.matterTaskSchema) }),
+        },
+      },
+      description: 'Tasks retrieved',
+    },
+  },
+});
+
+export const createMatterTaskRoute = createRoute({
+  method: 'post',
+  path: '/{practice_id}/{id}/tasks',
+  tags: ['Matters: Tasks'],
+  summary: 'Create task',
+  description: 'Create a task for a matter',
+  request: {
+    params: matterIdParamSchema,
+    body: { content: { 'application/json': { schema: matterTaskValidations.createMatterTaskSchema } } },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: z.object({ task: matterTaskValidations.matterTaskSchema }),
+        },
+      },
+      description: 'Task created',
+    },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
+  },
+});
+
+export const updateMatterTaskRoute = createRoute({
+  method: 'patch',
+  path: '/{practice_id}/{id}/tasks/{task_id}',
+  tags: ['Matters: Tasks'],
+  summary: 'Update task',
+  description: 'Update a task for a matter',
+  request: {
+    params: matterTaskParamsSchema,
+    body: { content: { 'application/json': { schema: matterTaskValidations.updateMatterTaskSchema } } },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ task: matterTaskValidations.matterTaskSchema }),
+        },
+      },
+      description: 'Task updated',
+    },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Task not found' },
+  },
+});
+
+export const deleteMatterTaskRoute = createRoute({
+  method: 'delete',
+  path: '/{practice_id}/{id}/tasks/{task_id}',
+  tags: ['Matters: Tasks'],
+  summary: 'Delete task',
+  description: 'Delete a task for a matter',
+  request: { params: matterTaskParamsSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Task deleted' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Task not found' },
+  },
+});
+
+export const generateMatterTasksRoute = createRoute({
+  method: 'post',
+  path: '/{practice_id}/{id}/tasks/generate',
+  tags: ['Matters: Tasks'],
+  summary: 'Generate tasks from template',
+  description: 'Bulk create tasks for a matter using a template payload (bonus endpoint).',
+  request: {
+    params: matterIdParamSchema,
+    body: { content: { 'application/json': { schema: matterTaskValidations.generateTasksFromTemplateSchema } } },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: z.object({ tasks: z.array(matterTaskValidations.matterTaskSchema) }),
+        },
+      },
+      description: 'Tasks generated',
+    },
   },
 });
 

@@ -41,6 +41,15 @@ export type MatterMilestoneListFilters = {
   milestoneId?: string;
 };
 
+/** Filters for listMatterTasks */
+export type MatterTaskListFilters = {
+  taskId?: string;
+  assigneeId?: string;
+  status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  stage?: string;
+};
+
 /** Filters for getMatterActivity */
 export type MatterActivityListFilters = {
   limit?: number;

@@ -8,6 +8,11 @@ import {
   createMatterNoteRoute,
   updateMatterNoteRoute,
   deleteMatterNoteRoute,
+  listMatterTasksRoute,
+  createMatterTaskRoute,
+  updateMatterTaskRoute,
+  deleteMatterTaskRoute,
+  generateMatterTasksRoute,
   listTimeEntriesRoute,
   createTimeEntryRoute,
   updateTimeEntryRoute,
@@ -27,6 +32,7 @@ import { matterActivityService } from '@/modules/matters/services/matter-activit
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
 import { matterNotesService } from '@/modules/matters/services/matter-notes.service';
+import { matterTasksService } from '@/modules/matters/services/matter-tasks.service';
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
@@ -152,6 +158,84 @@ export const deleteMatterNoteHandler: AppRouteHandler<typeof deleteMatterNoteRou
   const { practice_id, id, note_id } = c.req.valid('param');
   const result = await matterNotesService.deleteMatterNote(practice_id, id, note_id, user, c.req.header());
   return response.fromResult(c, result);
+};
+
+export const listMatterTasksHandler: AppRouteHandler<typeof listMatterTasksRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const result = await matterTasksService.listMatterTasks(practice_id, id, user, c.req.header(), {
+    taskId: query.task_id,
+    assigneeId: query.assignee_id,
+    status: query.status,
+    priority: query.priority,
+    stage: query.stage,
+  });
+
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+
+  return response.ok(c, { tasks: result.data });
+};
+
+export const createMatterTaskHandler: AppRouteHandler<typeof createMatterTaskRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterTasksService.createMatterTask(practice_id, id, validatedBody, user, c.req.header());
+
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+
+  return response.created(c, { task: result.data });
+};
+
+export const updateMatterTaskHandler: AppRouteHandler<typeof updateMatterTaskRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id, task_id } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterTasksService.updateMatterTask(
+    practice_id,
+    id,
+    task_id,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+
+  return response.ok(c, { task: result.data });
+};
+
+export const deleteMatterTaskHandler: AppRouteHandler<typeof deleteMatterTaskRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id, task_id } = c.req.valid('param');
+  const result = await matterTasksService.deleteMatterTask(practice_id, id, task_id, user, c.req.header());
+  return response.fromResult(c, result);
+};
+
+export const generateMatterTasksHandler: AppRouteHandler<typeof generateMatterTasksRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await matterTasksService.generateMatterTasksFromTemplate(
+    practice_id,
+    id,
+    validatedBody,
+    user,
+    c.req.header(),
+  );
+
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+
+  return response.created(c, { tasks: result.data });
 };
 
 export const listTimeEntriesHandler: AppRouteHandler<typeof listTimeEntriesRoute> = async (c) => {
