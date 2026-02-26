@@ -194,12 +194,12 @@ export const createMatterTaskHandler: AppRouteHandler<typeof createMatterTaskRou
 
 export const updateMatterTaskHandler: AppRouteHandler<typeof updateMatterTaskRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, id, taskId } = c.req.valid('param');
+  const { practice_id, id, task_id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await matterTasksService.updateMatterTask(
     practice_id,
     id,
-    taskId,
+    task_id,
     validatedBody,
     user,
     c.req.header(),
@@ -214,8 +214,8 @@ export const updateMatterTaskHandler: AppRouteHandler<typeof updateMatterTaskRou
 
 export const deleteMatterTaskHandler: AppRouteHandler<typeof deleteMatterTaskRoute> = async (c) => {
   const user = c.get('user')!;
-  const { practice_id, id, taskId } = c.req.valid('param');
-  const result = await matterTasksService.deleteMatterTask(practice_id, id, taskId, user, c.req.header());
+  const { practice_id, id, task_id } = c.req.valid('param');
+  const result = await matterTasksService.deleteMatterTask(practice_id, id, task_id, user, c.req.header());
   return response.fromResult(c, result);
 };
 

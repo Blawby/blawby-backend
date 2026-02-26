@@ -47,8 +47,8 @@ const matterMilestoneParamsSchema = matterIdParamSchema.extend({
 });
 
 const matterTaskParamsSchema = matterIdParamSchema.extend({
-  taskId: z.uuid().openapi({
-    param: { name: 'taskId', in: 'path' },
+  task_id: z.uuid().openapi({
+    param: { name: 'task_id', in: 'path' },
     description: 'Task ID (UUID)',
     example: '9a33c3d5-0c6b-43a4-9b46-7a0d80d1e6b4',
   }),
@@ -268,7 +268,7 @@ export const createMatterTaskRoute = createRoute({
 
 export const updateMatterTaskRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/tasks/{taskId}',
+  path: '/{practice_id}/{id}/tasks/{task_id}',
   tags: ['Matters: Tasks'],
   summary: 'Update task',
   description: 'Update a task for a matter',
@@ -291,7 +291,7 @@ export const updateMatterTaskRoute = createRoute({
 
 export const deleteMatterTaskRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/tasks/{taskId}',
+  path: '/{practice_id}/{id}/tasks/{task_id}',
   tags: ['Matters: Tasks'],
   summary: 'Delete task',
   description: 'Delete a task for a matter',
