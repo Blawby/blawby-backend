@@ -201,13 +201,19 @@ export const rateLimits = pgTable('better_auth_rate_limits', {
 
 export const identityUpgradeClaims = pgTable('identity_upgrade_claims', {
   id: uuid('id').primaryKey().defaultRandom(),
-  anonUserId: text('anon_user_id').notNull(),
-  registeredUserId: text('registered_user_id').notNull(),
+  anonUserId: uuid('anon_user_id').references(() => users.id, { onDelete: 'set null' }),
+  registeredUserId: uuid('registered_user_id').references(() => users.id, { onDelete: 'set null' }),
   claimed: boolean('claimed').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 }, (table) => [
   index('identity_upgrade_claims_anon_user_idx').on(table.anonUserId),
   index('identity_upgrade_claims_registered_user_idx').on(table.registeredUserId),
+  unique('identity_upgrade_claims_anon_registered_unique')
+    .on(table.anonUserId, table.registeredUserId),
 ]);
 
 
