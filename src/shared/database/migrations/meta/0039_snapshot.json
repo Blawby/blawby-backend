@@ -187,6 +187,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "identity_upgrade_claims_anon_registered_unique": {
+          "name": "identity_upgrade_claims_anon_registered_unique",
+          "columns": [
+            {
+              "expression": "anon_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "registered_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"identity_upgrade_claims\".\"anon_user_id\" IS NOT NULL AND \"identity_upgrade_claims\".\"registered_user_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -218,18 +240,14 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "identity_upgrade_claims_anon_registered_unique": {
-          "name": "identity_upgrade_claims_anon_registered_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "anon_user_id",
-            "registered_user_id"
-          ]
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "identity_upgrade_claims_at_least_one_user_id_check": {
+          "name": "identity_upgrade_claims_at_least_one_user_id_check",
+          "value": "(\"identity_upgrade_claims\".\"anon_user_id\" IS NOT NULL) OR (\"identity_upgrade_claims\".\"registered_user_id\" IS NOT NULL)"
         }
       },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.invitations": {
@@ -5718,6 +5736,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "uploads_matter_id_matters_id_fk": {
+          "name": "uploads_matter_id_matters_id_fk",
+          "tableFrom": "uploads",
+          "tableTo": "matters",
+          "columnsFrom": [
+            "matter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
