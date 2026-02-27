@@ -294,6 +294,7 @@ const updateIntakeTriageStatusResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
     uuid: z.uuid(),
+    conversation_id: z.uuid().nullable().optional(),
     triage_status: z.enum(['pending_review', 'accepted', 'declined']),
     triage_reason: z.string().nullable().optional(),
     triage_decided_at: z.date().nullable().optional(),

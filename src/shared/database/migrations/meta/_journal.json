@@ -267,6 +267,13 @@
       "when": 1772080602000,
       "tag": "0037_add_matter_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1772165603748,
+      "tag": "0038_omniscient_sunspot",
+      "breakpoints": true
     }
   ]
 }

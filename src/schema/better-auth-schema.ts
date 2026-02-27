@@ -9,6 +9,7 @@ import {
   uuid,
   bigint,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
@@ -53,6 +54,7 @@ export const sessions = pgTable('sessions', {
     .references(() => users.id, { onDelete: 'cascade' }),
   activeOrganizationId: uuid('active_organization_id'),
   impersonatedBy: text('impersonated_by'), // Admin plugin: impersonator ID
+  previousAnonUserId: text('previous_anon_user_id'),
 });
 
 
@@ -197,6 +199,17 @@ export const rateLimits = pgTable('better_auth_rate_limits', {
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
+export const identityUpgradeClaims = pgTable('identity_upgrade_claims', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  anonUserId: text('anon_user_id').notNull(),
+  registeredUserId: text('registered_user_id').notNull(),
+  claimed: boolean('claimed').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('identity_upgrade_claims_anon_user_idx').on(table.anonUserId),
+  index('identity_upgrade_claims_registered_user_idx').on(table.registeredUserId),
+]);
+
 
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -266,4 +279,3 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
     references: [users.id],
   }),
 }));
-

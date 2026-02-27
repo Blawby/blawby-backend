@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import {
   admin, anonymous, magicLink, organization,
 } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
@@ -101,6 +102,16 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
     createStripePlugin(db),
     anonymous({
       onLinkAccount: async ({ anonymousUser, newUser }) => {
+        await db.insert(schema.identityUpgradeClaims).values({
+          anonUserId: anonymousUser.user.id,
+          registeredUserId: newUser.user.id,
+        });
+
+        await db
+          .update(schema.sessions)
+          .set({ previousAnonUserId: anonymousUser.user.id })
+          .where(eq(schema.sessions.id, newUser.session.id));
+
         await linkAnonymousUserData({
           anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
           newUser: { id: newUser.user.id, email: newUser.user.email },
@@ -166,7 +177,15 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
     },
   },
   databaseHooks: createDatabaseHooks(db),
-  session: AUTH_CONFIG.session,
+  session: {
+    ...AUTH_CONFIG.session,
+    additionalFields: {
+      previousAnonUserId: {
+        type: 'string',
+        required: false,
+      },
+    },
+  },
   emailAndPassword: AUTH_CONFIG.emailAndPassword,
   user: {
     additionalFields: {
