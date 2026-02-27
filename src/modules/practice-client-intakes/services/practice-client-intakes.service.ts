@@ -917,6 +917,7 @@ const updateIntakeTriageStatus = async (
   success: boolean;
   data: {
     uuid: string;
+    conversation_id: string | null;
     triage_status: 'pending_review' | 'accepted' | 'declined';
     triage_reason: string | null;
     triage_decided_at: Date | null;
@@ -945,6 +946,7 @@ const updateIntakeTriageStatus = async (
       success: true,
       data: {
         uuid: updatedIntake.id,
+        conversation_id: updatedIntake.conversation_id ?? null,
         triage_status: normalizeTriageStatus(updatedIntake.triage_status),
         triage_reason: updatedIntake.triage_reason ?? null,
         triage_decided_at: updatedIntake.triage_decided_at ?? null,
