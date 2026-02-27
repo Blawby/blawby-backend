@@ -1,10 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, json, timestamp, boolean, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  json,
+  timestamp,
+  boolean,
+  index,
+} from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 
 /**
  * Email Logs Table
- * 
+ *
  * Tracks all emails sent by the application for auditing and debugging.
  */
 export const emailLogs = pgTable('email_logs', {
