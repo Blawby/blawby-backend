@@ -22,6 +22,9 @@ import {
 import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
+const authSessionAdditionalFields = (AUTH_CONFIG.session as {
+  additionalFields?: Record<string, unknown>;
+}).additionalFields ?? {};
 
 /**
  * Internal factory to define the Better Auth configuration.
@@ -105,6 +108,11 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         await db.insert(schema.identityUpgradeClaims).values({
           anonUserId: anonymousUser.user.id,
           registeredUserId: newUser.user.id,
+        }).onConflictDoNothing({
+          target: [
+            schema.identityUpgradeClaims.anonUserId,
+            schema.identityUpgradeClaims.registeredUserId,
+          ],
         });
 
         await db
@@ -180,6 +188,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
   session: {
     ...AUTH_CONFIG.session,
     additionalFields: {
+      ...authSessionAdditionalFields,
       previousAnonUserId: {
         type: 'string',
         required: false,
