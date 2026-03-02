@@ -24,7 +24,7 @@ export const payoutSent = (data: PayoutSentData): string => {
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
           The payout will be deposited via Bank account within 1 - 7 business days.
         </mj-text>
-        <mj-button href="${data.dashboardUrl}/settings/account/payouts">
+        <mj-button href="${sanitizeUrl(`${data.dashboardUrl}/settings/account/payouts`)}">
           View payout
         </mj-button>
         <mj-divider border-color="${COLORS.border}" padding="30px 0" />
