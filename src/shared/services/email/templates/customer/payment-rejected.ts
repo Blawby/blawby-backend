@@ -49,7 +49,7 @@ export const customerPaymentRefundRejected = (data: CustomerPaymentReceiptData):
         <mj-divider border-color="${COLORS.border}" padding="20px 0" />
         <mj-text color="${COLORS.textMuted}" font-size="14px">
           Questions? ${data.supportUrl ? `Visit <a href="${sanitizeUrl(data.supportUrl)}" style="color: #1a202c;">${escapeHtml(data.supportUrl)}</a> or ` : ''}
-          Contact us at <a href="mailto:${escapeHtml(data.supportEmail)}" style="color: #1a202c;">${escapeHtml(data.supportEmail)}</a>.
+          ${data.supportEmail ? `Contact us at <a href="mailto:${escapeHtml(data.supportEmail)}" style="color: #1a202c;">${escapeHtml(data.supportEmail)}</a>.` : ''}
         </mj-text>
       </mj-column>
     `)}

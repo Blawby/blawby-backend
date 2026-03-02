@@ -62,13 +62,7 @@ export const teamPaymentRefunded = (data: TeamPaymentReceiptData): string => {
         </mj-text>
         
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="20px">
-          If you would like to build an integration, you might find our <a href="https://blawby.com/docs" style="color: #1a202c;">documentation</a> handy.
-        </mj-text>
-        <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
-          Once you're ready to start accepting live payments, simply <a href="https://ai.blawby.com/practice/{slug}" style="color: #1a202c;">add a client</a>.
-        </mj-text>
-        <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
-          We'll be here to help with any step along the way. You can find answers to most questions and get in touch with us on our <a href="https://blawby.com/help" style="color: #1a202c;">help site</a>.
+          Review this refund in your dashboard for your records.
         </mj-text>
       </mj-column>
     `)}
