@@ -2,13 +2,13 @@
  * Email Template Preview Routes
  */
 
+import type { CustomerPaymentReceiptData, MagicLinkData, PracticeInvitationData, StripeConnectWelcomeData, WelcomeEmailData } from '@/shared/services/email/email.types';
 import { Hono } from 'hono';
-import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
-import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
-import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
+import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
-import type { MagicLinkData, CustomerPaymentReceiptData, WelcomeEmailData, StripeConnectWelcomeData, PracticeInvitationData } from '@/shared/services/email/email.types';
+import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
+import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
 
 const app = new Hono();
 
@@ -17,7 +17,7 @@ app.use('*', async (c, next) => {
   if (process.env.NODE_ENV === 'production') {
     return c.json({ error: 'Not available in production' }, 403);
   }
-  await next();
+  return await next();
 });
 
 // Sample data for previews

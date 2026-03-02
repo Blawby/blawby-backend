@@ -2,7 +2,7 @@
  * Team Payment Refunded Email Template
  */
 
-import type { TeamPaymentReceiptData } from '../../email.types';
+import type { TeamPaymentReceiptData } from '@/shared/services/email/email.types';
 import {
   baseLayout,
   cardSection,
@@ -12,7 +12,7 @@ import {
   sanitizeUrl,
   COLORS,
   BLAWBY_LOGO_URL,
-} from '../base.template';
+} from '@/shared/services/email/templates/base.template';
 
 export const teamPaymentRefunded = (data: TeamPaymentReceiptData): string => {
   const mjmlContent = baseLayout(

@@ -2,7 +2,7 @@
  * Customer Payment Refund Rejected Email Template
  */
 
-import type { CustomerPaymentReceiptData } from '../../email.types';
+import type { CustomerPaymentReceiptData } from '@/shared/services/email/email.types';
 import {
   baseLayout,
   cardSection,
@@ -12,7 +12,7 @@ import {
   sanitizeUrl,
   COLORS,
   INVOICE_ILLUSTRATION_URL,
-} from '../base.template';
+} from '@/shared/services/email/templates/base.template';
 
 export const customerPaymentRefundRejected = (data: CustomerPaymentReceiptData): string => {
   const mjmlContent = baseLayout(

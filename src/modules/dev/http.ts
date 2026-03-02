@@ -1,22 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Hono } from 'hono';
-import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
+import type { AppContext } from '@/shared/types/hono';
+import type { MagicLinkData, CustomerPaymentReceiptData, CustomerPaymentRequestData, PracticeInvitationData, PayoutSentData, StripeConnectStatusData, StripeConnectWelcomeData, TeamPaymentReceiptData, WelcomeEmailData } from '@/shared/services/email/email.types';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
-import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
+import { customerPaymentRefundRejected } from '@/shared/services/email/templates/customer/payment-rejected';
 import { customerPaymentRefundRequest } from '@/shared/services/email/templates/customer/payment-refund-request';
 import { customerPaymentRefunded } from '@/shared/services/email/templates/customer/payment-refunded';
-import { customerPaymentRefundRejected } from '@/shared/services/email/templates/customer/payment-rejected';
-import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
-import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
-import { stripeConnectStatus } from '@/shared/services/email/templates/onboarding/stripe-connect-status';
+import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
+import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
 import { payoutSent } from '@/shared/services/email/templates/onboarding/payout-sent';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
+import { stripeConnectStatus } from '@/shared/services/email/templates/onboarding/stripe-connect-status';
+import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
 import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
 import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team/payment-refund-request';
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
-import type { AppContext } from '@/shared/types/hono';
-import type { MagicLinkData, CustomerPaymentReceiptData, CustomerPaymentRequestData, WelcomeEmailData, StripeConnectWelcomeData, StripeConnectStatusData, PayoutSentData, PracticeInvitationData, TeamPaymentReceiptData } from '@/shared/services/email/email.types';
+import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
 
 const http = new Hono<AppContext>();
 
