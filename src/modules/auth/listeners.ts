@@ -52,7 +52,7 @@ export function registerAuthListeners(): void {
         recipientName: payload.name ?? 'User',
         dashboardUrl: `${APP_URL}/dashboard`,
         tutorialUrl: `${APP_URL}/docs/getting-started`,
-        supportUrl: 'https://blawby.com/support',
+        supportUrl: 'https://blawby.com/help',
       },
     ).catch((error) => {
       logError('Failed to queue welcome email', error, {
