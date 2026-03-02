@@ -19,10 +19,8 @@ export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
     .map(
       (item) => `
       <tr>
-        <td style="padding-bottom: 16px; padding-top: 8px; font-size: 16px; font-weight: 500; color: ${COLORS.text};">
-          <a href="${sanitizeUrl(data.invoiceUrl)}" style="color: #000000; text-decoration: none; font-weight: 700;">
-            ${formatCurrency(item.amount)}
-          </a> — ${escapeHtml(item.description)}
+        <td style="padding-bottom: 16px; padding-top: 8px; font-size: 16px; font-weight: 500; color: #1a1a1a;">
+          ${formatCurrency(item.amount)} — ${escapeHtml(item.description)}
         </td>
       </tr>
     `,
@@ -33,10 +31,10 @@ export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
     `
     ${cardSection(`
       <mj-column>
-        <mj-text color="${COLORS.textDark}" font-size="24px" font-weight="700" line-height="28px">
+        <mj-text color="${COLORS.text}" font-size="20px" font-weight="700" line-height="28px">
           Congratulations ${escapeHtml(data.businessName)}!
         </mj-text>
-        <mj-text color="${COLORS.textDark}" font-size="16px" font-weight="500" padding-top="10px">
+        <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
           You've received a payment of ${formatCurrency(data.amountPaid)} through Blawby.
         </mj-text>
       </mj-column>
@@ -75,8 +73,8 @@ export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
         <mj-divider border-color="${COLORS.border}" />
         
         <mj-text color="${COLORS.textMuted}">
-          Questions? ${data.supportUrl ? `Visit <a href="${sanitizeUrl(data.supportUrl)}" style="color: #000000;">${escapeHtml(data.supportUrl)}</a> or ` : ''}
-          Contact us at <a href="mailto:${escapeHtml(data.supportEmail)}" style="color: #000000;">${escapeHtml(data.supportEmail)}</a>.
+          Questions? ${data.supportUrl ? `Visit <a href="${sanitizeUrl(data.supportUrl)}" style="color: #1a202c;">${escapeHtml(data.supportUrl)}</a> or ` : ''}
+          Contact us at <a href="mailto:${escapeHtml(data.supportEmail)}" style="color: #1a202c;">${escapeHtml(data.supportEmail)}</a>.
         </mj-text>
       </mj-column>
     `)}

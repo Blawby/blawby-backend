@@ -104,7 +104,7 @@ export function registerPracticeListeners(): void {
     void addEmailJob(
       EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT,
       customer.email,
-      `Payment receipt from ${business.name}`,
+      `Your receipt from ${business.name} ${payment.invoiceNumber}`,
       {
         recipientEmail: customer.email,
         recipientName: customer.name,
@@ -128,7 +128,7 @@ export function registerPracticeListeners(): void {
     void addEmailJob(
       EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT,
       'support@blawby.com', // Default support/owner email
-      `New payment received: ${payment.invoiceNumber}`,
+      `Payment of $${(payment.amount / 100).toFixed(2)} received from ${customer.name}`,
       {
         recipientEmail: 'support@blawby.com',
         recipientName: 'Team',

@@ -18,7 +18,7 @@ const COLORS = {
   border: '#eaeaea',
 };
 
-const BLAWBY_LOGO_URL = 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/264e9151-7efb-4aa3-0063-61622211ea00/public';
+const BLAWBY_LOGO_URL = 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/27bc2bf2-8582-4ed1-e77c-45d7a3215b00/public';
 const INVOICE_ILLUSTRATION_URL = 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/02417d17-e2fb-4494-2ab5-ba89ef347e00/public';
 
 /**
@@ -73,16 +73,16 @@ export const baseLayout = (content: string, headerImageUrl?: string): string => 
   <mj-head>
     <mj-attributes>
       <mj-all font-family="'Proxima Nova', Arial, sans-serif" />
-      <mj-text font-size="16px" line-height="26px" color="${COLORS.text}" />
-      <mj-button background-color="#000000" color="#ffffff" font-size="18px" font-weight="500" border-radius="6px" padding="14px 32px" />
+      <mj-text font-size="16px" line-height="26px" color="#1a1a1a" />
+      <mj-button background-color="#1a202c" color="#ffffff" font-size="18px" font-weight="500" border-radius="6px" padding="14px 32px" />
     </mj-attributes>
     <mj-style>
-      .divider { border-bottom: 1px solid ${COLORS.border}; margin: 20px 0; }
+      .divider { border-bottom: 1px solid #e5e5e5; margin: 12px 0; }
     </mj-style>
   </mj-head>
-  <mj-body background-color="${COLORS.background}">
+  <mj-body background-color="#ffffff">
     <!-- Header with Logo -->
-    <mj-section padding="20px 0">
+    <mj-section padding="12px 0">
       <mj-column>
         <mj-image src="${headerImg}" alt="Logo" width="80px" border-radius="12px" />
       </mj-column>
@@ -91,11 +91,10 @@ export const baseLayout = (content: string, headerImageUrl?: string): string => 
     ${content}
 
     <!-- Footer -->
-    <mj-section padding="20px 0">
+    <mj-section background-color="#f8fafc" padding="16px 32px">
       <mj-column>
-        <mj-text align="center" color="#ffffff" font-size="14px">
-          Powered by <a href="https://blawby.com" style="color: #ffffff;">Blawby</a> |
-          <a href="https://blawby.com/invoicing" style="color: #ffffff;">Learn more about Blawby Invoicing</a>
+        <mj-text align="center" color="#64748b" font-size="14px">
+          &copy; ${new Date().getFullYear()} Blawby. All rights reserved.
         </mj-text>
       </mj-column>
     </mj-section>
@@ -109,10 +108,10 @@ export const baseLayout = (content: string, headerImageUrl?: string): string => 
  */
 export const cardSection = (content: string): string => {
   return `
-    <mj-section background-color="${COLORS.white}" border-radius="12px" padding="24px">
+    <mj-section background-color="#ffffff" border-radius="12px" padding="16px">
       ${content}
     </mj-section>
-    <mj-section padding="10px 0"></mj-section>
+    <mj-section padding="6px 0"></mj-section>
   `;
 };
 
