@@ -12,6 +12,14 @@ import type { MagicLinkData, CustomerPaymentReceiptData, WelcomeEmailData, Strip
 
 const app = new Hono();
 
+// Production guard - disable all routes in production
+app.use('*', async (c, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    return c.json({ error: 'Not available in production' }, 403);
+  }
+  await next();
+});
+
 // Sample data for previews
 const sampleMagicLinkData: MagicLinkData = {
   url: 'https://blawby.com/auth/magic-link?token=sample-token-123',
