@@ -13,7 +13,8 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM information_schema.columns
-    WHERE table_name = 'refund_requests'
+    WHERE table_schema = 'public'
+      AND table_name = 'refund_requests'
       AND column_name = 'created_by_user_id'
   ) THEN
     EXECUTE $sql$
