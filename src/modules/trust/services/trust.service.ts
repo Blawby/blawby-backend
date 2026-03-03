@@ -28,41 +28,42 @@ const withTrustLock = async <T>(
   execute: (trx: typeof db) => Promise<Result<T>>,
   tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
 ): Promise<Result<T>> => {
-  const run = async (trx: typeof db) => {
+  let retries = 3;
+
+  const runWithLock = async (trx: typeof db) => {
     const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId ?? 'no-matter'}`;
     await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
     await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
-    
-    let retries = 3;
-    while (true) {
-      try {
-        return await execute(trx);
-      } catch (error: unknown) {
-        const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-        const isSerializationFailure = code === '40001';
-        if (isSerializationFailure && retries > 0) {
-          retries--;
-          const delay = 100 * (2 ** (3 - retries));
-          await new Promise((r) => setTimeout(r, delay));
-          continue;
-        }
-        throw error;
-      }
-    }
+    return await execute(trx);
   };
 
-  try {
-    return tx ? await run(tx) : await db.transaction(run);
-  } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-    if (code === '55P03') {
-      logger.warn('Trust operation timed out waiting for lock: {error}', {
-        error: error instanceof Error ? error.message : 'Timeout',
-        params,
-      });
-      return result.conflict('Operation timed out due to high concurrency. Please try again.');
+  while (true) {
+    try {
+      return tx ? await runWithLock(tx) : await db.transaction(runWithLock);
+    } catch (error: unknown) {
+      const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+      
+      // Handle lock timeout
+      if (code === '55P03') {
+        logger.warn('Trust operation timed out waiting for lock: {error}', {
+          error: error instanceof Error ? error.message : 'Timeout',
+          params,
+        });
+        return result.conflict('Operation timed out due to high concurrency. Please try again.');
+      }
+
+      // Handle serialization failure - only retry if we are managing the transaction
+      const isSerializationFailure = code === '40001';
+      if (isSerializationFailure && !tx && retries > 0) {
+        retries--;
+        const delay = 100 * (2 ** (3 - retries));
+        logger.info('Retrying trust transaction due to serialization failure (retries left: {retries})', { retries });
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      throw error;
     }
-    throw error;
   }
 };
 
