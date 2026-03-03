@@ -1,14 +1,17 @@
+import { eq, and } from 'drizzle-orm';
 import { getLogger } from '@logtape/logtape';
+
+import { stripe } from '@/shared/utils/stripe-client';
+
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
-import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
-import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { db } from '@/shared/database';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
-import { eq, and } from 'drizzle-orm';
-import { stripe } from '@/shared/utils/stripe-client';
+
+import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
+import type { Result } from '@/shared/types/result';
 
 const logger = getLogger(['invoices', 'refund-requests']);
 
@@ -57,7 +60,11 @@ const createRequest = async (opts: {
         return result.badRequest('Requested amount must be a positive integer amount in cents');
       }
 
-      const existingRefunds = await refundRequestsQueries.listByOrganization(opts.organizationId, { invoice_id: opts.invoiceId }, tx);
+      const existingRefunds = await refundRequestsQueries.listByOrganization(
+        opts.organizationId,
+        { invoice_id: opts.invoiceId },
+        tx,
+      );
       const existingRefundSum = existingRefunds
         .filter((r) => ['requested', 'approved', 'executed'].includes(r.status))
         .reduce((sum, r) => sum + (r.status === 'executed' ? (r.executed_amount ?? r.requested_amount) : r.requested_amount), 0);
@@ -264,17 +271,34 @@ const executeRefund = async (opts: {
       }
       return result.ok(updated);
     } catch (stripeError) {
+      const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown error';
+      const isTransient = stripeError instanceof Error && (
+        stripeError.name === 'APIConnectionError' ||
+        stripeError.name === 'RateLimitError' ||
+        (stripeError as any).code === 'ECONNRESET' ||
+        (stripeError as any).code === 'ETIMEDOUT'
+      );
+
+      if (isTransient) {
+        logger.error('Stripe refund transient error for request {requestId}: {error}', {
+          requestId: opts.requestId,
+          executorUserId: opts.executorUserId,
+          error: errorMsg,
+        });
+        return result.internalError('Stripe refund transient error — please retry later');
+      }
+
       // Mark as failed but preserve the request
       await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
         status: 'failed',
         executed_by_user_id: opts.executorUserId,
         executed_at: new Date(),
-        review_notes: `Stripe error: ${stripeError instanceof Error ? stripeError.message : 'Unknown error'}`,
+        review_notes: `Stripe error: ${errorMsg}`,
       });
 
       logger.error('Stripe refund failed for request {requestId}: {error}', {
         requestId: opts.requestId,
-        error: stripeError instanceof Error ? stripeError.message : 'Unknown error',
+        error: errorMsg,
       });
 
       return result.internalError('Stripe refund failed — request marked as failed');
