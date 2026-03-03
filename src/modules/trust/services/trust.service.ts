@@ -21,6 +21,52 @@ export type RecordDepositParams = {
 };
 
 /**
+ * Shared helper to acquire a trust lock and execute logic with retries for serialization failures.
+ */
+const withTrustLock = async <T>(
+  params: { organizationId: string; clientId: string; matterId?: string | null },
+  execute: (trx: typeof db) => Promise<Result<T>>,
+  tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
+): Promise<Result<T>> => {
+  const run = async (trx: typeof db) => {
+    const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId ?? 'no-matter'}`;
+    await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
+    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
+    
+    let retries = 3;
+    while (true) {
+      try {
+        return await execute(trx);
+      } catch (error: unknown) {
+        const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+        const isSerializationFailure = code === '40001';
+        if (isSerializationFailure && retries > 0) {
+          retries--;
+          const delay = 100 * (2 ** (3 - retries));
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        throw error;
+      }
+    }
+  };
+
+  try {
+    return tx ? await run(tx) : await db.transaction(run);
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+    if (code === '55P03') {
+      logger.warn('Trust operation timed out waiting for lock: {error}', {
+        error: error instanceof Error ? error.message : 'Timeout',
+        params,
+      });
+      return result.conflict('Operation timed out due to high concurrency. Please try again.');
+    }
+    throw error;
+  }
+};
+
+/**
  * Record a trust deposit (e.g., retainer payment received).
  */
 const recordDeposit = async (
@@ -29,65 +75,33 @@ const recordDeposit = async (
 ): Promise<Result<SelectTrustTransaction>> => {
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
-  const execute = async (trx: typeof db) => {
-    const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
-    await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
-    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
-    let retries = 3;
-    while (true) {
-      try {
-        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
-          params.organizationId,
-          params.clientId,
-          params.matterId ?? null,
-          trx,
-        );
-        const currentBalance = balanceRow?.balance ?? 0;
-        const newBalance = currentBalance + params.amount;
-
-        const record = await trustTransactionsRepository.createTransaction({
-          organization_id: params.organizationId,
-          client_id: params.clientId,
-          matter_id: params.matterId ?? null,
-          transaction_type: 'deposit',
-          amount: params.amount,
-          balance_after: newBalance,
-          description: params.description ?? 'Retainer deposit',
-          source: 'retainer_invoice',
-          invoice_id: params.invoiceId ?? null,
-          stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-          created_by: params.createdBy,
-        }, trx);
-        return result.ok(record);
-      } catch (error: unknown) {
-        const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-        const isSerializationFailure = code === '40001';
-        if (isSerializationFailure) {
-          retries--;
-          if (retries > 0) {
-            const delay = 100 * (2 ** (3 - retries));
-            await new Promise((r) => setTimeout(r, delay));
-          } else {
-            throw error;
-          }
-        } else {
-          throw error;
-        }
-      }
-    }
-  };
-
   try {
-    return tx ? await execute(tx) : await db.transaction(execute);
+    return await withTrustLock(params, async (trx) => {
+      const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+        params.organizationId,
+        params.clientId,
+        params.matterId ?? null,
+        trx,
+      );
+      const currentBalance = balanceRow?.balance ?? 0;
+      const newBalance = currentBalance + params.amount;
+
+      const record = await trustTransactionsRepository.createTransaction({
+        organization_id: params.organizationId,
+        client_id: params.clientId,
+        matter_id: params.matterId ?? null,
+        transaction_type: 'deposit',
+        amount: params.amount,
+        balance_after: newBalance,
+        description: params.description ?? 'Retainer deposit',
+        source: 'retainer_invoice',
+        invoice_id: params.invoiceId ?? null,
+        stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+        created_by: params.createdBy,
+      }, trx);
+      return result.ok(record);
+    }, tx);
   } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-    if (code === '55P03') {
-      logger.warn('Trust deposit timed out waiting for lock: {error}', {
-        error: error instanceof Error ? error.message : 'Timeout',
-        params,
-      });
-      return result.conflict('Operation timed out due to high concurrency. Please try again.');
-    }
     logger.error('Failed to record trust deposit: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -115,70 +129,38 @@ const recordWithdrawal = async (
 ): Promise<Result<SelectTrustTransaction>> => {
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
-  const execute = async (trx: typeof db) => {
-    const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
-    await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
-    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
-    let retries = 3;
-    while (true) {
-      try {
-        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
-          params.organizationId,
-          params.clientId,
-          params.matterId ?? null,
-          trx,
-        );
-        const currentBalance = balanceRow?.balance ?? 0;
-        
-        if (currentBalance < params.amount) {
-          return result.badRequest('Insufficient funds');
-        }
-        
-        const newBalance = currentBalance - params.amount;
-
-        const record = await trustTransactionsRepository.createTransaction({
-          organization_id: params.organizationId,
-          client_id: params.clientId,
-          matter_id: params.matterId ?? null,
-          transaction_type: 'withdrawal',
-          amount: params.amount,
-          balance_after: newBalance,
-          description: params.description ?? 'Invoice payment from retainer',
-          source: 'invoice_payment',
-          invoice_id: params.invoiceId ?? null,
-          stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-          created_by: params.createdBy,
-        }, trx);
-        return result.ok(record);
-      } catch (error: unknown) {
-        const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-        const isSerializationFailure = code === '40001';
-        if (isSerializationFailure) {
-          retries--;
-          if (retries > 0) {
-            const delay = 100 * (2 ** (3 - retries));
-            await new Promise((r) => setTimeout(r, delay));
-          } else {
-            throw error;
-          }
-        } else {
-          throw error;
-        }
-      }
-    }
-  };
-
   try {
-    return tx ? await execute(tx) : await db.transaction(execute);
+    return await withTrustLock(params, async (trx) => {
+      const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+        params.organizationId,
+        params.clientId,
+        params.matterId ?? null,
+        trx,
+      );
+      const currentBalance = balanceRow?.balance ?? 0;
+      
+      if (currentBalance < params.amount) {
+        return result.badRequest('Insufficient funds');
+      }
+      
+      const newBalance = currentBalance - params.amount;
+
+      const record = await trustTransactionsRepository.createTransaction({
+        organization_id: params.organizationId,
+        client_id: params.clientId,
+        matter_id: params.matterId ?? null,
+        transaction_type: 'withdrawal',
+        amount: params.amount,
+        balance_after: newBalance,
+        description: params.description ?? 'Invoice payment from retainer',
+        source: 'invoice_payment',
+        invoice_id: params.invoiceId ?? null,
+        stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+        created_by: params.createdBy,
+      }, trx);
+      return result.ok(record);
+    }, tx);
   } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-    if (code === '55P03') {
-      logger.warn('Trust withdrawal timed out waiting for lock: {error}', {
-        error: error instanceof Error ? error.message : 'Timeout',
-        params,
-      });
-      return result.conflict('Operation timed out due to high concurrency. Please try again.');
-    }
     logger.error('Failed to record trust withdrawal: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
