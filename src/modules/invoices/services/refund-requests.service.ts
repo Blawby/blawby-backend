@@ -293,7 +293,7 @@ const executeRefund = async (opts: {
         status: 'failed',
         executed_by_user_id: opts.executorUserId,
         executed_at: new Date(),
-        review_notes: `Stripe error: ${errorMsg}`,
+        review_notes: req.review_notes ? `${req.review_notes}\n\nStripe error: ${errorMsg}` : `Stripe error: ${errorMsg}`,
       });
 
       logger.error('Stripe refund failed for request {requestId}: {error}', {
