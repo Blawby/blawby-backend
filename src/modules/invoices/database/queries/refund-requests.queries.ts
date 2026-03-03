@@ -109,6 +109,25 @@ const update = async (
   return updated;
 };
 
+/**
+ * Update a refund request only if it is in a specific status
+ */
+const transitionStatus = async (
+  id: string,
+  organizationId: string,
+  fromStatus: string,
+  data: Partial<InsertRefundRequest>,
+  tx?: typeof db,
+): Promise<SelectRefundRequest | undefined> => {
+  const client = tx || db;
+  const [updated] = await client
+    .update(refundRequests)
+    .set({ ...data, updated_at: new Date() })
+    .where(and(eq(refundRequests.id, id), eq(refundRequests.organization_id, organizationId), eq(refundRequests.status, fromStatus)))
+    .returning();
+  return updated;
+};
+
 export const refundRequestsQueries = {
   create,
   findById,
@@ -116,4 +135,5 @@ export const refundRequestsQueries = {
   listByOrganization,
   listByClient,
   update,
+  transitionStatus,
 };

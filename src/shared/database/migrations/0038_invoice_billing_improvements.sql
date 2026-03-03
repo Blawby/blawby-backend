@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS refund_requests (
   reason TEXT NOT NULL,
   notes TEXT,
   status VARCHAR(50) NOT NULL DEFAULT 'requested'
-    CHECK (status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled')),
+    CHECK (status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')),
   stripe_refund_id VARCHAR(255),
   stripe_payment_intent_id VARCHAR(255),
   executed_amount INTEGER CHECK (executed_amount > 0),
