@@ -158,6 +158,7 @@ export const getClientInvoicesHandler: AppRouteHandler<typeof getClientInvoicesR
   const user = c.get('user');
   if (!user) return response.unauthorized(c);
   const { practice_id } = c.req.valid('param');
+  const query = c.req.valid('query');
 
   const routing = await computeRoutingClaims({
     user: { id: user.id, isAnonymous: user.isAnonymous ?? false, banned: user.banned ?? null },
@@ -167,7 +168,11 @@ export const getClientInvoicesHandler: AppRouteHandler<typeof getClientInvoicesR
     return response.forbidden(c, 'Client access required');
   }
 
-  const result = await invoicesService.listClientInvoices(practice_id, user.id);
+  const result = await invoicesService.listClientInvoices(practice_id, user.id, {
+    status: query.status,
+    page: query.page,
+    limit: query.limit,
+  });
   return response.fromResult(c, result);
 };
 

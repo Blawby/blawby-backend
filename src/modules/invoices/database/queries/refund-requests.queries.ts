@@ -57,7 +57,7 @@ const findByIdAndClient = async (
  */
 const listByOrganization = async (
   organizationId: string,
-  filters?: { status?: string; invoice_id?: string },
+  filters?: { status?: string; invoice_id?: string; client_user_details_id?: string },
   tx?: typeof db,
 ): Promise<SelectRefundRequest[]> => {
   const client = tx || db;
@@ -66,6 +66,7 @@ const listByOrganization = async (
       e(rr.organization_id, organizationId),
       ...(filters?.status ? [e(rr.status, filters.status)] : []),
       ...(filters?.invoice_id ? [e(rr.invoice_id, filters.invoice_id)] : []),
+      ...(filters?.client_user_details_id ? [e(rr.client_user_details_id, filters.client_user_details_id)] : []),
     ),
     orderBy: (rr, { desc: d }) => [d(rr.created_at)],
   });

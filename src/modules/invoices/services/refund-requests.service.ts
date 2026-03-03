@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { stripe } from '@/shared/utils/stripe-client';
 
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
+import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { result } from '@/shared/utils/result';
@@ -70,13 +71,14 @@ const createRequest = async (opts: {
         { invoice_id: opts.invoiceId },
         tx,
       );
-      const existingRefundSum = existingRefunds
-        .filter((r) => ['requested', 'approved', 'executing', 'executed'].includes(r.status))
-        .reduce((sum, r) => sum + (r.status === 'executed' ? (r.executed_amount ?? r.requested_amount) : r.requested_amount), 0);
+      const hasOpenRequest = existingRefunds.some((r) => ['requested', 'approved'].includes(r.status));
+      if (hasOpenRequest) {
+        return result.badRequest('An open refund request already exists for this invoice');
+      }
 
-      // Validate amount does not exceed amount_paid
-      if (opts.requestedAmount + existingRefundSum > (invoice.amount_paid ?? 0)) {
-        return result.badRequest('Requested refund amount plus existing refunds exceeds amount paid');
+      // Validate amount does not exceed amount_paid for this request
+      if (opts.requestedAmount > (invoice.amount_paid ?? 0)) {
+        return result.badRequest('Requested refund amount exceeds amount paid');
       }
 
       const req = await refundRequestsQueries.create({
@@ -160,7 +162,7 @@ const cancelRequest = async (opts: {
  */
 const listPracticeRequests = async (
   organizationId: string,
-  filters?: { status?: string; invoice_id?: string },
+  filters?: { status?: string; invoice_id?: string; client_user_details_id?: string },
 ): Promise<Result<SelectRefundRequest[]>> => {
   try {
     const requests = await refundRequestsQueries.listByOrganization(organizationId, filters);
@@ -257,36 +259,39 @@ const executeRefund = async (opts: {
       return result.badRequest('Invoice has no Stripe payment intent ID — cannot refund');
     }
 
-    // Resolve the connected account for the refund
-    const stripeAccountId = invoice.connectedAccount?.stripe_account_id;
-    if (!stripeAccountId) {
-      // Revert status before returning
-      try {
-        await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
-      } catch (rollbackError) {
-        logger.error('Failed to rollback refund request status from executing to approved after missing stripe account ID', {
-          requestId: opts.requestId,
-          organizationId: opts.organizationId,
-          status: 'executing',
-          error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-        });
-      }
-      return result.badRequest('Invoice has no connected Stripe account');
-    }
-
     try {
       // Proceed with external Stripe API request before updating local status to 'executed'.
+      let stripeTransferId = invoice.stripe_transfer_id;
+      if (!stripeTransferId) {
+        const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id);
+        stripeTransferId = invoiceTxs.find((tx) => tx.type === 'payout' && !!tx.stripe_transfer_id)?.stripe_transfer_id ?? null;
+      }
 
-      const refund = await stripe.refunds.create({
+      if (!stripeTransferId) {
+        logger.warn('Executing refund request {requestId} without transfer reversal; no Stripe transfer ID found for invoice {invoiceId}', {
+          requestId: opts.requestId,
+          invoiceId: invoice.id,
+        });
+      }
+
+      const refundParams: Stripe.RefundCreateParams = {
         payment_intent: stripePaymentIntentId,
         amount: claimedReq.requested_amount,
         metadata: {
           refund_request_id: claimedReq.id,
           invoice_id: claimedReq.invoice_id,
           organization_id: opts.organizationId,
+          ...(stripeTransferId ? { stripe_transfer_id: stripeTransferId } : {}),
         },
-      }, {
-        stripeAccount: stripeAccountId,
+        ...(stripeTransferId
+          ? {
+              reverse_transfer: true,
+              refund_application_fee: true,
+            }
+          : {}),
+      };
+
+      const refund = await stripe.refunds.create(refundParams, {
         idempotencyKey: `refund_request_${opts.requestId}`,
       });
 

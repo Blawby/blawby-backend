@@ -17,6 +17,7 @@ import { matterExpensesQueries } from '@/modules/matters/database/queries/matter
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { organizationService } from '@/modules/practice/services/organization.service';
+import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { db } from '@/shared/database';
 import {
   InvoiceCreated,
@@ -31,6 +32,16 @@ import { result } from '@/shared/utils/result';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['invoices', 'service']);
+
+const resolveStripeAccountIdForInvoice = async (
+  connectedAccountId: string,
+): Promise<Result<string>> => {
+  const connectedAccount = await onboardingRepository.findById(connectedAccountId);
+  if (!connectedAccount) {
+    return result.badRequest('Connected account not found for invoice');
+  }
+  return result.ok(connectedAccount.stripe_account_id);
+};
 
 /**
  * Calculate invoice subtotal and total based on line items
@@ -410,9 +421,13 @@ const sendInvoice = async (
     }
 
     // 1. Create on Stripe
+    const stripeAccountResult = await resolveStripeAccountIdForInvoice(invoice.connected_account_id);
+    if (!stripeAccountResult.success) return stripeAccountResult;
+
     const stripeResult = await stripeInvoicesService.createStripeInvoice(
       invWithRel,
       invWithRel.client.stripe_customer_id,
+      stripeAccountResult.data,
     );
     if (!stripeResult.success) return stripeResult;
 
@@ -421,7 +436,6 @@ const sendInvoice = async (
     // 2. Finalize and send
     const sendResult = await stripeInvoicesService.finalizeAndSendInvoice(
       stripeInvoice.id,
-      invoice.connected_account_id,
     );
     if (!sendResult.success) return sendResult;
 
@@ -483,10 +497,10 @@ const syncInvoice = async (
     if (!invoice.stripe_invoice_id) return result.badRequest('Invoice has not been synced with Stripe');
 
     // 1. Fetch from Stripe
-    const stripeResult = await stripeInvoicesService.getStripeInvoice(
-      invoice.stripe_invoice_id,
-      invoice.connected_account_id,
-    );
+    const stripeAccountResult = await resolveStripeAccountIdForInvoice(invoice.connected_account_id);
+    if (!stripeAccountResult.success) return stripeAccountResult;
+
+    const stripeResult = await stripeInvoicesService.getStripeInvoice(invoice.stripe_invoice_id);
     if (!stripeResult.success) return stripeResult;
 
     const stripeInvoice = stripeResult.data;
@@ -545,10 +559,10 @@ const voidInvoice = async (
     }
 
     // Void on Stripe
-    const voidResult = await stripeInvoicesService.voidInvoice(
-      invoice.stripe_invoice_id,
-      invoice.connected_account_id,
-    );
+    const stripeAccountResult = await resolveStripeAccountIdForInvoice(invoice.connected_account_id);
+    if (!stripeAccountResult.success) return stripeAccountResult;
+
+    const voidResult = await stripeInvoicesService.voidInvoice(invoice.stripe_invoice_id);
     if (!voidResult.success) return voidResult;
 
     await db.transaction(async (tx) => {
@@ -591,16 +605,26 @@ const voidInvoice = async (
 const listClientInvoices = async (
   organizationId: string,
   userId: string,
-  filters?: { status?: string },
-): Promise<Result<InvoiceResponse[]>> => {
+  filters?: { status?: string; page?: number; limit?: number },
+): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
   try {
     // Resolve userId → userDetails.id for this org
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
     if (!userDetailResult.success) return userDetailResult;
     const userDetailId = userDetailResult.data;
 
-    const invoiceList = await invoicesRepository.findManyByClientId(organizationId, userDetailId, filters);
-    return result.ok(invoiceList.map(transformInvoiceResponse));
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 20;
+    const { invoices: invoiceList, total } = await invoicesRepository.findManyByClientId(organizationId, userDetailId, {
+      status: filters?.status,
+      page,
+      limit,
+    });
+
+    return result.ok({
+      invoices: invoiceList.map(transformInvoiceResponse),
+      pagination: { page, limit, total },
+    });
   } catch (error) {
     return handleServiceError(error, logger, { userId }, 'Failed to list client invoices');
   }

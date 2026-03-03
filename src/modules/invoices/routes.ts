@@ -181,7 +181,14 @@ export const getClientInvoicesRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({ invoices: z.array(invoiceValidations.invoiceSchema), total: z.number() }),
+          schema: z.object({
+            invoices: z.array(invoiceValidations.invoiceSchema),
+            pagination: z.object({
+              page: z.number().int(),
+              limit: z.number().int(),
+              total: z.number().int(),
+            }),
+          }),
         },
       },
       description: 'Client invoices retrieved',

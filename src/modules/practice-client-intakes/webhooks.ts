@@ -10,6 +10,8 @@ import {
   practiceClientIntakes,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
+import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
 import {
   IntakePaymentSucceeded,
@@ -18,8 +20,10 @@ import {
 } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import { sanitizeError } from '@/shared/utils/logging';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['practice-client-intakes', 'webhooks']);
+const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
 
 /**
  * Find practice client intake by Payment Intent or Payment Link ID
@@ -142,6 +146,34 @@ export const handlePracticeClientIntakeSucceeded = async ({
         });
       }
     });
+
+    if (stripeChargeId) {
+      try {
+        const charge = await stripe.charges.retrieve(stripeChargeId, {
+          expand: ['balance_transaction'],
+        });
+        const stripeFee = typeof charge.balance_transaction === 'string'
+          ? 0
+          : (charge.balance_transaction?.fee ?? 0);
+        const variableFee = Math.round(practiceClientIntake.amount * PLATFORM_VARIABLE_FEE_RATE);
+        const meteredAmount = stripeFee + variableFee;
+
+        if (meteredAmount > 0) {
+          void meteredProductsService.reportMeteredUsage(
+            db,
+            practiceClientIntake.organization_id,
+            METERED_TYPES.INTAKE_FEE,
+            meteredAmount,
+            practiceClientIntake.id,
+          );
+        }
+      } catch (feeError) {
+        logger.error('Failed to compute/report metered intake fee for intake {intakeId}: {error}', {
+          intakeId: practiceClientIntake.id,
+          error: sanitizeError(feeError),
+        });
+      }
+    }
 
     logger.info('Payment succeeded and processed', { intakeId: practiceClientIntake.id });
   } catch (error) {

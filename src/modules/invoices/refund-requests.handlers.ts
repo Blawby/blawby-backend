@@ -91,6 +91,7 @@ export const listPracticeRefundRequestsHandler: AppRouteHandler<typeof listPract
   const res = await refundRequestsService.listPracticeRequests(practice_id, {
     status: query.status,
     invoice_id: query.invoice_id,
+    client_user_details_id: query.client_user_details_id,
   });
   if (!res.success) return response.fromResult(c, res);
   return response.ok(c, { refundRequests: res.data });
