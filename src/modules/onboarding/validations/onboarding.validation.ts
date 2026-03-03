@@ -143,6 +143,9 @@ export const onboardingStatusResponseSchema = z
     practice_uuid: z.uuid().openapi({
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
+    connected_account_id: z.uuid().openapi({
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     stripe_account_id: z.string().openapi({
       example: 'acct_1234567890',
     }),

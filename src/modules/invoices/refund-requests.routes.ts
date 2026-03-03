@@ -120,6 +120,7 @@ export const listPracticeRefundRequestsRoute = createRoute({
     query: z.object({
       status: refundStatusEnum.optional(),
       invoice_id: z.uuid().optional(),
+      client_user_details_id: z.uuid().optional(),
     }),
   },
   responses: {

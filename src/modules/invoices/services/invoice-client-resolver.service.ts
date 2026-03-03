@@ -48,7 +48,7 @@ export const resolveClientForInvoice = async (
       organization: {
         with: {
           stripeConnectedAccounts: {
-            where: (acc, { eq: eqOp }) => eqOp(acc.stripe_account_id, connectedAccountId),
+            where: (acc, { eq: eqOp }) => eqOp(acc.id, connectedAccountId),
           },
         },
       },
@@ -90,7 +90,7 @@ export const resolveClientForInvoice = async (
           organization: {
             with: {
               stripeConnectedAccounts: {
-                where: (acc, { eq: eqOp }) => eqOp(acc.stripe_account_id, connectedAccountId),
+                where: (acc, { eq: eqOp }) => eqOp(acc.id, connectedAccountId),
               },
             },
           },

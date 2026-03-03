@@ -217,10 +217,13 @@ const deleteInvoiceLineItems = async (
 const findManyByClientId = async (
   organizationId: string,
   userDetailId: string,
-  filters?: { status?: string },
+  filters?: { status?: string; page?: number; limit?: number },
   tx?: typeof db,
-): Promise<InvoiceSummary[]> => {
+): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
   const client = tx || db;
+  const page = filters?.page || 1;
+  const limit = filters?.limit || 20;
+  const offset = (page - 1) * limit;
   const conditions: Parameters<typeof and>[0][] = [
     eq(invoices.organization_id, organizationId),
     eq(invoices.client_id, userDetailId),
@@ -229,15 +232,27 @@ const findManyByClientId = async (
   if (filters?.status) {
     conditions.push(eq(invoices.status, filters.status));
   }
-  return await client.query.invoices.findMany({
+  const results = await client.query.invoices.findMany({
     where: and(...(conditions as [ReturnType<typeof eq>])),
     orderBy: (inv, { desc: d }) => [d(inv.created_at)],
+    limit,
+    offset,
     with: {
       client: { with: { user: true } },
       matter: true,
       connectedAccount: true,
     },
   });
+
+  const [countResult] = await client
+    .select({ count: sql<number>`count(*)` })
+    .from(invoices)
+    .where(and(...(conditions as [ReturnType<typeof eq>])));
+
+  return {
+    invoices: results,
+    total: Number(countResult.count),
+  };
 };
 
 /**
