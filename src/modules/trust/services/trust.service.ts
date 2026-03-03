@@ -24,7 +24,7 @@ const recordDeposit = async (params: {
 
   const execute = async (trx: typeof db) => {
     let retries = 3;
-    while (retries > 0) {
+    while (true) {
       try {
         const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
           params.organizationId,
@@ -51,15 +51,19 @@ const recordDeposit = async (params: {
         return result.ok(record);
       } catch (error: any) {
         // Simple optimistic retry logic on serialization / locked row failures
-        if (error?.code === '40001' /* serialization failure */ || retries === 1) {
+        if (error?.code === '40001' /* serialization failure */) {
           retries--;
-          if (retries === 0) throw error;
+          if (retries > 0) {
+            const delay = 100 * (2 ** (3 - retries));
+            await new Promise((r) => setTimeout(r, delay));
+          } else {
+            throw error;
+          }
         } else {
           throw error;
         }
       }
     }
-    return result.internalError('Failed to record trust deposit');
   };
 
   try {
@@ -89,7 +93,7 @@ const recordWithdrawal = async (params: {
 
   const execute = async (trx: typeof db) => {
     let retries = 3;
-    while (retries > 0) {
+    while (true) {
       try {
         const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
           params.organizationId,
@@ -120,15 +124,19 @@ const recordWithdrawal = async (params: {
         } as InsertTrustTransaction, trx);
         return result.ok(record);
       } catch (error: any) {
-        if (error?.code === '40001' || retries === 1) {
+        if (error?.code === '40001' /* serialization failure */) {
           retries--;
-          if (retries === 0) throw error;
+          if (retries > 0) {
+            const delay = 100 * (2 ** (3 - retries));
+            await new Promise((r) => setTimeout(r, delay));
+          } else {
+            throw error;
+          }
         } else {
           throw error;
         }
       }
     }
-    return result.internalError('Failed to record trust withdrawal');
   };
 
   try {

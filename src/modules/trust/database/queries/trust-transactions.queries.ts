@@ -125,7 +125,10 @@ const getLatestBalanceForMatter = async (
   matterId: string | null,
   tx?: typeof db,
 ): Promise<{ balance: number } | undefined> => {
-  const client = tx || db;
+  if (!tx) {
+    throw new Error('Transaction is required for getLatestBalanceForMatter due to row locking (.for update)');
+  }
+  const client = tx;
   const conditions: any[] = [
     eq(trustTransactions.organization_id, organizationId),
     eq(trustTransactions.client_id, clientId),
