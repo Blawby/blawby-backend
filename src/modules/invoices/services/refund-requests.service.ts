@@ -282,12 +282,15 @@ const executeRefund = async (opts: {
       return result.ok(updated);
     } catch (stripeError) {
       const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown error';
-      const isTransient = isStripeError(stripeError) && (
+      const isTransient = (isStripeError(stripeError) && (
         stripeError.type === 'StripeConnectionError' ||
         stripeError.type === 'StripeRateLimitError' ||
         stripeError.code === 'ECONNRESET' ||
         stripeError.code === 'ETIMEDOUT'
-      );
+      )) || (stripeError instanceof Error && (
+        (stripeError as any).code === 'ECONNRESET' ||
+        (stripeError as any).code === 'ETIMEDOUT'
+      ));
 
       if (isTransient) {
         logger.error('Stripe refund transient error for request {requestId}: {error}', {
@@ -299,12 +302,22 @@ const executeRefund = async (opts: {
       }
 
       // Mark as failed but preserve the request
-      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
+      const transitioned = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
         status: 'failed',
         executed_by_user_id: opts.executorUserId,
         executed_at: new Date(),
         review_notes: claimedReq.review_notes ? `${claimedReq.review_notes}\n\nStripe error: ${errorMsg}` : `Stripe error: ${errorMsg}`,
       });
+
+      if (!transitioned) {
+        logger.error('Failed to transition refund request {requestId} to failed state after Stripe error', {
+          requestId: opts.requestId,
+          organizationId: opts.organizationId,
+          executorUserId: opts.executorUserId,
+          errorMsg,
+        });
+        return result.internalError('Stripe refund failed, but local DB could not transition to failed state');
+      }
 
       logger.error('Stripe refund failed for request {requestId}: {error}', {
         requestId: opts.requestId,
