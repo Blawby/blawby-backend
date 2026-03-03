@@ -3,6 +3,7 @@ import {
 } from 'drizzle-orm';
 import type {
   InvoiceWithRelations,
+  InvoiceSummary,
   InvoiceListFilters,
 } from '@/modules/invoices/types/invoices.types';
 import {
@@ -95,7 +96,7 @@ const findInvoiceByStripeId = async (
 const listInvoicesByOrganization = async (
   organizationId: string,
   filters?: InvoiceListFilters,
-): Promise<{ invoices: InvoiceWithRelations[]; total: number }> => {
+): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
   const offset = (page - 1) * limit;
@@ -127,7 +128,6 @@ const listInvoicesByOrganization = async (
       client: {
         with: { user: true },
       },
-      lineItems: true,
       matter: true,
       connectedAccount: true,
     },

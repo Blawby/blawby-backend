@@ -8,6 +8,7 @@ import type {
   ListInvoicesQuery,
   InvoiceResponse,
   InvoiceWithRelations,
+  InvoiceSummary,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/types/invoices.types';
 import { handleServiceError } from '@/modules/invoices/utils/error-handler';
@@ -66,9 +67,10 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
 };
 
 /**
- * Transform database invoice to response format
+ * Transform database invoice to response format.
+ * Accepts both summary (list, no lineItems) and full (detail, with lineItems) shapes.
  */
-const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
+const transformInvoiceResponse = (invoice: InvoiceWithRelations | InvoiceSummary): InvoiceResponse => {
   return {
     ...invoice,
     issue_date: invoice.issue_date ?? null,
@@ -76,11 +78,13 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceRespons
     paid_at: invoice.paid_at ?? null,
     created_at: invoice.created_at,
     updated_at: invoice.updated_at,
-    line_items: invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
-      ...li,
-      created_at: li.created_at,
-      updated_at: li.updated_at,
-    })),
+    line_items: 'lineItems' in invoice
+      ? invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
+          ...li,
+          created_at: li.created_at,
+          updated_at: li.updated_at,
+        }))
+      : undefined,
   } satisfies InvoiceResponse;
 };
 
