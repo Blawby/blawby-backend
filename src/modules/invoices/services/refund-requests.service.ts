@@ -53,8 +53,8 @@ const createRequest = async (opts: {
         return result.badRequest('Refunds can only be requested for paid invoices');
       }
 
-      if (opts.requestedAmount <= 0) {
-        return result.badRequest('Requested amount must be strictly positive');
+      if (typeof opts.requestedAmount !== 'number' || !Number.isInteger(opts.requestedAmount) || opts.requestedAmount <= 0) {
+        return result.badRequest('Requested amount must be a positive integer amount in cents');
       }
 
       const existingRefunds = await refundRequestsQueries.listByOrganization(opts.organizationId, { invoice_id: opts.invoiceId }, tx);
@@ -105,6 +105,7 @@ const listClientRequests = async (
     const requests = await refundRequestsQueries.listByClient(organizationId, clientResult.data);
     return result.ok(requests);
   } catch (error) {
+    logger.error('Failed to list refund requests', { error });
     return result.internalError('Failed to list refund requests');
   }
 };
@@ -137,6 +138,7 @@ const cancelRequest = async (opts: {
     if (!updated) return result.notFound('Refund request not found');
     return result.ok(updated);
   } catch (error) {
+    logger.error('Failed to cancel refund request', { error });
     return result.internalError('Failed to cancel refund request');
   }
 };
@@ -156,6 +158,7 @@ const listPracticeRequests = async (
     const requests = await refundRequestsQueries.listByOrganization(organizationId, filters);
     return result.ok(requests);
   } catch (error) {
+    logger.error('Failed to list refund requests', { error });
     return result.internalError('Failed to list refund requests');
   }
 };
@@ -186,6 +189,7 @@ const reviewRequest = async (opts: {
     if (!updated) return result.notFound('Refund request not found');
     return result.ok(updated);
   } catch (error) {
+    logger.error('Failed to review refund request', { error });
     return result.internalError('Failed to review refund request');
   }
 };
@@ -222,12 +226,7 @@ const executeRefund = async (opts: {
     }
 
     try {
-      // Mark as executed locally to prevent double execution if Stripe responds slowly
-      await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
-        status: 'executed',
-        executed_by_user_id: opts.executorUserId,
-        executed_at: new Date(),
-      });
+      // Proceed with external Stripe API request before updating local status to 'executed'.
 
       const refund = await stripe.refunds.create({
         payment_intent: stripePaymentIntentId,
@@ -281,6 +280,7 @@ const executeRefund = async (opts: {
       return result.internalError('Stripe refund failed — request marked as failed');
     }
   } catch (error) {
+    logger.error('Failed to execute refund', { error });
     return result.internalError('Failed to execute refund');
   }
 };

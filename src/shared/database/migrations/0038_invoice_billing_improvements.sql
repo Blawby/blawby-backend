@@ -45,6 +45,8 @@ ALTER TABLE matter_milestones
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
+CREATE INDEX IF NOT EXISTS idx_matter_milestones_invoice_id ON matter_milestones(invoice_id);
+
 -- Priority 6: Stripe invoice number sync
 ALTER TABLE invoices
   ADD COLUMN IF NOT EXISTS stripe_invoice_number VARCHAR(255),

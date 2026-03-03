@@ -7,10 +7,7 @@ import { db } from '@/shared/database';
 
 const logger = getLogger(['trust', 'service']);
 
-/**
- * Record a trust deposit (e.g., retainer payment received).
- */
-const recordDeposit = async (params: {
+export type RecordDepositParams = {
   organizationId: string;
   clientId: string;
   matterId?: string | null;
@@ -19,7 +16,15 @@ const recordDeposit = async (params: {
   stripePaymentIntentId?: string | null;
   description?: string;
   createdBy: string;
-}, tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]): Promise<Result<SelectTrustTransaction>> => {
+};
+
+/**
+ * Record a trust deposit (e.g., retainer payment received).
+ */
+const recordDeposit = async (
+  params: RecordDepositParams,
+  tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
+): Promise<Result<SelectTrustTransaction>> => {
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   const execute = async (trx: typeof db) => {
@@ -47,11 +52,12 @@ const recordDeposit = async (params: {
           invoice_id: params.invoiceId ?? null,
           stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
           created_by: params.createdBy,
-        } as InsertTrustTransaction, trx);
+        }, trx);
         return result.ok(record);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Simple optimistic retry logic on serialization / locked row failures
-        if (error?.code === '40001' /* serialization failure */) {
+        const isSerializationFailure = error && typeof error === 'object' && 'code' in error && (error as any).code === '40001';
+        if (isSerializationFailure) {
           retries--;
           if (retries > 0) {
             const delay = 100 * (2 ** (3 - retries));
@@ -76,10 +82,7 @@ const recordDeposit = async (params: {
   }
 };
 
-/**
- * Record a trust withdrawal (e.g., invoice paid from retainer).
- */
-const recordWithdrawal = async (params: {
+export type RecordWithdrawalParams = {
   organizationId: string;
   clientId: string;
   matterId?: string | null;
@@ -88,7 +91,15 @@ const recordWithdrawal = async (params: {
   stripePaymentIntentId?: string | null;
   description?: string;
   createdBy: string;
-}, tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]): Promise<Result<SelectTrustTransaction>> => {
+};
+
+/**
+ * Record a trust withdrawal (e.g., invoice paid from retainer).
+ */
+const recordWithdrawal = async (
+  params: RecordWithdrawalParams,
+  tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
+): Promise<Result<SelectTrustTransaction>> => {
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   const execute = async (trx: typeof db) => {
@@ -121,10 +132,11 @@ const recordWithdrawal = async (params: {
           invoice_id: params.invoiceId ?? null,
           stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
           created_by: params.createdBy,
-        } as InsertTrustTransaction, trx);
+        }, trx);
         return result.ok(record);
-      } catch (error: any) {
-        if (error?.code === '40001' /* serialization failure */) {
+      } catch (error: unknown) {
+        const isSerializationFailure = error && typeof error === 'object' && 'code' in error && (error as any).code === '40001';
+        if (isSerializationFailure) {
           retries--;
           if (retries > 0) {
             const delay = 100 * (2 ** (3 - retries));
