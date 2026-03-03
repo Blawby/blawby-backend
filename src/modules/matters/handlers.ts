@@ -419,15 +419,17 @@ export const reorderMilestonesHandler: AppRouteHandler<typeof reorderMilestonesR
 export const getUnbilledTimeEntriesHandler: AppRouteHandler<typeof getUnbilledTimeEntriesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, id: matter_id } = c.req.valid('param');
-  const result = await matterTimeEntriesService.getUnbilledTimeEntries(practice_id, matter_id, user, c.req.header());
-  return response.fromResult(c, result);
+  const res = await matterTimeEntriesService.getUnbilledTimeEntries(practice_id, matter_id, user, c.req.header());
+  const payload = res.success ? { success: true as const, data: { timeEntries: res.data } } : res;
+  return response.fromResult(c, payload);
 };
 
 export const getUnbilledExpensesHandler: AppRouteHandler<typeof getUnbilledExpensesRoute> = async (c) => {
   const user = c.get('user')!;
   const { practice_id, id: matter_id } = c.req.valid('param');
-  const result = await matterExpensesService.getUnbilledExpenses(practice_id, matter_id, user, c.req.header());
-  return response.fromResult(c, result);
+  const res = await matterExpensesService.getUnbilledExpenses(practice_id, matter_id, user, c.req.header());
+  const payload = res.success ? { success: true as const, data: { expenses: res.data } } : res;
+  return response.fromResult(c, payload);
 };
 
 export const getUnbilledSummaryHandler: AppRouteHandler<typeof getUnbilledSummaryRoute> = async (c) => {

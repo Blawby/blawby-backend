@@ -186,6 +186,7 @@ export const getClientInvoicesRoute = createRoute({
       },
       description: 'Client invoices retrieved',
     },
+    401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
     403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
   },
 });
@@ -206,6 +207,7 @@ export const getClientInvoiceDetailRoute = createRoute({
       },
       description: 'Client invoice detail retrieved',
     },
+    401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
     403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },

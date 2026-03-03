@@ -1,5 +1,5 @@
-import * as handlers from './handlers';
-import * as routes from './routes';
+import * as handlers from '@/modules/trust/handlers';
+import * as routes from '@/modules/trust/routes';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 

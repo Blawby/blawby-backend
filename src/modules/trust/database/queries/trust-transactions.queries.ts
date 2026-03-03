@@ -1,5 +1,5 @@
 import {
-  eq, and, desc, gte, lte, sql, isNull,
+  eq, and, desc, gte, lte, isNull,
 } from 'drizzle-orm';
 import {
   trustTransactions,
@@ -129,7 +129,8 @@ const getLatestBalanceForMatter = async (
     throw new Error('Transaction is required for getLatestBalanceForMatter due to row locking (.for update)');
   }
   const client = tx;
-  const conditions: any[] = [
+  type Condition = ReturnType<typeof eq> | ReturnType<typeof isNull>;
+  const conditions: Condition[] = [
     eq(trustTransactions.organization_id, organizationId),
     eq(trustTransactions.client_id, clientId),
   ];
