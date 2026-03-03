@@ -50,7 +50,18 @@ const resolveStripeAccountIdForInvoice = async (
   return result.ok(connectedAccount.stripe_account_id);
 };
 
-class InvoiceValidationError extends Error {}
+class InvoiceValidationError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message);
+    this.name = 'InvoiceValidationError';
+    if (options?.cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+    if (typeof Error.captureStackTrace === 'function') {
+      Error.captureStackTrace(this, InvoiceValidationError);
+    }
+  }
+}
 
 const dedupeIds = (ids: string[] | undefined): string[] => {
   if (!ids?.length) return [];
