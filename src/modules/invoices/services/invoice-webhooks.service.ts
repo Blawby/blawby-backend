@@ -28,6 +28,8 @@ import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 const logger = getLogger(['invoices', 'webhooks-service']);
 
 const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
+const METERED_USAGE_MAX_ATTEMPTS = 3;
+const METERED_USAGE_BACKOFF_MS = 500;
 
 const getChargeIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
   const rawStripeInvoice = stripeInvoice as unknown as Record<string, unknown>;
@@ -73,6 +75,60 @@ const calculateMeteredFeeCents = async (
       error: error instanceof Error ? error.message : 'Unknown error',
     });
     return variablePlatformFee;
+  }
+};
+
+const sleep = async (ms: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const reportMeteredUsageWithRetry = async (params: {
+  organizationId: string;
+  meteredType: typeof METERED_TYPES[keyof typeof METERED_TYPES];
+  amount: number;
+  dedupeKey: string;
+  context: string;
+}): Promise<void> => {
+  if (params.amount <= 0) {
+    return;
+  }
+
+  for (let attempt = 1; attempt <= METERED_USAGE_MAX_ATTEMPTS; attempt++) {
+    const usageResult = await meteredProductsService.reportMeteredUsage(
+      db,
+      params.organizationId,
+      params.meteredType,
+      params.amount,
+      params.dedupeKey,
+    );
+
+    if (usageResult.success) {
+      return;
+    }
+
+    const isFinalAttempt = attempt === METERED_USAGE_MAX_ATTEMPTS;
+    if (isFinalAttempt) {
+      logger.error('Failed to report metered usage after {attempts} attempts ({context}, org {organizationId}, dedupe {dedupeKey}): {error}', {
+        attempts: attempt,
+        context: params.context,
+        organizationId: params.organizationId,
+        dedupeKey: params.dedupeKey,
+        error: usageResult.error.message,
+      });
+      return;
+    }
+
+    const delay = METERED_USAGE_BACKOFF_MS * (2 ** (attempt - 1));
+    logger.warn('Metered usage report failed ({context}, org {organizationId}, dedupe {dedupeKey}) on attempt {attempt}/{maxAttempts}; retrying in {delay}ms: {error}', {
+      context: params.context,
+      organizationId: params.organizationId,
+      dedupeKey: params.dedupeKey,
+      attempt,
+      maxAttempts: METERED_USAGE_MAX_ATTEMPTS,
+      delay,
+      error: usageResult.error.message,
+    });
+    await sleep(delay);
   }
 };
 
@@ -332,22 +388,13 @@ const handlePhase3StripeTransfer = async (
         );
       });
 
-      // Record metered usage for payout fee (Fire & Forget with clean logging)
-      if (meteredFeeCents > 0) {
-        meteredProductsService.reportMeteredUsage(
-          db,
-          invoice.organization_id,
-          METERED_TYPES.PAYOUT_FEE,
-          meteredFeeCents,
-          invoice.id, // Stable key for deduplication
-        ).catch((err) => {
-          logger.error('Failed to report payout metered usage for invoice {invoiceId}, org {organizationId}: {error}', {
-            invoiceId: invoice.id,
-            organizationId: invoice.organization_id,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        });
-      }
+      await reportMeteredUsageWithRetry({
+        organizationId: invoice.organization_id,
+        meteredType: METERED_TYPES.PAYOUT_FEE,
+        amount: meteredFeeCents,
+        dedupeKey: invoice.id,
+        context: `invoice payout fee (${invoice.id})`,
+      });
     } catch (dbError) {
       // Transfer succeeded but DB update failed — record for manual reconciliation
       logger.error('Stripe transfer {transferId} succeeded but DB update failed for billing tx {billingTxId}: {error}', {
@@ -410,18 +457,12 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
 
     // Report invoice fee if newly paid
     if (isNewlyPaid) {
-      meteredProductsService.reportMeteredUsage(
-        db,
-        invoice.organization_id,
-        METERED_TYPES.INVOICE_FEE,
-        1,
-        invoice.id, // Stable key for deduplication
-      ).catch((err) => {
-        logger.error('Failed to report invoice metered usage for invoice {invoiceId}, org {organizationId}: {error}', {
-          invoiceId: invoice.id,
-          organizationId: invoice.organization_id,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
+      await reportMeteredUsageWithRetry({
+        organizationId: invoice.organization_id,
+        meteredType: METERED_TYPES.INVOICE_FEE,
+        amount: 1,
+        dedupeKey: invoice.id,
+        context: `invoice processing fee (${invoice.id})`,
       });
     }
 

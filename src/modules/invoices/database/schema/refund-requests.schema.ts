@@ -26,6 +26,9 @@ export const refundRequests = pgTable(
     client_user_details_id: uuid('client_user_details_id')
       .notNull()
       .references(() => userDetails.id),
+    created_by_user_id: uuid('created_by_user_id')
+      .notNull()
+      .references(() => userDetails.id),
     requested_amount: integer('requested_amount').notNull(), // cents
     currency: varchar('currency', { length: 10 }).notNull().default('usd'),
     reason: text('reason').notNull(),
@@ -52,7 +55,7 @@ export const refundRequests = pgTable(
     index('idx_refund_requests_invoice').on(table.invoice_id),
     index('idx_refund_requests_client').on(table.client_user_details_id),
     index('idx_refund_requests_status').on(table.status),
-    check('refund_status_check', sql`status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled')`),
+    check('refund_status_check', sql`status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')`),
   ],
 );
 
@@ -74,6 +77,16 @@ export const refundRequestsRelations = relations(refundRequests, ({ one }) => ({
     fields: [refundRequests.reviewed_by_user_id],
     references: [users.id],
     relationName: 'reviewedByUser',
+  }),
+  clientUserDetails: one(userDetails, {
+    fields: [refundRequests.client_user_details_id],
+    references: [userDetails.id],
+    relationName: 'clientUserDetails',
+  }),
+  createdByUserDetails: one(userDetails, {
+    fields: [refundRequests.created_by_user_id],
+    references: [userDetails.id],
+    relationName: 'createdByUserDetails',
   }),
 }));
 

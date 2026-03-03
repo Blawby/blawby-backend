@@ -1,5 +1,15 @@
 import { test } from 'tap';
 
+// NOTE: These are logic harness tests, not full module integration tests.
+// t.mockImport against the real service modules is blocked by transitive
+// side-effectful imports (DB, Stripe, app-config) that initialise at module
+// load time before mock interception can occur.
+// Full integration test coverage for these services is tracked separately
+// and requires either dependency injection refactoring in the services
+// or a dedicated test DB + Stripe test mode environment.
+// What these tests verify: behavioral contracts, status transitions,
+// field mappings, and error handling logic.
+
 type InvoiceRecord = {
   id: string;
   organization_id: string;

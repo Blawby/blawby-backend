@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS refund_requests (
   organization_id UUID NOT NULL REFERENCES organizations(id),
   invoice_id UUID NOT NULL REFERENCES invoices(id),
   client_user_details_id UUID NOT NULL REFERENCES user_details(id),
+  created_by_user_id UUID NOT NULL REFERENCES user_details(id),
   requested_amount INTEGER NOT NULL CHECK (requested_amount > 0),
   currency VARCHAR(10) NOT NULL DEFAULT 'usd',
   reason TEXT NOT NULL,

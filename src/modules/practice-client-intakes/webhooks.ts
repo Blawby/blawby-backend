@@ -159,7 +159,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
         const meteredAmount = stripeFee + variableFee;
 
         if (meteredAmount > 0) {
-          void meteredProductsService.reportMeteredUsage(
+          await meteredProductsService.reportMeteredUsage(
             db,
             practiceClientIntake.organization_id,
             METERED_TYPES.INTAKE_FEE,
