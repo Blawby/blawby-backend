@@ -62,12 +62,11 @@ const listByOrganization = async (
 ): Promise<SelectRefundRequest[]> => {
   const client = tx || db;
   return client.query.refundRequests.findMany({
-    where: (rr, { and: a, eq: e }) =>
-      a(
-        e(rr.organization_id, organizationId),
-        ...(filters?.status ? [e(rr.status, filters.status)] : []),
-        ...(filters?.invoice_id ? [e(rr.invoice_id, filters.invoice_id)] : []),
-      ),
+    where: (rr, { and: a, eq: e }) => a(
+      e(rr.organization_id, organizationId),
+      ...(filters?.status ? [e(rr.status, filters.status)] : []),
+      ...(filters?.invoice_id ? [e(rr.invoice_id, filters.invoice_id)] : []),
+    ),
     orderBy: (rr, { desc: d }) => [d(rr.created_at)],
   });
 };
@@ -91,19 +90,21 @@ const listByClient = async (
     .orderBy(desc(refundRequests.created_at));
 };
 
+export type RefundRequestUpdatePatch = Partial<Omit<InsertRefundRequest, 'id' | 'organization_id' | 'client_user_details_id' | 'invoice_id' | 'requested_amount' | 'currency' | 'created_at'>>;
+
 /**
  * Update a refund request
  */
 const update = async (
   id: string,
   organizationId: string,
-  data: Partial<InsertRefundRequest>,
+  patch: RefundRequestUpdatePatch,
   tx?: typeof db,
 ): Promise<SelectRefundRequest | undefined> => {
   const client = tx || db;
   const [updated] = await client
     .update(refundRequests)
-    .set({ ...data, updated_at: new Date() })
+    .set({ ...patch, updated_at: new Date() })
     .where(and(eq(refundRequests.id, id), eq(refundRequests.organization_id, organizationId)))
     .returning();
   return updated;
@@ -116,14 +117,47 @@ const transitionStatus = async (
   id: string,
   organizationId: string,
   fromStatus: string,
-  data: Partial<InsertRefundRequest>,
+  patch: RefundRequestUpdatePatch,
   tx?: typeof db,
 ): Promise<SelectRefundRequest | undefined> => {
   const client = tx || db;
   const [updated] = await client
     .update(refundRequests)
-    .set({ ...data, updated_at: new Date() })
-    .where(and(eq(refundRequests.id, id), eq(refundRequests.organization_id, organizationId), eq(refundRequests.status, fromStatus)))
+    .set({ ...patch, updated_at: new Date() })
+    .where(
+      and(
+        eq(refundRequests.id, id),
+        eq(refundRequests.organization_id, organizationId),
+        eq(refundRequests.status, fromStatus)
+      )
+    )
+    .returning();
+  return updated;
+};
+
+/**
+ * Update a refund request only if it is in a specific status and belongs to a client
+ */
+const transitionStatusForClient = async (
+  id: string,
+  organizationId: string,
+  clientUserDetailsId: string,
+  fromStatus: string,
+  patch: RefundRequestUpdatePatch,
+  tx?: typeof db,
+): Promise<SelectRefundRequest | undefined> => {
+  const client = tx || db;
+  const [updated] = await client
+    .update(refundRequests)
+    .set({ ...patch, updated_at: new Date() })
+    .where(
+      and(
+        eq(refundRequests.id, id),
+        eq(refundRequests.organization_id, organizationId),
+        eq(refundRequests.client_user_details_id, clientUserDetailsId),
+        eq(refundRequests.status, fromStatus)
+      )
+    )
     .returning();
   return updated;
 };
@@ -136,4 +170,5 @@ export const refundRequestsQueries = {
   listByClient,
   update,
   transitionStatus,
+  transitionStatusForClient,
 };

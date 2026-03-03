@@ -85,7 +85,15 @@ CREATE TABLE IF NOT EXISTS refund_requests (
   reviewed_by_user_id UUID REFERENCES users(id),
   review_notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT check_executed_fields CHECK (
+    status <> 'executed' OR (
+      executed_amount IS NOT NULL AND
+      executed_at IS NOT NULL AND
+      executed_by_user_id IS NOT NULL AND
+      stripe_refund_id IS NOT NULL
+    )
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_refund_requests_org ON refund_requests(organization_id);
