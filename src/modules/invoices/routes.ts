@@ -159,3 +159,54 @@ export const voidInvoiceRoute = createRoute({
   },
 });
 
+// ────────────────────────────────────────────────────────────
+// CLIENT-SIDE INVOICE ROUTES (read-only, client identity from session)
+// ────────────────────────────────────────────────────────────
+
+export const getClientInvoicesRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/client',
+  tags: ['Client Invoices'],
+  summary: 'List my invoices',
+  description: 'List invoices for the authenticated client (no line items in list view).',
+  request: {
+    params: practiceIdParamSchema,
+    query: z.object({
+      status: z.enum(['draft', 'pending', 'sent', 'paid', 'overdue', 'cancelled']).optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ invoices: z.array(invoiceValidations.invoiceSchema) }),
+        },
+      },
+      description: 'Client invoices retrieved',
+    },
+    403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
+  },
+});
+
+export const getClientInvoiceDetailRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/client/{id}',
+  tags: ['Client Invoices'],
+  summary: 'Get my invoice detail',
+  description: 'Get a single invoice for the authenticated client (includes line items).',
+  request: { params: invoiceParamSchema },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ invoice: invoiceValidations.invoiceSchema }),
+        },
+      },
+      description: 'Client invoice detail retrieved',
+    },
+    403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
+  },
+});

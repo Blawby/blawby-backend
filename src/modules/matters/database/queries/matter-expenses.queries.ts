@@ -1,5 +1,5 @@
 import {
-  eq, and, desc, gte, lte, sql,
+  eq, and, desc, gte, lte, sql, inArray, isNull,
 } from 'drizzle-orm';
 import {
   matterExpenses,
@@ -120,6 +120,63 @@ const getTotalExpenses = async (
   return Number(result.total);
 };
 
+/**
+ * Mark expenses as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
+ */
+const markAsInvoiced = async (
+  expenseIds: string[],
+  invoiceId: string,
+  tx?: typeof db,
+): Promise<void> => {
+  if (expenseIds.length === 0) return;
+  const client = tx || db;
+  await client
+    .update(matterExpenses)
+    .set({
+      invoice_id: invoiceId,
+      invoiced_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(inArray(matterExpenses.id, expenseIds));
+};
+
+/**
+ * Unmark expenses as invoiced. Resets invoice_id and invoiced_at for expenses linked to the given invoice.
+ */
+const unmarkInvoiced = async (
+  invoiceId: string,
+  tx?: typeof db,
+): Promise<void> => {
+  const client = tx || db;
+  await client
+    .update(matterExpenses)
+    .set({
+      invoice_id: null,
+      invoiced_at: null,
+      updated_at: new Date(),
+    })
+    .where(eq(matterExpenses.invoice_id, invoiceId));
+};
+
+/**
+ * Get unbilled expenses for a matter: invoice_id IS NULL AND billable = true.
+ */
+const getUnbilled = async (
+  matterId: string,
+): Promise<SelectMatterExpense[]> => {
+  return await db
+    .select()
+    .from(matterExpenses)
+    .where(
+      and(
+        eq(matterExpenses.matter_id, matterId),
+        isNull(matterExpenses.invoice_id),
+        eq(matterExpenses.billable, true),
+      ),
+    )
+    .orderBy(desc(matterExpenses.date));
+};
+
 export const matterExpensesQueries = {
   createMatterExpense,
   findMatterExpenseById,
@@ -128,4 +185,7 @@ export const matterExpensesQueries = {
   deleteMatterExpense,
   getTotalBillableExpenses,
   getTotalExpenses,
+  markAsInvoiced,
+  unmarkInvoiced,
+  getUnbilled,
 };

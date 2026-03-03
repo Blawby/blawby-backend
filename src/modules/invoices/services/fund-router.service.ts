@@ -33,7 +33,7 @@ export interface TransferInstruction {
   /** Metadata to include in Stripe transfer */
   metadata: {
     invoice_id: string;
-    invoice_number: string;
+    invoice_number: string | null;
     invoice_type: string;
     fund_destination: FundDestination;
     matter_id: string;
@@ -100,7 +100,7 @@ const routePayment = (
 
   const baseMetadata = {
     invoice_id: invoice.id,
-    invoice_number: invoice.invoice_number,
+    invoice_number: invoice.invoice_number ?? null,
     invoice_type: invoice.invoice_type,
     fund_destination: destinationResult.data,
     matter_id: invoice.matter_id,

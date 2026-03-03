@@ -165,7 +165,7 @@ const createInvoice = async (
             organization_id: organizationId,
             client_id: clientId,
             matter_id: data.matter_id || null,
-            invoice_number: newInvoice.invoice_number,
+            invoice_number: newInvoice.invoice_number ?? null,
             total: totals.total,
           },
           {
@@ -552,6 +552,51 @@ const voidInvoice = async (
   }
 };
 
+/**
+ * List invoices for the authenticated client (no line items for performance).
+ * Client identity is resolved server-side from userId.
+ */
+const listClientInvoices = async (
+  organizationId: string,
+  userId: string,
+  filters?: { status?: string },
+): Promise<Result<InvoiceResponse[]>> => {
+  try {
+    // Resolve userId → userDetails.id for this org
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
+    if (!userDetailResult.success) return userDetailResult;
+    const userDetailId = userDetailResult.data;
+
+    const invoiceList = await invoicesRepository.findManyByClientId(organizationId, userDetailId, filters);
+    return result.ok(invoiceList.map(transformInvoiceResponse));
+  } catch (error) {
+    return handleServiceError(error, logger, { userId }, 'Failed to list client invoices');
+  }
+};
+
+/**
+ * Get a single invoice for the authenticated client (with line items).
+ * Client identity is resolved server-side from userId.
+ */
+const getClientInvoiceDetail = async (
+  organizationId: string,
+  invoiceId: string,
+  userId: string,
+): Promise<Result<InvoiceResponse>> => {
+  try {
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
+    if (!userDetailResult.success) return userDetailResult;
+    const userDetailId = userDetailResult.data;
+
+    const invoice = await invoicesRepository.findOneByIdAndClientId(organizationId, invoiceId, userDetailId);
+    if (!invoice) return result.notFound('Invoice not found');
+
+    return result.ok(transformInvoiceResponse(invoice));
+  } catch (error) {
+    return handleServiceError(error, logger, { invoiceId, userId }, 'Failed to get client invoice');
+  }
+};
+
 export const invoicesService = {
   createInvoice,
   listInvoices,
@@ -560,4 +605,6 @@ export const invoicesService = {
   sendInvoice,
   syncInvoice,
   voidInvoice,
+  listClientInvoices,
+  getClientInvoiceDetail,
 };

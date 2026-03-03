@@ -483,6 +483,55 @@ const getMatterCounts = async (
   }
 };
 
+/**
+ * Get aggregate unbilled amounts for a matter.
+ * Returns counts and values for unbilled time entries and expenses.
+ */
+const getUnbilledSummary = async (
+  organizationId: string,
+  matterId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<{
+  unbilledTimeEntries: number;
+  unbilledExpenses: number;
+  unbilledTimeAmount: number;
+  unbilledExpenseAmount: number;
+  totalUnbilled: number;
+}>> => {
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) return matterResult as Result<never>;
+
+  try {
+    const { matterTimeEntriesQueries } = await import('@/modules/matters/database/queries/matter-time-entries.queries');
+    const { matterExpensesQueries } = await import('@/modules/matters/database/queries/matter-expenses.queries');
+
+    const [timeEntries, expenses] = await Promise.all([
+      matterTimeEntriesQueries.getUnbilled(matterId),
+      matterExpensesQueries.getUnbilled(matterId),
+    ]);
+
+    // Compute time value: sum duration (seconds) * hourly_rate (cents/hr) / 3600
+    const hourlyRate = matterResult.data?.attorney_hourly_rate ?? 0;
+    const unbilledTimeAmount = timeEntries.reduce((sum, e) => {
+      return sum + Math.round((e.duration / 3600) * hourlyRate);
+    }, 0);
+    const unbilledExpenseAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    return result.ok({
+      unbilledTimeEntries: timeEntries.length,
+      unbilledExpenses: expenses.length,
+      unbilledTimeAmount,
+      unbilledExpenseAmount,
+      totalUnbilled: unbilledTimeAmount + unbilledExpenseAmount,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get unbilled summary {matterId}: {error}', { matterId, error: message });
+    return result.internalError(message);
+  }
+};
+
 export const mattersService = {
   createMatter,
   getMatterById,
@@ -490,4 +539,5 @@ export const mattersService = {
   updateMatter,
   deleteMatter,
   getMatterCounts,
+  getUnbilledSummary,
 };

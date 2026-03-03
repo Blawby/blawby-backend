@@ -133,6 +133,39 @@ const getMilestoneStats = async (
   };
 };
 
+/**
+ * Mark a milestone as invoiced.
+ */
+const markAsInvoiced = async (
+  milestoneId: string,
+  invoiceId: string,
+): Promise<void> => {
+  await db
+    .update(matterMilestones)
+    .set({
+      invoice_id: invoiceId,
+      invoiced_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(eq(matterMilestones.id, milestoneId));
+};
+
+/**
+ * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
+ */
+const unmarkInvoiced = async (
+  invoiceId: string,
+): Promise<void> => {
+  await db
+    .update(matterMilestones)
+    .set({
+      invoice_id: null,
+      invoiced_at: null,
+      updated_at: new Date(),
+    })
+    .where(eq(matterMilestones.invoice_id, invoiceId));
+};
+
 export const matterMilestonesQueries = {
   createMatterMilestone,
   createMatterMilestones,
@@ -142,4 +175,6 @@ export const matterMilestonesQueries = {
   deleteMatterMilestone,
   reorderMilestones,
   getMilestoneStats,
+  markAsInvoiced,
+  unmarkInvoiced,
 };

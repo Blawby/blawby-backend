@@ -120,6 +120,29 @@ export const resolveClientForInvoice = async (
   });
 };
 
+/**
+ * Resolves a userId to a userDetails.id for the given org.
+ * Used by client-facing invoice endpoints so the client never passes their own identifier.
+ */
+const resolveUserDetailId = async (
+  organizationId: string,
+  userId: string,
+): Promise<Result<string>> => {
+  const detail = await db.query.userDetails.findFirst({
+    where: and(
+      eq(userDetails.organization_id, organizationId),
+      eq(userDetails.user_id, userId),
+      isNull(userDetails.deleted_at),
+    ),
+    columns: { id: true },
+  });
+  if (!detail) {
+    return result.notFound('Client record not found in this organization');
+  }
+  return result.ok(detail.id);
+};
+
 export const invoiceClientResolver = {
   resolveClientForInvoice,
+  resolveUserDetailId,
 };

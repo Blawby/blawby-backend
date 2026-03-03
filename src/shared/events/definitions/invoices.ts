@@ -9,7 +9,7 @@ export class InvoiceCreated extends BaseEvent<{
   organization_id: string;
   client_id: string;
   matter_id: string | null;
-  invoice_number: string;
+  invoice_number: string | null;
   total: number;
 }> {
   static type = 'invoice.created' as const;
