@@ -26,7 +26,7 @@ export const refundRequests = pgTable(
     client_user_details_id: uuid('client_user_details_id')
       .notNull()
       .references(() => userDetails.id),
-    created_by_user_id: uuid('created_by_user_id')
+    created_by_user_details_id: uuid('created_by_user_details_id')
       .notNull()
       .references(() => userDetails.id),
     requested_amount: integer('requested_amount').notNull(), // cents
@@ -84,7 +84,7 @@ export const refundRequestsRelations = relations(refundRequests, ({ one }) => ({
     relationName: 'clientUserDetails',
   }),
   createdByUserDetails: one(userDetails, {
-    fields: [refundRequests.created_by_user_id],
+    fields: [refundRequests.created_by_user_details_id],
     references: [userDetails.id],
     relationName: 'createdByUserDetails',
   }),

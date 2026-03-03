@@ -14,7 +14,7 @@ export const refundRequestSchema = z.object({
   organization_id: z.uuid(),
   invoice_id: z.uuid(),
   client_user_details_id: z.uuid(),
-  created_by_user_id: z.uuid(),
+  created_by_user_details_id: z.uuid(),
   requested_amount: z.number(),
   currency: z.string(),
   reason: z.string(),

@@ -95,7 +95,7 @@ const createRequest = async (opts: {
         organization_id: opts.organizationId,
         invoice_id: opts.invoiceId,
         client_user_details_id: clientUserDetailsId,
-        created_by_user_id: clientUserDetailsId,
+        created_by_user_details_id: clientUserDetailsId,
         requested_amount: opts.requestedAmount,
         reason: opts.reason,
         notes: opts.notes,
