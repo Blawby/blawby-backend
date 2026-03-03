@@ -31,6 +31,7 @@ const recordDeposit = async (
 
   const execute = async (trx: typeof db) => {
     const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
+    await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
     await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
     let retries = 3;
     while (true) {
@@ -79,6 +80,14 @@ const recordDeposit = async (
   try {
     return tx ? await execute(tx) : await db.transaction(execute);
   } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+    if (code === '55P03') {
+      logger.warn('Trust deposit timed out waiting for lock: {error}', {
+        error: error instanceof Error ? error.message : 'Timeout',
+        params,
+      });
+      return result.conflict('Operation timed out due to high concurrency. Please try again.');
+    }
     logger.error('Failed to record trust deposit: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -108,6 +117,7 @@ const recordWithdrawal = async (
 
   const execute = async (trx: typeof db) => {
     const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
+    await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
     await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
     let retries = 3;
     while (true) {
@@ -161,6 +171,14 @@ const recordWithdrawal = async (
   try {
     return tx ? await execute(tx) : await db.transaction(execute);
   } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+    if (code === '55P03') {
+      logger.warn('Trust withdrawal timed out waiting for lock: {error}', {
+        error: error instanceof Error ? error.message : 'Timeout',
+        params,
+      });
+      return result.conflict('Operation timed out due to high concurrency. Please try again.');
+    }
     logger.error('Failed to record trust withdrawal: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
