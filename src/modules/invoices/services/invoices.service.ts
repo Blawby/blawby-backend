@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { eq, inArray } from 'drizzle-orm';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -16,6 +17,9 @@ import { invoiceValidators } from '@/modules/invoices/validators/invoice-creatio
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
+import { matterExpenses } from '@/modules/matters/database/schema/matter-expenses.schema';
+import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
+import { matterTimeEntries } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { db } from '@/shared/database';
@@ -40,7 +44,84 @@ const resolveStripeAccountIdForInvoice = async (
   if (!connectedAccount) {
     return result.badRequest('Connected account not found for invoice');
   }
+  if (!connectedAccount.stripe_account_id) {
+    return result.badRequest('Connected account missing stripe_account_id');
+  }
   return result.ok(connectedAccount.stripe_account_id);
+};
+
+class InvoiceValidationError extends Error {}
+
+const dedupeIds = (ids: string[] | undefined): string[] => {
+  if (!ids?.length) return [];
+  return [...new Set(ids)];
+};
+
+const validateInvoiceItemMatterOwnership = async (params: {
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0];
+  invoiceMatterId: string | null;
+  timeEntryIds: string[];
+  expenseIds: string[];
+  milestoneId?: string;
+}): Promise<{
+  timeEntryIds: string[];
+  expenseIds: string[];
+  milestoneId?: string;
+}> => {
+  const { tx, invoiceMatterId, timeEntryIds, expenseIds, milestoneId } = params;
+  const hasLinkedItems = timeEntryIds.length > 0 || expenseIds.length > 0 || !!milestoneId;
+
+  if (!hasLinkedItems) {
+    return { timeEntryIds, expenseIds, milestoneId };
+  }
+
+  if (!invoiceMatterId) {
+    throw new InvoiceValidationError('Cannot link time entries, expenses, or milestones to an invoice without matter_id');
+  }
+
+  if (timeEntryIds.length > 0) {
+    const rows = await tx
+      .select({ id: matterTimeEntries.id, matter_id: matterTimeEntries.matter_id })
+      .from(matterTimeEntries)
+      .where(inArray(matterTimeEntries.id, timeEntryIds));
+    if (rows.length !== timeEntryIds.length) {
+      throw new InvoiceValidationError('One or more time entries were not found');
+    }
+    const invalid = rows.find((row) => row.matter_id !== invoiceMatterId);
+    if (invalid) {
+      throw new InvoiceValidationError(`Time entry ${invalid.id} does not belong to invoice matter`);
+    }
+  }
+
+  if (expenseIds.length > 0) {
+    const rows = await tx
+      .select({ id: matterExpenses.id, matter_id: matterExpenses.matter_id })
+      .from(matterExpenses)
+      .where(inArray(matterExpenses.id, expenseIds));
+    if (rows.length !== expenseIds.length) {
+      throw new InvoiceValidationError('One or more expenses were not found');
+    }
+    const invalid = rows.find((row) => row.matter_id !== invoiceMatterId);
+    if (invalid) {
+      throw new InvoiceValidationError(`Expense ${invalid.id} does not belong to invoice matter`);
+    }
+  }
+
+  if (milestoneId) {
+    const [row] = await tx
+      .select({ id: matterMilestones.id, matter_id: matterMilestones.matter_id })
+      .from(matterMilestones)
+      .where(eq(matterMilestones.id, milestoneId))
+      .limit(1);
+    if (!row) {
+      throw new InvoiceValidationError('Milestone not found');
+    }
+    if (row.matter_id !== invoiceMatterId) {
+      throw new InvoiceValidationError(`Milestone ${row.id} does not belong to invoice matter`);
+    }
+  }
+
+  return { timeEntryIds, expenseIds, milestoneId };
 };
 
 /**
@@ -195,15 +276,23 @@ const createInvoice = async (
         );
       }
 
+      const validatedIds = await validateInvoiceItemMatterOwnership({
+        tx,
+        invoiceMatterId: newInvoice.matter_id,
+        timeEntryIds: dedupeIds(data.time_entry_ids),
+        expenseIds: dedupeIds(data.expense_ids),
+        milestoneId: data.milestone_id,
+      });
+
       // Mark line items as invoiced (P2 + P4)
-      if (data.time_entry_ids?.length) {
-        await matterTimeEntriesQueries.markAsInvoiced(data.time_entry_ids, newInvoice.id, tx);
+      if (validatedIds.timeEntryIds.length) {
+        await matterTimeEntriesQueries.markAsInvoiced(validatedIds.timeEntryIds, newInvoice.id, tx);
       }
-      if (data.expense_ids?.length) {
-        await matterExpensesQueries.markAsInvoiced(data.expense_ids, newInvoice.id, tx);
+      if (validatedIds.expenseIds.length) {
+        await matterExpensesQueries.markAsInvoiced(validatedIds.expenseIds, newInvoice.id, tx);
       }
-      if (data.milestone_id) {
-        await matterMilestonesQueries.markAsInvoiced(data.milestone_id, newInvoice.id, tx);
+      if (validatedIds.milestoneId) {
+        await matterMilestonesQueries.markAsInvoiced(validatedIds.milestoneId, newInvoice.id, tx);
       }
 
       return invWithRel;
@@ -213,6 +302,9 @@ const createInvoice = async (
 
     return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
+    if (error instanceof InvoiceValidationError) {
+      return result.badRequest(error.message);
+    }
     return handleServiceError(error, logger, { organizationId, userId: user.id }, 'Failed to create invoice');
   }
 };
@@ -497,9 +589,6 @@ const syncInvoice = async (
     if (!invoice.stripe_invoice_id) return result.badRequest('Invoice has not been synced with Stripe');
 
     // 1. Fetch from Stripe
-    const stripeAccountResult = await resolveStripeAccountIdForInvoice(invoice.connected_account_id);
-    if (!stripeAccountResult.success) return stripeAccountResult;
-
     const stripeResult = await stripeInvoicesService.getStripeInvoice(invoice.stripe_invoice_id);
     if (!stripeResult.success) return stripeResult;
 
@@ -559,9 +648,6 @@ const voidInvoice = async (
     }
 
     // Void on Stripe
-    const stripeAccountResult = await resolveStripeAccountIdForInvoice(invoice.connected_account_id);
-    if (!stripeAccountResult.success) return stripeAccountResult;
-
     const voidResult = await stripeInvoicesService.voidInvoice(invoice.stripe_invoice_id);
     if (!voidResult.success) return voidResult;
 

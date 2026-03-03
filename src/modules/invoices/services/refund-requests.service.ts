@@ -71,20 +71,31 @@ const createRequest = async (opts: {
         { invoice_id: opts.invoiceId },
         tx,
       );
-      const hasOpenRequest = existingRefunds.some((r) => ['requested', 'approved'].includes(r.status));
+
+      const blockingStatuses: ReadonlyArray<SelectRefundRequest['status']> = ['requested', 'approved', 'executing'];
+      const hasOpenRequest = existingRefunds.some((r) => blockingStatuses.includes(r.status));
       if (hasOpenRequest) {
         return result.badRequest('An open refund request already exists for this invoice');
       }
 
-      // Validate amount does not exceed amount_paid for this request
-      if (opts.requestedAmount > (invoice.amount_paid ?? 0)) {
-        return result.badRequest('Requested refund amount exceeds amount paid');
+      const reservedStatuses: ReadonlyArray<SelectRefundRequest['status']> = ['requested', 'approved', 'executing', 'executed'];
+      const reservedAmount = existingRefunds
+        .filter((refundRequest) => reservedStatuses.includes(refundRequest.status))
+        .reduce((sum, refundRequest) => (
+          sum + (refundRequest.executed_amount ?? refundRequest.requested_amount)
+        ), 0);
+      const amountPaid = invoice.amount_paid ?? 0;
+      const remainingRefundable = Math.max(0, amountPaid - reservedAmount);
+
+      if (opts.requestedAmount > remainingRefundable) {
+        return result.badRequest(`Requested refund amount exceeds remaining refundable amount (${remainingRefundable} cents)`);
       }
 
       const req = await refundRequestsQueries.create({
         organization_id: opts.organizationId,
         invoice_id: opts.invoiceId,
         client_user_details_id: clientUserDetailsId,
+        created_by_user_id: clientUserDetailsId,
         requested_amount: opts.requestedAmount,
         reason: opts.reason,
         notes: opts.notes,
@@ -286,7 +297,9 @@ const executeRefund = async (opts: {
         ...(stripeTransferId
           ? {
               reverse_transfer: true,
-              refund_application_fee: true,
+              ...(typeof invoice.application_fee_amount === 'number' && invoice.application_fee_amount > 0
+                ? { refund_application_fee: true }
+                : {}),
             }
           : {}),
       };
@@ -330,6 +343,19 @@ const executeRefund = async (opts: {
       ));
 
       if (isTransient) {
+        const rolledBack = await refundRequestsQueries.transitionStatus(
+          opts.requestId,
+          opts.organizationId,
+          'executing',
+          { status: 'approved' },
+        );
+        if (!rolledBack) {
+          logger.error('Failed to rollback transient refund request {requestId} from executing to approved', {
+            requestId: opts.requestId,
+            organizationId: opts.organizationId,
+          });
+        }
+
         logger.error('Stripe refund transient error for request {requestId}: {error}', {
           requestId: opts.requestId,
           executorUserId: opts.executorUserId,

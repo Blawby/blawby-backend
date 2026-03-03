@@ -7,13 +7,14 @@ import {
 
 // ── Shared Schemas ────────────────────────────────────────────────────────
 
-export const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled']);
+export const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing']);
 
-const refundRequestSchema = z.object({
+export const refundRequestSchema = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
   invoice_id: z.uuid(),
   client_user_details_id: z.uuid(),
+  created_by_user_id: z.uuid(),
   requested_amount: z.number(),
   currency: z.string(),
   reason: z.string(),

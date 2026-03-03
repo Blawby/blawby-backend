@@ -16,10 +16,14 @@ const createTransaction = async (
   tx?: typeof db,
 ): Promise<SelectTrustTransaction> => {
   const client = tx || db;
-  const [record] = await client
+  const records = await client
     .insert(trustTransactions)
     .values(data)
     .returning();
+  const [record] = records;
+  if (!record) {
+    throw new Error('Failed to create trust transaction: no row returned');
+  }
   return record;
 };
 

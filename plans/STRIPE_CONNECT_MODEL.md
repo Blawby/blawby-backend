@@ -234,8 +234,8 @@ Practice Request → Platform API → Stripe Refund API → Client
 | Refund Type | Requires Transfer Reversal? | API Flow |
 |-------------|----------------------------|----------|
 | **Full Refund** (before transfer) | NO | `stripe.refunds.create()` only |
-| **Full Refund** (after transfer) | YES | `stripe.refunds.create({ reverse_transfer: true, refund_application_fee: true })` |
-| **Partial Refund** | YES (if transfer already sent) | `stripe.refunds.create({ amount, reverse_transfer: true, refund_application_fee: true })` |
+| **Full Refund** (after transfer) | YES | `stripe.refunds.create({ reverse_transfer: true })` |
+| **Partial Refund** | YES (if transfer already sent) | `stripe.refunds.create({ amount, reverse_transfer: true })` |
 
 ### Implementation
 
@@ -245,7 +245,8 @@ const refund = await stripe.refunds.create({
   payment_intent: invoice.stripe_payment_intent_id,
   amount: refundAmount,
   reverse_transfer: true,
-  refund_application_fee: true,
+  // Include only when an application fee was actually charged
+  ...(invoice.application_fee_amount > 0 ? { refund_application_fee: true } : {}),
   metadata: {
     invoice_id: invoice.id,
     reason: 'client_request',

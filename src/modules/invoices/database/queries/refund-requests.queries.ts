@@ -91,7 +91,7 @@ const listByClient = async (
     .orderBy(desc(refundRequests.created_at));
 };
 
-export type RefundRequestUpdatePatch = Partial<Omit<InsertRefundRequest, 'id' | 'organization_id' | 'client_user_details_id' | 'invoice_id' | 'requested_amount' | 'currency' | 'created_at'>>;
+export type RefundRequestUpdatePatch = Partial<Omit<InsertRefundRequest, 'id' | 'organization_id' | 'client_user_details_id' | 'created_by_user_id' | 'invoice_id' | 'requested_amount' | 'currency' | 'created_at'>>;
 
 /**
  * Update a refund request

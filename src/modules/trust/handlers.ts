@@ -78,5 +78,5 @@ export const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> 
   });
 
   if (!res.success) return response.fromResult(c, res);
-  return response.ok(c, { transactions: res.data });
+  return response.ok(c, { report: res.data });
 };
