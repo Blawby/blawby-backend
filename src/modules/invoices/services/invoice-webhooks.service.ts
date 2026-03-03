@@ -415,7 +415,7 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
       // P2+P4: Unmark linked time entries, expenses, milestones
       await matterTimeEntriesQueries.unmarkInvoiced(invoice.id, tx);
       await matterExpensesQueries.unmarkInvoiced(invoice.id, tx);
-      await matterMilestonesQueries.unmarkInvoiced(invoice.id);
+      await matterMilestonesQueries.unmarkInvoiced(invoice.id, tx);
 
       await InvoiceVoided.dispatch({
         invoice_id: invoice.id,
@@ -458,7 +458,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
       // P2+P4: Unmark linked time entries, expenses, milestones
       await matterTimeEntriesQueries.unmarkInvoiced(invoice.id, tx);
       await matterExpensesQueries.unmarkInvoiced(invoice.id, tx);
-      await matterMilestonesQueries.unmarkInvoiced(invoice.id);
+      await matterMilestonesQueries.unmarkInvoiced(invoice.id, tx);
 
       await InvoiceDeleted.dispatch({
         invoice_id: invoice.id,

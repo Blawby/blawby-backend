@@ -1,5 +1,5 @@
 import {
-  eq, and, desc, gte, lte, sql,
+  eq, and, desc, gte, lte, sql, isNull,
 } from 'drizzle-orm';
 import {
   trustTransactions,
@@ -96,11 +96,13 @@ const listByOrg = async (params: {
 const getLatestBalanceByClient = async (
   organizationId: string,
   clientId: string,
+  tx?: typeof db,
 ): Promise<{ matter_id: string | null; balance: number }[]> => {
-  const rows = await db
-    .select({
+  const client = tx || db;
+  const rows = await client
+    .selectDistinctOn([trustTransactions.matter_id], {
       matter_id: trustTransactions.matter_id,
-      balance: sql<number>`MAX(${trustTransactions.balance_after})`,
+      balance: trustTransactions.balance_after,
     })
     .from(trustTransactions)
     .where(
@@ -109,9 +111,39 @@ const getLatestBalanceByClient = async (
         eq(trustTransactions.client_id, clientId),
       ),
     )
-    .groupBy(trustTransactions.matter_id);
+    .orderBy(trustTransactions.matter_id, desc(trustTransactions.created_at));
 
   return rows.map((r) => ({ matter_id: r.matter_id, balance: Number(r.balance) }));
+};
+
+/**
+ * Get the latest balance_after for a specific client/matter and lock the row
+ */
+const getLatestBalanceForMatter = async (
+  organizationId: string,
+  clientId: string,
+  matterId: string | null,
+  tx?: typeof db,
+): Promise<{ balance: number } | undefined> => {
+  const client = tx || db;
+  const conditions: any[] = [
+    eq(trustTransactions.organization_id, organizationId),
+    eq(trustTransactions.client_id, clientId),
+  ];
+  if (matterId) {
+    conditions.push(eq(trustTransactions.matter_id, matterId));
+  } else {
+    conditions.push(isNull(trustTransactions.matter_id));
+  }
+  const [row] = await client
+    .select({ balance: trustTransactions.balance_after })
+    .from(trustTransactions)
+    .where(and(...conditions))
+    .orderBy(desc(trustTransactions.created_at))
+    .limit(1)
+    .for('update');
+  
+  return row ? { balance: Number(row.balance) } : undefined;
 };
 
 export const trustTransactionsRepository = {
@@ -119,4 +151,5 @@ export const trustTransactionsRepository = {
   listByClient,
   listByOrg,
   getLatestBalanceByClient,
+  getLatestBalanceForMatter,
 };

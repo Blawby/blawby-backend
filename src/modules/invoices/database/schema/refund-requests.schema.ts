@@ -10,6 +10,7 @@ import {
   check,
 } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
+import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { organizations, users } from '@/schema';
 
 export const refundRequests = pgTable(
@@ -22,7 +23,9 @@ export const refundRequests = pgTable(
     invoice_id: uuid('invoice_id')
       .notNull()
       .references(() => invoices.id),
-    client_user_details_id: uuid('client_user_details_id').notNull(),
+    client_user_details_id: uuid('client_user_details_id')
+      .notNull()
+      .references(() => userDetails.id),
     requested_amount: integer('requested_amount').notNull(), // cents
     currency: varchar('currency', { length: 10 }).notNull().default('usd'),
     reason: text('reason').notNull(),

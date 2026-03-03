@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_expenses_unbilled ON matter_expenses(matter_id)
 CREATE TABLE IF NOT EXISTS trust_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id),
-  client_id UUID NOT NULL,
+  client_id UUID NOT NULL REFERENCES user_details(id),
   matter_id UUID REFERENCES matters(id),
   transaction_type VARCHAR(50) NOT NULL
     CHECK (transaction_type IN ('deposit', 'withdrawal', 'transfer', 'refund')),
@@ -60,14 +60,14 @@ DROP INDEX IF EXISTS invoices_org_number_unique_idx;
 -- Re-add as partial unique index (only enforce uniqueness when invoice_number is not null)
 CREATE UNIQUE INDEX IF NOT EXISTS invoices_org_number_unique_idx
   ON invoices(organization_id, invoice_number)
-  WHERE invoice_number IS NOT NULL;
+  WHERE invoice_number IS NOT NULL AND deleted_at IS NULL;
 
 -- Priority 10: Refund requests table
 CREATE TABLE IF NOT EXISTS refund_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id),
   invoice_id UUID NOT NULL REFERENCES invoices(id),
-  client_user_details_id UUID NOT NULL,
+  client_user_details_id UUID NOT NULL REFERENCES user_details(id),
   requested_amount INTEGER NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'usd',
   reason TEXT NOT NULL,

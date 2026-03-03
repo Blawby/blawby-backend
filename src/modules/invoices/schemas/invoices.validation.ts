@@ -17,7 +17,7 @@ const createInvoiceSchema = z.object({
   client_id: uuidValidator,
   matter_id: uuidValidator.optional(),
   connected_account_id: uuidValidator,
-  invoice_number: z.string().min(1, 'Invoice number is required').max(50).optional(),
+  invoice_number: z.string().trim().min(1, 'Invoice number cannot be empty').max(50).optional(),
   invoice_type: z.enum(['flat_fee', 'phase_fee', 'retainer_deposit']).default('flat_fee'),
   due_date: z.iso.datetime({ offset: true }).optional(),
   notes: z.string().optional(),

@@ -5,6 +5,9 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { db } from '@/shared/database';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
+import { eq, and } from 'drizzle-orm';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['invoices', 'refund-requests']);
@@ -31,38 +34,56 @@ const createRequest = async (opts: {
     if (!clientResult.success) return clientResult;
     const clientUserDetailsId = clientResult.data;
 
-    // Verify invoice belongs to this client and is paid
-    const invoice = await invoicesRepository.findOneByIdAndClientId(
-      opts.organizationId,
-      opts.invoiceId,
-      clientUserDetailsId,
-    );
-    if (!invoice) return result.notFound('Invoice not found');
-    if (invoice.status !== 'paid') {
-      return result.badRequest('Refunds can only be requested for paid invoices');
-    }
+    return await db.transaction(async (tx) => {
+      // Lock the invoice row to prevent concurrent refund total races
+      await tx.select({ id: invoices.id })
+        .from(invoices)
+        .where(and(eq(invoices.id, opts.invoiceId), eq(invoices.organization_id, opts.organizationId)))
+        .for('update');
 
-    // Validate amount does not exceed amount_paid
-    if (opts.requestedAmount > (invoice.amount_paid ?? 0)) {
-      return result.badRequest('Requested refund amount exceeds amount paid');
-    }
+      // Verify invoice belongs to this client and is paid
+      const invoice = await invoicesRepository.findOneByIdAndClientId(
+        opts.organizationId,
+        opts.invoiceId,
+        clientUserDetailsId,
+        tx,
+      );
+      if (!invoice) return result.notFound('Invoice not found');
+      if (invoice.status !== 'paid') {
+        return result.badRequest('Refunds can only be requested for paid invoices');
+      }
 
-    const req = await refundRequestsQueries.create({
-      organization_id: opts.organizationId,
-      invoice_id: opts.invoiceId,
-      client_user_details_id: clientUserDetailsId,
-      requested_amount: opts.requestedAmount,
-      reason: opts.reason,
-      notes: opts.notes,
-      status: 'requested',
+      if (opts.requestedAmount <= 0) {
+        return result.badRequest('Requested amount must be strictly positive');
+      }
+
+      const existingRefunds = await refundRequestsQueries.listByOrganization(opts.organizationId, { invoice_id: opts.invoiceId }, tx);
+      const existingRefundSum = existingRefunds
+        .filter((r) => ['requested', 'approved', 'executed'].includes(r.status))
+        .reduce((sum, r) => sum + (r.status === 'executed' ? (r.executed_amount ?? r.requested_amount) : r.requested_amount), 0);
+
+      // Validate amount does not exceed amount_paid
+      if (opts.requestedAmount + existingRefundSum > (invoice.amount_paid ?? 0)) {
+        return result.badRequest('Requested refund amount plus existing refunds exceeds amount paid');
+      }
+
+      const req = await refundRequestsQueries.create({
+        organization_id: opts.organizationId,
+        invoice_id: opts.invoiceId,
+        client_user_details_id: clientUserDetailsId,
+        requested_amount: opts.requestedAmount,
+        reason: opts.reason,
+        notes: opts.notes,
+        status: 'requested',
+      }, tx);
+
+      logger.info('Refund request {id} created for invoice {invoiceId}', {
+        id: req.id,
+        invoiceId: opts.invoiceId,
+      });
+
+      return result.ok(req);
     });
-
-    logger.info('Refund request {id} created for invoice {invoiceId}', {
-      id: req.id,
-      invoiceId: opts.invoiceId,
-    });
-
-    return result.ok(req);
   } catch (error) {
     logger.error('Failed to create refund request: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -113,7 +134,8 @@ const cancelRequest = async (opts: {
     const updated = await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
       status: 'cancelled',
     });
-    return result.ok(updated!);
+    if (!updated) return result.notFound('Refund request not found');
+    return result.ok(updated);
   } catch (error) {
     return result.internalError('Failed to cancel refund request');
   }
@@ -161,7 +183,8 @@ const reviewRequest = async (opts: {
       reviewed_at: new Date(),
       review_notes: opts.reviewNotes,
     });
-    return result.ok(updated!);
+    if (!updated) return result.notFound('Refund request not found');
+    return result.ok(updated);
   } catch (error) {
     return result.internalError('Failed to review refund request');
   }
@@ -199,6 +222,13 @@ const executeRefund = async (opts: {
     }
 
     try {
+      // Mark as executed locally to prevent double execution if Stripe responds slowly
+      await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
+        status: 'executed',
+        executed_by_user_id: opts.executorUserId,
+        executed_at: new Date(),
+      });
+
       const refund = await stripe.refunds.create({
         payment_intent: stripePaymentIntentId,
         amount: req.requested_amount,
@@ -209,6 +239,7 @@ const executeRefund = async (opts: {
         },
       }, {
         stripeAccount: stripeAccountId,
+        idempotencyKey: `refund_request_${opts.requestId}`,
       });
 
       const updated = await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
@@ -225,7 +256,14 @@ const executeRefund = async (opts: {
         requestId: opts.requestId,
       });
 
-      return result.ok(updated!);
+      if (!updated) {
+        logger.error('Partial success: Stripe refund {refundId} executed but failed to update local DB for request {requestId}', {
+          refundId: refund.id,
+          requestId: opts.requestId,
+        });
+        return result.internalError(`Stripe refund ${refund.id} completed, but local DB update failed`);
+      }
+      return result.ok(updated);
     } catch (stripeError) {
       // Mark as failed but preserve the request
       await refundRequestsQueries.update(opts.requestId, opts.organizationId, {

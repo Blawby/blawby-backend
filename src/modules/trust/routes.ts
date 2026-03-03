@@ -13,7 +13,7 @@ const trustTransactionSchema = z.object({
   source: z.string().nullable(),
   invoice_id: z.uuid().nullable(),
   stripe_payment_intent_id: z.string().nullable(),
-  created_at: z.date(),
+  created_at: z.string().datetime(),
   created_by: z.uuid(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
 }).openapi('TrustTransaction', { description: 'A trust ledger transaction record' });

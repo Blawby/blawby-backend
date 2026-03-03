@@ -218,7 +218,9 @@ const findManyByClientId = async (
   organizationId: string,
   userDetailId: string,
   filters?: { status?: string },
-): Promise<InvoiceWithRelations[]> => {
+  tx?: typeof db,
+): Promise<InvoiceSummary[]> => {
+  const client = tx || db;
   const conditions: Parameters<typeof and>[0][] = [
     eq(invoices.organization_id, organizationId),
     eq(invoices.client_id, userDetailId),
@@ -227,7 +229,7 @@ const findManyByClientId = async (
   if (filters?.status) {
     conditions.push(eq(invoices.status, filters.status));
   }
-  return await db.query.invoices.findMany({
+  return await client.query.invoices.findMany({
     where: and(...(conditions as [ReturnType<typeof eq>])),
     orderBy: (inv, { desc: d }) => [d(inv.created_at)],
     with: {
@@ -235,7 +237,7 @@ const findManyByClientId = async (
       matter: true,
       connectedAccount: true,
     },
-  }) as unknown as InvoiceWithRelations[];
+  });
 };
 
 /**
@@ -245,8 +247,10 @@ const findOneByIdAndClientId = async (
   organizationId: string,
   invoiceId: string,
   userDetailId: string,
+  tx?: typeof db,
 ): Promise<InvoiceWithRelations | undefined> => {
-  return await db.query.invoices.findFirst({
+  const client = tx || db;
+  return await client.query.invoices.findFirst({
     where: and(
       eq(invoices.id, invoiceId),
       eq(invoices.organization_id, organizationId),
