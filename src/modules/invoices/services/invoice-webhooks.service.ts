@@ -5,6 +5,9 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import type { TransferInstruction } from '@/modules/invoices/services/fund-router.service';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
+import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
+import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
@@ -79,9 +82,16 @@ const handlePhase2DbTransaction = async (
 
   try {
     await db.transaction(async (tx) => {
-      // 1. Update invoice status
+      // 1. Update invoice status + sync Stripe IDs (P6)
       if (invoice.status !== 'paid') {
         isNewlyPaid = true;
+
+        // Extract charge ID from the Stripe invoice
+        let chargeId: string | null = null;
+        if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
+          chargeId = stripeInvoice.charge;
+        }
+
         await invoicesRepository.updateInvoice(
           invoice.id,
           invoice.organization_id,
@@ -93,6 +103,13 @@ const handlePhase2DbTransaction = async (
             paid_at: stripeInvoice.status_transitions.paid_at
               ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
               : null,
+            // P6: sync Stripe-assigned fields
+            stripe_invoice_number: stripeInvoice.number ?? null,
+            stripe_charge_id: chargeId,
+            // backfill invoice_number if not yet set
+            ...(stripeInvoice.number && !invoice.invoice_number
+              ? { invoice_number: stripeInvoice.number }
+              : {}),
           },
           tx,
         );
@@ -391,11 +408,14 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
       await invoicesRepository.updateInvoice(
         invoice.id,
         invoice.organization_id,
-        {
-          status: 'cancelled',
-        },
+        { status: 'cancelled' },
         tx,
       );
+
+      // P2+P4: Unmark linked time entries, expenses, milestones
+      await matterTimeEntriesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterExpensesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterMilestonesQueries.unmarkInvoiced(invoice.id);
 
       await InvoiceVoided.dispatch({
         invoice_id: invoice.id,
@@ -434,6 +454,11 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
         null,
         tx,
       );
+
+      // P2+P4: Unmark linked time entries, expenses, milestones
+      await matterTimeEntriesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterExpensesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterMilestonesQueries.unmarkInvoiced(invoice.id);
 
       await InvoiceDeleted.dispatch({
         invoice_id: invoice.id,

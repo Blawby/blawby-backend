@@ -23,6 +23,10 @@ const createInvoiceSchema = z.object({
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required'),
+  // Optional: link to unbilled source records (P2 + P4)
+  time_entry_ids: z.array(uuidValidator).optional(),
+  expense_ids: z.array(uuidValidator).optional(),
+  milestone_id: uuidValidator.optional(),
 }).strict();
 
 // Update invoice schema (only for draft invoices)
