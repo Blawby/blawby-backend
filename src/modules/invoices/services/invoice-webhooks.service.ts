@@ -138,6 +138,8 @@ const reportMeteredUsageWithRetry = async (params: {
     return result.ok(undefined);
   }
 
+  let finalOutcome: Result<void> = result.internalError('Failed to report metered usage');
+
   for (let attempt = 1; attempt <= METERED_USAGE_MAX_ATTEMPTS; attempt++) {
     let usageResult: Result<void>;
     try {
@@ -158,7 +160,8 @@ const reportMeteredUsageWithRetry = async (params: {
     }
 
     if (usageResult.success) {
-      return usageResult;
+      finalOutcome = usageResult;
+      break;
     }
 
     const isFinalAttempt = attempt === METERED_USAGE_MAX_ATTEMPTS;
@@ -184,7 +187,7 @@ const reportMeteredUsageWithRetry = async (params: {
         attempts: attempt,
         error: usageResult.error.details ?? usageResult.error.message,
       });
-      return result.fail(
+      finalOutcome = result.fail(
         'Failed to report metered usage after retries',
         500,
         'METERED_USAGE_REPORT_FAILED',
@@ -198,6 +201,7 @@ const reportMeteredUsageWithRetry = async (params: {
           originalError: usageResult.error.details ?? usageResult.error.message,
         },
       );
+      break;
     }
 
     const delay = METERED_USAGE_BACKOFF_MS * (2 ** (attempt - 1));
@@ -213,7 +217,7 @@ const reportMeteredUsageWithRetry = async (params: {
     await sleep(delay);
   }
 
-  return result.internalError('Failed to report metered usage');
+  return finalOutcome;
 };
 
 /**
