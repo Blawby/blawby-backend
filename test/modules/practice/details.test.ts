@@ -1,163 +1,161 @@
 import { test } from 'tap';
-import { db } from '@/shared/database';
-import { pool } from '@/shared/database';
-import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
+import { config } from '@dotenvx/dotenvx';
+import { and, eq, sql } from 'drizzle-orm';
+import { db, pool } from '@/shared/database';
+import { organizations, users, members } from '@/schema/better-auth-schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
-import { practiceDetailsService } from '@/modules/practice/services/practice-details.service';
-import { eq } from 'drizzle-orm';
-import { organizations, users, members, sessions } from '@/schema/better-auth-schema';
-import * as schema from '@/schema/better-auth-schema';
+import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
+import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 
-// Mock DB and user data for testing service directly
-// Note: Integration testing with Hono's app.request requires setting up the entire auth context mock,
-// which is complex. Testing the service layer directly is more reliable for this verification step.
+config();
 
-test('Practice Details Service', { skip: 'Flaky integration test; excluded from unit runner' }, async (t) => {
+await db.execute(sql`SELECT 1`).catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  throw new Error(`DB not available — cannot run integration tests: ${message}`);
+});
+
+const closePoolSafely = async (): Promise<void> => {
+  const rawPool = pool as any;
+  try {
+    await Promise.race([
+      rawPool.end?.(),
+      new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  } catch {
+    // ignore teardown errors
+  }
+
+  const clients = Array.isArray(rawPool._clients) ? rawPool._clients : [];
+  for (const client of clients) {
+    try {
+      client.end?.();
+      client.release?.(true);
+    } catch {
+      // ignore forced close failures
+    }
+  }
+};
+
+test('Practice Details DB Integration', async (t) => {
   t.teardown(async () => {
-    await pool.end();
+    await closePoolSafely();
   });
 
-  // Create test dependencies
-  const user = {
-    id: crypto.randomUUID(),
-    email: 'test@example.com',
-    name: 'Test User',
+  const userId = crypto.randomUUID();
+  const orgId = crypto.randomUUID();
+
+  await db.insert(users).values({
+    id: userId,
+    email: 'details-db-test@example.com',
+    name: 'Details DB Test',
     emailVerified: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
-
-  const orgId = crypto.randomUUID();
-  const sessionToken = crypto.randomUUID();
-
-  // Setup: Create Organization and User in DB
-  await db.insert(users).values({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    emailVerified: user.emailVerified,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
   });
 
   await db.insert(organizations).values({
     id: orgId,
-    name: 'Test Practice',
-    slug: 'test-practice-' + crypto.randomUUID(), // Ensure distinct slug
+    name: 'Practice DB Test',
+    slug: `practice-db-test-${crypto.randomUUID()}`,
     createdAt: new Date(),
     updatedAt: new Date(),
   });
 
-  // Authorize user as member
-  await db.insert(schema.members).values({
+  await db.insert(members).values({
     id: crypto.randomUUID(),
     organizationId: orgId,
-    userId: user.id,
+    userId,
     role: 'owner',
     createdAt: new Date(),
     updatedAt: new Date(),
   });
 
-  // Create Session
-  await db.insert(sessions).values({
-    id: crypto.randomUUID(),
-    token: sessionToken,
-    userId: user.id,
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60), // 1 hour
-    ipAddress: '127.0.0.1',
-    userAgent: 'test',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
+  await t.test('create flow stores details and linked address', async (t) => {
+    await db.transaction(async (tx) => {
+      const addr = await upsertAddressTx(tx, {
+        organizationId: orgId,
+        addressData: {
+          line1: '123 Main St',
+          city: 'Test City',
+          country: 'US',
+        },
+      });
 
-  const headers = {
-    Authorization: `Bearer ${sessionToken}`,
-  };
+      await tx.insert(practiceDetails).values({
+        id: crypto.randomUUID(),
+        organization_id: orgId,
+        user_id: userId,
+        address_id: addr?.id ?? null,
+        business_phone: '+15555555555',
+        website: 'https://practice.com',
+      });
+    });
 
-  // Test Creation with Addresses
-  await t.test('createPracticeDetailsService splits address data', async (t) => {
-    const inputData = {
-      business_phone: '+15555555555',
-      website: 'https://practice.com',
-      // Nested Address
-      address: {
-        line1: '123 Main St',
-        city: 'Test City',
-        country: 'US',
-      },
-    };
-
-    const result = await practiceDetailsService.upsertPracticeDetails(orgId, inputData, user, headers);
-
-    t.ok(result.success, 'Result returned');
-    if (!result.success) {
-      t.fail(result.error.message);
-      return;
-    }
-
-    t.equal(result.data.business_phone, inputData.business_phone);
-    t.equal(result.data.website, inputData.website);
-    t.same(result.data.address, {
-      line1: '123 Main St',
-      line2: null, // Default
-      city: 'Test City',
-      state: null, // nullable in DB
-      postal_code: null,
-      country: 'US',
-    } as any, 'Address returned correctly');
-
-    // Verify DB state
     const [details] = await db
       .select()
       .from(practiceDetails)
       .where(eq(practiceDetails.organization_id, orgId));
 
-    t.ok(details, 'Practice details saved');
-    t.ok(details.address_id, 'Address ID linked');
+    t.ok(details, 'practice details row exists');
+    t.equal(details.business_phone, '+15555555555');
+    t.equal(details.website, 'https://practice.com');
+    t.ok(details.address_id, 'address is linked');
 
     const [address] = await db
       .select()
       .from(addresses)
       .where(eq(addresses.id, details.address_id!));
 
-    t.ok(address, 'Address saved');
-    t.equal(address.line1, inputData.address.line1);
-    t.equal(address.city, inputData.address.city);
-    t.equal(address.organization_id, orgId);
+    t.ok(address, 'address row exists');
+    t.equal(address.line1, '123 Main St');
+    t.equal(address.city, 'Test City');
+    t.equal(address.country, 'US');
   });
 
-  await t.test('updatePracticeDetailsService updates existing address', async (t) => {
-    const updateData = {
-      intro_message: 'New Intro',
-      address: {
-        line1: '456 New St', // Changed
-      }
-    };
-
-    const updateResult = await practiceDetailsService.upsertPracticeDetails(orgId, updateData, user, headers);
-    t.ok(updateResult.success, 'Update succeeded');
-    if (!updateResult.success) {
-      t.fail(updateResult.error.message);
-      return;
-    }
-
-    // Verify DB state again
-    const [details] = await db
+  await t.test('update flow mutates existing details and address', async (t) => {
+    const [existing] = await db
       .select()
       .from(practiceDetails)
       .where(eq(practiceDetails.organization_id, orgId));
 
-    const [address] = await db
+    t.ok(existing?.address_id, 'existing address id available');
+    if (!existing?.address_id) return;
+
+    await db.transaction(async (tx) => {
+      await upsertAddressTx(tx, {
+        organizationId: orgId,
+        addressId: existing.address_id!,
+        addressData: {
+          line1: '456 New St',
+        },
+      });
+
+      await tx
+        .update(practiceDetails)
+        .set({
+          intro_message: 'New Intro',
+          updated_at: new Date(),
+        })
+        .where(eq(practiceDetails.organization_id, orgId));
+    });
+
+    const [updatedDetails] = await db
+      .select()
+      .from(practiceDetails)
+      .where(eq(practiceDetails.organization_id, orgId));
+
+    const [updatedAddress] = await db
       .select()
       .from(addresses)
-      .where(eq(addresses.id, details.address_id!));
+      .where(eq(addresses.id, updatedDetails.address_id!));
 
-    t.equal(address.line1, '456 New St', 'Address updated');
-    t.equal(details.intro_message, 'New Intro', 'Details updated');
+    t.equal(updatedAddress.line1, '456 New St');
+    t.equal(updatedDetails.intro_message, 'New Intro');
   });
 
-  // Cleanup
-  await db.delete(sessions).where(eq(sessions.userId, user.id));
+  await db.delete(practiceDetails).where(eq(practiceDetails.organization_id, orgId));
+  await db.delete(addresses).where(eq(addresses.organization_id, orgId));
+  await db.delete(members).where(and(eq(members.organizationId, orgId), eq(members.userId, userId)));
   await db.delete(organizations).where(eq(organizations.id, orgId));
-  await db.delete(users).where(eq(users.id, user.id));
+  await db.delete(users).where(eq(users.id, userId));
 });
