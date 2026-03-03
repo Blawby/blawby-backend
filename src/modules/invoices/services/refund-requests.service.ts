@@ -228,14 +228,32 @@ const executeRefund = async (opts: {
     const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, opts.organizationId);
     if (!invoice) {
       // Revert status before returning
-      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      try {
+        await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      } catch (rollbackError) {
+        logger.error('Failed to rollback refund request status from executing to approved after invoice not found', {
+          requestId: opts.requestId,
+          organizationId: opts.organizationId,
+          status: 'executing',
+          error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+        });
+      }
       return result.notFound('Invoice not found');
     }
 
     const stripePaymentIntentId = invoice.stripe_payment_intent_id;
     if (!stripePaymentIntentId) {
       // Revert status before returning
-      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      try {
+        await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      } catch (rollbackError) {
+        logger.error('Failed to rollback refund request status from executing to approved after missing stripe payment intent ID', {
+          requestId: opts.requestId,
+          organizationId: opts.organizationId,
+          status: 'executing',
+          error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+        });
+      }
       return result.badRequest('Invoice has no Stripe payment intent ID — cannot refund');
     }
 
@@ -243,7 +261,16 @@ const executeRefund = async (opts: {
     const stripeAccountId = invoice.connectedAccount?.stripe_account_id;
     if (!stripeAccountId) {
       // Revert status before returning
-      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      try {
+        await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      } catch (rollbackError) {
+        logger.error('Failed to rollback refund request status from executing to approved after missing stripe account ID', {
+          requestId: opts.requestId,
+          organizationId: opts.organizationId,
+          status: 'executing',
+          error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+        });
+      }
       return result.badRequest('Invoice has no connected Stripe account');
     }
 
