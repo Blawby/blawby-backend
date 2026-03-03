@@ -30,8 +30,8 @@ const recordDeposit = async (
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   const execute = async (trx: typeof db) => {
-    const lockKeyBuf = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
-    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuf}))`);
+    const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
+    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
     let retries = 3;
     while (true) {
       try {
@@ -107,6 +107,8 @@ const recordWithdrawal = async (
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   const execute = async (trx: typeof db) => {
+    const lockKeyBuffer = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
+    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuffer}))`);
     let retries = 3;
     while (true) {
       try {

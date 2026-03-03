@@ -71,7 +71,7 @@ const createRequest = async (opts: {
         tx,
       );
       const existingRefundSum = existingRefunds
-        .filter((r) => ['requested', 'approved', 'executed'].includes(r.status))
+        .filter((r) => ['requested', 'approved', 'executing', 'executed'].includes(r.status))
         .reduce((sum, r) => sum + (r.status === 'executed' ? (r.executed_amount ?? r.requested_amount) : r.requested_amount), 0);
 
       // Validate amount does not exceed amount_paid
@@ -134,20 +134,16 @@ const cancelRequest = async (opts: {
     const clientResult = await invoiceClientResolver.resolveUserDetailId(opts.organizationId, opts.userId);
     if (!clientResult.success) return clientResult;
 
-    const req = await refundRequestsQueries.findByIdAndClient(
+    const updated = await refundRequestsQueries.transitionStatusForClient(
       opts.requestId,
       opts.organizationId,
       clientResult.data,
+      'requested',
+      { status: 'cancelled' },
     );
-    if (!req) return result.notFound('Refund request not found');
-    if (req.status !== 'requested') {
-      return result.badRequest('Only pending refund requests can be cancelled');
+    if (!updated) {
+      return result.badRequest('Only pending refund requests can be cancelled, or request not found');
     }
-
-    const updated = await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
-      status: 'cancelled',
-    });
-    if (!updated) return result.notFound('Refund request not found');
     return result.ok(updated);
   } catch (error) {
     logger.error('Failed to cancel refund request', { error });
@@ -186,19 +182,20 @@ const reviewRequest = async (opts: {
   reviewNotes?: string;
 }): Promise<Result<SelectRefundRequest>> => {
   try {
-    const req = await refundRequestsQueries.findById(opts.requestId, opts.organizationId);
-    if (!req) return result.notFound('Refund request not found');
-    if (req.status !== 'requested') {
-      return result.badRequest('Only pending refund requests can be reviewed');
+    const updated = await refundRequestsQueries.transitionStatus(
+      opts.requestId,
+      opts.organizationId,
+      'requested',
+      {
+        status: opts.action,
+        reviewed_by_user_id: opts.reviewerUserId,
+        reviewed_at: new Date(),
+        review_notes: opts.reviewNotes,
+      },
+    );
+    if (!updated) {
+      return result.badRequest('Only pending refund requests can be reviewed, or request not found');
     }
-
-    const updated = await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
-      status: opts.action,
-      reviewed_by_user_id: opts.reviewerUserId,
-      reviewed_at: new Date(),
-      review_notes: opts.reviewNotes,
-    });
-    if (!updated) return result.notFound('Refund request not found');
     return result.ok(updated);
   } catch (error) {
     logger.error('Failed to review refund request', { error });
@@ -229,16 +226,24 @@ const executeRefund = async (opts: {
 
     // We need the Stripe payment intent ID from the invoice
     const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, opts.organizationId);
-    if (!invoice) return result.notFound('Invoice not found');
+    if (!invoice) {
+      // Revert status before returning
+      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
+      return result.notFound('Invoice not found');
+    }
 
     const stripePaymentIntentId = invoice.stripe_payment_intent_id;
     if (!stripePaymentIntentId) {
+      // Revert status before returning
+      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
       return result.badRequest('Invoice has no Stripe payment intent ID — cannot refund');
     }
 
     // Resolve the connected account for the refund
     const stripeAccountId = invoice.connectedAccount?.stripe_account_id;
     if (!stripeAccountId) {
+      // Revert status before returning
+      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
       return result.badRequest('Invoice has no connected Stripe account');
     }
 
