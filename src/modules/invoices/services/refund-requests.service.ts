@@ -1,5 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import { getLogger } from '@logtape/logtape';
+import Stripe from 'stripe';
 
 import { stripe } from '@/shared/utils/stripe-client';
 
@@ -12,6 +13,10 @@ import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import type { Result } from '@/shared/types/result';
+
+function isStripeError(err: unknown): err is Stripe.errors.StripeError {
+  return err !== null && typeof err === 'object' && 'type' in err;
+}
 
 const logger = getLogger(['invoices', 'refund-requests']);
 
@@ -211,14 +216,19 @@ const executeRefund = async (opts: {
   executorUserId: string;
 }): Promise<Result<SelectRefundRequest>> => {
   try {
-    const req = await refundRequestsQueries.findById(opts.requestId, opts.organizationId);
-    if (!req) return result.notFound('Refund request not found');
-    if (req.status !== 'approved') {
-      return result.badRequest('Only approved refund requests can be executed');
+    const claimedReq = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'approved', {
+      status: 'executing',
+      executed_by_user_id: opts.executorUserId,
+    });
+    
+    if (!claimedReq) {
+      const existing = await refundRequestsQueries.findById(opts.requestId, opts.organizationId);
+      if (!existing) return result.notFound('Refund request not found');
+      return result.badRequest('Only approved refund requests can be executed, or request is currently being executed');
     }
 
     // We need the Stripe payment intent ID from the invoice
-    const invoice = await invoicesRepository.findInvoiceById(req.invoice_id, opts.organizationId);
+    const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, opts.organizationId);
     if (!invoice) return result.notFound('Invoice not found');
 
     const stripePaymentIntentId = invoice.stripe_payment_intent_id;
@@ -237,10 +247,10 @@ const executeRefund = async (opts: {
 
       const refund = await stripe.refunds.create({
         payment_intent: stripePaymentIntentId,
-        amount: req.requested_amount,
+        amount: claimedReq.requested_amount,
         metadata: {
-          refund_request_id: req.id,
-          invoice_id: req.invoice_id,
+          refund_request_id: claimedReq.id,
+          invoice_id: claimedReq.invoice_id,
           organization_id: opts.organizationId,
         },
       }, {
@@ -248,7 +258,7 @@ const executeRefund = async (opts: {
         idempotencyKey: `refund_request_${opts.requestId}`,
       });
 
-      const updated = await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
+      const updated = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
         status: 'executed',
         stripe_refund_id: refund.id,
         stripe_payment_intent_id: stripePaymentIntentId,
@@ -272,11 +282,11 @@ const executeRefund = async (opts: {
       return result.ok(updated);
     } catch (stripeError) {
       const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown error';
-      const isTransient = stripeError instanceof Error && (
-        stripeError.name === 'APIConnectionError' ||
-        stripeError.name === 'RateLimitError' ||
-        (stripeError as any).code === 'ECONNRESET' ||
-        (stripeError as any).code === 'ETIMEDOUT'
+      const isTransient = isStripeError(stripeError) && (
+        stripeError.type === 'StripeConnectionError' ||
+        stripeError.type === 'StripeRateLimitError' ||
+        stripeError.code === 'ECONNRESET' ||
+        stripeError.code === 'ETIMEDOUT'
       );
 
       if (isTransient) {
@@ -289,11 +299,11 @@ const executeRefund = async (opts: {
       }
 
       // Mark as failed but preserve the request
-      await refundRequestsQueries.update(opts.requestId, opts.organizationId, {
+      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
         status: 'failed',
         executed_by_user_id: opts.executorUserId,
         executed_at: new Date(),
-        review_notes: req.review_notes ? `${req.review_notes}\n\nStripe error: ${errorMsg}` : `Stripe error: ${errorMsg}`,
+        review_notes: claimedReq.review_notes ? `${claimedReq.review_notes}\n\nStripe error: ${errorMsg}` : `Stripe error: ${errorMsg}`,
       });
 
       logger.error('Stripe refund failed for request {requestId}: {error}', {

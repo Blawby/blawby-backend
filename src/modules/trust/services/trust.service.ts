@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { sql } from 'drizzle-orm';
 import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
 import { result } from '@/shared/utils/result';
 import { db } from '@/shared/database';
@@ -29,6 +30,8 @@ const recordDeposit = async (
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   const execute = async (trx: typeof db) => {
+    const lockKeyBuf = `${params.organizationId}:${params.clientId}:${params.matterId || 'no-matter'}`;
+    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyBuf}))`);
     let retries = 3;
     while (true) {
       try {
