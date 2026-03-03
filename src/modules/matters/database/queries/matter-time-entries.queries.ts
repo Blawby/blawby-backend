@@ -1,5 +1,5 @@
 import {
-  eq, and, desc, gte, lte, sql,
+  eq, and, desc, gte, lte, sql, inArray, isNull,
 } from 'drizzle-orm';
 import {
   matterTimeEntries,
@@ -113,6 +113,63 @@ const getTotalTime = async (
   return Number(result.total);
 };
 
+/**
+ * Mark time entries as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
+ */
+const markAsInvoiced = async (
+  timeEntryIds: string[],
+  invoiceId: string,
+  tx?: typeof db,
+): Promise<void> => {
+  if (timeEntryIds.length === 0) return;
+  const client = tx || db;
+  await client
+    .update(matterTimeEntries)
+    .set({
+      invoice_id: invoiceId,
+      invoiced_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(inArray(matterTimeEntries.id, timeEntryIds));
+};
+
+/**
+ * Unmark time entries as invoiced. Resets invoice_id and invoiced_at for entries linked to the given invoice.
+ */
+const unmarkInvoiced = async (
+  invoiceId: string,
+  tx?: typeof db,
+): Promise<void> => {
+  const client = tx || db;
+  await client
+    .update(matterTimeEntries)
+    .set({
+      invoice_id: null,
+      invoiced_at: null,
+      updated_at: new Date(),
+    })
+    .where(eq(matterTimeEntries.invoice_id, invoiceId));
+};
+
+/**
+ * Get unbilled time entries for a matter: invoice_id IS NULL AND billable = true.
+ */
+const getUnbilled = async (
+  matterId: string,
+): Promise<SelectMatterTimeEntry[]> => {
+  return await db
+    .select()
+    .from(matterTimeEntries)
+    .where(
+      and(
+        eq(matterTimeEntries.matter_id, matterId),
+        isNull(matterTimeEntries.invoice_id),
+        eq(matterTimeEntries.billable, true),
+      ),
+    )
+    .orderBy(desc(matterTimeEntries.start_time));
+};
+
 export const matterTimeEntriesQueries = {
   createMatterTimeEntry,
   findMatterTimeEntryById,
@@ -121,4 +178,7 @@ export const matterTimeEntriesQueries = {
   deleteMatterTimeEntry,
   getTotalBillableTime,
   getTotalTime,
+  markAsInvoiced,
+  unmarkInvoiced,
+  getUnbilled,
 };

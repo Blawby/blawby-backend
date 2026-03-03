@@ -27,6 +27,9 @@ import {
   updateMilestoneRoute,
   deleteMilestoneRoute,
   reorderMilestonesRoute,
+  getUnbilledTimeEntriesRoute,
+  getUnbilledExpensesRoute,
+  getUnbilledSummaryRoute,
 } from '@/modules/matters/routes';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
@@ -410,5 +413,26 @@ export const reorderMilestonesHandler: AppRouteHandler<typeof reorderMilestonesR
   const validatedBody = c.req.valid('json');
   const result = await matterMilestonesService
     .reorderMilestones(practice_id, id, validatedBody, user, c.req.header());
+  return response.fromResult(c, result);
+};
+
+export const getUnbilledTimeEntriesHandler: AppRouteHandler<typeof getUnbilledTimeEntriesRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id: matter_id } = c.req.valid('param');
+  const result = await matterTimeEntriesService.getUnbilledTimeEntries(practice_id, matter_id, user, c.req.header());
+  return response.fromResult(c, result);
+};
+
+export const getUnbilledExpensesHandler: AppRouteHandler<typeof getUnbilledExpensesRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id: matter_id } = c.req.valid('param');
+  const result = await matterExpensesService.getUnbilledExpenses(practice_id, matter_id, user, c.req.header());
+  return response.fromResult(c, result);
+};
+
+export const getUnbilledSummaryHandler: AppRouteHandler<typeof getUnbilledSummaryRoute> = async (c) => {
+  const user = c.get('user')!;
+  const { practice_id, id: matter_id } = c.req.valid('param');
+  const result = await mattersService.getUnbilledSummary(practice_id, matter_id, user, c.req.header());
   return response.fromResult(c, result);
 };

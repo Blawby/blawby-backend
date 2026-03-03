@@ -42,7 +42,7 @@ export const invoices = pgTable(
       .notNull()
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
-    invoice_number: varchar('invoice_number', { length: 50 }).notNull(),
+    invoice_number: varchar('invoice_number', { length: 50 }),
     invoice_type: invoiceTypeEnum('invoice_type').notNull().default('flat_fee'),
     fund_destination: varchar('fund_destination', { length: 20 })
       .notNull()
@@ -64,6 +64,9 @@ export const invoices = pgTable(
     paid_at: timestamp('paid_at', { withTimezone: true, mode: 'date' }),
 
     stripe_invoice_id: varchar('stripe_invoice_id', { length: 255 }),
+    stripe_invoice_number: varchar('stripe_invoice_number', { length: 255 }),
+    stripe_charge_id: varchar('stripe_charge_id', { length: 255 }),
+    stripe_transfer_id: varchar('stripe_transfer_id', { length: 255 }),
     stripe_payment_intent_id: varchar('stripe_payment_intent_id', { length: 255 }),
     stripe_hosted_invoice_url: text('stripe_hosted_invoice_url'),
 
@@ -91,10 +94,6 @@ export const invoices = pgTable(
     index('invoices_type_idx').on(table.invoice_type),
     index('invoices_number_idx').on(table.invoice_number),
     index('invoices_stripe_id_idx').on(table.stripe_invoice_id),
-    uniqueIndex('invoices_org_number_unique_idx').on(
-      table.organization_id,
-      table.invoice_number,
-    ),
     uniqueIndex('invoices_stripe_invoice_unique_idx').on(table.stripe_invoice_id),
   ],
 );
