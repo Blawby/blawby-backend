@@ -1,9 +1,10 @@
 import { getLogger } from '@logtape/logtape';
 import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
-import type { InsertTrustTransaction, SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
-import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { db } from '@/shared/database';
+
+import type { SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
+import type { Result } from '@/shared/types/result';
 
 const logger = getLogger(['trust', 'service']);
 
@@ -55,8 +56,8 @@ const recordDeposit = async (
         }, trx);
         return result.ok(record);
       } catch (error: unknown) {
-        // Simple optimistic retry logic on serialization / locked row failures
-        const isSerializationFailure = error && typeof error === 'object' && 'code' in error && (error as any).code === '40001';
+        const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+        const isSerializationFailure = code === '40001';
         if (isSerializationFailure) {
           retries--;
           if (retries > 0) {
@@ -135,7 +136,8 @@ const recordWithdrawal = async (
         }, trx);
         return result.ok(record);
       } catch (error: unknown) {
-        const isSerializationFailure = error && typeof error === 'object' && 'code' in error && (error as any).code === '40001';
+        const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
+        const isSerializationFailure = code === '40001';
         if (isSerializationFailure) {
           retries--;
           if (retries > 0) {
