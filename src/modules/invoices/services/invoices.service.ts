@@ -192,7 +192,7 @@ const createInvoice = async (
         await matterExpensesQueries.markAsInvoiced(data.expense_ids, newInvoice.id, tx);
       }
       if (data.milestone_id) {
-        await matterMilestonesQueries.markAsInvoiced(data.milestone_id, newInvoice.id);
+        await matterMilestonesQueries.markAsInvoiced(data.milestone_id, newInvoice.id, tx);
       }
 
       return invWithRel;
@@ -359,7 +359,7 @@ const deleteInvoice = async (
       // Unmark any linked time entries, expenses, milestones (P2+P4)
       await matterTimeEntriesQueries.unmarkInvoiced(invoiceId, tx);
       await matterExpensesQueries.unmarkInvoiced(invoiceId, tx);
-      await matterMilestonesQueries.unmarkInvoiced(invoiceId);
+      await matterMilestonesQueries.unmarkInvoiced(invoiceId, tx);
 
       await invoicesRepository.softDeleteInvoice(invoiceId, organizationId, user.id, tx);
       await InvoiceDeleted.dispatch({
@@ -555,7 +555,7 @@ const voidInvoice = async (
       // Unmark any linked time entries, expenses, milestones (P2+P4)
       await matterTimeEntriesQueries.unmarkInvoiced(invoiceId, tx);
       await matterExpensesQueries.unmarkInvoiced(invoiceId, tx);
-      await matterMilestonesQueries.unmarkInvoiced(invoiceId);
+      await matterMilestonesQueries.unmarkInvoiced(invoiceId, tx);
 
       // Update local status
       await invoicesRepository.updateInvoice(invoiceId, organizationId, {

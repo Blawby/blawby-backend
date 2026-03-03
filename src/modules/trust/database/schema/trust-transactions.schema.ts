@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { organizations, users } from '@/schema';
 
 export const trustTransactions = pgTable(
@@ -21,7 +22,7 @@ export const trustTransactions = pgTable(
     organization_id: uuid('organization_id')
       .notNull()
       .references(() => organizations.id),
-    client_id: uuid('client_id').notNull(),
+    client_id: uuid('client_id').notNull().references(() => userDetails.id),
     matter_id: uuid('matter_id').references(() => matters.id),
     transaction_type: varchar('transaction_type', { length: 50 }).notNull(),
     amount: integer('amount').notNull(), // cents
@@ -47,6 +48,10 @@ export const trustTransactionsRelations = relations(trustTransactions, ({ one })
   organization: one(organizations, {
     fields: [trustTransactions.organization_id],
     references: [organizations.id],
+  }),
+  client: one(userDetails, {
+    fields: [trustTransactions.client_id],
+    references: [userDetails.id],
   }),
   matter: one(matters, {
     fields: [trustTransactions.matter_id],

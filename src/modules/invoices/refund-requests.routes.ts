@@ -7,6 +7,8 @@ import {
 
 // ── Shared Schemas ────────────────────────────────────────────────────────
 
+export const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled']);
+
 const refundRequestSchema = z.object({
   id: z.uuid(),
   organization_id: z.uuid(),
@@ -16,17 +18,17 @@ const refundRequestSchema = z.object({
   currency: z.string(),
   reason: z.string(),
   notes: z.string().nullable(),
-  status: z.string(),
+  status: refundStatusEnum,
   stripe_refund_id: z.string().nullable(),
   stripe_payment_intent_id: z.string().nullable(),
   executed_amount: z.number().nullable(),
-  executed_at: z.date().nullable(),
+  executed_at: z.string().datetime().nullable(),
   executed_by_user_id: z.uuid().nullable(),
-  reviewed_at: z.date().nullable(),
+  reviewed_at: z.string().datetime().nullable(),
   reviewed_by_user_id: z.uuid().nullable(),
   review_notes: z.string().nullable(),
-  created_at: z.date(),
-  updated_at: z.date(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
 }).openapi('RefundRequest', { description: 'A client refund request' });
 
 const refundRequestIdParam = practiceIdParamSchema.extend({
@@ -116,7 +118,7 @@ export const listPracticeRefundRequestsRoute = createRoute({
   request: {
     params: practiceIdParamSchema,
     query: z.object({
-      status: z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled']).optional(),
+      status: refundStatusEnum.optional(),
       invoice_id: z.uuid().optional(),
     }),
   },

@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -95,6 +95,9 @@ export const invoices = pgTable(
     index('invoices_number_idx').on(table.invoice_number),
     index('invoices_stripe_id_idx').on(table.stripe_invoice_id),
     uniqueIndex('invoices_stripe_invoice_unique_idx').on(table.stripe_invoice_id),
+    uniqueIndex('invoices_org_number_unique_idx')
+      .on(table.organization_id, table.invoice_number)
+      .where(sql`${table.invoice_number} IS NOT NULL AND ${table.deleted_at} IS NULL`),
   ],
 );
 

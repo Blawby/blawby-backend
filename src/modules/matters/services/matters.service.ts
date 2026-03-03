@@ -511,10 +511,15 @@ const getUnbilledSummary = async (
       matterExpensesQueries.getUnbilled(matterId),
     ]);
 
-    // Compute time value: sum duration (seconds) * hourly_rate (cents/hr) / 3600
     const hourlyRate = matterResult.data?.attorney_hourly_rate ?? 0;
+    if (!hourlyRate && timeEntries.length > 0) {
+      return result.badRequest('Attorney hourly rate is not set, cannot calculate unbilled time amount');
+    }
+
+    // Compute time value in integer space: round to nearest cent
     const unbilledTimeAmount = timeEntries.reduce((sum, e) => {
-      return sum + Math.round((e.duration / 3600) * hourlyRate);
+      const numerator = e.duration * hourlyRate; // seconds * cents/hr
+      return sum + Math.floor((numerator + 1800) / 3600);
     }, 0);
     const unbilledExpenseAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
 

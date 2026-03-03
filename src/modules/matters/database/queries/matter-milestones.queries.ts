@@ -139,8 +139,10 @@ const getMilestoneStats = async (
 const markAsInvoiced = async (
   milestoneId: string,
   invoiceId: string,
+  tx?: typeof db,
 ): Promise<void> => {
-  await db
+  const client = tx || db;
+  await client
     .update(matterMilestones)
     .set({
       invoice_id: invoiceId,
@@ -155,8 +157,10 @@ const markAsInvoiced = async (
  */
 const unmarkInvoiced = async (
   invoiceId: string,
+  tx?: typeof db,
 ): Promise<void> => {
-  await db
+  const client = tx || db;
+  await client
     .update(matterMilestones)
     .set({
       invoice_id: null,

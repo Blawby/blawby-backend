@@ -3,6 +3,7 @@ import { trustTransactionsRepository } from '@/modules/trust/database/queries/tr
 import type { InsertTrustTransaction, SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { db } from '@/shared/database';
 
 const logger = getLogger(['trust', 'service']);
 
@@ -14,27 +15,55 @@ const recordDeposit = async (params: {
   clientId: string;
   matterId?: string | null;
   amount: number;
-  newBalance: number;
   invoiceId?: string | null;
   stripePaymentIntentId?: string | null;
   description?: string;
   createdBy: string;
 }, tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]): Promise<Result<SelectTrustTransaction>> => {
+  if (params.amount <= 0) return result.badRequest('Amount must be positive');
+
+  const execute = async (trx: typeof db) => {
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+          params.organizationId,
+          params.clientId,
+          params.matterId ?? null,
+          trx,
+        );
+        const currentBalance = balanceRow?.balance ?? 0;
+        const newBalance = currentBalance + params.amount;
+
+        const record = await trustTransactionsRepository.createTransaction({
+          organization_id: params.organizationId,
+          client_id: params.clientId,
+          matter_id: params.matterId ?? null,
+          transaction_type: 'deposit',
+          amount: params.amount,
+          balance_after: newBalance,
+          description: params.description ?? 'Retainer deposit',
+          source: 'retainer_invoice',
+          invoice_id: params.invoiceId ?? null,
+          stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+          created_by: params.createdBy,
+        } as InsertTrustTransaction, trx);
+        return result.ok(record);
+      } catch (error: any) {
+        // Simple optimistic retry logic on serialization / locked row failures
+        if (error?.code === '40001' /* serialization failure */ || retries === 1) {
+          retries--;
+          if (retries === 0) throw error;
+        } else {
+          throw error;
+        }
+      }
+    }
+    return result.internalError('Failed to record trust deposit');
+  };
+
   try {
-    const record = await trustTransactionsRepository.createTransaction({
-      organization_id: params.organizationId,
-      client_id: params.clientId,
-      matter_id: params.matterId ?? null,
-      transaction_type: 'deposit',
-      amount: params.amount,
-      balance_after: params.newBalance,
-      description: params.description ?? 'Retainer deposit',
-      source: 'retainer_invoice',
-      invoice_id: params.invoiceId ?? null,
-      stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-      created_by: params.createdBy,
-    } as InsertTrustTransaction, tx);
-    return result.ok(record);
+    return tx ? await execute(tx) : await db.transaction(execute);
   } catch (error) {
     logger.error('Failed to record trust deposit: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -51,27 +80,59 @@ const recordWithdrawal = async (params: {
   clientId: string;
   matterId?: string | null;
   amount: number;
-  newBalance: number;
   invoiceId?: string | null;
   stripePaymentIntentId?: string | null;
   description?: string;
   createdBy: string;
 }, tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]): Promise<Result<SelectTrustTransaction>> => {
+  if (params.amount <= 0) return result.badRequest('Amount must be positive');
+
+  const execute = async (trx: typeof db) => {
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+          params.organizationId,
+          params.clientId,
+          params.matterId ?? null,
+          trx,
+        );
+        const currentBalance = balanceRow?.balance ?? 0;
+        
+        if (currentBalance < params.amount) {
+          return result.badRequest('Insufficient funds');
+        }
+        
+        const newBalance = currentBalance - params.amount;
+
+        const record = await trustTransactionsRepository.createTransaction({
+          organization_id: params.organizationId,
+          client_id: params.clientId,
+          matter_id: params.matterId ?? null,
+          transaction_type: 'withdrawal',
+          amount: params.amount,
+          balance_after: newBalance,
+          description: params.description ?? 'Invoice payment from retainer',
+          source: 'invoice_payment',
+          invoice_id: params.invoiceId ?? null,
+          stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+          created_by: params.createdBy,
+        } as InsertTrustTransaction, trx);
+        return result.ok(record);
+      } catch (error: any) {
+        if (error?.code === '40001' || retries === 1) {
+          retries--;
+          if (retries === 0) throw error;
+        } else {
+          throw error;
+        }
+      }
+    }
+    return result.internalError('Failed to record trust withdrawal');
+  };
+
   try {
-    const record = await trustTransactionsRepository.createTransaction({
-      organization_id: params.organizationId,
-      client_id: params.clientId,
-      matter_id: params.matterId ?? null,
-      transaction_type: 'withdrawal',
-      amount: params.amount,
-      balance_after: params.newBalance,
-      description: params.description ?? 'Invoice payment from retainer',
-      source: 'invoice_payment',
-      invoice_id: params.invoiceId ?? null,
-      stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-      created_by: params.createdBy,
-    } as InsertTrustTransaction, tx);
-    return result.ok(record);
+    return tx ? await execute(tx) : await db.transaction(execute);
   } catch (error) {
     logger.error('Failed to record trust withdrawal: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
