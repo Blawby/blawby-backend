@@ -45,6 +45,11 @@ mattersApp.openapi(routes.updateMilestoneRoute, handlers.updateMilestoneHandler)
 mattersApp.openapi(routes.deleteMilestoneRoute, handlers.deleteMilestoneHandler);
 mattersApp.openapi(routes.reorderMilestonesRoute, handlers.reorderMilestonesHandler);
 
+// ==================== UNBILLED QUERIES ====================
+mattersApp.openapi(routes.getUnbilledTimeEntriesRoute, handlers.getUnbilledTimeEntriesHandler);
+mattersApp.openapi(routes.getUnbilledExpensesRoute, handlers.getUnbilledExpensesHandler);
+mattersApp.openapi(routes.getUnbilledSummaryRoute, handlers.getUnbilledSummaryHandler);
+
 registerOpenApiRoutes(mattersApp, routes);
 
 export default mattersApp;

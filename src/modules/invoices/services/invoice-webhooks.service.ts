@@ -5,9 +5,11 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import type { TransferInstruction } from '@/modules/invoices/services/fund-router.service';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
+import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
+import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
-import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
-import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
+import { trustService } from '@/modules/trust/services/trust.service';
 import { db } from '@/shared/database';
 import {
   InvoicePaid,
@@ -15,12 +17,64 @@ import {
   InvoiceVoided,
   InvoiceDeleted,
 } from '@/shared/events/definitions';
+import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['invoices', 'webhooks-service']);
+
+const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
+
+const getChargeIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
+  const rawStripeInvoice = stripeInvoice as unknown as Record<string, unknown>;
+  const latestChargeId = typeof rawStripeInvoice.latest_charge === 'string'
+    ? rawStripeInvoice.latest_charge
+    : null;
+  const legacyChargeId = typeof rawStripeInvoice.charge === 'string'
+    ? rawStripeInvoice.charge
+    : null;
+  return latestChargeId ?? legacyChargeId;
+};
+
+const getPaymentIntentIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
+  const rawStripeInvoice = stripeInvoice as unknown as Record<string, unknown>;
+  return typeof rawStripeInvoice.payment_intent === 'string'
+    ? rawStripeInvoice.payment_intent
+    : null;
+};
+
+const calculateMeteredFeeCents = async (
+  stripeInvoice: Stripe.Invoice,
+): Promise<number> => {
+  const variablePlatformFee = Math.round(stripeInvoice.amount_paid * PLATFORM_VARIABLE_FEE_RATE);
+  const chargeId = getChargeIdFromInvoice(stripeInvoice);
+  if (!chargeId) {
+    logger.warn('No Stripe charge ID found on invoice {stripeInvoiceId}; using platform variable fee only', {
+      stripeInvoiceId: stripeInvoice.id,
+    });
+    return variablePlatformFee;
+  }
+
+  try {
+    const charge = await stripe.charges.retrieve(chargeId, {
+      expand: ['balance_transaction'],
+    });
+    const stripeFee = typeof charge.balance_transaction === 'string'
+      ? 0
+      : (charge.balance_transaction?.fee ?? 0);
+    return stripeFee + variablePlatformFee;
+  } catch (error) {
+    logger.error('Failed to fetch Stripe balance transaction fee for charge {chargeId}: {error}', {
+      chargeId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return variablePlatformFee;
+  }
+};
+
+
 
 /**
  * PHASE 1: Determine fund routing and destination account
@@ -79,9 +133,13 @@ const handlePhase2DbTransaction = async (
 
   try {
     await db.transaction(async (tx) => {
-      // 1. Update invoice status
+      // 1. Update invoice status + sync Stripe IDs (P6)
       if (invoice.status !== 'paid') {
         isNewlyPaid = true;
+
+        const chargeId = getChargeIdFromInvoice(stripeInvoice);
+        const paymentIntentId = getPaymentIntentIdFromInvoice(stripeInvoice);
+
         await invoicesRepository.updateInvoice(
           invoice.id,
           invoice.organization_id,
@@ -93,6 +151,14 @@ const handlePhase2DbTransaction = async (
             paid_at: stripeInvoice.status_transitions.paid_at
               ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
               : null,
+            // P6: sync Stripe-assigned fields
+            stripe_invoice_number: stripeInvoice.number ?? null,
+            stripe_charge_id: chargeId,
+            stripe_payment_intent_id: paymentIntentId,
+            // backfill invoice_number if not yet set
+            ...(stripeInvoice.number && !invoice.invoice_number
+              ? { invoice_number: stripeInvoice.number }
+              : {}),
           },
           tx,
         );
@@ -103,16 +169,47 @@ const handlePhase2DbTransaction = async (
           if (matter) {
             const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
             await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+            const trustRecord = await trustService.recordDeposit({
+              organizationId: invoice.organization_id,
+              clientId: invoice.client_id,
+              matterId: invoice.matter_id,
+              amount: stripeInvoice.amount_paid,
+              invoiceId: invoice.id,
+              stripePaymentIntentId: paymentIntentId,
+              createdBy: WEBHOOK_ACTOR_UUID,
+            }, tx);
+            if (!trustRecord.success) {
+              throw new Error(trustRecord.error.message);
+            }
           }
         } else if (invoice.matter_id && invoice.payment_from_retainer) {
           const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
           if (matter) {
             const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
             await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
+            const trustRecord = await trustService.recordWithdrawal({
+              organizationId: invoice.organization_id,
+              clientId: invoice.client_id,
+              matterId: invoice.matter_id,
+              amount: stripeInvoice.amount_paid,
+              invoiceId: invoice.id,
+              stripePaymentIntentId: paymentIntentId,
+              createdBy: WEBHOOK_ACTOR_UUID,
+            }, tx);
+            if (!trustRecord.success) {
+              throw new Error(trustRecord.error.message);
+            }
           }
         }
 
         // 3. Dispatch events
+        //
+        // metered_fee_cents is forwarded in metadata so the InvoicePaid
+        // listener (invoices/listeners.ts) can report payout-fee usage
+        // without an extra Stripe API round-trip. Metered usage reporting
+        // is intentionally deferred to the outbox worker, which provides
+        // 5-retry + dead-letter guarantees without blocking this handler.
+        const meteredFeeCents = await calculateMeteredFeeCents(stripeInvoice);
         await InvoicePaid.dispatch({
           invoice_id: invoice.id,
           organization_id: invoice.organization_id,
@@ -121,6 +218,7 @@ const handlePhase2DbTransaction = async (
           amount_paid: stripeInvoice.amount_paid,
           retainer_deducted: !!invoice.payment_from_retainer,
           retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
+          metered_fee_cents: meteredFeeCents,
         }, {
           actorId: 'webhook',
           actorType: 'webhook',
@@ -191,7 +289,7 @@ const handlePhase3StripeTransfer = async (
   routingInstruction: TransferInstruction,
   billingTxId: string,
 ): Promise<Result<void>> => {
-  const transferAmount = stripeInvoice.amount_paid - routingInstruction.applicationFeeAmount;
+  const transferAmount = stripeInvoice.amount_paid;
 
   if (transferAmount <= 0) {
     logger.info('Skipping Stripe transfer for invoice {invoiceId} because transfer amount is {amount}', {
@@ -227,25 +325,22 @@ const handlePhase3StripeTransfer = async (
     });
 
     try {
-      await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
-        stripe_transfer_id: transfer.id,
-        completed_at: new Date(),
+      await db.transaction(async (tx) => {
+        await billingTransactionsRepository.updateTransactionStatus(billingTxId, 'completed', {
+          stripe_transfer_id: transfer.id,
+          completed_at: new Date(),
+        }, tx);
+
+        await invoicesRepository.updateInvoice(
+          invoice.id,
+          invoice.organization_id,
+          { stripe_transfer_id: transfer.id },
+          tx,
+        );
       });
 
-      // Record metered usage for payout fee (Fire & Forget with clean logging)
-      meteredProductsService.reportMeteredUsage(
-        db,
-        invoice.organization_id,
-        METERED_TYPES.PAYOUT_FEE,
-        1,
-        invoice.id, // Stable key for deduplication
-      ).catch((err) => {
-        logger.error('Failed to report payout metered usage for invoice {invoiceId}, org {organizationId}: {error}', {
-          invoiceId: invoice.id,
-          organizationId: invoice.organization_id,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
-      });
+      // Payout-fee metered usage is reported by the InvoicePaid listener
+      // (invoices/listeners.ts) via the outbox system — no inline reporting needed.
     } catch (dbError) {
       // Transfer succeeded but DB update failed — record for manual reconciliation
       logger.error('Stripe transfer {transferId} succeeded but DB update failed for billing tx {billingTxId}: {error}', {
@@ -303,28 +398,19 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
     );
     if (!phase2.success) return phase2;
 
-    const { billingTxId, isNewlyPaid } = phase2.data;
-
-    // Report invoice fee if newly paid
-    if (isNewlyPaid) {
-      meteredProductsService.reportMeteredUsage(
-        db,
-        invoice.organization_id,
-        METERED_TYPES.INVOICE_FEE,
-        1,
-        invoice.id, // Stable key for deduplication
-      ).catch((err) => {
-        logger.error('Failed to report invoice metered usage for invoice {invoiceId}, org {organizationId}: {error}', {
-          invoiceId: invoice.id,
-          organizationId: invoice.organization_id,
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
-      });
-    }
+    const { billingTxId } = phase2.data;
+    // Metered usage (invoice_fee + payout_fee) is now reported asynchronously
+    // via the InvoicePaid event listener. The fee amount was embedded in the
+    // event metadata during Phase 2 dispatch so no extra Stripe call is needed.
 
     // Phase 3: External Transfer
     if (billingTxId) {
-      const phase3 = await handlePhase3StripeTransfer(invoice, stripeInvoice, routingInstruction, billingTxId);
+      const phase3 = await handlePhase3StripeTransfer(
+        invoice,
+        stripeInvoice,
+        routingInstruction,
+        billingTxId,
+      );
       if (!phase3.success) return phase3;
     }
 
@@ -391,11 +477,14 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
       await invoicesRepository.updateInvoice(
         invoice.id,
         invoice.organization_id,
-        {
-          status: 'cancelled',
-        },
+        { status: 'cancelled' },
         tx,
       );
+
+      // P2+P4: Unmark linked time entries, expenses, milestones
+      await matterTimeEntriesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterExpensesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterMilestonesQueries.unmarkInvoiced(invoice.id, tx);
 
       await InvoiceVoided.dispatch({
         invoice_id: invoice.id,
@@ -434,6 +523,11 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
         null,
         tx,
       );
+
+      // P2+P4: Unmark linked time entries, expenses, milestones
+      await matterTimeEntriesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterExpensesQueries.unmarkInvoiced(invoice.id, tx);
+      await matterMilestonesQueries.unmarkInvoiced(invoice.id, tx);
 
       await InvoiceDeleted.dispatch({
         invoice_id: invoice.id,

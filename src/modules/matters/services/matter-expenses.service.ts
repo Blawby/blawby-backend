@@ -244,10 +244,32 @@ const getExpenseStats = async (
   }
 };
 
+/**
+ * Get unbilled expenses for a matter (invoice_id IS NULL AND billable=true)
+ */
+const getUnbilledExpenses = async (
+  organizationId: string,
+  matterId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<SelectMatterExpense[]>> => {
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) return matterResult as Result<never>;
+  try {
+    const expenses = await matterExpensesQueries.getUnbilled(matterId);
+    return ok(expenses);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get unbilled expenses {matterId}: {error}', { matterId, error: message });
+    return internalError(message);
+  }
+};
+
 export const matterExpensesService = {
   createMatterExpense,
   listMatterExpenses,
   updateMatterExpense,
   deleteMatterExpense,
   getExpenseStats,
+  getUnbilledExpenses,
 };

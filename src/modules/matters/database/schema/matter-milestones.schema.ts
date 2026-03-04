@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { matters } from './matters.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 
 export const matterMilestones = pgTable(
   'matter_milestones',
@@ -25,6 +26,8 @@ export const matterMilestones = pgTable(
     due_date: date('due_date').notNull(),
     status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'in_progress', 'completed', 'overdue'
     order: integer('order').notNull().default(0),
+    invoice_id: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
+    invoiced_at: timestamp('invoiced_at', { withTimezone: true, mode: 'date' }),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),

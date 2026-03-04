@@ -586,3 +586,68 @@ export const getMatterActivityRoute = createRoute({
     200: { content: { 'application/json': { schema: z.object({ activities: z.array(matterValidations.activityLogSchema) }) } }, description: 'Activity retrieved' },
   },
 });
+
+// ==================== UNBILLED QUERIES ====================
+
+export const getUnbilledTimeEntriesRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/{id}/time-entries/unbilled',
+  tags: ['Matters: Time Entries'],
+  summary: 'Get unbilled time entries',
+  description: 'Get all unbilled (not yet invoiced) billable time entries for a matter.',
+  request: { params: matterIdParamSchema },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ timeEntries: z.array(matterTimeEntryValidations.timeEntrySchema) }),
+        },
+      },
+      description: 'Unbilled time entries retrieved',
+    },
+  },
+});
+
+export const getUnbilledExpensesRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/{id}/expenses/unbilled',
+  tags: ['Matters: Expenses'],
+  summary: 'Get unbilled expenses',
+  description: 'Get all unbilled (not yet invoiced) billable expenses for a matter.',
+  request: { params: matterIdParamSchema },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ expenses: z.array(matterExpenseValidations.expenseSchema) }),
+        },
+      },
+      description: 'Unbilled expenses retrieved',
+    },
+  },
+});
+
+export const getUnbilledSummaryRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/{id}/unbilled-summary',
+  tags: ['Matters: General'],
+  summary: 'Get unbilled summary',
+  description: 'Get aggregate unbilled amounts (time + expenses) for a matter.',
+  request: { params: matterIdParamSchema },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            unbilledTimeEntries: z.number(),
+            unbilledExpenses: z.number(),
+            unbilledTimeAmount: z.number(),
+            unbilledExpenseAmount: z.number(),
+            totalUnbilled: z.number(),
+          }),
+        },
+      },
+      description: 'Unbilled summary retrieved',
+    },
+  },
+});

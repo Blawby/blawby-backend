@@ -547,8 +547,6 @@ const createPracticeClientIntakeCheckoutSession = async (
       ? `&conversation_id=${encodeURIComponent(practiceClientIntake.conversation_id)}`
       : '';
 
-    const applicationFeeAmount = fundRouterService.calculateApplicationFee(practiceClientIntake.amount);
-
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       client_reference_id: practiceClientIntake.id,
@@ -572,9 +570,6 @@ const createPracticeClientIntakeCheckoutSession = async (
           destination: connectedAccount.stripe_account_id,
         },
         metadata,
-        ...(applicationFeeAmount && {
-          application_fee_amount: applicationFeeAmount,
-        }),
       },
       metadata,
     });

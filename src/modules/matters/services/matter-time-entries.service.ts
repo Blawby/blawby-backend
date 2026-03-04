@@ -278,10 +278,32 @@ const getTimeEntryStats = async (
   }
 };
 
+/**
+ * Get unbilled time entries for a matter (invoice_id IS NULL AND billable=true)
+ */
+const getUnbilledTimeEntries = async (
+  organizationId: string,
+  matterId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<SelectMatterTimeEntry[]>> => {
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) return matterResult as Result<never>;
+  try {
+    const entries = await matterTimeEntriesQueries.getUnbilled(matterId);
+    return ok(entries);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get unbilled time entries {matterId}: {error}', { matterId, error: message });
+    return internalError(message);
+  }
+};
+
 export const matterTimeEntriesService = {
   createMatterTimeEntry,
   listMatterTimeEntries,
   updateMatterTimeEntry,
   deleteMatterTimeEntry,
   getTimeEntryStats,
+  getUnbilledTimeEntries,
 };

@@ -10,8 +10,8 @@ const logger = getLogger(['invoices', 'stripe-service']);
 /**
  * Stripe Invoices Service
  *
- * Handles interaction with Stripe API for invoices on connected accounts.
- * Uses Direct Charges (stripeAccount header).
+ * Handles interaction with Stripe API for invoices created on the platform account.
+ * Uses separate charges + transfers model (no stripeAccount header).
  */
 
 /**
@@ -20,10 +20,10 @@ const logger = getLogger(['invoices', 'stripe-service']);
 const createStripeInvoice = async (
   invoice: InvoiceWithRelations,
   stripeCustomerId: string,
+  onBehalfOfAccountId: string,
 ): Promise<Result<Stripe.Invoice>> => {
-  const stripeAccountId = invoice.connectedAccount?.stripe_account_id;
-  if (!stripeAccountId) {
-    return result.badRequest('Missing Stripe account ID for connected account');
+  if (!onBehalfOfAccountId) {
+    return result.badRequest('Missing Stripe account ID for on_behalf_of');
   }
 
   const createdItemIds: string[] = [];
@@ -41,8 +41,6 @@ const createStripeInvoice = async (
             internal_line_item_id: item.id,
             internal_invoice_id: invoice.id,
           },
-        }, {
-          stripeAccount: stripeAccountId,
         });
         createdItemIds.push(stripeItem.id);
       }
@@ -53,6 +51,7 @@ const createStripeInvoice = async (
       customer: stripeCustomerId,
       auto_advance: false,
       collection_method: 'send_invoice',
+      on_behalf_of: onBehalfOfAccountId,
       days_until_due: invoice.due_date
         ? Math.max(0, Math.ceil((invoice.due_date.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 30,
@@ -62,8 +61,6 @@ const createStripeInvoice = async (
       },
       description: invoice.notes || undefined,
       footer: invoice.memo || undefined,
-    }, {
-      stripeAccount: stripeAccountId,
     });
 
     return result.ok(stripeInvoice);
@@ -71,9 +68,7 @@ const createStripeInvoice = async (
     // 3. Cleanup on failure: delete created items
     for (const itemId of createdItemIds) {
       try {
-        await stripe.invoiceItems.del(itemId, {
-          stripeAccount: stripeAccountId,
-        });
+        await stripe.invoiceItems.del(itemId);
       } catch (cleanupError) {
         logger.error('Failed to cleanup Stripe invoice item {itemId}: {error}', {
           itemId,
@@ -96,21 +91,16 @@ const createStripeInvoice = async (
  */
 const finalizeAndSendInvoice = async (
   stripeInvoiceId: string,
-  stripeAccountId: string,
 ): Promise<Result<Stripe.Invoice>> => {
   try {
     // Finalize the invoice (converts draft to open)
-    await stripe.invoices.finalizeInvoice(stripeInvoiceId, {}, {
-      stripeAccount: stripeAccountId,
-    });
+    await stripe.invoices.finalizeInvoice(stripeInvoiceId);
 
     // Send the invoice email with retries
     let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const sent = await stripe.invoices.sendInvoice(stripeInvoiceId, {}, {
-          stripeAccount: stripeAccountId,
-        });
+        const sent = await stripe.invoices.sendInvoice(stripeInvoiceId);
         return result.ok(sent);
       } catch (error) {
         lastError = error;
@@ -146,12 +136,9 @@ const finalizeAndSendInvoice = async (
  */
 const voidInvoice = async (
   stripeInvoiceId: string,
-  stripeAccountId: string,
 ): Promise<Result<Stripe.Invoice>> => {
   try {
-    const voided = await stripe.invoices.voidInvoice(stripeInvoiceId, {}, {
-      stripeAccount: stripeAccountId,
-    });
+    const voided = await stripe.invoices.voidInvoice(stripeInvoiceId);
     return result.ok(voided);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -168,12 +155,9 @@ const voidInvoice = async (
  */
 const deleteDraftInvoice = async (
   stripeInvoiceId: string,
-  stripeAccountId: string,
 ): Promise<Result<Stripe.DeletedInvoice>> => {
   try {
-    const deleted = await stripe.invoices.del(stripeInvoiceId, {}, {
-      stripeAccount: stripeAccountId,
-    });
+    const deleted = await stripe.invoices.del(stripeInvoiceId);
     return result.ok(deleted);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -190,12 +174,9 @@ const deleteDraftInvoice = async (
  */
 const getStripeInvoice = async (
   stripeInvoiceId: string,
-  stripeAccountId: string,
 ): Promise<Result<Stripe.Invoice>> => {
   try {
-    const stripeInvoice = await stripe.invoices.retrieve(stripeInvoiceId, {}, {
-      stripeAccount: stripeAccountId,
-    });
+    const stripeInvoice = await stripe.invoices.retrieve(stripeInvoiceId);
     return result.ok(stripeInvoice);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
