@@ -8,12 +8,12 @@ ALTER TABLE matter_expenses
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX IF NOT EXISTS idx_time_entries_invoice_id ON matter_time_entries(invoice_id);
-CREATE INDEX IF NOT EXISTS idx_time_entries_unbilled ON matter_time_entries(matter_id)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_time_entries_invoice_id ON matter_time_entries(invoice_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_time_entries_unbilled ON matter_time_entries(matter_id)
   WHERE invoice_id IS NULL AND billable = true;
 
-CREATE INDEX IF NOT EXISTS idx_expenses_invoice_id ON matter_expenses(invoice_id);
-CREATE INDEX IF NOT EXISTS idx_expenses_unbilled ON matter_expenses(matter_id)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_expenses_invoice_id ON matter_expenses(invoice_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_expenses_unbilled ON matter_expenses(matter_id)
   WHERE invoice_id IS NULL AND billable = true;
 
 -- Priority 4: Trust transactions ledger
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS trust_transactions (
   source VARCHAR(100),
   invoice_id UUID REFERENCES invoices(id),
   stripe_payment_intent_id VARCHAR(255),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   created_by UUID NOT NULL REFERENCES users(id),
   metadata JSONB
 );
@@ -39,13 +39,16 @@ CREATE INDEX IF NOT EXISTS idx_trust_transactions_client ON trust_transactions(c
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_matter ON trust_transactions(matter_id);
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_invoice ON trust_transactions(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_org ON trust_transactions(organization_id);
+-- Composite index for balance lookups per client/org ordered by recency (IOLTA compliance)
+CREATE INDEX IF NOT EXISTS idx_trust_transactions_org_client_created
+  ON trust_transactions(organization_id, client_id, created_at DESC);
 
 -- Priority 5: Milestone-invoice linking
 ALTER TABLE matter_milestones
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX IF NOT EXISTS idx_matter_milestones_invoice_id ON matter_milestones(invoice_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_matter_milestones_invoice_id ON matter_milestones(invoice_id);
 
 -- Priority 6: Stripe invoice number sync
 ALTER TABLE invoices
@@ -85,8 +88,8 @@ CREATE TABLE IF NOT EXISTS refund_requests (
   reviewed_at TIMESTAMP WITH TIME ZONE,
   reviewed_by_user_id UUID REFERENCES users(id),
   review_notes TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   CONSTRAINT check_executed_fields CHECK (
     status <> 'executed' OR (
       executed_amount IS NOT NULL AND
@@ -101,3 +104,6 @@ CREATE INDEX IF NOT EXISTS idx_refund_requests_org ON refund_requests(organizati
 CREATE INDEX IF NOT EXISTS idx_refund_requests_invoice ON refund_requests(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_refund_requests_client ON refund_requests(client_user_details_id);
 CREATE INDEX IF NOT EXISTS idx_refund_requests_status ON refund_requests(status);
+-- Composite index for practice dashboard (org + status filter) and for IOLTA audit queries
+CREATE INDEX IF NOT EXISTS idx_refund_requests_org_status
+  ON refund_requests(organization_id, status);
