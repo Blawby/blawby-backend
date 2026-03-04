@@ -55,6 +55,8 @@ export const refundRequests = pgTable(
     index('idx_refund_requests_invoice').on(table.invoice_id),
     index('idx_refund_requests_client').on(table.client_user_details_id),
     index('idx_refund_requests_status').on(table.status),
+    // Composite index for practice dashboard: list by org + filter by status
+    index('idx_refund_requests_org_status').on(table.organization_id, table.status),
     check('refund_status_check', sql`status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')`),
   ],
 );

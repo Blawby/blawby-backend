@@ -16,7 +16,7 @@ import type { SelectRefundRequest } from '@/modules/invoices/database/schema/ref
 import type { Result } from '@/shared/types/result';
 
 function isStripeError(err: unknown): err is Stripe.errors.StripeError {
-  return err !== null && typeof err === 'object' && 'type' in err;
+  return err instanceof Stripe.errors.StripeError;
 }
 
 const logger = getLogger(['invoices', 'refund-requests']);

@@ -40,6 +40,12 @@ export const trustTransactions = pgTable(
     index('idx_trust_transactions_matter').on(table.matter_id),
     index('idx_trust_transactions_invoice').on(table.invoice_id),
     index('idx_trust_transactions_org').on(table.organization_id),
+    // Composite index for balance lookups per client/org ordered by recency (IOLTA compliance)
+    index('idx_trust_transactions_org_client_created').on(
+      table.organization_id,
+      table.client_id,
+      table.created_at,
+    ),
     check('trust_txn_type_check', sql`transaction_type IN ('deposit', 'withdrawal', 'transfer', 'refund')`),
   ],
 );
