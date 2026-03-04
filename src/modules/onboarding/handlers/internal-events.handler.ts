@@ -41,7 +41,7 @@ export const handleAccountRequirementsChanged = async (event: BaseEvent): Promis
         recipientName: name,
         dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
         tutorialUrl: `${APP_URL}/docs/verification`,
-        supportUrl: 'https://blawby.com/support',
+        supportUrl: 'https://blawby.com/help',
       },
     ).catch((error: unknown) => {
       logger.error('Failed to queue Connect status email for {organizationId}: {error}', {
