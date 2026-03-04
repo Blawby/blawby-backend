@@ -17,12 +17,16 @@ const createInvoiceSchema = z.object({
   client_id: uuidValidator,
   matter_id: uuidValidator.optional(),
   connected_account_id: uuidValidator,
-  invoice_number: z.string().min(1, 'Invoice number is required').max(50),
+  invoice_number: z.string().trim().min(1, 'Invoice number cannot be empty').max(50).optional(),
   invoice_type: z.enum(['flat_fee', 'phase_fee', 'retainer_deposit']).default('flat_fee'),
   due_date: z.iso.datetime({ offset: true }).optional(),
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required'),
+  // Optional: link to unbilled source records (P2 + P4)
+  time_entry_ids: z.array(uuidValidator).optional(),
+  expense_ids: z.array(uuidValidator).optional(),
+  milestone_id: uuidValidator.optional(),
 }).strict();
 
 // Update invoice schema (only for draft invoices)
@@ -69,7 +73,7 @@ const invoiceSchema = z.object({
   client_id: z.uuid(),
   matter_id: z.uuid().nullable(),
   connected_account_id: z.uuid(),
-  invoice_number: z.string(),
+  invoice_number: z.string().nullable(),
   invoice_type: z.string(),
   fund_destination: z.string(),
   status: z.string(),
@@ -83,6 +87,9 @@ const invoiceSchema = z.object({
   due_date: z.date().nullable(),
   paid_at: z.date().nullable(),
   stripe_invoice_id: z.string().nullable(),
+  stripe_invoice_number: z.string().nullable(),
+  stripe_charge_id: z.string().nullable(),
+  stripe_transfer_id: z.string().nullable(),
   stripe_payment_intent_id: z.string().nullable(),
   stripe_hosted_invoice_url: z.string().nullable(),
   notes: z.string().nullable(),

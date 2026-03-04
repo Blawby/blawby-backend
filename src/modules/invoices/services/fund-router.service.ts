@@ -33,7 +33,7 @@ export interface TransferInstruction {
   /** Metadata to include in Stripe transfer */
   metadata: {
     invoice_id: string;
-    invoice_number: string;
+    invoice_number: string | null;
     invoice_type: string;
     fund_destination: FundDestination;
     matter_id: string;
@@ -61,16 +61,15 @@ export interface TransferInstruction {
  * - milestone_escrow (OPTIONAL): Held until approval → escrow
  */
 /**
- * Calculates the platform application fee for a given amount.
- * Standard formula: 2.9% + 30 cents.
+ * Application fees are not deducted from transfers in the current model.
+ * Fees are billed via metered usage after payment settlement.
  *
  * @param amount - Amount in cents
- * @returns Fee in cents
+ * @returns Always 0
  */
 const calculateApplicationFee = (amount: number): number => {
-  if (amount <= 0) return 0;
-  // 2.9% = 0.029, 30 cents = 30
-  return Math.round(amount * 0.029) + 30;
+  void amount;
+  return 0;
 };
 
 /**
@@ -100,11 +99,10 @@ const routePayment = (
 
   const baseMetadata = {
     invoice_id: invoice.id,
-    invoice_number: invoice.invoice_number,
+    invoice_number: invoice.invoice_number ?? null,
     invoice_type: invoice.invoice_type,
     fund_destination: destinationResult.data,
     matter_id: invoice.matter_id,
-    application_fee_amount: applicationFeeAmount.toString(),
   };
 
   switch (invoice.invoice_type) {
