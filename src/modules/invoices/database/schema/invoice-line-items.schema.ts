@@ -64,5 +64,10 @@ export const invoiceLineItemsRelations = relations(invoiceLineItems, ({ one }) =
   }),
 }));
 
+export const invoiceLineItemsSchema = {
+  invoiceLineItems,
+  invoiceLineItemsRelations,
+};
+
 export type InsertInvoiceLineItem = typeof invoiceLineItems.$inferInsert;
 export type SelectInvoiceLineItem = typeof invoiceLineItems.$inferSelect;

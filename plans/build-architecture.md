@@ -1,8 +1,10 @@
 # Build & Module Architecture
 
-**Last Updated:** October 25, 2025  
-**Version:** 1.0  
+**Last Updated:** February 21, 2026  
+**Version:** 1.1
 **Status:** Production Ready
+
+> **See also:** [CODING_STANDARDS.md](./CODING_STANDARDS.md) for timestamp handling, Zod validation, and service layer conventions.
 
 ---
 

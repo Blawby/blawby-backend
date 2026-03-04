@@ -1,10 +1,11 @@
-import { eq, sql, asc } from 'drizzle-orm';
+import { eq, sql, asc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
+import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
@@ -48,11 +49,17 @@ const findMatterMilestoneById = async (
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
+  filters?: MatterMilestoneListFilters,
 ): Promise<SelectMatterMilestone[]> => {
+  const conditions = [eq(matterMilestones.matter_id, matterId)];
+  if (filters?.milestoneId) {
+    conditions.push(eq(matterMilestones.id, filters.milestoneId));
+  }
+
   return await db
     .select()
     .from(matterMilestones)
-    .where(eq(matterMilestones.matter_id, matterId))
+    .where(and(...conditions))
     .orderBy(asc(matterMilestones.order), asc(matterMilestones.due_date));
 };
 
@@ -126,6 +133,43 @@ const getMilestoneStats = async (
   };
 };
 
+/**
+ * Mark a milestone as invoiced.
+ */
+const markAsInvoiced = async (
+  milestoneId: string,
+  invoiceId: string,
+  tx?: typeof db,
+): Promise<void> => {
+  const client = tx || db;
+  await client
+    .update(matterMilestones)
+    .set({
+      invoice_id: invoiceId,
+      invoiced_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(eq(matterMilestones.id, milestoneId));
+};
+
+/**
+ * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
+ */
+const unmarkInvoiced = async (
+  invoiceId: string,
+  tx?: typeof db,
+): Promise<void> => {
+  const client = tx || db;
+  await client
+    .update(matterMilestones)
+    .set({
+      invoice_id: null,
+      invoiced_at: null,
+      updated_at: new Date(),
+    })
+    .where(eq(matterMilestones.invoice_id, invoiceId));
+};
+
 export const matterMilestonesQueries = {
   createMatterMilestone,
   createMatterMilestones,
@@ -135,4 +179,6 @@ export const matterMilestonesQueries = {
   deleteMatterMilestone,
   reorderMilestones,
   getMilestoneStats,
+  markAsInvoiced,
+  unmarkInvoiced,
 };

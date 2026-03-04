@@ -17,17 +17,21 @@ const createInvoiceSchema = z.object({
   client_id: uuidValidator,
   matter_id: uuidValidator.optional(),
   connected_account_id: uuidValidator,
-  invoice_number: z.string().min(1, 'Invoice number is required').max(50),
+  invoice_number: z.string().trim().min(1, 'Invoice number cannot be empty').max(50).optional(),
   invoice_type: z.enum(['flat_fee', 'phase_fee', 'retainer_deposit']).default('flat_fee'),
-  due_date: z.string().or(z.date()).optional(),
+  due_date: z.iso.datetime({ offset: true }).optional(),
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required'),
+  // Optional: link to unbilled source records (P2 + P4)
+  time_entry_ids: z.array(uuidValidator).optional(),
+  expense_ids: z.array(uuidValidator).optional(),
+  milestone_id: uuidValidator.optional(),
 }).strict();
 
 // Update invoice schema (only for draft invoices)
 const updateInvoiceSchema = z.object({
-  due_date: z.string().or(z.date()).optional(),
+  due_date: z.iso.datetime({ offset: true }).optional(),
   notes: z.string().optional(),
   memo: z.string().optional(),
   line_items: z.array(invoiceLineItemRequestSchema).optional(),
@@ -39,6 +43,7 @@ const invoiceIdParamSchema = z.object({
 });
 
 const listInvoicesQuerySchema = z.object({
+  invoice_id: uuidValidator.optional(),
   client_id: uuidValidator.optional(),
   matter_id: uuidValidator.optional(),
   status: z.enum(['draft', 'pending', 'sent', 'paid', 'overdue', 'cancelled']).optional(),
@@ -58,8 +63,8 @@ const lineItemSchema = z.object({
   time_entry_id: z.uuid().nullable(),
   expense_id: z.uuid().nullable(),
   sort_order: z.number(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('InvoiceLineItem');
 
 const invoiceSchema = z.object({
@@ -68,7 +73,7 @@ const invoiceSchema = z.object({
   client_id: z.uuid(),
   matter_id: z.uuid().nullable(),
   connected_account_id: z.uuid(),
-  invoice_number: z.string(),
+  invoice_number: z.string().nullable(),
   invoice_type: z.string(),
   fund_destination: z.string(),
   status: z.string(),
@@ -78,16 +83,19 @@ const invoiceSchema = z.object({
   total: z.number(),
   amount_paid: z.number(),
   amount_due: z.number(),
-  issue_date: z.string().nullable(),
-  due_date: z.string().nullable(),
-  paid_at: z.string().nullable(),
+  issue_date: z.date().nullable(),
+  due_date: z.date().nullable(),
+  paid_at: z.date().nullable(),
   stripe_invoice_id: z.string().nullable(),
+  stripe_invoice_number: z.string().nullable(),
+  stripe_charge_id: z.string().nullable(),
+  stripe_transfer_id: z.string().nullable(),
   stripe_payment_intent_id: z.string().nullable(),
   stripe_hosted_invoice_url: z.string().nullable(),
   notes: z.string().nullable(),
   memo: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  created_at: z.date(),
+  updated_at: z.date(),
   line_items: z.array(lineItemSchema).optional(),
   client: z.object({
     id: z.uuid(),

@@ -1,18 +1,25 @@
 import {
   eq, and, isNull, sql, desc,
 } from 'drizzle-orm';
+import type {
+  InvoiceWithRelations,
+  InvoiceSummary,
+  InvoiceListFilters,
+} from '@/modules/invoices/types/invoices.types';
 import {
-  invoiceLineItems,
-  type InsertInvoiceLineItem,
-  type SelectInvoiceLineItem,
-} from '@/modules/invoices/database/schema/invoice-line-items.schema';
-import {
-  invoices,
-  type InsertInvoice,
-  type SelectInvoice,
-} from '@/modules/invoices/database/schema/invoices.schema';
-import { type InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+  invoicesSchema,
+  invoiceLineItemsSchema,
+} from '@/modules/invoices/database/schema';
+import type {
+  InsertInvoice,
+  SelectInvoice,
+  InsertInvoiceLineItem,
+  SelectInvoiceLineItem,
+} from '@/modules/invoices/database/schema';
 import { db } from '@/shared/database';
+
+const { invoices } = invoicesSchema;
+const { invoiceLineItems } = invoiceLineItemsSchema;
 
 /**
  * Create a new invoice
@@ -88,14 +95,8 @@ const findInvoiceByStripeId = async (
  */
 const listInvoicesByOrganization = async (
   organizationId: string,
-  filters?: {
-    client_id?: string;
-    matter_id?: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-  },
-): Promise<{ invoices: InvoiceWithRelations[]; total: number }> => {
+  filters?: InvoiceListFilters,
+): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
   const offset = (page - 1) * limit;
@@ -105,6 +106,9 @@ const listInvoicesByOrganization = async (
     isNull(invoices.deleted_at),
   ];
 
+  if (filters?.invoice_id) {
+    conditions.push(eq(invoices.id, filters.invoice_id));
+  }
   if (filters?.client_id) {
     conditions.push(eq(invoices.client_id, filters.client_id));
   }
@@ -124,7 +128,6 @@ const listInvoicesByOrganization = async (
       client: {
         with: { user: true },
       },
-      lineItems: true,
       matter: true,
       connectedAccount: true,
     },
@@ -208,13 +211,88 @@ const deleteInvoiceLineItems = async (
     .where(eq(invoiceLineItems.invoice_id, invoiceId));
 };
 
+/**
+ * Find all invoices for a given client (by user_details.id), no line items (for list view).
+ */
+const findManyByClientId = async (
+  organizationId: string,
+  userDetailId: string,
+  filters?: { status?: string; page?: number; limit?: number },
+  tx?: typeof db,
+): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
+  const client = tx || db;
+  const page = filters?.page || 1;
+  const limit = filters?.limit || 20;
+  const offset = (page - 1) * limit;
+  const conditions: Parameters<typeof and>[0][] = [
+    eq(invoices.organization_id, organizationId),
+    eq(invoices.client_id, userDetailId),
+    isNull(invoices.deleted_at),
+  ];
+  if (filters?.status) {
+    conditions.push(eq(invoices.status, filters.status));
+  }
+  const results = await client.query.invoices.findMany({
+    where: and(...(conditions as [ReturnType<typeof eq>])),
+    orderBy: (inv, { desc: d }) => [d(inv.created_at)],
+    limit,
+    offset,
+    with: {
+      client: { with: { user: true } },
+      matter: true,
+      connectedAccount: true,
+    },
+  });
+
+  const [countResult] = await client
+    .select({ count: sql<number>`count(*)` })
+    .from(invoices)
+    .where(and(...(conditions as [ReturnType<typeof eq>])));
+
+  return {
+    invoices: results,
+    total: Number(countResult.count),
+  };
+};
+
+/**
+ * Find a single invoice for a client, with line items (for detail view).
+ */
+const findOneByIdAndClientId = async (
+  organizationId: string,
+  invoiceId: string,
+  userDetailId: string,
+  tx?: typeof db,
+): Promise<InvoiceWithRelations | undefined> => {
+  const client = tx || db;
+  return await client.query.invoices.findFirst({
+    where: and(
+      eq(invoices.id, invoiceId),
+      eq(invoices.organization_id, organizationId),
+      eq(invoices.client_id, userDetailId),
+      isNull(invoices.deleted_at),
+    ),
+    with: {
+      lineItems: { orderBy: (li, { asc }) => [asc(li.sort_order)] },
+      client: { with: { user: true } },
+      matter: true,
+      connectedAccount: true,
+    },
+  });
+};
+
+/**
+ * Invoices Repository
+ */
 export const invoicesRepository = {
   createInvoice,
   findInvoiceById,
   findInvoiceByStripeId,
   listInvoicesByOrganization,
+  findManyByClientId,
+  findOneByIdAndClientId,
   updateInvoice,
   softDeleteInvoice,
   createInvoiceLineItems,
   deleteInvoiceLineItems,
-};
+} as const;

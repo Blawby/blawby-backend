@@ -8,7 +8,6 @@ const mattersApp = createHonoApp();
 // ==================== MATTERS ====================
 mattersApp.openapi(routes.createMatterRoute, handlers.createMatterHandler);
 mattersApp.openapi(routes.getMattersRoute, handlers.getMattersHandler);
-mattersApp.openapi(routes.getMatterRoute, handlers.getMatterHandler);
 mattersApp.openapi(routes.updateMatterRoute, handlers.updateMatterHandler);
 mattersApp.openapi(routes.deleteMatterRoute, handlers.deleteMatterHandler);
 mattersApp.openapi(routes.getMatterActivityRoute, handlers.getMatterActivityHandler);
@@ -18,6 +17,13 @@ mattersApp.openapi(routes.listMatterNotesRoute, handlers.listMatterNotesHandler)
 mattersApp.openapi(routes.createMatterNoteRoute, handlers.createMatterNoteHandler);
 mattersApp.openapi(routes.updateMatterNoteRoute, handlers.updateMatterNoteHandler);
 mattersApp.openapi(routes.deleteMatterNoteRoute, handlers.deleteMatterNoteHandler);
+
+// ==================== MATTER TASKS ====================
+mattersApp.openapi(routes.listMatterTasksRoute, handlers.listMatterTasksHandler);
+mattersApp.openapi(routes.createMatterTaskRoute, handlers.createMatterTaskHandler);
+mattersApp.openapi(routes.updateMatterTaskRoute, handlers.updateMatterTaskHandler);
+mattersApp.openapi(routes.deleteMatterTaskRoute, handlers.deleteMatterTaskHandler);
+mattersApp.openapi(routes.generateMatterTasksRoute, handlers.generateMatterTasksHandler);
 
 // ==================== MATTER TIME ENTRIES ====================
 mattersApp.openapi(routes.listTimeEntriesRoute, handlers.listTimeEntriesHandler);
@@ -38,6 +44,11 @@ mattersApp.openapi(routes.createMilestoneRoute, handlers.createMilestoneHandler)
 mattersApp.openapi(routes.updateMilestoneRoute, handlers.updateMilestoneHandler);
 mattersApp.openapi(routes.deleteMilestoneRoute, handlers.deleteMilestoneHandler);
 mattersApp.openapi(routes.reorderMilestonesRoute, handlers.reorderMilestonesHandler);
+
+// ==================== UNBILLED QUERIES ====================
+mattersApp.openapi(routes.getUnbilledTimeEntriesRoute, handlers.getUnbilledTimeEntriesHandler);
+mattersApp.openapi(routes.getUnbilledExpensesRoute, handlers.getUnbilledExpensesHandler);
+mattersApp.openapi(routes.getUnbilledSummaryRoute, handlers.getUnbilledSummaryHandler);
 
 registerOpenApiRoutes(mattersApp, routes);
 

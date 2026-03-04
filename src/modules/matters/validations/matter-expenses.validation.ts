@@ -20,8 +20,18 @@ const updateMatterExpenseSchema = z.object({
 );
 
 const matterExpenseIdParamSchema = z.object({
-  uuid: uuidValidator,
-  expenseId: uuidValidator,
+  id: uuidValidator,
+  expense_id: uuidValidator.openapi({
+    param: { name: 'expense_id', in: 'path' },
+    description: 'Expense ID (UUID)',
+  }),
+});
+
+const listExpensesQuerySchema = z.object({
+  expense_id: uuidValidator.optional(),
+  billable: z.coerce.boolean().optional(),
+  start_date: z.coerce.date().optional(),
+  end_date: z.coerce.date().optional(),
 });
 
 const expenseSchema = z.object({
@@ -31,8 +41,8 @@ const expenseSchema = z.object({
   amount: z.number().describe('Amount in cents'),
   date: z.string(),
   billable: z.boolean(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('Expense');
 
 
@@ -40,5 +50,6 @@ export const matterExpenseValidations = {
   createMatterExpenseSchema,
   updateMatterExpenseSchema,
   matterExpenseIdParamSchema,
+  listExpensesQuerySchema,
   expenseSchema,
 };

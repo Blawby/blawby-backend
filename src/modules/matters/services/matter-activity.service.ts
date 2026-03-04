@@ -5,14 +5,16 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterActivityLog,
   type SelectMatterActivityLog,
 } from '@/modules/matters/database/schema/matter-activity-log.schema';
+import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
+import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
 
@@ -48,16 +50,33 @@ const logMatterActivity = async (
  * Get matter activity log
  */
 const getMatterActivity = async (
+  organizationId: string,
   matterId: string,
-  options?: {
-    limit?: number;
-    offset?: number;
-  },
+  user: User,
+  requestHeaders: Record<string, string>,
+  options?: MatterActivityListFilters,
 ): Promise<Result<SelectMatterActivityLog[]>> => {
-  const limit = options?.limit || 50;
-  const offset = options?.offset || 0;
+  // Verify user has access to matter (lazy import to avoid circular dependency)
+  const { mattersService } = await import('@/modules/matters/services/matters.service');
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) {
+    return matterResult as Result<never>;
+  }
+
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
 
   try {
+    // Short-circuit: direct lookup when a specific activity ID is provided
+    if (options?.activityId) {
+      const [activity] = await db
+        .select()
+        .from(matterActivityLog)
+        .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, options.activityId)))
+        .limit(1);
+      return ok(activity ? [activity] : []);
+    }
+
     const activity = await db
       .select()
       .from(matterActivityLog)
@@ -88,6 +107,11 @@ const ActivityAction = {
   NOTE_ADDED: 'note_added',
   NOTE_UPDATED: 'note_updated',
   NOTE_DELETED: 'note_deleted',
+  TASK_CREATED: 'task_created',
+  TASK_UPDATED: 'task_updated',
+  TASK_DELETED: 'task_deleted',
+  TASK_COMPLETED: 'task_completed',
+  TASKS_GENERATED: 'tasks_generated',
   TIME_ENTRY_ADDED: 'time_entry_added',
   TIME_ENTRY_UPDATED: 'time_entry_updated',
   TIME_ENTRY_DELETED: 'time_entry_deleted',

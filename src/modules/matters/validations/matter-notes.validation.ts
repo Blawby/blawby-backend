@@ -11,8 +11,15 @@ const updateMatterNoteSchema = z.object({
 });
 
 const matterNoteIdParamSchema = z.object({
-  uuid: uuidValidator,
-  noteId: uuidValidator,
+  id: uuidValidator,
+  note_id: uuidValidator.openapi({
+    param: { name: 'note_id', in: 'path' },
+    description: 'Note ID (UUID)',
+  }),
+});
+
+const listMatterNotesQuerySchema = z.object({
+  note_id: uuidValidator.optional(),
 });
 
 const matterNoteSchema = z.object({
@@ -20,8 +27,8 @@ const matterNoteSchema = z.object({
   matter_id: z.uuid(),
   user_id: z.uuid(),
   content: z.string(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('MatterNote');
 
 
@@ -29,5 +36,6 @@ export const matterNoteValidations = {
   createMatterNoteSchema,
   updateMatterNoteSchema,
   matterNoteIdParamSchema,
+  listMatterNotesQuerySchema,
   matterNoteSchema,
 };

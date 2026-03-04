@@ -1,9 +1,12 @@
+import { eq } from 'drizzle-orm';
 import {
   listPlansRoute,
   getCurrentSubscriptionRoute,
   cancelSubscriptionRoute,
 } from '@/modules/subscriptions/routes';
 import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
+import { organizations } from '@/schema/better-auth-schema';
+import { db } from '@/shared/database';
 import { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
@@ -38,25 +41,25 @@ export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptio
     return response.badRequest(c, 'No active organization. Please select an organization first.');
   }
 
-  // Get current subscription to find subscription ID
-  const currentSubResult = await subscriptionService.getCurrentSubscription(
-    organizationId,
-    user,
-    c.req.header() as Record<string, string>,
-  );
+  const organization = await db.query.organizations.findFirst({
+    where: eq(organizations.id, organizationId),
+    columns: {
+      id: true,
+      activeSubscriptionId: true,
+    },
+  });
 
-  if (!currentSubResult.success) {
-    return response.fromResult(c, currentSubResult);
+  if (!organization) {
+    return response.notFound(c, 'Organization not found');
   }
 
-  if (!currentSubResult.data.subscription) {
-    return response.notFound(c, 'No active subscription found');
+
+  if (!organization?.activeSubscriptionId) {
+    return response.badRequest(c, 'No active subscription found for this organization');
   }
 
-  const subscriptionId = currentSubResult.data.subscription.id;
-
+  // Optimize: We delegate subscription lookup to the service to avoid extra queries
   const result = await subscriptionService.cancelSubscription(
-    subscriptionId,
     organizationId,
     validatedBody,
     user,

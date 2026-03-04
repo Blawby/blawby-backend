@@ -20,21 +20,31 @@ const updateMatterTimeEntrySchema = z.object({
 );
 
 const matterTimeEntryIdParamSchema = z.object({
-  uuid: uuidValidator,
-  entryId: uuidValidator,
+  id: uuidValidator,
+  entry_id: uuidValidator.openapi({
+    param: { name: 'entry_id', in: 'path' },
+    description: 'Time Entry ID (UUID)',
+  }),
+});
+
+const listTimeEntriesQuerySchema = z.object({
+  entry_id: uuidValidator.optional(),
+  billable: z.coerce.boolean().optional(),
+  start_date: z.coerce.date().optional(),
+  end_date: z.coerce.date().optional(),
 });
 
 const timeEntrySchema = z.object({
   id: z.uuid(),
   matter_id: z.uuid(),
   user_id: z.uuid(),
-  start_time: z.iso.datetime(),
-  end_time: z.iso.datetime(),
+  start_time: z.date(),
+  end_time: z.date(),
   duration: z.number().describe('Duration in seconds'),
   description: z.string().nullable(),
   billable: z.boolean(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('TimeEntry');
 
 
@@ -42,5 +52,6 @@ export const matterTimeEntryValidations = {
   createMatterTimeEntrySchema,
   updateMatterTimeEntrySchema,
   matterTimeEntryIdParamSchema,
+  listTimeEntriesQuerySchema,
   timeEntrySchema,
 };

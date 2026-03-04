@@ -3,3 +3,5 @@ export * from './notes.handlers';
 export * from './time-entries.handlers';
 export * from './expenses.handlers';
 export * from './milestones.handlers';
+export * from './tasks.handlers';
+export * from './billing.handlers';

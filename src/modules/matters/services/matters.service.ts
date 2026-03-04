@@ -95,7 +95,7 @@ const createMatter = async (
             matter_id: newMatter.id,
             description: milestone.description,
             amount: milestone.amount,
-            due_date: typeof milestone.due_date === 'string' ? milestone.due_date : milestone.due_date.toISOString().split('T')[0],
+            due_date: milestone.due_date,
             order: milestone.order,
             status: 'pending' as const,
           })),
@@ -129,8 +129,7 @@ const createMatter = async (
 
     return result.ok({
       ...matter,
-      created_at: matter.created_at.toISOString(),
-      updated_at: matter.updated_at.toISOString(),
+      deleted_at: matter.deleted_at ?? null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -177,9 +176,7 @@ const getMatterById = async (
     return result.ok({
       ...matter,
       assignees: matter.assignees.map((a) => a.user),
-      created_at: matter.created_at.toISOString(),
-      updated_at: matter.updated_at.toISOString(),
-      deleted_at: matter.deleted_at?.toISOString(),
+      deleted_at: matter.deleted_at ?? null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -212,13 +209,20 @@ const listMatters = async (
   }
 
   try {
-    const listResult = await mattersQueries.listMattersByOrganization(organizationId, filters);
+    const listResult = await mattersQueries.listMattersByOrganization(organizationId, {
+      status: filters.status,
+      practiceServiceId: filters.practice_service_id,
+      clientId: filters.client_id,
+      matterId: filters.matter_id,
+      assigneeId: filters.assignee_id,
+      search: filters.search,
+      page: filters.page,
+      limit: filters.limit,
+    });
     return result.ok({
       matters: listResult.matters.map((m) => ({
         ...m,
-        created_at: m.created_at.toISOString(),
-        updated_at: m.updated_at.toISOString(),
-        deleted_at: m.deleted_at?.toISOString(),
+        deleted_at: m.deleted_at ?? null,
       })) as MatterResponse[],
       total: listResult.total,
     });
@@ -254,12 +258,9 @@ const updateMatter = async (
   const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
     if (value === undefined) return acc;
     const existingValue = (existingMatter as Record<string, unknown>)[key];
-    // Normalize dates for comparison (existing values from DB are Date objects or ISO strings)
-    const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
-    // Values from validation are always strings for date fields
-    const normalizedNext = (typeof value === 'string' && (key === 'open_date' || key === 'close_date'))
-      ? value
-      : value;
+    // Normalize dates for comparison (existing is Date from DB, input is ISO date string)
+    const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString().split('T')[0] : existingValue;
+    const normalizedNext = value;
     if (!isEqual(normalizedExisting, normalizedNext)) {
       acc.push(key);
     }
@@ -375,9 +376,7 @@ const updateMatter = async (
 
     return result.ok({
       ...transactionResult,
-      created_at: transactionResult.created_at.toISOString(),
-      updated_at: transactionResult.updated_at.toISOString(),
-      deleted_at: transactionResult.deleted_at?.toISOString(),
+      deleted_at: transactionResult.deleted_at ?? null,
     } as MatterResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -484,6 +483,60 @@ const getMatterCounts = async (
   }
 };
 
+/**
+ * Get aggregate unbilled amounts for a matter.
+ * Returns counts and values for unbilled time entries and expenses.
+ */
+const getUnbilledSummary = async (
+  organizationId: string,
+  matterId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<{
+  unbilledTimeEntries: number;
+  unbilledExpenses: number;
+  unbilledTimeAmount: number;
+  unbilledExpenseAmount: number;
+  totalUnbilled: number;
+}>> => {
+  const matterResult = await getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) return matterResult as Result<never>;
+
+  try {
+    const { matterTimeEntriesQueries } = await import('@/modules/matters/database/queries/matter-time-entries.queries');
+    const { matterExpensesQueries } = await import('@/modules/matters/database/queries/matter-expenses.queries');
+
+    const [timeEntries, expenses] = await Promise.all([
+      matterTimeEntriesQueries.getUnbilled(matterId),
+      matterExpensesQueries.getUnbilled(matterId),
+    ]);
+
+    const hourlyRate = matterResult.data?.attorney_hourly_rate ?? 0;
+    if (!hourlyRate && timeEntries.length > 0) {
+      return result.badRequest('Attorney hourly rate is not set, cannot calculate unbilled time amount');
+    }
+
+    // Compute time value in integer space: round to nearest cent
+    const unbilledTimeAmount = timeEntries.reduce((sum, e) => {
+      const numerator = e.duration * hourlyRate; // seconds * cents/hr
+      return sum + Math.floor((numerator + 1800) / 3600);
+    }, 0);
+    const unbilledExpenseAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    return result.ok({
+      unbilledTimeEntries: timeEntries.length,
+      unbilledExpenses: expenses.length,
+      unbilledTimeAmount,
+      unbilledExpenseAmount,
+      totalUnbilled: unbilledTimeAmount + unbilledExpenseAmount,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get unbilled summary {matterId}: {error}', { matterId, error: message });
+    return result.internalError(message);
+  }
+};
+
 export const mattersService = {
   createMatter,
   getMatterById,
@@ -491,4 +544,5 @@ export const mattersService = {
   updateMatter,
   deleteMatter,
   getMatterCounts,
+  getUnbilledSummary,
 };

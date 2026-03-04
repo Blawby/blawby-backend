@@ -1,6 +1,6 @@
 {
-  "id": "eb89bb66-8484-4054-9230-f866612720b6",
-  "prevId": "755fe307-816e-4834-a444-eda1f0ffafe9",
+  "id": "b8b7f709-9d3e-45bf-b726-f91f8f85b2fc",
+  "prevId": "e6fb1131-2c6e-4370-914a-c4bc4eefe3a9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2952,6 +2952,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intake_uuid": {
+          "name": "intake_uuid",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "on_behalf_of": {
+          "name": "on_behalf_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3063,6 +3081,36 @@
           "columns": [
             {
               "expression": "retainer_balance",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matters_intake_uuid_idx": {
+          "name": "matters_intake_uuid_idx",
+          "columns": [
+            {
+              "expression": "intake_uuid",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matters_conversation_id_idx": {
+          "name": "matters_conversation_id_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3437,6 +3485,48 @@
           "primaryKey": false,
           "notNull": false
         },
+        "urgency": {
+          "name": "urgency",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "desired_outcome": {
+          "name": "desired_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "court_date": {
+          "name": "court_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_documents": {
+          "name": "has_documents",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "income": {
+          "name": "income",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "household_size": {
+          "name": "household_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "case_strength": {
+          "name": "case_strength",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
         "succeeded_at": {
           "name": "succeeded_at",
           "type": "timestamp with time zone",
@@ -3524,6 +3614,36 @@
           "columns": [
             {
               "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "practice_client_intakes_urgency_idx": {
+          "name": "practice_client_intakes_urgency_idx",
+          "columns": [
+            {
+              "expression": "urgency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "practice_client_intakes_court_date_idx": {
+          "name": "practice_client_intakes_court_date_idx",
+          "columns": [
+            {
+              "expression": "court_date",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3791,6 +3911,12 @@
         },
         "overview": {
           "name": "overview",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accent_color": {
+          "name": "accent_color",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -5867,6 +5993,57 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.app_configs": {
+      "name": "app_configs",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

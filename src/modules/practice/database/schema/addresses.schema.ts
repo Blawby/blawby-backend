@@ -19,8 +19,8 @@ export const addresses = pgTable(
     state: text('state'),
     postal_code: text('postal_code'),
     country: text('country'),
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     // Ensure at least one owner is present

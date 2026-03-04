@@ -3,6 +3,7 @@ import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/mat
 import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterTimeEntryRequest,
   UpdateMatterTimeEntryRequest,
@@ -88,11 +89,7 @@ const listMatterTimeEntries = async (
   matterId: string,
   user: User,
   requestHeaders: Record<string, string>,
-  filters?: {
-    billable?: boolean;
-    startDate?: Date;
-    endDate?: Date;
-  },
+  filters?: MatterTimeEntryListFilters,
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
@@ -101,6 +98,15 @@ const listMatterTimeEntries = async (
   }
 
   try {
+    // Short-circuit: direct lookup when a specific entry ID is provided.
+    // When entryId is set, other filters (billable, startDate, endDate) are
+    // intentionally ignored — this path is for single-resource retrieval.
+    if (filters?.entryId) {
+      const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(filters.entryId);
+      if (!entry || entry.matter_id !== matterId) return ok([]);
+      return ok([entry]);
+    }
+
     const entries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId, filters);
     return ok(entries);
   } catch (error) {
@@ -151,10 +157,10 @@ const updateMatterTimeEntry = async (
 
     const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
     const changedFields = [];
-    if (data.start_time && entry.start_time.toISOString() !== startTime.toISOString()) {
+    if (data.start_time && entry.start_time.getTime() !== startTime.getTime()) {
       changedFields.push('start_time');
     }
-    if (data.end_time && entry.end_time.toISOString() !== endTime.toISOString()) {
+    if (data.end_time && entry.end_time.getTime() !== endTime.getTime()) {
       changedFields.push('end_time');
     }
     if (data.description !== undefined && data.description !== entry.description) {
@@ -272,10 +278,32 @@ const getTimeEntryStats = async (
   }
 };
 
+/**
+ * Get unbilled time entries for a matter (invoice_id IS NULL AND billable=true)
+ */
+const getUnbilledTimeEntries = async (
+  organizationId: string,
+  matterId: string,
+  user: User,
+  requestHeaders: Record<string, string>,
+): Promise<Result<SelectMatterTimeEntry[]>> => {
+  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  if (!matterResult.success) return matterResult as Result<never>;
+  try {
+    const entries = await matterTimeEntriesQueries.getUnbilled(matterId);
+    return ok(entries);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get unbilled time entries {matterId}: {error}', { matterId, error: message });
+    return internalError(message);
+  }
+};
+
 export const matterTimeEntriesService = {
   createMatterTimeEntry,
   listMatterTimeEntries,
   updateMatterTimeEntry,
   deleteMatterTimeEntry,
   getTimeEntryStats,
+  getUnbilledTimeEntries,
 };

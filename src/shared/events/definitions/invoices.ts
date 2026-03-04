@@ -9,7 +9,7 @@ export class InvoiceCreated extends BaseEvent<{
   organization_id: string;
   client_id: string;
   matter_id: string | null;
-  invoice_number: string;
+  invoice_number: string | null;
   total: number;
 }> {
   static type = 'invoice.created' as const;
@@ -42,6 +42,9 @@ export class InvoicePaid extends BaseEvent<{
   amount_paid: number;
   retainer_deducted: boolean;
   retainer_amount_deducted?: number;
+  /** Platform metered fee in cents (Stripe fee + variable fee). Used by the
+   * invoices listener to report payout-fee usage without an extra Stripe call. */
+  metered_fee_cents?: number;
 }> {
   static type = 'invoice.paid' as const;
 }

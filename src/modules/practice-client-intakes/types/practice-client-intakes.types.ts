@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
+export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
+
 // Inferred from Zod schemas
 export type CreatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.createPracticeClientIntakeSchema>;
 export type UpdatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>;
@@ -8,6 +10,7 @@ export type SlugParam = z.infer<typeof intakeValidations.slugParamSchema>;
 export type UuidParam = z.infer<typeof intakeValidations.uuidParamSchema>;
 export type CheckoutSessionStatusQuery = z.infer<typeof intakeValidations.checkoutSessionStatusQuerySchema>;
 export type ClaimPracticeClientIntakeRequest = z.infer<typeof intakeValidations.claimPracticeClientIntakeSchema>;
+export type UpdateIntakeTriageStatusRequest = z.infer<typeof intakeValidations.updateIntakeTriageStatusSchema>;
 
 /**
  * Onboarding settings for client intakes
@@ -56,4 +59,7 @@ export type IntakePostPayStatusResponse = z.infer<
 >;
 export type ClaimPracticeClientIntakeResponse = z.infer<
   typeof intakeValidations.claimPracticeClientIntakeResponseSchema
+>;
+export type UpdateIntakeTriageStatusResponse = z.infer<
+  typeof intakeValidations.updateIntakeTriageStatusResponseSchema
 >;

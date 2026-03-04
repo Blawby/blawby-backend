@@ -37,7 +37,9 @@ export const matters = pgTable(
     matter_type: varchar('matter_type', { length: 100 }),
 
     // Billing information
-    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
+    billing_type: varchar('billing_type', { length: 20 })
+      .notNull()
+      .$type<'hourly' | 'fixed' | 'contingency' | 'pro_bono'>(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
     total_fixed_price: integer('total_fixed_price'), // in cents, nullable
     contingency_percentage: real('contingency_percentage'), // float, nullable
     settlement_amount: integer('settlement_amount'), // in cents, nullable
@@ -54,7 +56,7 @@ export const matters = pgTable(
     // Payment settings
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
-    retainer_balance: integer('retainer_balance').notNull().default(0),
+    retainer_balance: integer('retainer_balance').notNull().default(0), // in cents
 
     // Status
     status: varchar('status', { length: 40 }).notNull().default('first_contact'),
@@ -82,6 +84,11 @@ export const matters = pgTable(
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     deleted_by: uuid('deleted_by').references(() => users.id),
 
+    // Intake and Conversation linking
+    conversation_id: uuid('conversation_id'),
+    intake_uuid: uuid('intake_uuid'),
+    on_behalf_of: text('on_behalf_of'),
+
     // Timestamps
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
@@ -98,6 +105,8 @@ export const matters = pgTable(
     index('matters_deleted_at_idx').on(table.deleted_at),
     index('matters_created_at_idx').on(table.created_at),
     index('matters_retainer_balance_idx').on(table.retainer_balance),
+    index('matters_intake_uuid_idx').on(table.intake_uuid),
+    index('matters_conversation_id_idx').on(table.conversation_id),
   ],
 );
 

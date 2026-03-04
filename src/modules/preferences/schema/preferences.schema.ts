@@ -8,16 +8,13 @@
 import { relations } from 'drizzle-orm';
 import {
   pgTable,
-  text,
   timestamp,
-  date,
   index,
   uuid,
   jsonb,
 } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-import { users } from '@/schema/better-auth-schema';
 import type {
   GeneralPreferences,
   NotificationPreferences,
@@ -27,6 +24,7 @@ import type {
   ProductUsage,
 } from '@/modules/preferences/types/preferences.types';
 import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
+import { users } from '@/schema/better-auth-schema';
 
 // Zod schema for product usage validation
 const productUsageSchema = z.array(
@@ -53,10 +51,10 @@ export const preferences = pgTable(
     product_usage: jsonb('product_usage').$type<ProductUsage[]>(),
 
     // Metadata
-    created_at: timestamp('created_at')
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updated_at: timestamp('updated_at')
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),

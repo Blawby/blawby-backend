@@ -8,6 +8,9 @@ import {
   jsonb,
   timestamp,
   index,
+  varchar,
+  boolean,
+  real,
 } from 'drizzle-orm/pg-core';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
@@ -27,11 +30,10 @@ export const practiceClientIntakes = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     connected_account_id: uuid('connected_account_id')
-      .notNull()
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
     // Stripe IDs
-    stripe_payment_link_id: text('stripe_payment_link_id').notNull().unique(),
+    stripe_payment_link_id: text('stripe_payment_link_id').unique(), // Created by Payment Link, populated via webhook
     stripe_payment_intent_id: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
     stripe_charge_id: text('stripe_charge_id'),
     stripe_checkout_session_id: text('stripe_checkout_session_id').unique(),
@@ -41,6 +43,9 @@ export const practiceClientIntakes = pgTable(
     application_fee: integer('application_fee'),
     currency: text('currency').notNull().default('usd'),
     status: text('status').notNull(),
+    triage_status: text('triage_status').notNull().default('pending_review'),
+    triage_reason: text('triage_reason'),
+    triage_decided_at: timestamp('triage_decided_at', { withTimezone: true, mode: 'date' }),
 
     // Client Data
     metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
@@ -50,6 +55,15 @@ export const practiceClientIntakes = pgTable(
     // Security & Tracking
     client_ip: text('client_ip'),
     user_agent: text('user_agent'),
+
+    // AI & Triage Fields
+    urgency: varchar('urgency', { length: 20 }), // 'routine', 'time_sensitive', 'emergency'
+    desired_outcome: text('desired_outcome'),
+    court_date: timestamp('court_date', { withTimezone: true, mode: 'date' }),
+    has_documents: boolean('has_documents'),
+    income: integer('income'),
+    household_size: integer('household_size'),
+    case_strength: real('case_strength'),
 
     // Timestamps
     succeeded_at: timestamp('succeeded_at', { withTimezone: true, mode: 'date' }),
@@ -65,7 +79,10 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_stripe_link_idx').on(table.stripe_payment_link_id),
     index('practice_client_intakes_stripe_intent_idx').on(table.stripe_payment_intent_id),
     index('practice_client_intakes_status_idx').on(table.status),
+    index('practice_client_intakes_triage_status_idx').on(table.triage_status),
     index('practice_client_intakes_created_at_idx').on(table.created_at),
+    index('practice_client_intakes_urgency_idx').on(table.urgency),
+    index('practice_client_intakes_court_date_idx').on(table.court_date),
   ],
 );
 
@@ -99,6 +116,7 @@ export const practiceClientIntakeMetadataSchema = z.object({
   user_id: z.uuid().optional(),
   on_behalf_of: z.string().optional(),
   opposing_party: z.string().optional(),
+  opposing_counsel: z.string().optional(),
   description: z.string().optional(),
   address: addressSchema.optional(),
 }).openapi('PracticeClientIntakeMetadata');
@@ -111,4 +129,3 @@ export const practiceClientIntakesSchema = {
   practiceClientIntakesRelations,
   practiceClientIntakeMetadataSchema,
 };
-

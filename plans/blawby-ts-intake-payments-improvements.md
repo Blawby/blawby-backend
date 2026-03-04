@@ -577,8 +577,8 @@ app.get(
     limit: z.coerce.number().min(1).max(100).default(20),
     offset: z.coerce.number().min(0).default(0),
     status: z.enum(['pending', 'succeeded', 'failed', 'canceled']).optional(),
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
+    startDate: z.iso.datetime().optional(),
+    endDate: z.iso.datetime().optional(),
   })),
   async (c) => {
     const { slug } = c.req.valid('param');
@@ -604,8 +604,8 @@ app.get(
   '/:slug/payments/stats',
   zValidator('param', slugParamSchema),
   zValidator('query', z.object({
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
+    startDate: z.iso.datetime().optional(),
+    endDate: z.iso.datetime().optional(),
   })),
   async (c) => {
     const { slug } = c.req.valid('param');

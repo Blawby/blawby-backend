@@ -1,6 +1,6 @@
 {
-  "id": "89229050-7e75-4158-92f0-578e1f1c987c",
-  "prevId": "eb89bb66-8484-4054-9230-f866612720b6",
+  "id": "0fa01ff1-d366-49f3-9e3b-b8ac1cf6113e",
+  "prevId": "b8b7f709-9d3e-45bf-b726-f91f8f85b2fc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2952,6 +2952,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intake_uuid": {
+          "name": "intake_uuid",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "on_behalf_of": {
+          "name": "on_behalf_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3063,6 +3081,36 @@
           "columns": [
             {
               "expression": "retainer_balance",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matters_intake_uuid_idx": {
+          "name": "matters_intake_uuid_idx",
+          "columns": [
+            {
+              "expression": "intake_uuid",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matters_conversation_id_idx": {
+          "name": "matters_conversation_id_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3437,6 +3485,48 @@
           "primaryKey": false,
           "notNull": false
         },
+        "urgency": {
+          "name": "urgency",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "desired_outcome": {
+          "name": "desired_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "court_date": {
+          "name": "court_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_documents": {
+          "name": "has_documents",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "income": {
+          "name": "income",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "household_size": {
+          "name": "household_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "case_strength": {
+          "name": "case_strength",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
         "succeeded_at": {
           "name": "succeeded_at",
           "type": "timestamp with time zone",
@@ -3524,6 +3614,36 @@
           "columns": [
             {
               "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "practice_client_intakes_urgency_idx": {
+          "name": "practice_client_intakes_urgency_idx",
+          "columns": [
+            {
+              "expression": "urgency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "practice_client_intakes_court_date_idx": {
+          "name": "practice_client_intakes_court_date_idx",
+          "columns": [
+            {
+              "expression": "court_date",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4142,7 +4262,7 @@
         },
         "subscription_id": {
           "name": "subscription_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -4278,6 +4398,19 @@
         }
       },
       "foreignKeys": {
+        "subscription_events_subscription_id_subscriptions_id_fk": {
+          "name": "subscription_events_subscription_id_subscriptions_id_fk",
+          "tableFrom": "subscription_events",
+          "tableTo": "subscriptions",
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "subscription_events_plan_id_subscription_plans_id_fk": {
           "name": "subscription_events_plan_id_subscription_plans_id_fk",
           "tableFrom": "subscription_events",
@@ -4337,7 +4470,7 @@
         },
         "subscription_id": {
           "name": "subscription_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -4432,7 +4565,21 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "subscription_line_items_subscription_id_subscriptions_id_fk": {
+          "name": "subscription_line_items_subscription_id_subscriptions_id_fk",
+          "tableFrom": "subscription_line_items",
+          "tableTo": "subscriptions",
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "subscription_line_items_stripe_subscription_item_id_unique": {
@@ -5873,6 +6020,57 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.app_configs": {
+      "name": "app_configs",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

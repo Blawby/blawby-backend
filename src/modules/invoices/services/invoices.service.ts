@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { eq, inArray } from 'drizzle-orm';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -8,11 +9,19 @@ import type {
   ListInvoicesQuery,
   InvoiceResponse,
   InvoiceWithRelations,
+  InvoiceSummary,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/types/invoices.types';
 import { handleServiceError } from '@/modules/invoices/utils/error-handler';
 import { invoiceValidators } from '@/modules/invoices/validators/invoice-creation.validators';
+import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
+import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
+import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
+import { matterExpenses } from '@/modules/matters/database/schema/matter-expenses.schema';
+import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
+import { matterTimeEntries } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
+import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { db } from '@/shared/database';
 import {
   InvoiceCreated,
@@ -24,8 +33,107 @@ import {
 import type { User } from '@/shared/types/BetterAuth';
 import type { Result, PaginatedResult } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['invoices', 'service']);
+
+const resolveStripeAccountIdForInvoice = async (
+  connectedAccountId: string,
+): Promise<Result<string>> => {
+  const connectedAccount = await onboardingRepository.findById(connectedAccountId);
+  if (!connectedAccount) {
+    return result.badRequest('Connected account not found for invoice');
+  }
+  if (!connectedAccount.stripe_account_id) {
+    return result.badRequest('Connected account missing stripe_account_id');
+  }
+  return result.ok(connectedAccount.stripe_account_id);
+};
+
+class InvoiceValidationError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message);
+    this.name = 'InvoiceValidationError';
+    if (options?.cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+    if (typeof Error.captureStackTrace === 'function') {
+      Error.captureStackTrace(this, InvoiceValidationError);
+    }
+  }
+}
+
+const dedupeIds = (ids: string[] | undefined): string[] => {
+  if (!ids?.length) return [];
+  return [...new Set(ids)];
+};
+
+const validateInvoiceItemMatterOwnership = async (params: {
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0];
+  invoiceMatterId: string | null;
+  timeEntryIds: string[];
+  expenseIds: string[];
+  milestoneId?: string;
+}): Promise<{
+  timeEntryIds: string[];
+  expenseIds: string[];
+  milestoneId?: string;
+}> => {
+  const { tx, invoiceMatterId, timeEntryIds, expenseIds, milestoneId } = params;
+  const hasLinkedItems = timeEntryIds.length > 0 || expenseIds.length > 0 || !!milestoneId;
+
+  if (!hasLinkedItems) {
+    return { timeEntryIds, expenseIds, milestoneId };
+  }
+
+  if (!invoiceMatterId) {
+    throw new InvoiceValidationError('Cannot link time entries, expenses, or milestones to an invoice without matter_id');
+  }
+
+  if (timeEntryIds.length > 0) {
+    const rows = await tx
+      .select({ id: matterTimeEntries.id, matter_id: matterTimeEntries.matter_id })
+      .from(matterTimeEntries)
+      .where(inArray(matterTimeEntries.id, timeEntryIds));
+    if (rows.length !== timeEntryIds.length) {
+      throw new InvoiceValidationError('One or more time entries were not found');
+    }
+    const invalid = rows.find((row) => row.matter_id !== invoiceMatterId);
+    if (invalid) {
+      throw new InvoiceValidationError(`Time entry ${invalid.id} does not belong to invoice matter`);
+    }
+  }
+
+  if (expenseIds.length > 0) {
+    const rows = await tx
+      .select({ id: matterExpenses.id, matter_id: matterExpenses.matter_id })
+      .from(matterExpenses)
+      .where(inArray(matterExpenses.id, expenseIds));
+    if (rows.length !== expenseIds.length) {
+      throw new InvoiceValidationError('One or more expenses were not found');
+    }
+    const invalid = rows.find((row) => row.matter_id !== invoiceMatterId);
+    if (invalid) {
+      throw new InvoiceValidationError(`Expense ${invalid.id} does not belong to invoice matter`);
+    }
+  }
+
+  if (milestoneId) {
+    const [row] = await tx
+      .select({ id: matterMilestones.id, matter_id: matterMilestones.matter_id })
+      .from(matterMilestones)
+      .where(eq(matterMilestones.id, milestoneId))
+      .limit(1);
+    if (!row) {
+      throw new InvoiceValidationError('Milestone not found');
+    }
+    if (row.matter_id !== invoiceMatterId) {
+      throw new InvoiceValidationError(`Milestone ${row.id} does not belong to invoice matter`);
+    }
+  }
+
+  return { timeEntryIds, expenseIds, milestoneId };
+};
 
 /**
  * Calculate invoice subtotal and total based on line items
@@ -62,21 +170,24 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
 };
 
 /**
- * Transform database invoice to response format
+ * Transform database invoice to response format.
+ * Accepts both summary (list, no lineItems) and full (detail, with lineItems) shapes.
  */
-const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
+const transformInvoiceResponse = (invoice: InvoiceWithRelations | InvoiceSummary): InvoiceResponse => {
   return {
     ...invoice,
-    issue_date: invoice.issue_date?.toISOString() || null,
-    due_date: invoice.due_date?.toISOString() || null,
-    paid_at: invoice.paid_at?.toISOString() || null,
-    created_at: invoice.created_at.toISOString(),
-    updated_at: invoice.updated_at.toISOString(),
-    line_items: invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
-      ...li,
-      created_at: li.created_at.toISOString(),
-      updated_at: li.updated_at.toISOString(),
-    })),
+    issue_date: invoice.issue_date ?? null,
+    due_date: invoice.due_date ?? null,
+    paid_at: invoice.paid_at ?? null,
+    created_at: invoice.created_at,
+    updated_at: invoice.updated_at,
+    line_items: 'lineItems' in invoice
+      ? invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
+          ...li,
+          created_at: li.created_at,
+          updated_at: li.updated_at,
+        }))
+      : undefined,
   } satisfies InvoiceResponse;
 };
 
@@ -164,7 +275,7 @@ const createInvoice = async (
             organization_id: organizationId,
             client_id: clientId,
             matter_id: data.matter_id || null,
-            invoice_number: newInvoice.invoice_number,
+            invoice_number: newInvoice.invoice_number ?? null,
             total: totals.total,
           },
           {
@@ -176,6 +287,25 @@ const createInvoice = async (
         );
       }
 
+      const validatedIds = await validateInvoiceItemMatterOwnership({
+        tx,
+        invoiceMatterId: newInvoice.matter_id,
+        timeEntryIds: dedupeIds(data.time_entry_ids),
+        expenseIds: dedupeIds(data.expense_ids),
+        milestoneId: data.milestone_id,
+      });
+
+      // Mark line items as invoiced (P2 + P4)
+      if (validatedIds.timeEntryIds.length) {
+        await matterTimeEntriesQueries.markAsInvoiced(validatedIds.timeEntryIds, newInvoice.id, tx);
+      }
+      if (validatedIds.expenseIds.length) {
+        await matterExpensesQueries.markAsInvoiced(validatedIds.expenseIds, newInvoice.id, tx);
+      }
+      if (validatedIds.milestoneId) {
+        await matterMilestonesQueries.markAsInvoiced(validatedIds.milestoneId, newInvoice.id, tx);
+      }
+
       return invWithRel;
     });
 
@@ -183,36 +313,13 @@ const createInvoice = async (
 
     return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
+    if (error instanceof InvoiceValidationError) {
+      return result.badRequest(error.message);
+    }
     return handleServiceError(error, logger, { organizationId, userId: user.id }, 'Failed to create invoice');
   }
 };
 
-/**
- * Get invoice by ID
- */
-const getInvoiceById = async (
-  organizationId: string,
-  invoiceId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<InvoiceResponse>> => {
-  const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
-  if (!orgResult.success) return orgResult;
-
-  try {
-    const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
-    if (!invoice) return result.notFound('Invoice not found');
-
-    return result.ok(transformInvoiceResponse(invoice));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get invoice {invoiceId}: {error}', {
-      invoiceId,
-      error: message,
-    });
-    return result.internalError('Failed to retrieve invoice');
-  }
-};
 
 /**
  * List invoices
@@ -227,7 +334,20 @@ const listInvoices = async (
   if (!orgResult.success) return orgResult;
 
   try {
-    const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(organizationId, filters);
+    // Short-circuit: direct lookup when a specific invoice ID is provided
+    if (filters.invoice_id) {
+      const invoice = await invoicesRepository.findInvoiceById(filters.invoice_id, organizationId);
+      if (!invoice) return result.ok({ invoices: [], total: 0 });
+      return result.ok({ invoices: [transformInvoiceResponse(invoice)], total: 1 });
+    }
+
+    const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(organizationId, {
+      client_id: filters.client_id,
+      matter_id: filters.matter_id,
+      status: filters.status,
+      page: filters.page,
+      limit: filters.limit,
+    });
 
     return result.ok({
       invoices: list.map((i) => transformInvoiceResponse(i)),
@@ -350,6 +470,11 @@ const deleteInvoice = async (
     }
 
     await db.transaction(async (tx) => {
+      // Unmark any linked time entries, expenses, milestones (P2+P4)
+      await matterTimeEntriesQueries.unmarkInvoiced(invoiceId, tx);
+      await matterExpensesQueries.unmarkInvoiced(invoiceId, tx);
+      await matterMilestonesQueries.unmarkInvoiced(invoiceId, tx);
+
       await invoicesRepository.softDeleteInvoice(invoiceId, organizationId, user.id, tx);
       await InvoiceDeleted.dispatch({
         invoice_id: invoiceId,
@@ -399,9 +524,13 @@ const sendInvoice = async (
     }
 
     // 1. Create on Stripe
+    const stripeAccountResult = await resolveStripeAccountIdForInvoice(invoice.connected_account_id);
+    if (!stripeAccountResult.success) return stripeAccountResult;
+
     const stripeResult = await stripeInvoicesService.createStripeInvoice(
       invWithRel,
       invWithRel.client.stripe_customer_id,
+      stripeAccountResult.data,
     );
     if (!stripeResult.success) return stripeResult;
 
@@ -410,18 +539,21 @@ const sendInvoice = async (
     // 2. Finalize and send
     const sendResult = await stripeInvoicesService.finalizeAndSendInvoice(
       stripeInvoice.id,
-      invoice.connected_account_id,
     );
     if (!sendResult.success) return sendResult;
 
     const finalInvoice = sendResult.data;
 
-    // 3. Update internal status
+    // 3. Update internal status + sync Stripe invoice number (P6)
+    const stripeInvoiceNumber = finalInvoice.number ?? null;
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(invoiceId, organizationId, {
         status: 'sent',
         stripe_invoice_id: finalInvoice.id,
+        stripe_invoice_number: stripeInvoiceNumber,
         stripe_hosted_invoice_url: finalInvoice.hosted_invoice_url,
+        // Backfill invoice_number from Stripe if not set
+        ...(stripeInvoiceNumber && !invoice.invoice_number ? { invoice_number: stripeInvoiceNumber } : {}),
         issue_date: new Date(),
       }, tx);
 
@@ -468,10 +600,7 @@ const syncInvoice = async (
     if (!invoice.stripe_invoice_id) return result.badRequest('Invoice has not been synced with Stripe');
 
     // 1. Fetch from Stripe
-    const stripeResult = await stripeInvoicesService.getStripeInvoice(
-      invoice.stripe_invoice_id,
-      invoice.connected_account_id,
-    );
+    const stripeResult = await stripeInvoicesService.getStripeInvoice(invoice.stripe_invoice_id);
     if (!stripeResult.success) return stripeResult;
 
     const stripeInvoice = stripeResult.data;
@@ -491,7 +620,7 @@ const syncInvoice = async (
       amount_paid: stripeInvoice.amount_paid,
       amount_due: stripeInvoice.amount_remaining,
       paid_at: stripeInvoice.status_transitions.paid_at
-        ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+        ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
         : undefined,
     });
 
@@ -530,13 +659,15 @@ const voidInvoice = async (
     }
 
     // Void on Stripe
-    const voidResult = await stripeInvoicesService.voidInvoice(
-      invoice.stripe_invoice_id,
-      invoice.connected_account_id,
-    );
+    const voidResult = await stripeInvoicesService.voidInvoice(invoice.stripe_invoice_id);
     if (!voidResult.success) return voidResult;
 
     await db.transaction(async (tx) => {
+      // Unmark any linked time entries, expenses, milestones (P2+P4)
+      await matterTimeEntriesQueries.unmarkInvoiced(invoiceId, tx);
+      await matterExpensesQueries.unmarkInvoiced(invoiceId, tx);
+      await matterMilestonesQueries.unmarkInvoiced(invoiceId, tx);
+
       // Update local status
       await invoicesRepository.updateInvoice(invoiceId, organizationId, {
         status: 'cancelled',
@@ -564,13 +695,69 @@ const voidInvoice = async (
   }
 };
 
+/**
+ * List invoices for the authenticated client (no line items for performance).
+ * Client identity is resolved server-side from userId.
+ */
+const listClientInvoices = async (
+  organizationId: string,
+  userId: string,
+  filters?: { status?: string; page?: number; limit?: number },
+): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
+  try {
+    // Resolve userId → userDetails.id for this org
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
+    if (!userDetailResult.success) return userDetailResult;
+    const userDetailId = userDetailResult.data;
+
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 20;
+    const { invoices: invoiceList, total } = await invoicesRepository.findManyByClientId(organizationId, userDetailId, {
+      status: filters?.status,
+      page,
+      limit,
+    });
+
+    return result.ok({
+      invoices: invoiceList.map(transformInvoiceResponse),
+      pagination: { page, limit, total },
+    });
+  } catch (error) {
+    return handleServiceError(error, logger, { userId }, 'Failed to list client invoices');
+  }
+};
+
+/**
+ * Get a single invoice for the authenticated client (with line items).
+ * Client identity is resolved server-side from userId.
+ */
+const getClientInvoiceDetail = async (
+  organizationId: string,
+  invoiceId: string,
+  userId: string,
+): Promise<Result<InvoiceResponse>> => {
+  try {
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
+    if (!userDetailResult.success) return userDetailResult;
+    const userDetailId = userDetailResult.data;
+
+    const invoice = await invoicesRepository.findOneByIdAndClientId(organizationId, invoiceId, userDetailId);
+    if (!invoice) return result.notFound('Invoice not found');
+
+    return result.ok(transformInvoiceResponse(invoice));
+  } catch (error) {
+    return handleServiceError(error, logger, { invoiceId, userId }, 'Failed to get client invoice');
+  }
+};
+
 export const invoicesService = {
   createInvoice,
-  getInvoiceById,
   listInvoices,
   updateInvoice,
   deleteInvoice,
   sendInvoice,
   syncInvoice,
   voidInvoice,
+  listClientInvoices,
+  getClientInvoiceDetail,
 };

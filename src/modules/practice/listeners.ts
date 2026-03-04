@@ -104,7 +104,7 @@ export function registerPracticeListeners(): void {
     void addEmailJob(
       EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT,
       customer.email,
-      `Payment receipt from ${business.name}`,
+      `Your receipt from ${business.name} - ${payment.invoiceNumber}`,
       {
         recipientEmail: customer.email,
         recipientName: customer.name,
@@ -112,7 +112,7 @@ export function registerPracticeListeners(): void {
         invoiceNumber: payment.invoiceNumber,
         amountPaid: payment.amount,
         amountDue: payment.amount,
-        paidAt: new Date(payload.succeeded_at).toLocaleDateString(),
+        paidAt: payload.succeeded_at,
         lineItems: items,
         paymentMethod: payment.method,
         supportEmail: business.supportEmail,
@@ -128,7 +128,14 @@ export function registerPracticeListeners(): void {
     void addEmailJob(
       EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT,
       'support@blawby.com', // Default support/owner email
-      `New payment received: ${payment.invoiceNumber}`,
+      `Payment of ${new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(payment.amount / 100)} received from ${
+        customer.name === 'Valued Client' 
+          ? customer.email 
+          : customer.name
+      }`,
       {
         recipientEmail: 'support@blawby.com',
         recipientName: 'Team',
