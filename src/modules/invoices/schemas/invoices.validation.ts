@@ -58,7 +58,7 @@ const listInvoicesQuerySchema = z.object({
 const lineItemSchema = z.object({
   id: z.uuid(),
   invoice_id: z.uuid(),
-  type: z.string().openapi({ enum: invoiceLineItemTypeValues as unknown as string[] }),
+  type: invoiceLineItemTypeSchema,
   description: z.string(),
   quantity: z.number(),
   unit_price: z.number(),
