@@ -10,8 +10,8 @@ import type {
 } from '@/modules/onboarding/types/onboarding.types';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import { OnboardingStarted } from '@/shared/events/definitions';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['onboarding', 'service']);
@@ -23,21 +23,24 @@ export const onboardingService = {
   /**
    * Create onboarding session for organization
    */
-  async createOnboardingSession(params: {
-    organizationEmail: string;
-    organizationId: string;
-    user: User;
-    refreshUrl: string;
-    returnUrl: string;
-    requestHeaders: Record<string, string>;
-  }): Promise<Result<OnboardingStatusResponse>> {
+  async createOnboardingSession(
+    params: {
+      organizationEmail: string;
+      organizationId: string;
+      refreshUrl: string;
+      returnUrl: string;
+      requestHeaders: Record<string, string>;
+    },
+    ctx: ServiceContext,
+  ): Promise<Result<OnboardingStatusResponse>> {
     const {
-      organizationEmail, organizationId, user, refreshUrl, returnUrl, requestHeaders,
+      organizationEmail, organizationId, refreshUrl, returnUrl, requestHeaders,
     } = params;
+    const { user } = ctx;
 
     try {
       // Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
+      const orgResult = await organizationService.getFullOrganization({ organizationId, requestHeaders }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -55,13 +58,11 @@ export const onboardingService = {
       const accountData = result.data;
 
       // Publish onboarding started event
-      OnboardingStarted.dispatch({
+      await ctx.emit(OnboardingStarted, {
         organization_id: organizationId,
         organization_email: organizationEmail,
         account_id: accountData.account_id,
         session_id: accountData.url,
-      }, {
-        actorId: user.id,
       });
 
       return ok({
@@ -90,13 +91,12 @@ export const onboardingService = {
    * Get onboarding status for organization
    */
   async getOnboardingStatus(
-    organizationId: string,
-    user: User,
-    requestHeaders: Record<string, string>,
+    { organizationId, requestHeaders }: { organizationId: string; requestHeaders: Record<string, string> },
+    ctx: ServiceContext,
   ): Promise<Result<OnboardingStatusResponse>> {
     try {
       // 1. Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
+      const orgResult = await organizationService.getFullOrganization({ organizationId, requestHeaders }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -121,7 +121,7 @@ export const onboardingService = {
         'Failed to get onboarding status for organization {organizationId}: {error}',
         {
           organizationId,
-          userId: user.id,
+          userId: ctx.user.id,
           error,
         },
       );
@@ -133,21 +133,24 @@ export const onboardingService = {
   /**
    * Create connected account for organization
    */
-  async createConnectedAccount(params: {
-    email: string;
-    organizationId: string;
-    user: User;
-    refreshUrl: string;
-    returnUrl: string;
-    requestHeaders: Record<string, string>;
-  }): Promise<Result<OnboardingStatusResponse>> {
+  async createConnectedAccount(
+    params: {
+      email: string;
+      organizationId: string;
+      refreshUrl: string;
+      returnUrl: string;
+      requestHeaders: Record<string, string>;
+    },
+    ctx: ServiceContext,
+  ): Promise<Result<OnboardingStatusResponse>> {
     const {
-      email, organizationId, user, refreshUrl, returnUrl, requestHeaders,
+      email, organizationId, refreshUrl, returnUrl, requestHeaders,
     } = params;
+    const { user } = ctx;
 
     try {
       // Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization(organizationId, user, requestHeaders);
+      const orgResult = await organizationService.getFullOrganization({ organizationId, requestHeaders }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -186,6 +189,7 @@ export const onboardingService = {
     }
   },
 };
+
 
 export default onboardingService;
 

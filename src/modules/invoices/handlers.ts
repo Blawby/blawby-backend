@@ -1,129 +1,73 @@
-import {
-  createInvoiceRoute,
-  getInvoicesRoute,
-  updateInvoiceRoute,
-  deleteInvoiceRoute,
-  sendInvoiceRoute,
-  syncInvoiceRoute,
-  voidInvoiceRoute,
-} from '@/modules/invoices/routes';
-import { invoicesService } from '@/modules/invoices/services/invoices.service';
+import { routes } from '@/modules/invoices/routes';
+import { invoiceCreationService } from '@/modules/invoices/services/invoice-creation.service';
+import { invoiceLifecycleService } from '@/modules/invoices/services/invoice-lifecycle.service';
+import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
+import { invoiceStripeCoordinationService } from '@/modules/invoices/services/invoice-stripe-coordination.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
+import { getServiceContext } from '@/shared/types/service-context';
 import { response } from '@/shared/utils/responseUtils';
 
-export const createInvoiceHandler: AppRouteHandler<typeof createInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id } = c.req.valid('param');
+export const createInvoiceHandler: AppRouteHandler<typeof routes.createInvoiceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const data = c.req.valid('json');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
-  const result = await invoicesService.createInvoice(
-    practice_id,
-    data,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceCreationService.createInvoice({ data }, ctx);
 
   return response.fromResult(c, result, 201);
 };
 
-export const getInvoicesHandler: AppRouteHandler<typeof getInvoicesRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id } = c.req.valid('param');
+export const getInvoicesHandler: AppRouteHandler<typeof routes.getInvoicesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
-  const result = await invoicesService.listInvoices(
-    practice_id,
-    query,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceQueriesService.listInvoices({ filters: query }, ctx);
 
   return response.fromResult(c, result);
 };
 
 
-export const updateInvoiceHandler: AppRouteHandler<typeof updateInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id, id } = c.req.valid('param');
+export const updateInvoiceHandler: AppRouteHandler<typeof routes.updateInvoiceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
   const data = c.req.valid('json');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
 
-  const result = await invoicesService.updateInvoice(
-    practice_id,
-    id,
-    data,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceLifecycleService.updateInvoice({ id, data }, ctx);
 
   return response.fromResult(c, result);
 };
 
-export const deleteInvoiceHandler: AppRouteHandler<typeof deleteInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id, id } = c.req.valid('param');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
+export const deleteInvoiceHandler: AppRouteHandler<typeof routes.deleteInvoiceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
 
-  const result = await invoicesService.deleteInvoice(
-    practice_id,
-    id,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceLifecycleService.deleteInvoice({ id }, ctx);
 
   return response.fromResult(c, result);
 };
 
-export const sendInvoiceHandler: AppRouteHandler<typeof sendInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id, id } = c.req.valid('param');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
+export const sendInvoiceHandler: AppRouteHandler<typeof routes.sendInvoiceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
 
-  const result = await invoicesService.sendInvoice(
-    practice_id,
-    id,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceStripeCoordinationService.sendInvoice({ id }, ctx);
 
   return response.fromResult(c, result);
 };
 
-export const syncInvoiceHandler: AppRouteHandler<typeof syncInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id, id } = c.req.valid('param');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
+export const syncInvoiceHandler: AppRouteHandler<typeof routes.syncInvoiceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
 
-  const result = await invoicesService.syncInvoice(
-    practice_id,
-    id,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceStripeCoordinationService.syncInvoice({ id }, ctx);
 
   return response.fromResult(c, result);
 };
 
-export const voidInvoiceHandler: AppRouteHandler<typeof voidInvoiceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id, id } = c.req.valid('param');
-  const requestHeaders = Object.fromEntries(c.req.raw.headers);
+export const voidInvoiceHandler: AppRouteHandler<typeof routes.voidInvoiceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
 
-  const result = await invoicesService.voidInvoice(
-    practice_id,
-    id,
-    user,
-    requestHeaders,
-  );
+  const result = await invoiceStripeCoordinationService.voidInvoice({ id }, ctx);
 
   return response.fromResult(c, result);
 };

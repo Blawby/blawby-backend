@@ -8,6 +8,7 @@ export type ServiceContext = {
   userId: string;
   user: User;
   organizationId: string;
+  matterId?: string;
   memberRole: string | null;
   ability: AppAbility;
   emit: <T extends Record<string, unknown>>(
@@ -21,11 +22,13 @@ export const getServiceContext = (c: Context): ServiceContext => {
   const userId = c.get('userId');
   const user = c.get('user');
   const organizationId = c.req.param('organization_id') || c.get('activeOrganizationId');
+  const matterId = c.req.param('id') || c.req.param('matter_id');
 
   return {
     userId,
     user,
     organizationId,
+    matterId,
     memberRole: c.get('memberRole'),
     ability: c.get('ability'),
     emit: (event, payload, tx) => {

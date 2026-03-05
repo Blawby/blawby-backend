@@ -1,3 +1,4 @@
+import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
@@ -19,36 +20,44 @@ const logger = getLogger(['matters', 'services', 'milestones']);
  * Create a matter milestone
  */
 const createMatterMilestone = async (
-  matterId: string,
-  data: CreateMatterMilestoneRequest,
+  params: { data: CreateMatterMilestoneRequest },
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterMilestone>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     const milestone = await matterMilestonesQueries.createMatterMilestone({
       matter_id: matterId,
-      description: data.description,
-      amount: data.amount,
-      due_date: data.due_date,
-      status: data.status,
-      order: data.order,
+      description: params.data.description,
+      amount: params.data.amount,
+      due_date: params.data.due_date,
+      status: params.data.status,
+      order: params.data.order,
     });
     const changedFields = ['description', 'amount', 'due_date', 'status', 'order'];
 
     // Log activity
-    const amountFormatted = (data.amount / 100).toFixed(2);
+    const amountFormatted = (params.data.amount / 100).toFixed(2);
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.MILESTONE_CREATED,
-      `${userName} created milestone: ${data.description} ($${amountFormatted})`,
-      ctx.userId,
-      { amount: data.amount, due_date: data.due_date, changed_fields: changedFields },
+      {
+        action: matterActivityService.ActivityAction.MILESTONE_CREATED,
+        description: `${userName} created milestone: ${params.data.description} ($${amountFormatted})`,
+        metadata: { amount: params.data.amount, due_date: params.data.due_date, changed_fields: changedFields },
+      },
+      ctx,
     );
 
     return ok(milestone);
@@ -66,25 +75,32 @@ const createMatterMilestone = async (
  * List matter milestones
  */
 const listMatterMilestones = async (
-  matterId: string,
-  filters: MatterMilestoneListFilters | undefined,
+  params: { filters?: MatterMilestoneListFilters },
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterMilestone[]>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Short-circuit: direct lookup when a specific milestone ID is provided
-    if (filters?.milestoneId) {
-      const milestone = await matterMilestonesQueries.findMatterMilestoneById(filters.milestoneId);
+    if (params.filters?.milestoneId) {
+      const milestone = await matterMilestonesQueries.findMatterMilestoneById(params.filters.milestoneId);
       if (!milestone || milestone.matter_id !== matterId) return ok([]);
       return ok([milestone]);
     }
 
-    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId, filters);
+    const milestones = await matterMilestonesQueries.listMatterMilestones(matterId, params.filters);
     return ok(milestones);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -100,40 +116,46 @@ const listMatterMilestones = async (
  * Update matter milestone
  */
 const updateMatterMilestone = async (
-  matterId: string,
-  milestoneId: string,
-  data: UpdateMatterMilestoneRequest,
+  params: { milestoneId: string; data: UpdateMatterMilestoneRequest },
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterMilestone>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Verify milestone exists and belongs to matter
-    const milestone = await matterMilestonesQueries.findMatterMilestoneById(milestoneId);
+    const milestone = await matterMilestonesQueries.findMatterMilestoneById(params.milestoneId);
     if (!milestone || milestone.matter_id !== matterId) {
       return notFound('Milestone not found');
     }
 
-    const updated = await matterMilestonesQueries.updateMatterMilestone(milestoneId, data);
+    const updated = await matterMilestonesQueries.updateMatterMilestone(params.milestoneId, params.data);
     if (!updated) {
       return internalError('Failed to update milestone');
     }
     const changedFields: string[] = [];
-    if (data.description !== undefined && data.description !== milestone.description) {
+    if (params.data.description !== undefined && params.data.description !== milestone.description) {
       changedFields.push('description');
     }
-    if (data.amount !== undefined && data.amount !== milestone.amount) {
+    if (params.data.amount !== undefined && params.data.amount !== milestone.amount) {
       changedFields.push('amount');
     }
-    if (data.due_date !== undefined) {
-      if ((data.due_date === null) !== (milestone.due_date === null)) {
+    if (params.data.due_date !== undefined) {
+      if ((params.data.due_date === null) !== (milestone.due_date === null)) {
         changedFields.push('due_date');
-      } else if (data.due_date !== null && milestone.due_date !== null) {
-        const nextDue = new Date(data.due_date);
+      } else if (params.data.due_date !== null && milestone.due_date !== null) {
+        const nextDue = new Date(params.data.due_date);
         const currentDue = new Date(milestone.due_date);
         if (!Number.isNaN(nextDue.getTime()) && !Number.isNaN(currentDue.getTime())
           && nextDue.getTime() !== currentDue.getTime()) {
@@ -141,31 +163,33 @@ const updateMatterMilestone = async (
         }
       }
     }
-    if (data.status !== undefined && data.status !== milestone.status) {
+    if (params.data.status !== undefined && params.data.status !== milestone.status) {
       changedFields.push('status');
     }
-    if (data.order !== undefined && data.order !== milestone.order) {
+    if (params.data.order !== undefined && params.data.order !== milestone.order) {
       changedFields.push('order');
     }
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.MILESTONE_UPDATED,
-      `${userName} updated milestone: ${updated.description}`,
-      ctx.userId,
-      { changed_fields: changedFields },
+      {
+        action: matterActivityService.ActivityAction.MILESTONE_UPDATED,
+        description: `${userName} updated milestone: ${updated.description}`,
+        metadata: { changed_fields: changedFields },
+      },
+      ctx,
     );
 
     // Check if milestone was marked as completed
-    if (data.status === 'completed' && milestone.status !== 'completed') {
+    if (params.data.status === 'completed' && milestone.status !== 'completed') {
       await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MILESTONE_COMPLETED,
-        `${userName} completed milestone: ${milestone.description}`,
-        ctx.userId,
-        { changed_fields: ['status'] },
+        {
+          action: matterActivityService.ActivityAction.MILESTONE_COMPLETED,
+          description: `${userName} completed milestone: ${milestone.description}`,
+          metadata: { changed_fields: ['status'] },
+        },
+        ctx,
       );
     }
 
@@ -173,7 +197,7 @@ const updateMatterMilestone = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update matter milestone {milestoneId}: {error}', {
-      milestoneId,
+      milestoneId: params.milestoneId,
       error: message,
     });
     return internalError(message);
@@ -184,40 +208,48 @@ const updateMatterMilestone = async (
  * Delete matter milestone
  */
 const deleteMatterMilestone = async (
-  matterId: string,
-  milestoneId: string,
+  params: { milestoneId: string },
   ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Verify milestone exists and belongs to matter
-    const milestone = await matterMilestonesQueries.findMatterMilestoneById(milestoneId);
+    const milestone = await matterMilestonesQueries.findMatterMilestoneById(params.milestoneId);
     if (!milestone || milestone.matter_id !== matterId) {
       return notFound('Milestone not found');
     }
 
-    await matterMilestonesQueries.deleteMatterMilestone(milestoneId);
+    await matterMilestonesQueries.deleteMatterMilestone(params.milestoneId);
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.MILESTONE_DELETED,
-      `${userName} deleted milestone: ${milestone.description}`,
-      ctx.userId,
-      { changed_fields: ['deleted'] },
+      {
+        action: matterActivityService.ActivityAction.MILESTONE_DELETED,
+        description: `${userName} deleted milestone: ${milestone.description}`,
+        metadata: { changed_fields: ['deleted'] },
+      },
+      ctx,
     );
 
     return ok({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete matter milestone {milestoneId}: {error}', {
-      milestoneId,
+      milestoneId: params.milestoneId,
       error: message,
     });
     return internalError(message);
@@ -228,35 +260,43 @@ const deleteMatterMilestone = async (
  * Reorder milestones
  */
 const reorderMilestones = async (
-  matterId: string,
-  data: ReorderMilestonesRequest,
+  params: { data: ReorderMilestonesRequest },
   ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Verify all milestones belong to this matter
-    for (const item of data.milestones) {
+    for (const item of params.data.milestones) {
       const milestone = await matterMilestonesQueries.findMatterMilestoneById(item.id);
       if (!milestone || milestone.matter_id !== matterId) {
         return notFound(`Milestone ${item.id} not found or does not belong to this matter`);
       }
     }
 
-    await matterMilestonesQueries.reorderMilestones(data.milestones);
+    await matterMilestonesQueries.reorderMilestones(params.data.milestones);
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.MILESTONE_UPDATED,
-      `${userName} reordered milestones`,
-      ctx.userId,
-      { changed_fields: ['order'] },
+      {
+        action: matterActivityService.ActivityAction.MILESTONE_UPDATED,
+        description: `${userName} reordered milestones`,
+        metadata: { changed_fields: ['order'] },
+      },
+      ctx,
     );
 
     return ok({ success: true });
@@ -274,7 +314,6 @@ const reorderMilestones = async (
  * Get milestone statistics
  */
 const getMilestoneStats = async (
-  matterId: string,
   ctx: ServiceContext,
 ): Promise<Result<{
   total: number;
@@ -286,10 +325,18 @@ const getMilestoneStats = async (
   completedAmount: number;
   completionPercentage: number;
 }>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {

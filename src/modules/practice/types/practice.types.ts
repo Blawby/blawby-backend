@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
+import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import type { Organization, User } from '@/shared/types/BetterAuth';
-import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 
 // ============================================================================
 // ORGANIZATION API TYPES
@@ -11,6 +11,11 @@ import { practiceValidations } from '@/modules/practice/validations/practice.val
 /**
  * Organization API request types inferred from Better Auth 1.4+
  */
+export interface OrganizationRequestParams {
+  organizationId: string;
+  requestHeaders: Record<string, string>;
+}
+
 export type CreateOrganizationRequest = z.infer<
   BetterAuthInstance['api']['createOrganization']['options']['body']
 >;
@@ -50,6 +55,7 @@ export type PracticeStats = {
   totalInvoices: number;
   activeSubscriptions: number;
 };
+
 
 // Inferred from Zod schemas
 export type CreatePracticeRequest = z.infer<typeof practiceValidations.createPracticeSchema>;

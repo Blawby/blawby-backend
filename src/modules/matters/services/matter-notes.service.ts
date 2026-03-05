@@ -1,3 +1,4 @@
+import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { matterNotesQueries } from '@/modules/matters/database/queries/matter-notes.queries';
 import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-notes.schema';
@@ -14,34 +15,39 @@ import { ok, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'notes']);
 
-/**
- * Create a matter note
- */
 const createMatterNote = async (
-  matterId: string,
-  data: CreateMatterNoteRequest,
+  params: { data: CreateMatterNoteRequest },
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterNote>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check — generally only members/admins can modify matters
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   const note = await matterNotesQueries.createMatterNote({
     matter_id: matterId,
     user_id: ctx.userId,
-    content: data.content,
+    content: params.data.content,
   });
 
   // Log activity
   const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
   await matterActivityService.logMatterActivity(
-    matterId,
-    matterActivityService.ActivityAction.NOTE_ADDED,
-    `${userName} added a note`,
-    ctx.userId,
-    { changed_fields: ['content'] },
+    {
+      action: matterActivityService.ActivityAction.NOTE_ADDED,
+      description: `${userName} added a note`,
+      metadata: { changed_fields: ['content'] },
+    },
+    ctx,
   );
 
   return ok(note);
@@ -51,25 +57,32 @@ const createMatterNote = async (
  * List matter notes
  */
 const listMatterNotes = async (
-  matterId: string,
-  filters: MatterNoteListFilters | undefined,
+  params: { filters?: MatterNoteListFilters },
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterNote[]>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Short-circuit: direct lookup when a specific note ID is provided
-    if (filters?.noteId) {
-      const note = await matterNotesQueries.findMatterNoteById(filters.noteId);
+    if (params.filters?.noteId) {
+      const note = await matterNotesQueries.findMatterNoteById(params.filters.noteId);
       if (!note || note.matter_id !== matterId) return ok([]);
       return ok([note]);
     }
 
-    const notes = await matterNotesQueries.listMatterNotes(matterId, filters);
+    const notes = await matterNotesQueries.listMatterNotes(matterId, params.filters);
     return ok(notes);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -85,45 +98,52 @@ const listMatterNotes = async (
  * Update matter note
  */
 const updateMatterNote = async (
-  matterId: string,
-  noteId: string,
-  data: UpdateMatterNoteRequest,
+  params: { noteId: string; data: UpdateMatterNoteRequest },
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterNote>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Verify note exists and belongs to matter
-    const note = await matterNotesQueries.findMatterNoteById(noteId);
+    const note = await matterNotesQueries.findMatterNoteById(params.noteId);
     if (!note || note.matter_id !== matterId) {
       return notFound('Note not found');
     }
 
-    const updated = await matterNotesQueries.updateMatterNote(noteId, data);
+    const updated = await matterNotesQueries.updateMatterNote(params.noteId, params.data);
     const changedFields = [];
-    if (data.content !== undefined && data.content !== note.content) {
+    if (params.data.content !== undefined && params.data.content !== note.content) {
       changedFields.push('content');
     }
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.NOTE_UPDATED,
-      `${userName} updated a note`,
-      ctx.userId,
-      { changed_fields: changedFields },
+      {
+        action: matterActivityService.ActivityAction.NOTE_UPDATED,
+        description: `${userName} updated a note`,
+        metadata: { changed_fields: changedFields },
+      },
+      ctx,
     );
 
     return ok(updated!);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update matter note {noteId}: {error}', {
-      noteId,
+      noteId: params.noteId,
       error: message,
     });
     return internalError(message);
@@ -134,40 +154,48 @@ const updateMatterNote = async (
  * Delete matter note
  */
 const deleteMatterNote = async (
-  matterId: string,
-  noteId: string,
+  params: { noteId: string },
   ctx: ServiceContext,
 ): Promise<Result<{ success: true }>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult;
+    return matterResult as Result<never>;
   }
 
   try {
     // Verify note exists and belongs to matter
-    const note = await matterNotesQueries.findMatterNoteById(noteId);
+    const note = await matterNotesQueries.findMatterNoteById(params.noteId);
     if (!note || note.matter_id !== matterId) {
       return notFound('Note not found');
     }
 
-    await matterNotesQueries.deleteMatterNote(noteId);
+    await matterNotesQueries.deleteMatterNote(params.noteId);
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.NOTE_DELETED,
-      `${userName} deleted a note`,
-      ctx.userId,
-      { changed_fields: ['deleted'] },
+      {
+        action: matterActivityService.ActivityAction.NOTE_DELETED,
+        description: `${userName} deleted a note`,
+        metadata: { changed_fields: ['deleted'] },
+      },
+      ctx,
     );
 
     return ok({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete matter note {noteId}: {error}', {
-      noteId,
+      noteId: params.noteId,
       error: message,
     });
     return internalError(message);

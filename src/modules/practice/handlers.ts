@@ -1,160 +1,117 @@
-import {
-  listPracticesRoute,
-  createPracticeRoute,
-  getPracticeByIdRoute,
-  updatePracticeRoute,
-  deletePracticeRoute,
-  setActivePracticeRoute,
-  listMembersRoute,
-  updateMemberRoleRoute,
-  removeMemberRoute,
-  listInvitationsRoute,
-  createInvitationRoute,
-  acceptInvitationRoute,
-  declineInvitationRoute,
-  getPracticeDetailsRoute,
-  createPracticeDetailsRoute,
-  updatePracticeDetailsRoute,
-  deletePracticeDetailsRoute,
-  getPracticeDetailsBySlugRoute,
-} from '@/modules/practice/routes';
-import { invitationsService } from '@/modules/practice/services/invitations.service';
-import { membersService } from '@/modules/practice/services/members.service';
-import { practiceDetailsService } from '@/modules/practice/services/practice-details.service';
-import { practiceService } from '@/modules/practice/services/practice.service';
+import { routes } from '@/modules/practice/routes';
+import { practiceManagementService } from '@/modules/practice/services/practice-management.service';
+import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
 import { AppRouteHandler } from '@/shared/types/hono';
+import { getServiceContext } from '@/shared/types/service-context';
 import { response } from '@/shared/utils/responseUtils';
 
-export const listPracticesHandler: AppRouteHandler<typeof listPracticesRoute> = async (c) => {
-  const user = c.get('user')!;
-  const result = await practiceService.listPractices(user, c.req.header());
+export const listPracticesHandler: AppRouteHandler<typeof routes.listPracticesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const result = await practiceQueriesService.listPractices({ requestHeaders: c.req.header() }, ctx);
   return response.fromResult(c, result);
 };
 
-export const createPracticeHandler: AppRouteHandler<typeof createPracticeRoute> = async (c) => {
-  const user = c.get('user')!;
+export const createPracticeHandler: AppRouteHandler<typeof routes.createPracticeRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const validatedBody = c.req.valid('json');
-  const result = await practiceService.createPractice({
+  const result = await practiceManagementService.createPractice({
     data: validatedBody,
-    user,
     requestHeaders: c.req.header(),
-  });
+  }, ctx);
   return response.fromResult(c, result, 201);
 };
 
-export const getPracticeHandler: AppRouteHandler<typeof getPracticeByIdRoute> = async (c) => {
-  const user = c.get('user')!;
+export const getPracticeHandler: AppRouteHandler<typeof routes.getPracticeByIdRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await practiceService.getPracticeById(uuid, user, c.req.header());
+  const result = await practiceQueriesService.getPracticeById(
+    { organizationId: uuid, requestHeaders: c.req.header() },
+    ctx,
+  );
   return response.fromResult(c, result);
 };
 
-export const updatePracticeHandler: AppRouteHandler<typeof updatePracticeRoute> = async (c) => {
-  const user = c.get('user')!;
+export const updatePracticeHandler: AppRouteHandler<typeof routes.updatePracticeRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await practiceService.updatePractice(uuid, validatedBody, user, c.req.header());
+  const result = await practiceManagementService.updatePractice({
+    organizationId: uuid,
+    data: validatedBody,
+    requestHeaders: c.req.header(),
+  }, ctx);
   return response.fromResult(c, result);
 };
 
-export const deletePracticeHandler: AppRouteHandler<typeof deletePracticeRoute> = async (c) => {
-  const user = c.get('user')!;
+export const deletePracticeHandler: AppRouteHandler<typeof routes.deletePracticeRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await practiceService.deletePractice(uuid, user, c.req.header());
+  const result = await practiceManagementService.deletePractice(
+    { organizationId: uuid, requestHeaders: c.req.header() },
+    ctx,
+  );
   return response.fromResult(c, result, 204);
 };
 
-export const setActivePracticeHandler: AppRouteHandler<typeof setActivePracticeRoute> = async (c) => {
-  const user = c.get('user')!;
+export const setActivePracticeHandler: AppRouteHandler<typeof routes.setActivePracticeRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await practiceService.setActivePractice(uuid, user, c.req.header());
+  const result = await practiceManagementService.setActivePractice(
+    { organizationId: uuid, requestHeaders: c.req.header() },
+    ctx,
+  );
   return response.fromResult(c, result);
 };
 
-export const listMembersHandler: AppRouteHandler<typeof listMembersRoute> = async (c) => {
-  const user = c.get('user')!;
+export const getPracticeDetailsHandler: AppRouteHandler<typeof routes.getPracticeDetailsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await membersService.listPracticeMembers(uuid, user, c.req.header());
+  const result = await practiceQueriesService.getPracticeDetails(
+    { organizationId: uuid, requestHeaders: c.req.header() },
+    ctx,
+  );
   return response.fromResult(c, result);
 };
 
-export const updateMemberRoleHandler: AppRouteHandler<typeof updateMemberRoleRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.req.valid('param');
-  const validatedBody = c.req.valid('json');
-  const result = await membersService
-    .updatePracticeMemberRole(uuid, validatedBody.member_id, validatedBody.role, user, c.req.header());
-  return response.fromResult(c, result);
-};
-
-export const removeMemberHandler: AppRouteHandler<typeof removeMemberRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { uuid, userId } = c.req.valid('param');
-  const result = await membersService.removePracticeMember(uuid, userId, user, c.req.header());
-  return response.fromResult(c, result, 204);
-};
-
-export const listInvitationsHandler: AppRouteHandler<typeof listInvitationsRoute> = async (c) => {
-  const user = c.get('user')!;
-  const result = await invitationsService.listPracticeInvitations(user, c.req.header());
-  return response.fromResult(c, result);
-};
-
-export const createInvitationHandler: AppRouteHandler<typeof createInvitationRoute> = async (c) => {
-  const user = c.get('user')!;
+export const createPracticeDetailsHandler: AppRouteHandler<typeof routes.createPracticeDetailsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await invitationsService
-    .createPracticeInvitation(uuid, validatedBody.email, validatedBody.role, user, c.req.header());
+  const result = await practiceManagementService.upsertPracticeDetails({
+    organizationId: uuid,
+    data: validatedBody,
+    requestHeaders: c.req.header(),
+  }, ctx);
   return response.fromResult(c, result, 201);
 };
 
-export const acceptInvitationHandler: AppRouteHandler<typeof acceptInvitationRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { invitationId } = c.req.valid('param');
-  const result = await invitationsService.acceptPracticeInvitation(invitationId, user, c.req.header());
-  return response.fromResult(c, result);
-};
-
-export const declineInvitationHandler: AppRouteHandler<typeof declineInvitationRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { invitationId } = c.req.valid('param');
-  const result = await invitationsService.declinePracticeInvitation(invitationId, user, c.req.header());
-  return response.fromResult(c, result);
-};
-
-export const getPracticeDetailsHandler: AppRouteHandler<typeof getPracticeDetailsRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.req.valid('param');
-  const result = await practiceDetailsService.getPracticeDetails(uuid, user, c.req.header());
-  return response.fromResult(c, result);
-};
-
-export const createPracticeDetailsHandler: AppRouteHandler<typeof createPracticeDetailsRoute> = async (c) => {
-  const user = c.get('user')!;
+export const updatePracticeDetailsHandler: AppRouteHandler<typeof routes.updatePracticeDetailsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
-  const result = await practiceDetailsService.upsertPracticeDetails(uuid, validatedBody, user, c.req.header());
-  return response.fromResult(c, result, 201);
-};
-
-export const updatePracticeDetailsHandler: AppRouteHandler<typeof updatePracticeDetailsRoute> = async (c) => {
-  const user = c.get('user')!;
-  const { uuid } = c.req.valid('param');
-  const validatedBody = c.req.valid('json');
-  const result = await practiceDetailsService.upsertPracticeDetails(uuid, validatedBody, user, c.req.header());
+  const result = await practiceManagementService.upsertPracticeDetails({
+    organizationId: uuid,
+    data: validatedBody,
+    requestHeaders: c.req.header(),
+  }, ctx);
   return response.fromResult(c, result);
 };
 
-export const deletePracticeDetailsHandler: AppRouteHandler<typeof deletePracticeDetailsRoute> = async (c) => {
-  const user = c.get('user')!;
+export const deletePracticeDetailsHandler: AppRouteHandler<typeof routes.deletePracticeDetailsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await practiceDetailsService.deletePracticeDetails(uuid, user, c.req.header());
+  const result = await practiceManagementService.deletePracticeDetails(
+    { organizationId: uuid, requestHeaders: c.req.header() },
+    ctx,
+  );
   return response.fromResult(c, result, 204);
 };
 
-export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof getPracticeDetailsBySlugRoute> = async (c) => {
-  const { slug } = c.req.valid('param');
-  const result = await practiceDetailsService.getPracticeDetailsBySlug(slug);
-  return response.fromResult(c, result);
-};
+export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof
+  routes.getPracticeDetailsBySlugRoute> = async (c) => {
+    const ctx = getServiceContext(c);
+    const { slug } = c.req.valid('param');
+    const result = await practiceQueriesService.getPracticeBySlug({ slug }, ctx);
+    return response.fromResult(c, result);
+  };
+

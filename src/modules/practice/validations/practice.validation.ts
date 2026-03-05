@@ -202,13 +202,8 @@ const practiceSingleResponseSchema = z
 
 const setActivePracticeResponseSchema = z
   .object({
-    result: z.object({
-      success: z.boolean().openapi({
-        example: true,
-      }),
-      message: z.string().openapi({
-        example: 'Practice set as active',
-      }),
+    success: z.boolean().openapi({
+      example: true,
     }),
   })
   .openapi('SetActivePracticeResponse');
@@ -377,6 +372,18 @@ const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
 
 const practiceDetailsResponseSchema = z
   .object({
+    id: z.uuid().openapi({
+      description: 'Practice Details ID',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    user_id: z.uuid().openapi({
+      description: 'User ID of the creator',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    address_id: z.uuid().nullable().openapi({
+      description: 'Linked Address ID',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     business_phone: z.string().nullable().openapi({
       example: '+1234567890',
     }),
@@ -397,7 +404,7 @@ const practiceDetailsResponseSchema = z
     overview: z.string().nullable().openapi({ example: 'Overview text' }),
     accent_color: z.string().nullable().openapi({ example: '#3B82F6' }),
     is_public: z.boolean().openapi({ example: true }),
-    organization_id: z.string().uuid().openapi({
+    organization_id: z.uuid().openapi({
       description: 'Organization UUID for the practice',
       example: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab',
     }),
@@ -431,34 +438,22 @@ const practiceDetailsResponseSchema = z
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
     }),
-    createdAt: z.date().openapi({
-      description: 'Organization creation timestamp',
+    created_at: z.date().openapi({
+      description: 'Practice details creation timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
-    updatedAt: z.date().optional().openapi({
-      description: 'Organization last update timestamp',
+    updated_at: z.date().openapi({
+      description: 'Practice details last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
   })
   .openapi('PracticeDetailsResponse');
 
-const practiceDetailsSingleResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsSingleResponse');
+const practiceDetailsSingleResponseSchema = practiceDetailsResponseSchema;
 
-const practiceDetailsCreateResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsCreateResponse');
+const practiceDetailsCreateResponseSchema = practiceDetailsResponseSchema;
 
-const practiceDetailsUpdateResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsUpdateResponse');
+const practiceDetailsUpdateResponseSchema = practiceDetailsResponseSchema;
 
 const slugParamSchema = z.object({
   slug: z.string(),

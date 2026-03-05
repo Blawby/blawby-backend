@@ -24,22 +24,34 @@ const logger = getLogger(['matters', 'services', 'activity']);
  * Log activity for a matter
  */
 const logMatterActivity = async (
-  matterId: string,
-  action: string,
-  description: string,
-  userId?: string,
-  metadata?: Record<string, unknown>,
+  params: {
+    action: string;
+    description: string;
+    metadata?: Record<string, unknown>;
+    matterId?: string;
+  },
+  ctx: ServiceContext,
   tx?: NodePgDatabase<typeof schema>,
 ): Promise<SelectMatterActivityLog> => {
+  const matterId = params.matterId || ctx.matterId;
+
+  if (!matterId) {
+    logger.error('Failed to log activity: matterId is missing', {
+      action: params.action,
+      userId: ctx.userId,
+    });
+    throw new Error('matterId is required for logging activity');
+  }
+
   const client = tx ?? db;
   const [activity] = await client
     .insert(matterActivityLog)
     .values({
       matter_id: matterId,
-      user_id: userId || null,
-      action,
-      description,
-      metadata: metadata || null,
+      user_id: ctx.userId || null,
+      action: params.action,
+      description: params.description,
+      metadata: params.metadata || null,
     })
     .returning();
 
@@ -50,10 +62,13 @@ const logMatterActivity = async (
  * Get matter activity log
  */
 const getMatterActivity = async (
-  matterId: string,
   options: MatterActivityListFilters | undefined,
   ctx: ServiceContext,
 ): Promise<Result<SelectMatterActivityLog[]>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
   // Verify user has access to matter (lazy import to avoid circular dependency)
   const { mattersService } = await import('@/modules/matters/services/matters.service');
   const matterResult = await mattersService.getMatterById(matterId, ctx);
