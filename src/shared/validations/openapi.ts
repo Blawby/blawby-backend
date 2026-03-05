@@ -10,6 +10,18 @@ export const errorResponseSchema = z.object({
   details: z.any().optional(),
 }).openapi('ErrorResponse');
 
+export const unauthorizedResponseSchema = z.object({
+  error: z.string().openapi({ example: 'Unauthorized' }),
+  message: z.string().openapi({ example: 'Authentication required' }),
+  details: z.any().optional(),
+}).openapi('UnauthorizedResponse');
+
+export const forbiddenResponseSchema = z.object({
+  error: z.string().openapi({ example: 'Forbidden' }),
+  message: z.string().openapi({ example: 'Access denied' }),
+  details: z.any().optional(),
+}).openapi('ForbiddenResponse');
+
 export const notFoundResponseSchema = z.object({
   error: z.string().openapi({ example: 'Not Found' }),
   message: z.string().openapi({ example: 'Resource not found' }),

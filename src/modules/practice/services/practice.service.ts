@@ -34,6 +34,30 @@ const { parseBetterAuthMetadata, getBetterAuthErrorMessage } = betterAuthUtils;
 
 const logger = getLogger(['practice', 'service']);
 
+type OrganizationApiShape = Organization & {
+  paymentLinkEnabled?: boolean | null;
+  paymentLinkPrefillAmount?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date | null;
+};
+
+const normalizeOrganizationForApi = (organization: OrganizationApiShape): Record<string, unknown> => {
+  const base = omit(organization, [
+    'paymentLinkEnabled',
+    'paymentLinkPrefillAmount',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  return {
+    ...base,
+    payment_link_enabled: organization.paymentLinkEnabled ?? null,
+    payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? null,
+    created_at: organization.createdAt,
+    updated_at: organization.updatedAt ?? null,
+  };
+};
+
 /**
  * Practice Service
  *
@@ -49,7 +73,12 @@ const listPractices = async (
 ): Promise<Result<{ practices: Organization[] }>> => {
   const result = await organizationService.listOrganizations(user, requestHeaders);
   if (!result.success) return result;
-  return ok({ practices: result.data });
+  return ok({
+    practices: result.data.map((organization) => normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(organization.metadata),
+    }) as Organization),
+  });
 };
 
 /**
@@ -73,6 +102,10 @@ const getPracticeById = async (
     }
     // Omit members and invitations from the organization response
     const organization = omit(orgResult.data, ['members', 'invitations']);
+    const normalizedOrganization = normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(orgResult.data.metadata),
+    } as OrganizationApiShape);
 
     // 2. Get optional practice details
     const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
@@ -90,9 +123,8 @@ const getPracticeById = async (
 
     return ok({
       practice: {
-        ...organization,
+        ...normalizedOrganization,
         ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(orgResult.data.metadata),
       } as PracticeWithDetails,
     });
   } catch (error) {
@@ -213,6 +245,11 @@ const createPractice = async (params: {
       organizationId: organization.id,
     });
 
+    const normalizedOrganization = normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(organization.metadata),
+    } as OrganizationApiShape);
+
     // 4. Clean and return
     const cleanPracticeDetails = practiceDetails
       ? omit(practiceDetails, [
@@ -226,9 +263,8 @@ const createPractice = async (params: {
 
     return ok({
       practice: {
-        ...organization,
+        ...normalizedOrganization,
         ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(organization.metadata),
       } as PracticeWithDetails,
     });
   } catch (error) {
@@ -392,11 +428,15 @@ const updatePractice = async (
       ])
       : null;
 
+    const normalizedOrganization = normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(organization.metadata),
+    } as OrganizationApiShape);
+
     return ok({
       practice: {
-        ...organization,
+        ...normalizedOrganization,
         ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(organization.metadata),
       } as PracticeWithDetails,
     });
   } catch (error) {
