@@ -12,6 +12,7 @@ import type {
   InvoiceSummary,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/types/invoices.types';
+import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
 import { handleServiceError } from '@/modules/invoices/utils/error-handler';
 import { invoiceValidators } from '@/modules/invoices/validators/invoice-creation.validators';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
@@ -184,6 +185,7 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations | InvoiceSummary
     line_items: 'lineItems' in invoice
       ? invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
           ...li,
+          type: invoiceValidations.invoiceLineItemRequestSchema.shape.type.parse(li.type),
           created_at: li.created_at,
           updated_at: li.updated_at,
         }))
