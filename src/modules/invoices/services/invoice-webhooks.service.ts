@@ -28,7 +28,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
     if (!invoice) {
       logger.warn('Invoice not found for Stripe ID: {stripeInvoiceId}', { stripeInvoiceId: stripeInvoice.id });
-      return result.ok(undefined);
+      return result.ok<void>(undefined);
     }
 
     await db.transaction(async (tx) => {
@@ -167,14 +167,14 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
     });
 
     logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });
-    return result.ok(undefined);
+    return result.ok<void>(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to handle invoice.paid {stripeInvoiceId}: {error}', {
       stripeInvoiceId: stripeInvoice.id,
       error: message,
     });
-    return result.internalError('Failed to handle invoice.paid webhook');
+    return result.internalError<void>('Failed to handle invoice.paid webhook');
   }
 };
 
@@ -184,7 +184,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
 const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
-    if (!invoice) return result.ok(undefined);
+    if (!invoice) return result.ok<void>(undefined);
 
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(
@@ -209,11 +209,11 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
     });
 
     logger.info('❌ Payment failed for invoice {invoiceId}', { invoiceId: invoice.id });
-    return result.ok(undefined);
+    return result.ok<void>(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to handle invoice webhook: {error}', { error: message });
-    return result.internalError('Failed to handle invoice webhook');
+    return result.internalError<void>('Failed to handle invoice webhook');
   }
 };
 
@@ -223,7 +223,7 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
 const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
-    if (!invoice) return result.ok(undefined);
+    if (!invoice) return result.ok<void>(undefined);
 
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(
@@ -249,11 +249,11 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
     });
 
     logger.info('🚫 Invoice {invoiceId} voided', { invoiceId: invoice.id });
-    return result.ok(undefined);
+    return result.ok<void>(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to handle invoice webhook: {error}', { error: message });
-    return result.internalError('Failed to handle invoice webhook');
+    return result.internalError<void>('Failed to handle invoice webhook');
   }
 };
 
@@ -263,7 +263,7 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
 const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
-    if (!invoice) return result.ok(undefined);
+    if (!invoice) return result.ok<void>(undefined);
 
     await db.transaction(async (tx) => {
       await invoicesRepository.softDeleteInvoice(
@@ -286,11 +286,11 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
     });
 
     logger.info('🗑️ Invoice {invoiceId} deleted via Stripe', { invoiceId: invoice.id });
-    return result.ok(undefined);
+    return result.ok<void>(undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to handle invoice webhook: {error}', { error: message });
-    return result.internalError('Failed to handle invoice webhook');
+    return result.internalError<void>('Failed to handle invoice webhook');
   }
 };
 
@@ -310,7 +310,7 @@ const processEvent = async (event: Stripe.Event): Promise<Result<void>> => {
 
   if (!isStripeInvoice(stripeInvoice)) {
     logger.warn('Received Stripe event without invoice object: {eventType}', { eventType });
-    return result.ok(undefined);
+    return result.ok<void>(undefined);
   }
 
   logger.info('Processing invoice webhook event {eventType} for Stripe Invoice {stripeInvoiceId}', {
@@ -329,7 +329,7 @@ const processEvent = async (event: Stripe.Event): Promise<Result<void>> => {
       return await handleInvoiceDeleted(stripeInvoice);
     default:
       logger.info('Unhandled invoice event type: {eventType}', { eventType });
-      return result.ok(undefined);
+      return result.ok<void>(undefined);
   }
 };
 

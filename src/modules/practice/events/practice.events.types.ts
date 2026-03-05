@@ -14,7 +14,7 @@ export interface PaymentEventPayload {
     id: string;
     amountRefunded?: number;
   };
-  items: any[];
+  items: unknown[];
   business: {
     name: string;
     logoUrl?: string;
@@ -31,8 +31,8 @@ export const isPaymentPayload = (payload: unknown): payload is PaymentEventPaylo
   if (typeof payload !== 'object' || payload === null) return false;
   const p = payload as Record<string, unknown>;
   return (
-    typeof p.customer === 'object' &&
-    typeof p.payment === 'object' &&
-    typeof p.business === 'object'
+    typeof p.customer === 'object'
+    && typeof p.payment === 'object'
+    && typeof p.business === 'object'
   );
 };

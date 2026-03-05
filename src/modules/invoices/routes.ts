@@ -1,8 +1,7 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
 import {
-  errorResponseSchema,
-  notFoundResponseSchema,
   practiceIdParamSchema,
 } from '@/shared/validations/openapi';
 
@@ -15,7 +14,7 @@ const invoiceParamSchema = practiceIdParamSchema.extend({
 });
 
 
-export const createInvoiceRoute = createRoute({
+const createInvoiceRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/create',
   tags: ['Invoices'],
@@ -35,11 +34,10 @@ export const createInvoiceRoute = createRoute({
     204: {
       description: 'Invoice created successfully (no content)',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
   },
 });
 
-export const getInvoicesRoute = createRoute({
+const getInvoicesRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Invoices'],
@@ -61,12 +59,11 @@ export const getInvoicesRoute = createRoute({
       },
       description: 'Invoices retrieved successfully',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
   },
 });
 
 
-export const updateInvoiceRoute = createRoute({
+const updateInvoiceRoute = routeBuilder.build({
   method: 'patch',
   path: '/{practice_id}/update/{id}',
   tags: ['Invoices'],
@@ -87,12 +84,10 @@ export const updateInvoiceRoute = createRoute({
       content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
       description: 'Invoice updated',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
 
-export const deleteInvoiceRoute = createRoute({
+const deleteInvoiceRoute = routeBuilder.build({
   method: 'delete',
   path: '/{practice_id}/delete/{id}',
   tags: ['Invoices'],
@@ -104,11 +99,10 @@ export const deleteInvoiceRoute = createRoute({
       content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       description: 'Invoice deleted successfully',
     },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
 
-export const sendInvoiceRoute = createRoute({
+const sendInvoiceRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/{id}/send',
   tags: ['Invoices'],
@@ -120,12 +114,10 @@ export const sendInvoiceRoute = createRoute({
       content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
       description: 'Invoice sent successfully',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
 
-export const syncInvoiceRoute = createRoute({
+const syncInvoiceRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/{id}/sync',
   tags: ['Invoices'],
@@ -137,12 +129,10 @@ export const syncInvoiceRoute = createRoute({
       content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
       description: 'Invoice synced successfully',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
 
-export const voidInvoiceRoute = createRoute({
+const voidInvoiceRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/{id}/void',
   tags: ['Invoices'],
@@ -154,8 +144,15 @@ export const voidInvoiceRoute = createRoute({
       content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
       description: 'Invoice voided successfully',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
 
+export const routes = {
+  createInvoiceRoute,
+  getInvoicesRoute,
+  updateInvoiceRoute,
+  deleteInvoiceRoute,
+  sendInvoiceRoute,
+  syncInvoiceRoute,
+  voidInvoiceRoute,
+};

@@ -74,7 +74,12 @@ export const upsertPracticeDetails = async (
   userId: string,
   data: Partial<InsertPracticeDetails>,
 ): Promise<PracticeDetails> => {
-  const { id: _id, created_at: _created_at, updated_at: _updated_at, ...dataWithoutMetadata } = data;
+  const {
+    id: _id,
+    created_at: _created_at,
+    updated_at: _updated_at,
+    ...dataWithoutMetadata
+  } = data;
   const [result] = await db
     .insert(practiceDetails)
     .values({
@@ -99,7 +104,12 @@ export const insertOrIgnorePracticeDetails = async (
   userId: string,
   data: Partial<InsertPracticeDetails>,
 ): Promise<PracticeDetails | null> => {
-  const { id: _id, created_at: _created_at, updated_at: _updated_at, ...dataWithoutMetadata } = data;
+  const {
+    id: _id,
+    created_at: _created_at,
+    updated_at: _updated_at,
+    ...dataWithoutMetadata
+  } = data;
   const [result] = await db
     .insert(practiceDetails)
     .values({

@@ -96,13 +96,13 @@ const createMatter = async (
       );
     }
 
-    // Log activity
     await matterActivityService.logMatterActivity(
-      newMatter.id,
-      matterActivityService.ActivityAction.MATTER_CREATED,
-      `Matter "${newMatter.title}" was created`,
-      ctx.userId,
-      { billing_type: newMatter.billing_type, status: newMatter.status },
+      {
+        action: matterActivityService.ActivityAction.MATTER_CREATED,
+        description: `Matter "${newMatter.title}" was created`,
+        metadata: { billing_type: newMatter.billing_type, status: newMatter.status },
+      },
+      ctx,
       tx,
     );
 
@@ -261,20 +261,22 @@ const updateMatter = async (
     // Log activity
     if (changedFields.length > 0) {
       await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MATTER_UPDATED,
-        `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
-        ctx.userId,
-        { changes: matterData, changed_fields: changedFields },
+        {
+          action: matterActivityService.ActivityAction.MATTER_UPDATED,
+          description: `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
+          metadata: { changes: matterData, changed_fields: changedFields },
+        },
+        ctx,
         tx,
       );
     } else {
       await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MATTER_UPDATED,
-        `Matter "${updated.title}" update attempted (no changes)`,
-        ctx.userId,
-        { changes: matterData, changed_fields: changedFields },
+        {
+          action: matterActivityService.ActivityAction.MATTER_UPDATED,
+          description: `Matter "${updated.title}" update attempted (no changes)`,
+          metadata: { changes: matterData, changed_fields: changedFields },
+        },
+        ctx,
         tx,
       );
     }
@@ -282,11 +284,12 @@ const updateMatter = async (
     // Check for status change
     if (data.status && data.status !== existing.status) {
       await matterActivityService.logMatterActivity(
-        matterId,
-        matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
-        `Matter status changed from "${existing.status}" to "${data.status}"`,
-        ctx.userId,
-        { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
+        {
+          action: matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
+          description: `Matter status changed from "${existing.status}" to "${data.status}"`,
+          metadata: { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
+        },
+        ctx,
         tx,
       );
 
@@ -347,11 +350,12 @@ const deleteMatter = async (
 
     // Log activity
     await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.MATTER_DELETED,
-      `Matter "${deletedMatter.title}" was deleted`,
-      ctx.userId,
-      undefined,
+      {
+        action: matterActivityService.ActivityAction.MATTER_DELETED,
+        description: `Matter "${deletedMatter.title}" was deleted`,
+        metadata: undefined,
+      },
+      ctx,
       tx,
     );
 

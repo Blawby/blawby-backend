@@ -1,10 +1,13 @@
 import * as handlers from '@/modules/practice/handlers';
-import * as routes from '@/modules/practice/routes';
+import { routes } from '@/modules/practice/routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 
 const practiceApp = createHonoApp();
+
+practiceApp.use('*', injectAbility());
 
 /**
  * GET /api/practice/list
@@ -41,48 +44,6 @@ practiceApp.openapi(routes.deletePracticeRoute, handlers.deletePracticeHandler);
  * Set practice as active
  */
 practiceApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHandler);
-
-/**
- * GET /api/practice/:uuid/members
- * List all members of an organization
- */
-practiceApp.openapi(routes.listMembersRoute, handlers.listMembersHandler);
-
-/**
- * PATCH /api/practice/:uuid/members
- * Update a member's role
- */
-practiceApp.openapi(routes.updateMemberRoleRoute, handlers.updateMemberRoleHandler);
-
-/**
- * DELETE /api/practice/:uuid/members/:userId
- * Remove a member from an organization
- */
-practiceApp.openapi(routes.removeMemberRoute, handlers.removeMemberHandler);
-
-/**
- * GET /api/practice/invitations
- * List all pending invitations for the current user
- */
-practiceApp.openapi(routes.listInvitationsRoute, handlers.listInvitationsHandler);
-
-/**
- * POST /api/practice/:uuid/invitations
- * Create a new invitation for an organization
- */
-practiceApp.openapi(routes.createInvitationRoute, handlers.createInvitationHandler);
-
-/**
- * POST /api/practice/invitations/:invitationId/accept
- * Accept a pending invitation
- */
-practiceApp.openapi(routes.acceptInvitationRoute, handlers.acceptInvitationHandler);
-
-/**
- * POST /api/practice/invitations/:invitationId/decline
- * Decline a pending invitation
- */
-practiceApp.openapi(routes.declineInvitationRoute, handlers.declineInvitationHandler);
 
 /**
  * GET /api/practice/:uuid/details

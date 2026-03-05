@@ -20,7 +20,8 @@ export type SubjectName
   | 'PracticeClientIntake'
   | 'User'
   | 'Organization'
-  | 'Matter';
+  | 'Matter'
+  | 'Invoice';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
