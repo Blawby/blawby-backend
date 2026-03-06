@@ -1,4 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import type { SelectMatterExpense } from '@/modules/matters/database/schema/matter-expenses.schema';
@@ -11,7 +10,7 @@ import type {
 } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'expenses']);
 
@@ -28,7 +27,9 @@ const createMatterExpense = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -86,7 +87,9 @@ const listMatterExpenses = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -129,7 +132,9 @@ const updateMatterExpense = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -197,7 +202,9 @@ const deleteMatterExpense = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -256,7 +263,9 @@ const getExpenseStats = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);

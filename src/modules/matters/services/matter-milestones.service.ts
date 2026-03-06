@@ -1,4 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
@@ -12,7 +11,7 @@ import type {
 } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'milestones']);
 
@@ -29,7 +28,9 @@ const createMatterMilestone = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -87,7 +88,9 @@ const listMatterMilestones = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -128,7 +131,9 @@ const updateMatterMilestone = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -226,7 +231,9 @@ const deleteMatterMilestone = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -281,7 +288,9 @@ const reorderMilestones = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -346,7 +355,9 @@ const getMilestoneStats = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
