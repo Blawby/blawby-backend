@@ -48,7 +48,7 @@ type OrganizationWithoutCamelCase = Omit<OrganizationApiShape, 'paymentLinkEnabl
 export type NormalizedOrganization = OrganizationWithoutCamelCase & {
   payment_link_enabled: boolean | null;
   payment_link_prefill_amount: number | null;
-  created_at: Date | undefined;
+  created_at: Date;
   updated_at: Date | undefined;
 };
 
