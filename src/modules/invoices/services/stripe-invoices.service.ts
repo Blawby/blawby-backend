@@ -32,7 +32,8 @@ const createStripeInvoice = async (
   try {
     // 1. Create invoice items for each line item
     if (invoice.lineItems) {
-      for (const item of invoice.lineItems) {
+      for (const [index, item] of invoice.lineItems.entries()) {
+        const lineItemIdempotencySuffix = item.id ?? `${invoice.id}:${index}`;
         const stripeItem = await stripe.invoiceItems.create({
           customer: stripeCustomerId,
           amount: item.line_total,
@@ -43,7 +44,7 @@ const createStripeInvoice = async (
             internal_invoice_id: invoice.id,
           },
         }, idempotencyKeyPrefix
-          ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${item.id ?? item.sort_order}` }
+          ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${lineItemIdempotencySuffix}` }
           : undefined);
         createdItemIds.push(stripeItem.id);
       }

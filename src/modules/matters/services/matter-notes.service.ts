@@ -1,4 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { matterNotesQueries } from '@/modules/matters/database/queries/matter-notes.queries';
 import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-notes.schema';
@@ -11,7 +10,7 @@ import type {
 } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'notes']);
 
@@ -25,7 +24,9 @@ const createMatterNote = async (
   }
 
   // CASL Check — generally only members/admins can modify matters
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -33,27 +34,36 @@ const createMatterNote = async (
     return matterResult as Result<never>;
   }
 
-  const note = await matterNotesQueries.createMatterNote({
-    matter_id: matterId,
-    user_id: ctx.userId,
-    content: params.data.content,
-  });
+  try {
+    const note = await matterNotesQueries.createMatterNote({
+      matter_id: matterId,
+      user_id: ctx.userId,
+      content: params.data.content,
+    });
 
-  // Log activity
-  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-  const activityResult = await matterActivityService.logMatterActivity(
-    {
-      action: matterActivityService.ActivityAction.NOTE_ADDED,
-      description: `${userName} added a note`,
-      metadata: { changed_fields: ['content'] },
-    },
-    ctx,
-  );
-  if (!activityResult.success) {
-    return activityResult as Result<SelectMatterNote>;
+    // Log activity
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.NOTE_ADDED,
+        description: `${userName} added a note`,
+        metadata: { changed_fields: ['content'] },
+      },
+      ctx,
+    );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterNote>;
+    }
+
+    return ok(note);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to create matter note {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
   }
-
-  return ok(note);
 };
 
 /**
@@ -69,7 +79,9 @@ const listMatterNotes = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -110,7 +122,9 @@ const updateMatterNote = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
@@ -169,7 +183,9 @@ const deleteMatterNote = async (
   }
 
   // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
 
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
