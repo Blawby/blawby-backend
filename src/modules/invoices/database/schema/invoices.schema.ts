@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -13,6 +13,7 @@ import {
 import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import { invoiceLineItems } from '@/modules/invoices/database/schema/invoice-line-items.schema';
 import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
+
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
@@ -41,7 +42,7 @@ export const invoices = pgTable(
       .notNull()
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
-    invoice_number: varchar('invoice_number', { length: 50 }).notNull(),
+    invoice_number: varchar('invoice_number', { length: 50 }),
     invoice_type: invoiceTypeEnum('invoice_type').notNull().default('flat_fee'),
     fund_destination: varchar('fund_destination', { length: 20 })
       .notNull()
@@ -56,12 +57,16 @@ export const invoices = pgTable(
     total: integer('total').notNull().default(0),
     amount_paid: integer('amount_paid').notNull().default(0),
     amount_due: integer('amount_due').notNull().default(0),
+    application_fee_amount: integer('application_fee_amount').notNull().default(0),
 
     issue_date: timestamp('issue_date', { withTimezone: true, mode: 'date' }),
     due_date: timestamp('due_date', { withTimezone: true, mode: 'date' }),
     paid_at: timestamp('paid_at', { withTimezone: true, mode: 'date' }),
 
     stripe_invoice_id: varchar('stripe_invoice_id', { length: 255 }),
+    stripe_invoice_number: varchar('stripe_invoice_number', { length: 255 }),
+    stripe_charge_id: varchar('stripe_charge_id', { length: 255 }),
+    stripe_transfer_id: varchar('stripe_transfer_id', { length: 255 }),
     stripe_payment_intent_id: varchar('stripe_payment_intent_id', { length: 255 }),
     stripe_hosted_invoice_url: text('stripe_hosted_invoice_url'),
 
@@ -89,11 +94,10 @@ export const invoices = pgTable(
     index('invoices_type_idx').on(table.invoice_type),
     index('invoices_number_idx').on(table.invoice_number),
     index('invoices_stripe_id_idx').on(table.stripe_invoice_id),
-    uniqueIndex('invoices_org_number_unique_idx').on(
-      table.organization_id,
-      table.invoice_number,
-    ),
     uniqueIndex('invoices_stripe_invoice_unique_idx').on(table.stripe_invoice_id),
+    uniqueIndex('invoices_org_number_unique_idx')
+      .on(table.organization_id, table.invoice_number)
+      .where(sql`${table.invoice_number} IS NOT NULL AND ${table.deleted_at} IS NULL`),
   ],
 );
 
@@ -120,8 +124,13 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   }),
   lineItems: many(invoiceLineItems),
   paymentLinks: many(paymentLinks),
-  transactions: many(billingTransactions),
+  billingTransactions: many(billingTransactions),
 }));
+
+export const invoicesSchema = {
+  invoices,
+  invoicesRelations,
+};
 
 export type InsertInvoice = typeof invoices.$inferInsert;
 export type SelectInvoice = typeof invoices.$inferSelect;

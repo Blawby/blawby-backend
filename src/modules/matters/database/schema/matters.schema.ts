@@ -37,7 +37,9 @@ export const matters = pgTable(
     matter_type: varchar('matter_type', { length: 100 }),
 
     // Billing information
-    billing_type: varchar('billing_type', { length: 20 }).notNull(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
+    billing_type: varchar('billing_type', { length: 20 })
+      .notNull()
+      .$type<'hourly' | 'fixed' | 'contingency' | 'pro_bono'>(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
     total_fixed_price: integer('total_fixed_price'), // in cents, nullable
     contingency_percentage: real('contingency_percentage'), // float, nullable
     settlement_amount: integer('settlement_amount'), // in cents, nullable
@@ -54,7 +56,7 @@ export const matters = pgTable(
     // Payment settings
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
-    retainer_balance: integer('retainer_balance').notNull().default(0),
+    retainer_balance: integer('retainer_balance').notNull().default(0), // in cents
 
     // Status
     status: varchar('status', { length: 40 }).notNull().default('first_contact'),

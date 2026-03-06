@@ -51,10 +51,10 @@ export const preferences = pgTable(
     product_usage: jsonb('product_usage').$type<ProductUsage[]>(),
 
     // Metadata
-    created_at: timestamp('created_at')
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
-    updated_at: timestamp('updated_at')
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),

@@ -30,6 +30,16 @@ const practiceIdParamSchema = z.object({
 });
 
 
+export const supportedStatesItemSchema = z.object({
+  country: z.string().regex(/^[A-Z]{2}$/).openapi({ example: 'US' }),
+  states: z.array(z.string().min(1).max(10).transform((val) => val.toUpperCase()))
+    .optional()
+    .refine((items) => !items || new Set(items).size === items.length, {
+      message: 'States must be unique',
+    })
+    .openapi({ example: ['NY', 'NJ'] }),
+});
+
 // Combined practice details schema
 const practiceDetailsValidationSchema = z.object({
   business_phone: businessPhoneSchema,
@@ -49,6 +59,15 @@ const practiceDetailsValidationSchema = z.object({
     .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
   // Nested Address
   address: addressSchema.optional(),
+  supported_states: z.array(supportedStatesItemSchema)
+    .optional()
+    .refine((items) => !items || new Set(items.map((i) => i.country)).size === items.length, {
+      message: 'Country codes must be unique',
+    })
+    .openapi({
+      description: 'List of supported countries and states',
+      example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
+    }),
 });
 
 /**
@@ -445,6 +464,13 @@ const practiceDetailsResponseSchema = z
     updated_at: z.date().openapi({
       description: 'Practice details last update timestamp',
       example: '2024-01-01T00:00:00Z',
+    }),
+    supported_states: z.array(z.object({
+      country: z.string().openapi({ example: 'US' }),
+      states: z.array(z.string()).optional().openapi({ example: ['NY', 'NJ'] }),
+    })).nullable().openapi({
+      description: 'List of supported countries and states',
+      example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
     }),
   })
   .openapi('PracticeDetailsResponse');

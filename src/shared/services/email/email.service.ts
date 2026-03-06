@@ -13,6 +13,7 @@ import { db } from '@/shared/database/connection';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
 import { renderTemplate, type TemplateDataMap } from '@/shared/services/email/templates';
+import { isProduction, isTest, isProductionLike } from '@/shared/utils/env';
 
 const logger = getLogger(['shared', 'services', 'email']);
 
@@ -38,7 +39,7 @@ const DEFAULT_FROM_NAME = 'Blawby';
  * Save email to local file for development preview
  */
 const saveEmailToFile = (to: string, subject: string, html: string) => {
-  if (process.env.NODE_ENV === 'production') return;
+  if (isProduction()) return;
 
   try {
     const storageDir = path.join(process.cwd(), 'storage', 'emails');
@@ -55,7 +56,7 @@ const saveEmailToFile = (to: string, subject: string, html: string) => {
       <div style="background: #f4f4f4; padding: 10px; border-bottom: 1px solid #ddd; font-family: sans-serif;">
         <strong>To:</strong> ${to}<br>
         <strong>Subject:</strong> ${subject}<br>
-        <strong>Time:</strong> ${new Date().toLocaleString()}
+        <strong>Time:</strong> ${new Date().toISOString()}
       </div>
       ${html}
     `;
@@ -81,18 +82,26 @@ export const sendEmail = async (
       payload.data as unknown as TemplateDataMap[EmailTemplateName],
     );
 
-    // Development: Save to file for instant preview
-    if (process.env.NODE_ENV !== 'production') {
+    // Development/Test: Save to file for instant preview
+    if (!isProduction()) {
       saveEmailToFile(payload.to, payload.subject, html);
     }
 
     // Send via Resend
     const apiKey = process.env.RESEND_API_KEY;
-    const isLocal = process.env.NODE_ENV !== 'production';
+    const isProdLike = isProductionLike();
+    const isTestMode = isTest();
 
-    // Skip actual sending if no API key in dev
-    if (isLocal && (!apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_'))) {
-      logger.info('📡 [DEV] Skipping actual Resend call for "{subject}". Local preview saved.', {
+    // Skip actual sending if:
+    // 1. Not in production/staging
+    // 2. OR no valid API key
+    // 3. OR specifically in test mode
+    const shouldSkip = !isProdLike || !apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_') || isTestMode;
+
+    if (shouldSkip) {
+      const reason = isTestMode ? 'TEST' : (!isProdLike ? 'DEV' : 'NO_API_KEY');
+      logger.info('📡 [{reason}] Skipping actual Resend call for "{subject}". Local preview saved.', {
+        reason,
         subject: payload.subject,
       });
 
@@ -103,10 +112,10 @@ export const sendEmail = async (
         templateName: payload.template,
         templateData: payload.data,
         status: 'sent',
-        messageId: 'local_preview_' + Date.now(),
+        messageId: `${reason.toLowerCase()}_preview_${Date.now()}`,
       }).catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
 
-      return { success: true, messageId: 'local_preview' };
+      return { success: true, messageId: `${reason.toLowerCase()}_preview` };
     }
 
     // Get "from" details from app config

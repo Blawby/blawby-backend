@@ -102,7 +102,7 @@ export const getAccountResponseSchema = z.object({
   }),
   requirements: requirementsSchema.nullish(),
   future_requirements: requirementsSchema.nullish(),
-  onboarding_completed_at: z.string().nullable().openapi({ example: '2023-01-01T00:00:00Z' }),
+  onboarding_completed_at: z.date().nullable().openapi({ example: '2023-01-01T00:00:00Z' }),
 }).openapi('GetAccountResponse');
 
 export const createSessionResponseSchema = z.object({
@@ -141,6 +141,9 @@ export const createConnectedAccountSchema = z.object({
 export const onboardingStatusResponseSchema = z
   .object({
     practice_uuid: z.uuid().openapi({
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    connected_account_id: z.uuid().openapi({
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
     stripe_account_id: z.string().openapi({

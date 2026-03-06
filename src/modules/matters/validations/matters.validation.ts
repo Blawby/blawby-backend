@@ -48,13 +48,13 @@ const createMatterSchema = z.object({
   conversation_id: uuidValidator.optional(),
   intake_uuid: uuidValidator.optional(),
   on_behalf_of: z.string().optional(),
-  open_date: z.coerce.date().optional(),
-  close_date: z.coerce.date().optional(),
+  open_date: z.iso.date().optional(),
+  close_date: z.iso.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(), // User IDs to assign
   milestones: z.array(z.object({
     description: z.string().min(1).max(255),
     amount: z.number().int().min(0), // in cents
-    due_date: z.coerce.date(),
+    due_date: z.iso.date(),
     order: z.number().int().min(0).default(0),
   })).optional(),
 }).refine(
@@ -101,8 +101,8 @@ const updateMatterSchema = z.object({
   conversation_id: uuidValidator.optional(),
   intake_uuid: uuidValidator.optional(),
   on_behalf_of: z.string().optional(),
-  open_date: z.coerce.date().optional(),
-  close_date: z.coerce.date().optional(),
+  open_date: z.iso.date().optional(),
+  close_date: z.iso.date().optional(),
   assignee_ids: z.array(uuidValidator).optional(),
 }).strict();
 
@@ -157,12 +157,12 @@ const matterSchema = z.object({
   conversation_id: z.uuid().nullable(),
   intake_uuid: z.uuid().nullable(),
   on_behalf_of: z.string().nullable(),
-  open_date: z.iso.datetime().nullable(),
-  close_date: z.iso.datetime().nullable(),
-  deleted_at: z.iso.datetime().nullable(),
+  open_date: z.date().nullable(),
+  close_date: z.date().nullable(),
+  deleted_at: z.date().nullable(),
   deleted_by: z.uuid().nullable(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
   assignees: z.array(z.any()).optional(),
   milestones: z.array(z.any()).optional(),
 }).openapi('Matter');
@@ -177,7 +177,7 @@ const activityLogSchema = z.object({
     description: 'Additional context for the activity. For updates, includes changed_fields: string[].',
     example: { changed_fields: ['status'], oldStatus: 'first_contact', newStatus: 'intake_pending' },
   }),
-  created_at: z.iso.datetime(),
+  created_at: z.date(),
 }).openapi('ActivityLog');
 
 

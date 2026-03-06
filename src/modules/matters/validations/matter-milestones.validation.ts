@@ -48,8 +48,8 @@ const milestoneSchema = z.object({
   due_date: z.string(),
   status: z.enum(['pending', 'in_progress', 'completed', 'overdue']),
   order: z.number(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('Milestone');
 
 

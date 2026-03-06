@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { matters } from './matters.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { users } from '@/schema';
 
 export const matterTimeEntries = pgTable(
@@ -31,6 +32,8 @@ export const matterTimeEntries = pgTable(
     duration: integer('duration').notNull(), // in seconds
     description: text('description'),
     billable: boolean('billable').notNull().default(true),
+    invoice_id: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
+    invoiced_at: timestamp('invoiced_at', { withTimezone: true, mode: 'date' }),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),

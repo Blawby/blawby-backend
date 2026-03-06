@@ -88,7 +88,7 @@ const createMatter = async (
           matter_id: newMatter.id,
           description: milestone.description,
           amount: milestone.amount,
-          due_date: typeof milestone.due_date === 'string' ? milestone.due_date : milestone.due_date.toISOString().split('T')[0],
+          due_date: milestone.due_date,
           order: milestone.order,
           status: 'pending' as const,
         })),

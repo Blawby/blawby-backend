@@ -1,69 +1,67 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import type {
   ListInvoicesQuery,
   InvoiceResponse,
   InvoiceWithRelations,
-  SelectInvoiceLineItem,
+  InvoiceSummary,
 } from '@/modules/invoices/types/invoices.types';
-import type { PaginatedResult, PaginatedData } from '@/shared/types/result';
+import type { PaginatedResult, PaginatedData, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['invoices', 'queries-service']);
 
 /**
- * Transform database invoice to response format
+ * Transform a full invoice (with line items) to response format
  */
 export const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
+  const { lineItems, ...rest } = invoice;
   return {
-    ...invoice,
-    issue_date: invoice.issue_date?.toISOString() || null,
-    due_date: invoice.due_date?.toISOString() || null,
-    paid_at: invoice.paid_at?.toISOString() || null,
-    created_at: invoice.created_at.toISOString(),
-    updated_at: invoice.updated_at.toISOString(),
-    line_items: invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
-      ...li,
-      created_at: li.created_at.toISOString(),
-      updated_at: li.updated_at.toISOString(),
-    })),
-  } satisfies InvoiceResponse;
+    ...rest,
+    line_items: lineItems,
+  } as InvoiceResponse;
 };
 
 /**
- * List invoices
+ * Transform a summary invoice (no line items) to response format
+ */
+const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse =>
+  invoice as unknown as InvoiceResponse;
+
+/**
+ * List invoices for a practice (admin/member view)
  */
 const listInvoices = async (
   { filters }: { filters: ListInvoicesQuery },
   ctx: ServiceContext,
 ): Promise<PaginatedResult<InvoiceResponse, 'invoices'>> => {
-  // CASL Check: Basic read check for the organization
-  // Fine-grained checks will be added in P2
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Invoice');
 
   try {
-    // Short-circuit: direct lookup when a specific invoice ID is provided
     if (filters.invoice_id) {
       const invoice = await invoicesRepository.findInvoiceById(filters.invoice_id, ctx.organizationId);
 
       if (!invoice) return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({ invoices: [], total: 0 });
 
-      // Ownership check (already partially handled by findInvoiceById with organizationId)
-      return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({ invoices: [transformInvoiceResponse(invoice)], total: 1 });
+      return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({
+        invoices: [transformInvoiceResponse(invoice)],
+        total: 1,
+      });
     }
 
     const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(ctx.organizationId, {
-      clientId: filters.client_id,
-      matterId: filters.matter_id,
+      client_id: filters.client_id,
+      matter_id: filters.matter_id,
       status: filters.status,
       page: filters.page,
       limit: filters.limit,
     });
 
     return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({
-      invoices: list.map((i) => transformInvoiceResponse(i)),
+      invoices: list.map(transformSummaryResponse),
       total,
     });
   } catch (error) {
@@ -76,7 +74,78 @@ const listInvoices = async (
   }
 };
 
+/**
+ * List invoices for the authenticated client (client-facing, no line items)
+ */
+const listClientInvoices = async (
+  { filters }: { filters: { status?: string; page?: number; limit?: number } },
+  ctx: ServiceContext,
+): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
+  try {
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(
+      ctx.organizationId,
+      ctx.userId,
+    );
+    if (!userDetailResult.success) return userDetailResult;
+
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+
+    const { invoices: list, total } = await invoicesRepository.findManyByClientId(
+      ctx.organizationId,
+      userDetailResult.data,
+      { status: filters.status, page, limit },
+    );
+
+    return result.ok({
+      invoices: list.map(transformSummaryResponse),
+      pagination: { page, limit, total },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to list client invoices {userId}: {error}', {
+      userId: ctx.userId,
+      error: message,
+    });
+    return result.internalError('Failed to list client invoices');
+  }
+};
+
+/**
+ * Get a single invoice for the authenticated client (client-facing, with line items)
+ */
+const getClientInvoiceDetail = async (
+  { invoiceId }: { invoiceId: string },
+  ctx: ServiceContext,
+): Promise<Result<InvoiceResponse>> => {
+  try {
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(
+      ctx.organizationId,
+      ctx.userId,
+    );
+    if (!userDetailResult.success) return userDetailResult;
+
+    const invoice = await invoicesRepository.findOneByIdAndClientId(
+      ctx.organizationId,
+      invoiceId,
+      userDetailResult.data,
+    );
+    if (!invoice) return result.notFound('Invoice not found');
+
+    return result.ok(transformInvoiceResponse(invoice));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get client invoice {invoiceId}: {error}', {
+      invoiceId,
+      error: message,
+    });
+    return result.internalError('Failed to get client invoice');
+  }
+};
+
 export const invoiceQueriesService = {
   listInvoices,
+  listClientInvoices,
+  getClientInvoiceDetail,
   transformInvoiceResponse,
 };

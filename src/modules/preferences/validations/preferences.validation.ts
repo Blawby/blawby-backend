@@ -91,7 +91,7 @@ const accountPreferencesSchema = z.object({
 });
 
 const onboardingPreferencesSchema = z.object({
-  birthday: z.string().optional(), // ISO date string
+  birthday: z.iso.date().optional(),
   primary_use_case: z.enum(PRODUCT_USAGE_OPTIONS).optional(),
   use_case_additional_info: z.string().optional(),
   completed: z.boolean().optional(),
@@ -116,16 +116,14 @@ const profilePreferencesSchema = z.object({
 const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 
 
-
 // Legacy schema (for backward compatibility during migration)
 // Note: phone and dob should be updated via Better Auth updateUser endpoint
 const updateUserDetailsSchema = z.object({
   phone: z.string().min(10).optional(),
   phone_country_code: z.string().optional(), // e.g., '+1', '+44'
-  dob: z.coerce.date().optional(),
+  dob: z.iso.date().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
 });
-
 
 
 // Response schemas for OpenAPI documentation

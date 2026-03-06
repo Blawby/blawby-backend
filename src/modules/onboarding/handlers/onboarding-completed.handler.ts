@@ -84,7 +84,7 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
           recipientName: name,
           dashboardUrl: `${APP_URL}/dashboard`,
           tutorialUrl: `${APP_URL}/docs/payments`,
-          supportUrl: 'https://blawby.com/support',
+          supportUrl: 'https://blawby.com/help',
         },
       ).catch((error: unknown) => {
         logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {
