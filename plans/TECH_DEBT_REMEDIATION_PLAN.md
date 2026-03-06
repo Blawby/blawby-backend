@@ -39,13 +39,6 @@ const createThing = async (
 ): Promise<Result<ThingRecord>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Thing');
 
-  if (data.related_id) {
-    const related = await relatedRepository.findById(data.related_id);
-    if (!related || related.organization_id !== ctx.organizationId) {
-      return result.badRequest('Invalid related_id');
-    }
-  }
-
   const record = await db.transaction(async (tx) => {
     const [newRecord] = await tx.insert(things).values({ ... }).returning();
     await ctx.emit(ThingCreated, { ... }, tx);
@@ -72,20 +65,6 @@ export const createThingRoute = routeBuilder.build(
 );
 ```
 
-### Module Structure
-
-```
-module-name/
-  ├── database/
-  │   ├── queries/        # Repository functions (DB access only)
-  │   └── schema/         # Drizzle table definitions
-  ├── services/           # Business logic (one file per domain concept)
-  ├── types/              # TypeScript types for this module
-  ├── handlers.ts         # Request handlers (thin, just wiring)
-  ├── routes.ts           # OpenAPI route definitions (or routes/ if >300 lines)
-  └── http.ts             # Hono app with middleware wiring
-```
-
 ### http.ts Pattern
 
 ```typescript
@@ -93,262 +72,38 @@ import * as handlers from './handlers';
 import * as routes from './routes';
 
 const app = createHonoApp();
-
 app.use('*', injectAbility());
-
 app.openapi(routes.createThingRoute, handlers.createThingHandler);
-
-registerOpenApiRoutes(app, routes);
 export default app;
 ```
 
 ---
 
-## Progress Tracker
-
-### Foundation (Complete)
-
-- [x] CASL ability definitions — `src/shared/auth/abilities.ts`
-- [x] `injectAbility` middleware — `src/shared/middleware/inject-ability.ts`
-- [x] `OrgRole` enum + role groups — `src/shared/enums/org-roles.ts`
-- [x] `ServiceContext` type + `getServiceContext` — `src/shared/types/service-context.ts`
-- [x] `ctx.emit()` helper in ServiceContext — `src/shared/types/service-context.ts`
-- [x] `routeBuilder.build()` with auto error schemas — `src/shared/router/route-builder.ts`
-- [x] Global `ForbiddenError` handler — `src/shared/middleware/errorHandler.ts`
-- [x] `toSubject()` type-safe helper — `src/shared/auth/subject-helpers.ts`
-- [x] Hono `Variables` updated (ability, memberRole) — `src/shared/types/hono.ts`
-- [x] `matterId` added to `ServiceContext` — `src/shared/types/service-context.ts`
-
-### P0 — Matters Module (Gold Standard — Complete)
-
-- [x] **1a.** Sub-services migrated to `ServiceContext` + CASL
-- [x] **1b.** All functions use params objects + `ctx`
-- [x] **1c.** Handlers are thin, use `getServiceContext(c)`
-- [x] **1d.** Routes split into `routes/` directory (7 files, all <300 lines)
-- [x] **1e.** `matter-tasks` removed (unused)
-
-**Remaining matters cleanup** (non-blocking, nice-to-have):
-- [ ] `matters.service.ts` (410 lines) — could split but acceptable for core CRUD
-- [ ] `matter-milestones.service.ts` (368 lines) — could split
-- [ ] `matter-time-entries.service.ts` (311 lines) — could split
-- [ ] `matter-expenses.service.ts` (284 lines) — could split
-
-### P1 — Standardize Every Module (The Real Work)
-
-Each module gets the same treatment: adopt ServiceContext, params objects, CASL, thin handlers, split god services. One module at a time.
-
-**Priority order** (by messiness + business importance):
-
-- [x] **1. Invoices** — Complete
-  - [x] Wire `injectAbility()` in `http.ts`
-  - [x] Rewrite handlers to use `getServiceContext(c)` — all 7 handlers are thin (81 lines total)
-  - [x] Split `invoices.service.ts` (562 lines) → 4 focused services:
-    - `invoice-creation.service.ts` (183 lines)
-    - `invoice-lifecycle.service.ts` (183 lines)
-    - `invoice-queries.service.ts` (82 lines)
-    - `invoice-stripe-coordination.service.ts` (247 lines)
-  - [x] Add CASL checks in creation, lifecycle, queries, stripe-coordination services
-  - [x] Convert all service functions to `({ data }, ctx)` pattern
-  - [x] Remove `computeRoutingClaims` usage
-  - [x] Remove refund-requests (handlers, routes, service, schema, queries)
-  - [x] Remove `listeners.ts`
-  - [x] Routes reduced to 149 lines (under 300)
-  - **Remaining invoice cleanup** (non-blocking):
-    - [ ] `invoice-webhooks.service.ts` (348 lines) — webhook handler, may not need ServiceContext
-    - [ ] `invoice-stripe-coordination.service.ts` (247 lines) — slightly over 200
-    - [ ] `stripe-invoices.service.ts` (209 lines) — slightly over 200
-    - [ ] `fund-router.service.ts` (159 lines) — OK
-
-- [ ] **2. Practice** — 5 services with inconsistent patterns, 869-line routes file
-  - [ ] Wire `injectAbility()` in `http.ts`
-  - [ ] Rewrite handlers to use `getServiceContext(c)` (currently: `c.get('user')!` + positional args)
-  - [ ] Convert all service functions from `(orgId, user, headers)` → `(params, ctx)`
-  - [ ] Add CASL checks in every service method
-  - [ ] Split `practice.routes.ts` (869 lines) → `organization.routes.ts`, `members.routes.ts`, `practice-details.routes.ts`
-  - [ ] Remove `requestHeaders` params where possible
-    - **Note:** `members.service.ts` and `invitations.service.ts` are Better Auth integration wrappers — they need `requestHeaders` because `betterAuth.api.*` requires session headers. Pass headers via `ctx.headers` or keep as explicit param, but still standardize to `(params, ctx)` for everything else.
-  - [ ] Remove `if (!user)` checks
-  - [ ] `practice.service.ts` (507 lines) — split into focused sub-services
-  - [ ] `practice-details.service.ts` (369 lines) — split or trim
-  - [ ] **Event definitions cleanup** (`src/shared/events/definitions/practice.ts`):
-    - [ ] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` (currently `Record<string, unknown>`, actively dispatched)
-    - [ ] Simplify `PracticeDetailsUpsertedPayload` — use `?` for optional + `| null` for nullable, not both `| null | undefined`
-
-- [ ] **3. Practice-Client-Intakes** — worst god service (935 lines), deeply nested, mixed responsibilities
-  - [ ] Split `practice-client-intakes.service.ts` (935 lines) → `intake-creation.service.ts`, `intake-checkout.service.ts`, `intake-lifecycle.service.ts`
-  - [ ] Extract Stripe logic into dedicated helpers (not mixed with DB + validation)
-  - [ ] Flatten nested code (4+ levels) into early-return + helper functions
-  - [ ] Wire `injectAbility()`, adopt `getServiceContext(c)`
-  - [ ] Convert to `(params, ctx)` pattern
-  - [ ] Add CASL ownership checks
-  - [ ] Split `practice-client-intakes.routes.ts` (542 lines) into logical groups
-  - [ ] Remove `requestHeaders` params
-
-- [ ] **4. User-Details** — 543-line service, raw positional args, mixed DB + Stripe + auth
-  - [ ] Wire `injectAbility()` in `http.ts`
-  - [ ] Rewrite handlers to use `getServiceContext(c)` (currently: manual `organizationId` extraction)
-  - [ ] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
-  - [ ] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
-  - [ ] Add CASL ownership checks
-  - [ ] Remove remaining `if (!user)` checks
-
-- [ ] **5. Uploads** — 633-line service, throws errors instead of Result pattern, mixed storage logic
-  - [ ] Wire `injectAbility()` in `http.ts`
-  - [ ] Convert to `(params, ctx)` pattern
-  - [ ] **Fix error handling**: replace all `throw new Error()` with `return result.badRequest()`/`result.fail()`
-  - [ ] Split `uploads.service.ts` (633 lines) → `upload-presign.service.ts`, `upload-confirm.service.ts`, `upload-queries.service.ts`
-  - [ ] Extract storage provider logic (R2 vs Images) into `storage-provider.service.ts`
-  - [ ] Add CASL per-resource permission checks
-  - [ ] Split `uploads.routes.ts` (405 lines) into logical groups
-
-- [ ] **6. Subscriptions** — clean-ish but no ServiceContext, heavy try/catch
-  - [ ] Wire `injectAbility()` in `http.ts`
-  - [ ] Adopt `getServiceContext(c)` in handlers
-  - [ ] Convert services to `(params, ctx)` pattern
-  - [ ] `subscription.service.ts` (341 lines) — split or trim
-  - [ ] `meteredProducts.service.ts` (259 lines) — slightly over 200
-  - [ ] Replace try/catch blocks with direct Result returns where possible
-  - [ ] Add CASL checks (admin-only for management)
-  - [ ] Remove `requestHeaders` params
-
-- [ ] **7. Onboarding** — different file naming, decent logic
-  - [ ] Rename `http.handlers.ts` → `handlers.ts` (match standard)
-  - [ ] Wire `injectAbility()` in `http.ts`
-  - [ ] Adopt `getServiceContext(c)` + `(params, ctx)` pattern
-  - [ ] Add CASL checks (admin-only)
-  - [ ] Remove `requestHeaders` params
-
-- [ ] **8. Stripe Customers** — new module at `src/modules/stripe/customers/`
-  - [ ] `stripe-customer.service.ts` (417 lines) — split into DB queries vs Stripe API
-  - [ ] Adopt `(params, ctx)` pattern if not already
-  - [ ] Remove `if (!user)` checks
-
-- [ ] **9. Trust** — smaller module (240-line service), restored from staging
-  - [ ] Wire `injectAbility()` in `http.ts`
-  - [ ] Adopt `getServiceContext(c)` + `(params, ctx)` pattern
-  - [ ] Add CASL checks (admin manage, member read)
-
-- [ ] **10. Remaining** (webhooks, stripe listeners, public, dev)
-  - [ ] Review if CASL applies (system-initiated modules may not need it)
-  - [ ] Ensure consistent structure where applicable
-  - [ ] Dev module already trimmed (554 → 83 lines)
-
-### P2 — Expand CASL Rules
-
-Once modules are standardized, add fine-grained permissions:
-
-- [ ] Add `Invoice` subject — admin: manage, member: read, client: read own
-- [ ] Add `Subscription` subject — admin: manage, member: read
-- [ ] Add `Upload` subject — admin: manage, member: create+read, client: read own
-- [ ] Add `UserDetails` subject — admin: manage, member: read own, client: read own
-- [ ] Add `Onboarding` subject — admin: manage
-- [ ] Add `Trust` subject — admin: manage, member: read
-
-### P2.5 — Eliminate `as` Type Assertions with Generics
-
-Replace unsafe `as` casts with proper generics throughout the codebase — like how `axios.get<Invoice>()` returns typed results without casting.
-
-**A. Services: Use `result.ok<T>()` with explicit type param**
-```typescript
-// Before (unsafe cast)
-return result.ok({ ...matter, assignees: ... } as MatterRecord);
-
-// After (generic, compiler-validated)
-return result.ok<MatterRecord>({ ...matter, assignees: ... });
-```
-- [ ] Matters services — 4 `as MatterRecord` casts
-- [ ] Invoice services — any remaining `as` casts
-- [ ] All other services — audit and fix during module migration
-
-**B. Repository queries: Add explicit return types**
-```typescript
-// Before (inferred, callers must cast)
-const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => { ... };
-
-// After (explicit, no cast needed downstream)
-const findMatterByIdWithRelations = async (id: string, tx?: typeof db): Promise<MatterWithRelations | undefined> => { ... };
-```
-- [ ] Define `WithRelations` types per module (e.g. `MatterWithRelations`)
-- [ ] Add explicit return types to all relational queries
-
-**C. JSON columns: Use Drizzle's `.$type<T>()` on schema**
-```typescript
-// Before (returns unknown, forces cast)
-notifications: jsonb('notifications'),
-
-// After (typed at schema level)
-notifications: jsonb('notifications').$type<NotificationPreferences>(),
-```
-- [ ] Preferences schema — `notifications`, `onboarding`, `display` columns
-- [ ] Any other JSON columns across modules
-
-**D. Stripe webhook handlers: Type-narrow instead of cast**
-```typescript
-// Before
-const product = event.data.object as Stripe.Product;
-
-// After (type guard)
-if (event.type === 'product.created') {
-  const product = event.data.object; // already narrowed by Stripe SDK
-}
-```
-- [ ] Audit webhook handlers in subscriptions and invoices
-
-### P3 — Final Cleanup
-
-- [x] ~~Delete `src/shared/auth/services/routing.service.ts` (old auth)~~ — DONE
-- [x] ~~Remove all `computeRoutingClaims` imports and usages~~ — DONE (0 remaining)
-- [ ] Remove remaining `if (!user)` checks (2 left: `user-details.service.ts`, `customers.repository.ts`)
-- [ ] Fix `requireAdmin` TODO in `src/shared/middleware/requireAuth.ts:82`
-- [ ] Audit `getFullOrganization` calls used only for auth → replace with CASL
-- [ ] Delete dead code from old authorization approach
-- [ ] Delete 5 unused practice events: `PracticeSpecialtiesUpdated`, `PracticeContactInfoUpdated`, `PracticeMemberRoleChanged`, `PracticeMemberRemoved`, `PracticeMemberLeft` + remove from barrel export
-
-### P4 — Hardening & Config
-
-- [ ] Centralize env config: `src/shared/config/index.ts` with Zod schema, validate at startup, replace `process.env` reads (currently 24 files)
-- [ ] Harden async event dispatch: replace `setImmediate` fire-and-forget, add dead-letter retry
-
-### P5 — Backlog
-
-- [ ] Tighten TypeScript config (`noUnusedLocals`, `noUnusedParameters`, `noUncheckedIndexedAccess`)
-- [ ] Clean up remaining `any` type usages (currently 6 files)
-- [ ] Remove unused `HandlerOptions` fields in event types
-- [ ] Fix relative imports in all event definition files (`../event` → `@/shared/events/event`)
-- [ ] Standardize codegen workflow (`pnpm codegen` + pre-commit hook)
-- [ ] Consolidate schema locations (4 places → 2)
-
----
-
 ## Module Migration Checklist
-
-Copy for each module:
 
 ```
 ### Module: [name]
 
-**Standardize handlers:**
+**Handlers:**
 - [ ] Rewrite all handlers to use `getServiceContext(c)`
 - [ ] Remove all `if (!user)` checks
-- [ ] Remove all manual `c.get('user')` / `c.get('userId')` / headers extraction
-- [ ] Ensure every handler is 3-8 lines (no business logic)
+- [ ] Remove all manual `c.get('user')` / headers extraction
+- [ ] Every handler is 3-8 lines, no business logic
 
-**Standardize services:**
+**Services:**
 - [ ] Convert all functions to `(params, ctx: ServiceContext)` — max 2 args
 - [ ] Add `ForbiddenError.from(ctx.ability).throwUnlessCan(...)` as first line
 - [ ] Return `Result<T>` from every function — no `throw` for expected failures
 - [ ] Remove all `requestHeaders` parameters
-- [ ] Split any service file >200 lines into focused sub-services
-- [ ] Split any function >50 lines into smaller functions
+- [ ] Split any service file >200 lines
+- [ ] Split any function >50 lines
 
-**Standardize routes:**
+**Routes:**
 - [ ] Migrate to `routeBuilder.build()` (auto error schemas)
 - [ ] Split any routes file >300 lines
 
-**Standardize http.ts:**
+**http.ts:**
 - [ ] Wire `injectAbility()` middleware
-- [ ] Use consistent import style
-- [ ] Use `registerOpenApiRoutes(app, routes)`
 
 **Verify:**
 - [ ] `npx tsc --noEmit` compiles clean
@@ -360,81 +115,325 @@ Copy for each module:
 
 ---
 
-## Current State (What's Still Wrong)
+## PR Phases
 
-### God Services (>200 lines — target <200)
+Each phase is a self-contained PR that compiles clean and merges independently.
+PRs within a group can be developed **in parallel**.
 
-| File | Lines | Status |
-|------|-------|--------|
-| `practice-client-intakes.service.ts` | **935** | NEEDS SPLIT |
-| `uploads.service.ts` | **633** | NEEDS SPLIT |
-| `user-details.service.ts` | **543** | NEEDS SPLIT |
-| `practice.service.ts` | **507** | NEEDS SPLIT |
-| `stripe-customer.service.ts` | **417** | NEEDS SPLIT |
-| `matters.service.ts` | **410** | Acceptable (core CRUD) |
-| `practice-details.service.ts` | **369** | NEEDS SPLIT |
-| `matter-milestones.service.ts` | **368** | Acceptable |
-| `invoice-webhooks.service.ts` | **348** | Webhook handler — review |
-| `subscription.service.ts` | **341** | NEEDS SPLIT |
-| `matter-time-entries.service.ts` | **311** | Acceptable |
-| `matter-expenses.service.ts` | **284** | Acceptable |
-| `meteredProducts.service.ts` | **259** | Slightly over |
-| `invoice-stripe-coordination.service.ts` | **247** | Slightly over |
-| `trust.service.ts` | **240** | Slightly over |
+---
 
-### God Route Files (>300 lines — target <300)
+### ✅ Foundation — Merged
 
-| File | Lines | Status |
-|------|-------|--------|
-| `practice.routes.ts` | **869** | NEEDS SPLIT |
-| `practice-client-intakes.routes.ts` | **542** | NEEDS SPLIT |
-| `uploads.routes.ts` | **405** | NEEDS SPLIT |
+- [x] CASL ability definitions, `injectAbility` middleware, `OrgRole` enum
+- [x] `ServiceContext` type + `getServiceContext` + `ctx.emit()`
+- [x] `routeBuilder.build()` with auto error schemas
+- [x] Global `ForbiddenError` handler, `toSubject()` helper
+- [x] `matterId` added to `ServiceContext`
+- [x] Delete `routing.service.ts` + all `computeRoutingClaims` usages
 
-### Inconsistent Handler Patterns
+---
 
-| Module | Pattern | Status |
-|--------|---------|--------|
-| **matters** | `getServiceContext(c)` + params objects | CLEAN |
-| **preferences** | `getServiceContext(c)` + ctx only | CLEAN |
-| **invoices** | `getServiceContext(c)` + params objects | CLEAN |
-| **practice** | `c.get('user')!` + 3 positional args + headers | NEEDS FIX |
-| **user-details** | Manual param mapping + `organizationId` extraction | NEEDS FIX |
-| **subscriptions** | No context at all in some methods | NEEDS FIX |
-| **onboarding** | `c.get('user')!` + positional args + headers | NEEDS FIX |
-| **uploads** | Mixed, throws errors | NEEDS FIX |
-| **practice-client-intakes** | Mixed public/private, inconsistent | NEEDS FIX |
-| **trust** | Manual pattern, no ServiceContext | NEEDS FIX |
+### ✅ PR-0 — Matters (Gold Standard)
 
-### Functions With Too Many Parameters
+- [x] Sub-services migrated to `ServiceContext` + CASL
+- [x] All functions use params objects + `ctx`
+- [x] Handlers are thin, use `getServiceContext(c)`
+- [x] Routes split into `routes/` directory (7 files, all <300 lines)
+- [x] `matter-tasks` removed (unused)
+
+**Nice-to-have** (defer — acceptable as-is):
+- [ ] `matters.service.ts` (410 lines), `matter-milestones.service.ts` (368), `matter-time-entries.service.ts` (311), `matter-expenses.service.ts` (284) — could split but core CRUD is acceptable
+
+---
+
+### ✅ PR-1 — Invoices
+
+- [x] `injectAbility()` wired, all handlers thin with `getServiceContext(c)`
+- [x] Split `invoices.service.ts` (562 lines) → 4 focused services (83–247 lines each)
+- [x] CASL checks in all services, `({ data }, ctx)` pattern throughout
+- [x] Removed `computeRoutingClaims`, refund-requests, `listeners.ts`
+- [x] Routes at 149 lines
+
+**Nice-to-have** (defer):
+- [ ] `invoice-webhooks.service.ts` (348 lines) — webhook handler, may not need ServiceContext
+- [ ] `invoice-stripe-coordination.service.ts` (247 lines), `stripe-invoices.service.ts` (209 lines) — slightly over 200
+
+---
+
+## Group A — Module Standardization
+
+> All PRs in this group are **independent of each other** — modules don't import each other's services.
+> Develop and review in parallel; merge order doesn't matter within the group.
+
+---
+
+### ✅ PR-2 — Practice Module
+
+**Files:** `src/modules/practice/`
+
+- [x] Wire `injectAbility()` in `http.ts`
+- [x] Rewrite handlers to use `getServiceContext(c)` (currently: `c.get('user')!` + positional args)
+- [x] Remove all `if (!user)` checks
+- [x] Convert all service functions from `(orgId, user, headers)` → `(params, ctx)`
+- [x] Add CASL checks in every service method
+- [x] Split `practice.routes.ts` (869 lines) → `organization.routes.ts`, `members.routes.ts`, `practice-details.routes.ts`
+- [x] Split `practice.service.ts` (507 lines) into focused sub-services
+- [x] Split `practice-details.service.ts` (369 lines)
+- [x] **Event definitions** (`src/shared/events/definitions/practice.ts`):
+  - [x] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` (currently `Record<string, unknown>`, actively dispatched)
+  - [x] Simplify `PracticeDetailsUpsertedPayload` — use `?` for optional + `| null` for nullable, not both `| null | undefined`
+- [x] **Note:** `members.service.ts` and `invitations.service.ts` are Better Auth wrappers — keep `requestHeaders` param (required by `betterAuth.api.*`), but standardize everything else to `(params, ctx)`
+
+---
+
+### PR-3 — Practice-Client-Intakes Module
+
+**Files:** `src/modules/practice-client-intakes/`
+
+- [ ] Split `practice-client-intakes.service.ts` (935 lines) → `intake-creation.service.ts`, `intake-checkout.service.ts`, `intake-lifecycle.service.ts`
+- [ ] Extract Stripe logic into dedicated helpers (not mixed with DB + validation)
+- [ ] Flatten nested code (4+ levels deep) into early-return + helper functions
+- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)`, convert to `(params, ctx)`
+- [ ] Add CASL ownership checks
+- [ ] Split `practice-client-intakes.routes.ts` (542 lines) into logical groups
+- [ ] Remove `requestHeaders` params
+
+---
+
+### PR-4 — User-Details Module
+
+**Files:** `src/modules/user-details/`
+
+- [ ] Wire `injectAbility()` in `http.ts`
+- [ ] Rewrite handlers to use `getServiceContext(c)` (currently: manual `organizationId` extraction)
+- [ ] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
+- [ ] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
+- [ ] Add CASL ownership checks
+- [ ] Remove `if (!user)` checks
+
+---
+
+### PR-5 — Uploads Module
+
+**Files:** `src/modules/uploads/`
+
+- [ ] Wire `injectAbility()` in `http.ts`, convert to `(params, ctx)`
+- [ ] **Fix error handling**: replace all `throw new Error()` with `return result.badRequest()`/`result.fail()`
+- [ ] Split `uploads.service.ts` (633 lines) → `upload-presign.service.ts`, `upload-confirm.service.ts`, `upload-queries.service.ts`
+- [ ] Extract storage provider logic (R2 vs Images) into `storage-provider.service.ts`
+- [ ] Add CASL per-resource permission checks
+- [ ] Split `uploads.routes.ts` (405 lines) into logical groups
+
+---
+
+### PR-6 — Subscriptions Module
+
+**Files:** `src/modules/subscriptions/`
+
+- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)`, convert to `(params, ctx)`
+- [ ] Split `subscription.service.ts` (341 lines), trim `meteredProducts.service.ts` (259 lines)
+- [ ] Replace try/catch blocks with direct Result returns where possible
+- [ ] Add CASL checks (admin-only for management)
+- [ ] Remove `requestHeaders` params
+
+---
+
+### PR-7 — Onboarding Module
+
+**Files:** `src/modules/onboarding/`
+
+- [ ] Rename `http.handlers.ts` → `handlers.ts`
+- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
+- [ ] Add CASL checks (admin-only)
+- [ ] Remove `requestHeaders` params
+
+---
+
+### PR-8 — Stripe Customers Module
+
+**Files:** `src/modules/stripe/customers/`
+
+- [ ] Split `stripe-customer.service.ts` (417 lines) into DB queries vs Stripe API calls
+- [ ] Adopt `(params, ctx)` pattern
+- [ ] Remove `if (!user)` checks in `customers.repository.ts`
+
+---
+
+### PR-9 — Trust Module
+
+**Files:** `src/modules/trust/`
+
+- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
+- [ ] Add CASL checks (admin manage, member read)
+- [ ] Fix stale `@/shared/auth/services/routing.service` import in `handlers.ts`
+
+---
+
+### PR-10 — Remaining Modules
+
+**Files:** `src/modules/webhooks/`, `src/modules/public/`, `src/modules/dev/`
+
+- [ ] Review if CASL applies (system-initiated modules may not need it)
+- [ ] Ensure consistent structure where applicable
+
+---
+
+## Group B — Cross-Cutting Cleanup
+
+> Wait until **all Group A PRs are merged** before starting — these touch files across multiple modules.
+
+---
+
+### PR-11 — CASL Subject Expansion
+
+**Dependencies:** All Group A merged
+
+- [ ] Add `Invoice` subject — admin: manage, member: read, client: read own
+- [ ] Add `Subscription` subject — admin: manage, member: read
+- [ ] Add `Upload` subject — admin: manage, member: create+read, client: read own
+- [ ] Add `UserDetails` subject — admin: manage, member: read own, client: read own
+- [ ] Add `Onboarding` subject — admin: manage
+- [ ] Add `Trust` subject — admin: manage, member: read
+
+---
+
+### PR-12 — Type Safety Sweep (Eliminate `as` Assertions)
+
+**Dependencies:** All Group A merged
+
+**A. Services: Use `result.ok<T>()`**
+```typescript
+// Before: return result.ok({ ...matter, assignees } as MatterRecord);
+// After:  return result.ok<MatterRecord>({ ...matter, assignees });
+```
+- [ ] Audit and fix all `as SomeRecord` casts in services
+
+**B. Repositories: Add explicit return types**
+```typescript
+const findMatterById = async (id: string): Promise<MatterWithRelations | undefined> => { ... };
+```
+- [ ] Define `WithRelations` types per module, add explicit return types to all relational queries
+
+**C. JSON columns: Use `.$type<T>()`**
+```typescript
+notifications: jsonb('notifications').$type<NotificationPreferences>(),
+```
+- [ ] Preferences schema (`notifications`, `onboarding`, `display`), audit all other JSON columns
+
+**D. Stripe webhooks: Type-narrow instead of cast**
+```typescript
+// Before: const product = event.data.object as Stripe.Product;
+// After: discriminated union narrowing via Stripe SDK
+```
+- [ ] Audit webhook handlers in subscriptions and invoices
+
+---
+
+### PR-13 — Dead Code Cleanup
+
+**Dependencies:** All Group A merged
+
+- [ ] Delete 5 unused practice events: `PracticeSpecialtiesUpdated`, `PracticeContactInfoUpdated`, `PracticeMemberRoleChanged`, `PracticeMemberRemoved`, `PracticeMemberLeft` — remove from definitions file and barrel export
+- [ ] Verify all `if (!user)` checks are gone (should be 0 after Group A)
+- [ ] Fix `requireAdmin` TODO in `src/shared/middleware/requireAuth.ts:82`
+- [ ] Audit `getFullOrganization` calls used only for auth → replace with CASL
+- [ ] Delete any remaining dead code from old authorization approach
+
+---
+
+## Group C — Infrastructure
+
+> Independent of Groups A and B — can be started at any time.
+
+---
+
+### PR-14 — Env Config Centralization
+
+**Dependencies:** None
+
+- [ ] Create `src/shared/config/index.ts` — Zod schema, validate at startup
+- [ ] Replace all `process.env` reads across 24 files with typed config imports
+- [ ] Harden async event dispatch: replace fire-and-forget `setImmediate`, add dead-letter retry
+
+---
+
+### PR-15 — TSConfig Hardening
+
+**Dependencies:** All other PRs merged (needs clean codebase to enable strict checks)
+
+- [ ] Enable `noUnusedLocals`, `noUnusedParameters`, `noUncheckedIndexedAccess` in `tsconfig.json`
+- [ ] Clean up remaining `any` type usages (currently 6 files)
+- [ ] Remove unused `HandlerOptions` fields in event types
+- [ ] Fix relative imports in all event definition files (`../event` → `@/shared/events/event`)
+- [ ] Standardize codegen workflow (`pnpm codegen` + pre-commit hook)
+- [ ] Consolidate schema locations (4 places → 2)
+
+---
+
+## Parallel Work Map
 
 ```
-practice/services:
-  updatePracticeMemberRole(orgId, memberId, role, user, headers) → should be ({ memberId, role }, ctx)
-  createPracticeInvitation(orgId, email, role, user, headers)    → should be ({ email, role }, ctx)
-  upsertPracticeDetails(orgId, data, user, headers)              → should be ({ data }, ctx)
+✅ Foundation  →  ✅ PR-0 Matters  →  ✅ PR-1 Invoices
+                                              │
+         ┌────────────────────────────────────┘
+         │
+         │  Group A  (all parallel, no dependencies between them)
+         ├─ PR-2   Practice
+         ├─ PR-3   Practice-Client-Intakes
+         ├─ PR-4   User-Details
+         ├─ PR-5   Uploads
+         ├─ PR-6   Subscriptions
+         ├─ PR-7   Onboarding
+         ├─ PR-8   Stripe Customers
+         ├─ PR-9   Trust
+         └─ PR-10  Remaining
+                   │
+                   │  all merged
+                   │
+         ┌─────────┴──────────────────┐
+         │  Group B  (parallel)       │
+         ├─ PR-11  CASL Expansion     │
+         ├─ PR-12  Type Safety Sweep  │
+         └─ PR-13  Dead Code Cleanup  │
+                   │                  │
+                   └────────┬─────────┘
+                            │  all merged
+                        PR-15 TSConfig
 
-user-details.service.ts:
-  createUserDetails(orgId, data, actorId) → should be ({ data }, ctx)
-
-practice-client-intakes.service.ts:
-  Various functions with (orgId, data, user, headers) patterns
+PR-14 (Env Config) ── independent, merge any time
 ```
 
 ---
 
-## Rollout Timeline
+## Size Reference
 
-| Phase | What | Status |
-|-------|------|--------|
-| **Foundation** | CASL, ServiceContext, routeBuilder, errorHandler | Complete |
-| **P0** | Matters module as gold standard | Complete |
-| **P1.1** | Invoices module standardized | **Complete** |
-| **P1.2-10** | Standardize remaining modules (practice → PCI → user-details → uploads → subs → onboarding → stripe → trust → remaining) | **Next** |
-| **P2** | Expand CASL rules for all subjects | After P1 |
-| **P2.5** | Eliminate `as` casts with generics (`result.ok<T>()`, typed queries, `.$type<T>()`) | After P2 |
-| **P3** | Remove old auth patterns | **Partially done** (routing.service + computeRoutingClaims removed) |
-| **P4** | Env config, event hardening | After P3 |
-| **P5** | Backlog (tsconfig, any types, codegen) | When time permits |
+### God Services (>200 lines)
+
+| File | Lines | Target PR |
+|------|-------|-----------|
+| `practice-client-intakes.service.ts` | **935** | PR-3 |
+| `uploads.service.ts` | **633** | PR-5 |
+| `user-details.service.ts` | **543** | PR-4 |
+| `practice.service.ts` | **507** | PR-2 |
+| `stripe-customer.service.ts` | **417** | PR-8 |
+| `matters.service.ts` | **410** | Acceptable |
+| `practice-details.service.ts` | **369** | PR-2 |
+| `matter-milestones.service.ts` | **368** | Acceptable |
+| `invoice-webhooks.service.ts` | **348** | Post PR-1 |
+| `subscription.service.ts` | **341** | PR-6 |
+| `matter-time-entries.service.ts` | **311** | Acceptable |
+| `matter-expenses.service.ts` | **284** | Acceptable |
+| `meteredProducts.service.ts` | **259** | PR-6 |
+| `invoice-stripe-coordination.service.ts` | **247** | Post PR-1 |
+| `trust.service.ts` | **240** | PR-9 |
+
+### God Route Files (>300 lines)
+
+| File | Lines | Target PR |
+|------|-------|-----------|
+| `practice.routes.ts` | **869** | PR-2 |
+| `practice-client-intakes.routes.ts` | **542** | PR-3 |
+| `uploads.routes.ts` | **405** | PR-5 |
 
 ---
 
@@ -442,15 +441,13 @@ practice-client-intakes.service.ts:
 
 | Metric | Before | Now | Target |
 |--------|--------|-----|--------|
-| Modules using `ServiceContext` | 2 | **3** (matters, preferences, invoices) | **all** |
-| Modules using CASL | 2 | **3** | **all authenticated** |
-| Service files >200 lines | 9 | **~14** (some new splits still large) | **0** |
-| Route files >300 lines | 3 | **3** (practice, PCI, uploads) | **0** |
-| Functions >50 lines | many | fewer | **0** |
-| Functions with >2 params | many | fewer | **0** |
+| Modules using `ServiceContext` | 2 | **3** (matters, preferences, invoices) | all |
+| Modules using CASL | 2 | **3** | all authenticated |
+| Service files >200 lines | 9 | **~14** | **0** |
+| Route files >300 lines | 3 | **3** | **0** |
 | `if (!user)` checks | ~50 | **~2** | **0** |
 | `computeRoutingClaims` usages | ~15 | **0** | **0** |
-| `requestHeaders` params | ~20 | **~10** (practice, subs, PCI, onboarding) | **0** |
+| `requestHeaders` params | ~20 | **~10** | **0** |
 | Direct `process.env` reads | 70 files | **24 files** | **0** |
 | `any` type usages | 23 files | **6 files** | **0** |
-| `as` type assertions | many | many | **0** (use generics) |
+| `as` type assertions | many | many | **0** |

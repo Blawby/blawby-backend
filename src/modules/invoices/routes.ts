@@ -32,8 +32,13 @@ const createInvoiceRoute = routeBuilder.build({
     },
   },
   responses: {
-    204: {
-      description: 'Invoice created successfully (no content)',
+    201: {
+      content: {
+        'application/json': {
+          schema: invoiceValidations.invoiceSchema,
+        },
+      },
+      description: 'Invoice created successfully',
     },
   },
 });
@@ -81,7 +86,7 @@ const updateInvoiceRoute = routeBuilder.build({
   },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
       description: 'Invoice updated',
     },
   },
@@ -111,7 +116,7 @@ const sendInvoiceRoute = routeBuilder.build({
   request: { params: invoiceParamSchema },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
       description: 'Invoice sent successfully',
     },
   },
@@ -126,7 +131,7 @@ const syncInvoiceRoute = routeBuilder.build({
   request: { params: invoiceParamSchema },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
       description: 'Invoice synced successfully',
     },
   },
@@ -141,7 +146,7 @@ const voidInvoiceRoute = routeBuilder.build({
   request: { params: invoiceParamSchema },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ invoice: invoiceValidations.invoiceSchema }) } },
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
       description: 'Invoice voided successfully',
     },
   },
@@ -193,7 +198,7 @@ const getClientInvoiceDetailRoute = routeBuilder.build({
     200: {
       content: {
         'application/json': {
-          schema: z.object({ invoice: invoiceValidations.invoiceSchema }),
+          schema: invoiceValidations.invoiceSchema,
         },
       },
       description: 'Client invoice detail retrieved',

@@ -10,7 +10,7 @@ export type DetailsData = Partial<
     | 'business_phone' | 'business_email' | 'consultation_fee'
     | 'payment_url' | 'calendly_url' | 'billing_increment_minutes'
     | 'website' | 'intro_message' | 'overview'
-    | 'is_public' | 'accent_color' | 'services' | 'address'
+    | 'is_public' | 'accent_color' | 'services' | 'supported_states' | 'address'
   >
 >;
 
@@ -28,6 +28,7 @@ export type DetailsFieldKeys
   | 'overview'
   | 'is_public'
   | 'services'
+  | 'supported_states'
   | 'address'
   | 'accent_color';
 

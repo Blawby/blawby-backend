@@ -32,7 +32,7 @@ const logMatterActivity = async (
   },
   ctx: ServiceContext,
   tx?: NodePgDatabase<typeof schema>,
-): Promise<SelectMatterActivityLog> => {
+): Promise<Result<SelectMatterActivityLog>> => {
   const matterId = params.matterId || ctx.matterId;
 
   if (!matterId) {
@@ -40,22 +40,31 @@ const logMatterActivity = async (
       action: params.action,
       userId: ctx.userId,
     });
-    throw new Error('matterId is required for logging activity');
+    return internalError('Matter ID is required for logging activity');
   }
 
-  const client = tx ?? db;
-  const [activity] = await client
-    .insert(matterActivityLog)
-    .values({
-      matter_id: matterId,
-      user_id: ctx.userId || null,
-      action: params.action,
-      description: params.description,
-      metadata: params.metadata || null,
-    })
-    .returning();
+  try {
+    const client = tx ?? db;
+    const [activity] = await client
+      .insert(matterActivityLog)
+      .values({
+        matter_id: matterId,
+        user_id: ctx.userId || null,
+        action: params.action,
+        description: params.description,
+        metadata: params.metadata || null,
+      })
+      .returning();
 
-  return activity;
+    return ok(activity);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to insert activity log for matter {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError('Failed to log matter activity');
+  }
 };
 
 /**

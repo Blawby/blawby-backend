@@ -1,5 +1,5 @@
-import * as handlers from './handlers';
-import { routes } from './routes';
+import * as handlers from '@/modules/invoices/handlers';
+import { routes } from '@/modules/invoices/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';

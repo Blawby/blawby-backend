@@ -51,7 +51,7 @@ const createMatterMilestone = async (
     // Log activity
     const amountFormatted = (params.data.amount / 100).toFixed(2);
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.MILESTONE_CREATED,
         description: `${userName} created milestone: ${params.data.description} ($${amountFormatted})`,
@@ -59,6 +59,9 @@ const createMatterMilestone = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterMilestone>;
+    }
 
     return ok(milestone);
   } catch (error) {
@@ -172,7 +175,7 @@ const updateMatterMilestone = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.MILESTONE_UPDATED,
         description: `${userName} updated milestone: ${updated.description}`,
@@ -180,10 +183,13 @@ const updateMatterMilestone = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterMilestone>;
+    }
 
     // Check if milestone was marked as completed
     if (params.data.status === 'completed' && milestone.status !== 'completed') {
-      await matterActivityService.logMatterActivity(
+      const completionActivityResult = await matterActivityService.logMatterActivity(
         {
           action: matterActivityService.ActivityAction.MILESTONE_COMPLETED,
           description: `${userName} completed milestone: ${milestone.description}`,
@@ -191,6 +197,9 @@ const updateMatterMilestone = async (
         },
         ctx,
       );
+      if (!completionActivityResult.success) {
+        return completionActivityResult as Result<SelectMatterMilestone>;
+      }
     }
 
     return ok(updated);
@@ -236,7 +245,7 @@ const deleteMatterMilestone = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.MILESTONE_DELETED,
         description: `${userName} deleted milestone: ${milestone.description}`,
@@ -244,6 +253,9 @@ const deleteMatterMilestone = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<{ success: true }>;
+    }
 
     return ok({ success: true });
   } catch (error) {
@@ -290,7 +302,7 @@ const reorderMilestones = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.MILESTONE_UPDATED,
         description: `${userName} reordered milestones`,
@@ -298,6 +310,9 @@ const reorderMilestones = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<{ success: true }>;
+    }
 
     return ok({ success: true });
   } catch (error) {
