@@ -47,26 +47,27 @@ export class PracticeDeleted extends BaseEvent<PracticeDeletedPayload> {
 
 export type PracticeDetailsUpsertedPayload = {
   practice_details_id: string;
-  business_phone?: string | null | undefined;
-  business_email?: string | null | undefined;
-  consultation_fee?: number | null | undefined;
-  payment_url?: string | null | undefined;
-  calendly_url?: string | null | undefined;
-  website?: string | null | undefined;
-  intro_message?: string | null | undefined;
-  overview?: string | null | undefined;
-  accent_color?: string | null | undefined;
-  is_public?: boolean | undefined;
-  billing_increment_minutes?: number | undefined;
-  services?: Array<{ id?: string | undefined; name: string; key: string }> | undefined;
+  business_phone?: string | null;
+  business_email?: string | null;
+  consultation_fee?: number | null;
+  payment_url?: string | null;
+  calendly_url?: string | null;
+  website?: string | null;
+  intro_message?: string | null;
+  overview?: string | null;
+  accent_color?: string | null;
+  is_public?: boolean;
+  billing_increment_minutes?: number;
+  services?: Array<{ id?: string; name: string; key: string }>;
+  supported_states?: Array<{ country: string; states?: string[] }>;
   address?: {
-    line1?: string | null | undefined;
-    line2?: string | null | undefined;
-    city?: string | null | undefined;
-    state?: string | null | undefined;
-    postal_code?: string | null | undefined;
-    country?: string | null | undefined;
-  } | undefined;
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+  };
 };
 
 export class PracticeDetailsCreated extends BaseEvent<PracticeDetailsUpsertedPayload> {
@@ -98,11 +99,24 @@ export class PracticeContactInfoUpdated extends BaseEvent<Record<string, unknown
   static type = 'practice.contact_info_updated' as const;
 }
 
-export class PracticeMemberInvited extends BaseEvent<Record<string, unknown>> {
+export type PracticeMemberInvitedPayload = {
+  invitation_id: string;
+  invited_email: string;
+  role: string;
+  organization_id: string;
+  inviter_id: string;
+};
+
+export class PracticeMemberInvited extends BaseEvent<PracticeMemberInvitedPayload> {
   static type = 'practice.member_invited' as const;
 }
 
-export class PracticeMemberJoined extends BaseEvent<Record<string, unknown>> {
+export type PracticeMemberJoinedPayload = {
+  member_id: string;
+  intake_id: string;
+};
+
+export class PracticeMemberJoined extends BaseEvent<PracticeMemberJoinedPayload> {
   static type = 'practice.member_joined' as const;
 }
 

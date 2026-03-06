@@ -27,12 +27,15 @@ export interface PaymentEventPayload {
 /**
  * Type guard for PaymentEventPayload
  */
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
 export const isPaymentPayload = (payload: unknown): payload is PaymentEventPayload => {
-  if (typeof payload !== 'object' || payload === null) return false;
-  const p = payload as Record<string, unknown>;
-  return (
-    typeof p.customer === 'object'
-    && typeof p.payment === 'object'
-    && typeof p.business === 'object'
-  );
+  if (!isRecord(payload)) return false;
+  if (!('customer' in payload) || !('payment' in payload) || !('business' in payload)) return false;
+
+  return isRecord(payload.customer)
+    && isRecord(payload.payment)
+    && isRecord(payload.business);
 };

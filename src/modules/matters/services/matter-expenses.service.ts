@@ -50,7 +50,7 @@ const createMatterExpense = async (
     // Log activity
     const amountFormatted = (params.data.amount / 100).toFixed(2);
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.EXPENSE_ADDED,
         description: `${userName} added expense: ${params.data.description} ($${amountFormatted})${params.data.billable ? ' (billable)' : ''}`,
@@ -58,6 +58,9 @@ const createMatterExpense = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterExpense>;
+    }
 
     return ok(expense);
   } catch (error) {
@@ -158,7 +161,7 @@ const updateMatterExpense = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.EXPENSE_UPDATED,
         description: `${userName} updated an expense`,
@@ -166,6 +169,9 @@ const updateMatterExpense = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterExpense>;
+    }
 
     return ok(updated!);
   } catch (error) {
@@ -210,7 +216,7 @@ const deleteMatterExpense = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.EXPENSE_DELETED,
         description: `${userName} deleted an expense`,
@@ -218,6 +224,9 @@ const deleteMatterExpense = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<{ success: true }>;
+    }
 
     return ok({ success: true });
   } catch (error) {

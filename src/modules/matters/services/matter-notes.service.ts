@@ -41,7 +41,7 @@ const createMatterNote = async (
 
   // Log activity
   const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-  await matterActivityService.logMatterActivity(
+  const activityResult = await matterActivityService.logMatterActivity(
     {
       action: matterActivityService.ActivityAction.NOTE_ADDED,
       description: `${userName} added a note`,
@@ -49,6 +49,9 @@ const createMatterNote = async (
     },
     ctx,
   );
+  if (!activityResult.success) {
+    return activityResult as Result<SelectMatterNote>;
+  }
 
   return ok(note);
 };
@@ -130,7 +133,7 @@ const updateMatterNote = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.NOTE_UPDATED,
         description: `${userName} updated a note`,
@@ -138,6 +141,9 @@ const updateMatterNote = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterNote>;
+    }
 
     return ok(updated!);
   } catch (error) {
@@ -182,7 +188,7 @@ const deleteMatterNote = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.NOTE_DELETED,
         description: `${userName} deleted a note`,
@@ -190,6 +196,9 @@ const deleteMatterNote = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<{ success: true }>;
+    }
 
     return ok({ success: true });
   } catch (error) {

@@ -24,7 +24,15 @@ const logger = getLogger(['invoices', 'stripe-coordination-service']);
  * Coordination for Stripe creation + finalization + DB update (SRP)
  */
 const finalizeAndSendStripeFlow = async (
-  { invoiceId, invWithRel }: { invoiceId: string; invWithRel: InvoiceWithRelations },
+  {
+    invoiceId,
+    invWithRel,
+    idempotencyKeyPrefix,
+  }: {
+    invoiceId: string;
+    invWithRel: InvoiceWithRelations;
+    idempotencyKeyPrefix?: string;
+  },
   ctx: ServiceContext,
 ): Promise<Result<InvoiceWithRelations>> => {
   // 1. Create on Stripe
@@ -35,6 +43,8 @@ const finalizeAndSendStripeFlow = async (
   const stripeResult = await stripeInvoicesService.createStripeInvoice(
     invWithRel,
     invWithRel.client.stripe_customer_id,
+    invWithRel.connected_account_id,
+    idempotencyKeyPrefix,
   );
   if (!stripeResult.success) return { success: false, error: stripeResult.error };
 
@@ -43,7 +53,7 @@ const finalizeAndSendStripeFlow = async (
   // 2. Finalize and send
   const sendResult = await stripeInvoicesService.finalizeAndSendInvoice(
     stripeInvoice.id,
-    invWithRel.connected_account_id,
+    idempotencyKeyPrefix,
   );
   if (!sendResult.success) return { success: false, error: sendResult.error };
 
@@ -144,9 +154,26 @@ const sendInvoice = async (
       return result.badRequest<InvoiceResponse>('Client is missing Stripe customer ID');
     }
 
-    const updated = await finalizeAndSendStripeFlow({ invoiceId: id, invWithRel: invoice }, ctx);
+    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(
+      id,
+      ctx.organizationId,
+      'draft',
+      'sending',
+    );
+    if (!lockedInvoice) {
+      return result.conflict<InvoiceResponse>('Invoice is already being sent by another request');
+    }
 
-    if (!updated.success) return { success: false, error: updated.error };
+    const idempotencyKeyPrefix = `invoice-send:${id}`;
+    const updated = await finalizeAndSendStripeFlow(
+      { invoiceId: id, invWithRel: invoice, idempotencyKeyPrefix },
+      ctx,
+    );
+
+    if (!updated.success) {
+      await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'sending', 'draft');
+      return { success: false, error: updated.error };
+    }
 
     const updatedInvoice = updated.data;
     if (!updatedInvoice) return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
@@ -175,7 +202,6 @@ const syncInvoice = async (
     // 1. Fetch from Stripe
     const stripeResult = await stripeInvoicesService.getStripeInvoice(
       invoice.stripe_invoice_id,
-      invoice.connected_account_id,
     );
     if (!stripeResult.success) return { success: false, error: stripeResult.error };
 
@@ -219,7 +245,6 @@ const voidInvoice = async (
     // Void on Stripe
     const voidResult = await stripeInvoicesService.voidInvoice(
       invoice.stripe_invoice_id,
-      invoice.connected_account_id,
     );
     if (!voidResult.success) return { success: false, error: voidResult.error };
 

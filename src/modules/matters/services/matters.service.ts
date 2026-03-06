@@ -18,6 +18,7 @@ import type {
 } from '@/modules/matters/types/matter.types';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import type { Action, Subject } from '@/shared/auth/abilities';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import {
@@ -30,6 +31,22 @@ import type { PaginatedResult, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
+const getForbiddenResult = (
+  ctx: ServiceContext,
+  action: Action,
+  subject: Subject,
+): Result<never> | undefined => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan(action, subject);
+    return undefined;
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return result.forbidden(error.message);
+    }
+    throw error;
+  }
+};
+
 /**
  * Create a new matter
  */
@@ -37,8 +54,8 @@ const createMatter = async (
   data: CreateMatterRequest,
   ctx: ServiceContext,
 ): Promise<Result<MatterRecord>> => {
-  // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Matter');
+  const forbiddenResult = getForbiddenResult(ctx, 'create', 'Matter');
+  if (forbiddenResult) return forbiddenResult;
 
   // Extract assignees and milestones from data
   const { assignee_ids, milestones, ...matterData } = data;
@@ -60,70 +77,79 @@ const createMatter = async (
   }
 
   // Create matter in transaction
-  const matter = await db.transaction(async (tx) => {
-    // Convert date strings to Date objects
-    const dbData = {
-      ...matterData,
-      open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
-      close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
-    };
+  try {
+    const matter = await db.transaction(async (tx) => {
+      // Convert date strings to Date objects
+      const dbData = {
+        ...matterData,
+        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+      };
 
-    // Create the matter
-    const [newMatter] = await tx
-      .insert(matters)
-      .values({
-        organization_id: ctx.organizationId,
-        ...dbData,
-      })
-      .returning();
+      // Create the matter
+      const [newMatter] = await tx
+        .insert(matters)
+        .values({
+          organization_id: ctx.organizationId,
+          ...dbData,
+        })
+        .returning();
 
-    // Add assignees if provided
-    if (assignee_ids && assignee_ids.length > 0) {
-      await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids, tx);
-    }
+      // Add assignees if provided
+      if (assignee_ids && assignee_ids.length > 0) {
+        await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids, tx);
+      }
 
-    if (milestones && milestones.length > 0) {
-      await matterMilestonesQueries.createMatterMilestones(
-        milestones.map((milestone) => ({
-          matter_id: newMatter.id,
-          description: milestone.description,
-          amount: milestone.amount,
-          due_date: milestone.due_date,
-          order: milestone.order,
-          status: 'pending' as const,
-        })),
+      if (milestones && milestones.length > 0) {
+        await matterMilestonesQueries.createMatterMilestones(
+          milestones.map((milestone) => ({
+            matter_id: newMatter.id,
+            description: milestone.description,
+            amount: milestone.amount,
+            due_date: milestone.due_date,
+            order: milestone.order,
+            status: 'pending' as const,
+          })),
+          tx,
+        );
+      }
+
+      const creationActivityResult = await matterActivityService.logMatterActivity(
+        {
+          matterId: newMatter.id,
+          action: matterActivityService.ActivityAction.MATTER_CREATED,
+          description: `Matter "${newMatter.title}" was created`,
+          metadata: { billing_type: newMatter.billing_type, status: newMatter.status },
+        },
+        ctx,
         tx,
       );
-    }
+      if (!creationActivityResult.success) {
+        throw new Error(creationActivityResult.error.message);
+      }
 
-    await matterActivityService.logMatterActivity(
-      {
-        action: matterActivityService.ActivityAction.MATTER_CREATED,
-        description: `Matter "${newMatter.title}" was created`,
-        metadata: { billing_type: newMatter.billing_type, status: newMatter.status },
-      },
-      ctx,
-      tx,
-    );
+      // Dispatch event using ctx.emit
+      await ctx.emit(
+        MatterCreated,
+        {
+          matter_id: newMatter.id,
+          organization_id: ctx.organizationId,
+          title: newMatter.title,
+          billing_type: newMatter.billing_type,
+        },
+        tx,
+      );
 
-    // Dispatch event using ctx.emit
-    await ctx.emit(
-      MatterCreated,
-      {
-        matter_id: newMatter.id,
-        organization_id: ctx.organizationId,
-        title: newMatter.title,
-        billing_type: newMatter.billing_type,
-      },
-      tx,
-    );
+      return newMatter;
+    });
 
-    return newMatter;
-  });
-
-  return result.ok({
-    ...matter,
-  } as MatterRecord);
+    return result.ok({
+      ...matter,
+    } as MatterRecord);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create matter';
+    return result.internalError(message);
+  }
 };
 
 /**
@@ -139,8 +165,8 @@ const getMatterById = async (
     return result.notFound('Matter not found');
   }
 
-  // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Matter', matter));
+  const forbiddenResult = getForbiddenResult(ctx, 'read', toSubject('Matter', matter));
+  if (forbiddenResult) return forbiddenResult;
 
   return result.ok({
     ...matter,
@@ -155,8 +181,8 @@ const listMatters = async (
   filters: ListMattersQuery,
   ctx: ServiceContext,
 ): Promise<PaginatedResult<MatterRecord, 'matters'>> => {
-  // CASL Check - check capability to read matters generally
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
+  if (forbiddenResult) return forbiddenResult;
 
   const listResult = await mattersQueries.listMattersByOrganization(ctx.organizationId, {
     status: filters.status,
@@ -190,8 +216,8 @@ const updateMatter = async (
     return result.notFound('Matter not found');
   }
 
-  // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('Matter', existing));
+  const forbiddenResult = getForbiddenResult(ctx, 'update', toSubject('Matter', existing));
+  if (forbiddenResult) return forbiddenResult;
 
   // Extract assignees from data
   const { assignee_ids, ...matterData } = data;
@@ -234,94 +260,109 @@ const updateMatter = async (
     }
   }
 
-  const transactionResult = await db.transaction(async (tx) => {
-    // Convert date strings to Date objects
-    const dbData = {
-      ...matterData,
-      open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
-      close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
-    };
+  try {
+    const transactionResult = await db.transaction(async (tx) => {
+      // Convert date strings to Date objects
+      const dbData = {
+        ...matterData,
+        open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
+        close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
+      };
 
-    // Update the matter
-    const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
+      // Update the matter
+      const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
+      if (!updated) return null;
 
-    if (!updated) {
-      throw new Error('Failed to update matter');
-    }
-
-    // Update assignees if provided
-    if (assignee_ids !== undefined) {
-      // Clear existing assignees and add new ones
-      await mattersQueries.clearMatterAssignees(matterId, tx);
-      if (assignee_ids.length > 0) {
-        await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
+      // Update assignees if provided
+      if (assignee_ids !== undefined) {
+        // Clear existing assignees and add new ones
+        await mattersQueries.clearMatterAssignees(matterId, tx);
+        if (assignee_ids.length > 0) {
+          await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
+        }
       }
-    }
 
-    // Log activity
-    if (changedFields.length > 0) {
-      await matterActivityService.logMatterActivity(
-        {
-          action: matterActivityService.ActivityAction.MATTER_UPDATED,
-          description: `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
-          metadata: { changes: matterData, changed_fields: changedFields },
-        },
-        ctx,
-        tx,
-      );
-    } else {
-      await matterActivityService.logMatterActivity(
-        {
-          action: matterActivityService.ActivityAction.MATTER_UPDATED,
-          description: `Matter "${updated.title}" update attempted (no changes)`,
-          metadata: { changes: matterData, changed_fields: changedFields },
-        },
-        ctx,
-        tx,
-      );
-    }
+      // Log activity
+      if (changedFields.length > 0) {
+        const updateActivityResult = await matterActivityService.logMatterActivity(
+          {
+            action: matterActivityService.ActivityAction.MATTER_UPDATED,
+            description: `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
+            metadata: { changes: matterData, changed_fields: changedFields },
+          },
+          ctx,
+          tx,
+        );
+        if (!updateActivityResult.success) {
+          throw new Error(updateActivityResult.error.message);
+        }
+      } else {
+        const noChangeActivityResult = await matterActivityService.logMatterActivity(
+          {
+            action: matterActivityService.ActivityAction.MATTER_UPDATED,
+            description: `Matter "${updated.title}" update attempted (no changes)`,
+            metadata: { changes: matterData, changed_fields: changedFields },
+          },
+          ctx,
+          tx,
+        );
+        if (!noChangeActivityResult.success) {
+          throw new Error(noChangeActivityResult.error.message);
+        }
+      }
 
-    // Check for status change
-    if (data.status && data.status !== existing.status) {
-      await matterActivityService.logMatterActivity(
-        {
-          action: matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
-          description: `Matter status changed from "${existing.status}" to "${data.status}"`,
-          metadata: { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
-        },
-        ctx,
-        tx,
-      );
+      // Check for status change
+      if (data.status && data.status !== existing.status) {
+        const statusActivityResult = await matterActivityService.logMatterActivity(
+          {
+            action: matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
+            description: `Matter status changed from "${existing.status}" to "${data.status}"`,
+            metadata: { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
+          },
+          ctx,
+          tx,
+        );
+        if (!statusActivityResult.success) {
+          throw new Error(statusActivityResult.error.message);
+        }
 
+        await ctx.emit(
+          MatterStatusChanged,
+          {
+            matter_id: matterId,
+            organization_id: ctx.organizationId,
+            old_status: existing.status,
+            new_status: data.status,
+          },
+          tx,
+        );
+      }
+
+      // Dispatch update event
       await ctx.emit(
-        MatterStatusChanged,
+        MatterUpdated,
         {
           matter_id: matterId,
           organization_id: ctx.organizationId,
-          old_status: existing.status,
-          new_status: data.status,
+          changes: { ...matterData },
         },
         tx,
       );
+
+      return updated;
+    });
+
+    if (!transactionResult) {
+      return result.internalError('Failed to update matter');
     }
 
-    // Dispatch update event
-    await ctx.emit(
-      MatterUpdated,
-      {
-        matter_id: matterId,
-        organization_id: ctx.organizationId,
-        changes: { ...matterData },
-      },
-      tx,
-    );
-
-    return updated;
-  });
-
-  return result.ok({
-    ...transactionResult,
-  } as MatterRecord);
+    return result.ok({
+      ...transactionResult,
+    } as MatterRecord);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update matter';
+    return result.internalError(message);
+  }
 };
 
 /**
@@ -338,39 +379,48 @@ const deleteMatter = async (
     return result.notFound('Matter not found');
   }
 
-  // CASL Check
-  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Matter', existing));
+  const forbiddenResult = getForbiddenResult(ctx, 'delete', toSubject('Matter', existing));
+  if (forbiddenResult) return forbiddenResult;
 
-  await db.transaction(async (tx) => {
-    const deletedMatter = await mattersQueries.softDeleteMatter(matterId, ctx.userId, tx);
+  try {
+    const deletedMatter = await db.transaction(async (tx) => {
+      const deleted = await mattersQueries.softDeleteMatter(matterId, ctx.userId, tx);
+      if (!deleted) return null;
+
+      // Log activity
+      const deleteActivityResult = await matterActivityService.logMatterActivity(
+        {
+          action: matterActivityService.ActivityAction.MATTER_DELETED,
+          description: `Matter "${deleted.title}" was deleted`,
+          metadata: undefined,
+        },
+        ctx,
+        tx,
+      );
+      if (!deleteActivityResult.success) {
+        throw new Error(deleteActivityResult.error.message);
+      }
+
+      // Dispatch event
+      await ctx.emit(
+        MatterDeleted,
+        {
+          matter_id: matterId,
+          organization_id: ctx.organizationId,
+        },
+        tx,
+      );
+
+      return deleted;
+    });
 
     if (!deletedMatter) {
-      throw new Error('Failed to delete matter');
+      return result.internalError('Failed to delete matter');
     }
-
-    // Log activity
-    await matterActivityService.logMatterActivity(
-      {
-        action: matterActivityService.ActivityAction.MATTER_DELETED,
-        description: `Matter "${deletedMatter.title}" was deleted`,
-        metadata: undefined,
-      },
-      ctx,
-      tx,
-    );
-
-    // Dispatch event
-    await ctx.emit(
-      MatterDeleted,
-      {
-        matter_id: matterId,
-        organization_id: ctx.organizationId,
-      },
-      tx,
-    );
-
-    return deletedMatter;
-  });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete matter';
+    return result.internalError(message);
+  }
 
   return result.ok({ success: true });
 };
@@ -381,8 +431,8 @@ const deleteMatter = async (
 const getMatterCounts = async (
   ctx: ServiceContext,
 ): Promise<Result<Record<string, number>>> => {
-  // CASL Check - generally read matters
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
+  if (forbiddenResult) return forbiddenResult;
 
   const counts = await mattersQueries.getMatterCountsByStatus(ctx.organizationId);
 
@@ -406,5 +456,3 @@ export const mattersService = {
   deleteMatter,
   getMatterCounts,
 };
-
-export default mattersService;

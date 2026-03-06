@@ -38,6 +38,7 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'overview',
   'is_public',
   'services',
+  'supported_states',
   'address',
   'accent_color',
 ];
@@ -90,6 +91,7 @@ export const upsertDetailsTransaction = async (
     overview: params.data.overview ?? undefined,
     is_public: params.data.is_public ?? undefined,
     accent_color: params.data.accent_color ?? undefined,
+    supported_states: params.data.supported_states ?? undefined,
   };
 
   const [details] = await tx

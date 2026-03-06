@@ -1,4 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
@@ -28,8 +27,9 @@ export const transformInvoiceResponse = (invoice: InvoiceWithRelations): Invoice
 /**
  * Transform a summary invoice (no line items) to response format
  */
-const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse =>
-  invoice as unknown as InvoiceResponse;
+const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => {
+  return invoice as unknown as InvoiceResponse;
+};
 
 /**
  * List invoices for a practice (admin/member view)
@@ -38,7 +38,9 @@ const listInvoices = async (
   { filters }: { filters: ListInvoicesQuery },
   ctx: ServiceContext,
 ): Promise<PaginatedResult<InvoiceResponse, 'invoices'>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Invoice');
+  if (ctx.ability.cannot('read', 'Invoice')) {
+    return result.forbidden<PaginatedData<InvoiceResponse, 'invoices'>>('You do not have permission to view invoices');
+  }
 
   try {
     if (filters.invoice_id) {

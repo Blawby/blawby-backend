@@ -43,41 +43,53 @@ const createMatterTimeEntry = async (
     return matterResult as Result<never>;
   }
 
-  const startTime = new Date(params.data.start_time);
-  const endTime = new Date(params.data.end_time);
-  const duration = calculateDuration(startTime, endTime);
+  try {
+    const startTime = new Date(params.data.start_time);
+    const endTime = new Date(params.data.end_time);
+    const duration = calculateDuration(startTime, endTime);
 
-  const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
-    matter_id: matterId,
-    user_id: ctx.userId,
-    start_time: startTime,
-    end_time: endTime,
-    duration,
-    description: params.data.description,
-    billable: params.data.billable,
-  });
-  const changedFields = [
-    'start_time',
-    'end_time',
-    'duration',
-    ...(params.data.billable !== undefined ? ['billable'] : []),
-    ...(params.data.description !== undefined ? ['description'] : []),
-  ];
+    const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
+      matter_id: matterId,
+      user_id: ctx.userId,
+      start_time: startTime,
+      end_time: endTime,
+      duration,
+      description: params.data.description,
+      billable: params.data.billable,
+    });
+    const changedFields = [
+      'start_time',
+      'end_time',
+      'duration',
+      ...(params.data.billable !== undefined ? ['billable'] : []),
+      ...(params.data.description !== undefined ? ['description'] : []),
+    ];
 
-  // Log activity
-  const hours = Math.floor(duration / 3600);
-  const minutes = Math.floor((duration % 3600) / 60);
-  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-  await matterActivityService.logMatterActivity(
-    {
-      action: matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
-      description: `${userName} logged ${hours}h ${minutes}m${params.data.billable ? ' (billable)' : ''}`,
-      metadata: { duration, billable: params.data.billable, changed_fields: changedFields },
-    },
-    ctx,
-  );
+    // Log activity
+    const hours = Math.floor(duration / 3600);
+    const minutes = Math.floor((duration % 3600) / 60);
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
+        description: `${userName} logged ${hours}h ${minutes}m${params.data.billable ? ' (billable)' : ''}`,
+        metadata: { duration, billable: params.data.billable, changed_fields: changedFields },
+      },
+      ctx,
+    );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterTimeEntry>;
+    }
 
-  return ok(entry);
+    return ok(entry);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to create time entry {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError(message);
+  }
 };
 
 /**
@@ -185,7 +197,7 @@ const updateMatterTimeEntry = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.TIME_ENTRY_UPDATED,
         description: `${userName} updated a time entry`,
@@ -193,6 +205,9 @@ const updateMatterTimeEntry = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<SelectMatterTimeEntry>;
+    }
 
     return ok(updated!);
   } catch (error) {
@@ -237,7 +252,7 @@ const deleteMatterTimeEntry = async (
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    await matterActivityService.logMatterActivity(
+    const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.TIME_ENTRY_DELETED,
         description: `${userName} deleted a time entry`,
@@ -245,6 +260,9 @@ const deleteMatterTimeEntry = async (
       },
       ctx,
     );
+    if (!activityResult.success) {
+      return activityResult as Result<{ success: true }>;
+    }
 
     return ok({ success: true });
   } catch (error) {
