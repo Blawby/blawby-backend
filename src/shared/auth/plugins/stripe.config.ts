@@ -2,18 +2,22 @@ import { stripe as stripePlugin } from '@better-auth/stripe';
 import { getLogger } from '@logtape/logtape';
 import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type Stripe from 'stripe';
-import { fetchStripePlans } from './fetchStripePlans';
+import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import * as schema from '@/schema';
+import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
 import {
   createWebhookEventIfNotExists,
 } from '@/shared/repositories/stripe.webhook-events.repository';
+import { appConfigService } from '@/shared/services/app-config.service';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['shared', 'auth', 'plugins', 'stripe']);
+
+const METERED_PRICE_IDS_KEY = 'metered_price_ids';
 
 /**
  * SHARED HELPER: Synchronize subscription state to local DB.
@@ -40,13 +44,6 @@ const syncSubscriptionToOrg = async (
     eventType,
     trigger,
   } = params;
-
-  logger.info('[Stripe Plugin] Syncing subscription {subscriptionId} to Org {referenceId} (Trigger: {trigger}, Event: {eventType})', {
-    subscriptionId,
-    referenceId,
-    trigger,
-    eventType,
-  });
 
 
   // 1. Resolve Customer ID
@@ -80,18 +77,85 @@ const syncSubscriptionToOrg = async (
     return;
   }
 
-  logger.info('[Stripe Plugin] Resolved Organization ID: {organizationId} for subscription {subscriptionId} (Method: {lookupMethod})', {
-    organizationId,
-    subscriptionId,
-    lookupMethod: referenceId ? 'referenceId' : 'customerIdLookup',
-  });
 
   // 3. TRANSACTION: Update Org, Line Items, and Logs atomically
   await db.transaction(async (tx) => {
-    logger.debug('[Stripe Plugin] Updating activeSubscriptionId for Org {organizationId} to {subscriptionId}', {
-      organizationId,
-      subscriptionId,
-    });
+    // Check for existing active subscription (Race Condition Handling)
+    const [existingOrg] = await tx
+      .select({ activeSubscriptionId: schema.organizations.activeSubscriptionId })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId!))
+      .limit(1);
+
+    if (existingOrg?.activeSubscriptionId && existingOrg.activeSubscriptionId !== subscriptionId) {
+      const [oldSub] = await tx
+        .select()
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, existingOrg.activeSubscriptionId))
+        .limit(1);
+
+      if (oldSub) {
+        // Compare creation timestamps
+        // Incoming: stripeSubscription.created (Unix timestamp)
+        // Existing: oldSub.createdAt (Date object)
+        const incomingCreated = fromStripeTimestamp(stripeSubscription.created);
+        const existingCreated = oldSub.createdAt;
+
+        if (incomingCreated < existingCreated) {
+          logger.warn('[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is OLDER than active subscription {existingId}. Canceling incoming.', {
+            incomingId: subscriptionId,
+            existingId: oldSub.id,
+            incomingCreated,
+            existingCreated,
+          });
+
+          // Cancel the incoming stale subscription in Stripe
+          try {
+            const stripeClient = getStripeInstance();
+            await stripeClient.subscriptions.cancel(stripeSubscription.id);
+            logger.info('[Stripe Plugin] Canceled stale incoming subscription {stripeId} in Stripe.', { stripeId: stripeSubscription.id });
+          } catch (err) {
+            logger.error('[Stripe Plugin] Failed to cancel stale incoming subscription in Stripe: {error}', { error: err });
+          }
+
+          // Mark as canceled in DB
+          await tx
+            .update(schema.subscriptions)
+            .set({ status: 'canceled', updatedAt: new Date() })
+            .where(eq(schema.subscriptions.id, subscriptionId));
+
+          // ABORT sync to prevent overwriting the valid active subscription
+          return;
+        } else {
+          logger.warn('[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is NEWER than active subscription {existingId}. Canceling existing.', {
+            incomingId: subscriptionId,
+            existingId: oldSub.id,
+            incomingCreated,
+            existingCreated,
+          });
+
+          // Cancel the existing (now stale) subscription in Stripe
+          if (oldSub.stripeSubscriptionId) {
+            try {
+              const stripeClient = getStripeInstance();
+              await stripeClient.subscriptions.cancel(oldSub.stripeSubscriptionId);
+              logger.info('[Stripe Plugin] Canceled stale existing subscription {stripeId} in Stripe.', { stripeId: oldSub.stripeSubscriptionId });
+            } catch (err) {
+              logger.error('[Stripe Plugin] Failed to cancel stale existing subscription in Stripe: {error}', { error: err });
+            }
+          }
+
+          // Mark existing as canceled in DB
+          await tx
+            .update(schema.subscriptions)
+            .set({ status: 'canceled', updatedAt: new Date() })
+            .where(eq(schema.subscriptions.id, oldSub.id));
+
+          // Proceed to update organization with new subscription
+        }
+      }
+    }
+
     // A. Update Organization Active Subscription
     const updated = await tx
       .update(schema.organizations)
@@ -135,7 +199,7 @@ const syncSubscriptionToOrg = async (
     }
 
     // C. Create Audit Log
-    const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, planName);
+    const dbPlan = await subscriptionRepository.findPlanByName(tx, planName);
 
     await subscriptionRepository.createEvent(tx, {
       subscription_id: subscriptionId,
@@ -150,18 +214,27 @@ const syncSubscriptionToOrg = async (
     });
   });
 
-  // 4. Side Effects (Critical - must persist before response for payment events)
-  // Use critical: true for immediate DB write with NOTIFY
-  await SubscriptionCreated.dispatch({
-    subscription_id: subscriptionId,
-    stripe_subscription_id: stripeSubscription.id,
-    plan_name: planName,
-    organization_id: organizationId,
-  }, {
-    actorId: 'system',
-    organizationId,
-    critical: true,
-  });
+  // 4. Metered items are now handled by proxy interception at checkout/portal creation.
+  // No longer needed: ensureSubscriptionMeteredItems.
+
+  // 5. Idempotency Check before dispatching
+  const existingEvents = await subscriptionRepository.findEventsBySubscriptionIdAndType(
+    db, subscriptionId, 'created',
+  );
+
+  if (existingEvents.length === 0) {
+    // Use critical: true for immediate DB write with NOTIFY
+    await SubscriptionCreated.dispatch({
+      subscription_id: subscriptionId,
+      stripe_subscription_id: stripeSubscription.id,
+      plan_name: planName,
+      organization_id: organizationId,
+    }, {
+      actorId: 'system',
+      organizationId,
+      critical: true,
+    });
+  }
 };
 
 /**
@@ -169,20 +242,39 @@ const syncSubscriptionToOrg = async (
  */
 export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> => {
   return stripePlugin({
-    stripeClient: getStripeInstance(),
+    stripeClient: createProxiedStripeClient(getStripeInstance()),
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
     createCustomerOnSignUp: false,
 
-    // Opt: Save customer ID immediately
+    // Opt: Save customer ID immediately and enrich with metadata
     onCustomerCreate: async ({ stripeCustomer }) => {
       // When customer is created for an organization (via referenceId in subscription),
       // the organization_id is stored in Stripe customer metadata
       const organizationId = stripeCustomer.metadata?.organization_id;
 
       if (organizationId && stripeCustomer.id) {
+        // 1. Link to organization locally
         await db.update(schema.organizations)
           .set({ stripeCustomerId: stripeCustomer.id })
           .where(eq(schema.organizations.id, organizationId));
+
+        // 2. Enrich Stripe customer with platform-specific metadata
+        // Better Auth creates the customer, but we add late-binding custom fields
+        const stripe = getStripeInstance();
+        try {
+          await stripe.customers.update(stripeCustomer.id, {
+            metadata: {
+              iolta_compliant: 'true',
+              type: 'platform_billing',
+            },
+          });
+          logger.info('[Stripe Plugin] Enriched new organization customer {customerId} with custom metadata.', { customerId: stripeCustomer.id });
+        } catch (err) {
+          logger.error('[Stripe Plugin] Failed to enrich organization customer {customerId}: {error}', {
+            customerId: stripeCustomer.id,
+            error: err,
+          });
+        }
       }
     },
 
@@ -200,11 +292,15 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           return;
         }
 
-        const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.'];
+        const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.', 'invoice.'];
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some((prefix) => event.type.startsWith(prefix));
 
         if (needsProcessing) {
-          addWebhookJob(webhookEvent.id, event.id, event.type).catch((err) => logger.error('Failed to add webhook job: {error}', { error: err }));
+          try {
+            await addWebhookJob(webhookEvent.id, event.id, event.type);
+          } catch (err) {
+            logger.error('Failed to add webhook job: {error}', { error: err });
+          }
         }
       } catch (error) {
         logger.error('❌ Webhook Error {eventId}: {error}', {
@@ -252,11 +348,6 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         plan: { name: string };
         stripeSubscription: Stripe.Subscription;
       }) => {
-        logger.debug('[Stripe Plugin] checkout.session.completed hook triggered', {
-          subscriptionId: subscription.id,
-          referenceId: subscription.referenceId,
-          stripeCustomerId: subscription.stripeCustomerId,
-        });
         await syncSubscriptionToOrg(db, {
           stripeSubscription,
           subscriptionId: subscription.id,
@@ -295,13 +386,13 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
       onSubscriptionUpdate: async ({
         subscription,
-        stripeSubscription,
       }: {
         event: unknown;
         subscription: {
           id: string;
           referenceId: string | null;
           plan?: string;
+          stripeSubscriptionId?: string;
         };
         stripeSubscription?: Stripe.Subscription;
       }) => {
@@ -313,9 +404,23 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
             .set({ activeSubscriptionId: subscription.id })
             .where(eq(schema.organizations.id, subscription.referenceId!));
 
-          // Update line items if available
-          if (stripeSubscription?.items?.data) {
-            await Promise.all(stripeSubscription.items.data.map((item) => subscriptionRepository.upsertLineItem(tx, {
+          // Fetch Stripe subscription for line item sync (Better Auth does not pass it here)
+          let stripeSub: Stripe.Subscription | null = null;
+          if (subscription.stripeSubscriptionId) {
+            try {
+              const stripe = getStripeInstance();
+              stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+            } catch (err) {
+              logger.warn('[Stripe Plugin] Failed to fetch Stripe subscription for line item sync', {
+                subscriptionId: subscription.id,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+
+          // Sync line items if available
+          if (stripeSub?.items?.data) {
+            await Promise.all(stripeSub.items.data.map((item) => subscriptionRepository.upsertLineItem(tx, {
               subscription_id: subscription.id,
               stripe_subscription_item_id: item.id,
               stripe_price_id: item.price.id,
@@ -329,7 +434,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
           // Log event
           if (subscription.plan) {
-            const dbPlan = await subscriptionRepository.findPlanByStripePriceId(tx, subscription.plan);
+            const dbPlan = await subscriptionRepository.findPlanByName(tx, subscription.plan);
             await subscriptionRepository.createEvent(tx, {
               subscription_id: subscription.id,
               plan_id: dbPlan?.id,
@@ -345,7 +450,22 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
       onSubscriptionCancel: async ({ subscription }) => {
         if (!subscription.referenceId) return;
 
+        // Do NOT null activeSubscriptionId — subscription is still active until period end.
+        await subscriptionRepository.createEvent(db, {
+          subscription_id: subscription.id,
+          event_type: 'status_changed',
+          from_status: 'active',
+          to_status: 'active',
+          triggered_by_type: 'user',
+          metadata: { plan_name: subscription.plan || '', cancel_requested: true },
+        });
+      },
+
+      onSubscriptionDeleted: async ({ subscription }) => {
+        if (!subscription.referenceId) return;
+
         await db.transaction(async (tx) => {
+          // Now we clear the active subscription pointer
           await tx.update(schema.organizations)
             .set({ activeSubscriptionId: null })
             .where(eq(schema.organizations.id, subscription.referenceId!));
@@ -355,11 +475,134 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
             event_type: 'canceled',
             from_status: 'active',
             to_status: 'canceled',
-            triggered_by_type: 'user',
+            triggered_by_type: 'webhook',
             metadata: { plan_name: subscription.plan || '' },
           });
         });
       },
     },
   });
+};
+
+/**
+ * Type guards for Stripe Params
+ */
+const isCheckoutSessionCreateParams = (params: unknown): params is Stripe.Checkout.SessionCreateParams => {
+  return typeof params === 'object' && params !== null && 'line_items' in params;
+};
+
+const isBillingPortalSessionCreateParams = (params: unknown): params is Stripe.BillingPortal.SessionCreateParams => {
+  return typeof params === 'object' && params !== null && 'flow_data' in params;
+};
+
+/**
+ * Creates a proxied Stripe client that recursively wraps the SDK
+ * and intercepts session creation to inject metered items.
+ */
+const createProxiedStripeClient = (stripe: Stripe): Stripe => {
+  const wrap = (obj: object, path: string): unknown => {
+    return new Proxy(obj, {
+      get(target, prop, receiver) {
+        const val = Reflect.get(target, prop, receiver);
+        if (val === null || val === undefined) return val;
+
+        const propName = String(prop);
+        const currentPath = path ? `${path}.${propName}` : propName;
+
+        if (typeof val === 'function') {
+          const needsInterception
+            = currentPath === 'checkout.sessions.create'
+            || currentPath === 'billingPortal.sessions.create';
+
+          if (needsInterception) {
+            return async (...args: unknown[]) => {
+              const currentArgs = [...args];
+              try {
+                if (currentPath === 'checkout.sessions.create') {
+                  const params = currentArgs[0];
+                  if (isCheckoutSessionCreateParams(params)) {
+                    const injected = await injectMeteredItems(params.line_items);
+                    if (injected !== undefined) {
+                      params.line_items = injected;
+                    }
+                  }
+                } else if (currentPath === 'billingPortal.sessions.create') {
+                  const params = currentArgs[0];
+                  if (
+                    isBillingPortalSessionCreateParams(params)
+                    && params.flow_data?.type === 'subscription_update_confirm'
+                    && params.flow_data.subscription_update_confirm
+                  ) {
+                    // To inject items here, we must have existing subscription item IDs.
+                    // We look them up from the subscription being updated.
+                    const flow = params.flow_data.subscription_update_confirm;
+                    const items = flow.items || [];
+                    const subscriptionId = params.flow_data.subscription_update_confirm.subscription;
+
+                    if (subscriptionId) {
+                      const stripeClient = getStripeInstance();
+                      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+                      const meteredIds = await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY) ?? [];
+
+                      const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
+
+                      const injectedItems = meteredIds
+                        .filter((id) => existingMap.has(id))
+                        .map((id) => ({ id: existingMap.get(id)! }));
+
+                      if (injectedItems.length > 0) {
+                        flow.items = [...items, ...injectedItems];
+                        logger.info('[Stripe Proxy] Bundled {count} metered items into portal session', {
+                          count: injectedItems.length,
+                        });
+                      }
+                    }
+                  }
+                }
+              } catch (injectError) {
+                logger.error('[Stripe Proxy] Failed to inject metered items: {error}', {
+                  path: currentPath,
+                  error: injectError instanceof Error ? injectError.message : String(injectError),
+                });
+                throw injectError; // Rethrow to avoid silent partial sessions
+              }
+              return Reflect.apply(val, target, currentArgs);
+            };
+          }
+          return val.bind(target);
+        }
+
+        if (typeof val === 'object' && !Array.isArray(val)) {
+          return wrap(val as object, currentPath);
+        }
+
+        return val;
+      },
+    });
+  };
+  return wrap(stripe, '') as Stripe;
+};
+
+/**
+ * Injects metered price IDs from app_config into a list of Stripe items.
+ * returns a new array with metered items injected.
+ */
+const injectMeteredItems = async <T extends { price?: string }>(
+  items: T[] | undefined,
+): Promise<(T | { price: string })[] | undefined> => {
+  const meteredIds = await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY) ?? [];
+  if (meteredIds.length === 0) return undefined;
+
+  const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
+
+  const newEntries = meteredIds
+    .filter((id) => !existingPrices.has(id))
+    .map((id) => ({ price: id }));
+
+  if (newEntries.length === 0) return undefined;
+
+  const addedCount = newEntries.length;
+  logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
+
+  return [...(items ?? []), ...newEntries];
 };

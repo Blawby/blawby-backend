@@ -28,8 +28,8 @@
     "lint:fix": "oxlint --fix",
     "start": "node dist/hono-server.js",
     "start:all": "concurrently \"pnpm start\" \"pnpm run event-worker\" \"pnpm run email-worker\" --names \"API,EVENT,EMAIL\" --prefix-colors \"blue,green,magenta\"",
-    "test": "cross-env TS_NODE_FILES=true tap test/**/*.test.ts",
-    "typecheck": "tsc -noEmit"
+    "test": "cross-env APP_ENV=test tap test/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",
@@ -83,6 +83,15 @@
     "tsup": "^8.5.1",
     "tsx": "4.21.0",
     "typescript": "5.9.3"
+  },
+  "tap": {
+    "plugin": [
+      "!@tapjs/typescript"
+    ],
+    "node-arg": [
+      "--import",
+      "tsx"
+    ]
   },
   "packageManager": "pnpm@10.28.0",
   "engines": {

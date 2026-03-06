@@ -38,13 +38,13 @@ const timeEntrySchema = z.object({
   id: z.uuid(),
   matter_id: z.uuid(),
   user_id: z.uuid(),
-  start_time: z.iso.datetime(),
-  end_time: z.iso.datetime(),
+  start_time: z.date(),
+  end_time: z.date(),
   duration: z.number().describe('Duration in seconds'),
   description: z.string().nullable(),
   billable: z.boolean(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.date(),
+  updated_at: z.date(),
 }).openapi('TimeEntry');
 
 

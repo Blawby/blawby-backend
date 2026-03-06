@@ -56,6 +56,10 @@ export const onboardingService = {
 
       if (!result.success) return result;
       const accountData = result.data;
+      const connectedAccount = await onboardingRepo.findByStripeAccountId(accountData.account_id);
+      if (!connectedAccount) {
+        return internalError('Connected account was created but could not be loaded');
+      }
 
       // Publish onboarding started event
       await ctx.emit(OnboardingStarted, {
@@ -68,6 +72,7 @@ export const onboardingService = {
       return ok({
         url: accountData.url,
         practice_uuid: organizationId,
+        connected_account_id: connectedAccount.id,
         stripe_account_id: accountData.account_id,
         charges_enabled: accountData.status.charges_enabled,
         payouts_enabled: accountData.status.payouts_enabled,
@@ -111,6 +116,7 @@ export const onboardingService = {
 
       return ok({
         practice_uuid: organizationId,
+        connected_account_id: account.id,
         stripe_account_id: account.stripe_account_id,
         charges_enabled: account.charges_enabled,
         payouts_enabled: account.payouts_enabled,
@@ -166,9 +172,14 @@ export const onboardingService = {
 
       if (!result.success) return result;
       const accountData = result.data;
+      const connectedAccount = await onboardingRepo.findByStripeAccountId(accountData.account_id);
+      if (!connectedAccount) {
+        return internalError('Connected account was created but could not be loaded');
+      }
 
       return ok({
         practice_uuid: organizationId,
+        connected_account_id: connectedAccount.id,
         url: accountData.url,
         stripe_account_id: accountData.account_id,
         charges_enabled: accountData.status.charges_enabled,

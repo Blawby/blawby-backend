@@ -10,11 +10,14 @@ import {
 } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { organizations } from '@/schema';
 
 export const billingTransactions = pgTable(
   'billing_transactions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    organization_id: uuid('organization_id')
+      .references(() => organizations.id, { onDelete: 'cascade' }),
     invoice_id: uuid('invoice_id').references(() => invoices.id, {
       onDelete: 'set null',
     }),
@@ -24,6 +27,7 @@ export const billingTransactions = pgTable(
     stripe_transfer_id: text('stripe_transfer_id').unique(),
     destination_account_id: text('destination_account_id').notNull(),
     amount: integer('amount').notNull(), // in cents
+    application_fee_amount: integer('application_fee_amount').notNull().default(0),
     type: text('type', { enum: ['payout', 'retainer_draw', 'refund'] }).notNull(),
     status: text('status', {
       enum: ['pending', 'queued', 'completed', 'failed'],
@@ -39,6 +43,7 @@ export const billingTransactions = pgTable(
     completed_at: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
+    index('billing_transactions_organization_idx').on(table.organization_id),
     index('billing_transactions_invoice_idx').on(table.invoice_id),
     index('billing_transactions_matter_idx').on(table.matter_id),
     index('billing_transactions_stripe_transfer_idx').on(table.stripe_transfer_id),
@@ -59,6 +64,11 @@ export const billingTransactionsRelations = relations(
     }),
   }),
 );
+
+export const billingTransactionsSchema = {
+  billingTransactions,
+  billingTransactionsRelations,
+};
 
 export type InsertBillingTransaction = typeof billingTransactions.$inferInsert;
 export type SelectBillingTransaction = typeof billingTransactions.$inferSelect;

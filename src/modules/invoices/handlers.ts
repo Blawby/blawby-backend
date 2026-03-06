@@ -25,7 +25,6 @@ export const getInvoicesHandler: AppRouteHandler<typeof routes.getInvoicesRoute>
   return response.fromResult(c, result);
 };
 
-
 export const updateInvoiceHandler: AppRouteHandler<typeof routes.updateInvoiceRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id } = c.req.valid('param');
@@ -68,6 +67,24 @@ export const voidInvoiceHandler: AppRouteHandler<typeof routes.voidInvoiceRoute>
   const { id } = c.req.valid('param');
 
   const result = await invoiceStripeCoordinationService.voidInvoice({ id }, ctx);
+
+  return response.fromResult(c, result);
+};
+
+export const getClientInvoicesHandler: AppRouteHandler<typeof routes.getClientInvoicesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+
+  const result = await invoiceQueriesService.listClientInvoices({ filters: query }, ctx);
+
+  return response.fromResult(c, result);
+};
+
+export const getClientInvoiceDetailHandler: AppRouteHandler<typeof routes.getClientInvoiceDetailRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
+
+  const result = await invoiceQueriesService.getClientInvoiceDetail({ invoiceId: id }, ctx);
 
   return response.fromResult(c, result);
 };

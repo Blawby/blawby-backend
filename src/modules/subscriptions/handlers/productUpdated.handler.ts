@@ -5,12 +5,11 @@
  * Updates an existing subscription plan in the database
  */
 
-import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
-
+import type { Stripe } from 'stripe';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { subscriptionRepository } from '../database/queries/subscription.repository';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
 
@@ -56,7 +55,17 @@ const extractLimits = (
 /**
  * Extract features from product metadata
  */
-const extractFeatures = (metadata: Record<string, string>): string[] => {
+const extractFeatures = (product: Stripe.Product): string[] | [] => {
+  // Priority 1: Stripe Marketing Features (Native)
+  if (product.marketing_features && product.marketing_features.length > 0) {
+    return product.marketing_features
+      .map((f) => f.name)
+      .filter((name): name is string => name !== undefined);
+  }
+
+  const metadata = product.metadata || {};
+
+  // Priority 2: Metadata JSON
   if (metadata.features) {
     try {
       return JSON.parse(metadata.features);
@@ -65,7 +74,7 @@ const extractFeatures = (metadata: Record<string, string>): string[] => {
     }
   }
 
-  // Try comma-separated features
+  // Priority 3: Metadata Comma-Separated
   if (metadata.features_list) {
     return metadata.features_list.split(',').map((f) => f.trim());
   }
@@ -80,7 +89,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
   try {
     logger.info('Processing product.updated: {productId} - {productName}', {
       productId: product.id,
-      productName: product.name
+      productName: product.name,
     });
 
     // Fetch all prices for this product
@@ -102,7 +111,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     // Extract metadata
     const metadata = product.metadata || {};
     const limits = extractLimits(metadata);
-    const features = extractFeatures(metadata);
+    const features = extractFeatures(product);
 
     // Generate plan name - use metadata if provided, otherwise derive from product name
     let planName = metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_');
@@ -129,6 +138,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
         ? (yearlyPrice.unit_amount / 100).toString()
         : null,
       currency: monthlyPrice?.currency || yearlyPrice?.currency || 'usd',
+      image: product.images?.[0] || null,
       features,
       limits,
       metered_items: existingPlan?.metered_items || [], // Preserve existing metered items
@@ -145,7 +155,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
   } catch (error) {
     logger.error('Failed to process product.updated: {productId}. Error: {error}', {
       productId: product.id,
-      error
+      error,
     });
     throw error;
   }

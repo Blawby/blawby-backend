@@ -30,11 +30,10 @@ export const practiceClientIntakes = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     connected_account_id: uuid('connected_account_id')
-      .notNull()
       .references(() => stripeConnectedAccounts.id, { onDelete: 'restrict' }),
 
     // Stripe IDs
-    stripe_payment_link_id: text('stripe_payment_link_id').notNull().unique(),
+    stripe_payment_link_id: text('stripe_payment_link_id').unique(), // Created by Payment Link, populated via webhook
     stripe_payment_intent_id: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
     stripe_charge_id: text('stripe_charge_id'),
     stripe_checkout_session_id: text('stripe_checkout_session_id').unique(),
@@ -44,6 +43,9 @@ export const practiceClientIntakes = pgTable(
     application_fee: integer('application_fee'),
     currency: text('currency').notNull().default('usd'),
     status: text('status').notNull(),
+    triage_status: text('triage_status').notNull().default('pending_review'),
+    triage_reason: text('triage_reason'),
+    triage_decided_at: timestamp('triage_decided_at', { withTimezone: true, mode: 'date' }),
 
     // Client Data
     metadata: jsonb('metadata').$type<PracticeClientIntakeMetadata>(),
@@ -77,6 +79,7 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_stripe_link_idx').on(table.stripe_payment_link_id),
     index('practice_client_intakes_stripe_intent_idx').on(table.stripe_payment_intent_id),
     index('practice_client_intakes_status_idx').on(table.status),
+    index('practice_client_intakes_triage_status_idx').on(table.triage_status),
     index('practice_client_intakes_created_at_idx').on(table.created_at),
     index('practice_client_intakes_urgency_idx').on(table.urgency),
     index('practice_client_intakes_court_date_idx').on(table.court_date),
@@ -126,4 +129,3 @@ export const practiceClientIntakesSchema = {
   practiceClientIntakesRelations,
   practiceClientIntakeMetadataSchema,
 };
-

@@ -36,49 +36,54 @@ export type ListSubscriptionsQuery = {
 export type UpgradeSubscriptionBody = {
   plan: string;
   annual?: boolean;
-  referenceId?: string;
-  subscriptionId?: string;
+  reference_id?: string;
+  subscription_id?: string;
   metadata?: Record<string, unknown>;
-  customerType?: 'user' | 'organization';
+  customer_type?: 'user' | 'organization';
   seats?: number;
   locale?: string;
-  successUrl: string;
-  cancelUrl: string;
-  returnUrl?: string;
-  disableRedirect?: boolean;
+  success_url: string;
+  cancel_url: string;
+  return_url?: string;
+  disable_redirect?: boolean;
 };
 
 export type CancelSubscriptionBody = {
   subscriptionId?: string;
   referenceId?: string;
-  customerType?: 'user' | 'organization';
-  returnUrl: string;
+  customerType?: 'organization';
+  returnUrl?: string; // Better Auth expects camelCase
   immediately?: boolean;
 };
 
 export type RestoreSubscriptionBody = {
-  subscriptionId: string;
-  referenceId?: string;
-  customerType?: 'user' | 'organization';
+  subscription_id: string;
+  reference_id?: string;
+  customer_type?: 'user' | 'organization';
 };
 
-// Response types based on Better Auth documentation
-export type Subscription = {
-  id: string;
-  status: string;
-  planId: string;
-  currentPeriodEnd: number;
-  cancelAtPeriodEnd: boolean;
-  limits?: {
-    projects?: number;
-    [key: string]: unknown;
-  };
-  referenceId?: string | null;
-};
 
 export type UpgradeSubscriptionResponse = {
   subscriptionId?: string;
   url?: string;
+};
+
+// Better Auth internal subscription object (camelCase)
+export type BetterAuthSubscription = {
+  id: string;
+  plan: string;
+  referenceId: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  status: string;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  cancelAtPeriodEnd: boolean | null;
+  seats: number | null;
+  trialStart: Date | null;
+  trialEnd: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 // ============================================================================
@@ -92,7 +97,7 @@ export type SubscriptionAPI = {
   listActiveSubscriptions: (args: {
     query: ListSubscriptionsQuery;
     headers: Record<string, string>;
-  }) => Promise<Subscription[]>;
+  }) => Promise<BetterAuthSubscription[]>;
   upgradeSubscription: (args: {
     body: UpgradeSubscriptionBody;
     headers: Record<string, string>;
@@ -100,18 +105,112 @@ export type SubscriptionAPI = {
   cancelSubscription: (args: {
     body: CancelSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<unknown>;
+  }) => Promise<{ url: string; redirect: boolean }>;
   restoreSubscription?: (args: {
     body: RestoreSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<unknown>;
+  }) => Promise<BetterAuthSubscription>;
 };
 
-// Response schemas inferred types
-export type SubscriptionPlanResponse = z.infer<typeof subscriptionValidations.subscriptionPlanResponseSchema>;
-export type SubscriptionResponse = z.infer<typeof subscriptionValidations.subscriptionResponseSchema>;
-export type SubscriptionWithDetailsResponse = z.infer<typeof subscriptionValidations.subscriptionWithDetailsResponseSchema>;
-export type ListPlansResponse = z.infer<typeof subscriptionValidations.listPlansResponseSchema>;
-export type CreateSubscriptionResponse = z.infer<typeof subscriptionValidations.createSubscriptionResponseSchema>;
-export type CancelSubscriptionResponse = z.infer<typeof subscriptionValidations.cancelSubscriptionResponseSchema>;
-export type GetCurrentSubscriptionResponse = z.infer<typeof subscriptionValidations.getCurrentSubscriptionResponseSchema>;
+// Response types manually defined to match snake_case DB columns
+export type SubscriptionPlanResponse = {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string | null;
+  stripe_product_id: string;
+  stripe_monthly_price_id: string | null;
+  stripe_yearly_price_id: string | null;
+  monthly_price: string | null;
+  yearly_price: string | null;
+  currency: string;
+  features: string[];
+  limits: {
+    users: number;
+    invoices_per_month: number;
+    storage_gb: number;
+  };
+  metered_items?: Array<{
+    price_id: string;
+    meter_name: string;
+    type: string;
+  }> | null;
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+  metadata?: Record<string, string> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type SubscriptionResponse = {
+  id: string;
+  plan: string;
+  reference_id: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: string;
+  period_start: Date | null;
+  period_end: Date | null;
+  cancel_at_period_end: boolean | null;
+  seats: number | null;
+  trial_start: Date | null;
+  trial_end: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type LineItemResponse = {
+  id: string;
+  subscription_id: string;
+  stripe_subscription_item_id: string;
+  stripe_price_id: string;
+  item_type: string;
+  description: string | null;
+  quantity: number;
+  unit_amount: string | null;
+  metadata?: Record<string, string> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type EventResponse = {
+  id: string;
+  subscription_id: string;
+  plan_id: string | null;
+  event_type: string;
+  from_status: string | null;
+  to_status: string | null;
+  from_plan_id: string | null;
+  to_plan_id: string | null;
+  triggered_by: string | null;
+  triggered_by_type: string | null;
+  metadata?: Record<string, unknown> | null;
+  error_message: string | null;
+  created_at: Date;
+};
+
+export type SubscriptionWithDetailsResponse = Omit<SubscriptionResponse, 'plan'> & {
+  plan: SubscriptionPlanResponse | null;
+  line_items: LineItemResponse[];
+  events: EventResponse[];
+};
+
+export type ListPlansResponse = {
+  plans: SubscriptionPlanResponse[];
+};
+
+export type GetCurrentSubscriptionResponse = {
+  subscription: SubscriptionWithDetailsResponse | null;
+};
+
+export type CreateSubscriptionResponse = {
+  subscription_id?: string;
+  checkout_url?: string;
+  message: string;
+};
+
+export type CancelSubscriptionResponse = {
+  url: string;
+  redirect: boolean;
+};

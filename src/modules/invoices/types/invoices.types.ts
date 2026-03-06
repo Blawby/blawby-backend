@@ -29,6 +29,23 @@ export type InvoiceWithRelations = BuildQueryResult<
 >;
 
 /**
+ * Invoice summary for list views (no line items)
+ */
+export type InvoiceSummary = BuildQueryResult<
+  Schema,
+  Schema['invoices'],
+  {
+    with: {
+      client: {
+        with: { user: true };
+      };
+      matter: true;
+      connectedAccount: true;
+    };
+  }
+>;
+
+/**
  * Invoice list response
  */
 export type InvoiceListResponse = {
@@ -60,6 +77,10 @@ export type InvoiceTotals = {
   discount_amount: number;
   total: number;
   amount_due: number;
+};
+
+export type InvoiceListFilters = z.infer<typeof invoiceValidations.listInvoicesQuerySchema> & {
+  invoiceId?: string;
 };
 
 export type {

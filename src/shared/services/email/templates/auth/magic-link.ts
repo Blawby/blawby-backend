@@ -15,7 +15,7 @@ export const magicLinkTemplate = (data: MagicLinkData): string => `
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       line-height: 1.6;
-      color: #333;
+      color: #1a1a1a;
       margin: 0;
       padding: 0;
       background-color: #f9fafb;
@@ -48,7 +48,7 @@ export const magicLinkTemplate = (data: MagicLinkData): string => `
     .button {
       display: inline-block;
       padding: 14px 32px;
-      background-color: #2563eb;
+      background-color: #1a202c;
       color: #ffffff !important;
       text-decoration: none;
       border-radius: 8px;
@@ -75,7 +75,7 @@ export const magicLinkTemplate = (data: MagicLinkData): string => `
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <img src="https://blawby.com/logo.png" alt="Blawby" width="120" style="margin-bottom: 24px;">
+        <img src="https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/27bc2bf2-8582-4ed1-e77c-45d7a3215b00/public" alt="Blawby" width="120" style="margin-bottom: 24px;">
       </div>
       <div class="content">
         <h1>Sign in to Blawby</h1>

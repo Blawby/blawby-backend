@@ -16,6 +16,8 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
+import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
+import { subscriptions } from '@/schema/better-auth-schema';
 
 // Item type enum
 export const SUBSCRIPTION_ITEM_TYPES = [
@@ -34,7 +36,9 @@ export const subscriptionLineItems = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Link to Better Auth subscription
-    subscription_id: text('subscription_id').notNull(),
+    subscription_id: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
 
     // Stripe IDs
     stripe_subscription_item_id: text('stripe_subscription_item_id').notNull().unique(),
@@ -50,8 +54,8 @@ export const subscriptionLineItems = pgTable(
     metadata: jsonb('metadata').$type<Record<string, string>>().default({}),
 
     // Timestamps
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at')
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
@@ -68,9 +72,6 @@ export const subscriptionLineItemsRelations = relations(subscriptionLineItems, (
     references: [subscriptionPlans.stripe_monthly_price_id],
   }),
 }));
-
-// Import related schemas for relations
-import { subscriptionPlans } from './subscriptionPlans.schema';
 
 // Type exports
 export type SubscriptionLineItem = typeof subscriptionLineItems.$inferSelect;

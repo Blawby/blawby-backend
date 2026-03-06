@@ -13,7 +13,8 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
-import { subscriptionPlans } from './subscriptionPlans.schema';
+import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
+import { subscriptions } from '@/schema/better-auth-schema';
 
 // Event type enum
 export const SUBSCRIPTION_EVENT_TYPES = [
@@ -41,7 +42,9 @@ export const subscriptionEvents = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Link to Better Auth subscription
-    subscription_id: text('subscription_id').notNull(),
+    subscription_id: uuid('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
 
     // Link to plan (optional, for plan changes)
     plan_id: uuid('plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
@@ -62,7 +65,7 @@ export const subscriptionEvents = pgTable(
     error_message: text('error_message'),
 
     // Timestamp
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('subscription_events_subscription_idx').on(table.subscription_id),

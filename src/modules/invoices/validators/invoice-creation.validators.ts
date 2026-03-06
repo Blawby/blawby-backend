@@ -52,12 +52,16 @@ export const validateMatterBelongsToClient = (
  */
 export const validateInvoiceNumberUnique = async (
   organizationId: string,
-  invoiceNumber: string,
+  invoiceNumber: string | undefined | null,
 ): Promise<Result<void>> => {
+  const normalizedInvoiceNumber = invoiceNumber?.trim();
+  // If no invoice number provided, skip uniqueness check (Stripe will assign one)
+  if (!normalizedInvoiceNumber) return result.ok(undefined);
+
   const existingInvoice = await db.query.invoices.findFirst({
     where: (invoices, { and, eq }) => and(
       eq(invoices.organization_id, organizationId),
-      eq(invoices.invoice_number, invoiceNumber),
+      eq(invoices.invoice_number, normalizedInvoiceNumber),
     ),
   });
 

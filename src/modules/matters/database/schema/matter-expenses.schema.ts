@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { users } from '@/schema';
 
 export const matterExpenses = pgTable(
@@ -31,6 +32,8 @@ export const matterExpenses = pgTable(
     amount: integer('amount').notNull(), // in cents
     date: date('date').notNull(),
     billable: boolean('billable').notNull().default(true),
+    invoice_id: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
+    invoiced_at: timestamp('invoiced_at', { withTimezone: true, mode: 'date' }),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull(),
