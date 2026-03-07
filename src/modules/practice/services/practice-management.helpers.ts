@@ -13,7 +13,10 @@ import type {
   DetailsFieldKeys,
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
-import type { PracticeWithDetails } from '@/modules/practice/types/practice.types';
+import type {
+  OrganizationApiShape,
+  PracticeWithDetails,
+} from '@/modules/practice/types/practice.types';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import {
@@ -21,7 +24,6 @@ import {
   PracticeDetailsUpdated,
   PracticeDetailsDeleted,
 } from '@/shared/events/definitions';
-import type { Organization } from '@/shared/types/BetterAuth';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const { parseBetterAuthMetadata } = betterAuthUtils;
@@ -44,13 +46,27 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
 ];
 
 export const buildPracticeWithDetails = (
-  organization: Organization,
+  organization: OrganizationApiShape,
   practiceDetails: PracticeDetails | null,
-): PracticeWithDetails => ({
-  ...practiceDetails,
-  ...organization,
-  metadata: parseBetterAuthMetadata(organization.metadata),
-});
+): PracticeWithDetails => {
+  const {
+    paymentLinkEnabled,
+    paymentLinkPrefillAmount,
+    createdAt,
+    updatedAt,
+    ...rest
+  } = organization;
+
+  return {
+    ...practiceDetails,
+    ...rest,
+    metadata: parseBetterAuthMetadata(organization.metadata),
+    payment_link_enabled: paymentLinkEnabled ?? null,
+    payment_link_prefill_amount: paymentLinkPrefillAmount ?? null,
+    created_at: createdAt ?? new Date(),
+    updated_at: updatedAt ?? undefined,
+  };
+};
 
 export const upsertDetailsTransaction = async (
   tx: typeof db,

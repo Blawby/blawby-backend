@@ -9,7 +9,7 @@ import { response } from '@/shared/utils/responseUtils';
 
 export const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingStatusRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { practiceId: organizationId } = c.req.valid('param');
+  const { practice_id: organizationId } = c.req.valid('param');
 
   const result = await onboardingService.getOnboardingStatus({
     organizationId,
@@ -33,4 +33,3 @@ export const createConnectedAccountHandler: AppRouteHandler<typeof createConnect
 
   return response.fromResult(c, result, 201);
 };
-

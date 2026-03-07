@@ -88,6 +88,7 @@ export const practiceQueriesService = {
 
       // Omit members and invitations from the organization response
       const organization = omit(orgResult.data, ['members', 'invitations']);
+      const storedOrganization = await organizationRepository.findById(organizationId);
 
       // 2. Get optional practice details
       const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
@@ -97,6 +98,10 @@ export const practiceQueriesService = {
         ...practiceDetails,
         ...organization,
         metadata: parseBetterAuthMetadata(orgResult.data.metadata),
+        payment_link_enabled: storedOrganization?.paymentLinkEnabled ?? null,
+        payment_link_prefill_amount: storedOrganization?.paymentLinkPrefillAmount ?? null,
+        created_at: orgResult.data.createdAt,
+        updated_at: practiceDetails?.updated_at ?? undefined,
       };
 
       return ok<{ practice: PracticeWithDetails }>({ practice });

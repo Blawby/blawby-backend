@@ -2,7 +2,11 @@ import { z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
+  errorResponseSchema,
+  forbiddenResponseSchema,
+  notFoundResponseSchema,
   practiceIdParamSchema,
+  unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
@@ -40,6 +44,9 @@ const createInvoiceRoute = routeBuilder.build({
       },
       description: 'Invoice created successfully',
     },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Bad request' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
   },
 });
 
@@ -173,7 +180,7 @@ const getClientInvoicesRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            invoices: z.array(invoiceValidations.invoiceSchema),
+            invoices: z.array(invoiceValidations.invoiceSummarySchema),
             pagination: z.object({
               page: z.number().int(),
               limit: z.number().int(),
@@ -184,6 +191,8 @@ const getClientInvoicesRoute = routeBuilder.build({
       },
       description: 'Client invoices retrieved',
     },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
   },
 });
 
@@ -203,6 +212,9 @@ const getClientInvoiceDetailRoute = routeBuilder.build({
       },
       description: 'Client invoice detail retrieved',
     },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });
 

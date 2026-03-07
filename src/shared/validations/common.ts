@@ -51,7 +51,7 @@ export const idParamSchema = z.object({
 
 // Parameter validation schemas
 export const practiceIdParamSchema = z.object({
-  practiceId: uuidValidator,
+  practice_id: uuidValidator,
 });
 
 // Alias for backwards compatibility
