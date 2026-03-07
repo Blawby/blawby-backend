@@ -1,24 +1,11 @@
 import { z } from '@hono/zod-openapi';
-import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
+import type { PracticeDetailsResponse as PracticeDetailsApiResponse } from '@/modules/practice/types/practice.types';
 import { supportedStatesItemSchema } from '@/modules/practice/validations/practice.validation';
 
-export type PracticeDetailsSupportedStates = Readonly<z.infer<typeof supportedStatesItemSchema>>;
+export type PracticeDetailsResponse = PracticeDetailsApiResponse;
 
-export type PracticeDetailsResponse = Omit<
-  PracticeDetails,
-  'id' | 'organization_id' | 'user_id' | 'address_id' | 'created_at' | 'updated_at' | 'services'
-> & {
-  organization_id: string;
-  address?: AddressData | null;
-  services: Array<{ id: string; name: string; key: string }>;
-  name?: string;
-  logo?: string | null;
-  payment_link_enabled?: boolean;
-  payment_link_prefill_amount?: number;
-  billing_increment_minutes?: number;
-  supported_states: PracticeDetailsSupportedStates[] | null;
-};
+export type PracticeDetailsSupportedStates = Readonly<z.infer<typeof supportedStatesItemSchema>>;
 
 export type UpsertPracticeDetailsRequest = {
   business_phone?: string | null;

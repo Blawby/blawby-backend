@@ -22,10 +22,20 @@
     "explicit-function-return-type": "error",
     "no-unused-vars": "error",
     "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
     "typescript/explicit-function-return-type": "off",
     "import/no-unresolved": "off",
     "unicorn/text-encoding-identifier-case": "off",
     "unicorn/prefer-string-replace-all": "off",
-    "unicorn/prefer-top-level-await": "off"
+    "unicorn/prefer-top-level-await": "off",
+    "max-lines": [
+      "error",
+      500
+    ]
   }
 }

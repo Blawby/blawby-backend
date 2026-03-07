@@ -4,13 +4,17 @@
  * Exports for the preferences module
  */
 
-export { getAllPreferences, getCategoryPreferences, updateCategoryPreferences } from '@/modules/preferences/handlers';
-export { preferencesService } from '@/modules/preferences/services/preferences.service';
-export {
-  preferenceValidations,
-} from '@/modules/preferences/validations/preferences.validation';
-export { config } from '@/modules/preferences/routes.config';
+import { preferencesHandlers } from '@/modules/preferences/handlers';
+import http from '@/modules/preferences/http';
+import { config } from '@/modules/preferences/routes.config';
+import { preferencesService } from '@/modules/preferences/services/preferences.service';
+import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 
-// Legacy exports for backward compatibility
-export { getDetails, updateDetails } from '@/modules/preferences/handlers';
-export { preferencesService as preferences } from '@/modules/preferences/services/preferences.service';
+export {
+  preferencesHandlers,
+  preferencesService,
+  preferenceValidations,
+  config,
+};
+
+export default http;

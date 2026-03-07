@@ -1,11 +1,6 @@
 import {
   eq, and, isNull, sql, desc,
 } from 'drizzle-orm';
-import type {
-  InvoiceWithRelations,
-  InvoiceSummary,
-  InvoiceListFilters,
-} from '@/modules/invoices/types/invoices.types';
 import {
   invoicesSchema,
   invoiceLineItemsSchema,
@@ -16,6 +11,11 @@ import type {
   InsertInvoiceLineItem,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/database/schema';
+import type {
+  InvoiceWithRelations,
+  InvoiceSummary,
+  InvoiceListFilters,
+} from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
 const { invoices } = invoicesSchema;
@@ -163,6 +163,34 @@ const updateInvoice = async (
 };
 
 /**
+ * Transition invoice status atomically (only when current status matches expected)
+ */
+const transitionInvoiceStatus = async (
+  id: string,
+  organizationId: string,
+  fromStatus: string,
+  toStatus: string,
+  tx?: typeof db,
+): Promise<SelectInvoice | undefined> => {
+  const client = tx || db;
+  const [invoice] = await client
+    .update(invoices)
+    .set({
+      status: toStatus,
+      updated_at: new Date(),
+    })
+    .where(and(
+      eq(invoices.id, id),
+      eq(invoices.organization_id, organizationId),
+      eq(invoices.status, fromStatus),
+      isNull(invoices.deleted_at),
+    ))
+    .returning();
+
+  return invoice;
+};
+
+/**
  * Soft delete invoice
  */
 const softDeleteInvoice = async (
@@ -292,6 +320,7 @@ export const invoicesRepository = {
   findManyByClientId,
   findOneByIdAndClientId,
   updateInvoice,
+  transitionInvoiceStatus,
   softDeleteInvoice,
   createInvoiceLineItems,
   deleteInvoiceLineItems,

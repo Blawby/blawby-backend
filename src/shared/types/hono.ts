@@ -1,6 +1,7 @@
-import type { Hono } from 'hono';
 import type { RouteConfig, RouteHandler } from '@hono/zod-openapi';
+import type { Hono } from 'hono';
 
+import type { AppAbility } from '@/shared/auth/abilities';
 import type { User, Session } from '@/shared/types/BetterAuth';
 
 export type Variables = {
@@ -8,6 +9,8 @@ export type Variables = {
   session: Session | null;
   userId: string | null;
   activeOrganizationId: string | null;
+  memberRole: string | null;
+  ability: AppAbility;
 };
 
 export type AppContext = {
