@@ -167,22 +167,22 @@ PRs within a group can be developed **in parallel**.
 
 ---
 
-### ✅ PR-2 — Practice Module
+### PR-2 — Practice Module
 
 **Files:** `src/modules/practice/`
 
-- [x] Wire `injectAbility()` in `http.ts`
-- [x] Rewrite handlers to use `getServiceContext(c)` (currently: `c.get('user')!` + positional args)
-- [x] Remove all `if (!user)` checks
-- [x] Convert all service functions from `(orgId, user, headers)` → `(params, ctx)`
-- [x] Add CASL checks in every service method
-- [x] Split `practice.routes.ts` (869 lines) → `organization.routes.ts`, `members.routes.ts`, `practice-details.routes.ts`
-- [x] Split `practice.service.ts` (507 lines) into focused sub-services
-- [x] Split `practice-details.service.ts` (369 lines)
-- [x] **Event definitions** (`src/shared/events/definitions/practice.ts`):
-  - [x] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` (currently `Record<string, unknown>`, actively dispatched)
-  - [x] Simplify `PracticeDetailsUpsertedPayload` — use `?` for optional + `| null` for nullable, not both `| null | undefined`
-- [x] **Note:** `members.service.ts` and `invitations.service.ts` are Better Auth wrappers — keep `requestHeaders` param (required by `betterAuth.api.*`), but standardize everything else to `(params, ctx)`
+- [ ] Wire `injectAbility()` in `http.ts`
+- [ ] Rewrite handlers to use `getServiceContext(c)` (currently: `c.get('user')!` + positional args)
+- [ ] Remove all `if (!user)` checks
+- [ ] Convert all service functions from `(orgId, user, headers)` → `(params, ctx)`
+- [ ] Add CASL checks in every service method
+- [ ] Split `practice.routes.ts` (869 lines) → `organization.routes.ts`, `members.routes.ts`, `practice-details.routes.ts`
+- [ ] Split `practice.service.ts` (507 lines) into focused sub-services
+- [ ] Split `practice-details.service.ts` (369 lines)
+- [ ] **Event definitions** (`src/shared/events/definitions/practice.ts`):
+  - [x] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` — DONE
+  - [x] Simplify `PracticeDetailsUpsertedPayload` — DONE
+- [ ] **Note:** `members.service.ts` and `invitations.service.ts` are Better Auth wrappers — keep `requestHeaders` param (required by `betterAuth.api.*`), but standardize everything else to `(params, ctx)`
 
 ---
 
