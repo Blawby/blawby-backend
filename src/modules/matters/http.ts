@@ -1,55 +1,47 @@
-import * as handlers from '@/modules/matters/handlers';
-import * as routes from '@/modules/matters/routes';
+import { handlers as matterHandlers } from '@/modules/matters/handlers';
+import {
+  routes as matterRoutes,
+} from '@/modules/matters/routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
-const mattersApp = createHonoApp();
+const app = createHonoApp();
 
-// ==================== MATTERS ====================
-mattersApp.openapi(routes.createMatterRoute, handlers.createMatterHandler);
-mattersApp.openapi(routes.getMattersRoute, handlers.getMattersHandler);
-mattersApp.openapi(routes.updateMatterRoute, handlers.updateMatterHandler);
-mattersApp.openapi(routes.deleteMatterRoute, handlers.deleteMatterHandler);
-mattersApp.openapi(routes.getMatterActivityRoute, handlers.getMatterActivityHandler);
+// Middleware
+app.use('*', injectAbility());
 
-// ==================== MATTER NOTES ====================
-mattersApp.openapi(routes.listMatterNotesRoute, handlers.listMatterNotesHandler);
-mattersApp.openapi(routes.createMatterNoteRoute, handlers.createMatterNoteHandler);
-mattersApp.openapi(routes.updateMatterNoteRoute, handlers.updateMatterNoteHandler);
-mattersApp.openapi(routes.deleteMatterNoteRoute, handlers.deleteMatterNoteHandler);
+// Matters
+app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
+app.openapi(matterRoutes.getMattersRoute, matterHandlers.getMattersHandler);
+app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
+app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
+app.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
 
-// ==================== MATTER TASKS ====================
-mattersApp.openapi(routes.listMatterTasksRoute, handlers.listMatterTasksHandler);
-mattersApp.openapi(routes.createMatterTaskRoute, handlers.createMatterTaskHandler);
-mattersApp.openapi(routes.updateMatterTaskRoute, handlers.updateMatterTaskHandler);
-mattersApp.openapi(routes.deleteMatterTaskRoute, handlers.deleteMatterTaskHandler);
-mattersApp.openapi(routes.generateMatterTasksRoute, handlers.generateMatterTasksHandler);
+// Notes
+app.openapi(matterRoutes.listMatterNotesRoute, matterHandlers.listMatterNotesHandler);
+app.openapi(matterRoutes.createMatterNoteRoute, matterHandlers.createMatterNoteHandler);
+app.openapi(matterRoutes.updateMatterNoteRoute, matterHandlers.updateMatterNoteHandler);
+app.openapi(matterRoutes.deleteMatterNoteRoute, matterHandlers.deleteMatterNoteHandler);
 
-// ==================== MATTER TIME ENTRIES ====================
-mattersApp.openapi(routes.listTimeEntriesRoute, handlers.listTimeEntriesHandler);
-mattersApp.openapi(routes.createTimeEntryRoute, handlers.createTimeEntryHandler);
-mattersApp.openapi(routes.updateTimeEntryRoute, handlers.updateTimeEntryHandler);
-mattersApp.openapi(routes.deleteTimeEntryRoute, handlers.deleteTimeEntryHandler);
-mattersApp.openapi(routes.getTimeEntryStatsRoute, handlers.getTimeEntryStatsHandler);
+// Time Entries
+app.openapi(matterRoutes.listTimeEntriesRoute, matterHandlers.listTimeEntriesHandler);
+app.openapi(matterRoutes.createTimeEntryRoute, matterHandlers.createTimeEntryHandler);
+app.openapi(matterRoutes.updateTimeEntryRoute, matterHandlers.updateTimeEntryHandler);
+app.openapi(matterRoutes.deleteTimeEntryRoute, matterHandlers.deleteTimeEntryHandler);
+app.openapi(matterRoutes.getTimeEntryStatsRoute, matterHandlers.getTimeEntryStatsHandler);
 
-// ==================== MATTER EXPENSES ====================
-mattersApp.openapi(routes.listExpensesRoute, handlers.listExpensesHandler);
-mattersApp.openapi(routes.createExpenseRoute, handlers.createExpenseHandler);
-mattersApp.openapi(routes.updateExpenseRoute, handlers.updateExpenseHandler);
-mattersApp.openapi(routes.deleteExpenseRoute, handlers.deleteExpenseHandler);
+// Expenses
+app.openapi(matterRoutes.listExpensesRoute, matterHandlers.listExpensesHandler);
+app.openapi(matterRoutes.createExpenseRoute, matterHandlers.createExpenseHandler);
+app.openapi(matterRoutes.updateExpenseRoute, matterHandlers.updateExpenseHandler);
+app.openapi(matterRoutes.deleteExpenseRoute, matterHandlers.deleteExpenseHandler);
 
-// ==================== MATTER MILESTONES ====================
-mattersApp.openapi(routes.listMilestonesRoute, handlers.listMilestonesHandler);
-mattersApp.openapi(routes.createMilestoneRoute, handlers.createMilestoneHandler);
-mattersApp.openapi(routes.updateMilestoneRoute, handlers.updateMilestoneHandler);
-mattersApp.openapi(routes.deleteMilestoneRoute, handlers.deleteMilestoneHandler);
-mattersApp.openapi(routes.reorderMilestonesRoute, handlers.reorderMilestonesHandler);
+// Milestones
+app.openapi(matterRoutes.listMilestonesRoute, matterHandlers.listMilestonesHandler);
+app.openapi(matterRoutes.createMilestoneRoute, matterHandlers.createMilestoneHandler);
+app.openapi(matterRoutes.updateMilestoneRoute, matterHandlers.updateMilestoneHandler);
+app.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.deleteMilestoneHandler);
+app.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
 
-// ==================== UNBILLED QUERIES ====================
-mattersApp.openapi(routes.getUnbilledTimeEntriesRoute, handlers.getUnbilledTimeEntriesHandler);
-mattersApp.openapi(routes.getUnbilledExpensesRoute, handlers.getUnbilledExpensesHandler);
-mattersApp.openapi(routes.getUnbilledSummaryRoute, handlers.getUnbilledSummaryHandler);
 
-registerOpenApiRoutes(mattersApp, routes);
-
-export default mattersApp;
+export default app;

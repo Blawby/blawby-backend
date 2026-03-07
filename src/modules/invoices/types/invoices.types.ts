@@ -64,8 +64,24 @@ export type InvoiceResponse = z.infer<typeof invoiceValidations.invoiceSchema>;
 export type InvoiceSummaryResponse = z.infer<typeof invoiceValidations.invoiceSummarySchema>;
 export type InvoiceLineItemResponse = z.infer<typeof invoiceValidations.lineItemSchema>;
 
+/**
+ * Input for calculating or syncing line items
+ */
+export type InvoiceLineItemInput = z.infer<typeof invoiceValidations.invoiceLineItemRequestSchema>;
+
+/**
+ * Calculated invoice totals
+ */
+export type InvoiceTotals = {
+  subtotal: number;
+  tax_amount: number;
+  discount_amount: number;
+  total: number;
+  amount_due: number;
+};
+
 export type InvoiceListFilters = z.infer<typeof invoiceValidations.listInvoicesQuerySchema> & {
-  invoiceId?: string; // For compatibility with repository filters if named differently
+  invoiceId?: string;
 };
 
 export type {

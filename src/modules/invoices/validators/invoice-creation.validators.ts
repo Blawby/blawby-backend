@@ -1,9 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
+import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
-import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
-import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 
 /**
  * Validates that a Stripe connected account is ready for charges and payouts
@@ -60,11 +59,10 @@ export const validateInvoiceNumberUnique = async (
   if (!normalizedInvoiceNumber) return result.ok(undefined);
 
   const existingInvoice = await db.query.invoices.findFirst({
-    where: (invoices, { and, eq }) =>
-      and(
-        eq(invoices.organization_id, organizationId),
-        eq(invoices.invoice_number, normalizedInvoiceNumber),
-      ),
+    where: (invoices, { and, eq }) => and(
+      eq(invoices.organization_id, organizationId),
+      eq(invoices.invoice_number, normalizedInvoiceNumber),
+    ),
   });
 
   if (existingInvoice) {

@@ -72,19 +72,27 @@ const listMatterExpenses = async (
 // Update matter expense
 const updateMatterExpense = async (
   id: string,
+  matterId: string,
   data: Partial<InsertMatterExpense>,
 ): Promise<SelectMatterExpense | undefined> => {
   const [expense] = await db
     .update(matterExpenses)
     .set({ ...data, updated_at: new Date() })
-    .where(eq(matterExpenses.id, id))
+    .where(and(eq(matterExpenses.id, id), eq(matterExpenses.matter_id, matterId)))
     .returning();
   return expense;
 };
 
 // Delete matter expense
-const deleteMatterExpense = async (id: string): Promise<void> => {
-  await db.delete(matterExpenses).where(eq(matterExpenses.id, id));
+const deleteMatterExpense = async (
+  id: string,
+  matterId: string,
+): Promise<boolean> => {
+  const deleted = await db
+    .delete(matterExpenses)
+    .where(and(eq(matterExpenses.id, id), eq(matterExpenses.matter_id, matterId)))
+    .returning({ id: matterExpenses.id });
+  return deleted.length > 0;
 };
 
 // Get total billable expenses for matter

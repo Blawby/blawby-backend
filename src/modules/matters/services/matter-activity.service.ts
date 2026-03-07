@@ -14,8 +14,8 @@ import {
 import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'activity']);
@@ -24,41 +24,63 @@ const logger = getLogger(['matters', 'services', 'activity']);
  * Log activity for a matter
  */
 const logMatterActivity = async (
-  matterId: string,
-  action: string,
-  description: string,
-  userId?: string,
-  metadata?: Record<string, unknown>,
+  params: {
+    action: string;
+    description: string;
+    metadata?: Record<string, unknown>;
+    matterId?: string;
+  },
+  ctx: ServiceContext,
   tx?: NodePgDatabase<typeof schema>,
-): Promise<SelectMatterActivityLog> => {
-  const client = tx ?? db;
-  const [activity] = await client
-    .insert(matterActivityLog)
-    .values({
-      matter_id: matterId,
-      user_id: userId || null,
-      action,
-      description,
-      metadata: metadata || null,
-    })
-    .returning();
+): Promise<Result<SelectMatterActivityLog>> => {
+  const matterId = params.matterId || ctx.matterId;
 
-  return activity;
+  if (!matterId) {
+    logger.error('Failed to log activity: matterId is missing', {
+      action: params.action,
+      userId: ctx.userId,
+    });
+    return internalError('Matter ID is required for logging activity');
+  }
+
+  try {
+    const client = tx ?? db;
+    const [activity] = await client
+      .insert(matterActivityLog)
+      .values({
+        matter_id: matterId,
+        user_id: ctx.userId || null,
+        action: params.action,
+        description: params.description,
+        metadata: params.metadata || null,
+      })
+      .returning();
+
+    return ok(activity);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to insert activity log for matter {matterId}: {error}', {
+      matterId,
+      error: message,
+    });
+    return internalError('Failed to log matter activity');
+  }
 };
 
 /**
  * Get matter activity log
  */
 const getMatterActivity = async (
-  organizationId: string,
-  matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  options?: MatterActivityListFilters,
+  options: MatterActivityListFilters | undefined,
+  ctx: ServiceContext,
 ): Promise<Result<SelectMatterActivityLog[]>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
   // Verify user has access to matter (lazy import to avoid circular dependency)
   const { mattersService } = await import('@/modules/matters/services/matters.service');
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
     return matterResult as Result<never>;
   }

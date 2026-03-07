@@ -21,6 +21,7 @@ const createStripeInvoice = async (
   invoice: InvoiceWithRelations,
   stripeCustomerId: string,
   onBehalfOfAccountId: string,
+  idempotencyKeyPrefix?: string,
 ): Promise<Result<Stripe.Invoice>> => {
   if (!onBehalfOfAccountId) {
     return result.badRequest('Missing Stripe account ID for on_behalf_of');
@@ -31,7 +32,8 @@ const createStripeInvoice = async (
   try {
     // 1. Create invoice items for each line item
     if (invoice.lineItems) {
-      for (const item of invoice.lineItems) {
+      for (const [index, item] of invoice.lineItems.entries()) {
+        const lineItemIdempotencySuffix = item.id ?? `${invoice.id}:${index}`;
         const stripeItem = await stripe.invoiceItems.create({
           customer: stripeCustomerId,
           amount: item.line_total,
@@ -41,7 +43,9 @@ const createStripeInvoice = async (
             internal_line_item_id: item.id,
             internal_invoice_id: invoice.id,
           },
-        });
+        }, idempotencyKeyPrefix
+          ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${lineItemIdempotencySuffix}` }
+          : undefined);
         createdItemIds.push(stripeItem.id);
       }
     }
@@ -61,7 +65,7 @@ const createStripeInvoice = async (
       },
       description: invoice.notes || undefined,
       footer: invoice.memo || undefined,
-    });
+    }, idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:invoice` } : undefined);
 
     return result.ok(stripeInvoice);
   } catch (error) {
@@ -91,16 +95,25 @@ const createStripeInvoice = async (
  */
 const finalizeAndSendInvoice = async (
   stripeInvoiceId: string,
+  idempotencyKeyPrefix?: string,
 ): Promise<Result<Stripe.Invoice>> => {
   try {
     // Finalize the invoice (converts draft to open)
-    await stripe.invoices.finalizeInvoice(stripeInvoiceId);
+    await stripe.invoices.finalizeInvoice(
+      stripeInvoiceId,
+      {},
+      idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:finalize` } : undefined,
+    );
 
     // Send the invoice email with retries
     let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const sent = await stripe.invoices.sendInvoice(stripeInvoiceId);
+        const sent = await stripe.invoices.sendInvoice(
+          stripeInvoiceId,
+          {},
+          idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:send` } : undefined,
+        );
         return result.ok(sent);
       } catch (error) {
         lastError = error;

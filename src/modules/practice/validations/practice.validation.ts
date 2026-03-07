@@ -223,13 +223,8 @@ const practiceSingleResponseSchema = z
 
 const setActivePracticeResponseSchema = z
   .object({
-    result: z.object({
-      success: z.boolean().openapi({
-        example: true,
-      }),
-      message: z.string().openapi({
-        example: 'Practice set as active',
-      }),
+    success: z.boolean().openapi({
+      example: true,
     }),
   })
   .openapi('SetActivePracticeResponse');
@@ -398,6 +393,18 @@ const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
 
 const practiceDetailsResponseSchema = z
   .object({
+    id: z.uuid().openapi({
+      description: 'Practice Details ID',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    user_id: z.uuid().openapi({
+      description: 'User ID of the creator',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    address_id: z.uuid().nullable().openapi({
+      description: 'Linked Address ID',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     business_phone: z.string().nullable().openapi({
       example: '+1234567890',
     }),
@@ -453,13 +460,13 @@ const practiceDetailsResponseSchema = z
       example: 15,
     }),
     created_at: z.date().openapi({
+      description: 'Practice details creation timestamp',
       format: 'date-time',
-      description: 'Organization creation timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
     updated_at: z.date().optional().openapi({
       format: 'date-time',
-      description: 'Organization last update timestamp',
+      description: 'Practice details last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
     supported_states: z.array(z.object({
@@ -472,23 +479,11 @@ const practiceDetailsResponseSchema = z
   })
   .openapi('PracticeDetailsResponse');
 
-const practiceDetailsSingleResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsSingleResponse');
+const practiceDetailsSingleResponseSchema = practiceDetailsResponseSchema;
 
-const practiceDetailsCreateResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsCreateResponse');
+const practiceDetailsCreateResponseSchema = practiceDetailsResponseSchema;
 
-const practiceDetailsUpdateResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsUpdateResponse');
+const practiceDetailsUpdateResponseSchema = practiceDetailsResponseSchema;
 
 const slugParamSchema = z.object({
   slug: z.string(),
