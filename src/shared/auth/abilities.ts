@@ -57,6 +57,7 @@ export const defineAbilityFor = (
     // Specific roles logic
     can('read', 'all');
     can('update', 'OrganizationPreferences');
+    can('update', 'Matter');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');

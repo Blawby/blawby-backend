@@ -1,8 +1,5 @@
 import { eq } from 'drizzle-orm';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
-import {
-  findPracticeDetailsByOrganization,
-} from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import {
   practiceDetails as practiceDetailsTable,
@@ -110,25 +107,55 @@ export const upsertDetailsTransaction = async (
     supported_states: params.data.supported_states ?? undefined,
   };
 
-  const [details] = await tx
-    .insert(practiceDetailsTable)
-    .values({
-      organization_id: params.organizationId,
-      user_id: params.userId,
-      address_id: addressId,
-      ...detailsPayload,
-    })
-    .onConflictDoUpdate({
-      target: practiceDetailsTable.organization_id,
-      set: { address_id: addressId, ...detailsPayload, updated_at: new Date() },
-    })
+  const updatePayload = { address_id: addressId, ...detailsPayload, updated_at: new Date() };
+  const [updated] = await tx
+    .update(practiceDetailsTable)
+    .set(updatePayload)
+    .where(eq(practiceDetailsTable.organization_id, params.organizationId))
     .returning();
+
+  let details: PracticeDetails;
+  let isCreated: boolean;
+  if (updated) {
+    details = updated;
+    isCreated = false;
+  } else {
+    const [inserted] = await tx
+      .insert(practiceDetailsTable)
+      .values({
+        organization_id: params.organizationId,
+        user_id: params.userId,
+        address_id: addressId,
+        ...detailsPayload,
+      })
+      .onConflictDoNothing({
+        target: practiceDetailsTable.organization_id,
+      })
+      .returning();
+
+    if (inserted) {
+      details = inserted;
+      isCreated = true;
+    } else {
+      // Concurrent create won the race; treat this operation as update.
+      const [raceUpdated] = await tx
+        .update(practiceDetailsTable)
+        .set(updatePayload)
+        .where(eq(practiceDetailsTable.organization_id, params.organizationId))
+        .returning();
+      if (!raceUpdated) {
+        throw new Error('Failed to upsert practice details');
+      }
+      details = raceUpdated;
+      isCreated = false;
+    }
+  }
 
   const syncedServices = params.data.services !== undefined
     ? await practiceServicesRepository.syncServicesTx(tx, params.organizationId, params.data.services)
     : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
-  const EventClass = params.isCreate ? PracticeDetailsCreated : PracticeDetailsUpdated;
+  const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
   await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data }, tx);
 
   return { details, addressResult, syncedServices };
@@ -143,28 +170,21 @@ export const buildPracticeDetailsDeletedPayload = (existing: PracticeDetails) =>
   calendly_url: existing.calendly_url,
 });
 
-const deleteDetailsAndEmit = async (
-  ctx: ServiceContext,
-  tx: typeof db,
-  organizationId: string,
-  existing: PracticeDetails,
-) => {
-  await tx.delete(practiceDetailsTable).where(
-    eq(practiceDetailsTable.organization_id, organizationId),
-  );
-  await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(existing), tx);
-};
-
 export const findAndDeletePracticeDetails = async (
   ctx: ServiceContext,
   organizationId: string,
 ): Promise<PracticeDetails | null> => {
-  const existing = await findPracticeDetailsByOrganization(organizationId);
-  if (!existing) return null;
+  return await db.transaction(async (tx) => {
+    const [deleted] = await tx
+      .delete(practiceDetailsTable)
+      .where(eq(practiceDetailsTable.organization_id, organizationId))
+      .returning();
 
-  await db.transaction(async (tx) => {
-    await deleteDetailsAndEmit(ctx, tx, organizationId, existing);
+    if (!deleted) {
+      return null;
+    }
+
+    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted), tx);
+    return deleted;
   });
-
-  return existing;
 };
