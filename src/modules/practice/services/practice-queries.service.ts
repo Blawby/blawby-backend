@@ -58,10 +58,9 @@ export const practiceQueriesService = {
    * List all practices (organizations) for the current user
    */
   async listPractices(
-    { requestHeaders }: { requestHeaders: Record<string, string> },
     ctx: ServiceContext,
   ): Promise<Result<{ practices: Organization[] }>> {
-    const result = await organizationService.listOrganizations({ requestHeaders }, ctx);
+    const result = await organizationService.listOrganizations(ctx);
     if (!result.success) return result;
     return ok<{ practices: Organization[] }>({ practices: result.data });
   },
@@ -70,13 +69,13 @@ export const practiceQueriesService = {
    * Get practice by ID with details (flat view)
    */
   async getPracticeById(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
+    { organizationId }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
     try {
       // 1. Get organization from Better Auth
       const orgResult = await organizationService.getFullOrganization(
-        { organizationId, requestHeaders },
+        { organizationId },
         ctx,
       );
 
@@ -112,13 +111,13 @@ export const practiceQueriesService = {
    * Get full practice details (structured UI view)
    */
   async getPracticeDetails(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
+    { organizationId }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<PracticeDetailsResponse>> {
     try {
       // 1. Verify organization exists and user has access via Better Auth
       const organizationResult = await organizationService.getFullOrganization(
-        { organizationId, requestHeaders },
+        { organizationId },
         ctx,
       );
 

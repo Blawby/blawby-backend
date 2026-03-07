@@ -11,6 +11,7 @@ export type ServiceContext = {
   matterId?: string;
   memberRole: string | null;
   ability: AppAbility;
+  requestHeaders: Record<string, string>;
   emit: <T extends Record<string, unknown>>(
     event: EventClass<T>,
     payload: T,
@@ -31,6 +32,7 @@ export const getServiceContext = (c: Context): ServiceContext => {
     matterId,
     memberRole: c.get('memberRole'),
     ability: c.get('ability'),
+    requestHeaders: c.req.header(),
     emit: (event, payload, tx) => {
       // Create options object
       const options: DispatchOptions = {

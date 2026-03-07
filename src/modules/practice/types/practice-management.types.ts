@@ -40,11 +40,7 @@ export type UpsertDetailsTransactionParams = {
   isCreate: boolean;
 };
 
-export type RequestHeadersParams = {
-  requestHeaders: Record<string, string>;
-};
-
-export type CreatePracticeParams = RequestHeadersParams & {
+export type CreatePracticeParams = {
   data: CreatePracticeRequest;
 };
 
