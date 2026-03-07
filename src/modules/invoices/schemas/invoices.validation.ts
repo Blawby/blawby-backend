@@ -1,9 +1,12 @@
 import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
 
+const invoiceLineItemTypeValues = ['service', 'time_entry', 'expense', 'flat_fee', 'retainer', 'other'] as const;
+const invoiceLineItemTypeSchema = z.enum(invoiceLineItemTypeValues);
+
 // Line item validation
 const invoiceLineItemRequestSchema = z.object({
-  type: z.enum(['service', 'time_entry', 'expense', 'flat_fee', 'retainer', 'other']),
+  type: invoiceLineItemTypeSchema,
   description: z.string().min(1, 'Description is required'),
   quantity: z.number().int().min(1).default(1),
   unit_price: z.number().int().min(0), // in cents
@@ -55,7 +58,7 @@ const listInvoicesQuerySchema = z.object({
 const lineItemSchema = z.object({
   id: z.uuid(),
   invoice_id: z.uuid(),
-  type: z.string(),
+  type: invoiceLineItemTypeSchema,
   description: z.string(),
   quantity: z.number(),
   unit_price: z.number(),
@@ -63,8 +66,8 @@ const lineItemSchema = z.object({
   time_entry_id: z.uuid().nullable(),
   expense_id: z.uuid().nullable(),
   sort_order: z.number(),
-  created_at: z.date(),
-  updated_at: z.date(),
+  created_at: z.date().openapi({ format: 'date-time' }),
+  updated_at: z.date().openapi({ format: 'date-time' }),
 }).openapi('InvoiceLineItem');
 
 const invoiceSchema = z.object({
@@ -83,9 +86,9 @@ const invoiceSchema = z.object({
   total: z.number(),
   amount_paid: z.number(),
   amount_due: z.number(),
-  issue_date: z.date().nullable(),
-  due_date: z.date().nullable(),
-  paid_at: z.date().nullable(),
+  issue_date: z.date().nullable().openapi({ format: 'date-time' }),
+  due_date: z.date().nullable().openapi({ format: 'date-time' }),
+  paid_at: z.date().nullable().openapi({ format: 'date-time' }),
   stripe_invoice_id: z.string().nullable(),
   stripe_invoice_number: z.string().nullable(),
   stripe_charge_id: z.string().nullable(),
@@ -94,8 +97,8 @@ const invoiceSchema = z.object({
   stripe_hosted_invoice_url: z.string().nullable(),
   notes: z.string().nullable(),
   memo: z.string().nullable(),
-  created_at: z.date(),
-  updated_at: z.date(),
+  created_at: z.date().openapi({ format: 'date-time' }),
+  updated_at: z.date().openapi({ format: 'date-time' }),
   line_items: z.array(lineItemSchema).optional(),
   client: z.object({
     id: z.uuid(),
@@ -110,6 +113,10 @@ const invoiceSchema = z.object({
   matter: z.any().optional(),
 }).openapi('Invoice');
 
+const invoiceSummarySchema = invoiceSchema.omit({
+  line_items: true,
+}).openapi('InvoiceSummary');
+
 export const invoiceValidations = {
   invoiceLineItemRequestSchema,
   createInvoiceSchema,
@@ -117,5 +124,6 @@ export const invoiceValidations = {
   invoiceIdParamSchema,
   listInvoicesQuerySchema,
   invoiceSchema,
+  invoiceSummarySchema,
   lineItemSchema,
 };

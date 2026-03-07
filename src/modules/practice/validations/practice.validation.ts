@@ -12,8 +12,8 @@ import {
 const businessPhoneSchema = phoneValidator.optional();
 const businessEmailSchema = z.email().optional();
 const consultationFeeSchema = currencyValidator.optional();
-const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
-const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
+const paymentUrlSchema = urlValidator.optional();
+const calendlyUrlSchema = urlValidator.optional();
 const billingIncrementMinutesSchema = z
   .number()
   .int()
@@ -47,7 +47,7 @@ const practiceDetailsValidationSchema = z.object({
   consultation_fee: consultationFeeSchema,
   payment_url: paymentUrlSchema,
   calendly_url: calendlyUrlSchema,
-  website: urlValidator.optional().or(z.literal('')).openapi({ example: 'https://example.com' }),
+  website: urlValidator.optional().openapi({ example: 'https://example.com' }),
   intro_message: z.string().optional().openapi({ example: 'Welcome to our practice' }),
   overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
   accent_color: z.string().optional().openapi({ example: '#3B82F6' }),
@@ -98,7 +98,7 @@ const createPracticeSchema = z.object({
   // Organization fields (required)
   name: nameValidator,
   slug: slugValidator,
-  logo: urlValidator.optional().or(z.literal('')),
+  logo: urlValidator.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 
   // Practice details
@@ -109,7 +109,7 @@ const updatePracticeSchemaBase = z.object({
   // Organization fields (all optional for updates)
   name: nameValidator.optional(),
   slug: slugValidator.optional(),
-  logo: urlValidator.optional().or(z.literal('')),
+  logo: urlValidator.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 
   // Practice details
@@ -182,11 +182,11 @@ const practiceResponseSchema = z
       description: 'Whether the practice details are publicly visible',
       example: true,
     }),
-    paymentLinkEnabled: z.boolean().nullable().openapi({
+    payment_link_enabled: z.boolean().nullable().openapi({
       description: 'Whether the practice has payment links enabled',
       example: true,
     }),
-    paymentLinkPrefillAmount: z.number().nullable().openapi({
+    payment_link_prefill_amount: z.number().nullable().openapi({
       description: 'Default prefill amount for payment links (in cents)',
       example: 5000,
     }),
@@ -194,11 +194,13 @@ const practiceResponseSchema = z
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
     }),
-    createdAt: z.date().openapi({
+    created_at: z.date().openapi({
+      format: 'date-time',
       description: 'Organization creation timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
-    updatedAt: z.date().optional().openapi({
+    updated_at: z.date().optional().openapi({
+      format: 'date-time',
       description: 'Organization last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
@@ -459,9 +461,11 @@ const practiceDetailsResponseSchema = z
     }),
     created_at: z.date().openapi({
       description: 'Practice details creation timestamp',
+      format: 'date-time',
       example: '2024-01-01T00:00:00Z',
     }),
-    updated_at: z.date().openapi({
+    updated_at: z.date().optional().openapi({
+      format: 'date-time',
       description: 'Practice details last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
