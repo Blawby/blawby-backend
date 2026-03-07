@@ -35,7 +35,7 @@ const createMatterMilestone = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -61,7 +61,10 @@ const createMatterMilestone = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterMilestone>;
+      logger.error('Failed to log milestone create activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok(milestone);
@@ -95,7 +98,7 @@ const listMatterMilestones = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -138,7 +141,7 @@ const updateMatterMilestone = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -189,7 +192,10 @@ const updateMatterMilestone = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterMilestone>;
+      logger.error('Failed to log milestone update activity {milestoneId}: {error}', {
+        milestoneId: params.milestoneId,
+        error: activityResult.error.message,
+      });
     }
 
     // Check if milestone was marked as completed
@@ -203,7 +209,10 @@ const updateMatterMilestone = async (
         ctx,
       );
       if (!completionActivityResult.success) {
-        return completionActivityResult as Result<SelectMatterMilestone>;
+        logger.error('Failed to log milestone completion activity {milestoneId}: {error}', {
+          milestoneId: params.milestoneId,
+          error: completionActivityResult.error.message,
+        });
       }
     }
 
@@ -238,7 +247,7 @@ const deleteMatterMilestone = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -261,7 +270,10 @@ const deleteMatterMilestone = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<{ success: true }>;
+      logger.error('Failed to log milestone delete activity {milestoneId}: {error}', {
+        milestoneId: params.milestoneId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok({ success: true });
@@ -295,7 +307,7 @@ const reorderMilestones = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -320,7 +332,10 @@ const reorderMilestones = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<{ success: true }>;
+      logger.error('Failed to log milestone reorder activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok({ success: true });
@@ -362,7 +377,7 @@ const getMilestoneStats = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {

@@ -10,7 +10,7 @@ import type {
 } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, forbidden, internalError, notFound } from '@/shared/utils/result';
+import { badRequest, ok, forbidden, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'time-entries']);
 
@@ -19,6 +19,19 @@ const logger = getLogger(['matters', 'services', 'time-entries']);
  */
 const calculateDuration = (startTime: Date, endTime: Date): number => {
   return Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
+};
+
+const getValidatedDuration = (
+  startTime: Date,
+  endTime: Date,
+): Result<{ duration: number }> => {
+  if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+    return badRequest('start_time and end_time must be valid dates');
+  }
+  if (endTime <= startTime) {
+    return badRequest('end_time must be after start_time');
+  }
+  return ok({ duration: calculateDuration(startTime, endTime) });
 };
 
 /**
@@ -41,13 +54,17 @@ const createMatterTimeEntry = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
     const startTime = new Date(params.data.start_time);
     const endTime = new Date(params.data.end_time);
-    const duration = calculateDuration(startTime, endTime);
+    const durationResult = getValidatedDuration(startTime, endTime);
+    if (!durationResult.success) {
+      return durationResult;
+    }
+    const { duration } = durationResult.data;
 
     const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
       matter_id: matterId,
@@ -79,7 +96,10 @@ const createMatterTimeEntry = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterTimeEntry>;
+      logger.error('Failed to log time-entry create activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok(entry);
@@ -113,7 +133,7 @@ const listMatterTimeEntries = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -158,7 +178,7 @@ const updateMatterTimeEntry = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -172,17 +192,27 @@ const updateMatterTimeEntry = async (
     // Recalculate duration if times changed
     const startTime = params.data.start_time ? new Date(params.data.start_time) : entry.start_time;
     const endTime = params.data.end_time ? new Date(params.data.end_time) : entry.end_time;
+    let nextDuration: number | undefined;
+    if (params.data.start_time !== undefined || params.data.end_time !== undefined) {
+      const durationResult = getValidatedDuration(startTime, endTime);
+      if (!durationResult.success) {
+        return durationResult;
+      }
+      nextDuration = durationResult.data.duration;
+    }
 
     const updateData: Parameters<typeof matterTimeEntriesQueries.updateMatterTimeEntry>[1] = {
       ...(params.data.start_time && { start_time: startTime }),
       ...(params.data.end_time && { end_time: endTime }),
       ...(params.data.description !== undefined && { description: params.data.description }),
       ...(params.data.billable !== undefined && { billable: params.data.billable }),
-      ...((params.data.start_time || params.data.end_time)
-        && { duration: calculateDuration(startTime, endTime) }),
+      ...(nextDuration !== undefined && { duration: nextDuration }),
     };
 
     const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(params.entryId, updateData);
+    if (!updated) {
+      return notFound('Time entry not found');
+    }
     const changedFields = [];
     if (params.data.start_time && entry.start_time.toISOString() !== startTime.toISOString()) {
       changedFields.push('start_time');
@@ -196,7 +226,7 @@ const updateMatterTimeEntry = async (
     if (params.data.billable !== undefined && params.data.billable !== entry.billable) {
       changedFields.push('billable');
     }
-    if ((params.data.start_time || params.data.end_time) && entry.duration !== updateData.duration) {
+    if (nextDuration !== undefined && entry.duration !== nextDuration) {
       changedFields.push('duration');
     }
 
@@ -211,10 +241,13 @@ const updateMatterTimeEntry = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterTimeEntry>;
+      logger.error('Failed to log time-entry update activity {entryId}: {error}', {
+        entryId: params.entryId,
+        error: activityResult.error.message,
+      });
     }
 
-    return ok(updated!);
+    return ok(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update time entry {entryId}: {error}', {
@@ -245,7 +278,7 @@ const deleteMatterTimeEntry = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -268,7 +301,10 @@ const deleteMatterTimeEntry = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<{ success: true }>;
+      logger.error('Failed to log time-entry delete activity {entryId}: {error}', {
+        entryId: params.entryId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok({ success: true });
@@ -306,7 +342,7 @@ const getTimeEntryStats = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {

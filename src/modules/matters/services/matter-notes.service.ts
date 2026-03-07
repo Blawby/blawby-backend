@@ -31,7 +31,7 @@ const createMatterNote = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -52,7 +52,10 @@ const createMatterNote = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterNote>;
+      logger.error('Failed to log note create activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok(note);
@@ -86,7 +89,7 @@ const listMatterNotes = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -129,7 +132,7 @@ const updateMatterNote = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -140,6 +143,9 @@ const updateMatterNote = async (
     }
 
     const updated = await matterNotesQueries.updateMatterNote(params.noteId, params.data);
+    if (!updated) {
+      return notFound('Note not found');
+    }
     const changedFields = [];
     if (params.data.content !== undefined && params.data.content !== note.content) {
       changedFields.push('content');
@@ -156,10 +162,13 @@ const updateMatterNote = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterNote>;
+      logger.error('Failed to log note update activity {noteId}: {error}', {
+        noteId: params.noteId,
+        error: activityResult.error.message,
+      });
     }
 
-    return ok(updated!);
+    return ok(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update matter note {noteId}: {error}', {
@@ -190,7 +199,7 @@ const deleteMatterNote = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -213,7 +222,10 @@ const deleteMatterNote = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<{ success: true }>;
+      logger.error('Failed to log note delete activity {noteId}: {error}', {
+        noteId: params.noteId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok({ success: true });
