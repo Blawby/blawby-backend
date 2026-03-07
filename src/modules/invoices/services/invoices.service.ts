@@ -8,10 +8,12 @@ import type {
   UpdateInvoiceRequest,
   ListInvoicesQuery,
   InvoiceResponse,
+  InvoiceSummaryResponse,
   InvoiceWithRelations,
   InvoiceSummary,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/types/invoices.types';
+import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
 import { handleServiceError } from '@/modules/invoices/utils/error-handler';
 import { invoiceValidators } from '@/modules/invoices/validators/invoice-creation.validators';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
@@ -182,11 +184,26 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations | InvoiceSummary
     created_at: invoice.created_at,
     updated_at: invoice.updated_at,
     line_items: 'lineItems' in invoice
-      ? invoice.lineItems?.map((li: SelectInvoiceLineItem) => ({
-          ...li,
-          created_at: li.created_at,
-          updated_at: li.updated_at,
-        }))
+      ? invoice.lineItems?.map((li: SelectInvoiceLineItem) => {
+          const parsedType = invoiceValidations.invoiceLineItemRequestSchema.shape.type.safeParse(li.type);
+          if (!parsedType.success) {
+            logger.warn(
+              'Unexpected invoice line item type; defaulting to other {invoiceId} {lineItemId} {lineItemType}',
+              {
+                invoiceId: invoice.id,
+                lineItemId: li.id,
+                lineItemType: li.type,
+              },
+            );
+          }
+
+          return {
+            ...li,
+            type: parsedType.success ? parsedType.data : 'other',
+            created_at: li.created_at,
+            updated_at: li.updated_at,
+          };
+        })
       : undefined,
   } satisfies InvoiceResponse;
 };
@@ -703,7 +720,7 @@ const listClientInvoices = async (
   organizationId: string,
   userId: string,
   filters?: { status?: string; page?: number; limit?: number },
-): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
+): Promise<Result<{ invoices: InvoiceSummaryResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
   try {
     // Resolve userId → userDetails.id for this org
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
@@ -718,8 +735,12 @@ const listClientInvoices = async (
       limit,
     });
 
+    const invoices = invoiceList
+      .map(transformInvoiceResponse)
+      .map(({ line_items: _ignored, ...invoice }) => invoice);
+
     return result.ok({
-      invoices: invoiceList.map(transformInvoiceResponse),
+      invoices,
       pagination: { page, limit, total },
     });
   } catch (error) {
