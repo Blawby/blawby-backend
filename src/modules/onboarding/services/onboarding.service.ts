@@ -29,18 +29,17 @@ export const onboardingService = {
       organizationId: string;
       refreshUrl: string;
       returnUrl: string;
-      requestHeaders: Record<string, string>;
     },
     ctx: ServiceContext,
   ): Promise<Result<OnboardingStatusResponse>> {
     const {
-      organizationEmail, organizationId, refreshUrl, returnUrl, requestHeaders,
+      organizationEmail, organizationId, refreshUrl, returnUrl,
     } = params;
     const { user } = ctx;
 
     try {
       // Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId, requestHeaders }, ctx);
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -96,12 +95,12 @@ export const onboardingService = {
    * Get onboarding status for organization
    */
   async getOnboardingStatus(
-    { organizationId, requestHeaders }: { organizationId: string; requestHeaders: Record<string, string> },
+    { organizationId }: { organizationId: string },
     ctx: ServiceContext,
   ): Promise<Result<OnboardingStatusResponse>> {
     try {
       // 1. Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId, requestHeaders }, ctx);
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -145,18 +144,17 @@ export const onboardingService = {
       organizationId: string;
       refreshUrl: string;
       returnUrl: string;
-      requestHeaders: Record<string, string>;
     },
     ctx: ServiceContext,
   ): Promise<Result<OnboardingStatusResponse>> {
     const {
-      email, organizationId, refreshUrl, returnUrl, requestHeaders,
+      email, organizationId, refreshUrl, returnUrl,
     } = params;
     const { user } = ctx;
 
     try {
       // Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId, requestHeaders }, ctx);
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!orgResult.success) {
         return orgResult;

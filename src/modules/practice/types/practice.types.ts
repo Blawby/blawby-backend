@@ -13,7 +13,6 @@ import type { Organization, User } from '@/shared/types/BetterAuth';
  */
 export interface OrganizationRequestParams {
   organizationId: string;
-  requestHeaders: Record<string, string>;
 }
 
 export type CreateOrganizationRequest = z.infer<

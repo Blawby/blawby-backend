@@ -1,9 +1,13 @@
 import * as handlers from '@/modules/practice-client-intakes/handlers';
 import * as routes from '@/modules/practice-client-intakes/routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const practiceClientIntakesApp = createHonoApp();
+
+// Middleware
+practiceClientIntakesApp.use('*', injectAbility());
 
 // ==================== PRACTICE CLIENT INTAKES ====================
 practiceClientIntakesApp.openapi(routes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
