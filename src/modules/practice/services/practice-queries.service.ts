@@ -1,13 +1,11 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
-import { omit } from 'es-toolkit/compat';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import {
   findPracticeDetailsByOrganization,
 } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { addresses as addressesTable } from '@/modules/practice/database/schema/addresses.schema';
-import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import type { PracticeDetailsResponse } from '@/modules/practice/types/practice-details.types';
 import type {
@@ -86,8 +84,7 @@ export const practiceQueriesService = {
         return orgResult;
       }
 
-      // Omit members and invitations from the organization response
-      const organization = omit(orgResult.data, ['members', 'invitations']);
+      const organization = orgResult.data;
       const storedOrganization = await organizationRepository.findById(organizationId);
 
       // 2. Get optional practice details
@@ -138,12 +135,18 @@ export const practiceQueriesService = {
         practiceServicesRepository.findServicesByOrganization(organizationId),
       ]);
 
+      if (!fetchedDetails) {
+        return notFound<PracticeDetailsResponse>(
+          `Practice details not found for organization '${organizationId}'`,
+        );
+      }
+
       // 4. Fetch address if linked
-      const addressData = await fetchAddressData(fetchedDetails?.address_id ?? null);
+      const addressData = await fetchAddressData(fetchedDetails.address_id);
 
       // 5. Build response
       const responseData: PracticeDetailsResponse = {
-        ...(fetchedDetails || ({} as PracticeDetails)),
+        ...fetchedDetails,
         organization_id: organizationId,
         address: addressData,
         services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
