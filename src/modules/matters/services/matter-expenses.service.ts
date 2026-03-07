@@ -34,7 +34,7 @@ const createMatterExpense = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -60,7 +60,10 @@ const createMatterExpense = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterExpense>;
+      logger.error('Failed to log expense create activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok(expense);
@@ -94,7 +97,7 @@ const listMatterExpenses = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -139,30 +142,24 @@ const updateMatterExpense = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
-    // Verify expense exists and belongs to matter
-    const expense = await matterExpensesQueries.findMatterExpenseById(params.expenseId);
-    if (!expense || expense.matter_id !== matterId) {
+    const updated = await matterExpensesQueries.updateMatterExpense(
+      params.expenseId,
+      matterId,
+      params.data,
+    );
+    if (!updated) {
       return notFound('Expense not found');
     }
-
-    const updated = await matterExpensesQueries.updateMatterExpense(params.expenseId, params.data);
-    const changedFields: string[] = [];
-    if (params.data.description !== undefined && params.data.description !== expense.description) {
-      changedFields.push('description');
-    }
-    if (params.data.amount !== undefined && params.data.amount !== expense.amount) {
-      changedFields.push('amount');
-    }
-    if (params.data.date !== undefined && params.data.date !== expense.date) {
-      changedFields.push('date');
-    }
-    if (params.data.billable !== undefined && params.data.billable !== expense.billable) {
-      changedFields.push('billable');
-    }
+    const changedFields: string[] = [
+      ...(params.data.description !== undefined ? ['description'] : []),
+      ...(params.data.amount !== undefined ? ['amount'] : []),
+      ...(params.data.date !== undefined ? ['date'] : []),
+      ...(params.data.billable !== undefined ? ['billable'] : []),
+    ];
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
@@ -175,10 +172,13 @@ const updateMatterExpense = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<SelectMatterExpense>;
+      logger.error('Failed to log expense update activity {expenseId}: {error}', {
+        expenseId: params.expenseId,
+        error: activityResult.error.message,
+      });
     }
 
-    return ok(updated!);
+    return ok(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update matter expense {expenseId}: {error}', {
@@ -209,17 +209,14 @@ const deleteMatterExpense = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
-    // Verify expense exists and belongs to matter
-    const expense = await matterExpensesQueries.findMatterExpenseById(params.expenseId);
-    if (!expense || expense.matter_id !== matterId) {
+    const deleted = await matterExpensesQueries.deleteMatterExpense(params.expenseId, matterId);
+    if (!deleted) {
       return notFound('Expense not found');
     }
-
-    await matterExpensesQueries.deleteMatterExpense(params.expenseId);
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
@@ -232,7 +229,10 @@ const deleteMatterExpense = async (
       ctx,
     );
     if (!activityResult.success) {
-      return activityResult as Result<{ success: true }>;
+      logger.error('Failed to log expense delete activity {expenseId}: {error}', {
+        expenseId: params.expenseId,
+        error: activityResult.error.message,
+      });
     }
 
     return ok({ success: true });
@@ -270,7 +270,7 @@ const getExpenseStats = async (
   // Verify user has access to matter
   const matterResult = await mattersService.getMatterById(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
