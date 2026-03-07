@@ -2,8 +2,10 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
 import {
   errorResponseSchema,
+  forbiddenResponseSchema,
   notFoundResponseSchema,
   practiceIdParamSchema,
+  unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
@@ -32,8 +34,9 @@ export const createInvoiceRoute = createRoute({
     },
   },
   responses: {
-    204: {
-      description: 'Invoice created successfully (no content)',
+    201: {
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
+      description: 'Invoice created',
     },
     400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
   },
@@ -182,7 +185,7 @@ export const getClientInvoicesRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            invoices: z.array(invoiceValidations.invoiceSchema),
+            invoices: z.array(invoiceValidations.invoiceSummarySchema),
             pagination: z.object({
               page: z.number().int(),
               limit: z.number().int(),
@@ -193,8 +196,8 @@ export const getClientInvoicesRoute = createRoute({
       },
       description: 'Client invoices retrieved',
     },
-    401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
-    403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
   },
 });
 
@@ -214,8 +217,8 @@ export const getClientInvoiceDetailRoute = createRoute({
       },
       description: 'Client invoice detail retrieved',
     },
-    401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
-    403: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Forbidden' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
   },
 });

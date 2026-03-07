@@ -36,10 +36,26 @@ export type DeleteOrganizationRequest = z.infer<
 >;
 
 // Using Better Auth types directly from the instance
-export type PracticeWithDetails = Organization & Partial<PracticeDetails>;
+export type OrganizationApiShape = Organization & {
+  paymentLinkEnabled?: boolean | null;
+  paymentLinkPrefillAmount?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date | null;
+};
+
+type OrganizationWithoutCamelCase = Omit<OrganizationApiShape, 'paymentLinkEnabled' | 'paymentLinkPrefillAmount' | 'createdAt' | 'updatedAt'>;
+
+export type NormalizedOrganization = OrganizationWithoutCamelCase & {
+  payment_link_enabled: boolean | null;
+  payment_link_prefill_amount: number | null;
+  created_at: Date;
+  updated_at: Date | undefined;
+};
+
+export type PracticeWithDetails = NormalizedOrganization & Partial<PracticeDetails>;
 
 export type PracticeWithUser = {
-  practice: Organization;
+  practice: NormalizedOrganization;
   user: User;
   practice_details: Partial<PracticeDetails> | null;
 };

@@ -12,6 +12,8 @@ import type {
   CreatePracticeRequest,
   UpdatePracticeRequest,
   PracticeWithDetails,
+  NormalizedOrganization,
+  OrganizationApiShape,
   UpdateOrganizationRequest,
 } from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
@@ -34,6 +36,38 @@ const { parseBetterAuthMetadata, getBetterAuthErrorMessage } = betterAuthUtils;
 
 const logger = getLogger(['practice', 'service']);
 
+type PracticeDetailsPublicFields = Omit<PracticeDetails, 'id' | 'organization_id' | 'user_id' | 'created_at' | 'updated_at'>;
+
+const normalizeOrganizationForApi = (organization: OrganizationApiShape): NormalizedOrganization => {
+  const {
+    paymentLinkEnabled,
+    paymentLinkPrefillAmount,
+    createdAt,
+    updatedAt,
+    ...rest
+  } = organization;
+
+  return {
+    ...rest,
+    payment_link_enabled: paymentLinkEnabled ?? null,
+    payment_link_prefill_amount: paymentLinkPrefillAmount ?? null,
+    created_at: createdAt,
+    updated_at: updatedAt ?? undefined,
+  };
+};
+
+const extractPublicPracticeDetails = (details: PracticeDetails): PracticeDetailsPublicFields => {
+  const {
+    id: _id,
+    organization_id: _organizationId,
+    user_id: _userId,
+    created_at: _createdAt,
+    updated_at: _updatedAt,
+    ...publicFields
+  } = details;
+  return publicFields;
+};
+
 /**
  * Practice Service
  *
@@ -46,10 +80,15 @@ const logger = getLogger(['practice', 'service']);
 const listPractices = async (
   user: User,
   requestHeaders: Record<string, string>,
-): Promise<Result<{ practices: Organization[] }>> => {
+): Promise<Result<{ practices: NormalizedOrganization[] }>> => {
   const result = await organizationService.listOrganizations(user, requestHeaders);
   if (!result.success) return result;
-  return ok({ practices: result.data });
+  return ok({
+    practices: result.data.map((organization) => normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(organization.metadata),
+    })),
+  });
 };
 
 /**
@@ -73,28 +112,25 @@ const getPracticeById = async (
     }
     // Omit members and invitations from the organization response
     const organization = omit(orgResult.data, ['members', 'invitations']);
+    const normalizedOrganization = normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(orgResult.data.metadata),
+    });
 
     // 2. Get optional practice details
     const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
 
     // 3. Clean and combine data
     const cleanPracticeDetails = practiceDetails
-      ? omit(practiceDetails, [
-        'id',
-        'organization_id',
-        'user_id',
-        'created_at',
-        'updated_at',
-      ])
+      ? extractPublicPracticeDetails(practiceDetails)
       : null;
 
-    return ok({
-      practice: {
-        ...organization,
-        ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(orgResult.data.metadata),
-      } as PracticeWithDetails,
-    });
+    const practice: PracticeWithDetails = {
+      ...normalizedOrganization,
+      ...(cleanPracticeDetails ?? {}),
+    };
+
+    return ok({ practice });
   } catch (error) {
     logger.error('Failed to get practice for {organizationId}: {error}', { organizationId, error });
     return internalError('Failed to get practice details');
@@ -213,24 +249,22 @@ const createPractice = async (params: {
       organizationId: organization.id,
     });
 
+    const normalizedOrganization = normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(organization.metadata),
+    });
+
     // 4. Clean and return
     const cleanPracticeDetails = practiceDetails
-      ? omit(practiceDetails, [
-        'id',
-        'organization_id',
-        'user_id',
-        'created_at',
-        'updated_at',
-      ])
+      ? extractPublicPracticeDetails(practiceDetails)
       : null;
 
-    return ok({
-      practice: {
-        ...organization,
-        ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(organization.metadata),
-      } as PracticeWithDetails,
-    });
+    const practice: PracticeWithDetails = {
+      ...normalizedOrganization,
+      ...(cleanPracticeDetails ?? {}),
+    };
+
+    return ok({ practice });
   } catch (error) {
     logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
     return internalError(getBetterAuthErrorMessage(error, 'Failed to create practice'));
@@ -383,22 +417,20 @@ const updatePractice = async (
 
     // 4. Clean and return
     const cleanPracticeDetails = practiceDetails
-      ? omit(practiceDetails, [
-        'id',
-        'organization_id',
-        'user_id',
-        'created_at',
-        'updated_at',
-      ])
+      ? extractPublicPracticeDetails(practiceDetails)
       : null;
 
-    return ok({
-      practice: {
-        ...organization,
-        ...cleanPracticeDetails,
-        metadata: parseBetterAuthMetadata(organization.metadata),
-      } as PracticeWithDetails,
+    const normalizedOrganization = normalizeOrganizationForApi({
+      ...organization,
+      metadata: parseBetterAuthMetadata(organization.metadata),
     });
+
+    const practice: PracticeWithDetails = {
+      ...normalizedOrganization,
+      ...(cleanPracticeDetails ?? {}),
+    };
+
+    return ok({ practice });
   } catch (error) {
     logger.error('Failed to update practice {organizationId}: {error}', { organizationId, error });
     return internalError(getBetterAuthErrorMessage(error, 'Failed to update practice'));
