@@ -37,7 +37,9 @@ export const processRefundReconciliation: Task = async (payload, helpers): Promi
   });
 
   if (!res.success) {
-    throw new Error(res.error.message);
+    const message = res.error?.message
+      ?? (typeof res === 'object' ? JSON.stringify(res) : 'Refund reconciliation failed');
+    throw new Error(message);
   }
 
   helpers.logger.info('Processed refund reconciliation job {requestId}', {

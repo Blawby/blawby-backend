@@ -88,12 +88,22 @@ export const reconcileRefundExecution = async (opts: {
     return result.badRequest(`Refund request ${opts.requestId} is in unsupported status ${claimedReq.status} for reconciliation`);
   }
 
-  await deps.dispatchInvoiceRefunded(refundEventPayload, {
-    actorId: opts.executorUserId,
-    actorType: 'user',
-    organizationId: opts.organizationId,
-    critical: true,
-  });
+  try {
+    await deps.dispatchInvoiceRefunded(refundEventPayload, {
+      actorId: opts.executorUserId,
+      actorType: 'user',
+      organizationId: opts.organizationId,
+      critical: true,
+    });
+  } catch (error) {
+    logger.error('Failed to dispatch InvoiceRefunded during refund reconciliation', {
+      actorId: opts.executorUserId,
+      organizationId: opts.organizationId,
+      refundRequestId: claimedReq.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return result.internalError('Refund reconciliation repaired local state but failed to dispatch refund event');
+  }
 
   logger.info('Refund reconciliation completed for request {requestId}', {
     requestId: opts.requestId,

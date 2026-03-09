@@ -237,14 +237,15 @@ Current implementation lives in `src/modules/invoices/services/refund-requests.s
 Execution flow:
 
 1. Practice executes a refund request
-2. Backend re-checks remaining refundable balance in a DB transaction before calling Stripe
-3. For a same-day full refund, backend first attempts to cancel the Stripe `PaymentIntent` if it is still in `requires_capture`
-4. Otherwise backend calls `stripe.refunds.create({ payment_intent, amount, reverse_transfer: true })` with an idempotency key derived from `refundRequest.id`
-5. Service records a `billing_transactions` refund audit row
-6. For `retainer_deposit` invoices, the same DB transaction decrements `matters.retainer_balance`
-7. Service dispatches `InvoiceRefunded`
-8. `invoices/listeners.ts` reports negative metered usage credits and queues a Graphile Worker retry job if Stripe meter reporting fails
-9. If Stripe refund succeeded but local persistence failed, backend queues a refund-reconciliation worker job to repair the refund record and re-dispatch `InvoiceRefunded`
+2. Backend first claims the refund request by transitioning it to `executing`; because new refund requests are blocked while any request is `requested`, `approved`, or `executing`, only one in-flight refund can exist per invoice at a time
+3. Backend re-checks remaining refundable balance under an invoice row lock in a DB transaction before calling Stripe
+4. For a same-day full refund, backend first attempts to cancel the Stripe `PaymentIntent` if it is still in `requires_capture`
+5. Otherwise backend calls `stripe.refunds.create({ payment_intent, amount, reverse_transfer: true })` with an idempotency key derived from `refundRequest.id`
+6. Service records a `billing_transactions` refund audit row
+7. For `retainer_deposit` invoices, the same DB transaction decrements `matters.retainer_balance`
+8. After that transaction commits, service dispatches `InvoiceRefunded`
+9. `invoices/listeners.ts` reports negative metered usage credits and queues a Graphile Worker retry job if Stripe meter reporting fails
+10. If Stripe refund succeeded but local persistence failed, backend queues a refund-reconciliation worker job to repair the refund request / audit state and then re-dispatch `InvoiceRefunded`
 
 Implementation sketch:
 
@@ -311,6 +312,7 @@ Refund policy under the metered model:
 
 Important: this model does **not** use Stripe `application_fee_amount` or `refund_application_fee`.
 For `retainer_deposit` invoices, the current implementation decrements `matters.retainer_balance` inside the same DB transaction that marks the refund request executed and writes the refund audit row.
+Best practice followed here: emit `InvoiceRefunded` only after the refund transaction commits, so listener failures cannot roll back local refund state. Any mismatch after a successful Stripe refund is handled by the refund-reconciliation job rather than by retrying the DB transaction from inside the request.
 
 ---
 

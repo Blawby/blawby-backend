@@ -326,7 +326,13 @@ await reportMeteredUsageWithRetry({
 });
 ```
 
-If Stripe meter reporting fails, the listener now queues a dedicated Graphile Worker retry job instead of dropping the usage event.
+`reportMeteredUsageWithRetry(...)` is a best-effort helper:
+
+- It makes one immediate call to the old `reportMeteredUsage(...)` path for the given `METERED_TYPES` value.
+- It returns `Promise<void>` and does not rethrow metering failures back into invoice/refund business flow.
+- If the Stripe meter call fails, it logs the failure and queues a Graphile Worker `process-metered-usage` job keyed by the deduplication ID.
+- Retry count/backoff are delegated to Graphile Worker. In this repo that means up to `graphileWorkerConfig.maxAttempts` attempts (default `5`); scheduling/backoff come from the worker, not from inline sleeps in `reportMeteredUsageWithRetry(...)`.
+- If queueing the retry job also fails, the helper emits `SystemErrorOccurred` and logs the context.
 
 If Stripe refund creation succeeds but local refund persistence fails, the backend now queues a dedicated refund-reconciliation worker job to repair the DB state and re-dispatch the metered credit event.
 
@@ -335,6 +341,34 @@ If Stripe refund creation succeeds but local refund persistence fails, the backe
 - **Metered Events**: Recorded in real-time on invoice payment
 - **Aggregation**: Monthly (Stripe aggregates events per subscription period)
 - **Billing**: Practice charged monthly subscription invoice with metered line items
+
+### Resilience Job Monitoring
+
+The new resilience jobs are:
+
+- `process-metered-usage`
+- `process-refund-reconciliation`
+
+What to monitor:
+
+- Graphile Worker queue depth and oldest job age for `process-metered-usage`
+- success/failure count for `process-refund-reconciliation`
+- repeated `SystemErrorOccurred` events tied to metering or refund repair
+
+Recommended thresholds:
+
+- `process-metered-usage`: alert if queue depth exceeds `100` or oldest job age exceeds `24 hours`
+- `process-refund-reconciliation`: page immediately on any repeated failure, because Stripe has already accepted the refund
+
+Runbook:
+
+1. For `process-metered-usage`, inspect logs for the meter event name, deduplication ID, and Stripe meter API errors.
+2. Confirm the Graphile Worker job is retrying and that the deduplication ID is stable.
+3. For `process-refund-reconciliation`, inspect the refund request row, billing transaction refund row, and Stripe refund id.
+4. Verify successful reconciliation by checking both:
+   - the worker job completed successfully
+   - local refund state and audit rows now match the known Stripe refund outcome
+5. If reconciliation keeps failing, manually inspect Stripe refund status and then repair the local DB state before re-running the job.
 
 ---
 

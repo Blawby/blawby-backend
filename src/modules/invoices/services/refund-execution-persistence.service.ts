@@ -137,11 +137,19 @@ const persistExecutedRefund = async (opts: {
       .where(and(eq(invoices.id, opts.invoice.id), eq(invoices.organization_id, opts.organizationId)))
       .for('update');
 
-    const amountPaidCents = opts.invoice.amount_paid ?? 0;
-    const payoutFeeCreditCents = calculatePayoutFeeCreditCents(amountPaidCents, opts.refundedAmount, opts.invoiceTxs);
+    const lockedInvoice = await invoicesRepository.findInvoiceById(
+      opts.invoice.id,
+      opts.organizationId,
+      tx,
+    );
+    if (!lockedInvoice) return null;
+
+    const lockedInvoiceTxs = await billingTransactionsRepository.listByInvoiceId(lockedInvoice.id, tx);
+    const amountPaidCents = lockedInvoice.amount_paid ?? 0;
+    const payoutFeeCreditCents = calculatePayoutFeeCreditCents(amountPaidCents, opts.refundedAmount, lockedInvoiceTxs);
     const { creditInvoiceFee } = await getRefundCreditFlags({
       organizationId: opts.organizationId,
-      invoiceId: opts.invoice.id,
+      invoiceId: lockedInvoice.id,
       claimedReqId: opts.claimedReq.id,
       refundedAmount: opts.refundedAmount,
       amountPaidCents,
@@ -159,12 +167,12 @@ const persistExecutedRefund = async (opts: {
     }, tx);
     if (!executedRequest) return null;
 
-    const refundDestinationAccountId = getRefundDestinationAccountId(opts.invoice, opts.invoiceTxs);
+    const refundDestinationAccountId = getRefundDestinationAccountId(lockedInvoice, lockedInvoiceTxs);
     if (refundDestinationAccountId) {
       await billingTransactionsRepository.createTransaction({
         organization_id: opts.organizationId,
-        invoice_id: opts.invoice.id,
-        matter_id: opts.invoice.matter_id,
+        invoice_id: lockedInvoice.id,
+        matter_id: lockedInvoice.matter_id,
         amount: opts.refundedAmount,
         metered_fee_cents: payoutFeeCreditCents,
         type: 'refund',
@@ -182,28 +190,39 @@ const persistExecutedRefund = async (opts: {
       }, tx);
     }
 
-    if (opts.invoice.invoice_type === 'retainer_deposit' && opts.invoice.matter_id) {
-      const matter = await mattersQueries.findMatterById(opts.invoice.matter_id, tx);
+    if (lockedInvoice.invoice_type === 'retainer_deposit' && lockedInvoice.matter_id) {
+      const matter = await mattersQueries.findMatterById(lockedInvoice.matter_id, tx);
       if (matter) {
         const newBalance = Math.max(0, matter.retainer_balance - opts.refundedAmount);
 
+        if (matter.retainer_balance < opts.refundedAmount) {
+          logger.warn('Retainer refund exceeds current balance for matter {matterId}; clamping to zero', {
+            matterId: lockedInvoice.matter_id,
+            invoiceId: lockedInvoice.id,
+            refundId: opts.stripeRefundId,
+            oldBalance: matter.retainer_balance,
+            refundedAmount: opts.refundedAmount,
+            newBalance,
+          });
+        }
+
         logger.info('Decrementing retainer balance for matter {matterId} (refund): {oldBalance} -> {newBalance}', {
-          matterId: opts.invoice.matter_id,
+          matterId: lockedInvoice.matter_id,
           oldBalance: matter.retainer_balance,
           newBalance,
           refundId: opts.stripeRefundId,
-          invoiceId: opts.invoice.id,
+          invoiceId: lockedInvoice.id,
         });
 
-        await mattersQueries.updateRetainerBalance(opts.invoice.matter_id, newBalance, tx);
+        await mattersQueries.updateRetainerBalance(lockedInvoice.matter_id, newBalance, tx);
       }
     }
 
     refundEventPayload = await buildRefundEventPayload({
       organizationId: opts.organizationId,
       claimedReq: opts.claimedReq,
-      invoice: opts.invoice,
-      invoiceTxs: opts.invoiceTxs,
+      invoice: lockedInvoice,
+      invoiceTxs: lockedInvoiceTxs,
       refundedAmount: opts.refundedAmount,
       tx,
     });
