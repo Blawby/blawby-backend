@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import * as refundRoutes from '@/modules/invoices/refund-requests.routes';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
   errorResponseSchema,
@@ -228,4 +229,5 @@ export const routes = {
   voidInvoiceRoute,
   getClientInvoicesRoute,
   getClientInvoiceDetailRoute,
+  ...refundRoutes,
 };

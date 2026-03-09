@@ -8,12 +8,15 @@ ALTER TABLE matter_expenses
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_time_entries_invoice_id ON matter_time_entries(invoice_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_time_entries_unbilled ON matter_time_entries(matter_id)
+-- Drizzle's migrate runner executes these files in a transaction, so
+-- CREATE INDEX CONCURRENTLY would fail here. Keep these transactional and
+-- schedule them during low-traffic windows if the tables are large.
+CREATE INDEX IF NOT EXISTS idx_time_entries_invoice_id ON matter_time_entries(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_time_entries_unbilled ON matter_time_entries(matter_id)
   WHERE invoice_id IS NULL AND billable = true;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_expenses_invoice_id ON matter_expenses(invoice_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_expenses_unbilled ON matter_expenses(matter_id)
+CREATE INDEX IF NOT EXISTS idx_expenses_invoice_id ON matter_expenses(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_unbilled ON matter_expenses(matter_id)
   WHERE invoice_id IS NULL AND billable = true;
 
 -- Priority 4: Trust transactions ledger
@@ -48,7 +51,7 @@ ALTER TABLE matter_milestones
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_matter_milestones_invoice_id ON matter_milestones(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_matter_milestones_invoice_id ON matter_milestones(invoice_id);
 
 -- Priority 6: Stripe invoice number sync
 ALTER TABLE invoices

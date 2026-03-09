@@ -10,7 +10,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { InvoicePaid } from '@/shared/events/definitions';
+import { InvoicePaid, InvoiceRefunded } from '@/shared/events/definitions';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
@@ -94,6 +94,48 @@ export function registerInvoicesListeners(): void {
     logger.info('Metered usage reported successfully for invoice {invoiceId}', {
       invoiceId: invoice_id,
     });
+  });
+
+  Event.listen(InvoiceRefunded, async (payload) => {
+    const {
+      invoice_id,
+      organization_id,
+      payout_fee_credit_cents,
+      credit_invoice_fee,
+      refund_request_id,
+    } = payload;
+
+    if (credit_invoice_fee) {
+      const invoiceFeeCreditResult = await meteredProductsService.reportMeteredUsage(
+        db,
+        organization_id,
+        METERED_TYPES.INVOICE_FEE,
+        -1,
+        `refund:${refund_request_id}:invoice_fee`,
+      );
+
+      if (!invoiceFeeCreditResult.success) {
+        throw new Error(`Invoice fee credit failed: ${invoiceFeeCreditResult.error.message}`);
+      }
+    }
+
+    if (payout_fee_credit_cents > 0) {
+      const payoutFeeCreditResult = await meteredProductsService.reportMeteredUsage(
+        db,
+        organization_id,
+        METERED_TYPES.PAYOUT_FEE,
+        -payout_fee_credit_cents,
+        `refund:${refund_request_id}:payout_fee`,
+      );
+
+      if (!payoutFeeCreditResult.success) {
+        logger.error('Failed to report payout fee credit for invoice {invoiceId}: {error}', {
+          invoiceId: invoice_id,
+          error: payoutFeeCreditResult.error.message,
+        });
+        throw new Error(`Payout fee credit failed: ${payoutFeeCreditResult.error.message}`);
+      }
+    }
   });
 
   logger.info('Invoices event listeners registered');

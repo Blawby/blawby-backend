@@ -19,6 +19,11 @@ The existing system is **simple and already correct** for most legal billing:
 
 **No escrow. No client approval. No holding funds.**
 
+Refunds follow the same split-ledger model:
+- client money is refunded from the Platform account
+- connected-account transfer is reversed when applicable
+- Platform fees are corrected through metered billing credits, not Stripe application-fee refunds
+
 ---
 
 ## What Issue #74 Actually Needs
@@ -154,28 +159,44 @@ The `feature/invoices-and-retainer` branch should already have retainer draw log
 
 ---
 
-### Phase 4: Metered Billing (Match PHP)
+### Phase 4: Metered Billing
 
 #### 4.1 Record Invoice Fee on Payment
 
 **File**: `src/modules/invoices/services/invoice-webhooks.service.ts`
 
 ```typescript
-// After successful transfer:
-await this.meteredService.recordMeterEvent({
-  eventName: 'invoice_fee',
-  customerId: organization.stripe_customer_id,
-  value: applicationFee,  // Calculated from Stripe processing fee
-});
+// After successful payment:
+// - report 1 invoice fee unit
+// - report payout fee cents as a separate metered event
 ```
 
-#### 4.2 Fee Calculation (Match PHP)
+#### 4.2 Fee Calculation
 
 ```typescript
-// PHP uses: stripe_fee × 1.3336 (configurable multiplier)
-const stripeFee = await this.getStripeProcessingFee(chargeId);
-const applicationFee = Math.round(stripeFee * 1.3336);
+// Current backend model:
+// payout metered fee = Stripe processing fee + variable platform fee
+const payoutMeteredFeeCents = stripeFee + variablePlatformFee;
 ```
+
+#### 4.3 Refund Credits
+
+Partial refunds are allowed.
+
+Refund policy under the metered model:
+
+- **Full refund**
+  - refund payment
+  - reverse transfer
+  - credit `invoice_fee`
+  - credit `payout_fee`
+- **Partial refund**
+  - refund payment
+  - reverse transfer proportionally
+  - credit `payout_fee` proportionally
+  - do not credit `invoice_fee`
+
+Important: this model does **not** use Stripe `application_fee_amount` or `refund_application_fee`.
 
 ---
 

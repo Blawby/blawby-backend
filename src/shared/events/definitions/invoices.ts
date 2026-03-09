@@ -49,6 +49,17 @@ export class InvoicePaid extends BaseEvent<{
   static type = 'invoice.paid' as const;
 }
 
+export class InvoiceRefunded extends BaseEvent<{
+  invoice_id: string;
+  organization_id: string;
+  refund_request_id: string;
+  refunded_amount: number;
+  payout_fee_credit_cents: number;
+  credit_invoice_fee: boolean;
+}> {
+  static type = 'invoice.refunded' as const;
+}
+
 export class InvoicePaymentFailed extends BaseEvent<{
   invoice_id: string;
   organization_id: string;

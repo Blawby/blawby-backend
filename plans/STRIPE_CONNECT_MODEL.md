@@ -245,14 +245,54 @@ const refund = await stripe.refunds.create({
   payment_intent: invoice.stripe_payment_intent_id,
   amount: refundAmount,
   reverse_transfer: true,
-  // Include only when an application fee was actually charged
-  ...(invoice.application_fee_amount > 0 ? { refund_application_fee: true } : {}),
   metadata: {
     invoice_id: invoice.id,
     reason: 'client_request',
   },
 });
 ```
+
+### Refund Policy
+
+- **Partial refunds are allowed.**
+- The Platform does **not** use Stripe `application_fee_amount` on invoice/payment flow.
+- The Platform does **not** use Stripe `refund_application_fee`.
+- Practice/client refund requests create a Platform-side refund workflow; execution is still performed from the Platform Stripe account.
+- If payout already happened, refunds use `reverse_transfer: true` so the connected-account transfer is reversed with the refund.
+- Same-day void/cancel is preferred operationally when Stripe state allows it, but the current backend refund path is refund-first.
+
+### Metered Billing and Refunds
+
+Platform revenue is not captured during the client payment itself. Instead:
+
+1. Client pays invoice
+2. Full amount is transferred to the Practice connected account
+3. Platform fees are billed later through Stripe metered billing
+
+That means refunds affect two ledgers:
+
+1. **Client funds ledger**
+   - refund the payment
+   - reverse the transfer when applicable
+2. **Platform billing ledger**
+   - credit back metered usage instead of refunding any invoice-time application fee
+
+Current policy:
+
+- **Full refund**:
+  - reverse transfer if one exists
+  - credit back `invoice_fee`
+  - credit back `payout_fee`
+- **Partial refund**:
+  - reverse transfer proportionally
+  - credit back `payout_fee` proportionally
+  - do **not** credit back `invoice_fee`
+
+### Source of Truth
+
+- `invoices` should not store an invoice-time `application_fee_amount`
+- payout fee snapshots belong in billing/audit records as metered fee cents
+- metered billing events are the source of truth for Platform fee charging and refund credits
 
 ---
 

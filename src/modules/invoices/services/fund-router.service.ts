@@ -44,8 +44,6 @@ export interface TransferInstruction {
   escrowStatus: 'none' | 'held';
   /** Whether to update matter retainer balance */
   updateRetainerBalance: boolean;
-  /** Amount to keep as platform application fee (in cents) */
-  applicationFeeAmount: number;
 }
 
 /**
@@ -95,8 +93,6 @@ const routePayment = (
     );
   }
 
-  const applicationFeeAmount = calculateApplicationFee(invoice.total);
-
   const baseMetadata = {
     invoice_id: invoice.id,
     invoice_number: invoice.invoice_number ?? null,
@@ -118,7 +114,6 @@ const routePayment = (
         holdForApproval: false,
         escrowStatus: 'none',
         updateRetainerBalance: false,
-        applicationFeeAmount,
       });
 
     case 'retainer_deposit':
@@ -136,7 +131,6 @@ const routePayment = (
         // The metadata flag tells Practice this is a trust deposit.
         escrowStatus: 'none',
         updateRetainerBalance: true,
-        applicationFeeAmount,
       });
 
     default:
