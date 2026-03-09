@@ -33,7 +33,7 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * @param db - Database instance
  * @param organizationId - Organization UUID
  * @param meteredType - Standardized metered type (see METERED_TYPES)
- * @param quantity - Amount to report
+ * @param quantity - Signed amount to report. Negative values represent usage credits.
  * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async function reportMeteredUsage(

@@ -340,7 +340,8 @@ const createPracticeClientIntake = async (
         address_id: addressId,
         conversation_id: request.conversation_id,
         amount: request.amount,
-        application_fee: fundRouterService.calculateApplicationFee(request.amount),
+        // Intake fees are billed later via metered subscription usage.
+        application_fee: 0,
         currency: 'usd',
         status: shouldBypassPayment ? 'succeeded' : 'open',
         triage_status: 'pending_review',

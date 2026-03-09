@@ -3,6 +3,7 @@ import { getLogger } from '@logtape/logtape';
 import Stripe from 'stripe';
 
 import { stripe } from '@/shared/utils/stripe-client';
+import { InvoiceRefunded } from '@/shared/events/definitions';
 
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
@@ -20,6 +21,31 @@ function isStripeError(err: unknown): err is Stripe.errors.StripeError {
 }
 
 const logger = getLogger(['invoices', 'refund-requests']);
+const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
+
+const getPayoutMeteredFeeCents = (invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>): number => {
+  const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout');
+  if (!payoutTx) return 0;
+
+  if (typeof payoutTx.metered_fee_cents === 'number' && payoutTx.metered_fee_cents > 0) {
+    return payoutTx.metered_fee_cents;
+  }
+
+  const metadataFee = (payoutTx.metadata as Record<string, unknown> | null | undefined)?.metered_fee_cents;
+  return typeof metadataFee === 'number' && metadataFee > 0 ? metadataFee : 0;
+};
+
+const getRefundDestinationAccountId = (
+  invoice: NonNullable<Awaited<ReturnType<typeof invoicesRepository.findInvoiceById>>>,
+  invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>,
+): string | null => {
+  const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout' && tx.destination_account_id);
+  if (payoutTx?.destination_account_id) {
+    return payoutTx.destination_account_id;
+  }
+
+  return invoice.connectedAccount?.stripe_account_id ?? null;
+};
 
 // ──────────────────────────────────────────────────────────────────────────
 // CLIENT ACTIONS
@@ -272,9 +298,9 @@ const executeRefund = async (opts: {
 
     try {
       // Proceed with external Stripe API request before updating local status to 'executed'.
+      const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id);
       let stripeTransferId = invoice.stripe_transfer_id;
       if (!stripeTransferId) {
-        const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id);
         stripeTransferId = invoiceTxs.find((tx) => tx.type === 'payout' && !!tx.stripe_transfer_id)?.stripe_transfer_id ?? null;
       }
 
@@ -297,9 +323,6 @@ const executeRefund = async (opts: {
         ...(stripeTransferId
           ? {
               reverse_transfer: true,
-              ...(typeof invoice.application_fee_amount === 'number' && invoice.application_fee_amount > 0
-                ? { refund_application_fee: true }
-                : {}),
             }
           : {}),
       };
@@ -308,13 +331,83 @@ const executeRefund = async (opts: {
         idempotencyKey: `refund_request_${opts.requestId}`,
       });
 
-      const updated = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
-        status: 'executed',
-        stripe_refund_id: refund.id,
-        stripe_payment_intent_id: stripePaymentIntentId,
-        executed_amount: refund.amount,
-        executed_at: new Date(),
-        executed_by_user_id: opts.executorUserId,
+      const priorRefunds = await refundRequestsQueries.listByOrganization(
+        opts.organizationId,
+        { invoice_id: invoice.id },
+      );
+      const alreadyRefundedCents = priorRefunds
+        .filter((refundRequest) => refundRequest.id !== claimedReq.id && refundRequest.status === 'executed')
+        .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? 0), 0);
+      const cumulativeRefundedCents = alreadyRefundedCents + refund.amount;
+      const creditInvoiceFee = cumulativeRefundedCents >= invoice.amount_paid;
+
+      const originalPayoutMeteredFeeCents = getPayoutMeteredFeeCents(invoiceTxs)
+        || Math.round(invoice.amount_paid * PLATFORM_VARIABLE_FEE_RATE);
+      const payoutFeeCreditCents = invoice.amount_paid > 0
+        ? Math.min(
+            originalPayoutMeteredFeeCents,
+            Math.round((originalPayoutMeteredFeeCents * refund.amount) / invoice.amount_paid),
+          )
+        : 0;
+
+      const updated = await db.transaction(async (tx) => {
+        const executedRequest = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
+          status: 'executed',
+          stripe_refund_id: refund.id,
+          stripe_payment_intent_id: stripePaymentIntentId,
+          executed_amount: refund.amount,
+          executed_at: new Date(),
+          executed_by_user_id: opts.executorUserId,
+        }, tx);
+
+        if (!executedRequest) {
+          return null;
+        }
+
+        const refundDestinationAccountId = getRefundDestinationAccountId(invoice, invoiceTxs);
+        if (refundDestinationAccountId) {
+          await billingTransactionsRepository.createTransaction({
+            organization_id: opts.organizationId,
+            invoice_id: invoice.id,
+            matter_id: invoice.matter_id,
+            amount: refund.amount,
+            metered_fee_cents: payoutFeeCreditCents,
+            type: 'refund',
+            status: 'completed',
+            destination_account_id: refundDestinationAccountId,
+            completed_at: new Date(),
+            metadata: {
+              stripe_refund_id: refund.id,
+              stripe_payment_intent_id: stripePaymentIntentId,
+              stripe_transfer_id: stripeTransferId,
+              reverse_transfer: !!stripeTransferId,
+              credit_invoice_fee: creditInvoiceFee,
+              payout_fee_credit_cents: payoutFeeCreditCents,
+            },
+          }, tx);
+        } else {
+          logger.warn('Skipping refund billing transaction audit for refund request {requestId}; destination account id unavailable', {
+            requestId: opts.requestId,
+            invoiceId: invoice.id,
+          });
+        }
+
+        await InvoiceRefunded.dispatch({
+          invoice_id: invoice.id,
+          organization_id: opts.organizationId,
+          refund_request_id: claimedReq.id,
+          refunded_amount: refund.amount,
+          payout_fee_credit_cents: payoutFeeCreditCents,
+          credit_invoice_fee: creditInvoiceFee,
+        }, {
+          actorId: opts.executorUserId,
+          actorType: 'user',
+          organizationId: opts.organizationId,
+          tx,
+          critical: true,
+        });
+
+        return executedRequest;
       });
 
       logger.info('Stripe refund {refundId} executed for request {requestId}', {

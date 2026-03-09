@@ -127,6 +127,7 @@ const handlePhase2DbTransaction = async (
   stripeInvoice: Stripe.Invoice,
   routingInstruction: TransferInstruction,
   destinationAccountId: string,
+  meteredFeeCents: number,
 ): Promise<Result<{ billingTxId: string | null; isNewlyPaid: boolean }>> => {
   let billingTxId: string | null = null;
   let isNewlyPaid = false;
@@ -147,7 +148,6 @@ const handlePhase2DbTransaction = async (
             status: 'paid',
             amount_paid: stripeInvoice.amount_paid,
             amount_due: stripeInvoice.amount_remaining,
-            application_fee_amount: routingInstruction.applicationFeeAmount,
             paid_at: stripeInvoice.status_transitions.paid_at
               ? fromStripeTimestamp(stripeInvoice.status_transitions.paid_at)
               : null,
@@ -209,7 +209,6 @@ const handlePhase2DbTransaction = async (
         // without an extra Stripe API round-trip. Metered usage reporting
         // is intentionally deferred to the outbox worker, which provides
         // 5-retry + dead-letter guarantees without blocking this handler.
-        const meteredFeeCents = await calculateMeteredFeeCents(stripeInvoice);
         await InvoicePaid.dispatch({
           invoice_id: invoice.id,
           organization_id: invoice.organization_id,
@@ -252,7 +251,7 @@ const handlePhase2DbTransaction = async (
             invoice_id: invoice.id,
             matter_id: invoice.matter_id,
             amount: stripeInvoice.amount_paid,
-            application_fee_amount: routingInstruction.applicationFeeAmount,
+            metered_fee_cents: meteredFeeCents,
             type: 'payout',
             status: 'pending',
             destination_account_id: destinationAccountId,
@@ -262,7 +261,7 @@ const handlePhase2DbTransaction = async (
               stripe_charge_id: chargeId,
               invoice_type: invoice.invoice_type,
               fund_destination: routingInstruction.metadata.fund_destination,
-              application_fee_amount: routingInstruction.applicationFeeAmount,
+              metered_fee_cents: meteredFeeCents,
             },
           }, tx);
           billingTxId = newTx.id;
@@ -389,12 +388,14 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
     if (!phase1.success) return phase1;
 
     const { routingInstruction, destinationAccountId } = phase1.data;
+    const meteredFeeCents = await calculateMeteredFeeCents(stripeInvoice);
 
     const phase2 = await handlePhase2DbTransaction(
       invoice,
       stripeInvoice,
       routingInstruction,
       destinationAccountId,
+      meteredFeeCents,
     );
     if (!phase2.success) return phase2;
 
