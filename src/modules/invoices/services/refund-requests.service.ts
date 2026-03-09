@@ -331,16 +331,6 @@ const executeRefund = async (opts: {
         idempotencyKey: `refund_request_${opts.requestId}`,
       });
 
-      const priorRefunds = await refundRequestsQueries.listByOrganization(
-        opts.organizationId,
-        { invoice_id: invoice.id },
-      );
-      const alreadyRefundedCents = priorRefunds
-        .filter((refundRequest) => refundRequest.id !== claimedReq.id && refundRequest.status === 'executed')
-        .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? 0), 0);
-      const cumulativeRefundedCents = alreadyRefundedCents + refund.amount;
-      const creditInvoiceFee = cumulativeRefundedCents >= invoice.amount_paid;
-
       const originalPayoutMeteredFeeCents = getPayoutMeteredFeeCents(invoiceTxs)
         || Math.round(invoice.amount_paid * PLATFORM_VARIABLE_FEE_RATE);
       const payoutFeeCreditCents = invoice.amount_paid > 0
@@ -350,7 +340,32 @@ const executeRefund = async (opts: {
           )
         : 0;
 
+      let refundEventPayload: {
+        invoice_id: string;
+        organization_id: string;
+        refund_request_id: string;
+        refunded_amount: number;
+        payout_fee_credit_cents: number;
+        credit_invoice_fee: boolean;
+      } | null = null;
+
       const updated = await db.transaction(async (tx) => {
+        await tx.select({ id: invoices.id })
+          .from(invoices)
+          .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, opts.organizationId)))
+          .for('update');
+
+        const priorRefunds = await refundRequestsQueries.listByOrganization(
+          opts.organizationId,
+          { invoice_id: invoice.id },
+          tx,
+        );
+        const alreadyRefundedCents = priorRefunds
+          .filter((refundRequest) => refundRequest.id !== claimedReq.id && refundRequest.status === 'executed')
+          .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? 0), 0);
+        const cumulativeRefundedCents = alreadyRefundedCents + refund.amount;
+        const creditInvoiceFee = cumulativeRefundedCents >= invoice.amount_paid;
+
         const executedRequest = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
           status: 'executed',
           stripe_refund_id: refund.id,
@@ -392,20 +407,14 @@ const executeRefund = async (opts: {
           });
         }
 
-        await InvoiceRefunded.dispatch({
+        refundEventPayload = {
           invoice_id: invoice.id,
           organization_id: opts.organizationId,
           refund_request_id: claimedReq.id,
           refunded_amount: refund.amount,
           payout_fee_credit_cents: payoutFeeCreditCents,
           credit_invoice_fee: creditInvoiceFee,
-        }, {
-          actorId: opts.executorUserId,
-          actorType: 'user',
-          organizationId: opts.organizationId,
-          tx,
-          critical: true,
-        });
+        };
 
         return executedRequest;
       });
@@ -422,6 +431,23 @@ const executeRefund = async (opts: {
         });
         return result.internalError(`Stripe refund ${refund.id} completed, but local DB update failed`);
       }
+
+      if (refundEventPayload) {
+        try {
+          await InvoiceRefunded.dispatch(refundEventPayload, {
+            actorId: opts.executorUserId,
+            actorType: 'user',
+            organizationId: opts.organizationId,
+          });
+        } catch (dispatchError) {
+          logger.error('Refund executed but failed to dispatch InvoiceRefunded for request {requestId}', {
+            requestId: opts.requestId,
+            invoiceId: invoice.id,
+            error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+          });
+        }
+      }
+
       return result.ok(updated);
     } catch (stripeError) {
       const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown error';

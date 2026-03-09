@@ -8,6 +8,11 @@ ALTER TABLE matter_expenses
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
+-- Drizzle's PostgreSQL migrate runner wraps each migration file in a transaction.
+-- CREATE INDEX CONCURRENTLY would fail under that runner, so these indexes stay
+-- transactional and should be scheduled during low-traffic windows. If these
+-- tables are already large in a target environment, create equivalent concurrent
+-- indexes manually before applying this migration there.
 CREATE INDEX IF NOT EXISTS idx_time_entries_invoice_id ON matter_time_entries(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_time_entries_unbilled ON matter_time_entries(matter_id)
   WHERE invoice_id IS NULL AND billable = true;
@@ -48,6 +53,8 @@ ALTER TABLE matter_milestones
   ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS invoiced_at TIMESTAMP WITH TIME ZONE;
 
+-- Same transactional constraint applies here; use a maintenance window or
+-- precreate the concurrent index manually for large matter_milestones tables.
 CREATE INDEX IF NOT EXISTS idx_matter_milestones_invoice_id ON matter_milestones(invoice_id);
 
 -- Priority 6: Stripe invoice number sync

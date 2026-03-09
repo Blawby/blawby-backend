@@ -40,6 +40,7 @@ const executeRefund = async (deps: {
   listRefunds: () => Promise<Array<RefundRequest & { executed_amount?: number | null }>>;
   stripeRefundCreate: (params: Record<string, unknown>, options?: Record<string, unknown>) => Promise<{ id: string; amount: number }>;
   dispatchRefundedEvent: (payload: { payout_fee_credit_cents: number; credit_invoice_fee: boolean }) => Promise<void>;
+  logger?: { error: (message: string, meta?: Record<string, unknown>) => void };
   amount: number;
   amountPaid: number;
   originalMeteredFeeCents: number;
@@ -61,7 +62,9 @@ const executeRefund = async (deps: {
       .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? 0), 0);
     const cumulativeRefunded = alreadyRefunded + stripeRefund.amount;
     const creditInvoiceFee = cumulativeRefunded >= deps.amountPaid;
-    const payoutFeeCreditCents = Math.round((deps.originalMeteredFeeCents * stripeRefund.amount) / deps.amountPaid);
+    const payoutFeeCreditCents = deps.amountPaid > 0
+      ? Math.round((deps.originalMeteredFeeCents * stripeRefund.amount) / deps.amountPaid)
+      : 0;
 
     const executed = await deps.transitionStatus('executing', {
       status: 'executed',
@@ -69,10 +72,16 @@ const executeRefund = async (deps: {
       review_notes: claimed.review_notes ?? null,
     });
 
-    await deps.dispatchRefundedEvent({
-      payout_fee_credit_cents: payoutFeeCreditCents,
-      credit_invoice_fee: creditInvoiceFee,
-    });
+    try {
+      await deps.dispatchRefundedEvent({
+        payout_fee_credit_cents: payoutFeeCreditCents,
+        credit_invoice_fee: creditInvoiceFee,
+      });
+    } catch (error) {
+      deps.logger?.error('dispatchRefundedEvent failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
 
     return {
       success: true,
@@ -186,6 +195,65 @@ test('refund requests service', async (t) => {
       payout_fee_credit_cents: 40,
       credit_invoice_fee: false,
     });
+  });
+
+  await t.test('zero amountPaid falls back to zero payout fee credit', async (t) => {
+    let eventPayload: { payout_fee_credit_cents: number; credit_invoice_fee: boolean } | null = null;
+
+    const res = await executeRefund({
+      transitionStatus: async (from, patch) => {
+        if (from === 'approved') {
+          return { id: 'rr_3', invoice_id: 'inv_1', status: 'executing', requested_amount: 500 };
+        }
+        return { id: 'rr_3', invoice_id: 'inv_1', status: patch.status, requested_amount: 500 };
+      },
+      listRefunds: async () => [],
+      stripeRefundCreate: async () => ({ id: 're_3', amount: 500 }),
+      dispatchRefundedEvent: async (payload) => {
+        eventPayload = payload;
+      },
+      amount: 500,
+      amountPaid: 0,
+      originalMeteredFeeCents: 120,
+      paymentIntentId: 'pi_123',
+    });
+
+    t.equal(res.success, true);
+    t.same(eventPayload, {
+      payout_fee_credit_cents: 0,
+      credit_invoice_fee: true,
+    });
+  });
+
+  await t.test('event dispatch failures are logged and do not fail refund execution', async (t) => {
+    const errorLogs: string[] = [];
+
+    const res = await executeRefund({
+      transitionStatus: async (from, patch) => {
+        if (from === 'approved') {
+          return { id: 'rr_4', invoice_id: 'inv_1', status: 'executing', requested_amount: 500 };
+        }
+        return { id: 'rr_4', invoice_id: 'inv_1', status: patch.status, requested_amount: 500 };
+      },
+      listRefunds: async () => [],
+      stripeRefundCreate: async () => ({ id: 're_4', amount: 500 }),
+      dispatchRefundedEvent: async () => {
+        throw new Error('event boom');
+      },
+      logger: {
+        error: (message, meta) => {
+          errorLogs.push(`${message}:${String(meta?.error ?? '')}`);
+        },
+      },
+      amount: 500,
+      amountPaid: 1500,
+      originalMeteredFeeCents: 120,
+      paymentIntentId: 'pi_123',
+    });
+
+    t.equal(res.success, true);
+    t.equal(errorLogs.length, 1);
+    t.match(errorLogs[0], 'dispatchRefundedEvent failed:event boom');
   });
 
   await t.test('execute failure marks request failed and stores review_notes', async (t) => {
