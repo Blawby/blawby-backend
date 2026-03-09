@@ -17,6 +17,22 @@ export const listMatterTasksRoute = routeBuilder.build({
     params: matterIdParamSchema,
   },
   responses: {
+    200: {
+      description: 'Tasks retrieved successfully',
+      content: {
+        'application/json': {
+          schema: z.object({
+            tasks: z.array(z.object({
+              id: z.uuid(),
+              title: z.string(),
+              status: z.string(),
+              due_date: z.string().nullable().optional(),
+              assigned_to: z.uuid().nullable().optional(),
+            })),
+          }),
+        },
+      },
+    },
     501: {
       description: 'Matter tasks are not yet implemented',
       content: {

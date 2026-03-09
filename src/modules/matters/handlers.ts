@@ -290,7 +290,11 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
 };
 
 
-const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = (c) => {
+const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId } = c.req.valid('param');
+  const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
+  if (!accessResult.success) return response.fromResult(c, accessResult);
   return c.json({ error: 'Matter tasks are not yet implemented' }, 501);
 };
 
