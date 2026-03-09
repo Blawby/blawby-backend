@@ -115,6 +115,10 @@ export function registerInvoicesListeners(): void {
       );
 
       if (!invoiceFeeCreditResult.success) {
+        logger.error('Failed to report invoice fee credit for invoice {invoiceId}: {error}', {
+          invoiceId: invoice_id,
+          error: invoiceFeeCreditResult.error.message,
+        });
         throw new Error(`Invoice fee credit failed: ${invoiceFeeCreditResult.error.message}`);
       }
     }

@@ -166,22 +166,127 @@ The `feature/invoices-and-retainer` branch should already have retainer draw log
 **File**: `src/modules/invoices/services/invoice-webhooks.service.ts`
 
 ```typescript
-// After successful payment:
-// - report 1 invoice fee unit
-// - report payout fee cents as a separate metered event
+// The webhook computes payoutMeteredFeeCents and dispatches InvoicePaid.
+await InvoicePaid.dispatch({
+  invoice_id: invoice.id,
+  organization_id: invoice.organization_id,
+  amount_paid: stripeInvoice.amount_paid,
+  metered_fee_cents: payoutMeteredFeeCents,
+}, { tx, critical: true });
+
+// invoices/listeners.ts consumes InvoicePaid and reports two Stripe meter events:
+await stripe.v2.billing.meterEvents.create({
+  event_name: 'invoice_fee',
+  identifier: `${organizationId}-invoice_fee-${invoice.id}`,
+  payload: {
+    stripe_customer_id: organizationStripeCustomerId,
+    value: '1',
+  },
+});
+
+await stripe.v2.billing.meterEvents.create({
+  event_name: 'payout_fee',
+  identifier: `${organizationId}-payout_fee-payout:${invoice.id}`,
+  payload: {
+    stripe_customer_id: organizationStripeCustomerId,
+    value: payoutMeteredFeeCents.toString(),
+  },
+});
+
+// These can be simple sequential awaits. If a future MeteringClient adds bulk
+// create support, the two events could be batched, but the current code sends
+// them individually through meteredProductsService.reportMeteredUsage(...).
 ```
 
 #### 4.2 Fee Calculation
 
 ```typescript
-// Current backend model:
-// payout metered fee = Stripe processing fee + variable platform fee
+// Current backend model lives in invoice-webhooks.service.ts:calculateMeteredFeeCents
+const chargeId = getChargeIdFromInvoice(stripeInvoice);
+const variablePlatformFee = Math.round(stripeInvoice.amount_paid * 0.01337);
+
+let stripeFee = 0;
+if (chargeId) {
+  try {
+    const charge = await stripe.charges.retrieve(chargeId, {
+      expand: ['balance_transaction'],
+    });
+    stripeFee = typeof charge.balance_transaction === 'string'
+      ? 0
+      : (charge.balance_transaction?.fee ?? 0);
+  } catch (error) {
+    logger.error('Failed to fetch Stripe balance transaction fee', { chargeId, error });
+    stripeFee = 0;
+  }
+}
+
 const payoutMeteredFeeCents = stripeFee + variablePlatformFee;
 ```
+
+Notes:
+- `stripeFee` comes from Stripe's balance transaction on the captured charge
+- `variablePlatformFee` is a percentage of `stripeInvoice.amount_paid` and is rounded with `Math.round(...)`
+- if `balance_transaction` is unavailable or Stripe retrieval fails, the system falls back to the variable-only estimate
 
 #### 4.3 Refund Credits
 
 Partial refunds are allowed.
+
+Current implementation lives in `src/modules/invoices/services/refund-requests.service.ts` and `src/modules/invoices/listeners.ts`.
+
+Execution flow:
+
+1. Practice executes a refund request
+2. Backend calls `stripe.refunds.create({ payment_intent, amount, reverse_transfer: true })`
+3. Service records a `billing_transactions` refund audit row
+4. Service dispatches `InvoiceRefunded`
+5. `invoices/listeners.ts` reports negative metered usage credits
+
+Implementation sketch:
+
+```typescript
+const refund = await stripe.refunds.create({
+  payment_intent: stripePaymentIntentId,
+  amount: requestedAmount,
+  reverse_transfer: true,
+});
+
+const isFullRefund = refund.amount === amountPaidCents;
+const payoutFeeCreditCents = amountPaidCents > 0
+  ? Math.round((refund.amount / amountPaidCents) * originalPayoutFeeCents)
+  : 0;
+
+await InvoiceRefunded.dispatch({
+  invoice_id: invoice.id,
+  organization_id: invoice.organization_id,
+  refund_request_id: refundRequest.id,
+  refunded_amount: refund.amount,
+  payout_fee_credit_cents: payoutFeeCreditCents,
+  credit_invoice_fee: isFullRefund,
+});
+```
+
+Listener-side metered credits:
+
+```typescript
+if (creditInvoiceFee) {
+  await meteredProductsService.reportMeteredUsage(
+    db,
+    organizationId,
+    METERED_TYPES.INVOICE_FEE,
+    -1,
+    `refund:${refundRequestId}:invoice_fee`,
+  );
+}
+
+await meteredProductsService.reportMeteredUsage(
+  db,
+  organizationId,
+  METERED_TYPES.PAYOUT_FEE,
+  -payoutFeeCreditCents,
+  `refund:${refundRequestId}:payout_fee`,
+);
+```
 
 Refund policy under the metered model:
 
@@ -197,6 +302,8 @@ Refund policy under the metered model:
   - do not credit `invoice_fee`
 
 Important: this model does **not** use Stripe `application_fee_amount` or `refund_application_fee`.
+
+For `retainer_deposit` invoices, any trust accounting balance adjustment should happen alongside the refund flow; today the plan requires that follow-up logic, but the current implementation does not yet decrement retainer balance on refund execution.
 
 ---
 

@@ -3,7 +3,7 @@ import { getLogger } from '@logtape/logtape';
 import Stripe from 'stripe';
 
 import { stripe } from '@/shared/utils/stripe-client';
-import { InvoiceRefunded } from '@/shared/events/definitions';
+import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
@@ -268,12 +268,13 @@ const executeRefund = async (opts: {
         idempotencyKey: `refund_request_${opts.requestId}`,
       });
 
+      const amountPaidCents = invoice.amount_paid ?? 0;
       const originalPayoutMeteredFeeCents = getPayoutMeteredFeeCents(invoiceTxs)
-        || Math.round(invoice.amount_paid * PLATFORM_VARIABLE_FEE_RATE);
-      const payoutFeeCreditCents = invoice.amount_paid > 0
+        || Math.round(amountPaidCents * PLATFORM_VARIABLE_FEE_RATE);
+      const payoutFeeCreditCents = amountPaidCents > 0
         ? Math.min(
             originalPayoutMeteredFeeCents,
-            Math.round((originalPayoutMeteredFeeCents * refund.amount) / invoice.amount_paid),
+            Math.round((originalPayoutMeteredFeeCents * refund.amount) / amountPaidCents),
           )
         : 0;
 
@@ -300,7 +301,7 @@ const executeRefund = async (opts: {
         const alreadyRefundedCents = priorRefunds
           .filter((refundRequest) => refundRequest.id !== claimedReq.id && refundRequest.status === 'executed')
           .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? 0), 0);
-        const creditInvoiceFee = alreadyRefundedCents + refund.amount >= invoice.amount_paid;
+        const creditInvoiceFee = alreadyRefundedCents + refund.amount >= amountPaidCents;
 
         const executedRequest = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
           status: 'executed',
@@ -348,6 +349,35 @@ const executeRefund = async (opts: {
       });
 
       if (!updated) {
+        logger.error('Stripe refund succeeded but local refund DB update failed', {
+          refundId: refund.id,
+          requestId: opts.requestId,
+          invoiceId: invoice.id,
+          organizationId: opts.organizationId,
+          paymentIntentId: stripePaymentIntentId,
+          stripeTransferId,
+          executorUserId: opts.executorUserId,
+          requestedAmount: claimedReq.requested_amount,
+          refundedAmount: refund.amount,
+        });
+        await SystemErrorOccurred.dispatch({
+          error: 'Stripe refund succeeded but local refund DB update failed',
+          context: {
+            refundId: refund.id,
+            requestId: opts.requestId,
+            invoiceId: invoice.id,
+            organizationId: opts.organizationId,
+            paymentIntentId: stripePaymentIntentId,
+            stripeTransferId,
+            executorUserId: opts.executorUserId,
+            requestedAmount: claimedReq.requested_amount,
+            refundedAmount: refund.amount,
+          },
+        }, {
+          actorId: opts.executorUserId,
+          actorType: 'user',
+          organizationId: opts.organizationId,
+        });
         return result.internalError(`Stripe refund ${refund.id} completed, but local DB update failed`);
       }
 
@@ -381,12 +411,20 @@ const executeRefund = async (opts: {
       ));
 
       if (isTransient) {
-        await refundRequestsQueries.transitionStatus(
-          opts.requestId,
-          opts.organizationId,
-          'executing',
-          { status: 'approved' },
-        );
+        try {
+          await refundRequestsQueries.transitionStatus(
+            opts.requestId,
+            opts.organizationId,
+            'executing',
+            { status: 'approved' },
+          );
+        } catch (rollbackError) {
+          logger.error('Failed to rollback transient refund request back to approved', {
+            requestId: opts.requestId,
+            organizationId: opts.organizationId,
+            error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+          });
+        }
         return result.internalError('Stripe refund transient error — please retry later');
       }
 

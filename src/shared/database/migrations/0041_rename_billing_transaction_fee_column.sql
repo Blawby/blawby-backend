@@ -18,5 +18,23 @@ BEGIN
   END IF;
 END $$;
 
-ALTER TABLE "billing_transactions"
-  ADD COLUMN IF NOT EXISTS "metered_fee_cents" integer DEFAULT 0 NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'billing_transactions'
+      AND column_name = 'metered_fee_cents'
+  ) THEN
+    ALTER TABLE "billing_transactions"
+      ALTER COLUMN "metered_fee_cents" TYPE integer USING "metered_fee_cents"::integer;
+    ALTER TABLE "billing_transactions"
+      ALTER COLUMN "metered_fee_cents" SET NOT NULL;
+    ALTER TABLE "billing_transactions"
+      ALTER COLUMN "metered_fee_cents" SET DEFAULT 0;
+  ELSE
+    ALTER TABLE "billing_transactions"
+      ADD COLUMN "metered_fee_cents" integer DEFAULT 0 NOT NULL;
+  END IF;
+END $$;

@@ -4,8 +4,6 @@ import { billingTransactionsRepository } from '@/modules/invoices/database/queri
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
-import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
-import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
 import {
   InvoicePaid,
@@ -33,9 +31,14 @@ const getChargeIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null =>
 
 const getPaymentIntentIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
   const rawStripeInvoice = stripeInvoice as unknown as Record<string, unknown>;
-  return typeof rawStripeInvoice.payment_intent === 'string'
-    ? rawStripeInvoice.payment_intent
-    : null;
+  if (typeof rawStripeInvoice.payment_intent === 'string') {
+    return rawStripeInvoice.payment_intent;
+  }
+  if (typeof rawStripeInvoice.payment_intent === 'object' && rawStripeInvoice.payment_intent !== null) {
+    const paymentIntent = rawStripeInvoice.payment_intent as Record<string, unknown>;
+    return typeof paymentIntent.id === 'string' ? paymentIntent.id : null;
+  }
+  return null;
 };
 
 const calculateMeteredFeeCents = async (stripeInvoice: Stripe.Invoice): Promise<number> => {
@@ -74,6 +77,10 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
       return result.ok<void>(undefined);
     }
 
+    const chargeId = getChargeIdFromInvoice(stripeInvoice);
+    const paymentIntentId = getPaymentIntentIdFromInvoice(stripeInvoice);
+    const meteredFeeCents = await calculateMeteredFeeCents(stripeInvoice);
+
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(
         invoice.id,
@@ -88,10 +95,6 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
         },
         tx,
       );
-
-      const chargeId = getChargeIdFromInvoice(stripeInvoice);
-      const paymentIntentId = getPaymentIntentIdFromInvoice(stripeInvoice);
-      const meteredFeeCents = await calculateMeteredFeeCents(stripeInvoice);
 
       let destinationAccountId = invoice.connected_account_id;
       if (stripeInvoice.on_behalf_of) {
