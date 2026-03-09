@@ -57,7 +57,6 @@ export const invoices = pgTable(
     total: integer('total').notNull().default(0),
     amount_paid: integer('amount_paid').notNull().default(0),
     amount_due: integer('amount_due').notNull().default(0),
-    application_fee_amount: integer('application_fee_amount').notNull().default(0),
 
     issue_date: timestamp('issue_date', { withTimezone: true, mode: 'date' }),
     due_date: timestamp('due_date', { withTimezone: true, mode: 'date' }),
