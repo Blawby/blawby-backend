@@ -8,6 +8,8 @@ export const TASK_NAMES = {
   PROCESS_STRIPE_WEBHOOK: 'process-stripe-webhook',
   PROCESS_ONBOARDING_WEBHOOK: 'process-onboarding-webhook',
   PROCESS_OUTBOX_EVENT: 'process-outbox-event',
+  PROCESS_METERED_USAGE: 'process-metered-usage',
+  PROCESS_REFUND_RECONCILIATION: 'process-refund-reconciliation',
   SEND_EMAIL: 'send-email',
 } as const;
 

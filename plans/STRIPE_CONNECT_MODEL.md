@@ -259,7 +259,8 @@ const refund = await stripe.refunds.create({
 - The Platform does **not** use Stripe `refund_application_fee`.
 - Practice/client refund requests create a Platform-side refund workflow; execution is still performed from the Platform Stripe account.
 - If payout already happened, refunds use `reverse_transfer: true` so the connected-account transfer is reversed with the refund.
-- Same-day void/cancel is preferred operationally when Stripe state allows it, but the current backend refund path is refund-first.
+- Same-day void/cancel is preferred when Stripe still allows the underlying `PaymentIntent` to be canceled before capture.
+- Otherwise the backend falls back to the normal refund flow with `reverse_transfer: true` when applicable.
 
 ### Metered Billing and Refunds
 
@@ -315,13 +316,19 @@ Current policy:
 
 ```typescript
 // From invoice-webhooks.service.ts:129-134
-await meteredProductsService.reportMeteredUsage(
-  tx,
-  invoice.organization_id,
-  METERED_TYPES.INVOICE_FEE, // Metered event type
-  1, // 1 invoice processed
-);
+await reportMeteredUsageWithRetry({
+  organizationId: invoice.organization_id,
+  meteredType: METERED_TYPES.INVOICE_FEE,
+  quantity: 1,
+  deduplicationId: invoice.id,
+  invoiceId: invoice.id,
+  failureLabel: 'invoice fee usage',
+});
 ```
+
+If Stripe meter reporting fails, the listener now queues a dedicated Graphile Worker retry job instead of dropping the usage event.
+
+If Stripe refund creation succeeds but local refund persistence fails, the backend now queues a dedicated refund-reconciliation worker job to repair the DB state and re-dispatch the metered credit event.
 
 ### Billing Cycle
 

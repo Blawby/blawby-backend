@@ -1,4 +1,5 @@
 import { test } from 'tap';
+import { maybeCancelCancelablePaymentIntent } from '@/modules/invoices/services/refund-requests.service';
 
 type RefundStatus = 'requested' | 'approved' | 'rejected' | 'executed' | 'failed' | 'cancelled' | 'executing';
 
@@ -244,6 +245,38 @@ test('refund requests service', async (t) => {
     t.equal(res.success, true);
     t.equal(errorLogs.length, 1);
     t.match(errorLogs[0], 'dispatchRefundedEvent failed:event boom');
+  });
+
+  await t.test('same-day full refund cancels uncaptured payment intent instead of creating refund', async (t) => {
+    const res = await maybeCancelCancelablePaymentIntent({
+      stripePaymentIntentId: 'pi_123',
+      requestedAmount: 1500,
+      amountPaidCents: 1500,
+      paidAt: new Date(),
+    }, {
+      retrieve: async () => ({ status: 'requires_capture' } as never),
+      cancel: async () => ({ id: 'pi_123', status: 'canceled' } as never),
+    });
+
+    t.same(res, {
+      refundedAmount: 1500,
+      stripeRefundId: null,
+      notes: 'PaymentIntent canceled before capture; no Stripe refund object created',
+    });
+  });
+
+  await t.test('same-day cancel path is skipped for partial refunds', async (t) => {
+    const res = await maybeCancelCancelablePaymentIntent({
+      stripePaymentIntentId: 'pi_456',
+      requestedAmount: 500,
+      amountPaidCents: 1500,
+      paidAt: new Date(),
+    }, {
+      retrieve: async () => ({ status: 'requires_capture' } as never),
+      cancel: async () => ({ id: 'pi_456', status: 'canceled' } as never),
+    });
+
+    t.equal(res, null);
   });
 
   await t.test('execute failure marks request failed and stores review_notes', async (t) => {

@@ -5,10 +5,12 @@ import Stripe from 'stripe';
 import { stripe } from '@/shared/utils/stripe-client';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 
-import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
+import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
+import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
 import { result } from '@/shared/utils/result';
 import { db } from '@/shared/database';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
@@ -21,30 +23,51 @@ function isStripeError(err: unknown): err is Stripe.errors.StripeError {
 }
 
 const logger = getLogger(['invoices', 'refund-requests']);
-const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
 
-const getPayoutMeteredFeeCents = (invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>): number => {
-  const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout');
-  if (!payoutTx) return 0;
-
-  if (typeof payoutTx.metered_fee_cents === 'number' && payoutTx.metered_fee_cents > 0) {
-    return payoutTx.metered_fee_cents;
-  }
-
-  const metadataFee = (payoutTx.metadata as Record<string, unknown> | null | undefined)?.metered_fee_cents;
-  return typeof metadataFee === 'number' && metadataFee > 0 ? metadataFee : 0;
+type RefundOutcome = {
+  refundedAmount: number;
+  stripeRefundId: string | null;
+  notes?: string;
 };
 
-const getRefundDestinationAccountId = (
-  invoice: NonNullable<Awaited<ReturnType<typeof invoicesRepository.findInvoiceById>>>,
-  invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>,
-): string | null => {
-  const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout' && tx.destination_account_id);
-  if (payoutTx?.destination_account_id) {
-    return payoutTx.destination_account_id;
-  }
+export const maybeCancelCancelablePaymentIntent = async (opts: {
+  stripePaymentIntentId: string;
+  requestedAmount: number;
+  amountPaidCents: number;
+  paidAt: Date | null;
+}, deps: {
+  retrieve: typeof stripe.paymentIntents.retrieve;
+  cancel: typeof stripe.paymentIntents.cancel;
+} = {
+  retrieve: stripe.paymentIntents.retrieve.bind(stripe.paymentIntents),
+  cancel: stripe.paymentIntents.cancel.bind(stripe.paymentIntents),
+}): Promise<RefundOutcome | null> => {
+  const isFullRefund = opts.requestedAmount === opts.amountPaidCents;
+  const isSameDay = opts.paidAt
+    ? (Date.now() - opts.paidAt.getTime()) <= 24 * 60 * 60 * 1000
+    : false;
 
-  return invoice.connectedAccount?.stripe_account_id ?? null;
+  if (!isFullRefund || !isSameDay) return null;
+
+  try {
+    const paymentIntent = await deps.retrieve(opts.stripePaymentIntentId);
+    if (paymentIntent.status !== 'requires_capture') {
+      return null;
+    }
+
+    await deps.cancel(opts.stripePaymentIntentId);
+    return {
+      refundedAmount: opts.requestedAmount,
+      stripeRefundId: null,
+      notes: 'PaymentIntent canceled before capture; no Stripe refund object created',
+    };
+  } catch (error) {
+    logger.warn('Same-day payment intent cancel path unavailable for {paymentIntentId}: {error}', {
+      paymentIntentId: opts.stripePaymentIntentId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return null;
+  }
 };
 
 const createRequest = async (opts: {
@@ -254,7 +277,52 @@ const executeRefund = async (opts: {
         stripeTransferId = invoiceTxs.find((tx) => tx.type === 'payout' && !!tx.stripe_transfer_id)?.stripe_transfer_id ?? null;
       }
 
-      const refund = await stripe.refunds.create({
+      const refundableBalanceCheck = await db.transaction(async (tx) => {
+        await tx.select({ id: invoices.id })
+          .from(invoices)
+          .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, opts.organizationId)))
+          .for('update');
+
+        const priorRefunds = await refundRequestsQueries.listByOrganization(
+          opts.organizationId,
+          { invoice_id: invoice.id },
+          tx,
+        );
+        const reservedStatuses: ReadonlyArray<SelectRefundRequest['status']> = ['requested', 'approved', 'executing', 'executed'];
+        const reservedAmount = priorRefunds
+          .filter((refundRequest) => refundRequest.id !== claimedReq.id && reservedStatuses.includes(refundRequest.status))
+          .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? refundRequest.requested_amount), 0);
+
+        return Math.max(0, (invoice.amount_paid ?? 0) - reservedAmount);
+      });
+
+      if (claimedReq.requested_amount > refundableBalanceCheck) {
+        try {
+          await refundRequestsQueries.transitionStatus(
+            opts.requestId,
+            opts.organizationId,
+            'executing',
+            { status: 'approved' },
+          );
+        } catch (rollbackError) {
+          logger.error('Failed to rollback over-limit refund request back to approved', {
+            requestId: opts.requestId,
+            organizationId: opts.organizationId,
+            error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+          });
+        }
+        return result.badRequest(`Requested refund amount exceeds remaining refundable amount (${refundableBalanceCheck} cents)`);
+      }
+
+      const amountPaidCents = invoice.amount_paid ?? 0;
+      const canceledPaymentIntent = await maybeCancelCancelablePaymentIntent({
+        stripePaymentIntentId,
+        requestedAmount: claimedReq.requested_amount,
+        amountPaidCents,
+        paidAt: invoice.paid_at,
+      });
+
+      const refund: RefundOutcome = canceledPaymentIntent ?? await stripe.refunds.create({
         payment_intent: stripePaymentIntentId,
         amount: claimedReq.requested_amount,
         metadata: {
@@ -266,91 +334,29 @@ const executeRefund = async (opts: {
         ...(stripeTransferId ? { reverse_transfer: true } : {}),
       }, {
         idempotencyKey: `refund_request_${opts.requestId}`,
-      });
+      }).then((stripeRefund) => ({
+        refundedAmount: stripeRefund.amount,
+        stripeRefundId: stripeRefund.id,
+        notes: undefined,
+      }));
 
-      const amountPaidCents = invoice.amount_paid ?? 0;
-      const originalPayoutMeteredFeeCents = getPayoutMeteredFeeCents(invoiceTxs)
-        || Math.round(amountPaidCents * PLATFORM_VARIABLE_FEE_RATE);
-      const payoutFeeCreditCents = amountPaidCents > 0
-        ? Math.min(
-            originalPayoutMeteredFeeCents,
-            Math.round((originalPayoutMeteredFeeCents * refund.amount) / amountPaidCents),
-          )
-        : 0;
-
-      let refundEventPayload: {
-        invoice_id: string;
-        organization_id: string;
-        refund_request_id: string;
-        refunded_amount: number;
-        payout_fee_credit_cents: number;
-        credit_invoice_fee: boolean;
-      } | null = null;
-
-      const updated = await db.transaction(async (tx) => {
-        await tx.select({ id: invoices.id })
-          .from(invoices)
-          .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, opts.organizationId)))
-          .for('update');
-
-        const priorRefunds = await refundRequestsQueries.listByOrganization(
-          opts.organizationId,
-          { invoice_id: invoice.id },
-          tx,
-        );
-        const alreadyRefundedCents = priorRefunds
-          .filter((refundRequest) => refundRequest.id !== claimedReq.id && refundRequest.status === 'executed')
-          .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? 0), 0);
-        const creditInvoiceFee = alreadyRefundedCents + refund.amount >= amountPaidCents;
-
-        const executedRequest = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
-          status: 'executed',
-          stripe_refund_id: refund.id,
-          stripe_payment_intent_id: stripePaymentIntentId,
-          executed_amount: refund.amount,
-          executed_at: new Date(),
-          executed_by_user_id: opts.executorUserId,
-        }, tx);
-        if (!executedRequest) return null;
-
-        const refundDestinationAccountId = getRefundDestinationAccountId(invoice, invoiceTxs);
-        if (refundDestinationAccountId) {
-          await billingTransactionsRepository.createTransaction({
-            organization_id: opts.organizationId,
-            invoice_id: invoice.id,
-            matter_id: invoice.matter_id,
-            amount: refund.amount,
-            metered_fee_cents: payoutFeeCreditCents,
-            type: 'refund',
-            status: 'completed',
-            destination_account_id: refundDestinationAccountId,
-            completed_at: new Date(),
-            metadata: {
-              stripe_refund_id: refund.id,
-              stripe_payment_intent_id: stripePaymentIntentId,
-              stripe_transfer_id: stripeTransferId,
-              reverse_transfer: !!stripeTransferId,
-              credit_invoice_fee: creditInvoiceFee,
-              payout_fee_credit_cents: payoutFeeCreditCents,
-            },
-          }, tx);
-        }
-
-        refundEventPayload = {
-          invoice_id: invoice.id,
-          organization_id: opts.organizationId,
-          refund_request_id: claimedReq.id,
-          refunded_amount: refund.amount,
-          payout_fee_credit_cents: payoutFeeCreditCents,
-          credit_invoice_fee: creditInvoiceFee,
-        };
-
-        return executedRequest;
+      const { updated, refundEventPayload } = await refundExecutionPersistenceService.persistExecutedRefund({
+        organizationId: opts.organizationId,
+        requestId: opts.requestId,
+        executorUserId: opts.executorUserId,
+        claimedReq,
+        invoice,
+        invoiceTxs,
+        stripePaymentIntentId,
+        stripeTransferId,
+        stripeRefundId: refund.stripeRefundId,
+        refundedAmount: refund.refundedAmount,
+        refundNotes: refund.notes,
       });
 
       if (!updated) {
         logger.error('Stripe refund succeeded but local refund DB update failed', {
-          refundId: refund.id,
+          refundId: refund.stripeRefundId,
           requestId: opts.requestId,
           invoiceId: invoice.id,
           organizationId: opts.organizationId,
@@ -358,27 +364,53 @@ const executeRefund = async (opts: {
           stripeTransferId,
           executorUserId: opts.executorUserId,
           requestedAmount: claimedReq.requested_amount,
-          refundedAmount: refund.amount,
+          refundedAmount: refund.refundedAmount,
         });
-        await SystemErrorOccurred.dispatch({
-          error: 'Stripe refund succeeded but local refund DB update failed',
-          context: {
-            refundId: refund.id,
-            requestId: opts.requestId,
-            invoiceId: invoice.id,
+        try {
+          await addRefundReconciliationJob({
             organizationId: opts.organizationId,
-            paymentIntentId: stripePaymentIntentId,
-            stripeTransferId,
+            requestId: opts.requestId,
             executorUserId: opts.executorUserId,
-            requestedAmount: claimedReq.requested_amount,
-            refundedAmount: refund.amount,
-          },
-        }, {
-          actorId: opts.executorUserId,
-          actorType: 'user',
-          organizationId: opts.organizationId,
-        });
-        return result.internalError(`Stripe refund ${refund.id} completed, but local DB update failed`);
+            stripePaymentIntentId,
+            stripeTransferId,
+            stripeRefundId: refund.stripeRefundId,
+            refundedAmount: refund.refundedAmount,
+          });
+        } catch (queueError) {
+          logger.error('Failed to queue refund reconciliation job after refund DB update failure', {
+            requestId: opts.requestId,
+            refundId: refund.stripeRefundId,
+            error: queueError instanceof Error ? queueError.message : 'Unknown error',
+          });
+        }
+        try {
+          await SystemErrorOccurred.dispatch({
+            error: 'Stripe refund succeeded but local refund DB update failed',
+            context: {
+              refundId: refund.stripeRefundId,
+              requestId: opts.requestId,
+              invoiceId: invoice.id,
+              organizationId: opts.organizationId,
+              paymentIntentId: stripePaymentIntentId,
+              stripeTransferId,
+              executorUserId: opts.executorUserId,
+              requestedAmount: claimedReq.requested_amount,
+              refundedAmount: refund.refundedAmount,
+            },
+          }, {
+            actorId: opts.executorUserId,
+            actorType: 'user',
+            organizationId: opts.organizationId,
+          });
+        } catch (dispatchError) {
+          logger.error('Failed to dispatch SystemErrorOccurred after refund DB update failure', {
+            refundId: refund.stripeRefundId,
+            stripeTransferId,
+            requestId: opts.requestId,
+            error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+          });
+        }
+        return result.internalError(`Stripe refund ${refund.stripeRefundId ?? 'canceled_payment_intent'} completed, but local DB update failed`);
       }
 
       if (refundEventPayload) {

@@ -30,9 +30,12 @@ BEGIN
     ALTER TABLE "billing_transactions"
       ALTER COLUMN "metered_fee_cents" TYPE integer USING "metered_fee_cents"::integer;
     ALTER TABLE "billing_transactions"
-      ALTER COLUMN "metered_fee_cents" SET NOT NULL;
-    ALTER TABLE "billing_transactions"
       ALTER COLUMN "metered_fee_cents" SET DEFAULT 0;
+    UPDATE "billing_transactions"
+      SET "metered_fee_cents" = 0
+      WHERE "metered_fee_cents" IS NULL;
+    ALTER TABLE "billing_transactions"
+      ALTER COLUMN "metered_fee_cents" SET NOT NULL;
   ELSE
     ALTER TABLE "billing_transactions"
       ADD COLUMN "metered_fee_cents" integer DEFAULT 0 NOT NULL;

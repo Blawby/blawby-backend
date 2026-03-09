@@ -237,18 +237,26 @@ Current implementation lives in `src/modules/invoices/services/refund-requests.s
 Execution flow:
 
 1. Practice executes a refund request
-2. Backend calls `stripe.refunds.create({ payment_intent, amount, reverse_transfer: true })`
-3. Service records a `billing_transactions` refund audit row
-4. Service dispatches `InvoiceRefunded`
-5. `invoices/listeners.ts` reports negative metered usage credits
+2. Backend re-checks remaining refundable balance in a DB transaction before calling Stripe
+3. For a same-day full refund, backend first attempts to cancel the Stripe `PaymentIntent` if it is still in `requires_capture`
+4. Otherwise backend calls `stripe.refunds.create({ payment_intent, amount, reverse_transfer: true })` with an idempotency key derived from `refundRequest.id`
+5. Service records a `billing_transactions` refund audit row
+6. For `retainer_deposit` invoices, the same DB transaction decrements `matters.retainer_balance`
+7. Service dispatches `InvoiceRefunded`
+8. `invoices/listeners.ts` reports negative metered usage credits and queues a Graphile Worker retry job if Stripe meter reporting fails
+9. If Stripe refund succeeded but local persistence failed, backend queues a refund-reconciliation worker job to repair the refund record and re-dispatch `InvoiceRefunded`
 
 Implementation sketch:
 
 ```typescript
-const refund = await stripe.refunds.create({
+const canceledPaymentIntent = await maybeCancelCancelablePaymentIntent(...);
+
+const refund = canceledPaymentIntent ?? await stripe.refunds.create({
   payment_intent: stripePaymentIntentId,
   amount: requestedAmount,
   reverse_transfer: true,
+}, {
+  idempotencyKey: `refund_request_${refundRequest.id}`,
 });
 
 const isFullRefund = refund.amount === amountPaidCents;
@@ -269,23 +277,23 @@ await InvoiceRefunded.dispatch({
 Listener-side metered credits:
 
 ```typescript
-if (creditInvoiceFee) {
-  await meteredProductsService.reportMeteredUsage(
-    db,
-    organizationId,
-    METERED_TYPES.INVOICE_FEE,
-    -1,
-    `refund:${refundRequestId}:invoice_fee`,
-  );
-}
-
-await meteredProductsService.reportMeteredUsage(
-  db,
+await reportMeteredUsageWithRetry({
   organizationId,
-  METERED_TYPES.PAYOUT_FEE,
-  -payoutFeeCreditCents,
-  `refund:${refundRequestId}:payout_fee`,
-);
+  meteredType: METERED_TYPES.INVOICE_FEE,
+  quantity: -1,
+  deduplicationId: `refund:${refundRequestId}:invoice_fee`,
+  invoiceId,
+  failureLabel: 'invoice fee credit',
+});
+
+await reportMeteredUsageWithRetry({
+  organizationId,
+  meteredType: METERED_TYPES.PAYOUT_FEE,
+  quantity: -payoutFeeCreditCents,
+  deduplicationId: `refund:${refundRequestId}:payout_fee`,
+  invoiceId,
+  failureLabel: 'payout fee credit',
+});
 ```
 
 Refund policy under the metered model:
@@ -302,8 +310,7 @@ Refund policy under the metered model:
   - do not credit `invoice_fee`
 
 Important: this model does **not** use Stripe `application_fee_amount` or `refund_application_fee`.
-
-For `retainer_deposit` invoices, any trust accounting balance adjustment should happen alongside the refund flow; today the plan requires that follow-up logic, but the current implementation does not yet decrement retainer balance on refund execution.
+For `retainer_deposit` invoices, the current implementation decrements `matters.retainer_balance` inside the same DB transaction that marks the refund request executed and writes the refund audit row.
 
 ---
 
