@@ -3,8 +3,8 @@ import { config } from '@dotenvx/dotenvx';
 import { processOutboxEvent } from '@/shared/events/tasks/process-outbox-event';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { runWorker } from '@/shared/queue/worker-runner';
-import { processOnboardingWebhook } from '@/workers/tasks/process-onboarding-webhook';
 import { processMeteredUsage } from '@/workers/tasks/process-metered-usage';
+import { processOnboardingWebhook } from '@/workers/tasks/process-onboarding-webhook';
 import { processRefundReconciliation } from '@/workers/tasks/process-refund-reconciliation';
 import { processStripeWebhook } from '@/workers/tasks/process-stripe-webhook';
 

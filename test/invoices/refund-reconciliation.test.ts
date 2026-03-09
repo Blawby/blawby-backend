@@ -73,18 +73,24 @@ test('refund reconciliation service', async (t) => {
         invoice_id: 'inv_2',
         status: 'executed',
         executed_amount: 1500,
+        stripe_refund_id: 're_2',
       } as never),
       findInvoiceById: async () => ({ id: 'inv_2' } as never),
-      listBillingTransactionsByInvoiceId: async () => [],
+      listBillingTransactionsByInvoiceId: async () => [{
+        type: 'refund',
+        amount: 1500,
+        metered_fee_cents: 120,
+        metadata: {
+          refund_request_id: 'rr_2',
+          stripe_refund_id: 're_2',
+          payout_fee_credit_cents: 120,
+          credit_invoice_fee: true,
+        },
+      }] as never,
       persistExecutedRefund: async () => ({ updated: null, refundEventPayload: null }),
-      buildRefundEventPayload: async () => ({
-        invoice_id: 'inv_2',
-        organization_id: 'org_2',
-        refund_request_id: 'rr_2',
-        refunded_amount: 1500,
-        payout_fee_credit_cents: 120,
-        credit_invoice_fee: true,
-      }),
+      buildRefundEventPayload: async () => {
+        throw new Error('should not rebuild when immutable refund audit data exists');
+      },
       dispatchInvoiceRefunded: async (payload) => {
         dispatched.push(payload as Record<string, unknown>);
         return 'evt_2';

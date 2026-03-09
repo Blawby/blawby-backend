@@ -6,6 +6,25 @@ BEGIN
     WHERE table_schema = 'public'
       AND table_name = 'billing_transactions'
       AND column_name = 'application_fee_amount'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'billing_transactions'
+      AND column_name = 'metered_fee_cents'
+  ) THEN
+    UPDATE "billing_transactions"
+      SET "metered_fee_cents" = "application_fee_amount"::integer
+      WHERE ("metered_fee_cents" IS NULL OR "metered_fee_cents" = 0)
+        AND "application_fee_amount" IS NOT NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'billing_transactions'
+      AND column_name = 'application_fee_amount'
   ) AND NOT EXISTS (
     SELECT 1
     FROM information_schema.columns

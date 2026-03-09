@@ -52,6 +52,8 @@ export const refundRequests = pgTable(
     index('idx_refund_requests_status').on(table.status),
     index('idx_refund_requests_org_status').on(table.organization_id, table.status),
     check('refund_status_check', sql`status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')`),
+    check('refund_requested_amount_check', sql`requested_amount > 0`),
+    check('refund_executed_amount_check', sql`executed_amount IS NULL OR executed_amount >= 0`),
   ],
 );
 

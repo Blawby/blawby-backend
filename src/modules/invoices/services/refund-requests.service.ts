@@ -1,22 +1,22 @@
-import { eq, and } from 'drizzle-orm';
 import { getLogger } from '@logtape/logtape';
+import { eq, and } from 'drizzle-orm';
 import Stripe from 'stripe';
 
-import { stripe } from '@/shared/utils/stripe-client';
-import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
-import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
-import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
-import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
-import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
-import { result } from '@/shared/utils/result';
-import { db } from '@/shared/database';
+import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
+import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
+import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
+import { db } from '@/shared/database';
+import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
+import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
 import type { Result } from '@/shared/types/result';
+import { result } from '@/shared/utils/result';
+import { stripe } from '@/shared/utils/stripe-client';
 
 function isStripeError(err: unknown): err is Stripe.errors.StripeError {
   return err instanceof Stripe.errors.StripeError;
@@ -290,7 +290,9 @@ const executeRefund = async (opts: {
         );
         const reservedStatuses: ReadonlyArray<SelectRefundRequest['status']> = ['requested', 'approved', 'executing', 'executed'];
         const reservedAmount = priorRefunds
-          .filter((refundRequest) => refundRequest.id !== claimedReq.id && reservedStatuses.includes(refundRequest.status))
+          .filter(
+            (refundRequest) => refundRequest.id !== claimedReq.id && reservedStatuses.includes(refundRequest.status),
+          )
           .reduce((sum, refundRequest) => sum + (refundRequest.executed_amount ?? refundRequest.requested_amount), 0);
 
         return Math.max(0, (invoice.amount_paid ?? 0) - reservedAmount);
@@ -426,6 +428,28 @@ const executeRefund = async (opts: {
             invoiceId: invoice.id,
             error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
           });
+          try {
+            await addRefundReconciliationJob({
+              organizationId: opts.organizationId,
+              requestId: opts.requestId,
+              executorUserId: opts.executorUserId,
+              stripePaymentIntentId,
+              stripeTransferId,
+              stripeRefundId: refund.stripeRefundId,
+              refundedAmount: refund.refundedAmount,
+            });
+            logger.warn('Queued refund reconciliation after InvoiceRefunded dispatch failure', {
+              requestId: opts.requestId,
+              invoiceId: invoice.id,
+              refundId: refund.stripeRefundId,
+            });
+          } catch (queueError) {
+            logger.error('Failed to queue refund reconciliation after InvoiceRefunded dispatch failure', {
+              requestId: opts.requestId,
+              refundId: refund.stripeRefundId,
+              error: queueError instanceof Error ? queueError.message : 'Unknown error',
+            });
+          }
         }
       }
 

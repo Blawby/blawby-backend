@@ -40,7 +40,7 @@ test('invoice listeners metered retry helper', async (t) => {
   await t.test('dispatches a system error when retry queueing fails too', async (t) => {
     const dispatched: Array<Record<string, unknown>> = [];
 
-    await reportMeteredUsageWithRetry({
+    await t.rejects(() => reportMeteredUsageWithRetry({
       organizationId: 'org_2',
       meteredType: METERED_TYPES.PAYOUT_FEE,
       quantity: -55,
@@ -56,7 +56,7 @@ test('invoice listeners metered retry helper', async (t) => {
         dispatched.push(payload as Record<string, unknown>);
         return 'evt_2';
       },
-    });
+    }), /queue failed/);
 
     t.equal(dispatched.length, 1);
     t.equal(dispatched[0].error, 'Failed to report metered usage and failed to queue retry');
@@ -91,5 +91,24 @@ test('invoice listeners metered retry helper', async (t) => {
 
     t.equal(queued, false);
     t.equal(dispatched, false);
+  });
+
+  await t.test('includes both queue and dispatch failure details when both fail', async (t) => {
+    await t.rejects(() => reportMeteredUsageWithRetry({
+      organizationId: 'org_4',
+      meteredType: METERED_TYPES.INVOICE_FEE,
+      quantity: -1,
+      deduplicationId: 'refund:rr_4:invoice_fee',
+      invoiceId: 'inv_4',
+      failureLabel: 'invoice fee credit',
+    }, {
+      reportMeteredUsage: async () => internalError('meter still failed'),
+      queueMeteredUsageJob: async () => {
+        throw new Error('queue failed again');
+      },
+      dispatchSystemError: async () => {
+        throw new Error('system event failed');
+      },
+    }), /queue failed again.*system event failed/);
   });
 });

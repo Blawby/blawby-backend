@@ -1,7 +1,14 @@
 import type { Task } from 'graphile-worker';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
-import { db } from '@/shared/database';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
+import { db } from '@/shared/database';
+
+const isKnownMeteredType = (
+  value: string,
+): value is keyof typeof METERED_TYPE_TO_STRIPE_EVENT => Object.prototype.hasOwnProperty.call(
+  METERED_TYPE_TO_STRIPE_EVENT,
+  value,
+);
 
 export const processMeteredUsage: Task = async (payload, helpers): Promise<void> => {
   const {
@@ -16,7 +23,13 @@ export const processMeteredUsage: Task = async (payload, helpers): Promise<void>
     deduplicationId?: string;
   }) || {};
 
-  if (!organizationId || !meteredType || typeof quantity !== 'number' || !deduplicationId) {
+  if (
+    !organizationId
+    || typeof meteredType !== 'string'
+    || !isKnownMeteredType(meteredType)
+    || typeof quantity !== 'number'
+    || !deduplicationId
+  ) {
     helpers.logger.error('Invalid metered usage retry payload', { payload });
     throw new Error('Invalid metered usage retry payload');
   }
@@ -24,7 +37,7 @@ export const processMeteredUsage: Task = async (payload, helpers): Promise<void>
   const res = await meteredProductsService.reportMeteredUsage(
     db,
     organizationId,
-    meteredType as keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
+    meteredType,
     quantity,
     deduplicationId,
   );

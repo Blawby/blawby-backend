@@ -10,10 +10,10 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { InvoicePaid, InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
+import { InvoicePaid, InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { addMeteredUsageJob } from '@/shared/queue/queue.manager';
 
@@ -33,11 +33,11 @@ export const reportMeteredUsageWithRetry = async (opts: {
     error: string;
     context: Record<string, unknown>;
   }, options: {
-    actorId: 'system';
-    actorType: 'system';
-    organizationId: string;
-    critical: true;
-  }) => string | Promise<string>;
+      actorId: 'system';
+      actorType: 'system';
+      organizationId: string;
+      critical: true;
+    }) => string | Promise<string>;
 } = {
   reportMeteredUsage: meteredProductsService.reportMeteredUsage.bind(meteredProductsService),
   queueMeteredUsageJob: addMeteredUsageJob,
@@ -75,6 +75,8 @@ export const reportMeteredUsageWithRetry = async (opts: {
       deduplicationId: opts.deduplicationId,
     });
   } catch (queueError) {
+    let dispatchErrorMessage: string | null = null;
+
     logger.error('Failed to queue metered usage retry for invoice {invoiceId}: {error}', {
       invoiceId: opts.invoiceId,
       error: queueError instanceof Error ? queueError.message : 'Unknown error',
@@ -101,11 +103,21 @@ export const reportMeteredUsageWithRetry = async (opts: {
         critical: true,
       });
     } catch (dispatchError) {
+      dispatchErrorMessage = dispatchError instanceof Error ? dispatchError.message : 'Unknown error';
       logger.error('Failed to dispatch SystemErrorOccurred for invoice {invoiceId}: {error}', {
         invoiceId: opts.invoiceId,
-        error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+        error: dispatchErrorMessage,
       });
     }
+
+    if (dispatchErrorMessage) {
+      throw new Error(
+        `Failed to queue metered usage retry (${queueError instanceof Error ? queueError.message : 'Unknown error'}); `
+        + `failed to dispatch SystemErrorOccurred (${dispatchErrorMessage})`,
+      );
+    }
+
+    throw (queueError instanceof Error ? queueError : new Error('Failed to queue metered usage retry'));
   }
 };
 
@@ -128,7 +140,7 @@ export function registerInvoicesListeners(): void {
    * record by the webhook handler so the listener can access it without
    * an extra DB round-trip.
    */
-  Event.listen(InvoicePaid, async (payload, context) => {
+  Event.listen(InvoicePaid, async (payload) => {
     const { invoice_id, organization_id, amount_paid } = payload;
 
     logger.info('InvoicePaid listener: reporting metered usage for invoice {invoiceId}', {
@@ -150,8 +162,8 @@ export function registerInvoicesListeners(): void {
     //    stored in context.metadata.metered_fee_cents if available.
     //    Fall back to the variable-only estimate when metadata is absent.
     const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
-    const meteredFeeCents: number =
-      typeof payload.metered_fee_cents === 'number'
+    const meteredFeeCents: number
+      = typeof payload.metered_fee_cents === 'number'
         ? payload.metered_fee_cents
         : Math.round(amount_paid * PLATFORM_VARIABLE_FEE_RATE);
 

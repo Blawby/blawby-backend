@@ -329,10 +329,10 @@ await reportMeteredUsageWithRetry({
 `reportMeteredUsageWithRetry(...)` is a best-effort helper:
 
 - It makes one immediate call to the old `reportMeteredUsage(...)` path for the given `METERED_TYPES` value.
-- It returns `Promise<void>` and does not rethrow metering failures back into invoice/refund business flow.
+- It returns `Promise<void>`.
 - If the Stripe meter call fails, it logs the failure and queues a Graphile Worker `process-metered-usage` job keyed by the deduplication ID.
 - Retry count/backoff are delegated to Graphile Worker. In this repo that means up to `graphileWorkerConfig.maxAttempts` attempts (default `5`); scheduling/backoff come from the worker, not from inline sleeps in `reportMeteredUsageWithRetry(...)`.
-- If queueing the retry job also fails, the helper emits `SystemErrorOccurred` and logs the context.
+- If queueing the retry job also fails, the helper emits `SystemErrorOccurred`, logs the context, and rethrows so the outbox event remains unprocessed and will retry.
 
 If Stripe refund creation succeeds but local refund persistence fails, the backend now queues a dedicated refund-reconciliation worker job to repair the DB state and re-dispatch the metered credit event.
 

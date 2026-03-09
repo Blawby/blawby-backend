@@ -1,16 +1,56 @@
 import { getLogger } from '@logtape/logtape';
 
-import { InvoiceRefunded } from '@/shared/events/definitions';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
-import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
+
+import type { RefundEventPayload } from '@/modules/invoices/services/refund-execution-persistence.service';
+import { InvoiceRefunded } from '@/shared/events/definitions';
+import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 
-import type { Result } from '@/shared/types/result';
-import type { RefundEventPayload } from '@/modules/invoices/services/refund-execution-persistence.service';
-
 const logger = getLogger(['invoices', 'refund-reconciliation']);
+
+const getStoredRefundEventPayload = (
+  claimedReq: Awaited<ReturnType<typeof refundRequestsQueries.findById>>,
+  invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>,
+  organizationId: string,
+): RefundEventPayload | null => {
+  if (!claimedReq) return null;
+
+  const matchingRefundTx = invoiceTxs.find((tx) => {
+    if (tx.type !== 'refund') return false;
+
+    const metadata = tx.metadata as Record<string, unknown> | null | undefined;
+    if (typeof metadata?.refund_request_id === 'string' && metadata.refund_request_id === claimedReq.id) {
+      return true;
+    }
+
+    return typeof claimedReq.stripe_refund_id === 'string'
+      && typeof metadata?.stripe_refund_id === 'string'
+      && metadata.stripe_refund_id === claimedReq.stripe_refund_id;
+  });
+
+  if (!matchingRefundTx) return null;
+
+  const metadata = matchingRefundTx.metadata as Record<string, unknown> | null | undefined;
+  const payoutFeeCreditCents = typeof metadata?.payout_fee_credit_cents === 'number'
+    ? metadata.payout_fee_credit_cents
+    : matchingRefundTx.metered_fee_cents;
+  const creditInvoiceFee = typeof metadata?.credit_invoice_fee === 'boolean'
+    ? metadata.credit_invoice_fee
+    : false;
+
+  return {
+    invoice_id: claimedReq.invoice_id,
+    organization_id: organizationId,
+    refund_request_id: claimedReq.id,
+    refunded_amount: claimedReq.executed_amount ?? matchingRefundTx.amount,
+    payout_fee_credit_cents: payoutFeeCreditCents,
+    credit_invoice_fee: creditInvoiceFee,
+  };
+};
 
 export const reconcileRefundExecution = async (opts: {
   organizationId: string;
@@ -56,13 +96,14 @@ export const reconcileRefundExecution = async (opts: {
   let refundEventPayload;
 
   if (claimedReq.status === 'executed') {
-    refundEventPayload = await deps.buildRefundEventPayload({
-      organizationId: opts.organizationId,
-      claimedReq,
-      invoice,
-      invoiceTxs,
-      refundedAmount: claimedReq.executed_amount ?? opts.refundedAmount,
-    });
+    refundEventPayload = getStoredRefundEventPayload(claimedReq, invoiceTxs, opts.organizationId)
+      ?? await deps.buildRefundEventPayload({
+        organizationId: opts.organizationId,
+        claimedReq,
+        invoice,
+        invoiceTxs,
+        refundedAmount: claimedReq.executed_amount ?? opts.refundedAmount,
+      });
   } else if (claimedReq.status === 'executing') {
     const persisted = await deps.persistExecutedRefund({
       organizationId: opts.organizationId,

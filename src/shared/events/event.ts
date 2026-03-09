@@ -288,6 +288,7 @@ export const Event = {
     }
 
     const payload = record.payload as Record<string, unknown>;
+    const handlerErrors: Error[] = [];
 
     for (const handler of list) {
       try {
@@ -303,8 +304,14 @@ export const Event = {
           eventId: record.eventId,
           error: error instanceof Error ? error.message : String(error),
         });
-        // Continue to next handler even if one fails
+        handlerErrors.push(error instanceof Error ? error : new Error(String(error)));
       }
+    }
+
+    if (handlerErrors.length > 0) {
+      throw new Error(
+        `One or more handlers failed for ${eventType}: ${handlerErrors.map((error) => error.message).join('; ')}`,
+      );
     }
   },
 
