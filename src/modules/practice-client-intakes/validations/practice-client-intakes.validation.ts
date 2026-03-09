@@ -283,7 +283,7 @@ const updateIntakeTriageStatusSchema = z.object({
 }).superRefine((value, ctx) => {
   if (value.status === 'declined' && !value.reason?.trim()) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['reason'],
       message: 'Reason is required when declining an intake',
     });
