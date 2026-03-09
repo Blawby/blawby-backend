@@ -40,6 +40,8 @@ export type UpsertDetailsTransactionParams = {
   isCreate: boolean;
 };
 
+// BetterAuth API calls require raw request headers from Hono context.
+// This remains an intentional exception for practice module services in PR-2.
 export type RequestHeadersParams = {
   requestHeaders: Record<string, string>;
 };
