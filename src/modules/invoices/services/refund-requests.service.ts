@@ -30,6 +30,29 @@ type RefundOutcome = {
   notes?: string;
 };
 
+const rollbackExecutingRefundToApproved = async (opts: {
+  requestId: string;
+  organizationId: string;
+  logMessage: string;
+  logContext?: Record<string, unknown>;
+}): Promise<void> => {
+  try {
+    await refundRequestsQueries.transitionStatus(
+      opts.requestId,
+      opts.organizationId,
+      'executing',
+      { status: 'approved' },
+    );
+  } catch (rollbackError) {
+    logger.error(opts.logMessage, {
+      requestId: opts.requestId,
+      organizationId: opts.organizationId,
+      error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+      ...opts.logContext,
+    });
+  }
+};
+
 export const maybeCancelCancelablePaymentIntent = async (opts: {
   stripePaymentIntentId: string;
   requestedAmount: number;
@@ -235,7 +258,6 @@ const executeRefund = async (opts: {
   try {
     const claimedReq = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'approved', {
       status: 'executing',
-      executed_by_user_id: opts.executorUserId,
     });
 
     if (!claimedReq) {
@@ -246,38 +268,35 @@ const executeRefund = async (opts: {
 
     const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, opts.organizationId);
     if (!invoice) {
-      try {
-        await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
-      } catch (rollbackError) {
-        logger.error('Failed to rollback refund request after invoice lookup failure', {
-          requestId: opts.requestId,
-          error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-        });
-      }
+      await rollbackExecutingRefundToApproved({
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+        logMessage: 'Failed to rollback refund request after invoice lookup failure',
+      });
       return result.notFound('Invoice not found');
     }
 
     const stripePaymentIntentId = invoice.stripe_payment_intent_id;
     if (!stripePaymentIntentId) {
-      try {
-        await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', { status: 'approved' });
-      } catch (rollbackError) {
-        logger.error('Failed to rollback refund request after missing payment intent', {
-          requestId: opts.requestId,
-          error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-        });
-      }
+      await rollbackExecutingRefundToApproved({
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+        logMessage: 'Failed to rollback refund request after missing payment intent',
+      });
       return result.badRequest('Invoice has no Stripe payment intent ID — cannot refund');
     }
 
+    let invoiceTxs;
+    let stripeTransferId = invoice.stripe_transfer_id;
+    let refundableBalanceCheck: number;
+
     try {
-      const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id);
-      let stripeTransferId = invoice.stripe_transfer_id;
+      invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoice.id);
       if (!stripeTransferId) {
         stripeTransferId = invoiceTxs.find((tx) => tx.type === 'payout' && !!tx.stripe_transfer_id)?.stripe_transfer_id ?? null;
       }
 
-      const refundableBalanceCheck = await db.transaction(async (tx) => {
+      refundableBalanceCheck = await db.transaction(async (tx) => {
         await tx.select({ id: invoices.id })
           .from(invoices)
           .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, opts.organizationId)))
@@ -297,25 +316,33 @@ const executeRefund = async (opts: {
 
         return Math.max(0, (invoice.amount_paid ?? 0) - reservedAmount);
       });
+    } catch (error) {
+      logger.error('Failed to prepare refund execution before Stripe call', {
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+        invoiceId: invoice.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      await rollbackExecutingRefundToApproved({
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+        logMessage: 'Failed to rollback refund request after pre-Stripe preparation error',
+        logContext: { invoiceId: invoice.id },
+      });
+      return result.internalError('Failed to prepare refund execution');
+    }
 
-      if (claimedReq.requested_amount > refundableBalanceCheck) {
-        try {
-          await refundRequestsQueries.transitionStatus(
-            opts.requestId,
-            opts.organizationId,
-            'executing',
-            { status: 'approved' },
-          );
-        } catch (rollbackError) {
-          logger.error('Failed to rollback over-limit refund request back to approved', {
-            requestId: opts.requestId,
-            organizationId: opts.organizationId,
-            error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-          });
-        }
-        return result.badRequest(`Requested refund amount exceeds remaining refundable amount (${refundableBalanceCheck} cents)`);
-      }
+    if (claimedReq.requested_amount > refundableBalanceCheck) {
+      await rollbackExecutingRefundToApproved({
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+        logMessage: 'Failed to rollback over-limit refund request back to approved',
+      });
+      return result.badRequest(`Requested refund amount exceeds remaining refundable amount (${refundableBalanceCheck} cents)`);
+    }
 
+    let refund: RefundOutcome;
+    try {
       const amountPaidCents = invoice.amount_paid ?? 0;
       const canceledPaymentIntent = await maybeCancelCancelablePaymentIntent({
         stripePaymentIntentId,
@@ -324,7 +351,7 @@ const executeRefund = async (opts: {
         paidAt: invoice.paid_at,
       });
 
-      const refund: RefundOutcome = canceledPaymentIntent ?? await stripe.refunds.create({
+      refund = canceledPaymentIntent ?? await stripe.refunds.create({
         payment_intent: stripePaymentIntentId,
         amount: claimedReq.requested_amount,
         metadata: {
@@ -341,119 +368,6 @@ const executeRefund = async (opts: {
         stripeRefundId: stripeRefund.id,
         notes: undefined,
       }));
-
-      const { updated, refundEventPayload } = await refundExecutionPersistenceService.persistExecutedRefund({
-        organizationId: opts.organizationId,
-        requestId: opts.requestId,
-        executorUserId: opts.executorUserId,
-        claimedReq,
-        invoice,
-        invoiceTxs,
-        stripePaymentIntentId,
-        stripeTransferId,
-        stripeRefundId: refund.stripeRefundId,
-        refundedAmount: refund.refundedAmount,
-        refundNotes: refund.notes,
-      });
-
-      if (!updated) {
-        logger.error('Stripe refund succeeded but local refund DB update failed', {
-          refundId: refund.stripeRefundId,
-          requestId: opts.requestId,
-          invoiceId: invoice.id,
-          organizationId: opts.organizationId,
-          paymentIntentId: stripePaymentIntentId,
-          stripeTransferId,
-          executorUserId: opts.executorUserId,
-          requestedAmount: claimedReq.requested_amount,
-          refundedAmount: refund.refundedAmount,
-        });
-        try {
-          await addRefundReconciliationJob({
-            organizationId: opts.organizationId,
-            requestId: opts.requestId,
-            executorUserId: opts.executorUserId,
-            stripePaymentIntentId,
-            stripeTransferId,
-            stripeRefundId: refund.stripeRefundId,
-            refundedAmount: refund.refundedAmount,
-          });
-        } catch (queueError) {
-          logger.error('Failed to queue refund reconciliation job after refund DB update failure', {
-            requestId: opts.requestId,
-            refundId: refund.stripeRefundId,
-            error: queueError instanceof Error ? queueError.message : 'Unknown error',
-          });
-        }
-        try {
-          await SystemErrorOccurred.dispatch({
-            error: 'Stripe refund succeeded but local refund DB update failed',
-            context: {
-              refundId: refund.stripeRefundId,
-              requestId: opts.requestId,
-              invoiceId: invoice.id,
-              organizationId: opts.organizationId,
-              paymentIntentId: stripePaymentIntentId,
-              stripeTransferId,
-              executorUserId: opts.executorUserId,
-              requestedAmount: claimedReq.requested_amount,
-              refundedAmount: refund.refundedAmount,
-            },
-          }, {
-            actorId: opts.executorUserId,
-            actorType: 'user',
-            organizationId: opts.organizationId,
-          });
-        } catch (dispatchError) {
-          logger.error('Failed to dispatch SystemErrorOccurred after refund DB update failure', {
-            refundId: refund.stripeRefundId,
-            stripeTransferId,
-            requestId: opts.requestId,
-            error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
-          });
-        }
-        return result.internalError(`Stripe refund ${refund.stripeRefundId ?? 'canceled_payment_intent'} completed, but local DB update failed`);
-      }
-
-      if (refundEventPayload) {
-        try {
-          await InvoiceRefunded.dispatch(refundEventPayload, {
-            actorId: opts.executorUserId,
-            actorType: 'user',
-            organizationId: opts.organizationId,
-          });
-        } catch (dispatchError) {
-          logger.error('Refund executed but failed to dispatch InvoiceRefunded for request {requestId}', {
-            requestId: opts.requestId,
-            invoiceId: invoice.id,
-            error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
-          });
-          try {
-            await addRefundReconciliationJob({
-              organizationId: opts.organizationId,
-              requestId: opts.requestId,
-              executorUserId: opts.executorUserId,
-              stripePaymentIntentId,
-              stripeTransferId,
-              stripeRefundId: refund.stripeRefundId,
-              refundedAmount: refund.refundedAmount,
-            });
-            logger.warn('Queued refund reconciliation after InvoiceRefunded dispatch failure', {
-              requestId: opts.requestId,
-              invoiceId: invoice.id,
-              refundId: refund.stripeRefundId,
-            });
-          } catch (queueError) {
-            logger.error('Failed to queue refund reconciliation after InvoiceRefunded dispatch failure', {
-              requestId: opts.requestId,
-              refundId: refund.stripeRefundId,
-              error: queueError instanceof Error ? queueError.message : 'Unknown error',
-            });
-          }
-        }
-      }
-
-      return result.ok(updated);
     } catch (stripeError) {
       const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown error';
       const isTransient = (isStripeError(stripeError) && (
@@ -467,20 +381,11 @@ const executeRefund = async (opts: {
       ));
 
       if (isTransient) {
-        try {
-          await refundRequestsQueries.transitionStatus(
-            opts.requestId,
-            opts.organizationId,
-            'executing',
-            { status: 'approved' },
-          );
-        } catch (rollbackError) {
-          logger.error('Failed to rollback transient refund request back to approved', {
-            requestId: opts.requestId,
-            organizationId: opts.organizationId,
-            error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-          });
-        }
+        await rollbackExecutingRefundToApproved({
+          requestId: opts.requestId,
+          organizationId: opts.organizationId,
+          logMessage: 'Failed to rollback transient refund request back to approved',
+        });
         return result.internalError('Stripe refund transient error — please retry later');
       }
 
@@ -493,6 +398,119 @@ const executeRefund = async (opts: {
 
       return result.internalError('Stripe refund failed — request marked as failed');
     }
+
+    const { updated, refundEventPayload } = await refundExecutionPersistenceService.persistExecutedRefund({
+      organizationId: opts.organizationId,
+      requestId: opts.requestId,
+      executorUserId: opts.executorUserId,
+      claimedReq,
+      invoice,
+      invoiceTxs,
+      stripePaymentIntentId,
+      stripeTransferId,
+      stripeRefundId: refund.stripeRefundId,
+      refundedAmount: refund.refundedAmount,
+      refundNotes: refund.notes,
+    });
+
+    if (!updated) {
+      logger.error('Stripe refund succeeded but local refund DB update failed', {
+        refundId: refund.stripeRefundId,
+        requestId: opts.requestId,
+        invoiceId: invoice.id,
+        organizationId: opts.organizationId,
+        paymentIntentId: stripePaymentIntentId,
+        stripeTransferId,
+        executorUserId: opts.executorUserId,
+        requestedAmount: claimedReq.requested_amount,
+        refundedAmount: refund.refundedAmount,
+      });
+      try {
+        await addRefundReconciliationJob({
+          organizationId: opts.organizationId,
+          requestId: opts.requestId,
+          executorUserId: opts.executorUserId,
+          stripePaymentIntentId,
+          stripeTransferId,
+          stripeRefundId: refund.stripeRefundId,
+          refundedAmount: refund.refundedAmount,
+        });
+      } catch (queueError) {
+        logger.error('Failed to queue refund reconciliation job after refund DB update failure', {
+          requestId: opts.requestId,
+          refundId: refund.stripeRefundId,
+          error: queueError instanceof Error ? queueError.message : 'Unknown error',
+        });
+      }
+      try {
+        await SystemErrorOccurred.dispatch({
+          error: 'Stripe refund succeeded but local refund DB update failed',
+          context: {
+            refundId: refund.stripeRefundId,
+            requestId: opts.requestId,
+            invoiceId: invoice.id,
+            organizationId: opts.organizationId,
+            paymentIntentId: stripePaymentIntentId,
+            stripeTransferId,
+            executorUserId: opts.executorUserId,
+            requestedAmount: claimedReq.requested_amount,
+            refundedAmount: refund.refundedAmount,
+          },
+        }, {
+          actorId: opts.executorUserId,
+          actorType: 'user',
+          organizationId: opts.organizationId,
+        });
+      } catch (dispatchError) {
+        logger.error('Failed to dispatch SystemErrorOccurred after refund DB update failure', {
+          refundId: refund.stripeRefundId,
+          stripeTransferId,
+          requestId: opts.requestId,
+          error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+        });
+      }
+      return result.internalError(`Stripe refund ${refund.stripeRefundId ?? 'canceled_payment_intent'} completed, but local DB update failed`);
+    }
+
+    if (refundEventPayload) {
+      try {
+        await InvoiceRefunded.dispatch(refundEventPayload, {
+          actorId: opts.executorUserId,
+          actorType: 'user',
+          organizationId: opts.organizationId,
+        });
+      } catch (dispatchError) {
+        logger.error('Refund executed but failed to dispatch InvoiceRefunded for request {requestId}', {
+          requestId: opts.requestId,
+          invoiceId: invoice.id,
+          error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+        });
+        try {
+          await addRefundReconciliationJob({
+            organizationId: opts.organizationId,
+            requestId: opts.requestId,
+            executorUserId: opts.executorUserId,
+            stripePaymentIntentId,
+            stripeTransferId,
+            stripeRefundId: refund.stripeRefundId,
+            refundedAmount: refund.refundedAmount,
+          });
+          logger.warn('Queued refund reconciliation after InvoiceRefunded dispatch failure', {
+            requestId: opts.requestId,
+            invoiceId: invoice.id,
+            refundId: refund.stripeRefundId,
+          });
+        } catch (queueError) {
+          logger.error('Failed to queue refund reconciliation after InvoiceRefunded dispatch failure', {
+            requestId: opts.requestId,
+            refundId: refund.stripeRefundId,
+            error: queueError instanceof Error ? queueError.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    return result.ok(updated);
   } catch (error) {
     logger.error('Failed to execute refund', { error });
     return result.internalError('Failed to execute refund');
