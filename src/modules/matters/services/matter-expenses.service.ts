@@ -32,7 +32,7 @@ const createMatterExpense = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -95,7 +95,7 @@ const listMatterExpenses = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -140,7 +140,7 @@ const updateMatterExpense = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -207,7 +207,7 @@ const deleteMatterExpense = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -268,7 +268,7 @@ const getExpenseStats = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
