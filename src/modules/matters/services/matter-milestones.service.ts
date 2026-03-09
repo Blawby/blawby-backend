@@ -33,7 +33,7 @@ const createMatterMilestone = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -96,7 +96,7 @@ const listMatterMilestones = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -139,7 +139,7 @@ const updateMatterMilestone = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -245,7 +245,7 @@ const deleteMatterMilestone = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -305,7 +305,7 @@ const reorderMilestones = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -375,7 +375,7 @@ const getMilestoneStats = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
