@@ -24,6 +24,7 @@ import {
   updateMatterNoteRoute,
   deleteMatterNoteRoute,
 } from '@/modules/matters/routes/notes.routes';
+import { listMatterTasksRoute } from '@/modules/matters/routes/tasks.routes';
 import {
   listTimeEntriesRoute,
   createTimeEntryRoute,
@@ -56,4 +57,5 @@ export const routes = {
   updateMilestoneRoute,
   deleteMilestoneRoute,
   reorderMilestonesRoute,
+  listMatterTasksRoute,
 };

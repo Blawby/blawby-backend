@@ -47,7 +47,8 @@ export const getMattersRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/matters',
   tags,
-  summary: 'List matters',
+  summary: 'Get matters',
+  description: 'Returns a single matter when `matter_id` is provided, otherwise returns a paginated list.',
   request: {
     params: z.object({
       practice_id: z.uuid(),
@@ -56,16 +57,27 @@ export const getMattersRoute = routeBuilder.build({
   },
   responses: {
     200: {
-      description: 'Matters retrieved successfully',
+      description: 'Matter(s) retrieved successfully',
       content: {
         'application/json': {
-          schema: z.object({
-            matters: z.array(matterResponseSchema),
-            total: z.number(),
-            page: z.number(),
-            limit: z.number(),
-            totalPages: z.number(),
-          }),
+          schema: z.union([
+            z.object({ matter: matterResponseSchema }),
+            z.object({
+              matters: z.array(matterResponseSchema),
+              total: z.number(),
+              page: z.number(),
+              limit: z.number(),
+              totalPages: z.number(),
+            }),
+          ]),
+        },
+      },
+    },
+    404: {
+      description: 'Matter not found',
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
         },
       },
     },
