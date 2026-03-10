@@ -322,10 +322,18 @@ const triggerInvitation = async (
     return result.ok({ success: true, message: 'Magic link sent to client email' });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const safeDetails: Record<string, unknown> = { message: errorMessage };
+    if (error instanceof Error) {
+      safeDetails.name = error.name;
+    }
+    if (typeof error === 'object' && error !== null) {
+      if ('code' in error) safeDetails.code = error.code;
+      if ('status' in error) safeDetails.status = error.status;
+    }
     logger.error('Failed to send magic link for intake {uuid}: {error} {details}', {
       uuid: params.uuid,
       error: errorMessage,
-      details: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      details: JSON.stringify(safeDetails),
     });
     return result.internalError('An unexpected error occurred while sending the magic link');
   }
