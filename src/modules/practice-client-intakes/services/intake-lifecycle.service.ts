@@ -128,12 +128,16 @@ const createMatterFromIntakeTx = async (
 ): Promise<string> => {
   let clientId: string | undefined;
   if (params.metadata.user_id) {
-    const userDetailsRecord = await userDetailsRepository.findById(params.metadata.user_id);
+    const userDetailsRecord = await userDetailsRepository.findByOrgAndUser(
+      params.intake.organization_id,
+      params.metadata.user_id,
+    );
     if (userDetailsRecord) {
-      clientId = params.metadata.user_id;
+      clientId = userDetailsRecord.id;
     } else {
-      logger.warn('User ID {userId} from intake metadata not found in user_details', {
+      logger.warn('User ID {userId} from intake metadata not found in user_details for organization {organizationId}', {
         userId: params.metadata.user_id,
+        organizationId: params.intake.organization_id,
         intakeUuid: params.uuid,
       });
     }
