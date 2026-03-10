@@ -102,7 +102,8 @@ export const triggerIntakeInvitationHandler: AppRouteHandler<
 };
 
 export const listIntakesHandler: AppRouteHandler<typeof listIntakesRoute> = async (c) => {
-  c.req.valid('param');
+  // Validate route params (practice_id) even though we use ctx.organizationId
+  const { practice_id: _practice_id } = c.req.valid('param');
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 

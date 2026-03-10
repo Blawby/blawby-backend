@@ -30,10 +30,10 @@ type IntakeCreationRequest = CreatePracticeClientIntakeRequest & {
 };
 
 const getIntakeSettings = async (
-  params: { slug: string },
+  params: { slug: string; organization?: NonNullable<Awaited<ReturnType<typeof organizationRepository.findBySlug>>> },
 ): Promise<Result<IntakeSettingsResponse>> => {
   try {
-    const organization = await organizationRepository.findBySlug(params.slug);
+    const organization = params.organization ?? await organizationRepository.findBySlug(params.slug);
 
     if (!organization) {
       return result.notFound(`Organization with slug '${params.slug}' not found`);
@@ -91,7 +91,7 @@ const insertIntakeRecordTx = async (
     shouldBypassPayment: boolean;
     validatedUserId?: string;
   },
-) => {
+): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined;
   if (params.request.address) {
     const addressRecord = await upsertAddressTx(tx, {
@@ -142,7 +142,7 @@ const insertIntakeRecordTx = async (
 
 const createIntake = async (
   params: { data: IntakeCreationRequest },
-): Promise<Result<CreateIntakeResponse | IntakeSettingsResponse>> => {
+): Promise<Result<CreateIntakeResponse>> => {
   const { data: request } = params;
 
   try {
@@ -166,7 +166,7 @@ const createIntake = async (
     const validatedUserId = request.user_id;
 
     if (!shouldBypassPayment) {
-      const settingsResult = await getIntakeSettings({ slug: request.slug });
+      const settingsResult = await getIntakeSettings({ slug: request.slug, organization });
       if (!settingsResult.success) {
         return settingsResult;
       }
@@ -266,7 +266,7 @@ const updateIntake = async (
     const dataToUpdate = {
       ...restUpdateData,
       ...(typeof amount !== 'undefined' && { amount }),
-      ...(court_date && { court_date: new Date(court_date) }),
+      ...(typeof court_date !== 'undefined' && { court_date: court_date ? new Date(court_date) : null }),
     };
 
     if (Object.keys(dataToUpdate).length === 0) {

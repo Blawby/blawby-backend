@@ -42,9 +42,20 @@ const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
   );
 };
 
+const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
+  const baseMetadata = parseMetadata(practiceClientIntake.metadata);
+  if (ctx.userId) {
+    return {
+      ...(baseMetadata ?? { email: '', name: '' }),
+      user_id: baseMetadata?.user_id ?? ctx.userId,
+    };
+  }
+  return baseMetadata ?? undefined;
+};
+
 const processClaimIntakeTx = async (
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  intake: NonNullable<Awaited<ReturnType<typeof resolvePracticeClientIntakeByCheckoutSessionId>>['intake']>,
+  intake: NonNullable<Extract<Awaited<ReturnType<typeof resolvePracticeClientIntakeByCheckoutSessionId>>, { success: true }>['data']['intake']>,
   userId: string,
 ) => {
   const rollbackWithResult = (resultValue: Result<ClaimPracticeClientIntakeResponse>): never => {
@@ -68,33 +79,23 @@ const processClaimIntakeTx = async (
     .limit(1);
 
   if (!lockedIntake) {
-    rollbackWithResult(result.notFound('Practice client intake not found'));
+    return rollbackWithResult(result.notFound('Practice client intake not found'));
   }
 
   if (lockedIntake.status !== 'succeeded') {
-    rollbackWithResult(result.badRequest('Payment must be completed before claiming intake'));
+    return rollbackWithResult(result.badRequest('Payment must be completed before claiming intake'));
   }
 
-  const intakeMetadata = parseMetadata(lockedIntake.metadata) ?? { email: '', name: '' };
+  const intakeMetadata = parseMetadata(lockedIntake.metadata);
+  if (!intakeMetadata) {
+    return rollbackWithResult(result.badRequest('Intake metadata is invalid or malformed'));
+  }
   if (!intakeMetadata.email || !intakeMetadata.name) {
-    rollbackWithResult(result.badRequest('Intake metadata is incomplete'));
+    return rollbackWithResult(result.badRequest('Intake metadata is missing required email or name'));
   }
 
   if (intakeMetadata.user_id && intakeMetadata.user_id !== userId) {
-    rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
-  }
-
-  if (!intakeMetadata.user_id) {
-    await tx
-      .update(practiceClientIntakes)
-      .set({
-        metadata: {
-          ...intakeMetadata,
-          user_id: userId,
-        },
-        updated_at: new Date(),
-      })
-      .where(eq(practiceClientIntakes.id, intake.id));
+    return rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
   }
 
   const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
@@ -107,9 +108,24 @@ const processClaimIntakeTx = async (
   });
 
   if (!userDetailsResult.success) {
-    rollbackWithResult(
+    return rollbackWithResult(
       result.fail(userDetailsResult.error.message, userDetailsResult.error.status, userDetailsResult.error.code),
     );
+  }
+
+  if (!intakeMetadata.user_id) {
+    await tx
+      .update(practiceClientIntakes)
+      .set({
+        metadata: {
+          ...intakeMetadata,
+          email: intakeMetadata.email as string,
+          name: intakeMetadata.name as string,
+          user_id: userId,
+        },
+        updated_at: new Date(),
+      })
+      .where(eq(practiceClientIntakes.id, intake.id));
   }
 
   return result.ok({
@@ -152,10 +168,12 @@ const createCheckoutSession = async (
 
     if (practiceClientIntake.stripe_checkout_session_id) {
       try {
-        const { session: existingSession } = await resolvePracticeClientIntakeByCheckoutSessionId(
+        const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(
           practiceClientIntake.stripe_checkout_session_id,
           { requireSession: true },
         );
+
+        const existingSession = resolveResult.success ? resolveResult.data.session : undefined;
 
         const isReusable = existingSession
           && existingSession.status === 'open'
@@ -178,15 +196,17 @@ const createCheckoutSession = async (
       }
     }
 
+    const metadata = parseMetadata(practiceClientIntake.metadata) ?? { email: '', name: '' };
+
     const session = await createIntakeCheckoutSession({
       currency: practiceClientIntake.currency,
       amount: practiceClientIntake.amount,
-      email: practiceClientIntake.metadata?.email,
-      name: practiceClientIntake.metadata?.name,
-      phone: practiceClientIntake.metadata?.phone,
-      on_behalf_of: practiceClientIntake.metadata?.on_behalf_of,
-      opposing_party: practiceClientIntake.metadata?.opposing_party,
-      description: practiceClientIntake.metadata?.description,
+      email: metadata.email,
+      name: metadata.name,
+      phone: metadata.phone,
+      on_behalf_of: metadata.on_behalf_of,
+      opposing_party: metadata.opposing_party,
+      description: metadata.description,
       organizationId: organization.id,
       organizationName: organization.name,
       organizationSlug: organization.slug,
@@ -201,16 +221,11 @@ const createCheckoutSession = async (
       return result.internalError('Stripe Checkout Session URL missing');
     }
 
-    const updatedMetadata = ctx.userId
-      ? {
-        ...practiceClientIntake.metadata ?? { email: '', name: '' },
-        user_id: practiceClientIntake.metadata?.user_id ?? ctx.userId,
-      }
-      : practiceClientIntake.metadata ?? undefined;
+    const updatedMetadata = buildUpdatedMetadata(ctx, practiceClientIntake);
 
     await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       stripe_checkout_session_id: session.id,
-      metadata: updatedMetadata ?? undefined,
+      metadata: updatedMetadata,
     });
 
     return result.ok({
@@ -259,7 +274,11 @@ const getPostPayStatus = async (
   params: { sessionId: string },
 ): Promise<Result<IntakePostPayStatusResponse>> => {
   try {
-    const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    if (!resolveResult.success) {
+      return resolveResult;
+    }
+    const { intake } = resolveResult.data;
     if (!intake) {
       return result.notFound('Checkout session not found');
     }
@@ -295,7 +314,11 @@ const claimIntake = async (
   ctx: ServiceContext,
 ): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
   try {
-    const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    if (!resolveResult.success) {
+      return resolveResult;
+    }
+    const { intake } = resolveResult.data;
     if (!intake) {
       return result.notFound('Checkout session not found');
     }
