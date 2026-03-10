@@ -58,6 +58,7 @@ export const defineAbilityFor = (
     can('read', 'all');
     can('update', 'OrganizationPreferences');
     can('update', 'Matter');
+    can('update', 'PracticeClientIntake');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');

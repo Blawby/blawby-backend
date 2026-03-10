@@ -17,7 +17,7 @@ import { db } from '@/shared/database';
 import type { Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { forbidden, ok, internalError, notFound } from '@/shared/utils/result';
 import type { Address } from '@/shared/validations/address';
 
 const { parseBetterAuthMetadata } = betterAuthUtils;
@@ -61,6 +61,10 @@ export const practiceQueriesService = {
     { requestHeaders }: { requestHeaders: Record<string, string> },
     ctx: ServiceContext,
   ): Promise<Result<{ practices: Organization[] }>> {
+    if (ctx.ability.cannot('read', 'Organization')) {
+      return forbidden('You do not have permission to read practices');
+    }
+
     const result = await organizationService.listOrganizations({ requestHeaders }, ctx);
     if (!result.success) return result;
     return ok<{ practices: Organization[] }>({ practices: result.data });
@@ -73,6 +77,10 @@ export const practiceQueriesService = {
     { organizationId, requestHeaders }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
+    if (ctx.ability.cannot('read', 'Organization')) {
+      return forbidden('You do not have permission to read this practice');
+    }
+
     try {
       // 1. Get organization from Better Auth
       const orgResult = await organizationService.getFullOrganization(
@@ -115,6 +123,10 @@ export const practiceQueriesService = {
     { organizationId, requestHeaders }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<PracticeDetailsResponse>> {
+    if (ctx.ability.cannot('read', 'Organization')) {
+      return forbidden('You do not have permission to read practice details');
+    }
+
     try {
       // 1. Verify organization exists and user has access via Better Auth
       const organizationResult = await organizationService.getFullOrganization(

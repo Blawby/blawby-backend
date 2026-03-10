@@ -39,7 +39,7 @@ import {
 import type { Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError } from '@/shared/utils/result';
+import { forbidden, ok, internalError } from '@/shared/utils/result';
 
 const { getBetterAuthErrorMessage } = betterAuthUtils;
 
@@ -58,6 +58,10 @@ export const practiceManagementService = {
     { data, requestHeaders }: CreatePracticeParams,
     ctx: ServiceContext,
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to create practices');
+    }
+
     const { user } = ctx;
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
@@ -128,6 +132,10 @@ export const practiceManagementService = {
     { organizationId, data, requestHeaders }: UpdatePracticeParams,
     ctx: ServiceContext,
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to update practices');
+    }
+
     const { user } = ctx;
     try {
       const orgData = omit(data, DETAILS_FIELD_KEYS);
@@ -239,6 +247,10 @@ export const practiceManagementService = {
     { organizationId, data, requestHeaders }: UpsertPracticeDetailsParams,
     ctx: ServiceContext,
   ): Promise<Result<PracticeDetailsResponse>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to update practice details');
+    }
+
     const { user } = ctx;
     try {
       const orgResult = await organizationService.getFullOrganization(
@@ -298,6 +310,10 @@ export const practiceManagementService = {
     { organizationId, requestHeaders }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<{ success: boolean }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to delete practices');
+    }
+
     const { user } = ctx;
     try {
       const orgResult = await organizationService.getFullOrganization(
@@ -339,6 +355,10 @@ export const practiceManagementService = {
     { organizationId, requestHeaders }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<{ success: boolean }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to delete practice details');
+    }
+
     try {
       const orgResult = await organizationService.getFullOrganization(
         { organizationId, requestHeaders },
@@ -365,6 +385,10 @@ export const practiceManagementService = {
     { organizationId, requestHeaders }: OrganizationRequestParams,
     ctx: ServiceContext,
   ): Promise<Result<{ success: boolean }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to switch active practice');
+    }
+
     const { user } = ctx;
     try {
       const activeResult = await organizationService.setActiveOrganization(

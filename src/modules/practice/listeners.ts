@@ -132,8 +132,8 @@ export function registerPracticeListeners(): void {
         style: 'currency',
         currency: 'USD',
       }).format(payment.amount / 100)} received from ${
-        customer.name === 'Valued Client' 
-          ? customer.email 
+        customer.name === 'Valued Client'
+          ? customer.email
           : customer.name
       }`,
       {
