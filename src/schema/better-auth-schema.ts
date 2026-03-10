@@ -11,7 +11,6 @@ import {
   unique,
   index,
   uniqueIndex,
-  check,
 } from 'drizzle-orm/pg-core';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
@@ -217,10 +216,6 @@ export const identityUpgradeClaims = pgTable('identity_upgrade_claims', {
   uniqueIndex('identity_upgrade_claims_anon_registered_unique')
     .on(table.anonUserId, table.registeredUserId)
     .where(sql`${table.anonUserId} IS NOT NULL AND ${table.registeredUserId} IS NOT NULL`),
-  check(
-    'identity_upgrade_claims_at_least_one_user_id_check',
-    sql`(${table.anonUserId} IS NOT NULL) OR (${table.registeredUserId} IS NOT NULL)`,
-  ),
 ]);
 
 

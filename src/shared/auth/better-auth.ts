@@ -108,12 +108,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) => betterAuth({
         await db.insert(schema.identityUpgradeClaims).values({
           anonUserId: anonymousUser.user.id,
           registeredUserId: newUser.user.id,
-        }).onConflictDoNothing({
-          target: [
-            schema.identityUpgradeClaims.anonUserId,
-            schema.identityUpgradeClaims.registeredUserId,
-          ],
-        });
+        }).onConflictDoNothing();
 
         await db
           .update(schema.sessions)
