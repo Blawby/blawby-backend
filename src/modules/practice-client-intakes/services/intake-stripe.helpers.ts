@@ -1,6 +1,8 @@
 import type { Stripe } from 'stripe';
+import type { z } from 'zod';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { stripe } from '@/shared/utils/stripe-client';
+import type { addressSchema } from '@/shared/validations/address';
 
 export type CreateIntakePaymentLinkParams = {
   amount: number;
@@ -18,7 +20,7 @@ export type CreateIntakePaymentLinkParams = {
   stripeAccountId: string;
   origin?: string | null;
   conversationId?: string | null;
-  address?: unknown;
+  address?: z.infer<typeof addressSchema>;
   userId?: string | null;
 };
 
@@ -129,6 +131,7 @@ export const createIntakeCheckoutSession = async (
       },
     ],
     payment_intent_data: {
+      on_behalf_of: params.stripeAccountId,
       transfer_data: {
         destination: params.stripeAccountId,
       },

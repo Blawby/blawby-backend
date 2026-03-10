@@ -57,7 +57,7 @@ export const getStaffAccessibleIntake = async (
 export const ensureStaffOrganizationAccess = (
   organizationId: string,
   ctx: ServiceContext,
-): Result<never> | undefined => {
+): Result<void> => {
   if (!ctx.memberRole) {
     return forbidden('You do not have permission to access these intakes');
   }
@@ -67,5 +67,5 @@ export const ensureStaffOrganizationAccess = (
   if (!ctx.organizationId || ctx.organizationId !== organizationId) {
     return forbidden('Access denied');
   }
-  return undefined;
+  return ok(undefined);
 };

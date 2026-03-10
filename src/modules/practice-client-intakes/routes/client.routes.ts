@@ -28,6 +28,14 @@ export const createPracticeClientIntakeCheckoutSessionRoute = routeBuilder.build
       },
       description: 'Bad request - intake not eligible for checkout session',
     },
+    403: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Forbidden - connected account is not ready',
+    },
     404: {
       content: {
         'application/json': {

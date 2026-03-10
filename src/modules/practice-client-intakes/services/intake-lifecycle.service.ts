@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
@@ -43,7 +43,7 @@ const listIntakes = async (
 ): Promise<PaginatedResultWithMeta<ListIntakeItem, 'intakes'>> => {
   try {
     const accessResult = ensureStaffOrganizationAccess(ctx.organizationId, ctx);
-    if (accessResult) {
+    if (!accessResult.success) {
       return accessResult;
     }
 
@@ -125,7 +125,7 @@ const createMatterFromIntakeTx = async (
     metadata: NonNullable<ReturnType<typeof parseMetadata>>;
     userId: string;
   },
-) => {
+): Promise<string> => {
   let clientId: string | undefined;
   if (params.metadata.user_id) {
     const userDetailsRecord = await userDetailsRepository.findById(params.metadata.user_id);
@@ -189,6 +189,18 @@ const createMatterFromIntakeTx = async (
   return matter.id;
 };
 
+const toMatterResponse = (
+  matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>,
+): MatterResponse => ({
+  ...matter,
+  status: matter.status as MatterResponse['status'],
+  payment_frequency: (matter.payment_frequency as 'project' | 'milestone' | null) ?? null,
+  urgency: (matter.urgency as MatterResponse['urgency']) ?? null,
+  deleted_at: matter.deleted_at ?? null,
+  open_date: matter.open_date ?? null,
+  close_date: matter.close_date ?? null,
+});
+
 const convertIntake = async (
   params: {
     uuid: string;
@@ -213,12 +225,7 @@ const convertIntake = async (
 
         return result.ok({
           matter_id: existingMatter.id,
-          matter: {
-            ...existingMatterWithRelations,
-            deleted_at: existingMatterWithRelations.deleted_at ?? null,
-            open_date: existingMatterWithRelations.open_date ?? null,
-            close_date: existingMatterWithRelations.close_date ?? null,
-          } as MatterResponse,
+          matter: toMatterResponse(existingMatterWithRelations),
         });
       }
 
@@ -253,12 +260,7 @@ const convertIntake = async (
 
     return result.ok({
       matter_id: matterId,
-      matter: {
-        ...matter,
-        deleted_at: matter.deleted_at ?? null,
-        open_date: matter.open_date ?? null,
-        close_date: matter.close_date ?? null,
-      } as MatterResponse,
+      matter: toMatterResponse(matter),
     });
   } catch (error) {
     logger.error('Failed to convert intake {uuid} to matter: {error}', {

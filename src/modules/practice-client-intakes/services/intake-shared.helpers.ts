@@ -11,6 +11,8 @@ import type {
 import type {
   TriageStatus,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import type { Result } from '@/shared/types/result';
+import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const { practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
@@ -58,9 +60,11 @@ const isAuthorizedIntakeView = (
   requestingUserId?: string,
   isAdmin = false,
 ) => {
-  return isAdmin || (metadata?.user_id && requestingUserId
-    ? metadata.user_id === requestingUserId
-    : false);
+  return isAdmin || Boolean(metadata?.user_id && metadata.user_id === requestingUserId);
+};
+
+const isUrgency = (value: string | null | undefined): value is 'routine' | 'time_sensitive' | 'emergency' => {
+  return value === 'routine' || value === 'time_sensitive' || value === 'emergency';
 };
 
 export const formatIntakeListItem = (
@@ -85,9 +89,7 @@ export const formatIntakeListItem = (
     metadata: getAuthorizedMetadata(metadata, isAuthorized),
     succeeded_at: intake.succeeded_at ?? null,
     created_at: intake.created_at,
-    urgency: (intake.urgency === 'routine' || intake.urgency === 'time_sensitive' || intake.urgency === 'emergency'
-      ? intake.urgency as 'routine' | 'time_sensitive' | 'emergency'
-      : null),
+    urgency: isUrgency(intake.urgency) ? intake.urgency : null,
     desired_outcome: intake.desired_outcome ?? null,
     court_date: intake.court_date ?? null,
     has_documents: intake.has_documents ?? null,
@@ -125,13 +127,13 @@ export type ResolveCheckoutSessionResult = {
 export const resolvePracticeClientIntakeByCheckoutSessionId = async (
   sessionId: string,
   options?: { requireSession?: boolean },
-): Promise<ResolveCheckoutSessionResult> => {
+): Promise<Result<ResolveCheckoutSessionResult>> => {
   const { requireSession = false } = options ?? {};
   let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
     = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
 
   if (intake && !requireSession) {
-    return { intake };
+    return result.ok({ intake });
   }
 
   try {
@@ -141,7 +143,7 @@ export const resolvePracticeClientIntakeByCheckoutSessionId = async (
       : (typeof session.client_reference_id === 'string' ? session.client_reference_id : undefined);
 
     if (!intakeUuid) {
-      return { session };
+      return result.ok({ session });
     }
 
     if (!intake) {
@@ -154,13 +156,13 @@ export const resolvePracticeClientIntakeByCheckoutSessionId = async (
       });
     }
 
-    return { intake, session };
+    return result.ok({ intake, session });
   } catch (error) {
     logger.error('Failed to resolve checkout session {sessionId}', {
       sessionId,
       error,
     });
-    throw error;
+    return result.internalError('Failed to resolve checkout session');
   }
 };
 
