@@ -208,6 +208,8 @@ PRs within a group can be developed **in parallel**.
   - `routes/staff.routes.ts`
   - `routes/shared.ts`
 - [x] Remove raw `Headers` passthrough from intake invitation flow (minimal origin-only header passed to Better Auth)
+- [ ] Replace base64url-encoded `PrefillData` in magic-link `callbackURL` with an opaque, short-lived server-side token (store minimal payload in DB/Redis, pass only the token ID in the URL, validate/consume on callback)
+- [ ] Move `convertIntake` eligibility checks (`status`, `triage_status`, metadata) inside `db.transaction` with `SELECT … FOR UPDATE` on the intake row to prevent race-condition duplicates
 
 ---
 
