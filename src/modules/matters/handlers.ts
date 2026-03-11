@@ -22,25 +22,24 @@ const getMattersHandler: AppRouteHandler<typeof matterRoutes.getMattersRoute> = 
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const result = await mattersService.listMatters(
-    {
-      ...query,
-      page: parseInt(String(query.page ?? '1'), 10),
-      limit: parseInt(String(query.limit ?? '20'), 10),
-    },
-    ctx,
-  );
-
-  if (!result.success) {
-    return response.fromResult(c, result);
+  if (query.matter_id) {
+    const result = await mattersService.getMatterById(query.matter_id, ctx);
+    if (!result.success) return response.fromResult(c, result);
+    return response.ok(c, { matter: result.data });
   }
+
+  const page = parseInt(String(query.page ?? '1'), 10);
+  const limit = parseInt(String(query.limit ?? '20'), 10);
+  const result = await mattersService.listMatters({ ...query, page, limit }, ctx);
+
+  if (!result.success) return response.fromResult(c, result);
 
   return response.ok(c, {
     matters: result.data.matters,
     total: result.data.total,
-    page: parseInt(String(query.page ?? '1'), 10),
-    limit: parseInt(String(query.limit ?? '20'), 10),
-    totalPages: Math.ceil(result.data.total / parseInt(String(query.limit ?? '20'), 10)),
+    page,
+    limit,
+    totalPages: Math.ceil(result.data.total / limit),
   });
 };
 
@@ -291,6 +290,14 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
 };
 
 
+const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId } = c.req.valid('param');
+  const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
+  if (!accessResult.success) return response.fromResult(c, accessResult);
+  return c.json({ error: 'Matter tasks are not yet implemented' }, 501);
+};
+
 export const handlers = {
   getMattersHandler,
   createMatterHandler,
@@ -315,4 +322,5 @@ export const handlers = {
   createMatterNoteHandler,
   updateMatterNoteHandler,
   deleteMatterNoteHandler,
+  listMatterTasksHandler,
 };

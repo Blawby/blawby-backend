@@ -26,7 +26,7 @@ import { PracticeCreated, PracticeUpdated } from '@/shared/events/definitions';
 import type { Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError } from '@/shared/utils/result';
+import { forbidden, ok, internalError } from '@/shared/utils/result';
 
 const { getBetterAuthErrorMessage } = betterAuthUtils;
 
@@ -46,6 +46,10 @@ export const practiceManagementService = {
     { data }: CreatePracticeParams,
     ctx: ServiceContext,
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to create practices');
+    }
+
     const { user } = ctx;
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
@@ -116,6 +120,10 @@ export const practiceManagementService = {
     { organizationId, data }: UpdatePracticeParams,
     ctx: ServiceContext,
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
+    if (ctx.ability.cannot('update', 'Organization')) {
+      return forbidden('You do not have permission to update practices');
+    }
+
     const { user } = ctx;
     try {
       const orgData = omit(data, DETAILS_FIELD_KEYS);
@@ -218,5 +226,4 @@ export const practiceManagementService = {
       );
     }
   },
-
 };

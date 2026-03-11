@@ -153,7 +153,27 @@ const createMatter = async (
 };
 
 /**
- * Get matter by ID
+ * Lightweight access check for sub-resource endpoints (notes, time entries, expenses, milestones).
+ * Uses a minimal DB query — does NOT load relations.
+ */
+const verifyMatterAccess = async (
+  matterId: string,
+  ctx: ServiceContext,
+): Promise<Result<void>> => {
+  const matter = await mattersQueries.findMatterById(matterId);
+
+  if (!matter || matter.organization_id !== ctx.organizationId) {
+    return result.notFound('Matter not found');
+  }
+
+  const forbiddenResult = getForbiddenResult(ctx, 'read', toSubject('Matter', matter));
+  if (forbiddenResult) return forbiddenResult;
+
+  return result.ok();
+};
+
+/**
+ * Get matter by ID (with full relations — for matter detail view only)
  */
 const getMatterById = async (
   matterId: string,
@@ -451,6 +471,7 @@ const getMatterCounts = async (
 export const mattersService = {
   createMatter,
   getMatterById,
+  verifyMatterAccess,
   listMatters,
   updateMatter,
   deleteMatter,

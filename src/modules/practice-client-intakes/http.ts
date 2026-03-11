@@ -6,7 +6,6 @@ import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const practiceClientIntakesApp = createHonoApp();
 
-// Middleware
 practiceClientIntakesApp.use('*', injectAbility());
 
 // ==================== PRACTICE CLIENT INTAKES ====================
