@@ -13,7 +13,6 @@ export const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingSta
 
   const result = await onboardingService.getOnboardingStatus({
     organizationId,
-    requestHeaders: c.req.header(),
   }, ctx);
 
   return response.fromResult(c, result);
@@ -28,7 +27,6 @@ export const createConnectedAccountHandler: AppRouteHandler<typeof createConnect
     organizationId: validatedBody.practice_uuid,
     refreshUrl: validatedBody.refresh_url,
     returnUrl: validatedBody.return_url,
-    requestHeaders: c.req.header(),
   }, ctx);
 
   return response.fromResult(c, result, 201);

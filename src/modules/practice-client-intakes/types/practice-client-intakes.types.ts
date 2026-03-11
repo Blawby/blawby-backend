@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from '@hono/zod-openapi';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
 export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
@@ -6,6 +6,7 @@ export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
 // Inferred from Zod schemas
 export type CreatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.createPracticeClientIntakeSchema>;
 export type UpdatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>;
+export type ConvertIntakeRequest = z.infer<typeof intakeValidations.convertIntakeSchema>;
 export type SlugParam = z.infer<typeof intakeValidations.slugParamSchema>;
 export type UuidParam = z.infer<typeof intakeValidations.uuidParamSchema>;
 export type CheckoutSessionStatusQuery = z.infer<typeof intakeValidations.checkoutSessionStatusQuerySchema>;
@@ -63,3 +64,5 @@ export type ClaimPracticeClientIntakeResponse = z.infer<
 export type UpdateIntakeTriageStatusResponse = z.infer<
   typeof intakeValidations.updateIntakeTriageStatusResponseSchema
 >;
+export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesResponseSchema>;
+export type ListIntakeItem = NonNullable<ListIntakesResponse['data']>['intakes'][number];

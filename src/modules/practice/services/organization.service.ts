@@ -28,8 +28,8 @@ export const organizationService = {
    * Create a new organization
    */
   async createOrganization(
-    { data, requestHeaders }: { data: CreateOrganizationRequest; requestHeaders: Record<string, string> },
-    _ctx: ServiceContext,
+    { data }: { data: CreateOrganizationRequest },
+    ctx: ServiceContext,
   ): Promise<Result<Organization>> {
     try {
       const betterAuth = getBetterAuth();
@@ -45,7 +45,7 @@ export const organizationService = {
 
       const result = await betterAuth.api.createOrganization({
         body: data,
-        headers: requestHeaders,
+        headers: ctx.requestHeaders,
       });
 
       if (!result) {
@@ -62,13 +62,12 @@ export const organizationService = {
    * List organizations for a user
    */
   async listOrganizations(
-    { requestHeaders }: { requestHeaders: Record<string, string> },
-    _ctx: ServiceContext,
+    ctx: ServiceContext,
   ): Promise<Result<Organization[]>> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.listOrganizations({
-        headers: requestHeaders,
+        headers: ctx.requestHeaders,
       });
 
       return ok<Organization[]>(Array.isArray(result) ? result : []);
@@ -81,14 +80,14 @@ export const organizationService = {
    * Get full organization details
    */
   async getFullOrganization(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
-    _ctx: ServiceContext,
+    { organizationId }: OrganizationRequestParams,
+    ctx: ServiceContext,
   ): Promise<Result<ActiveOrganization>> {
     const betterAuth = getBetterAuth();
     try {
       const result = await betterAuth.api.getFullOrganization({
         query: { organizationId },
-        headers: requestHeaders,
+        headers: ctx.requestHeaders,
       });
 
       if (!result) {
@@ -110,14 +109,14 @@ export const organizationService = {
    * Update organization details
    */
   async updateOrganization(
-    { data, requestHeaders }: { data: UpdateOrganizationRequest; requestHeaders: Record<string, string> },
-    _ctx: ServiceContext,
+    { data }: { data: UpdateOrganizationRequest },
+    ctx: ServiceContext,
   ): Promise<Result<Organization>> {
     const betterAuth = getBetterAuth();
     try {
       const result = await betterAuth.api.updateOrganization({
         body: data,
-        headers: requestHeaders,
+        headers: ctx.requestHeaders,
       });
 
       if (!result) {
@@ -134,14 +133,14 @@ export const organizationService = {
    * Delete an organization
    */
   async deleteOrganization(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
-    _ctx: ServiceContext,
+    { organizationId }: OrganizationRequestParams,
+    ctx: ServiceContext,
   ): Promise<Result<Organization>> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.deleteOrganization({
         body: { organizationId },
-        headers: requestHeaders,
+        headers: ctx.requestHeaders,
       });
 
       if (!result) {
@@ -158,14 +157,14 @@ export const organizationService = {
    * Set the active organization for the current session
    */
   async setActiveOrganization(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
-    _ctx: ServiceContext,
+    { organizationId }: OrganizationRequestParams,
+    ctx: ServiceContext,
   ): Promise<Result<ActiveOrganization>> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.setActiveOrganization({
         body: { organizationId },
-        headers: requestHeaders,
+        headers: ctx.requestHeaders,
       });
 
       if (!result) {
