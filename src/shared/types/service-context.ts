@@ -22,7 +22,9 @@ export type ServiceContext = {
 export const getServiceContext = (c: Context): ServiceContext => {
   const userId = c.get('userId');
   const user = c.get('user');
-  const organizationId = c.req.param('organization_id') || c.get('activeOrganizationId');
+  const organizationId = c.req.param('organization_id')
+    || c.req.param('practice_id')
+    || c.get('activeOrganizationId');
   const matterId = c.req.param('id') || c.req.param('matter_id');
 
   return {
@@ -52,4 +54,3 @@ export const getServiceContext = (c: Context): ServiceContext => {
     },
   };
 };
-

@@ -29,7 +29,7 @@ const createMatterNote = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -87,7 +87,7 @@ const listMatterNotes = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -130,7 +130,7 @@ const updateMatterNote = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -197,7 +197,7 @@ const deleteMatterNote = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }

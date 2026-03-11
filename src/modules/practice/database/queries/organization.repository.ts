@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
+import type { Organization, NewOrganization } from '@/modules/practice/types/organization.types';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
-import type { Organization, NewOrganization } from '../../types/organization.types';
 
 /**
  * Organization Repository

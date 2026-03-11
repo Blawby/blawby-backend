@@ -1,83 +1,13 @@
-import { createRoute, z } from '@hono/zod-openapi';
-
-
-import { uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/creation.routes';
+import { practiceIdParamOpenAPISchema, uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
-/**
- * POST /api/practice/client-intakes/claim
- * Claims a paid intake for the authenticated user
- */
-export const claimPracticeClientIntakeRoute = routeBuilder.build(createRoute({
-  method: 'post',
-  path: '/claim',
-  tags: ['Practice Client Intakes'],
-  summary: 'Claim paid intake',
-  description: 'Links a paid intake (identified by Checkout Session ID) to the authenticated user and ensures membership in the organization.',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.claimPracticeClientIntakeSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.claimPracticeClientIntakeResponseSchema,
-        },
-      },
-      description: 'Intake claimed successfully.',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.errorResponseSchema,
-        },
-      },
-      description: 'Bad request - missing session ID or intake not paid',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - authentication required',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Checkout session or intake not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-}));
-
-/**
- * POST /api/practice/client-intakes/:uuid/invite
- * Triggers an invitation for the user associated with this intake
- */
-export const triggerIntakeInvitationRoute = routeBuilder.build(createRoute({
+export const triggerIntakeInvitationRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/invite',
   tags: ['Practice Client Intakes'],
   summary: 'Trigger intake invitation',
-  description: 'Triggers a manual organization invitation for the client associated with a successful intake. This is used by legal staff to explicitly invite a client to the practice workspace after they have completed the intake payment. Requires authentication. The invitation process creates a link between the client\'s intake data and their (potentially new) user account.',
+  description: 'Triggers a manual organization invitation for the client associated with a successful intake.',
   request: {
     params: uuidParamOpenAPISchema,
   },
@@ -88,7 +18,7 @@ export const triggerIntakeInvitationRoute = routeBuilder.build(createRoute({
           schema: intakeValidations.triggerIntakeInvitationResponseSchema,
         },
       },
-      description: 'Invitation triggered successfully. An email will be sent to the client with a link to accept the invitation and join the practice workspace.',
+      description: 'Invitation triggered successfully.',
     },
     400: {
       content: {
@@ -115,25 +45,16 @@ export const triggerIntakeInvitationRoute = routeBuilder.build(createRoute({
       description: 'Internal server error',
     },
   },
-}));
+});
 
-/**
- * GET /api/practice/{practice_id}/client-intakes
- * List practice client intakes (legal staff only)
- */
-export const listIntakesRoute = routeBuilder.build(createRoute({
+export const listIntakesRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Practice Client Intakes'],
   summary: 'List practice client intakes or get by ID',
-  description: 'Retrieves a paginated list of client intakes for a specific practice. Includes filtering by status, search (name/email/opposing party), and date range. Use the `intake_id` query parameter to retrieve a specific intake.',
+  description: 'Retrieves a paginated list of client intakes for a specific practice.',
   request: {
-    params: z.object({
-      practice_id: z.uuid().openapi({
-        param: { name: 'practice_id', in: 'path' },
-        description: 'Practice organization ID',
-      }),
-    }),
+    params: practiceIdParamOpenAPISchema,
     query: intakeValidations.listIntakesQuerySchema,
   },
   responses: {
@@ -162,18 +83,14 @@ export const listIntakesRoute = routeBuilder.build(createRoute({
       description: 'Internal server error',
     },
   },
-}));
+});
 
-/**
- * PATCH /api/practice/client-intakes/{uuid}/status
- * Updates intake triage status independently from payment/conversion status
- */
-export const updateIntakeTriageStatusRoute = routeBuilder.build(createRoute({
+export const updateIntakeTriageStatusRoute = routeBuilder.build({
   method: 'patch',
   path: '/{uuid}/status',
   tags: ['Practice Client Intakes'],
   summary: 'Update intake triage status',
-  description: 'Sets practice triage decision for an intake (`accepted` or `declined`) without converting it to a matter. Declined intakes can include a reason for audit purposes.',
+  description: 'Sets practice triage decision for an intake.',
   request: {
     params: uuidParamOpenAPISchema,
     body: {
@@ -226,18 +143,14 @@ export const updateIntakeTriageStatusRoute = routeBuilder.build(createRoute({
       description: 'Internal server error',
     },
   },
-}));
+});
 
-/**
- * PATCH /api/practice/client-intakes/{uuid}/convert
- * Converts a successful intake to a Matter
- */
-export const convertIntakeRoute = routeBuilder.build(createRoute({
+export const convertIntakeRoute = routeBuilder.build({
   method: 'patch',
   path: '/{uuid}/convert',
   tags: ['Practice Client Intakes'],
   summary: 'Convert intake to matter',
-  description: 'Converts a successful (paid) client intake into a formal Matter. Copies metadata (title, client info, case details) and links the intake and any associated conversation to the new Matter. Idempotent: returns error if already converted.',
+  description: 'Converts a successful client intake into a formal matter.',
   request: {
     params: uuidParamOpenAPISchema,
     body: {
@@ -255,7 +168,7 @@ export const convertIntakeRoute = routeBuilder.build(createRoute({
           schema: intakeValidations.convertIntakeResponseSchema,
         },
       },
-      description: 'Intake converted successfully. Returns the new Matter ID.',
+      description: 'Intake converted successfully.',
     },
     400: {
       content: {
@@ -298,4 +211,4 @@ export const convertIntakeRoute = routeBuilder.build(createRoute({
       description: 'Internal server error',
     },
   },
-}));
+});

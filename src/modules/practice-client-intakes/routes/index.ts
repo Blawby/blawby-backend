@@ -1,3 +1,3 @@
-export * from './checkout.routes';
-export * from './creation.routes';
-export * from './lifecycle.routes';
+export * from './public.routes';
+export * from './client.routes';
+export * from './staff.routes';

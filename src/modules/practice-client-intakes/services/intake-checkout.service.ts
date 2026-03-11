@@ -1,37 +1,153 @@
-import { getLogger } from '@logtape/logtape';
-
+import { eq, sql } from 'drizzle-orm';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import type { PracticeClientIntakeMetadata } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { formatIntakeResponse, parseMetadata, resolvePracticeClientIntakeByCheckoutSessionId } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
+import {
+  practiceClientIntakesSchema,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
+import {
+  formatIntakeStatusResponse,
+  logger,
+  parseMetadata,
+  resolvePracticeClientIntakeByCheckoutSessionId,
+} from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { createIntakeCheckoutSession } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
-  CreateCheckoutSessionResponse as PracticeClientIntakeCheckoutSessionResponse,
-  IntakeStatusResponse as PracticeClientIntakeStatus,
-  IntakePostPayStatusResponse as PracticeClientIntakePostPayStatusResponse,
+  ClaimPracticeClientIntakeResponse,
+  CreateCheckoutSessionResponse,
+  IntakePostPayStatusResponse,
+  IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import { userDetailsService } from '@/modules/user-details/services/user-details.service';
+import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
-const logger = getLogger(['practice-client-intakes', 'service', 'checkout']);
+const { practiceClientIntakes } = practiceClientIntakesSchema;
 
-/**
- * Create a Stripe Checkout Session for an existing intake
- */
-const createPracticeClientIntakeCheckoutSession = async (
-  params: { uuid: string; user_id?: string; origin?: string | null },
-  _ctx: ServiceContext,
-): Promise<Result<PracticeClientIntakeCheckoutSessionResponse>> => {
-  const { uuid, user_id, origin } = params;
+type ClaimIntakeAbort = {
+  __claimIntakeResult: true;
+  result: Result<ClaimPracticeClientIntakeResponse>;
+};
+
+const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && '__claimIntakeResult' in value
+    && 'result' in value,
+  );
+};
+
+const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
+  const baseMetadata = parseMetadata(practiceClientIntake.metadata);
+  if (ctx.userId) {
+    return {
+      ...(baseMetadata ?? { email: '', name: '' }),
+      user_id: baseMetadata?.user_id ?? ctx.userId,
+    };
+  }
+  return baseMetadata ?? undefined;
+};
+
+const processClaimIntakeTx = async (
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  intake: NonNullable<Extract<Awaited<ReturnType<typeof resolvePracticeClientIntakeByCheckoutSessionId>>, { success: true }>['data']['intake']>,
+  userId: string,
+) => {
+  const rollbackWithResult = (resultValue: Result<ClaimPracticeClientIntakeResponse>): never => {
+    throw {
+      __claimIntakeResult: true,
+      result: resultValue,
+    } satisfies ClaimIntakeAbort;
+  };
+
+  await tx.execute(sql`
+    SELECT 1
+    FROM "practice_client_intakes"
+    WHERE "id" = ${intake.id}
+    FOR UPDATE
+  `);
+
+  const [lockedIntake] = await tx
+    .select()
+    .from(practiceClientIntakes)
+    .where(eq(practiceClientIntakes.id, intake.id))
+    .limit(1);
+
+  if (!lockedIntake) {
+    return rollbackWithResult(result.notFound('Practice client intake not found'));
+  }
+
+  if (lockedIntake.status !== 'succeeded') {
+    return rollbackWithResult(result.badRequest('Payment must be completed before claiming intake'));
+  }
+
+  const intakeMetadata = parseMetadata(lockedIntake.metadata);
+  if (!intakeMetadata) {
+    return rollbackWithResult(result.badRequest('Intake metadata is invalid or malformed'));
+  }
+  if (!intakeMetadata.email || !intakeMetadata.name) {
+    return rollbackWithResult(result.badRequest('Intake metadata is missing required email or name'));
+  }
+
+  if (intakeMetadata.user_id && intakeMetadata.user_id !== userId) {
+    return rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
+  }
+
+  const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
+    organizationId: lockedIntake.organization_id,
+    intakeId: lockedIntake.id,
+    userId: userId,
+    email: intakeMetadata.email,
+    name: intakeMetadata.name,
+    phone: intakeMetadata.phone,
+  });
+
+  if (!userDetailsResult.success) {
+    return rollbackWithResult(
+      result.fail(userDetailsResult.error.message, userDetailsResult.error.status, userDetailsResult.error.code),
+    );
+  }
+
+  if (!intakeMetadata.user_id) {
+    await tx
+      .update(practiceClientIntakes)
+      .set({
+        metadata: {
+          ...intakeMetadata,
+          email: intakeMetadata.email as string,
+          name: intakeMetadata.name as string,
+          user_id: userId,
+        },
+        updated_at: new Date(),
+      })
+      .where(eq(practiceClientIntakes.id, intake.id));
+  }
+
+  return result.ok({
+    success: true,
+    data: {
+      intake_uuid: lockedIntake.id,
+      organization_id: lockedIntake.organization_id,
+    },
+  });
+};
+
+const createCheckoutSession = async (
+  params: { uuid: string; origin?: string | null },
+  ctx: ServiceContext,
+): Promise<Result<CreateCheckoutSessionResponse>> => {
   try {
-    const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
-    if (!practiceClientIntake) {
-      return result.notFound(`Practice client intake with UUID '${uuid}' not found`);
+    const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'update');
+    if (!intakeResult.success) {
+      return intakeResult;
     }
 
+    const practiceClientIntake = intakeResult.data;
     if (practiceClientIntake.status !== 'open') {
       return result.badRequest('Intake is not eligible for checkout session creation');
     }
@@ -42,27 +158,28 @@ const createPracticeClientIntakeCheckoutSession = async (
     }
 
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
-    if (!connectedAccount || !connectedAccount.stripe_account_id) {
-      return result.fail('Connected account not found or Stripe account ID missing');
+    if (!connectedAccount) {
+      return result.fail('Connected account not found');
     }
 
     if (!(await isAccountActive(connectedAccount))) {
       return result.forbidden('Connected account is not ready to accept payments');
     }
 
-    // Reuse any existing session to avoid duplicate Checkout Sessions for the same intake.
     if (practiceClientIntake.stripe_checkout_session_id) {
       try {
-        const { session: existingSession } = await resolvePracticeClientIntakeByCheckoutSessionId(
+        const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(
           practiceClientIntake.stripe_checkout_session_id,
           { requireSession: true },
         );
+
+        const existingSession = resolveResult.success ? resolveResult.data.session : undefined;
 
         const isReusable = existingSession
           && existingSession.status === 'open'
           && existingSession.payment_status !== 'paid';
 
-        if (isReusable && existingSession?.url) {
+        if (isReusable && existingSession.url) {
           return result.ok({
             success: true,
             data: {
@@ -76,35 +193,39 @@ const createPracticeClientIntakeCheckoutSession = async (
           uuid: practiceClientIntake.id,
           error,
         });
-        // If retrieval fails, create a new session below
       }
     }
 
+    const metadata = parseMetadata(practiceClientIntake.metadata) ?? { email: '', name: '' };
+
     const session = await createIntakeCheckoutSession({
-      organization: {
-        id: organization.id,
-        name: organization.name,
-        slug: organization.slug,
-      },
-      connectedAccountStripeId: connectedAccount.stripe_account_id,
-      intake: practiceClientIntake,
-      request: { user_id, origin },
+      currency: practiceClientIntake.currency,
+      amount: practiceClientIntake.amount,
+      email: metadata.email,
+      name: metadata.name,
+      phone: metadata.phone,
+      on_behalf_of: metadata.on_behalf_of,
+      opposing_party: metadata.opposing_party,
+      description: metadata.description,
+      organizationId: organization.id,
+      organizationName: organization.name,
+      organizationSlug: organization.slug,
+      intakeId: practiceClientIntake.id,
+      stripeAccountId: connectedAccount.stripe_account_id,
+      origin: params.origin,
+      conversationId: practiceClientIntake.conversation_id,
+      userId: ctx.userId,
     });
 
     if (!session.url) {
       return result.internalError('Stripe Checkout Session URL missing');
     }
 
-    const updatedMetadata: PracticeClientIntakeMetadata | undefined = user_id
-      ? {
-        ...(parseMetadata(practiceClientIntake.metadata) ?? { email: '', name: '' }),
-        user_id: parseMetadata(practiceClientIntake.metadata)?.user_id ?? user_id,
-      }
-      : parseMetadata(practiceClientIntake.metadata) ?? undefined;
+    const updatedMetadata = buildUpdatedMetadata(ctx, practiceClientIntake);
 
     await practiceClientIntakesRepository.update(practiceClientIntake.id, {
       stripe_checkout_session_id: session.id,
-      metadata: updatedMetadata ?? undefined,
+      metadata: updatedMetadata,
     });
 
     return result.ok({
@@ -116,48 +237,48 @@ const createPracticeClientIntakeCheckoutSession = async (
     });
   } catch (error) {
     logger.error('Failed to create checkout session for intake {uuid}: {error}', {
-      uuid,
+      uuid: params.uuid,
       error,
     });
     return result.internalError('Failed to create checkout session');
   }
 };
 
-/**
- * Get practice client intake status by UUID
- */
-const getPracticeClientIntakeStatus = async (
-  params: { uuid: string; requestingUserId?: string },
-  _ctx: ServiceContext,
-): Promise<Result<PracticeClientIntakeStatus>> => {
-  const { uuid, requestingUserId } = params;
+const getIntakeStatus = async (
+  params: { uuid: string },
+  ctx: ServiceContext,
+): Promise<Result<IntakeStatusResponse>> => {
   try {
-    const practiceClientIntake = await practiceClientIntakesRepository.findById(uuid);
-    if (!practiceClientIntake) {
-      return result.notFound(`Practice client intake with UUID '${uuid}' not found`);
+    const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'read');
+    if (!intakeResult.success) {
+      return intakeResult;
     }
 
     return result.ok({
       success: true,
-      data: formatIntakeResponse(practiceClientIntake, { requestingUserId }) satisfies PracticeClientIntakeStatus['data'],
+      data: formatIntakeStatusResponse(intakeResult.data, {
+        requestingUserId: ctx.userId,
+        isAdmin: Boolean(ctx.memberRole),
+      }),
     });
   } catch (error) {
-    logger.error('Failed to get practice client intake status for {uuid}: {error}', { error, uuid });
+    logger.error('Failed to get practice client intake status for {uuid}: {error}', {
+      uuid: params.uuid,
+      error,
+    });
     return result.internalError('Failed to get practice client intake status');
   }
 };
 
-/**
- * Get practice client intake post-pay status by Checkout Session ID
- */
-const getPracticeClientIntakePostPayStatus = async (
+const getPostPayStatus = async (
   params: { sessionId: string },
-  _ctx: ServiceContext,
-): Promise<Result<PracticeClientIntakePostPayStatusResponse>> => {
-  const { sessionId } = params;
+): Promise<Result<IntakePostPayStatusResponse>> => {
   try {
-    const { intake } = await resolvePracticeClientIntakeByCheckoutSessionId(sessionId);
-
+    const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    if (!resolveResult.success) {
+      return resolveResult;
+    }
+    const { intake } = resolveResult.data;
     if (!intake) {
       return result.notFound('Checkout session not found');
     }
@@ -181,15 +302,44 @@ const getPracticeClientIntakePostPayStatus = async (
     });
   } catch (error) {
     logger.error('Failed to get post-pay status for session {sessionId}: {error}', {
-      sessionId,
+      sessionId: params.sessionId,
       error,
     });
     return result.internalError('Failed to get post-pay status');
   }
 };
 
+const claimIntake = async (
+  params: { sessionId: string },
+  ctx: ServiceContext,
+): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
+  try {
+    const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    if (!resolveResult.success) {
+      return resolveResult;
+    }
+    const { intake } = resolveResult.data;
+    if (!intake) {
+      return result.notFound('Checkout session not found');
+    }
+
+    return await db.transaction((tx) => processClaimIntakeTx(tx, intake, ctx.userId));
+  } catch (error) {
+    if (isClaimIntakeAbort(error)) {
+      return error.result;
+    }
+
+    logger.error('Failed to claim intake for session {sessionId}: {error}', {
+      sessionId: params.sessionId,
+      error,
+    });
+    return result.internalError('Failed to claim intake');
+  }
+};
+
 export const intakeCheckoutService = {
-  createPracticeClientIntakeCheckoutSession,
-  getPracticeClientIntakeStatus,
-  getPracticeClientIntakePostPayStatus,
+  createCheckoutSession,
+  getIntakeStatus,
+  getPostPayStatus,
+  claimIntake,
 };
