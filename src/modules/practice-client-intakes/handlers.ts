@@ -39,7 +39,6 @@ export const createPracticeClientIntakeHandler: AppRouteHandler<typeof createPra
       ...getCreateIntakeRequestMetadata(c),
     },
   });
-
   return response.fromResult(c, result, 201);
 };
 
@@ -87,7 +86,6 @@ export const claimPracticeClientIntakeHandler: AppRouteHandler<typeof claimPract
   const ctx = getServiceContext(c);
   const { session_id: sessionId } = c.req.valid('json');
   const result = await intakeCheckoutService.claimIntake({ sessionId }, ctx);
-
   return response.fromResult(c, result);
 };
 
@@ -97,7 +95,6 @@ export const triggerIntakeInvitationHandler: AppRouteHandler<
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await intakeLifecycleService.triggerInvitation({ uuid, origin: c.req.header('origin') }, ctx);
-
   return response.fromResult(c, result);
 };
 
@@ -106,14 +103,7 @@ export const listIntakesHandler: AppRouteHandler<typeof listIntakesRoute> = asyn
   const { practice_id: _practice_id } = c.req.valid('param');
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-
-  const result = await intakeLifecycleService.listIntakes(
-    {
-      query,
-    },
-    ctx,
-  );
-
+  const result = await intakeLifecycleService.listIntakes({ query }, ctx);
   return response.fromResult(c, result);
 };
 
@@ -122,7 +112,6 @@ export const convertIntakeHandler: AppRouteHandler<typeof convertIntakeRoute> = 
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const result = await intakeLifecycleService.convertIntake({ uuid, data: body }, ctx);
-
   return response.fromResult(c, result, 201);
 };
 
