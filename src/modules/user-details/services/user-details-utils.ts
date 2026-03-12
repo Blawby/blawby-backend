@@ -42,6 +42,7 @@ export const resolveUserForIntake = async (params: {
           email: email.toLowerCase(),
           name,
           phone,
+          isAnonymous: false,
         });
       }
       return usersRepository.update(userId, {

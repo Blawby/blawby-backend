@@ -1,11 +1,13 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
+import { and, eq, isNull } from 'drizzle-orm';
 import { userDetailsStripeService } from './user-details-stripe.service';
 import { resolveUserForIntake } from './user-details-utils';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { type SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
 import { AddressInput } from '@/modules/user-details/types';
 import { users } from '@/schema/better-auth-schema';
@@ -29,6 +31,7 @@ import {
 } from '@/shared/utils/result';
 
 const logger = getLogger(['user-details', 'crud-service']);
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const createUserDetails = async (
   params: {
@@ -53,84 +56,95 @@ const createUserDetails = async (
   } | undefined;
 
   const { data } = params;
+  try {
+    const user = await usersRepository.findByEmail(data.email);
+    if (!user) {
+      return notFound('User not found. Please invite them using the invitations flow first.');
+    }
 
-  const txResult = await db.transaction(async (tx) => {
-    try {
-      const user = await usersRepository.findByEmail(data.email);
-      if (!user) {
-        return notFound('User not found. Please invite them using the invitations flow first.');
-      }
-
-      let member = await membersRepository.findByOrgAndUser({
+    let member = await membersRepository.findByOrgAndUser({
+      organizationId: ctx.organizationId,
+      userId: user.id,
+    });
+    if (!member) {
+      member = await membersRepository.create({
         organizationId: ctx.organizationId,
         userId: user.id,
+        role: 'client',
       });
-      if (!member) {
-        member = await membersRepository.create({
-          organizationId: ctx.organizationId,
-          userId: user.id,
-          role: 'client',
-        });
-      }
-
-      const stripeCustomerId = await userDetailsStripeService.createCustomer({
-        email: user.email,
-        name: user.name,
-        phone: user.phone || undefined,
-        metadata: {
-          organization_id: ctx.organizationId,
-          source: 'blawby_clients_api',
-        },
-      }, ctx);
-
-      let addressId: string | undefined;
-      if (data.address) {
-        const address = await upsertAddressTx(tx, {
-          addressData: {
-            line1: data.address.line1,
-            line2: data.address.line2,
-            city: data.address.city,
-            state: data.address.state,
-            postal_code: data.address.postalCode,
-            country: data.address.country,
-          },
-          organizationId: ctx.organizationId,
-          type: 'client',
-        });
-        addressId = address?.id;
-      }
-
-      const detail = await userDetailsRepository.create({
-        organization_id: ctx.organizationId,
-        user_id: user.id,
-        stripe_customer_id: stripeCustomerId,
-        address_id: addressId,
-        status: data.status ?? 'lead',
-        currency: data.currency ?? 'usd',
-      });
-
-      eventData = { detail, user };
-      return ok({ ...detail, user });
-    } catch (error) {
-      logger.error('Failed to create user details: {error}', {
-        error,
-        organizationId: ctx.organizationId,
-      });
-      return internalError('Failed to create user details');
     }
-  });
 
-  if (txResult.success && eventData) {
-    void UserDetailsCreated.dispatch({
-      user_detail_id: eventData.detail.id,
-      user_id: eventData.user.id,
-      name: eventData.user.name,
-      email: eventData.user.email,
-      stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
-    }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+    // External call intentionally happens before transaction to avoid holding DB locks.
+    const stripeCustomerId = await userDetailsStripeService.createCustomer({
+      email: user.email,
+      name: user.name,
+      phone: user.phone || undefined,
+      metadata: {
+        organization_id: ctx.organizationId,
+        source: 'blawby_clients_api',
+      },
+    }, ctx);
+
+    const txResult = await db.transaction(async (tx) => {
+      try {
+        let addressId: string | undefined;
+        if (data.address) {
+          const address = await upsertAddressTx(tx, {
+            addressData: {
+              line1: data.address.line1,
+              line2: data.address.line2,
+              city: data.address.city,
+              state: data.address.state,
+              postal_code: data.address.postal_code,
+              country: data.address.country,
+            },
+            organizationId: ctx.organizationId,
+            type: 'client',
+          });
+          addressId = address?.id;
+        }
+
+        const [detail] = await tx
+          .insert(userDetails)
+          .values({
+            organization_id: ctx.organizationId,
+            user_id: user.id,
+            stripe_customer_id: stripeCustomerId,
+            address_id: addressId,
+            status: data.status ?? 'lead',
+            currency: data.currency ?? 'usd',
+          })
+          .returning();
+
+        eventData = { detail, user };
+        return ok({ ...detail, user });
+      } catch (error) {
+        logger.error('Failed to create user details: {error}', {
+          error,
+          organizationId: ctx.organizationId,
+        });
+        return internalError('Failed to create user details');
+      }
+    });
+
+    if (txResult.success && eventData) {
+      void UserDetailsCreated.dispatch({
+        user_detail_id: eventData.detail.id,
+        user_id: eventData.user.id,
+        name: eventData.user.name,
+        email: eventData.user.email,
+        stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
+      }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+    }
+
+    return txResult;
+  } catch (error) {
+    logger.error('Failed to create user details: {error}', {
+      error,
+      organizationId: ctx.organizationId,
+    });
+    return internalError('Failed to create user details');
   }
-
-  return txResult;
 };
 
 const updateUserDetails = async (
@@ -184,7 +198,7 @@ const updateUserDetails = async (
             line2: data.address.line2,
             city: data.address.city,
             state: data.address.state,
-            postal_code: data.address.postalCode,
+            postal_code: data.address.postal_code,
             country: data.address.country,
           },
           organizationId: ctx.organizationId,
@@ -320,13 +334,12 @@ const ensureClientSetup = async (
       }
     }
 
-    void UserDetailsCreated.dispatch({
-      user_detail_id: detail.id,
-      user_id: user.id,
-      name: user.name,
-      email: user.email,
-      stripe_customer_id: detail.stripe_customer_id ?? undefined,
-    }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+    if (detail.stripe_customer_id) {
+      void UserDetailsUpdated.dispatch({
+        user_detail_id: detail.id,
+        changes: { stripe_customer_id: true },
+      }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+    }
 
     return ok({ ...detail, user });
   } catch (error) {
@@ -347,6 +360,7 @@ const createUserDetailsFromIntake = async (
     };
   },
   ctx: ServiceContext,
+  tx: DbOrTx = db,
 ): Promise<Result<SelectUserDetail>> => {
   const {
     intakeId,
@@ -356,6 +370,9 @@ const createUserDetailsFromIntake = async (
     phone,
   } = params.data;
   try {
+    const intake = await practiceClientIntakesRepository.findById(intakeId);
+    if (!intake) return notFound(`Intake record with ID '${intakeId}' not found`);
+
     const user = await resolveUserForIntake({
       userId,
       email,
@@ -378,13 +395,27 @@ const createUserDetailsFromIntake = async (
       });
     }
 
-    const intake = await practiceClientIntakesRepository.findById(intakeId);
-    if (!intake) return notFound(`Intake record with ID '${intakeId}' not found`);
-
-    const existingDetail = await userDetailsRepository.findByOrgAndUser(ctx.organizationId, user.id);
+    const [existingDetail] = await tx
+      .select()
+      .from(userDetails)
+      .where(and(
+        eq(userDetails.organization_id, ctx.organizationId),
+        eq(userDetails.user_id, user.id),
+        isNull(userDetails.deleted_at),
+      ))
+      .limit(1);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
-        await userDetailsRepository.update(existingDetail.id, { intake_id: intakeId, status: 'active', updated_at: new Date() });
+        const [updatedDetail] = await tx
+          .update(userDetails)
+          .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
+          .where(eq(userDetails.id, existingDetail.id))
+          .returning();
+        void UserDetailsUpdated.dispatch({
+          user_detail_id: updatedDetail.id,
+          changes: { intake_id: true, status: true },
+        }, { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId });
+        return ok(updatedDetail);
       }
       return ok(existingDetail);
     }
@@ -396,15 +427,18 @@ const createUserDetailsFromIntake = async (
       metadata: { organization_id: ctx.organizationId, intake_id: intakeId, source: 'blawby_intake' },
     }, ctx);
 
-    const detail = await userDetailsRepository.create({
-      organization_id: ctx.organizationId,
-      user_id: user.id,
-      intake_id: intakeId,
-      address_id: intake?.address_id ?? undefined,
-      stripe_customer_id: stripeCustomerId,
-      status: 'active',
-      event_name: 'client_intake_success',
-    });
+    const [detail] = await tx
+      .insert(userDetails)
+      .values({
+        organization_id: ctx.organizationId,
+        user_id: user.id,
+        intake_id: intakeId,
+        address_id: intake.address_id ?? undefined,
+        stripe_customer_id: stripeCustomerId,
+        status: 'active',
+        event_name: 'client_intake_success',
+      })
+      .returning();
 
     void UserDetailsCreated.dispatch({
       user_detail_id: detail.id,

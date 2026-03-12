@@ -26,13 +26,13 @@ Use the Memory MCP tools (`mcp_memory_*`) to persist structured knowledge about 
 ### Example Command Sequence
 ```javascript
 // 1. Create the entity
-create_entities([{ name: "Module:UserDetails", entityType: "Module", observations: ["Refactored in PR-4 to split logic."] }])
+mcp_memory_create_entities([{ name: "Module:UserDetails", entityType: "Module", observations: ["Refactored in PR-4 to split logic."] }])
 
 // 2. Add specific facts
-add_observations([{ entityName: "Module:UserDetails", contents: ["Uses CASL for granular authorization at service level."] }])
+mcp_memory_add_observations([{ entityName: "Module:UserDetails", contents: ["Uses CASL for granular authorization at service level."] }])
 
 // 3. Link it to other parts of the system
-create_relations([{ from: "Module:UserDetails", to: "Module:Intake", relationType: "triggered_by" }])
+mcp_memory_create_relations([{ from: "Module:Intake", to: "Module:UserDetails", relationType: "triggers" }])
 ```
 
 ## 4. Search Before Research

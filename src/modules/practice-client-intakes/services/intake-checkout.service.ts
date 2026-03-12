@@ -98,7 +98,7 @@ const processClaimIntakeTx = async (
     return rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
   }
 
-  const sysCtx = createSystemContext(lockedIntake.organization_id, userId);
+  const sysCtx = createSystemContext(lockedIntake.organization_id);
 
   const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
     data: {
@@ -108,7 +108,7 @@ const processClaimIntakeTx = async (
       name: intakeMetadata.name,
       phone: intakeMetadata.phone,
     },
-  }, sysCtx);
+  }, sysCtx, tx);
 
   if (!userDetailsResult.success) {
     return rollbackWithResult(

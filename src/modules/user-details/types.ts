@@ -1,8 +1,3 @@
-export type AddressInput = {
-  line1?: string;
-  line2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-};
+import type { AddressInputSchema } from '@/modules/user-details/validations/user-details.validation';
+
+export type AddressInput = AddressInputSchema;
