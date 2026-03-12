@@ -6,7 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { userDetailsService } from '@/modules/user-details/services/user-details.service';
+import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
 import {
   IntakePaymentSucceeded,
   UserDetailsCreated,
@@ -15,6 +15,7 @@ import {
   InvitationAccepted,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
+import { createSystemContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['user-details', 'listeners']);
 
@@ -38,21 +39,24 @@ export const registerUserDetailsListeners = (): void => {
 
     // user_id is optional - if present, it's the anonymous user ID from the session
     const userId = payload.user_id;
+    const organizationId = context?.organizationId || payload.organization_id;
 
     logger.info('Creating user details from successful intake', {
       intakeId: payload.uuid,
       userId: userId ?? 'none',
     });
 
-    // Use organizationId from the event context
+    const sysCtx = createSystemContext(organizationId, userId || 'system');
+
     const result = await userDetailsService.createUserDetailsFromIntake({
-      organizationId: context?.organizationId || payload.organization_id,
-      intakeId: payload.uuid,
-      userId, // Optional - will use email lookup if not provided
-      email: payload.client_email,
-      name: payload.client_name ?? '',
-      phone: undefined,
-    });
+      data: {
+        intakeId: payload.uuid,
+        userId, // Optional - will use email lookup if not provided
+        email: payload.client_email,
+        name: payload.client_name ?? '',
+        phone: undefined,
+      },
+    }, sysCtx);
 
     if (result.success) {
       logger.info('Successfully created user details from intake', {
@@ -78,15 +82,15 @@ export const registerUserDetailsListeners = (): void => {
       organizationId: payload.organizationId,
     });
 
-    const result = await userDetailsService.createUserDetails(
-      payload.organizationId,
-      {
-        name: 'New Client', // Name might be updated later by the user or fetched from user record if available
+    const sysCtx = createSystemContext(payload.organizationId, payload.userId);
+
+    const result = await userDetailsService.createUserDetails({
+      data: {
+        name: 'New Client', // Name might be updated later
         email: payload.email,
         status: 'active',
       },
-      'system',
-    );
+    }, sysCtx);
 
     if (result.success) {
       if ('id' in result.data) {

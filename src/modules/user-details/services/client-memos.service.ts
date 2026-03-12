@@ -1,3 +1,4 @@
+import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { practiceClientMemosRepository } from '@/modules/user-details/database/queries/practice-client-memos.queries';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
@@ -6,26 +7,31 @@ import {
   type InsertPracticeClientMemo,
 } from '@/modules/user-details/database/schema/practice-client-memos.schema';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['client-memos', 'service']);
 
 const createMemo = async (
-  clientId: string,
-  organizationId: string,
-  data: Omit<InsertPracticeClientMemo, 'client_id' | 'created_by'>,
-  userId: string,
+  params: {
+    clientId: string;
+    data: Omit<InsertPracticeClientMemo, 'client_id' | 'created_by'>;
+  },
+  ctx: ServiceContext,
 ): Promise<Result<SelectPracticeClientMemo>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'ClientMemo');
+
+  const { clientId, data } = params;
   try {
     const client = await userDetailsRepository.findById(clientId);
-    if (!client || client.organization_id !== organizationId) {
+    if (!client || client.organization_id !== ctx.organizationId) {
       return notFound('Client not found');
     }
 
     const memo = await practiceClientMemosRepository.create({
       ...data,
       client_id: clientId,
-      created_by: userId,
+      created_by: ctx.userId,
     });
 
     return ok(memo);
@@ -36,11 +42,16 @@ const createMemo = async (
 };
 
 const updateMemo = async (
-  id: string,
-  clientId: string,
-  organizationId: string,
-  data: Partial<InsertPracticeClientMemo>,
+  params: {
+    id: string;
+    clientId: string;
+    data: Partial<InsertPracticeClientMemo>;
+  },
+  ctx: ServiceContext,
 ): Promise<Result<SelectPracticeClientMemo>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'ClientMemo');
+
+  const { id, clientId, data } = params;
   try {
     const memo = await practiceClientMemosRepository.findById(id);
     if (!memo || memo.client_id !== clientId) {
@@ -48,7 +59,7 @@ const updateMemo = async (
     }
 
     const client = await userDetailsRepository.findById(clientId);
-    if (!client || client.organization_id !== organizationId) {
+    if (!client || client.organization_id !== ctx.organizationId) {
       return notFound('Client not found');
     }
 
@@ -63,10 +74,12 @@ const updateMemo = async (
 };
 
 const deleteMemo = async (
-  id: string,
-  clientId: string,
-  organizationId: string,
+  params: { id: string; clientId: string },
+  ctx: ServiceContext,
 ): Promise<Result<void>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'ClientMemo');
+
+  const { id, clientId } = params;
   try {
     const memo = await practiceClientMemosRepository.findById(id);
     if (!memo || memo.client_id !== clientId) {
@@ -74,7 +87,7 @@ const deleteMemo = async (
     }
 
     const client = await userDetailsRepository.findById(clientId);
-    if (!client || client.organization_id !== organizationId) {
+    if (!client || client.organization_id !== ctx.organizationId) {
       return notFound('Client not found');
     }
 
@@ -86,10 +99,16 @@ const deleteMemo = async (
   }
 };
 
-const listMemos = async (clientId: string, organizationId: string): Promise<Result<SelectPracticeClientMemo[]>> => {
+const listMemos = async (
+  params: { clientId: string },
+  ctx: ServiceContext,
+): Promise<Result<SelectPracticeClientMemo[]>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'ClientMemo');
+
+  const { clientId } = params;
   try {
     const client = await userDetailsRepository.findById(clientId);
-    if (!client || client.organization_id !== organizationId) {
+    if (!client || client.organization_id !== ctx.organizationId) {
       return notFound('Client not found');
     }
 

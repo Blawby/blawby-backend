@@ -21,7 +21,9 @@ export type SubjectName
   | 'User'
   | 'Organization'
   | 'Matter'
-  | 'Invoice';
+  | 'Invoice'
+  | 'UserDetails'
+  | 'ClientMemo';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
@@ -61,12 +63,17 @@ export const defineAbilityFor = (
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');
+    can('read', 'UserDetails');
+    can('update', 'UserDetails');
+    can('read', 'ClientMemo');
+    can('update', 'ClientMemo');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');
     // They can manage their own intake data
     if (metadata.userId) {
       can('manage', 'PracticeClientIntake');
+      can('read', 'UserDetails');
     }
   }
 

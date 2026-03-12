@@ -4,10 +4,11 @@ import {
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { userDetailsService } from '@/modules/user-details/services/user-details.service';
+import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
+import { createSystemContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
 /**
@@ -80,7 +81,7 @@ export const resolveClientForInvoice = async (
       }).returning();
 
       // Fire-and-forget background processing for Stripe and events
-      void userDetailsService.ensureClientSetup(newDetail.id, organizationId, 'system');
+      void userDetailsService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
 
       // Re-fetch to populate relations for the remainder of the process
       clientDetails = await db.query.userDetails.findFirst({

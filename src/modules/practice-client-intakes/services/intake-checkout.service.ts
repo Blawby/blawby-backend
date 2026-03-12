@@ -20,10 +20,10 @@ import type {
   IntakePostPayStatusResponse,
   IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { userDetailsService } from '@/modules/user-details/services/user-details.service';
+import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
-import type { ServiceContext } from '@/shared/types/service-context';
+import { createSystemContext, type ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
 const { practiceClientIntakes } = practiceClientIntakesSchema;
@@ -98,14 +98,17 @@ const processClaimIntakeTx = async (
     return rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
   }
 
+  const sysCtx = createSystemContext(lockedIntake.organization_id, userId);
+
   const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
-    organizationId: lockedIntake.organization_id,
-    intakeId: lockedIntake.id,
-    userId: userId,
-    email: intakeMetadata.email,
-    name: intakeMetadata.name,
-    phone: intakeMetadata.phone,
-  });
+    data: {
+      intakeId: lockedIntake.id,
+      userId: userId,
+      email: intakeMetadata.email,
+      name: intakeMetadata.name,
+      phone: intakeMetadata.phone,
+    },
+  }, sysCtx);
 
   if (!userDetailsResult.success) {
     return rollbackWithResult(
