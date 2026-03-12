@@ -46,7 +46,7 @@ export const registerUserDetailsListeners = (): void => {
       userId: userId ?? 'none',
     });
 
-    const sysCtx = createSystemContext(organizationId, userId || 'system');
+    const sysCtx = createSystemContext(organizationId);
 
     const result = await userDetailsService.createUserDetailsFromIntake({
       data: {
@@ -82,7 +82,7 @@ export const registerUserDetailsListeners = (): void => {
       organizationId: payload.organizationId,
     });
 
-    const sysCtx = createSystemContext(payload.organizationId, payload.userId);
+    const sysCtx = createSystemContext(payload.organizationId);
 
     const result = await userDetailsService.createUserDetails({
       data: {
