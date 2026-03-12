@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS "trust_transactions" (
 DROP INDEX IF EXISTS "invoices_org_number_unique_idx";--> statement-breakpoint
 ALTER TABLE "invoices" ALTER COLUMN "invoice_number" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "billing_transactions" ADD COLUMN IF NOT EXISTS "organization_id" uuid;--> statement-breakpoint
+UPDATE "billing_transactions" bt SET "organization_id" = i."organization_id" FROM "invoices" i WHERE bt."invoice_id" = i."id" AND bt."organization_id" IS NULL;--> statement-breakpoint
+UPDATE "billing_transactions" bt SET "organization_id" = m."organization_id" FROM "matters" m WHERE bt."matter_id" = m."id" AND bt."organization_id" IS NULL;--> statement-breakpoint
+ALTER TABLE "billing_transactions" ALTER COLUMN "organization_id" SET NOT NULL;
 ALTER TABLE "billing_transactions" ADD COLUMN IF NOT EXISTS "application_fee_amount" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "application_fee_amount" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "stripe_invoice_number" varchar(255);--> statement-breakpoint
