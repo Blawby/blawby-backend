@@ -92,6 +92,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
 
         // 3. Create billing_transaction record with transfer ID
         await billingTransactionsRepository.createTransaction({
+          organization_id: invoice.organization_id,
           invoice_id: invoice.id,
           matter_id: invoice.matter_id,
           amount: stripeInvoice.amount_paid,

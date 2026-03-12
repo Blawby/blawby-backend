@@ -14,3 +14,4 @@ export { rateLimit } from '@/shared/middleware/rateLimit';
 export { responseMiddleware } from '@/shared/middleware/responseMiddleware';
 export { errorHandler } from '@/shared/middleware/errorHandler';
 export { notFoundHandler } from '@/shared/middleware/notFoundHandler';
+export { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
