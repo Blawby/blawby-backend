@@ -17,6 +17,7 @@ export const billingTransactions = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organization_id: uuid('organization_id')
+      .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
     invoice_id: uuid('invoice_id').references(() => invoices.id, {
       onDelete: 'set null',
