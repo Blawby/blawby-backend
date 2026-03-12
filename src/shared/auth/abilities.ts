@@ -4,6 +4,9 @@ import {
   type ForcedSubject,
   type MongoAbility,
 } from '@casl/ability';
+import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import type { SelectPracticeClientMemo } from '@/modules/user-details/database/schema/practice-client-memos.schema';
+import type { SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
 import { OrgRole, ADMIN_ROLES, MEMBER_ROLES } from '@/shared/enums/org-roles';
 
 /**
@@ -30,7 +33,10 @@ export type SubjectName
  */
 export type Subject
   = | SubjectName
-  | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
+  | (SelectUserDetail & ForcedSubject<'UserDetails'>)
+  | (SelectPracticeClientMemo & { client_user_id: string } & ForcedSubject<'ClientMemo'>)
+  | (SelectPracticeClientIntake & { userId?: string } & ForcedSubject<'PracticeClientIntake'>)
+  | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all' | 'UserDetails' | 'ClientMemo' | 'PracticeClientIntake'>>);
 
 /**
  * The application-wide Ability type
@@ -56,24 +62,24 @@ export const defineAbilityFor = (
   if (orgRole && (ADMIN_ROLES as readonly string[]).includes(orgRole)) {
     can('manage', 'all');
   } else if (orgRole && (MEMBER_ROLES as readonly string[]).includes(orgRole)) {
-    // Specific roles logic
+    // Member roles have broad read access but restricted manage access
     can('read', 'all');
     can('update', 'OrganizationPreferences');
     can('update', 'Matter');
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');
-    can('read', 'UserDetails');
-    can('update', 'UserDetails');
-    can('read', 'ClientMemo');
-    can('update', 'ClientMemo');
+    can('manage', 'UserDetails');
+    can('manage', 'ClientMemo');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');
     // They can manage their own intake data
     if (metadata.userId) {
-      can('manage', 'PracticeClientIntake');
-      can('read', 'UserDetails');
+      can('manage', 'PracticeClientIntake', { userId: metadata.userId });
+      can('read', 'UserDetails', { user_id: metadata.userId });
+      can('update', 'UserDetails', { user_id: metadata.userId });
+      can('read', 'ClientMemo', { client_user_id: metadata.userId });
     }
   }
 

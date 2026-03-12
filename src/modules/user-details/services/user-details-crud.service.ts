@@ -1,6 +1,5 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
-
 import { userDetailsStripeService } from './user-details-stripe.service';
 import { resolveUserForIntake } from './user-details-utils';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
@@ -8,8 +7,9 @@ import type { Address } from '@/modules/practice/database/schema/addresses.schem
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
 import { type SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
-
+import { AddressInput } from '@/modules/user-details/types';
 import { users } from '@/schema/better-auth-schema';
+import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import {
   UserDetailsCreated,
@@ -24,19 +24,11 @@ import {
   ok,
   internalError,
   notFound,
+  forbidden,
   type AcceptedResponse,
 } from '@/shared/utils/result';
 
 const logger = getLogger(['user-details', 'crud-service']);
-
-type AddressInput = {
-  line1?: string;
-  line2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-};
 
 const createUserDetails = async (
   params: {
@@ -165,6 +157,8 @@ const updateUserDetails = async (
         return notFound('User detail not found');
       }
 
+      ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('UserDetails', detailWithUser));
+
       if (data.name || data.email || data.phone) {
         await usersRepository.update(detailWithUser.user_id, {
           name: data.name,
@@ -240,7 +234,14 @@ const listUserDetails = async (
   })[];
   total: number;
 }>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserDetails');
+  if (ctx.ability.can('read', 'UserDetails')) {
+    // Admin/Member can list all or filter by clientId
+  } else if (ctx.ability.can('read', toSubject('UserDetails', { user_id: ctx.userId }))) {
+    // Client can ONLY see their own record
+    params.clientId = ctx.userId;
+  } else {
+    return forbidden('You do not have permission to view user details');
+  }
 
   try {
     const data = await userDetailsRepository.listClients({
@@ -268,6 +269,8 @@ const deleteUserDetail = async (
     if (!detail || detail.organization_id !== ctx.organizationId) {
       return notFound('User detail not found');
     }
+
+    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('UserDetails', detail));
 
     await userDetailsRepository.softDelete(id, ctx.userId);
     void UserDetailsDeleted.dispatch(
