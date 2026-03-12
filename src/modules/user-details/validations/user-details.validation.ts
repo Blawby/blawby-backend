@@ -20,6 +20,9 @@ export const createUserDetailsSchema = z.object({
   event_name: z.string().max(255).optional(),
 }).openapi('CreateUserDetails');
 
+export const addressSchema = createUserDetailsSchema.shape.address.unwrap();
+export type AddressInputSchema = z.infer<typeof addressSchema>;
+
 export const updateUserDetailsSchema = createUserDetailsSchema.partial().openapi('UpdateUserDetails');
 
 export const listUserDetailsSchema = z.object({
