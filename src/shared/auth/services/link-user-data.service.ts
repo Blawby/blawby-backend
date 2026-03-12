@@ -9,6 +9,7 @@ import { db } from '@/shared/database';
 import { PracticeMemberJoined } from '@/shared/events/definitions';
 
 const logger: Logger = getLogger(['auth', 'link-service']);
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Transfers data from an anonymous user to a new user account.
@@ -17,8 +18,9 @@ const logger: Logger = getLogger(['auth', 'link-service']);
 export const linkAnonymousUserData = async (params: {
   anonymousUser: { id: string; email: string };
   newUser: { id: string; email: string };
+  tx?: DbTx;
 }): Promise<void> => {
-  const { anonymousUser, newUser } = params;
+  const { anonymousUser, newUser, tx } = params;
 
   logger.info('Linking anonymous user {anonId} to new user {newId}', {
     anonId: anonymousUser.id,
@@ -30,16 +32,16 @@ export const linkAnonymousUserData = async (params: {
     options: { actorId: string; organizationId: string };
   }> = [];
 
-  await db.transaction(async (tx) => {
+  const run = async (txContext: DbTx) => {
     // 1. Move organization memberships
-    const anonMemberships: Array<typeof members.$inferSelect> = await tx
+    const anonMemberships: Array<typeof members.$inferSelect> = await txContext
       .select()
       .from(members)
       .where(eq(members.userId, anonymousUser.id));
 
     for (const membership of anonMemberships) {
       // Check if new user already belongs to this organization
-      const [existing] = await tx
+      const [existing] = await txContext
         .select()
         .from(members)
         .where(
@@ -52,22 +54,22 @@ export const linkAnonymousUserData = async (params: {
 
       if (existing) {
         // New user already in this org, just delete the anonymous membership
-        await tx.delete(members).where(eq(members.id, membership.id));
+        await txContext.delete(members).where(eq(members.id, membership.id));
       } else {
         // Move membership to new user
-        await tx.update(members).set({ userId: newUser.id }).where(eq(members.id, membership.id));
+        await txContext.update(members).set({ userId: newUser.id }).where(eq(members.id, membership.id));
       }
     }
 
     // 2. Move User Details (Clients)
-    const anonDetails: Array<typeof userDetails.$inferSelect> = await tx
+    const anonDetails: Array<typeof userDetails.$inferSelect> = await txContext
       .select()
       .from(userDetails)
       .where(eq(userDetails.user_id, anonymousUser.id));
 
     for (const detail of anonDetails) {
       // Check if new user already has details in this organization
-      const [existing] = await tx
+      const [existing] = await txContext
         .select()
         .from(userDetails)
         .where(
@@ -80,15 +82,15 @@ export const linkAnonymousUserData = async (params: {
 
       if (existing) {
         // New user already has details, delete the anonymous ones
-        await tx.delete(userDetails).where(eq(userDetails.id, detail.id));
+        await txContext.delete(userDetails).where(eq(userDetails.id, detail.id));
       } else {
         // Move details to new user
-        await tx.update(userDetails).set({ user_id: newUser.id }).where(eq(userDetails.id, detail.id));
+        await txContext.update(userDetails).set({ user_id: newUser.id }).where(eq(userDetails.id, detail.id));
       }
     }
 
     // 3. Check for succeeded intakes and add user to organization as client
-    const userIntakes: Array<typeof practiceClientIntakes.$inferSelect> = await tx
+    const userIntakes: Array<typeof practiceClientIntakes.$inferSelect> = await txContext
       .select()
       .from(practiceClientIntakes)
       .where(
@@ -100,7 +102,7 @@ export const linkAnonymousUserData = async (params: {
 
     for (const intake of userIntakes) {
       // Check if new user already belongs to this organization
-      const [existingMember] = await tx
+      const [existingMember] = await txContext
         .select()
         .from(members)
         .where(
@@ -113,7 +115,7 @@ export const linkAnonymousUserData = async (params: {
 
       if (!existingMember) {
         // Add new user to organization as client
-        const [newMember] = await tx.insert(members).values({
+        const [newMember] = await txContext.insert(members).values({
           organizationId: intake.organization_id,
           userId: newUser.id,
           role: 'client',
@@ -139,12 +141,18 @@ export const linkAnonymousUserData = async (params: {
         });
 
         // Mark user as needing onboarding (profile completion)
-        await tx.update(users)
+        await txContext.update(users)
           .set({ onboardingComplete: false })
           .where(eq(users.id, newUser.id));
       }
     }
-  });
+  };
+
+  if (tx) {
+    await run(tx);
+  } else {
+    await db.transaction(run);
+  }
 
   logger.info('Successfully linked data from anonymous user {anonId} to {newId}', {
     anonId: anonymousUser.id,
@@ -166,4 +174,3 @@ export const linkAnonymousUserData = async (params: {
     }
   }
 };
-

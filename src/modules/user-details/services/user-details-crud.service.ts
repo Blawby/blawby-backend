@@ -163,8 +163,14 @@ const updateUserDetails = async (
 ): Promise<Result<SelectUserDetail>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserDetails');
   const { id, data } = params;
+  let stripeSyncPayload: {
+    customerId: string;
+    email?: string;
+    name?: string;
+    phone?: string;
+  } | undefined;
 
-  return await db.transaction(async (tx) => {
+  const txResult = await db.transaction(async (tx) => {
     try {
       const detailWithUser = await userDetailsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
@@ -178,15 +184,15 @@ const updateUserDetails = async (
           name: data.name,
           email: data.email?.toLowerCase(),
           phone: data.phone,
-        });
+        }, tx);
 
         if (detailWithUser.stripe_customer_id) {
-          await userDetailsStripeService.updateCustomer({
+          stripeSyncPayload = {
             customerId: detailWithUser.stripe_customer_id,
             email: data.email,
             name: data.name,
             phone: data.phone,
-          }, ctx);
+          };
         }
       }
 
@@ -212,7 +218,7 @@ const updateUserDetails = async (
         address_id: addressId,
         status: data.status,
         currency: data.currency,
-      });
+      }, tx);
       if (!updated) return internalError('Failed to update user details');
 
       await UserDetailsUpdated.dispatch({
@@ -230,6 +236,12 @@ const updateUserDetails = async (
       return internalError('Failed to update user details');
     }
   });
+
+  if (txResult.success && stripeSyncPayload) {
+    await userDetailsStripeService.updateCustomer(stripeSyncPayload, ctx);
+  }
+
+  return txResult;
 };
 
 const listUserDetails = async (
@@ -315,6 +327,8 @@ const ensureClientSetup = async (
     const user = await usersRepository.findById(detail.user_id);
     if (!user) return notFound('User not found');
 
+    let didBackfillStripeCustomerId = false;
+
     if (!detail.stripe_customer_id) {
       const stripeCustomerId = await userDetailsStripeService.createCustomer({
         email: user.email,
@@ -331,10 +345,11 @@ const ensureClientSetup = async (
           stripe_customer_id: stripeCustomerId,
         });
         detail.stripe_customer_id = stripeCustomerId;
+        didBackfillStripeCustomerId = true;
       }
     }
 
-    if (detail.stripe_customer_id) {
+    if (didBackfillStripeCustomerId) {
       void UserDetailsUpdated.dispatch({
         user_detail_id: detail.id,
         changes: { stripe_customer_id: true },
