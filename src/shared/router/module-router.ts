@@ -17,6 +17,7 @@ export type MiddlewareConfig
   | 'requireGuest'
   | 'requireAdmin'
   | 'requireCaptcha'
+  | 'requireOrgMembership'
   | 'public'
   | 'rateLimit'
   | MiddlewareHandler;
@@ -52,6 +53,7 @@ let requireAuth: () => MiddlewareHandler;
 let requireGuest: () => MiddlewareHandler;
 let requireAdmin: () => MiddlewareHandler;
 let requireCaptcha: () => MiddlewareHandler;
+let requireOrgMembership: () => MiddlewareHandler;
 let rateLimit: () => MiddlewareHandler;
 
 /**
@@ -61,11 +63,13 @@ const loadMiddleware = async (): Promise<void> => {
   if (isNil(requireAuth)) {
     const captchaModule = await import('@/shared/middleware/requireCaptcha');
     const authModule = await import('@/shared/middleware/requireAuth');
+    const orgMembershipModule = await import('@/shared/middleware/requireOrgMembership');
     const rateLimitModule = await import('@/shared/middleware/rateLimit');
     requireAuth = authModule.requireAuth;
     requireGuest = authModule.requireGuest;
     requireAdmin = authModule.requireAdmin;
     requireCaptcha = captchaModule.requireCaptcha;
+    requireOrgMembership = orgMembershipModule.requireOrgMembership;
     rateLimit = rateLimitModule.rateLimit;
   }
 };
@@ -113,6 +117,8 @@ const resolveMiddleware = async (config: MiddlewareConfig): Promise<MiddlewareHa
       return requireAdmin();
     case 'requireCaptcha':
       return requireCaptcha();
+    case 'requireOrgMembership':
+      return requireOrgMembership();
 
     case 'rateLimit':
       return rateLimit();
