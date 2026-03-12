@@ -31,7 +31,6 @@ import {
 } from '@/shared/utils/result';
 
 const logger = getLogger(['user-details', 'crud-service']);
-type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const createUserDetails = async (
   params: {
@@ -375,7 +374,6 @@ const createUserDetailsFromIntake = async (
     };
   },
   ctx: ServiceContext,
-  tx: DbOrTx = db,
 ): Promise<Result<SelectUserDetail>> => {
   const {
     intakeId,
@@ -410,7 +408,8 @@ const createUserDetailsFromIntake = async (
       });
     }
 
-    const [existingDetail] = await tx
+    // Check for existing detail (read-only query before transaction)
+    const [existingDetail] = await db
       .select()
       .from(userDetails)
       .where(and(
@@ -421,7 +420,7 @@ const createUserDetailsFromIntake = async (
       .limit(1);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
-        const [updatedDetail] = await tx
+        const [updatedDetail] = await db
           .update(userDetails)
           .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
           .where(eq(userDetails.id, existingDetail.id))
@@ -435,6 +434,7 @@ const createUserDetailsFromIntake = async (
       return ok(existingDetail);
     }
 
+    // External call happens BEFORE transaction to avoid holding DB locks
     const stripeCustomerId = await userDetailsStripeService.createCustomer({
       email: user.email,
       name: user.name,
@@ -442,19 +442,31 @@ const createUserDetailsFromIntake = async (
       metadata: { organization_id: ctx.organizationId, intake_id: intakeId, source: 'blawby_intake' },
     }, ctx);
 
-    const [detail] = await tx
-      .insert(userDetails)
-      .values({
-        organization_id: ctx.organizationId,
-        user_id: user.id,
-        intake_id: intakeId,
-        address_id: intake.address_id ?? undefined,
-        stripe_customer_id: stripeCustomerId,
-        status: 'active',
-        event_name: 'client_intake_success',
-      })
-      .returning();
+    // Transaction only for database operations
+    const txResult = await db.transaction(async (tx) => {
+      const [detail] = await tx
+        .insert(userDetails)
+        .values({
+          organization_id: ctx.organizationId,
+          user_id: user.id,
+          intake_id: intakeId,
+          address_id: intake.address_id ?? undefined,
+          stripe_customer_id: stripeCustomerId,
+          status: 'active',
+          event_name: 'client_intake_success',
+        })
+        .returning();
 
+      return ok(detail);
+    });
+
+    if (!txResult.success) {
+      return internalError('Failed to create user details from intake');
+    }
+
+    const detail = txResult.data;
+
+    // Event dispatch happens AFTER transaction completes
     void UserDetailsCreated.dispatch({
       user_detail_id: detail.id,
       user_id: user.id,
