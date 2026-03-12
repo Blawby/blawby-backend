@@ -23,25 +23,28 @@ export const resolveUserForIntake = async (params: {
     if (sessionUser) {
       const isAnonymousUser = sessionUser.isAnonymous === true;
       if (isAnonymousUser && existingUserByEmail && existingUserByEmail.id !== userId) {
-        await linkAnonymousUserData({
-          anonymousUser: { id: userId, email: '' },
-          newUser: {
-            id: existingUserByEmail.id,
-            email: existingUserByEmail.email,
-          },
-        });
-        await db.delete(users).where(eq(users.id, userId));
-        return usersRepository.update(existingUserByEmail.id, {
-          name,
-          phone,
-          primaryWorkspace: 'client',
+        return db.transaction(async (tx) => {
+          await linkAnonymousUserData({
+            anonymousUser: { id: userId, email: '' },
+            newUser: {
+              id: existingUserByEmail.id,
+              email: existingUserByEmail.email,
+            },
+            tx,
+          });
+          await tx.delete(users).where(eq(users.id, userId));
+          return usersRepository.update(existingUserByEmail.id, {
+            name: name || existingUserByEmail.name,
+            phone: phone ?? existingUserByEmail.phone ?? undefined,
+            primaryWorkspace: 'client',
+          }, tx);
         });
       }
       if (isAnonymousUser) {
         return usersRepository.update(userId, {
           email: email.toLowerCase(),
-          name,
-          phone,
+          name: name || sessionUser.name,
+          phone: phone ?? sessionUser.phone ?? undefined,
           isAnonymous: false,
         });
       }
@@ -53,7 +56,10 @@ export const resolveUserForIntake = async (params: {
   }
 
   if (existingUserByEmail) {
-    return usersRepository.update(existingUserByEmail.id, { name, phone });
+    return usersRepository.update(existingUserByEmail.id, {
+      name: name || existingUserByEmail.name,
+      phone: phone ?? existingUserByEmail.phone ?? undefined,
+    });
   }
 
   return undefined;

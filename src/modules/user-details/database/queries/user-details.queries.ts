@@ -10,6 +10,8 @@ import {
 import { users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const { userDetails } = userDetailsSchema;
 
 
@@ -67,8 +69,9 @@ const findByStripeCustomerId = async (
 const update = async (
   id: string,
   data: Partial<SelectUserDetail>,
+  tx: DbOrTx = db,
 ): Promise<SelectUserDetail | undefined> => {
-  const [updated] = await db
+  const [updated] = await tx
     .update(userDetails)
     .set({ ...data, updated_at: new Date() })
     .where(eq(userDetails.id, id))
@@ -177,4 +180,3 @@ export const userDetailsRepository = {
   softDelete,
   listClients,
 };
-
