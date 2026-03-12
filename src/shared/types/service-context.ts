@@ -36,20 +36,33 @@ export const getServiceContext = (c: Context): ServiceContext => {
     ability: c.get('ability'),
     requestHeaders: c.req.header(),
     emit: (event, payload, tx) => {
-      // Create options object
       const options: DispatchOptions = {
         actorId: userId,
         organizationId,
         tx,
       };
-
-      // Dispatch event
       const result = event.dispatch(payload, options);
+      if (result instanceof Promise) return result;
+      return Promise.resolve(result);
+    },
+  };
+};
 
-      // Handle return type (Promise or string)
-      if (result instanceof Promise) {
-        return result;
-      }
+/**
+ * Creates a system/background ServiceContext for use in listeners or batch jobs.
+ */
+export const createSystemContext = (organizationId: string, userId: string = 'system'): ServiceContext => {
+  const { defineAbilityFor } = require('../auth/abilities'); // Avoid circular dependency if any
+  return {
+    userId,
+    user: { id: userId, email: 'system@blawby.com', name: 'System' } as User,
+    organizationId,
+    memberRole: 'admin',
+    ability: defineAbilityFor('admin'), // System has admin powers
+    requestHeaders: {},
+    emit: (event, payload, tx) => {
+      const result = event.dispatch(payload, { actorId: userId, organizationId, tx });
+      if (result instanceof Promise) return result;
       return Promise.resolve(result);
     },
   };
