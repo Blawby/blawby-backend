@@ -7,6 +7,7 @@ export const createMemoSchema = z.object({
 
 export const updateMemoSchema = z.object({
   content: z.string().min(1, 'Content is required'),
+  event_time: z.iso.datetime().optional(),
 }).openapi('UpdateMemo');
 
 export const memoParamsSchema = z.object({
@@ -27,4 +28,3 @@ export const clientMemoSchema = z.object({
   created_at: z.date(),
   updated_at: z.date(),
 }).openapi('ClientMemo');
-

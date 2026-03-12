@@ -35,7 +35,7 @@ const normalizeExternalAccounts = (input: {
  *
  * Removes external account information (bank accounts, cards) from the database
  * and publishes an ONBOARDING_EXTERNAL_ACCOUNT_DELETED event.
- * This is a pure function that doesn't depend on FastifyInstance.
+ * This is a pure function that doesn't depend on Hono app instance.
  */
 export const handleExternalAccountDeleted = async (
   externalAccount: Stripe.ExternalAccount,

@@ -5,8 +5,8 @@ export type AppError = {
   details?: unknown;
 };
 
-export type Result<T>
-  = { success: true; data: T }
+export type Result<T, M = undefined>
+  = { success: true; data: T; metadata?: M }
   | { success: false; error: AppError };
 
 /**
