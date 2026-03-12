@@ -6,9 +6,10 @@ import {
   type SelectPracticeClientMemo,
   type InsertPracticeClientMemo,
 } from '@/modules/user-details/database/schema/practice-client-memos.schema';
+import { toSubject } from '@/shared/auth/subject-helpers';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['client-memos', 'service']);
 
@@ -19,14 +20,17 @@ const createMemo = async (
   },
   ctx: ServiceContext,
 ): Promise<Result<SelectPracticeClientMemo>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'ClientMemo');
-
   const { clientId, data } = params;
   try {
     const client = await userDetailsRepository.findById(clientId);
     if (!client || client.organization_id !== ctx.organizationId) {
       return notFound('Client not found');
     }
+
+    ForbiddenError.from(ctx.ability).throwUnlessCan(
+      'create',
+      toSubject('ClientMemo', { ...data, client_user_id: client.user_id }),
+    );
 
     const memo = await practiceClientMemosRepository.create({
       ...data,
@@ -36,6 +40,7 @@ const createMemo = async (
 
     return ok(memo);
   } catch (error) {
+    if (error instanceof ForbiddenError) return forbidden(error.message);
     logger.error('Failed to create memo for client {clientId}: {error}', { clientId, error });
     return internalError('Failed to create memo');
   }
@@ -49,8 +54,6 @@ const updateMemo = async (
   },
   ctx: ServiceContext,
 ): Promise<Result<SelectPracticeClientMemo>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'ClientMemo');
-
   const { id, clientId, data } = params;
   try {
     const memo = await practiceClientMemosRepository.findById(id);
@@ -63,11 +66,14 @@ const updateMemo = async (
       return notFound('Client not found');
     }
 
+    ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('ClientMemo', { ...memo, client_user_id: client.user_id }));
+
     const updated = await practiceClientMemosRepository.update(id, data);
     if (!updated) return internalError('Failed to update memo');
 
     return ok(updated);
   } catch (error) {
+    if (error instanceof ForbiddenError) return forbidden(error.message);
     logger.error('Failed to update memo {id}: {error}', { id, error });
     return internalError('Failed to update memo');
   }
@@ -77,8 +83,6 @@ const deleteMemo = async (
   params: { id: string; clientId: string },
   ctx: ServiceContext,
 ): Promise<Result<void>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'ClientMemo');
-
   const { id, clientId } = params;
   try {
     const memo = await practiceClientMemosRepository.findById(id);
@@ -91,9 +95,12 @@ const deleteMemo = async (
       return notFound('Client not found');
     }
 
+    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('ClientMemo', { ...memo, client_user_id: client.user_id }));
+
     await practiceClientMemosRepository.delete(id);
     return ok(undefined);
   } catch (error) {
+    if (error instanceof ForbiddenError) return forbidden(error.message);
     logger.error('Failed to delete memo {id}: {error}', { id, error });
     return internalError('Failed to delete memo');
   }
@@ -103,8 +110,6 @@ const listMemos = async (
   params: { clientId: string },
   ctx: ServiceContext,
 ): Promise<Result<SelectPracticeClientMemo[]>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'ClientMemo');
-
   const { clientId } = params;
   try {
     const client = await userDetailsRepository.findById(clientId);
@@ -112,9 +117,12 @@ const listMemos = async (
       return notFound('Client not found');
     }
 
+    ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('ClientMemo', { client_user_id: client.user_id }));
+
     const memos = await practiceClientMemosRepository.listByClient(clientId);
     return ok(memos);
   } catch (error) {
+    if (error instanceof ForbiddenError) return forbidden(error.message);
     logger.error('Failed to list memos for client {clientId}: {error}', { clientId, error });
     return internalError('Failed to list memos');
   }
