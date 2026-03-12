@@ -159,7 +159,7 @@ const updateUserDetails = async (
     };
   },
   ctx: ServiceContext,
-): Promise<Result<SelectUserDetail>> => {
+): Promise<Result<SelectUserDetail, { stripeSyncFailed?: boolean }>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserDetails');
   const { id, data } = params;
   let stripeSyncPayload: {
@@ -237,7 +237,22 @@ const updateUserDetails = async (
   });
 
   if (txResult.success && stripeSyncPayload) {
-    await userDetailsStripeService.updateCustomer(stripeSyncPayload, ctx);
+    try {
+      await userDetailsStripeService.updateCustomer(stripeSyncPayload, ctx);
+    } catch (error) {
+      logger.error('Failed to sync user details to Stripe for user {user_id}: {error}', {
+        user_id: ctx.userId,
+        customer_id: stripeSyncPayload.customerId,
+        error,
+      });
+      // Return success with metadata indicating Stripe sync failed
+      // The DB transaction succeeded, so we don't want to roll that back
+      return {
+        success: true,
+        data: txResult.data,
+        metadata: { stripeSyncFailed: true },
+      };
+    }
   }
 
   return txResult;
