@@ -1,8 +1,8 @@
 /**
  * Hono Middleware Collection
  *
- * Middleware functions that parallel our Fastify middleware setup.
- * These provide the same functionality but using Hono's patterns.
+ * Middleware functions for the Hono application.
+ * These provide authentication, logging, CORS, error handling, and more.
  */
 
 export { logger } from '@/shared/middleware/logger';

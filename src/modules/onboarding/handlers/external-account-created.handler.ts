@@ -35,7 +35,7 @@ const normalizeExternalAccounts = (input: {
  *
  * Stores external account information (bank accounts, cards) in the database
  * and publishes an ONBOARDING_EXTERNAL_ACCOUNT_CREATED event.
- * This is a pure function that doesn't depend on FastifyInstance.
+ * This is a pure function that doesn't depend on Hono app instance.
  */
 export const handleExternalAccountCreated = async (
   externalAccount: Stripe.ExternalAccount,
