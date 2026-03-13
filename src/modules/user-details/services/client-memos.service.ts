@@ -18,7 +18,7 @@ const createMemo = async (
     clientId: string;
     data: Omit<InsertPracticeClientMemo, 'client_id' | 'created_by'>;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectPracticeClientMemo>> => {
   const { clientId, data } = params;
   try {
@@ -29,7 +29,7 @@ const createMemo = async (
 
     ForbiddenError.from(ctx.ability).throwUnlessCan(
       'create',
-      toSubject('ClientMemo', { ...data, client_user_id: client.user_id }),
+      toSubject('ClientMemo', { ...data, client_user_id: client.user_id })
     );
 
     const memo = await practiceClientMemosRepository.create({
@@ -52,7 +52,7 @@ const updateMemo = async (
     clientId: string;
     data: Partial<InsertPracticeClientMemo>;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectPracticeClientMemo>> => {
   const { id, clientId, data } = params;
   try {
@@ -66,7 +66,10 @@ const updateMemo = async (
       return notFound('Client not found');
     }
 
-    ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('ClientMemo', { ...memo, client_user_id: client.user_id }));
+    ForbiddenError.from(ctx.ability).throwUnlessCan(
+      'update',
+      toSubject('ClientMemo', { ...memo, client_user_id: client.user_id })
+    );
 
     const updated = await practiceClientMemosRepository.update(id, data);
     if (!updated) return internalError('Failed to update memo');
@@ -79,10 +82,7 @@ const updateMemo = async (
   }
 };
 
-const deleteMemo = async (
-  params: { id: string; clientId: string },
-  ctx: ServiceContext,
-): Promise<Result<void>> => {
+const deleteMemo = async (params: { id: string; clientId: string }, ctx: ServiceContext): Promise<Result<void>> => {
   const { id, clientId } = params;
   try {
     const memo = await practiceClientMemosRepository.findById(id);
@@ -95,7 +95,10 @@ const deleteMemo = async (
       return notFound('Client not found');
     }
 
-    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('ClientMemo', { ...memo, client_user_id: client.user_id }));
+    ForbiddenError.from(ctx.ability).throwUnlessCan(
+      'delete',
+      toSubject('ClientMemo', { ...memo, client_user_id: client.user_id })
+    );
 
     await practiceClientMemosRepository.delete(id);
     return ok(undefined);
@@ -108,7 +111,7 @@ const deleteMemo = async (
 
 const listMemos = async (
   params: { clientId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectPracticeClientMemo[]>> => {
   const { clientId } = params;
   try {
@@ -117,7 +120,10 @@ const listMemos = async (
       return notFound('Client not found');
     }
 
-    ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('ClientMemo', { client_user_id: client.user_id }));
+    ForbiddenError.from(ctx.ability).throwUnlessCan(
+      'read',
+      toSubject('ClientMemo', { client_user_id: client.user_id })
+    );
 
     const memos = await practiceClientMemosRepository.listByClient(clientId);
     return ok(memos);

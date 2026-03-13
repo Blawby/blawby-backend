@@ -53,7 +53,7 @@ const findByStripeCustomerId = async (stripeCustomerId: string): Promise<SelectU
 const update = async (
   id: string,
   data: Partial<SelectUserDetail>,
-  tx: DbOrTx = db,
+  tx: DbOrTx = db
 ): Promise<SelectUserDetail | undefined> => {
   const [updated] = await tx
     .update(userDetails)
