@@ -1,8 +1,8 @@
 /**
  * Subscription Status Constants
- * 
+ *
  * Single source of truth for subscription status values used across the codebase.
- * 
+ *
  * NOTE: These statuses are based on current Better Auth Stripe plugin usage.
  * If the plugin adds more statuses that grant access, update PRACTICE_ENTITLED_STATUSES accordingly.
  */
@@ -22,5 +22,5 @@ export const SUBSCRIPTION_STATUSES = {
 } as const;
 
 // Status types for better type safety
-export type SubscriptionStatus = typeof SUBSCRIPTION_STATUSES[keyof typeof SUBSCRIPTION_STATUSES];
-export type PracticeEntitledStatus = typeof PRACTICE_ENTITLED_STATUSES[number];
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[keyof typeof SUBSCRIPTION_STATUSES];
+export type PracticeEntitledStatus = (typeof PRACTICE_ENTITLED_STATUSES)[number];

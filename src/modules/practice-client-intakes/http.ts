@@ -13,16 +13,16 @@ practiceClientIntakesApp.openapi(routes.getIntakeSettingsRoute, handlers.getInta
 practiceClientIntakesApp.openapi(routes.createPracticeClientIntakeRoute, handlers.createPracticeClientIntakeHandler);
 practiceClientIntakesApp.openapi(
   routes.createPracticeClientIntakeCheckoutSessionRoute,
-  handlers.createPracticeClientIntakeCheckoutSessionHandler,
+  handlers.createPracticeClientIntakeCheckoutSessionHandler
 );
 practiceClientIntakesApp.openapi(routes.updatePracticeClientIntakeRoute, handlers.updatePracticeClientIntakeHandler);
 practiceClientIntakesApp.openapi(
   routes.getPracticeClientIntakeStatusRoute,
-  handlers.getPracticeClientIntakeStatusHandler,
+  handlers.getPracticeClientIntakeStatusHandler
 );
 practiceClientIntakesApp.openapi(
   routes.getPracticeClientIntakePostPayStatusRoute,
-  handlers.getPracticeClientIntakePostPayStatusHandler,
+  handlers.getPracticeClientIntakePostPayStatusHandler
 );
 practiceClientIntakesApp.openapi(routes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
 practiceClientIntakesApp.openapi(routes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);

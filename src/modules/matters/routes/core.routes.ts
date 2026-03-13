@@ -6,9 +6,7 @@ import {
   matterResponseSchema,
 } from '@/modules/matters/types/matter.types';
 import { routeBuilder } from '@/shared/router/route-builder';
-import {
-  errorResponseSchema,
-} from '@/shared/validations/openapi';
+import { errorResponseSchema } from '@/shared/validations/openapi';
 
 const tags = ['Matters'];
 

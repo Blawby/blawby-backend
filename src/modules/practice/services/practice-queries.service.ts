@@ -1,17 +1,12 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
-import {
-  findPracticeDetailsByOrganization,
-} from '@/modules/practice/database/queries/practice-details.repository';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { addresses as addressesTable } from '@/modules/practice/database/schema/addresses.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import type { PracticeDetailsResponse } from '@/modules/practice/types/practice-details.types';
-import type {
-  PracticeWithDetails,
-  OrganizationRequestParams,
-} from '@/modules/practice/types/practice.types';
+import type { PracticeWithDetails, OrganizationRequestParams } from '@/modules/practice/types/practice.types';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import type { Organization } from '@/shared/types/BetterAuth';
@@ -28,10 +23,7 @@ const logger = getLogger(['practice', 'queries-service']);
 const fetchAddressData = async (addressId: string | null): Promise<Address | null> => {
   if (!addressId) return null;
 
-  const [address] = await db
-    .select()
-    .from(addressesTable)
-    .where(eq(addressesTable.id, addressId));
+  const [address] = await db.select().from(addressesTable).where(eq(addressesTable.id, addressId));
 
   if (address) {
     return {
@@ -57,9 +49,7 @@ export const practiceQueriesService = {
   /**
    * List all practices (organizations) for the current user
    */
-  async listPractices(
-    ctx: ServiceContext,
-  ): Promise<Result<{ practices: Organization[] }>> {
+  async listPractices(ctx: ServiceContext): Promise<Result<{ practices: Organization[] }>> {
     if (ctx.ability.cannot('read', 'Organization')) {
       return forbidden('You do not have permission to read practices');
     }
@@ -74,7 +64,7 @@ export const practiceQueriesService = {
    */
   async getPracticeById(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
     if (ctx.ability.cannot('read', 'Organization')) {
       return forbidden('You do not have permission to read this practice');
@@ -82,10 +72,7 @@ export const practiceQueriesService = {
 
     try {
       // 1. Get organization from Better Auth
-      const orgResult = await organizationService.getFullOrganization(
-        { organizationId },
-        ctx,
-      );
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -120,7 +107,7 @@ export const practiceQueriesService = {
    */
   async getPracticeDetails(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<PracticeDetailsResponse>> {
     if (ctx.ability.cannot('read', 'Organization')) {
       return forbidden('You do not have permission to read practice details');
@@ -128,10 +115,7 @@ export const practiceQueriesService = {
 
     try {
       // 1. Verify organization exists and user has access via Better Auth
-      const organizationResult = await organizationService.getFullOrganization(
-        { organizationId },
-        ctx,
-      );
+      const organizationResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!organizationResult.success) {
         return organizationResult;
@@ -147,9 +131,7 @@ export const practiceQueriesService = {
       ]);
 
       if (!fetchedDetails) {
-        return notFound<PracticeDetailsResponse>(
-          `Practice details not found for organization '${organizationId}'`,
-        );
+        return notFound<PracticeDetailsResponse>(`Practice details not found for organization '${organizationId}'`);
       }
 
       // 4. Fetch address if linked
@@ -177,10 +159,7 @@ export const practiceQueriesService = {
   /**
    * Get practice details by slug (Public lookup)
    */
-  async getPracticeBySlug(
-    { slug }: { slug: string },
-    _ctx: ServiceContext,
-  ): Promise<Result<PracticeDetailsResponse>> {
+  async getPracticeBySlug({ slug }: { slug: string }, _ctx: ServiceContext): Promise<Result<PracticeDetailsResponse>> {
     try {
       // 1. Find organization by slug
       const slugResult = await organizationRepository.findBySlug(slug);

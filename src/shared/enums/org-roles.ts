@@ -7,7 +7,7 @@ export enum OrgRole {
   MEMBER = 'member',
   ATTORNEY = 'attorney',
   PARALEGAL = 'paralegal',
-  CLIENT = 'client'
+  CLIENT = 'client',
 }
 
 /**

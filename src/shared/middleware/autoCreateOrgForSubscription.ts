@@ -120,9 +120,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
           .from(schema.organizations)
           .where(inArray(schema.organizations.id, orgIds));
 
-        organizationId = orgsData.find((org) => !org.activeSubscriptionId)?.id
-          || orgsData[0]?.id
-          || null;
+        organizationId = orgsData.find((org) => !org.activeSubscriptionId)?.id || orgsData[0]?.id || null;
       }
 
       if (!organizationId) {
@@ -181,7 +179,6 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
               .where(eq(schema.organizations.id, organizationId))
               .limit(1);
 
-
             if (org?.stripeCustomerId) {
               return;
             }
@@ -201,7 +198,6 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
             if (!subscription) {
               return;
             }
-
 
             await db
               .update(schema.organizations)

@@ -4,10 +4,7 @@ import type { SelectMatterExpense } from '@/modules/matters/database/schema/matt
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-filters.types';
-import type {
-  CreateMatterExpenseRequest,
-  UpdateMatterExpenseRequest,
-} from '@/modules/matters/types/matter.types';
+import type { CreateMatterExpenseRequest, UpdateMatterExpenseRequest } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
@@ -19,7 +16,7 @@ const logger = getLogger(['matters', 'services', 'expenses']);
  */
 const createMatterExpense = async (
   params: { data: CreateMatterExpenseRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterExpense>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -57,7 +54,7 @@ const createMatterExpense = async (
         description: `${userName} added expense: ${params.data.description} ($${amountFormatted})${params.data.billable ? ' (billable)' : ''}`,
         metadata: { amount: params.data.amount, billable: params.data.billable, changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log expense create activity {matterId}: {error}', {
@@ -82,7 +79,7 @@ const createMatterExpense = async (
  */
 const listMatterExpenses = async (
   params: { filters?: MatterExpenseListFilters },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterExpense[]>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -127,7 +124,7 @@ const listMatterExpenses = async (
  */
 const updateMatterExpense = async (
   params: { expenseId: string; data: UpdateMatterExpenseRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterExpense>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -146,11 +143,7 @@ const updateMatterExpense = async (
   }
 
   try {
-    const updated = await matterExpensesQueries.updateMatterExpense(
-      params.expenseId,
-      matterId,
-      params.data,
-    );
+    const updated = await matterExpensesQueries.updateMatterExpense(params.expenseId, matterId, params.data);
     if (!updated) {
       return notFound('Expense not found');
     }
@@ -169,7 +162,7 @@ const updateMatterExpense = async (
         description: `${userName} updated an expense`,
         metadata: { changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log expense update activity {expenseId}: {error}', {
@@ -194,7 +187,7 @@ const updateMatterExpense = async (
  */
 const deleteMatterExpense = async (
   params: { expenseId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -226,7 +219,7 @@ const deleteMatterExpense = async (
         description: `${userName} deleted an expense`,
         metadata: { changed_fields: ['deleted'] },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log expense delete activity {expenseId}: {error}', {
@@ -250,13 +243,15 @@ const deleteMatterExpense = async (
  * Get expense statistics
  */
 const getExpenseStats = async (
-  ctx: ServiceContext,
-): Promise<Result<{
-  totalBillableCents: number;
-  totalCents: number;
-  totalBillable: number;
-  total: number;
-}>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<{
+    totalBillableCents: number;
+    totalCents: number;
+    totalBillable: number;
+    total: number;
+  }>
+> => {
   const matterId = ctx.matterId;
   if (!matterId) {
     return internalError('Matter ID not found in context');

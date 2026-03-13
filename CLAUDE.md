@@ -16,7 +16,7 @@
 - **Logging**: LogTape (`@logtape/logtape`) — NEVER use `console.log`
 - **Queue**: Graphile Worker (PostgreSQL-backed job queue)
 - **Package Manager**: pnpm 10.x
-- **Linting**: ESLint + oxlint, formatting via `@stylistic/eslint-plugin`
+- **Linting**: oxlint (with tsgolint for type-aware rules), formatting via oxfmt
 - **Module system**: ESM (`"type": "module"`)
 
 ## Critical Rules (Non-Negotiable)

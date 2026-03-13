@@ -3,7 +3,6 @@ import * as routes from '@/modules/subscriptions/routes';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
-
 const subscriptionsApp = createHonoApp();
 
 /**

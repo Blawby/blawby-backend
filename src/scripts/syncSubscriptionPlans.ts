@@ -51,4 +51,3 @@ const main = async (): Promise<void> => {
 
 // Run the script
 main();
-

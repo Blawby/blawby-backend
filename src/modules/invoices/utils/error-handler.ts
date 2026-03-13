@@ -10,7 +10,7 @@ export const handleServiceError = (
   error: unknown,
   logger: Logger,
   logContext: Record<string, unknown>,
-  userMessage: string,
+  userMessage: string
 ): Result<never> => {
   const message = error instanceof Error ? error.message : 'Unknown error';
   let detail = '';

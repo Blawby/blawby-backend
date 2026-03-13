@@ -23,7 +23,7 @@ export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
           ${formatCurrency(item.amount)} — ${escapeHtml(item.description)}
         </td>
       </tr>
-    `,
+    `
     )
     .join('');
 
@@ -58,14 +58,15 @@ export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
         
         <mj-text color="${COLORS.textDark}" font-size="14px" font-weight="700">PAYMENT METHOD</mj-text>
         <mj-text padding-top="8px">${data.paymentMethod ? escapeHtml(data.paymentMethod) : 'Not specified'}</mj-text>
-        ${data.payingOnBehalfOf
-        ? `
+        ${
+          data.payingOnBehalfOf
+            ? `
           <mj-divider border-color="${COLORS.border}" />
           <mj-text color="${COLORS.textDark}" font-size="14px" font-weight="700">PAYING ON BEHALF OF</mj-text>
           <mj-text padding-top="8px">${escapeHtml(data.payingOnBehalfOf)}</mj-text>
         `
-        : ''
-      }
+            : ''
+        }
         <mj-divider border-color="${COLORS.border}" />
         
         <mj-text color="${COLORS.textDark}" font-size="14px" font-weight="700">PAYMENT ID</mj-text>
@@ -79,7 +80,7 @@ export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
       </mj-column>
     `)}
   `,
-    BLAWBY_LOGO_URL,
+    BLAWBY_LOGO_URL
   );
 
   return renderMjml(mjmlContent);

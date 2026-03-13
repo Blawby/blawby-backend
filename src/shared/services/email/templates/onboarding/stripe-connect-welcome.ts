@@ -3,14 +3,7 @@
  */
 
 import type { StripeConnectWelcomeData } from '../../email.types';
-import {
-  baseLayout,
-  cardSection,
-  renderMjml,
-  sanitizeUrl,
-  COLORS,
-  BLAWBY_LOGO_URL,
-} from '../base.template';
+import { baseLayout, cardSection, renderMjml, sanitizeUrl, COLORS, BLAWBY_LOGO_URL } from '../base.template';
 
 export const stripeConnectWelcome = (data: StripeConnectWelcomeData): string => {
   const mjmlContent = baseLayout(
@@ -39,7 +32,7 @@ export const stripeConnectWelcome = (data: StripeConnectWelcomeData): string => 
       </mj-column>
     `)}
   `,
-    BLAWBY_LOGO_URL,
+    BLAWBY_LOGO_URL
   );
 
   return renderMjml(mjmlContent);

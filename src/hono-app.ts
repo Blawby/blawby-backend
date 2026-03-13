@@ -9,12 +9,7 @@ import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import {
-  cors,
-  responseMiddleware,
-  notFoundHandler,
-  errorHandler,
-} from '@/shared/middleware';
+import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
 import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
@@ -37,9 +32,12 @@ const getAuthInstance = (): BetterAuthInstance => createBetterAuthInstance(db);
 
 // Middlewares – order is important!
 app.use('*', requestId());
-app.use('*', honoLogger({
-  skip: (c) => c.req.path === '/api/health',
-}));
+app.use(
+  '*',
+  honoLogger({
+    skip: (c) => c.req.path === '/api/health',
+  })
+);
 app.use('*', cors());
 app.use('*', responseMiddleware());
 
@@ -89,13 +87,7 @@ const buildOpenApiDocument = () => {
   (doc as any)['x-tag-groups'] = [
     {
       name: 'Matters Management',
-      tags: [
-        'Matters: General',
-        'Matters: Notes',
-        'Matters: Time Entries',
-        'Matters: Expenses',
-        'Matters: Milestones',
-      ],
+      tags: ['Matters: General', 'Matters: Notes', 'Matters: Time Entries', 'Matters: Expenses', 'Matters: Milestones'],
     },
   ];
 

@@ -6,16 +6,14 @@ import { routeBuilder } from '@/shared/router/route-builder';
  * OpenAPI param schema for category
  */
 const categoryParamOpenAPISchema = z.object({
-  category: z
-    .enum(['general', 'notifications', 'security', 'account', 'onboarding', 'profile'])
-    .openapi({
-      param: {
-        name: 'category',
-        in: 'path',
-      },
-      description: 'Preference category',
-      example: 'general',
-    }),
+  category: z.enum(['general', 'notifications', 'security', 'account', 'onboarding', 'profile']).openapi({
+    param: {
+      name: 'category',
+      in: 'path',
+    },
+    description: 'Preference category',
+    example: 'general',
+  }),
 });
 
 /**
@@ -50,7 +48,8 @@ export const getCategoryPreferencesRoute = routeBuilder.build({
   path: '/{category}',
   tags: ['Preferences'],
   summary: 'Get preferences by category',
-  description: 'Retrieve preferences for a specific category (general, notifications, security, account, onboarding, profile)',
+  description:
+    'Retrieve preferences for a specific category (general, notifications, security, account, onboarding, profile)',
   security: [{ Bearer: [] }],
   request: {
     params: categoryParamOpenAPISchema,
@@ -76,7 +75,8 @@ export const updateCategoryPreferencesRoute = routeBuilder.build({
   path: '/{category}',
   tags: ['Preferences'],
   summary: 'Update preferences by category',
-  description: 'Update preferences for a specific category. The request body schema varies by category. Supports partial updates - only include fields you want to change. For notifications category, system_push and system_email are always set to true regardless of input.',
+  description:
+    'Update preferences for a specific category. The request body schema varies by category. Supports partial updates - only include fields you want to change. For notifications category, system_push and system_email are always set to true regardless of input.',
   security: [{ Bearer: [] }],
   request: {
     params: categoryParamOpenAPISchema,
@@ -84,7 +84,8 @@ export const updateCategoryPreferencesRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: preferenceValidations.notificationPreferencesSchema.openapi({
-            description: 'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
+            description:
+              'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
             example: {
               messages_push: true,
               messages_email: true,
@@ -100,7 +101,8 @@ export const updateCategoryPreferencesRoute = routeBuilder.build({
           }),
         },
       },
-      description: 'Category-specific preferences data. Schema varies by category. For notifications: system_push and system_email are always true.',
+      description:
+        'Category-specific preferences data. Schema varies by category. For notifications: system_push and system_email are always true.',
     },
   },
   responses: {

@@ -53,13 +53,16 @@ export const createUserDetailMemoHandler: AppRouteHandler<typeof createClientMem
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
-  const result = await clientMemosService.createMemo({
-    clientId,
-    data: {
-      ...body,
-      event_time: body.event_time ? new Date(body.event_time) : undefined,
+  const result = await clientMemosService.createMemo(
+    {
+      clientId,
+      data: {
+        ...body,
+        event_time: body.event_time ? new Date(body.event_time) : undefined,
+      },
     },
-  }, ctx);
+    ctx
+  );
   return response.fromResult(c, result);
 };
 
@@ -68,14 +71,17 @@ export const updateUserDetailMemoHandler: AppRouteHandler<typeof updateClientMem
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
-  const result = await clientMemosService.updateMemo({
-    id,
-    clientId,
-    data: {
-      ...body,
-      event_time: body.event_time ? new Date(body.event_time) : undefined,
+  const result = await clientMemosService.updateMemo(
+    {
+      id,
+      clientId,
+      data: {
+        ...body,
+        event_time: body.event_time ? new Date(body.event_time) : undefined,
+      },
     },
-  }, ctx);
+    ctx
+  );
   return response.fromResult(c, result);
 };
 

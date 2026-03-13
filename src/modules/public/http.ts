@@ -63,7 +63,6 @@ publicApp.openapi(routes.healthRoute, async (c) => {
 // Note: This module is configured as prefix: '/' in routes.config.ts
 // All paths are relative to root.
 
-
 // API Info
 publicApp.openapi(routes.infoRoute, async (c) => {
   return response.ok(c, {
@@ -91,6 +90,5 @@ publicApp.openapi(routes.contactRoute, async (c) => {
     },
   });
 });
-
 
 export default publicApp;

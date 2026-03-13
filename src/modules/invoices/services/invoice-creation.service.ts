@@ -24,7 +24,7 @@ const logger = getLogger(['invoices', 'creation-service']);
  * Calculate invoice subtotal and total based on line items
  */
 const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotals => {
-  const subtotal = lineItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+  const subtotal = lineItems.reduce((acc, item) => acc + item.quantity * item.unit_price, 0);
   const tax_amount = 0; // Future: Implement tax logic
   const discount_amount = 0; // Future: Implement discount logic
   const total = subtotal + tax_amount - discount_amount;
@@ -57,13 +57,13 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
  */
 const validateInvoiceCreation = async (
   data: CreateInvoiceRequest,
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ clientId: string }>> => {
   // 1. Resolve and validate client with all required relations
   const clientResult = await invoiceClientResolver.resolveClientForInvoice(
     ctx.organizationId,
     data.client_id,
-    data.connected_account_id,
+    data.connected_account_id
   );
   if (!clientResult.success) return clientResult;
 
@@ -81,10 +81,7 @@ const validateInvoiceCreation = async (
   }
 
   // 4. Validate invoice number is unique
-  const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(
-    ctx.organizationId,
-    data.invoice_number,
-  );
+  const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
   if (!numberValidation.success) return numberValidation;
 
   return result.ok<{ clientId: string }>({ clientId });
@@ -95,7 +92,7 @@ const validateInvoiceCreation = async (
  */
 const persistInvoiceStructure = async (
   { data, clientId, totals }: { data: CreateInvoiceRequest; clientId: string; totals: InvoiceTotals },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> => {
   return await db.transaction(async (tx) => {
     const { line_items, ...invoiceData } = data;
@@ -114,7 +111,7 @@ const persistInvoiceStructure = async (
         issue_date: new Date(),
         due_date: data.due_date ? new Date(data.due_date) : undefined,
       },
-      tx,
+      tx
     );
 
     await invoicesRepository.createInvoiceLineItems(
@@ -125,7 +122,7 @@ const persistInvoiceStructure = async (
         line_total: item.quantity * item.unit_price,
         sort_order: item.sort_order ?? index,
       })),
-      tx,
+      tx
     );
 
     const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, ctx.organizationId, tx);
@@ -144,7 +141,7 @@ const persistInvoiceStructure = async (
           actorType: 'user',
           organizationId: ctx.organizationId,
           tx,
-        },
+        }
       );
     }
 
@@ -157,7 +154,7 @@ const persistInvoiceStructure = async (
  */
 const createInvoice = async (
   { data }: { data: CreateInvoiceRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Invoice');
@@ -176,7 +173,12 @@ const createInvoice = async (
 
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(invoice));
   } catch (error) {
-    return handleServiceError(error, logger, { organizationId: ctx.organizationId, userId: ctx.userId }, 'Failed to create invoice');
+    return handleServiceError(
+      error,
+      logger,
+      { organizationId: ctx.organizationId, userId: ctx.userId },
+      'Failed to create invoice'
+    );
   }
 };
 

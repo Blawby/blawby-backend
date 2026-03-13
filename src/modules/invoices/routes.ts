@@ -24,7 +24,8 @@ const createInvoiceRoute = routeBuilder.build({
   path: '/{practice_id}/create',
   tags: ['Invoices'],
   summary: 'Create invoice',
-  description: 'Create a new draft invoice. The client_id can be either a User ID or a UserDetails ID; the system will automatically resolve and create the necessary client records in a non-blocking way.',
+  description:
+    'Create a new draft invoice. The client_id can be either a User ID or a UserDetails ID; the system will automatically resolve and create the necessary client records in a non-blocking way.',
   request: {
     params: practiceIdParamSchema,
     body: {

@@ -40,7 +40,7 @@ export const getCurrentSubscriptionRoute = createRoute({
   path: '/current',
   tags: ['Subscriptions'],
   summary: 'Get current subscription',
-  description: 'Get the current organization\'s active subscription',
+  description: "Get the current organization's active subscription",
   security: [{ Bearer: [] }],
   responses: {
     200: {
@@ -79,7 +79,8 @@ export const cancelSubscriptionRoute = createRoute({
   path: '/cancel',
   tags: ['Subscriptions'],
   summary: 'Cancel subscription',
-  description: 'Cancel the current organization\'s subscription. Returns a Stripe Billing Portal URL for the user to confirm cancellation.',
+  description:
+    "Cancel the current organization's subscription. Returns a Stripe Billing Portal URL for the user to confirm cancellation.",
   security: [{ Bearer: [] }],
   request: {
     body: {

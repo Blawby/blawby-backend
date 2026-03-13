@@ -4,10 +4,7 @@ import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/ma
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
-import type {
-  CreateMatterTimeEntryRequest,
-  UpdateMatterTimeEntryRequest,
-} from '@/modules/matters/types/matter.types';
+import type { CreateMatterTimeEntryRequest, UpdateMatterTimeEntryRequest } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { badRequest, ok, forbidden, internalError, notFound } from '@/shared/utils/result';
@@ -21,10 +18,7 @@ const calculateDuration = (startTime: Date, endTime: Date): number => {
   return Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
 };
 
-const getValidatedDuration = (
-  startTime: Date,
-  endTime: Date,
-): Result<{ duration: number }> => {
+const getValidatedDuration = (startTime: Date, endTime: Date): Result<{ duration: number }> => {
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
     return badRequest('start_time and end_time must be valid dates');
   }
@@ -39,7 +33,7 @@ const getValidatedDuration = (
  */
 const createMatterTimeEntry = async (
   params: { data: CreateMatterTimeEntryRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -93,7 +87,7 @@ const createMatterTimeEntry = async (
         description: `${userName} logged ${hours}h ${minutes}m${params.data.billable ? ' (billable)' : ''}`,
         metadata: { duration, billable: params.data.billable, changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log time-entry create activity {matterId}: {error}', {
@@ -118,7 +112,7 @@ const createMatterTimeEntry = async (
  */
 const listMatterTimeEntries = async (
   params: { filters?: MatterTimeEntryListFilters },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -163,7 +157,7 @@ const listMatterTimeEntries = async (
  */
 const updateMatterTimeEntry = async (
   params: { entryId: string; data: UpdateMatterTimeEntryRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -183,8 +177,9 @@ const updateMatterTimeEntry = async (
 
   try {
     // Verify entry exists and belongs to matter
-    const entry: SelectMatterTimeEntry | undefined = await matterTimeEntriesQueries
-      .findMatterTimeEntryById(params.entryId);
+    const entry: SelectMatterTimeEntry | undefined = await matterTimeEntriesQueries.findMatterTimeEntryById(
+      params.entryId
+    );
     if (!entry || entry.matter_id !== matterId) {
       return notFound('Time entry not found');
     }
@@ -238,7 +233,7 @@ const updateMatterTimeEntry = async (
         description: `${userName} updated a time entry`,
         metadata: { changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log time-entry update activity {entryId}: {error}', {
@@ -263,7 +258,7 @@ const updateMatterTimeEntry = async (
  */
 const deleteMatterTimeEntry = async (
   params: { entryId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -298,7 +293,7 @@ const deleteMatterTimeEntry = async (
         description: `${userName} deleted a time entry`,
         metadata: { changed_fields: ['deleted'] },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log time-entry delete activity {entryId}: {error}', {
@@ -322,13 +317,15 @@ const deleteMatterTimeEntry = async (
  * Get time entry statistics
  */
 const getTimeEntryStats = async (
-  ctx: ServiceContext,
-): Promise<Result<{
-  totalBillableSeconds: number;
-  totalSeconds: number;
-  totalBillableHours: number;
-  totalHours: number;
-}>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<{
+    totalBillableSeconds: number;
+    totalSeconds: number;
+    totalBillableHours: number;
+    totalHours: number;
+  }>
+> => {
   const matterId = ctx.matterId;
   if (!matterId) {
     return internalError('Matter ID not found in context');

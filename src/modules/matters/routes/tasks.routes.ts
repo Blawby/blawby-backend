@@ -22,13 +22,15 @@ export const listMatterTasksRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            tasks: z.array(z.object({
-              id: z.uuid(),
-              title: z.string(),
-              status: z.string(),
-              due_date: z.string().nullable().optional(),
-              assigned_to: z.uuid().nullable().optional(),
-            })),
+            tasks: z.array(
+              z.object({
+                id: z.uuid(),
+                title: z.string(),
+                status: z.string(),
+                due_date: z.string().nullable().optional(),
+                assigned_to: z.uuid().nullable().optional(),
+              })
+            ),
           }),
         },
       },

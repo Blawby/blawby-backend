@@ -11,33 +11,21 @@ import { db } from '@/shared/database';
 
 const createMatterTasks = async (
   data: InsertMatterTask | InsertMatterTask[],
-  tx?: NodePgDatabase<typeof schema>,
+  tx?: NodePgDatabase<typeof schema>
 ): Promise<SelectMatterTask[]> => {
   const items = Array.isArray(data) ? data : [data];
   if (items.length === 0) return [];
 
   const client = tx ?? db;
-  return await client
-    .insert(matterTasks)
-    .values(items)
-    .returning();
+  return await client.insert(matterTasks).values(items).returning();
 };
 
-const findMatterTaskById = async (
-  id: string,
-): Promise<SelectMatterTask | undefined> => {
-  const [task] = await db
-    .select()
-    .from(matterTasks)
-    .where(eq(matterTasks.id, id))
-    .limit(1);
+const findMatterTaskById = async (id: string): Promise<SelectMatterTask | undefined> => {
+  const [task] = await db.select().from(matterTasks).where(eq(matterTasks.id, id)).limit(1);
   return task;
 };
 
-const listMatterTasks = async (
-  matterId: string,
-  filters?: MatterTaskListFilters,
-): Promise<SelectMatterTask[]> => {
+const listMatterTasks = async (matterId: string, filters?: MatterTaskListFilters): Promise<SelectMatterTask[]> => {
   const conditions = [eq(matterTasks.matter_id, matterId)];
 
   if (filters?.status) {
@@ -60,10 +48,7 @@ const listMatterTasks = async (
     .orderBy(asc(matterTasks.due_date), asc(matterTasks.created_at));
 };
 
-const updateMatterTask = async (
-  id: string,
-  data: Partial<InsertMatterTask>,
-): Promise<SelectMatterTask | undefined> => {
+const updateMatterTask = async (id: string, data: Partial<InsertMatterTask>): Promise<SelectMatterTask | undefined> => {
   const [task] = await db
     .update(matterTasks)
     .set({ ...data, updated_at: new Date() })

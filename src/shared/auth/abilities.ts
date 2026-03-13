@@ -1,12 +1,4 @@
-import {
-  AbilityBuilder,
-  createMongoAbility,
-  type ForcedSubject,
-  type MongoAbility,
-} from '@casl/ability';
-import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type { SelectPracticeClientMemo } from '@/modules/user-details/database/schema/practice-client-memos.schema';
-import type { SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
+import { AbilityBuilder, createMongoAbility, type ForcedSubject, type MongoAbility } from '@casl/ability';
 import { OrgRole, ADMIN_ROLES, MEMBER_ROLES } from '@/shared/enums/org-roles';
 
 /**
@@ -17,8 +9,8 @@ export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
 /**
  * Subject names (resources) in the system
  */
-export type SubjectName
-  = | 'all'
+export type SubjectName =
+  | 'all'
   | 'OrganizationPreferences'
   | 'PracticeClientIntake'
   | 'User'
@@ -31,12 +23,7 @@ export type SubjectName
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
  */
-export type Subject
-  = | SubjectName
-  | (SelectUserDetail & ForcedSubject<'UserDetails'>)
-  | (SelectPracticeClientMemo & { client_user_id: string } & ForcedSubject<'ClientMemo'>)
-  | (SelectPracticeClientIntake & { userId?: string } & ForcedSubject<'PracticeClientIntake'>)
-  | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all' | 'UserDetails' | 'ClientMemo' | 'PracticeClientIntake'>>);
+export type Subject = SubjectName | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
 
 /**
  * The application-wide Ability type
@@ -51,7 +38,7 @@ export type AppAbility = MongoAbility<[Action, Subject]>;
  */
 export const defineAbilityFor = (
   role: string | null,
-  metadata: { userId?: string; organizationId?: string } = {},
+  metadata: { userId?: string; organizationId?: string } = {}
 ): AppAbility => {
   const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
@@ -76,10 +63,11 @@ export const defineAbilityFor = (
     can('read', 'Organization');
     // They can manage their own intake data
     if (metadata.userId) {
-      can('manage', 'PracticeClientIntake', { userId: metadata.userId });
-      can('read', 'UserDetails', { user_id: metadata.userId });
-      can('update', 'UserDetails', { user_id: metadata.userId });
-      can('read', 'ClientMemo', { client_user_id: metadata.userId });
+      const canWithConditions = can as unknown as (action: Action, subject: SubjectName, conditions: unknown) => void;
+      canWithConditions('manage', 'PracticeClientIntake', { userId: metadata.userId });
+      canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('update', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('read', 'ClientMemo', { client_user_id: metadata.userId });
     }
   }
 

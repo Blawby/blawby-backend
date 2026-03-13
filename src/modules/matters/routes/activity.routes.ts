@@ -1,7 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import {
-  getActivityLogQuerySchema,
-} from '@/modules/matters/types/matter.types';
+import { getActivityLogQuerySchema } from '@/modules/matters/types/matter.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 
 const tags = ['Matters'];

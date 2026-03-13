@@ -19,7 +19,7 @@ export const fail = <T = never>(
   message: string,
   status: number = 500,
   code: string = 'INTERNAL_SERVER_ERROR',
-  details?: unknown,
+  details?: unknown
 ): Result<T> => ({
   success: false,
   error: {
@@ -32,19 +32,27 @@ export const fail = <T = never>(
 
 // --- Common Failure Shortcuts ---
 
-export const badRequest = <T = never>(message: string, code = 'BAD_REQUEST', details?: unknown): Result<T> => fail<T>(message, 400, code, details);
+export const badRequest = <T = never>(message: string, code = 'BAD_REQUEST', details?: unknown): Result<T> =>
+  fail<T>(message, 400, code, details);
 
-export const unauthorized = <T = never>(message = 'Unauthorized', code = 'UNAUTHORIZED'): Result<T> => fail<T>(message, 401, code);
+export const unauthorized = <T = never>(message = 'Unauthorized', code = 'UNAUTHORIZED'): Result<T> =>
+  fail<T>(message, 401, code);
 
-export const forbidden = <T = never>(message = 'Forbidden', code = 'FORBIDDEN'): Result<T> => fail<T>(message, 403, code);
+export const forbidden = <T = never>(message = 'Forbidden', code = 'FORBIDDEN'): Result<T> =>
+  fail<T>(message, 403, code);
 
-export const notFound = <T = never>(message = 'Not Found', code = 'NOT_FOUND'): Result<T> => fail<T>(message, 404, code);
+export const notFound = <T = never>(message = 'Not Found', code = 'NOT_FOUND'): Result<T> =>
+  fail<T>(message, 404, code);
 
 export const conflict = <T = never>(message: string, code = 'CONFLICT'): Result<T> => fail<T>(message, 409, code);
 
-export const unprocessable = <T = never>(message: string, details?: unknown, code = 'VALIDATION_ERROR'): Result<T> => fail<T>(message, 422, code, details);
+export const unprocessable = <T = never>(message: string, details?: unknown, code = 'VALIDATION_ERROR'): Result<T> =>
+  fail<T>(message, 422, code, details);
 
-export const internalError = <T = never>(message = 'Internal Server Error', code = 'INTERNAL_SERVER_ERROR'): Result<T> => fail<T>(message, 500, code);
+export const internalError = <T = never>(
+  message = 'Internal Server Error',
+  code = 'INTERNAL_SERVER_ERROR'
+): Result<T> => fail<T>(message, 500, code);
 
 /**
  * Response type for accepted/pending operations.
@@ -59,9 +67,13 @@ export type AcceptedResponse = {
 /**
  * Accepted/Pending Result helper
  */
-export const accepted = (message: string, code = 'ACCEPTED'): Result<AcceptedResponse> => ok({
-  pending: true, status: 202, message, code,
-});
+export const accepted = (message: string, code = 'ACCEPTED'): Result<AcceptedResponse> =>
+  ok({
+    pending: true,
+    status: 202,
+    message,
+    code,
+  });
 
 export interface ResultUtils {
   ok: {

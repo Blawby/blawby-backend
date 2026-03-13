@@ -1,7 +1,4 @@
-import {
-  getOnboardingStatusRoute,
-  createConnectedAccountRoute,
-} from '@/modules/onboarding/routes';
+import { getOnboardingStatusRoute, createConnectedAccountRoute } from '@/modules/onboarding/routes';
 import { onboardingService } from '@/modules/onboarding/services/onboarding.service';
 import { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
@@ -11,9 +8,12 @@ export const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingSta
   const ctx = getServiceContext(c);
   const { practice_id: organizationId } = c.req.valid('param');
 
-  const result = await onboardingService.getOnboardingStatus({
-    organizationId,
-  }, ctx);
+  const result = await onboardingService.getOnboardingStatus(
+    {
+      organizationId,
+    },
+    ctx
+  );
 
   return response.fromResult(c, result);
 };
@@ -22,12 +22,15 @@ export const createConnectedAccountHandler: AppRouteHandler<typeof createConnect
   const ctx = getServiceContext(c);
   const validatedBody = c.req.valid('json');
 
-  const result = await onboardingService.createConnectedAccount({
-    email: validatedBody.practice_email,
-    organizationId: validatedBody.practice_uuid,
-    refreshUrl: validatedBody.refresh_url,
-    returnUrl: validatedBody.return_url,
-  }, ctx);
+  const result = await onboardingService.createConnectedAccount(
+    {
+      email: validatedBody.practice_email,
+      organizationId: validatedBody.practice_uuid,
+      refreshUrl: validatedBody.refresh_url,
+      returnUrl: validatedBody.return_url,
+    },
+    ctx
+  );
 
   return response.fromResult(c, result, 201);
 };

@@ -25,7 +25,7 @@ export type CreateIntakePaymentLinkParams = {
 };
 
 export const createIntakePaymentLink = async (
-  params: CreateIntakePaymentLinkParams,
+  params: CreateIntakePaymentLinkParams
 ): Promise<Stripe.Response<Stripe.PaymentLink>> => {
   const conversationParam = params.conversationId
     ? `&conversation_id=${encodeURIComponent(params.conversationId)}`
@@ -92,7 +92,7 @@ export type CreateIntakeSessionParams = {
 };
 
 export const createIntakeCheckoutSession = async (
-  params: CreateIntakeSessionParams,
+  params: CreateIntakeSessionParams
 ): Promise<Stripe.Response<Stripe.Checkout.Session>> => {
   const metadata: Record<string, string> = {
     intake_uuid: params.intakeId,

@@ -14,8 +14,14 @@ import type {
   SubscriptionEvent,
   SubscriptionEventType,
 } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
-import type { NewSubscriptionLineItem, SubscriptionLineItem } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
-import type { NewSubscriptionPlan, SubscriptionPlan } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
+import type {
+  NewSubscriptionLineItem,
+  SubscriptionLineItem,
+} from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
+import type {
+  NewSubscriptionPlan,
+  SubscriptionPlan,
+} from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 import * as schema from '@/schema';
 
 /**
@@ -27,12 +33,9 @@ import * as schema from '@/schema';
  */
 const createEvent = async (
   db: NodePgDatabase<typeof schema>,
-  eventData: NewSubscriptionEvent,
+  eventData: NewSubscriptionEvent
 ): Promise<SubscriptionEvent> => {
-  const created = await db
-    .insert(schema.subscriptionEvents)
-    .values(eventData)
-    .returning();
+  const created = await db.insert(schema.subscriptionEvents).values(eventData).returning();
 
   return created[0];
 };
@@ -42,7 +45,7 @@ const createEvent = async (
  */
 const findEventsBySubscriptionId = async (
   db: NodePgDatabase<typeof schema>,
-  subscriptionId: string,
+  subscriptionId: string
 ): Promise<SubscriptionEvent[]> => {
   return await db
     .select()
@@ -57,7 +60,7 @@ const findEventsBySubscriptionId = async (
 const findEventsBySubscriptionIdAndType = async (
   db: NodePgDatabase<typeof schema>,
   subscriptionId: string,
-  _eventType: SubscriptionEventType,
+  _eventType: SubscriptionEventType
 ): Promise<SubscriptionEvent[]> => {
   return await db
     .select()
@@ -65,8 +68,8 @@ const findEventsBySubscriptionIdAndType = async (
     .where(
       and(
         eq(schema.subscriptionEvents.subscription_id, subscriptionId),
-        eq(schema.subscriptionEvents.event_type, _eventType),
-      ),
+        eq(schema.subscriptionEvents.event_type, _eventType)
+      )
     )
     .orderBy(desc(schema.subscriptionEvents.created_at));
 };
@@ -76,7 +79,7 @@ const findEventsBySubscriptionIdAndType = async (
  */
 const findLatestEvent = async (
   db: NodePgDatabase<typeof schema>,
-  subscriptionId: string,
+  subscriptionId: string
 ): Promise<SubscriptionEvent | undefined> => {
   const events = await db
     .select()
@@ -97,7 +100,7 @@ const findLatestEvent = async (
  */
 const findLineItemsBySubscriptionId = async (
   db: NodePgDatabase<typeof schema>,
-  subscriptionId: string,
+  subscriptionId: string
 ): Promise<SubscriptionLineItem[]> => {
   return await db
     .select()
@@ -110,7 +113,7 @@ const findLineItemsBySubscriptionId = async (
  */
 const findLineItemByStripeItemId = async (
   db: NodePgDatabase<typeof schema>,
-  stripeSubscriptionItemId: string,
+  stripeSubscriptionItemId: string
 ): Promise<SubscriptionLineItem | undefined> => {
   const items = await db
     .select()
@@ -126,7 +129,7 @@ const findLineItemByStripeItemId = async (
  */
 const upsertLineItem = async (
   db: NodePgDatabase<typeof schema>,
-  itemData: NewSubscriptionLineItem,
+  itemData: NewSubscriptionLineItem
 ): Promise<SubscriptionLineItem> => {
   // Try to find existing item
   const existingItem = await findLineItemByStripeItemId(db, itemData.stripe_subscription_item_id);
@@ -146,10 +149,7 @@ const upsertLineItem = async (
   }
 
   // Create new item
-  const created = await db
-    .insert(schema.subscriptionLineItems)
-    .values(itemData)
-    .returning();
+  const created = await db.insert(schema.subscriptionLineItems).values(itemData).returning();
 
   return created[0];
 };
@@ -157,10 +157,7 @@ const upsertLineItem = async (
 /**
  * Delete a subscription line item
  */
-const deleteLineItem = async (
-  db: NodePgDatabase<typeof schema>,
-  stripeSubscriptionItemId: string,
-): Promise<void> => {
+const deleteLineItem = async (db: NodePgDatabase<typeof schema>, stripeSubscriptionItemId: string): Promise<void> => {
   await db
     .delete(schema.subscriptionLineItems)
     .where(eq(schema.subscriptionLineItems.stripe_subscription_item_id, stripeSubscriptionItemId));
@@ -171,11 +168,9 @@ const deleteLineItem = async (
  */
 const deleteLineItemsBySubscriptionId = async (
   db: NodePgDatabase<typeof schema>,
-  subscriptionId: string,
+  subscriptionId: string
 ): Promise<void> => {
-  await db
-    .delete(schema.subscriptionLineItems)
-    .where(eq(schema.subscriptionLineItems.subscription_id, subscriptionId));
+  await db.delete(schema.subscriptionLineItems).where(eq(schema.subscriptionLineItems.subscription_id, subscriptionId));
 };
 
 /**
@@ -185,9 +180,7 @@ const deleteLineItemsBySubscriptionId = async (
 /**
  * Find all active subscription plans sorted by sort order
  */
-const findAllActivePlans = async (
-  db: NodePgDatabase<typeof schema>,
-): Promise<SubscriptionPlan[]> => {
+const findAllActivePlans = async (db: NodePgDatabase<typeof schema>): Promise<SubscriptionPlan[]> => {
   return await db
     .select()
     .from(schema.subscriptionPlans)
@@ -196,9 +189,9 @@ const findAllActivePlans = async (
         eq(schema.subscriptionPlans.is_active, true),
         or(
           isNotNull(schema.subscriptionPlans.stripe_monthly_price_id),
-          isNotNull(schema.subscriptionPlans.stripe_yearly_price_id),
-        ),
-      ),
+          isNotNull(schema.subscriptionPlans.stripe_yearly_price_id)
+        )
+      )
     )
     .orderBy(schema.subscriptionPlans.sort_order);
 };
@@ -208,7 +201,7 @@ const findAllActivePlans = async (
  */
 const findPlanById = async (
   db: NodePgDatabase<typeof schema>,
-  planId: string,
+  planId: string
 ): Promise<SubscriptionPlan | undefined> => {
   const plans = await db
     .select()
@@ -224,7 +217,7 @@ const findPlanById = async (
  */
 const findPlanByName = async (
   db: NodePgDatabase<typeof schema>,
-  name: string,
+  name: string
 ): Promise<SubscriptionPlan | undefined> => {
   const plans = await db
     .select()
@@ -240,7 +233,7 @@ const findPlanByName = async (
  */
 const findPlanByStripeProductId = async (
   db: NodePgDatabase<typeof schema>,
-  stripeProductId: string,
+  stripeProductId: string
 ): Promise<SubscriptionPlan | undefined> => {
   const plans = await db
     .select()
@@ -256,16 +249,12 @@ const findPlanByStripeProductId = async (
  */
 const findPlanByStripePriceId = async (
   db: NodePgDatabase<typeof schema>,
-  stripePriceId: string,
+  stripePriceId: string
 ): Promise<SubscriptionPlan | undefined> => {
   const plans = await db
     .select()
     .from(schema.subscriptionPlans)
-    .where(
-      and(
-        eq(schema.subscriptionPlans.stripe_monthly_price_id, stripePriceId),
-      ),
-    )
+    .where(and(eq(schema.subscriptionPlans.stripe_monthly_price_id, stripePriceId)))
     .limit(1);
 
   if (plans.length > 0) {
@@ -276,11 +265,7 @@ const findPlanByStripePriceId = async (
   const yearlyPlans = await db
     .select()
     .from(schema.subscriptionPlans)
-    .where(
-      and(
-        eq(schema.subscriptionPlans.stripe_yearly_price_id, stripePriceId),
-      ),
-    )
+    .where(and(eq(schema.subscriptionPlans.stripe_yearly_price_id, stripePriceId)))
     .limit(1);
 
   return yearlyPlans[0];
@@ -291,7 +276,7 @@ const findPlanByStripePriceId = async (
  */
 const upsertPlan = async (
   db: NodePgDatabase<typeof schema>,
-  planData: NewSubscriptionPlan,
+  planData: NewSubscriptionPlan
 ): Promise<SubscriptionPlan> => {
   // Try to find existing plan by stripe product ID
   const existingPlan = await findPlanByStripeProductId(db, planData.stripe_product_id);
@@ -311,10 +296,7 @@ const upsertPlan = async (
   }
 
   // Create new plan
-  const created = await db
-    .insert(schema.subscriptionPlans)
-    .values(planData)
-    .returning();
+  const created = await db.insert(schema.subscriptionPlans).values(planData).returning();
 
   return created[0];
 };
@@ -324,7 +306,7 @@ const upsertPlan = async (
  */
 const deactivatePlan = async (
   db: NodePgDatabase<typeof schema>,
-  stripeProductId: string,
+  stripeProductId: string
 ): Promise<SubscriptionPlan | undefined> => {
   const updated = await db
     .update(schema.subscriptionPlans)
@@ -341,13 +323,8 @@ const deactivatePlan = async (
 /**
  * Get all plans (including inactive) for admin purposes
  */
-const findAllPlans = async (
-  db: NodePgDatabase<typeof schema>,
-): Promise<SubscriptionPlan[]> => {
-  return await db
-    .select()
-    .from(schema.subscriptionPlans)
-    .orderBy(desc(schema.subscriptionPlans.created_at));
+const findAllPlans = async (db: NodePgDatabase<typeof schema>): Promise<SubscriptionPlan[]> => {
+  return await db.select().from(schema.subscriptionPlans).orderBy(desc(schema.subscriptionPlans.created_at));
 };
 
 export const subscriptionRepository = {

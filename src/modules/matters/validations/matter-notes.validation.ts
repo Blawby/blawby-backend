@@ -22,15 +22,16 @@ const listMatterNotesQuerySchema = z.object({
   note_id: uuidValidator.optional(),
 });
 
-const matterNoteSchema = z.object({
-  id: z.uuid(),
-  matter_id: z.uuid(),
-  user_id: z.uuid(),
-  content: z.string(),
-  created_at: z.date(),
-  updated_at: z.date(),
-}).openapi('MatterNote');
-
+const matterNoteSchema = z
+  .object({
+    id: z.uuid(),
+    matter_id: z.uuid(),
+    user_id: z.uuid(),
+    content: z.string(),
+    created_at: z.date(),
+    updated_at: z.date(),
+  })
+  .openapi('MatterNote');
 
 export const matterNoteValidations = {
   createMatterNoteSchema,

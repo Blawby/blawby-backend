@@ -51,9 +51,9 @@ export const practiceClientIntakesWebhooksService = {
 
       if (event.type.startsWith('payment_intent.')) {
         if (
-          event.type !== 'payment_intent.succeeded'
-          && event.type !== 'payment_intent.payment_failed'
-          && event.type !== 'payment_intent.canceled'
+          event.type !== 'payment_intent.succeeded' &&
+          event.type !== 'payment_intent.payment_failed' &&
+          event.type !== 'payment_intent.canceled'
         ) {
           logger.info('Unhandled payment intent event type: {eventType}', { eventType: event.type });
           await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
@@ -150,7 +150,6 @@ export const practiceClientIntakesWebhooksService = {
       eventId: event.id,
     });
   },
-
 };
 
 export default practiceClientIntakesWebhooksService;

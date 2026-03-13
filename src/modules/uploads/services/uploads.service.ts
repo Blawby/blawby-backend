@@ -94,9 +94,7 @@ const generateStorageKey = (params: {
 /**
  * Calculate retention date based on upload context
  */
-const calculateRetentionUntil = (
-  upload_context: 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
-): Date | null => {
+const calculateRetentionUntil = (upload_context: 'matter' | 'intake' | 'trust' | 'profile' | 'asset'): Date | null => {
   const now = new Date();
   const yearsToRetain = 7;
 
@@ -123,7 +121,7 @@ export const uploadsService = {
   async presignUpload(
     request: PresignUploadRequest,
     userId: string,
-    organizationId: string | null,
+    organizationId: string | null
   ): Promise<Result<PresignUploadResponse>> {
     try {
       const uploadId = crypto.randomUUID();
@@ -186,9 +184,8 @@ export const uploadsService = {
 
       const file_name = request.file_name;
       const lastDotIndex = file_name.lastIndexOf('.');
-      const file_type = lastDotIndex > 0 && lastDotIndex < file_name.length - 1
-        ? file_name.slice(lastDotIndex + 1)
-        : 'unknown';
+      const file_type =
+        lastDotIndex > 0 && lastDotIndex < file_name.length - 1 ? file_name.slice(lastDotIndex + 1) : 'unknown';
 
       // Create upload record
       const uploadData: InsertUpload = {
@@ -203,7 +200,8 @@ export const uploadsService = {
         storage_key,
         upload_context: request.upload_context,
         matter_id: request.matter_id || null,
-        entity_type: request.upload_context === 'matter' ? 'matter' : request.upload_context === 'intake' ? 'intake' : null,
+        entity_type:
+          request.upload_context === 'matter' ? 'matter' : request.upload_context === 'intake' ? 'intake' : null,
         entity_id: request.entity_id || null,
         status: 'pending',
         is_privileged: request.is_privileged ?? true,
@@ -244,10 +242,7 @@ export const uploadsService = {
   /**
    * Confirm upload completion
    */
-  async confirmUpload(
-    uploadId: string,
-    userId: string,
-  ): Promise<Result<ConfirmUploadResponse>> {
+  async confirmUpload(uploadId: string, userId: string): Promise<Result<ConfirmUploadResponse>> {
     try {
       const upload = await uploadsRepository.findById(uploadId);
 
@@ -383,7 +378,7 @@ export const uploadsService = {
     uploadId: string,
     userId: string,
     ipAddress?: string,
-    userAgent?: string,
+    userAgent?: string
   ): Promise<Result<DownloadUrlResponse>> {
     try {
       const upload = await uploadsRepository.findById(uploadId);
@@ -407,9 +402,10 @@ export const uploadsService = {
       }
 
       let downloadUrl: string;
-      const expiresAt = upload.storage_provider === 'r2'
-        ? new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-        : null;
+      const expiresAt =
+        upload.storage_provider === 'r2'
+          ? new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+          : null;
 
       if (upload.storage_provider === 'r2') {
         downloadUrl = await generatePresignedDownloadUrl({
@@ -451,11 +447,7 @@ export const uploadsService = {
   /**
    * Soft delete upload
    */
-  async deleteUpload(
-    uploadId: string,
-    userId: string,
-    request: DeleteUploadRequest,
-  ): Promise<Result<void>> {
+  async deleteUpload(uploadId: string, userId: string, request: DeleteUploadRequest): Promise<Result<void>> {
     try {
       const upload = await uploadsRepository.findById(uploadId);
 
@@ -526,10 +518,7 @@ export const uploadsService = {
   /**
    * List uploads
    */
-  async listUploads(
-    organizationId: string,
-    query: ListUploadsQuery,
-  ): Promise<Result<ListUploadsResponse>> {
+  async listUploads(organizationId: string, query: ListUploadsQuery): Promise<Result<ListUploadsResponse>> {
     try {
       const page = query.page || 1;
       const limit = query.limit || 20;
@@ -594,7 +583,7 @@ export const uploadsService = {
    */
   async getAuditLogs(
     uploadId: string,
-    organizationId: string,
+    organizationId: string
   ): Promise<Result<{ audit_logs: AuditLogEntry[]; total: number }>> {
     try {
       const upload = await uploadsRepository.findById(uploadId);

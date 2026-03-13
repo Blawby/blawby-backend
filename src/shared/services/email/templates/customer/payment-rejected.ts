@@ -54,7 +54,7 @@ export const customerPaymentRefundRejected = (data: CustomerPaymentReceiptData):
       </mj-column>
     `)}
   `,
-    data.teamPhotoUrl,
+    data.teamPhotoUrl
   );
 
   return renderMjml(mjmlContent);

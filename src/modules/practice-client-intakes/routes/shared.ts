@@ -16,16 +16,14 @@ export const slugParamOpenAPISchema = z.object({
 });
 
 export const uuidParamOpenAPISchema = z.object({
-  uuid: z
-    .uuid()
-    .openapi({
-      param: {
-        name: 'uuid',
-        in: 'path',
-      },
-      description: 'Practice client intake UUID (returned when creating an intake, used to identify the specific intake)',
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
+  uuid: z.uuid().openapi({
+    param: {
+      name: 'uuid',
+      in: 'path',
+    },
+    description: 'Practice client intake UUID (returned when creating an intake, used to identify the specific intake)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
 });
 
 export const practiceIdParamOpenAPISchema = z.object({

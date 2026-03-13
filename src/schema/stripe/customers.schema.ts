@@ -6,14 +6,7 @@
  */
 
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  text,
-  timestamp,
-  index,
-  uuid,
-  jsonb,
-} from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, index, uuid, jsonb } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
@@ -32,12 +25,10 @@ export const PRODUCT_USAGE_OPTIONS = [
   'other',
 ] as const;
 
-export type ProductUsage = typeof PRODUCT_USAGE_OPTIONS[number];
+export type ProductUsage = (typeof PRODUCT_USAGE_OPTIONS)[number];
 
 // Zod schema for product usage validation
-const productUsageSchema = z.array(
-  z.enum(PRODUCT_USAGE_OPTIONS),
-).max(5);
+const productUsageSchema = z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5);
 
 export const customerDetails = pgTable(
   'customer_details',
@@ -59,39 +50,34 @@ export const customerDetails = pgTable(
     // Future expansion
 
     // Metadata
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('customer_details_user_idx').on(table.userId),
     index('customer_details_stripe_customer_idx').on(table.stripeCustomerId),
     index('customer_details_created_at_idx').on(table.createdAt),
-  ],
+  ]
 );
 
 // Define relations
-export const customerDetailsRelations = relations(
-  customerDetails,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [customerDetails.userId],
-      references: [users.id],
-    }),
+export const customerDetailsRelations = relations(customerDetails, ({ one }) => ({
+  user: one(users, {
+    fields: [customerDetails.userId],
+    references: [users.id],
   }),
-);
+}));
 
 // Zod schemas for validation
-export const insertCustomerDetailsSchema = createInsertSchema(customerDetails).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-}).extend({
-  productUsage: productUsageSchema.optional(),
-});
+export const insertCustomerDetailsSchema = createInsertSchema(customerDetails)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    productUsage: productUsageSchema.optional(),
+  });
 
 export const selectCustomerDetailsSchema = createSelectSchema(customerDetails).extend({
   productUsage: productUsageSchema.optional(),

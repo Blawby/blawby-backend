@@ -1,33 +1,18 @@
-import {
-  eq, and, like, isNull, inArray, sql, desc,
-} from 'drizzle-orm';
+import { eq, and, like, isNull, inArray, sql, desc } from 'drizzle-orm';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
-import {
-  matters,
-  type InsertMatter,
-  type SelectMatter,
-} from '@/modules/matters/database/schema/matters.schema';
+import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter
-const createMatter = async (
-  data: InsertMatter,
-  tx: typeof db = db,
-): Promise<SelectMatter> => {
-  const [matter] = await tx
-    .insert(matters)
-    .values(data)
-    .returning();
+const createMatter = async (data: InsertMatter, tx: typeof db = db): Promise<SelectMatter> => {
+  const [matter] = await tx.insert(matters).values(data).returning();
   return matter;
 };
 
 // Find matter by ID (excluding soft deleted)
-const findMatterById = async (
-  id: string,
-  tx?: typeof db,
-): Promise<SelectMatter | undefined> => {
+const findMatterById = async (id: string, tx?: typeof db): Promise<SelectMatter | undefined> => {
   const client = tx || db;
   const [matter] = await client
     .select()
@@ -66,24 +51,14 @@ const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => {
 };
 
 // Find matter by ID (including soft deleted)
-const findMatterByIdWithDeleted = async (
-  id: string,
-  tx?: typeof db,
-): Promise<SelectMatter | undefined> => {
+const findMatterByIdWithDeleted = async (id: string, tx?: typeof db): Promise<SelectMatter | undefined> => {
   const client = tx || db;
-  const [matter] = await client
-    .select()
-    .from(matters)
-    .where(eq(matters.id, id))
-    .limit(1);
+  const [matter] = await client.select().from(matters).where(eq(matters.id, id)).limit(1);
   return matter;
 };
 
 // Find matter by intake UUID
-const findByIntakeUuid = async (
-  intakeUuid: string,
-  tx: typeof db = db,
-): Promise<SelectMatter | undefined> => {
+const findByIntakeUuid = async (intakeUuid: string, tx: typeof db = db): Promise<SelectMatter | undefined> => {
   const [matter] = await tx
     .select()
     .from(matters)
@@ -95,16 +70,13 @@ const findByIntakeUuid = async (
 // List matters by organization with filters
 const listMattersByOrganization = async (
   organizationId: string,
-  filters?: MatterListFilters,
+  filters?: MatterListFilters
 ): Promise<{ matters: SelectMatter[]; total: number }> => {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
   const offset = (page - 1) * limit;
 
-  const conditions = [
-    eq(matters.organization_id, organizationId),
-    isNull(matters.deleted_at),
-  ];
+  const conditions = [eq(matters.organization_id, organizationId), isNull(matters.deleted_at)];
 
   if (filters?.status) {
     conditions.push(eq(matters.status, filters.status));
@@ -122,11 +94,8 @@ const listMattersByOrganization = async (
     conditions.push(eq(matters.id, filters.matterId));
   }
 
-
   if (filters?.search) {
-    conditions.push(
-      like(matters.title, `%${filters.search}%`),
-    );
+    conditions.push(like(matters.title, `%${filters.search}%`));
   }
 
   let results: SelectMatter[];
@@ -171,12 +140,7 @@ const listMattersByOrganization = async (
       })
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
-      .where(
-        and(
-          ...conditions,
-          eq(matterAssignees.user_id, filters.assigneeId),
-        ),
-      )
+      .where(and(...conditions, eq(matterAssignees.user_id, filters.assigneeId)))
       .orderBy(desc(matters.created_at))
       .limit(limit)
       .offset(offset);
@@ -197,12 +161,7 @@ const listMattersByOrganization = async (
       .select({ count: sql<number>`count(*)` })
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
-      .where(
-        and(
-          ...conditions,
-          eq(matterAssignees.user_id, filters.assigneeId),
-        ),
-      );
+      .where(and(...conditions, eq(matterAssignees.user_id, filters.assigneeId)));
   } else {
     [countResult] = await db
       .select({ count: sql<number>`count(*)` })
@@ -220,7 +179,7 @@ const listMattersByOrganization = async (
 const updateMatter = async (
   id: string,
   data: Partial<InsertMatter>,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<SelectMatter | undefined> => {
   const client = tx || db;
   const [matter] = await client
@@ -232,11 +191,7 @@ const updateMatter = async (
 };
 
 // Soft delete matter
-const softDeleteMatter = async (
-  id: string,
-  deletedBy: string,
-  tx?: typeof db,
-): Promise<SelectMatter | undefined> => {
+const softDeleteMatter = async (id: string, deletedBy: string, tx?: typeof db): Promise<SelectMatter | undefined> => {
   const client = tx || db;
   const [matter] = await client
     .update(matters)
@@ -256,9 +211,7 @@ const deleteMatter = async (id: string): Promise<void> => {
 };
 
 // Get matter counts by status
-const getMatterCountsByStatus = async (
-  organizationId: string,
-): Promise<{ status: string; count: number }[]> => {
+const getMatterCountsByStatus = async (organizationId: string): Promise<{ status: string; count: number }[]> => {
   return await db
     .select({
       status: matters.status,
@@ -270,39 +223,29 @@ const getMatterCountsByStatus = async (
 };
 
 // Add assignees to matter
-const addMatterAssignees = async (
-  matterId: string,
-  userIds: string[],
-  tx?: typeof db,
-): Promise<void> => {
+const addMatterAssignees = async (matterId: string, userIds: string[], tx?: typeof db): Promise<void> => {
   if (userIds.length === 0) return;
 
   const client = tx || db;
-  await client.insert(matterAssignees).values(
-    userIds.map((userId) => ({
-      matter_id: matterId,
-      user_id: userId,
-    })),
-  ).onConflictDoNothing();
+  await client
+    .insert(matterAssignees)
+    .values(
+      userIds.map((userId) => ({
+        matter_id: matterId,
+        user_id: userId,
+      }))
+    )
+    .onConflictDoNothing();
 };
 
 // Remove assignees from matter
-const removeMatterAssignees = async (
-  matterId: string,
-  userIds: string[],
-  tx?: typeof db,
-): Promise<void> => {
+const removeMatterAssignees = async (matterId: string, userIds: string[], tx?: typeof db): Promise<void> => {
   if (userIds.length === 0) return;
 
   const client = tx || db;
   await client
     .delete(matterAssignees)
-    .where(
-      and(
-        eq(matterAssignees.matter_id, matterId),
-        inArray(matterAssignees.user_id, userIds),
-      ),
-    );
+    .where(and(eq(matterAssignees.matter_id, matterId), inArray(matterAssignees.user_id, userIds)));
 };
 
 // Get matter assignees
@@ -313,9 +256,7 @@ type MatterAssignee = {
   image: string | null;
 };
 
-const getMatterAssignees = async (
-  matterId: string,
-): Promise<MatterAssignee[]> => {
+const getMatterAssignees = async (matterId: string): Promise<MatterAssignee[]> => {
   return await db
     .select({
       id: users.id,
@@ -329,10 +270,7 @@ const getMatterAssignees = async (
 };
 
 // Clear all assignees from matter
-const clearMatterAssignees = async (
-  matterId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const clearMatterAssignees = async (matterId: string, tx?: typeof db): Promise<void> => {
   const client = tx || db;
   await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
@@ -340,11 +278,7 @@ const clearMatterAssignees = async (
 /**
  * Update matter retainer balance
  */
-const updateRetainerBalance = async (
-  matterId: string,
-  newBalance: number,
-  tx?: typeof db,
-): Promise<void> => {
+const updateRetainerBalance = async (matterId: string, newBalance: number, tx?: typeof db): Promise<void> => {
   const client = tx || db;
   await client
     .update(matters)

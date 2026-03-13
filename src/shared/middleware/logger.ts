@@ -31,18 +31,21 @@ export const logger = (): MiddlewareHandler => {
  *
  * Provides detailed error logging
  */
-export const logError = (error: unknown, context?: {
-  method?: string;
-  url?: string;
-  statusCode: number;
-  userId?: string;
-  organizationId?: string;
-  requestId?: string;
-  responseTime?: number;
-  errorType?: string;
-  errorMessage?: string;
-  stack?: string;
-}): void => {
+export const logError = (
+  error: unknown,
+  context?: {
+    method?: string;
+    url?: string;
+    statusCode: number;
+    userId?: string;
+    organizationId?: string;
+    requestId?: string;
+    responseTime?: number;
+    errorType?: string;
+    errorMessage?: string;
+    stack?: string;
+  }
+): void => {
   // Skip logging for certain requests
   if (context?.url && context?.method && shouldSkipLogging(context.url, context.method)) {
     return;

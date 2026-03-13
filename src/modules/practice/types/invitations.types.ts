@@ -16,4 +16,3 @@ export type InvitationListItem = {
   expires_at: number;
   created_at: number;
 };
-

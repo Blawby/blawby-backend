@@ -20,7 +20,7 @@ const logger = getLogger(['matters', 'services', 'milestones']);
  */
 const createMatterMilestone = async (
   params: { data: CreateMatterMilestoneRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterMilestone>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -58,7 +58,7 @@ const createMatterMilestone = async (
         description: `${userName} created milestone: ${params.data.description} ($${amountFormatted})`,
         metadata: { amount: params.data.amount, due_date: params.data.due_date, changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log milestone create activity {matterId}: {error}', {
@@ -83,7 +83,7 @@ const createMatterMilestone = async (
  */
 const listMatterMilestones = async (
   params: { filters?: MatterMilestoneListFilters },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterMilestone[]>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -126,7 +126,7 @@ const listMatterMilestones = async (
  */
 const updateMatterMilestone = async (
   params: { milestoneId: string; data: UpdateMatterMilestoneRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterMilestone>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -168,8 +168,11 @@ const updateMatterMilestone = async (
       } else if (params.data.due_date !== null && milestone.due_date !== null) {
         const nextDue = new Date(params.data.due_date);
         const currentDue = new Date(milestone.due_date);
-        if (!Number.isNaN(nextDue.getTime()) && !Number.isNaN(currentDue.getTime())
-          && nextDue.getTime() !== currentDue.getTime()) {
+        if (
+          !Number.isNaN(nextDue.getTime()) &&
+          !Number.isNaN(currentDue.getTime()) &&
+          nextDue.getTime() !== currentDue.getTime()
+        ) {
           changedFields.push('due_date');
         }
       }
@@ -189,7 +192,7 @@ const updateMatterMilestone = async (
         description: `${userName} updated milestone: ${updated.description}`,
         metadata: { changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log milestone update activity {milestoneId}: {error}', {
@@ -206,7 +209,7 @@ const updateMatterMilestone = async (
           description: `${userName} completed milestone: ${milestone.description}`,
           metadata: { changed_fields: ['status'] },
         },
-        ctx,
+        ctx
       );
       if (!completionActivityResult.success) {
         logger.error('Failed to log milestone completion activity {milestoneId}: {error}', {
@@ -232,7 +235,7 @@ const updateMatterMilestone = async (
  */
 const deleteMatterMilestone = async (
   params: { milestoneId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -267,7 +270,7 @@ const deleteMatterMilestone = async (
         description: `${userName} deleted milestone: ${milestone.description}`,
         metadata: { changed_fields: ['deleted'] },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log milestone delete activity {milestoneId}: {error}', {
@@ -292,7 +295,7 @@ const deleteMatterMilestone = async (
  */
 const reorderMilestones = async (
   params: { data: ReorderMilestonesRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -329,7 +332,7 @@ const reorderMilestones = async (
         description: `${userName} reordered milestones`,
         metadata: { changed_fields: ['order'] },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log milestone reorder activity {matterId}: {error}', {
@@ -353,17 +356,19 @@ const reorderMilestones = async (
  * Get milestone statistics
  */
 const getMilestoneStats = async (
-  ctx: ServiceContext,
-): Promise<Result<{
-  total: number;
-  pending: number;
-  inProgress: number;
-  completed: number;
-  overdue: number;
-  totalAmount: number;
-  completedAmount: number;
-  completionPercentage: number;
-}>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<{
+    total: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+    overdue: number;
+    totalAmount: number;
+    completedAmount: number;
+    completionPercentage: number;
+  }>
+> => {
   const matterId = ctx.matterId;
   if (!matterId) {
     return internalError('Matter ID not found in context');
