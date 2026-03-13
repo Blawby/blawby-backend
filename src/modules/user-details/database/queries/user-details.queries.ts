@@ -8,6 +8,8 @@ import {
 import { users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const { userDetails } = userDetailsSchema;
 
 const create = async (data: InsertUserDetail): Promise<SelectUserDetail> => {
@@ -48,8 +50,12 @@ const findByStripeCustomerId = async (stripeCustomerId: string): Promise<SelectU
   return result;
 };
 
-const update = async (id: string, data: Partial<SelectUserDetail>): Promise<SelectUserDetail | undefined> => {
-  const [updated] = await db
+const update = async (
+  id: string,
+  data: Partial<SelectUserDetail>,
+  tx: DbOrTx = db,
+): Promise<SelectUserDetail | undefined> => {
+  const [updated] = await tx
     .update(userDetails)
     .set({ ...data, updated_at: new Date() })
     .where(eq(userDetails.id, id))
