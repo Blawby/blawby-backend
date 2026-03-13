@@ -13,9 +13,7 @@ export const resolveUserForIntake = async (params: {
   name: string;
   phone?: string;
 }): Promise<typeof users.$inferSelect | undefined> => {
-  const {
-    userId, email, name, phone,
-  } = params;
+  const { userId, email, name, phone } = params;
   const existingUserByEmail = await usersRepository.findByEmail(email);
 
   if (userId) {
@@ -33,11 +31,15 @@ export const resolveUserForIntake = async (params: {
             tx,
           });
           await tx.delete(users).where(eq(users.id, userId));
-          return usersRepository.update(existingUserByEmail.id, {
-            name: name || existingUserByEmail.name,
-            phone: phone ?? existingUserByEmail.phone ?? undefined,
-            primaryWorkspace: 'client',
-          }, tx);
+          return usersRepository.update(
+            existingUserByEmail.id,
+            {
+              name: name || existingUserByEmail.name,
+              phone: phone ?? existingUserByEmail.phone ?? undefined,
+              primaryWorkspace: 'client',
+            },
+            tx
+          );
         });
       }
       if (isAnonymousUser) {
@@ -50,7 +52,7 @@ export const resolveUserForIntake = async (params: {
       }
       return usersRepository.update(userId, {
         name: name || sessionUser.name,
-        phone: phone || sessionUser.phone || undefined,
+        phone: phone ?? sessionUser.phone ?? undefined,
       });
     }
   }

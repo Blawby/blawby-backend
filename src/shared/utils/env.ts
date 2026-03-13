@@ -76,7 +76,9 @@ export const isProductionLike = (): boolean => {
  */
 export const getEnvArray = (key: string, defaultValue: string[] = []): string[] => {
   const value = process.env[key];
-  if (!value) {return defaultValue;}
+  if (!value) {
+    return defaultValue;
+  }
 
   return value
     .split(',')
@@ -90,8 +92,12 @@ export const getEnvArray = (key: string, defaultValue: string[] = []): string[] 
  */
 export const getMatchingFrontendUrl = (origin?: string | null): string => {
   const urls = getEnvArray('FRONTEND_URL');
-  if (urls.length === 0) {return process.env.BASE_URL || '';}
-  if (urls.length === 1 || !origin) {return urls[0] ?? '';}
+  if (urls.length === 0) {
+    return process.env.BASE_URL || '';
+  }
+  if (urls.length === 1 || !origin) {
+    return urls[0] ?? '';
+  }
 
   const normalizedOrigin = origin.toLowerCase().trim().replace(/\/$/, '');
   const match = urls.find((url) => {

@@ -12,20 +12,23 @@ const createCustomer = async (
     phone?: string;
     metadata?: Record<string, string>;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<string | undefined> => {
   const connectedAccount = await onboardingRepository.findByOrganizationId(ctx.organizationId);
   if (!connectedAccount?.stripe_account_id) return undefined;
 
   try {
-    const customer = await stripe.customers.create({
-      email: params.email,
-      name: params.name,
-      phone: params.phone,
-      metadata: params.metadata,
-    }, {
-      stripeAccount: connectedAccount.stripe_account_id,
-    });
+    const customer = await stripe.customers.create(
+      {
+        email: params.email,
+        name: params.name,
+        phone: params.phone,
+        metadata: params.metadata,
+      },
+      {
+        stripeAccount: connectedAccount.stripe_account_id,
+      }
+    );
     return customer.id;
   } catch (error) {
     logger.error('Failed to create Stripe customer for {email}: {error}', {
@@ -44,19 +47,23 @@ const updateCustomer = async (
     name?: string;
     phone?: string;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<void> => {
   const connectedAccount = await onboardingRepository.findByOrganizationId(ctx.organizationId);
   if (!connectedAccount?.stripe_account_id) return;
 
   try {
-    await stripe.customers.update(params.customerId, {
-      email: params.email,
-      name: params.name,
-      phone: params.phone,
-    }, {
-      stripeAccount: connectedAccount.stripe_account_id,
-    });
+    await stripe.customers.update(
+      params.customerId,
+      {
+        email: params.email,
+        name: params.name,
+        phone: params.phone,
+      },
+      {
+        stripeAccount: connectedAccount.stripe_account_id,
+      }
+    );
   } catch (error) {
     logger.error('Failed to update Stripe customer {customerId}: {error}', {
       customerId: params.customerId,

@@ -99,15 +99,18 @@ const processClaimIntakeTx = async (
   const sysCtx = createSystemContext(lockedIntake.organization_id);
 
   // Note: No longer passes transaction - Stripe call happens outside this transaction
-  const userDetailsResult = await userDetailsService.createUserDetailsFromIntake({
-    data: {
-      intakeId: lockedIntake.id,
-      userId: userId,
-      email: intakeMetadata.email,
-      name: intakeMetadata.name,
-      phone: intakeMetadata.phone,
+  const userDetailsResult = await userDetailsService.createUserDetailsFromIntake(
+    {
+      data: {
+        intakeId: lockedIntake.id,
+        userId: userId,
+        email: intakeMetadata.email,
+        name: intakeMetadata.name,
+        phone: intakeMetadata.phone,
+      },
     },
-  }, sysCtx);
+    sysCtx
+  );
 
   if (!userDetailsResult.success) {
     return rollbackWithResult(

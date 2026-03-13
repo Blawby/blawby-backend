@@ -48,15 +48,18 @@ export const registerUserDetailsListeners = (): void => {
 
     const sysCtx = createSystemContext(organizationId);
 
-    const result = await userDetailsService.createUserDetailsFromIntake({
-      data: {
-        intakeId: payload.uuid,
-        userId, // Optional - will use email lookup if not provided
-        email: payload.client_email,
-        name: payload.client_name ?? '',
-        phone: undefined,
+    const result = await userDetailsService.createUserDetailsFromIntake(
+      {
+        data: {
+          intakeId: payload.uuid,
+          userId, // Optional - will use email lookup if not provided
+          email: payload.client_email,
+          name: payload.client_name ?? '',
+          phone: undefined,
+        },
       },
-    }, sysCtx);
+      sysCtx
+    );
 
     if (result.success) {
       logger.info('Successfully created user details from intake', {
@@ -84,13 +87,18 @@ export const registerUserDetailsListeners = (): void => {
 
     const sysCtx = createSystemContext(payload.organizationId);
 
-    const result = await userDetailsService.createUserDetails({
-      data: {
-        name: 'New Client', // Name might be updated later
-        email: payload.email,
-        status: 'active',
+    const DEFAULT_CLIENT_NAME = 'New Client';
+
+    const result = await userDetailsService.createUserDetails(
+      {
+        data: {
+          name: DEFAULT_CLIENT_NAME, // Name might be updated later
+          email: payload.email,
+          status: 'active',
+        },
       },
-    }, sysCtx);
+      sysCtx
+    );
 
     if (result.success) {
       if ('id' in result.data) {

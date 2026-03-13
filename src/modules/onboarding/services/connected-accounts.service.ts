@@ -53,8 +53,8 @@ const getAccountReadiness = (input: {
   const currentDeadline = requirements?.current_deadline ?? null;
 
   const capabilities = account.capabilities || {};
-  const hasCardPayments = capabilities.card_payments === 'active';
-  const hasTransfers = capabilities.transfers === 'active';
+  const hasCardPayments = capabilities['card_payments'] === 'active';
+  const hasTransfers = capabilities['transfers'] === 'active';
 
   const missingRequirements = [...currentDue, ...pastDue];
   const isBaseEnabled = account.charges_enabled && account.payouts_enabled;
