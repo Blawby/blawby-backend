@@ -87,10 +87,12 @@ export const registerUserDetailsListeners = (): void => {
 
     const sysCtx = createSystemContext(payload.organizationId);
 
+    const DEFAULT_CLIENT_NAME = 'New Client';
+
     const result = await userDetailsService.createUserDetails(
       {
         data: {
-          name: 'New Client', // Name might be updated later
+          name: DEFAULT_CLIENT_NAME, // Name might be updated later
           email: payload.email,
           status: 'active',
         },

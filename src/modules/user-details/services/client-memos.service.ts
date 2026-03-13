@@ -27,10 +27,10 @@ const createMemo = async (
       return notFound('Client not found');
     }
 
-    ForbiddenError.from(ctx.ability).throwUnlessCan(
-      'create',
-      toSubject('ClientMemo', { ...data, client_user_id: client.user_id })
-    );
+    const subject = toSubject('ClientMemo', { ...data, client_user_id: client.user_id });
+    if (!ctx.ability.can('create', subject)) {
+      return forbidden('Cannot create ClientMemo');
+    }
 
     const memo = await practiceClientMemosRepository.create({
       ...data,
@@ -40,7 +40,6 @@ const createMemo = async (
 
     return ok(memo);
   } catch (error) {
-    if (error instanceof ForbiddenError) return forbidden(error.message);
     logger.error('Failed to create memo for client {clientId}: {error}', { clientId, error });
     return internalError('Failed to create memo');
   }
