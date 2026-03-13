@@ -15,7 +15,7 @@ interface ComponentEntry {
   features?: Record<string, boolean>;
 }
 
-const COMPONENT_CONFIGS: Record<AllowedComponent, ComponentEntry> = {
+const COMPONENT_CONFIGS = {
   payments: {
     enabled: true,
     features: {
@@ -41,7 +41,7 @@ const COMPONENT_CONFIGS: Record<AllowedComponent, ComponentEntry> = {
   tax_settings: { enabled: true, features: {} },
   tax_exports: { enabled: true, features: {} },
   tax_threshold_monitoring: { enabled: true, features: {} },
-};
+} satisfies Record<AllowedComponent, ComponentEntry>;
 
 /**
  * Create a Stripe Account Session for the given organization and requested components.
@@ -56,9 +56,10 @@ const createAccountSession = async (
     return notFound('No connected Stripe account found for this practice');
   }
 
-  const builtComponents = Object.fromEntries(
-    components.map((name) => [name, COMPONENT_CONFIGS[name]])
-  ) as unknown as ComponentsParam;
+  const builtComponents = components.reduce(
+    (acc, name) => ({ ...acc, [name]: COMPONENT_CONFIGS[name] }),
+    {} as NonNullable<ComponentsParam>
+  );
 
   try {
     const session = await stripe.accountSessions.create({
@@ -76,7 +77,7 @@ const createAccountSession = async (
       error,
       organizationId,
     });
-    return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account session');
+    return internalError('Failed to create Stripe account session');
   }
 };
 
