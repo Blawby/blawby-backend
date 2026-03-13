@@ -4,14 +4,14 @@ import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 
 const logger = getLogger(['onboarding', 'handler', 'internal-events']);
-const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
+const APP_URL = process.env.APP_URL ?? 'https://app.blawby.com';
 
 /**
  * Internal handler for account updated event
  */
-export const handleAccountUpdatedInternal = async (event: BaseEvent): Promise<void> => {
+const handleAccountUpdatedInternal = async (event: BaseEvent): Promise<void> => {
   logger.info('Onboarding account updated: {stripeAccountId} for organization {organizationId}', {
-    stripeAccountId: event.payload?.stripe_account_id,
+    stripeAccountId: event.payload?.['stripe_account_id'],
     organizationId: event.organizationId,
   });
 };
@@ -19,17 +19,17 @@ export const handleAccountUpdatedInternal = async (event: BaseEvent): Promise<vo
 /**
  * Internal handler for account requirements changed event
  */
-export const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void> => {
+const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void> => {
   const { organizationId } = event;
   logger.info('Onboarding account requirements changed: {stripeAccountId}', {
-    stripeAccountId: event.payload?.stripe_account_id,
+    stripeAccountId: event.payload?.['stripe_account_id'],
     organizationId,
   });
 
   // Send verification needed email (fire and forget)
-  const payload = event.payload as Record<string, unknown>;
-  const email = typeof payload.billing_email === 'string' ? payload.billing_email : undefined;
-  const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
+  const { payload } = event;
+  const email = typeof payload['billing_email'] === 'string' ? payload['billing_email'] : undefined;
+  const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : 'there';
 
   if (email) {
     void addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {
@@ -54,9 +54,9 @@ export const handleAccountRequirementsChanged = async (event: BaseEvent): Promis
 /**
  * Internal handler for account capabilities updated event
  */
-export const handleCapabilitiesUpdatedInternal = async (event: BaseEvent): Promise<void> => {
+const handleCapabilitiesUpdatedInternal = async (event: BaseEvent): Promise<void> => {
   logger.info('Onboarding account capabilities updated: {stripeAccountId}', {
-    stripeAccountId: event.payload?.stripe_account_id,
+    stripeAccountId: event.payload?.['stripe_account_id'],
     organizationId: event.organizationId,
   });
 };
@@ -64,9 +64,9 @@ export const handleCapabilitiesUpdatedInternal = async (event: BaseEvent): Promi
 /**
  * Internal handler for external account created event
  */
-export const handleExternalAccountCreatedInternal = async (event: BaseEvent): Promise<void> => {
+const handleExternalAccountCreatedInternal = async (event: BaseEvent): Promise<void> => {
   logger.info('Onboarding external account created: {stripeAccountId}', {
-    stripeAccountId: event.payload?.stripe_account_id,
+    stripeAccountId: event.payload?.['stripe_account_id'],
     organizationId: event.organizationId,
   });
 };
@@ -74,9 +74,9 @@ export const handleExternalAccountCreatedInternal = async (event: BaseEvent): Pr
 /**
  * Internal handler for external account updated event
  */
-export const handleExternalAccountUpdatedInternal = async (event: BaseEvent): Promise<void> => {
+const handleExternalAccountUpdatedInternal = async (event: BaseEvent): Promise<void> => {
   logger.info('Onboarding external account updated: {stripeAccountId}', {
-    stripeAccountId: event.payload?.stripe_account_id,
+    stripeAccountId: event.payload?.['stripe_account_id'],
     organizationId: event.organizationId,
   });
 };
@@ -84,9 +84,18 @@ export const handleExternalAccountUpdatedInternal = async (event: BaseEvent): Pr
 /**
  * Internal handler for external account deleted event
  */
-export const handleExternalAccountDeletedInternal = async (event: BaseEvent): Promise<void> => {
+const handleExternalAccountDeletedInternal = async (event: BaseEvent): Promise<void> => {
   logger.info('Onboarding external account deleted: {stripeAccountId}', {
-    stripeAccountId: event.payload?.stripe_account_id,
+    stripeAccountId: event.payload?.['stripe_account_id'],
     organizationId: event.organizationId,
   });
+};
+
+export {
+  handleAccountRequirementsChanged,
+  handleAccountUpdatedInternal,
+  handleCapabilitiesUpdatedInternal,
+  handleExternalAccountCreatedInternal,
+  handleExternalAccountUpdatedInternal,
+  handleExternalAccountDeletedInternal,
 };

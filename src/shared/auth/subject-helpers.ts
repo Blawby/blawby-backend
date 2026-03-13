@@ -19,9 +19,6 @@ import type { SubjectName, Subject } from '@/shared/auth/abilities';
  * It returns the `Subject` union type to ensure compatibility with the system's
  * ability definitions without requiring inline casting in service calls.
  */
-export function toSubject<T extends Exclude<SubjectName, 'all'>>(
-  type: T,
-  obj: object,
-): Subject {
+export function toSubject<T extends Exclude<SubjectName, 'all'>>(type: T, obj: object): Subject {
   return subject(type, obj as Record<string, unknown>) as Subject;
 }

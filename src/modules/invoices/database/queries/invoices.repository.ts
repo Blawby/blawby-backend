@@ -18,6 +18,11 @@ const { invoiceLineItems } = invoiceLineItemsSchema;
 const createInvoice = async (data: InsertInvoice, tx?: typeof db): Promise<SelectInvoice> => {
   const client = tx || db;
   const [invoice] = await client.insert(invoices).values(data).returning();
+
+  if (!invoice) {
+    throw new Error('Failed to create invoice');
+  }
+
   return invoice;
 };
 
@@ -115,7 +120,7 @@ const listInvoicesByOrganization = async (
 
   return {
     invoices: results,
-    total: Number(countResult.count),
+    total: Number(countResult?.count ?? 0),
   };
 };
 

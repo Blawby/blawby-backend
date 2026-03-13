@@ -13,22 +13,12 @@ import { AddressInput } from '@/modules/user-details/types';
 import { users } from '@/schema/better-auth-schema';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
-import {
-  UserDetailsCreated,
-  UserDetailsUpdated,
-  UserDetailsDeleted,
-} from '@/shared/events/definitions';
+import { UserDetailsCreated, UserDetailsUpdated, UserDetailsDeleted } from '@/shared/events/definitions';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import {
-  ok,
-  internalError,
-  notFound,
-  forbidden,
-  type AcceptedResponse,
-} from '@/shared/utils/result';
+import { ok, internalError, notFound, forbidden, type AcceptedResponse } from '@/shared/utils/result';
 
 const logger = getLogger(['user-details', 'crud-service']);
 
@@ -43,16 +33,23 @@ const createUserDetails = async (
       currency?: string;
     };
   },
-  ctx: ServiceContext,
-): Promise<Result<SelectUserDetail & {
-  user: typeof users.$inferSelect;
-} | AcceptedResponse>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<
+    | (SelectUserDetail & {
+        user: typeof users.$inferSelect;
+      })
+    | AcceptedResponse
+  >
+> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'UserDetails');
 
-  let eventData: {
-    detail: SelectUserDetail;
-    user: typeof users.$inferSelect;
-  } | undefined;
+  let eventData:
+    | {
+        detail: SelectUserDetail;
+        user: typeof users.$inferSelect;
+      }
+    | undefined;
 
   const { data } = params;
   try {
@@ -74,15 +71,18 @@ const createUserDetails = async (
     }
 
     // External call intentionally happens before transaction to avoid holding DB locks.
-    const stripeCustomerId = await userDetailsStripeService.createCustomer({
-      email: user.email,
-      name: user.name,
-      phone: user.phone || undefined,
-      metadata: {
-        organization_id: ctx.organizationId,
-        source: 'blawby_clients_api',
+    const stripeCustomerId = await userDetailsStripeService.createCustomer(
+      {
+        email: user.email,
+        name: user.name,
+        phone: user.phone || undefined,
+        metadata: {
+          organization_id: ctx.organizationId,
+          source: 'blawby_clients_api',
+        },
       },
-    }, ctx);
+      ctx
+    );
 
     const txResult = await db.transaction(async (tx) => {
       try {
@@ -127,13 +127,16 @@ const createUserDetails = async (
     });
 
     if (txResult.success && eventData) {
-      void UserDetailsCreated.dispatch({
-        user_detail_id: eventData.detail.id,
-        user_id: eventData.user.id,
-        name: eventData.user.name,
-        email: eventData.user.email,
-        stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
-      }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+      void UserDetailsCreated.dispatch(
+        {
+          user_detail_id: eventData.detail.id,
+          user_id: eventData.user.id,
+          name: eventData.user.name,
+          email: eventData.user.email,
+          stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
+        },
+        { actorId: ctx.userId, organizationId: ctx.organizationId }
+      );
     }
 
     return txResult;
@@ -158,16 +161,18 @@ const updateUserDetails = async (
       currency?: string;
     };
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectUserDetail, { stripeSyncFailed?: boolean }>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserDetails');
   const { id, data } = params;
-  let stripeSyncPayload: {
-    customerId: string;
-    email?: string;
-    name?: string;
-    phone?: string;
-  } | undefined;
+  let stripeSyncPayload:
+    | {
+        customerId: string;
+        email?: string;
+        name?: string;
+        phone?: string;
+      }
+    | undefined;
 
   const txResult = await db.transaction(async (tx) => {
     try {
@@ -179,11 +184,15 @@ const updateUserDetails = async (
       ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('UserDetails', detailWithUser));
 
       if (data.name || data.email || data.phone) {
-        await usersRepository.update(detailWithUser.user_id, {
-          name: data.name,
-          email: data.email?.toLowerCase(),
-          phone: data.phone,
-        }, tx);
+        await usersRepository.update(
+          detailWithUser.user_id,
+          {
+            name: data.name,
+            email: data.email?.toLowerCase(),
+            phone: data.phone,
+          },
+          tx
+        );
 
         if (detailWithUser.stripe_customer_id) {
           stripeSyncPayload = {
@@ -213,21 +222,28 @@ const updateUserDetails = async (
         addressId = address?.id ?? addressId;
       }
 
-      const updated = await userDetailsRepository.update(id, {
-        address_id: addressId,
-        status: data.status,
-        currency: data.currency,
-      }, tx);
+      const updated = await userDetailsRepository.update(
+        id,
+        {
+          address_id: addressId,
+          status: data.status,
+          currency: data.currency,
+        },
+        tx
+      );
       if (!updated) return internalError('Failed to update user details');
 
-      await UserDetailsUpdated.dispatch({
-        user_detail_id: updated.id,
-        changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
-      }, {
-        actorId: ctx.userId,
-        organizationId: ctx.organizationId,
-        tx,
-      });
+      await UserDetailsUpdated.dispatch(
+        {
+          user_detail_id: updated.id,
+          changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
+        },
+        {
+          actorId: ctx.userId,
+          organizationId: ctx.organizationId,
+          tx,
+        }
+      );
 
       return ok(updated);
     } catch (error) {
@@ -266,14 +282,16 @@ const listUserDetails = async (
     limit?: number;
     offset?: number;
   },
-  ctx: ServiceContext,
-): Promise<Result<{
-  data: (SelectUserDetail & {
-    user: typeof users.$inferSelect;
-    address: Address | null;
-  })[];
-  total: number;
-}>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<{
+    data: (SelectUserDetail & {
+      user: typeof users.$inferSelect;
+      address: Address | null;
+    })[];
+    total: number;
+  }>
+> => {
   if (ctx.ability.can('read', 'UserDetails')) {
     // Admin/Member can list all or filter by clientId
   } else if (ctx.ability.can('read', toSubject('UserDetails', { user_id: ctx.userId }))) {
@@ -298,10 +316,7 @@ const listUserDetails = async (
   }
 };
 
-const deleteUserDetail = async (
-  params: { id: string },
-  ctx: ServiceContext,
-): Promise<Result<void>> => {
+const deleteUserDetail = async (params: { id: string }, ctx: ServiceContext): Promise<Result<void>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'UserDetails');
   const { id } = params;
   try {
@@ -315,7 +330,7 @@ const deleteUserDetail = async (
     await userDetailsRepository.softDelete(id, ctx.userId);
     void UserDetailsDeleted.dispatch(
       { user_detail_id: id },
-      { actorId: ctx.userId, organizationId: ctx.organizationId },
+      { actorId: ctx.userId, organizationId: ctx.organizationId }
     );
 
     return ok(undefined);
@@ -327,10 +342,14 @@ const deleteUserDetail = async (
 
 const ensureClientSetup = async (
   params: { id: string },
-  ctx: ServiceContext,
-): Promise<Result<SelectUserDetail & {
-  user: typeof users.$inferSelect;
-}>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<
+    SelectUserDetail & {
+      user: typeof users.$inferSelect;
+    }
+  >
+> => {
   const { id } = params;
   try {
     const detail = await userDetailsRepository.findById(id);
@@ -344,15 +363,18 @@ const ensureClientSetup = async (
     let didBackfillStripeCustomerId = false;
 
     if (!detail.stripe_customer_id) {
-      const stripeCustomerId = await userDetailsStripeService.createCustomer({
-        email: user.email,
-        name: user.name,
-        phone: user.phone || undefined,
-        metadata: {
-          organization_id: ctx.organizationId,
-          source: 'auto_vivification_sync',
+      const stripeCustomerId = await userDetailsStripeService.createCustomer(
+        {
+          email: user.email,
+          name: user.name,
+          phone: user.phone || undefined,
+          metadata: {
+            organization_id: ctx.organizationId,
+            source: 'auto_vivification_sync',
+          },
         },
-      }, ctx);
+        ctx
+      );
 
       if (stripeCustomerId) {
         await userDetailsRepository.update(id, {
@@ -364,10 +386,13 @@ const ensureClientSetup = async (
     }
 
     if (didBackfillStripeCustomerId) {
-      void UserDetailsUpdated.dispatch({
-        user_detail_id: detail.id,
-        changes: { stripe_customer_id: true },
-      }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+      void UserDetailsUpdated.dispatch(
+        {
+          user_detail_id: detail.id,
+          changes: { stripe_customer_id: true },
+        },
+        { actorId: ctx.userId, organizationId: ctx.organizationId }
+      );
     }
 
     return ok({ ...detail, user });
@@ -388,15 +413,9 @@ const createUserDetailsFromIntake = async (
       metadata?: Record<string, unknown>;
     };
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectUserDetail>> => {
-  const {
-    intakeId,
-    userId,
-    email,
-    name,
-    phone,
-  } = params.data;
+  const { intakeId, userId, email, name, phone } = params.data;
   try {
     const intake = await practiceClientIntakesRepository.findById(intakeId);
     if (!intake) return notFound(`Intake record with ID '${intakeId}' not found`);
@@ -427,11 +446,13 @@ const createUserDetailsFromIntake = async (
     const [existingDetail] = await db
       .select()
       .from(userDetails)
-      .where(and(
-        eq(userDetails.organization_id, ctx.organizationId),
-        eq(userDetails.user_id, user.id),
-        isNull(userDetails.deleted_at),
-      ))
+      .where(
+        and(
+          eq(userDetails.organization_id, ctx.organizationId),
+          eq(userDetails.user_id, user.id),
+          isNull(userDetails.deleted_at)
+        )
+      )
       .limit(1);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
@@ -440,22 +461,28 @@ const createUserDetailsFromIntake = async (
           .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
           .where(eq(userDetails.id, existingDetail.id))
           .returning();
-        void UserDetailsUpdated.dispatch({
-          user_detail_id: updatedDetail.id,
-          changes: { intake_id: true, status: true },
-        }, { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId });
+        void UserDetailsUpdated.dispatch(
+          {
+            user_detail_id: updatedDetail.id,
+            changes: { intake_id: true, status: true },
+          },
+          { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
+        );
         return ok(updatedDetail);
       }
       return ok(existingDetail);
     }
 
     // External call happens BEFORE transaction to avoid holding DB locks
-    const stripeCustomerId = await userDetailsStripeService.createCustomer({
-      email: user.email,
-      name: user.name,
-      phone: user.phone || undefined,
-      metadata: { organization_id: ctx.organizationId, intake_id: intakeId, source: 'blawby_intake' },
-    }, ctx);
+    const stripeCustomerId = await userDetailsStripeService.createCustomer(
+      {
+        email: user.email,
+        name: user.name,
+        phone: user.phone || undefined,
+        metadata: { organization_id: ctx.organizationId, intake_id: intakeId, source: 'blawby_intake' },
+      },
+      ctx
+    );
 
     // Transaction only for database operations
     const txResult = await db.transaction(async (tx) => {
@@ -482,13 +509,16 @@ const createUserDetailsFromIntake = async (
     const detail = txResult.data;
 
     // Event dispatch happens AFTER transaction completes
-    void UserDetailsCreated.dispatch({
-      user_detail_id: detail.id,
-      user_id: user.id,
-      name: user.name,
-      email: user.email,
-      stripe_customer_id: detail.stripe_customer_id ?? undefined,
-    }, { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId });
+    void UserDetailsCreated.dispatch(
+      {
+        user_detail_id: detail.id,
+        user_id: user.id,
+        name: user.name,
+        email: user.email,
+        stripe_customer_id: detail.stripe_customer_id ?? undefined,
+      },
+      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
+    );
 
     return ok(detail);
   } catch (error) {

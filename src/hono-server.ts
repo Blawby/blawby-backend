@@ -1,8 +1,11 @@
 import { serve } from '@hono/node-server';
 import closeWithGrace from 'close-with-grace';
-import './boot/env';
-import app from './hono-app';
+import { getLogger } from '@logtape/logtape';
+import '@/boot/env';
+import app from '@/hono-app';
 import { initializeLogging } from '@/shared/logging/config';
+
+const logger = getLogger(['app', 'server']);
 
 // Initialize logging specifically here to ensure it's available as early as possible
 await initializeLogging();
@@ -19,10 +22,10 @@ const server = serve(
   },
   (info) => {
     const displayHost = host === '0.0.0.0' ? 'localhost' : host;
-    console.log(`🔥 Hono server running on http://${displayHost}:${info.port}`);
-    console.log(`📚 API Docs: http://${displayHost}:${info.port}/docs`);
+    logger.info('🔥 Hono server running on http://{displayHost}:{port}', { displayHost, port: info.port });
+    logger.info('📚 API Docs: http://{displayHost}:{port}/docs', { displayHost, port: info.port });
     if (host === '0.0.0.0') {
-      console.log('🌐 Server listening on all interfaces');
+      logger.info('🌐 Server listening on all interfaces');
     }
   }
 );
@@ -30,17 +33,19 @@ const server = serve(
 // Graceful shutdown
 closeWithGrace({ delay: 500 }, async ({ signal, err, manual }) => {
   if (err) {
-    console.error('Server error:', err);
+    logger.error('Server error: {error}', { error: err });
   }
 
-  console.log(`\n🛑 Received ${signal || (manual ? 'manual' : 'unknown')} signal. Shutting down gracefully...`);
+  logger.info('🛑 Received {signal} signal. Shutting down gracefully...', {
+    signal: signal || (manual ? 'manual' : 'unknown'),
+  });
 
   try {
     void server.close();
-    console.log('✅ Server closed successfully');
+    logger.info('✅ Server closed successfully');
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error during shutdown:', error);
+    logger.error('❌ Error during shutdown: {error}', { error });
     process.exit(1);
   }
 });
