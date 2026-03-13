@@ -1,7 +1,7 @@
 /**
  * Independent Database Connection
  *
- * This creates a standalone database connection that doesn't depend on Fastify plugins.
+ * This creates a standalone database connection for use with Hono.
  * Uses lazy initialization to ensure environment variables are loaded before connecting.
  */
 

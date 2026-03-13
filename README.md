@@ -69,70 +69,80 @@ PORT=3000
 
 ```
 src/
-├── app.ts                 # Main Fastify application entry point
-├── server.ts              # Server configuration and startup
-├── auth.ts                # Better Auth configuration
-├── database/               # Database connection and migrations
-│   ├── index.ts           # Database client setup
-│   └── migrations/        # Drizzle migration files
-├── shared/                 # Shared utilities and middleware
+├── hono-app.ts            # Main Hono application entry point
+├── hono-server.ts         # Server configuration and startup
+├── shared/                # Shared utilities and middleware
 │   ├── auth/              # Authentication system
 │   │   ├── better-auth.ts # Better Auth configuration
 │   │   └── verify-auth.ts # Auth verification middleware
 │   ├── database/          # Database utilities
+│   │   └── index.ts       # Database client setup
 │   ├── queue/             # Job queue system (Graphile Worker)
 │   │   ├── graphile-worker.client.ts # Graphile Worker client
 │   │   ├── queue.manager.ts # Job queue management
 │   │   └── queue.config.ts # Queue configuration
-│   ├── middleware/        # Fastify middleware plugins
-│   │   ├── cors.ts        # CORS configuration
-│   │   ├── helmet.ts      # Security headers
-│   │   ├── rate-limit.ts  # Rate limiting
-│   │   └── sensible.ts    # Error handling
-│   ├── router/            # File-based routing system
+│   ├── middleware/        # Hono middleware functions
+│   │   ├── index.ts       # Core middleware (CORS, error handling, logging)
+│   │   ├── autoCreateOrgForSubscription.ts
+│   │   ├── normalizeAuthResponse.ts
+│   │   └── sanitizeAuthResponse.ts
+│   ├── router/            # Module-based routing system
+│   │   ├── module-router.ts # Module route registration
+│   │   └── openapi-router.ts # OpenAPI route collection
 │   ├── types/             # Global TypeScript definitions
-│   │   └── result.ts      # Standard Result & AppError types
+│   │   └── hono.ts        # Hono app context and types
 │   └── utils/             # Utility functions
-│       └── result.ts      # Internal result creation helpers (ok, fail, etc.)
+│       └── result.ts      # Result pattern helpers (ok, fail, etc.)
 ├── workers/                # Background worker processes
-│   ├── webhook.worker.ts  # Graphile Worker runner for webhooks
-│   └── tasks/             # Graphile Worker task definitions
-│       ├── process-stripe-webhook.ts
-│       ├── process-onboarding-webhook.ts
-│       └── process-event-handler.ts
+│   ├── event.worker.ts    # Event processing worker
+│   └── email.worker.ts    # Email sending worker
+├── boot/                   # Application bootstrapping
+│   ├── index.ts           # Main boot function
+│   ├── env.ts             # Environment setup
+│   ├── services.ts        # Service initialization
+│   ├── event-handlers.ts  # Event handler registration
+│   └── workers.ts         # Worker initialization
 ├── schema/                 # Drizzle schema definitions
 │   ├── index.ts           # Schema exports
 │   └── better-auth-schema.ts # Better Auth schemas
 ├── types/                  # Global TypeScript type definitions
 └── modules/                # Feature-based modules
+    ├── auth/               # Authentication features
     ├── billing/            # Payment and billing features
     ├── practice/           # Practice/organization management
-    ├── settings/           # User and org settings
-    └── health/             # Health check endpoints
+    ├── matters/            # Legal matter management
+    ├── invoices/           # Invoice and billing management
+    ├── practice-client-intakes/ # Client intake management
+    ├── user-details/       # User profile management
+    ├── onboarding/         # User onboarding flows
+    ├── uploads/            # File upload handling
+    ├── trust/              # Trust accounting features
+    ├── subscriptions/      # Subscription management
+    └── dev/                # Development utilities
 ```
 
 ### Application Bootstrap Flow
 
 ```mermaid
 graph TD
-    A[server.ts - Entry Point] --> B[Create Fastify Instance]
-    B --> C[Configure Logger]
-    C --> D[Register Main App]
-    D --> E[Start Server on Port 3000]
+    A[hono-server.ts - Entry Point] --> B[Initialize Logging]
+    B --> C[Import Hono App]
+    C --> D[Start Server on Port 3000]
 
-    E --> F[app.ts - Application Setup]
-    F --> G[1. Infrastructure Plugins]
-    G --> H[Sensible - Error Handling]
+    D --> E[hono-app.ts - Application Setup]
+    E --> F[1. Core Middleware]
+    F --> G[requestId - Request ID generation]
+    G --> H[honoLogger - Request logging]
     H --> I[CORS - Cross-Origin]
-    I --> J[Helmet - Security Headers]
-    J --> K[Rate Limit - 100 req/min]
+    I --> J[responseMiddleware - Response handling]
 
-    K --> L[2. Core Services]
-    L --> M[Database Plugin]
-    M --> N[Better Auth Plugin]
-    N --> O[Auth Core Plugin]
+    J --> K[2. Auth Middlewares]
+    K --> L[normalizeAuthResponse]
+    L --> M[sanitizeAuthResponse]
+    M --> N[autoCreateOrgForSubscription]
 
-    O --> P[3. File-Based Routes]
+    N --> O[3. Better Auth Handler]
+    O --> P[4. Module Routes]
     P --> Q[Auto-Discovery Complete]
     Q --> R[Server Ready]
 ```
@@ -164,40 +174,34 @@ modules/{feature-name}/
 └── index.ts                # Feature exports
 ```
 
-### File-Based Routing System
+### Module-Based Routing System
 
-**Implementation**: `src/shared/router/file-router.ts`
+**Implementation**: `src/shared/router/module-router.ts`
 
 ```mermaid
 graph TD
-    A[File Router Plugin] --> B[Scan modules/*/routes/]
-    B --> C[Parse Filename]
-    C --> D{File Pattern?}
+    A[Module Router] --> B[Scan modules/*/routes.ts]
+    B --> C[Load Route Module]
+    C --> D{Route Type?}
 
-    D -->|list.get.ts| E[GET /api/practice/list]
-    D -->|index.post.ts| F[POST /api/practice/]
-    D -->|[id].put.ts| G[PUT /api/practice/:id]
-    D -->|organization/[orgId]/status.get.ts| H[GET /api/practice/organization/:orgId/status]
+    D -->|OpenAPIHono| E[Collect OpenAPI Routes]
+    D -->|Standard Hono| F[Register Direct Routes]
 
-    E --> I[Load Route Config]
-    F --> I
-    G --> I
+    E --> G[Add to OpenAPI Document]
+    F --> H[Mount to Main App]
+
+    G --> I[Routes Available]
     H --> I
 
-    I --> J{Protected Route?}
-    J -->|Yes| K[Add Auth Middleware]
-    J -->|No| L[Register Route]
-    K --> L
-
-    L --> M[Route Active]
+    I --> J[Server Ready]
 ```
 
-**Route Discovery Process**:
+**Route Registration Process**:
 
-1. **Scan**: `src/modules/*/routes/` directories
-2. **Parse**: Filename to determine HTTP method and path
-3. **Configure**: Apply route configuration from `routes.config.ts`
-4. **Register**: With Fastify and proper middleware
+1. **Scan**: `src/modules/*/routes.ts` or `src/modules/*/http.ts` files
+2. **Load**: Import route modules
+3. **Register**: Mount routes to main Hono app
+4. **Document**: Collect OpenAPI routes for documentation
 5. **Authenticate**: Apply auth based on configuration
 
 ## Request Flow Architecture
@@ -206,11 +210,11 @@ graph TD
 
 ```mermaid
 graph TD
-    A[Client Request] --> B[Fastify Server]
+    A[Client Request] --> B[Hono Server]
     B --> C[Global Middleware]
-    C --> D[Rate Limiting]
-    D --> E[CORS Check]
-    E --> F[Security Headers]
+    C --> D[Request ID]
+    D --> E[Logging]
+    E --> F[CORS Check]
     F --> G[Route Resolution]
     G --> H{Protected Route?}
     H -->|Yes| I[Auth Verification]
@@ -234,7 +238,7 @@ graph TD
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Fastify
+    participant Hono
     participant Middleware
     participant Auth
     participant Route
@@ -242,28 +246,28 @@ sequenceDiagram
     participant Database
     participant Response
 
-    Client->>Fastify: GET /api/practice/list<br/>Authorization: Bearer token
+    Client->>Hono: GET /api/practice/list<br/>Authorization: Bearer token
 
-    Fastify->>Middleware: 1. Rate Limiting Check
-    Middleware-->>Fastify: ✓ Rate limit OK
+    Hono->>Middleware: 1. Request ID Generation
+    Middleware-->>Hono: ✓ Request ID Set
 
-    Fastify->>Middleware: 2. CORS Validation
-    Middleware-->>Fastify: ✓ CORS OK
+    Hono->>Middleware: 2. Logging
+    Middleware-->>Hono: ✓ Request Logged
 
-    Fastify->>Middleware: 3. Security Headers
-    Middleware-->>Fastify: ✓ Headers Applied
+    Hono->>Middleware: 3. CORS Validation
+    Middleware-->>Hono: ✓ CORS OK
 
-    Fastify->>Route: 4. Route Resolution
-    Route-->>Fastify: ✓ Route Found (list.get.ts)
+    Hono->>Route: 4. Route Resolution
+    Route-->>Hono: ✓ Route Found
 
-    Fastify->>Auth: 5. Authentication Check
+    Hono->>Auth: 5. Authentication Check
     Auth->>Auth: Extract Bearer Token
     Auth->>Auth: Call Better Auth getSession
     Auth->>Database: Validate Organization Access
     Database-->>Auth: ✓ Organization Valid
-    Auth-->>Fastify: ✓ User Authenticated
+    Auth-->>Hono: ✓ User Authenticated
 
-    Fastify->>Route: 6. Route Handler Execution
+    Hono->>Route: 6. Route Handler Execution
     Route->>Service: Call listPractices()
 
     Service->>Database: 7. Query Organizations
@@ -322,8 +326,8 @@ graph TD
     J --> K[Add User Context]
     K --> L[Add Stack Trace]
 
-    L --> M[Re-throw to Fastify]
-    M --> N[Fastify Error Response]
+    L --> M[Hono Error Handler]
+    M --> N[Format Error Response]
     N --> O[Client Receives Error]
 ```
 
@@ -347,7 +351,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A[Better Auth Plugin] --> B[Create Auth Instance]
+    A[Better Auth Creation] --> B[Create Auth Instance]
     B --> C[Configure Database Adapter]
     C --> D[Setup Plugins]
     D --> E[JWT Plugin]
@@ -355,12 +359,12 @@ graph TD
     D --> G[Organization Plugin]
     D --> H[Multi-Session Plugin]
 
-    E --> I[Register with Fastify]
+    E --> I[Export to Hono App]
     F --> I
     G --> I
     H --> I
 
-    I --> J[Decorate Fastify Instance]
+    I --> J[Mount Handler in Hono]
     J --> K[Auth Routes Available]
     K --> L[/api/auth/* endpoints]
 ```
@@ -1105,19 +1109,23 @@ export * from '../modules/settings/schemas/settings.schema';
 
 ### Core Dependencies
 
-- **Fastify**: Web framework
+- **Hono**: Lightweight web framework
 - **Better Auth**: Authentication system
 - **Drizzle ORM**: Database ORM
 - **PostgreSQL**: Database
 - **Stripe**: Payment processing
 - **Zod**: Schema validation
+- **Graphile Worker**: Background job processing
+- **Resend**: Email sending
+- **AWS SDK**: S3 file storage
 
 ### Development Dependencies
 
 - **TypeScript**: Type system
-- **ESLint**: Code linting
-- **Prettier**: Code formatting
-- **Jest**: Testing framework
+- **ESLint / Oxlint**: Code linting
+- **Tap**: Testing framework
+- **TSX**: TypeScript execution
+- **Tsup**: Build tooling
 
 ## Configuration Files
 
@@ -1181,9 +1189,9 @@ export * from '../modules/settings/schemas/settings.schema';
 
 ### Application
 
-- Fastify's high-performance architecture
-- Efficient request handling
-- Minimal middleware overhead
+- Hono's lightweight, high-performance architecture
+- Efficient middleware system
+- Minimal overhead with trie-router and regexp-router
 
 ## Background Job Processing (Graphile Worker)
 
@@ -1359,13 +1367,14 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 
 ## Conclusion
 
-The Blawby TypeScript project has evolved into a robust, feature-rich application with:
+The Blawby TypeScript project is a robust, feature-rich application built with:
 
-- **Solid Foundation**: Fastify + Better Auth + Drizzle ORM
+- **Solid Foundation**: Hono + Better Auth + Drizzle ORM
 - **Clean Architecture**: Feature-based modules with clear separation
 - **Security**: Comprehensive authentication and authorization
 - **Scalability**: Designed for growth and expansion
 - **Maintainability**: Clean code with proper error handling
+- **Performance**: Lightweight Hono framework with efficient routing
 
 The project is well-positioned for continued development and feature expansion, with a clear roadmap for implementing team payments and other advanced features.
 

@@ -217,12 +217,13 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/user-details/`
 
-- [ ] Wire `injectAbility()` in `http.ts`
-- [ ] Rewrite handlers to use `getServiceContext(c)` (currently: manual `organizationId` extraction)
-- [ ] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
-- [ ] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
-- [ ] Add CASL ownership checks
-- [ ] Remove `if (!user)` checks
+- [x] Wire `injectAbility()` in `http.ts`
+- [x] Rewrite handlers to use `getServiceContext(c)`
+- [x] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
+- [x] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
+- [x] Add CASL ownership checks
+- [x] Remove `if (!user)` checks
+- [x] Extract `resolveUserForIntake` to `user-details-utils.ts`
 
 ---
 
@@ -451,13 +452,13 @@ PR-14 (Env Config) ── independent, merge any time
 
 | Metric | Before | Now | Target |
 |--------|--------|-----|--------|
-| Modules using `ServiceContext` | 2 | **3** (matters, preferences, invoices) | all |
-| Modules using CASL | 2 | **3** | all authenticated |
-| Service files >200 lines | 9 | **~14** | **0** |
+| Modules using `ServiceContext` | 2 | **4** (matters, preferences, invoices, user-details) | all |
+| Modules using CASL | 2 | **4** | all authenticated |
+| Service files >200 lines | 9 | **~13** | **0** |
 | Route files >300 lines | 3 | **3** | **0** |
-| `if (!user)` checks | ~50 | **~2** | **0** |
+| `if (!user)` checks | ~50 | **0** | **0** |
 | `computeRoutingClaims` usages | ~15 | **0** | **0** |
-| `requestHeaders` params | ~20 | **~10** | **0** |
+| `requestHeaders` params | ~20 | **~5** | **0** |
 | Direct `process.env` reads | 70 files | **24 files** | **0** |
-| `any` type usages | 23 files | **6 files** | **0** |
+| `any` type usages | 23 files | **5 files** | **0** |
 | `as` type assertions | many | many | **0** |

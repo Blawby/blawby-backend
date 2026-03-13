@@ -1,9 +1,12 @@
 import * as handlers from '@/modules/user-details/handlers';
 import * as routes from '@/modules/user-details/routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const userDetailsApp = createHonoApp();
+
+userDetailsApp.use('*', injectAbility());
 
 // User Details (Note: No POST/create - clients are created via intake or invitation flows)
 userDetailsApp.openapi(routes.listUserDetailsRoute, handlers.listUserDetailsHandler);

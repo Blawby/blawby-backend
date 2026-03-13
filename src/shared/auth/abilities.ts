@@ -16,7 +16,9 @@ export type SubjectName =
   | 'User'
   | 'Organization'
   | 'Matter'
-  | 'Invoice';
+  | 'Invoice'
+  | 'UserDetails'
+  | 'ClientMemo';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
@@ -47,19 +49,25 @@ export const defineAbilityFor = (
   if (orgRole && (ADMIN_ROLES as readonly string[]).includes(orgRole)) {
     can('manage', 'all');
   } else if (orgRole && (MEMBER_ROLES as readonly string[]).includes(orgRole)) {
-    // Specific roles logic
+    // Member roles have broad read access but restricted manage access
     can('read', 'all');
     can('update', 'OrganizationPreferences');
     can('update', 'Matter');
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');
+    can('manage', 'UserDetails');
+    can('manage', 'ClientMemo');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');
     // They can manage their own intake data
     if (metadata.userId) {
-      can('manage', 'PracticeClientIntake');
+      const canWithConditions = can as unknown as (action: Action, subject: SubjectName, conditions: unknown) => void;
+      canWithConditions('manage', 'PracticeClientIntake', { userId: metadata.userId });
+      canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('update', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('read', 'ClientMemo', { client_user_id: metadata.userId });
     }
   }
 

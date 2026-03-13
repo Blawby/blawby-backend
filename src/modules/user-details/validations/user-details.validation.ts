@@ -24,6 +24,9 @@ export const createUserDetailsSchema = z
   })
   .openapi('CreateUserDetails');
 
+export const addressSchema = createUserDetailsSchema.shape.address.unwrap();
+export type AddressInputSchema = z.infer<typeof addressSchema>;
+
 export const updateUserDetailsSchema = createUserDetailsSchema.partial().openapi('UpdateUserDetails');
 
 export const listUserDetailsSchema = z

@@ -14,7 +14,7 @@ export const response = {
    * Automatically convert a Result<T> to a Hono response
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fromResult: <T>(c: Context, result: Result<T>, successCode: StatusCode = 200): any => {
+  fromResult: <T, M = undefined>(c: Context, result: Result<T, M>, successCode: StatusCode = 200): any => {
     if (result.success) {
       if ((successCode as number) === 204) {
         return c.body(null, 204);
