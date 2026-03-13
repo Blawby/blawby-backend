@@ -89,6 +89,10 @@ const buildOpenApiDocument = () => {
       name: 'Matters Management',
       tags: ['Matters: General', 'Matters: Notes', 'Matters: Time Entries', 'Matters: Expenses', 'Matters: Milestones'],
     },
+    {
+      name: 'Stripe Connect',
+      tags: ['Stripe Connect'],
+    },
   ];
 
   return doc;

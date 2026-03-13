@@ -37,7 +37,7 @@ closeWithGrace({ delay: 500 }, async ({ signal, err, manual }) => {
   }
 
   logger.info('🛑 Received {signal} signal. Shutting down gracefully...', {
-    signal: signal || (manual ? 'manual' : 'unknown'),
+    signal: signal ?? (manual ? 'manual' : 'unknown'),
   });
 
   try {
