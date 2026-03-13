@@ -1,11 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { users } from '@/schema';
@@ -25,18 +19,14 @@ export const matterNotes = pgTable(
         onDelete: 'cascade',
       }),
     content: text('content').notNull(),
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('matter_notes_matter_idx').on(table.matter_id),
     index('matter_notes_user_idx').on(table.user_id),
     index('matter_notes_created_at_idx').on(table.created_at),
-  ],
+  ]
 );
 
 // Define relations

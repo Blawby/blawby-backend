@@ -1,13 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  integer,
-  boolean,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { users } from '@/schema';
 import { organizations } from '@/schema';
@@ -56,9 +48,7 @@ export const uploads = pgTable(
     deletion_reason: varchar('deletion_reason', { length: 255 }),
 
     // Timestamps
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     verified_at: timestamp('verified_at', { withTimezone: true, mode: 'date' }),
     expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }), // For cleanup of unconfirmed uploads
   },
@@ -69,7 +59,7 @@ export const uploads = pgTable(
     index('uploads_status_idx').on(table.status),
     index('uploads_matter_id_idx').on(table.matter_id),
     index('uploads_created_at_idx').on(table.created_at),
-  ],
+  ]
 );
 
 // Define relations

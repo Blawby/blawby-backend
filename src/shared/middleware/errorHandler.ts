@@ -24,11 +24,14 @@ export const errorHandler: ErrorHandler = (error, c) => {
       organizationId: c.get('activeOrganizationId'),
       requestId,
     });
-    return c.json({
-      error: 'FORBIDDEN',
-      message: error.message,
-      request_id: requestId,
-    }, 403);
+    return c.json(
+      {
+        error: 'FORBIDDEN',
+        message: error.message,
+        request_id: requestId,
+      },
+      403
+    );
   }
 
   const appError = error as Partial<AppError>;
@@ -36,26 +39,26 @@ export const errorHandler: ErrorHandler = (error, c) => {
   const message = error instanceof Error ? error.message : 'Internal Server Error';
   const code = appError.code || 'INTERNAL_SERVER_ERROR';
 
-  logger.error(
-    'Unexpected error occurred: {message} [{code}] ({status}) {method} {url}',
-    {
-      message,
-      code,
-      status,
-      method: c.req.method,
-      url: c.req.url,
-      requestId,
-      responseTime,
-      error,
-      userId: c.get('userId'),
-      organizationId: c.get('activeOrganizationId'),
-    },
-  );
+  logger.error('Unexpected error occurred: {message} [{code}] ({status}) {method} {url}', {
+    message,
+    code,
+    status,
+    method: c.req.method,
+    url: c.req.url,
+    requestId,
+    responseTime,
+    error,
+    userId: c.get('userId'),
+    organizationId: c.get('activeOrganizationId'),
+  });
 
-  return c.json({
-    error: code,
-    message: status === 500 ? 'An unexpected error occurred' : message,
-    details: appError.details,
-    request_id: requestId,
-  }, status as ContentfulStatusCode);
+  return c.json(
+    {
+      error: code,
+      message: status === 500 ? 'An unexpected error occurred' : message,
+      details: appError.details,
+      request_id: requestId,
+    },
+    status as ContentfulStatusCode
+  );
 };

@@ -87,10 +87,7 @@ export const getPool = (): pg.Pool => {
 
 // Export db and pool as proxies that initialize on first access
 export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
-  get(
-    _,
-    prop,
-  ): NodePgDatabase<typeof schema>[keyof NodePgDatabase<typeof schema>] {
+  get(_, prop): NodePgDatabase<typeof schema>[keyof NodePgDatabase<typeof schema>] {
     return getDb()[prop as keyof NodePgDatabase<typeof schema>];
   },
 });

@@ -158,7 +158,9 @@ export type UpdateMatterNoteRequest = z.infer<typeof matterNoteValidations.updat
 
 export type CreateMatterTaskRequest = z.infer<typeof matterTaskValidations.createMatterTaskSchema>;
 export type UpdateMatterTaskRequest = z.infer<typeof matterTaskValidations.updateMatterTaskSchema>;
-export type GenerateMatterTasksFromTemplateRequest = z.infer<typeof matterTaskValidations.generateTasksFromTemplateSchema>;
+export type GenerateMatterTasksFromTemplateRequest = z.infer<
+  typeof matterTaskValidations.generateTasksFromTemplateSchema
+>;
 
 export type CreateMatterTimeEntryRequest = z.infer<typeof matterTimeEntryValidations.createMatterTimeEntrySchema>;
 export type UpdateMatterTimeEntryRequest = z.infer<typeof matterTimeEntryValidations.updateMatterTimeEntrySchema>;

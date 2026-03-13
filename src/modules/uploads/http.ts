@@ -10,7 +10,6 @@ import * as routes from '@/modules/uploads/routes';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
-
 const uploadsApp = createHonoApp();
 
 /**
@@ -19,13 +18,11 @@ const uploadsApp = createHonoApp();
  */
 uploadsApp.openapi(routes.presignUploadRoute, presignHandler);
 
-
 /**
  * POST /api/uploads/:id/confirm
  * Confirm upload completion
  */
 uploadsApp.openapi(routes.confirmUploadRoute, confirmHandler);
-
 
 /**
  * GET /api/uploads/:id
@@ -33,13 +30,11 @@ uploadsApp.openapi(routes.confirmUploadRoute, confirmHandler);
  */
 uploadsApp.openapi(routes.getUploadRoute, getHandler);
 
-
 /**
  * GET /api/uploads/:id/download
  * Get download URL
  */
 uploadsApp.openapi(routes.getDownloadUrlRoute, downloadHandler);
-
 
 /**
  * DELETE /api/uploads/:id
@@ -47,20 +42,17 @@ uploadsApp.openapi(routes.getDownloadUrlRoute, downloadHandler);
  */
 uploadsApp.openapi(routes.deleteUploadRoute, deleteHandler);
 
-
 /**
  * POST /api/uploads/:id/restore
  * Restore soft-deleted upload
  */
 uploadsApp.openapi(routes.restoreUploadRoute, restoreHandler);
 
-
 /**
  * GET /api/uploads
  * List uploads
  */
 uploadsApp.openapi(routes.listUploadsRoute, listHandler);
-
 
 /**
  * GET /api/uploads/:id/audit-log

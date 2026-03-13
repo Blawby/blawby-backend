@@ -1,8 +1,4 @@
-import {
-  getTrustTransactionsRoute,
-  getTrustBalanceRoute,
-  getTrustReportRoute,
-} from '@/modules/trust/routes';
+import { getTrustTransactionsRoute, getTrustBalanceRoute, getTrustReportRoute } from '@/modules/trust/routes';
 import { trustService } from '@/modules/trust/services/trust.service';
 import { computeRoutingClaims } from '@/shared/auth/services/routing.service';
 import type { AppRouteHandler } from '@/shared/types/hono';

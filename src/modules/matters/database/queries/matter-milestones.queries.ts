@@ -10,46 +10,32 @@ import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter milestone
-const createMatterMilestone = async (
-  data: InsertMatterMilestone,
-): Promise<SelectMatterMilestone> => {
-  const [milestone] = await db
-    .insert(matterMilestones)
-    .values(data)
-    .returning();
+const createMatterMilestone = async (data: InsertMatterMilestone): Promise<SelectMatterMilestone> => {
+  const [milestone] = await db.insert(matterMilestones).values(data).returning();
   return milestone;
 };
 
 // Create multiple milestones
 const createMatterMilestones = async (
   data: InsertMatterMilestone[],
-  tx?: NodePgDatabase<typeof schema>,
+  tx?: NodePgDatabase<typeof schema>
 ): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) return [];
 
   const client = tx ?? db;
-  return await client
-    .insert(matterMilestones)
-    .values(data)
-    .returning();
+  return await client.insert(matterMilestones).values(data).returning();
 };
 
 // Find matter milestone by ID
-const findMatterMilestoneById = async (
-  id: string,
-): Promise<SelectMatterMilestone | undefined> => {
-  const [milestone] = await db
-    .select()
-    .from(matterMilestones)
-    .where(eq(matterMilestones.id, id))
-    .limit(1);
+const findMatterMilestoneById = async (id: string): Promise<SelectMatterMilestone | undefined> => {
+  const [milestone] = await db.select().from(matterMilestones).where(eq(matterMilestones.id, id)).limit(1);
   return milestone;
 };
 
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
-  filters?: MatterMilestoneListFilters,
+  filters?: MatterMilestoneListFilters
 ): Promise<SelectMatterMilestone[]> => {
   const conditions = [eq(matterMilestones.matter_id, matterId)];
   if (filters?.milestoneId) {
@@ -66,7 +52,7 @@ const listMatterMilestones = async (
 // Update matter milestone
 const updateMatterMilestone = async (
   id: string,
-  data: Partial<InsertMatterMilestone>,
+  data: Partial<InsertMatterMilestone>
 ): Promise<SelectMatterMilestone | undefined> => {
   const [milestone] = await db
     .update(matterMilestones)
@@ -82,9 +68,7 @@ const deleteMatterMilestone = async (id: string): Promise<void> => {
 };
 
 // Reorder milestones
-const reorderMilestones = async (
-  updates: { id: string; order: number }[],
-): Promise<void> => {
+const reorderMilestones = async (updates: { id: string; order: number }[]): Promise<void> => {
   if (updates.length === 0) return;
 
   await db.transaction(async (tx) => {
@@ -99,7 +83,7 @@ const reorderMilestones = async (
 
 // Get milestone statistics
 const getMilestoneStats = async (
-  matterId: string,
+  matterId: string
 ): Promise<{
   total: number;
   pending: number;
@@ -136,11 +120,7 @@ const getMilestoneStats = async (
 /**
  * Mark a milestone as invoiced.
  */
-const markAsInvoiced = async (
-  milestoneId: string,
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeof db): Promise<void> => {
   const client = tx || db;
   await client
     .update(matterMilestones)
@@ -155,10 +135,7 @@ const markAsInvoiced = async (
 /**
  * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
  */
-const unmarkInvoiced = async (
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
   const client = tx || db;
   await client
     .update(matterMilestones)

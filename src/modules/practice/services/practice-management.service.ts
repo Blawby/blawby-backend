@@ -1,9 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import { omit } from 'es-toolkit/compat';
 
-import {
-  findPracticeDetailsByOrganization,
-} from '@/modules/practice/database/queries/practice-details.repository';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import {
@@ -11,14 +9,8 @@ import {
   buildPracticeWithDetails,
   upsertDetailsTransaction,
 } from '@/modules/practice/services/practice-management.helpers';
-import type {
-  CreatePracticeParams,
-  UpdatePracticeParams,
-} from '@/modules/practice/types/practice-management.types';
-import type {
-  UpdatePracticeRequest,
-  PracticeWithDetails,
-} from '@/modules/practice/types/practice.types';
+import type { CreatePracticeParams, UpdatePracticeParams } from '@/modules/practice/types/practice-management.types';
+import type { UpdatePracticeRequest, PracticeWithDetails } from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
@@ -44,7 +36,7 @@ export const practiceManagementService = {
    */
   async createPractice(
     { data }: CreatePracticeParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
     if (ctx.ability.cannot('update', 'Organization')) {
       return forbidden('You do not have permission to create practices');
@@ -54,10 +46,7 @@ export const practiceManagementService = {
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
 
-      const createResult = await organizationService.createOrganization(
-        { data: organizationData },
-        ctx,
-      );
+      const createResult = await organizationService.createOrganization({ data: organizationData }, ctx);
 
       if (!createResult.success) {
         return createResult;
@@ -78,15 +67,12 @@ export const practiceManagementService = {
             return details;
           });
         } catch (detailsError) {
-          const rollbackResult = await organizationService.deleteOrganization(
-            { organizationId: organization.id },
-            ctx,
-          );
+          const rollbackResult = await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
           if (!rollbackResult.success) {
-            logger.error(
-              'Create practice compensation failed for organization {organizationId}: {error}',
-              { organizationId: organization.id, error: rollbackResult.error.message },
-            );
+            logger.error('Create practice compensation failed for organization {organizationId}: {error}', {
+              organizationId: organization.id,
+              error: rollbackResult.error.message,
+            });
           }
           throw detailsError;
         }
@@ -108,7 +94,7 @@ export const practiceManagementService = {
     } catch (error) {
       logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
       return internalError<{ practice: PracticeWithDetails }>(
-        getBetterAuthErrorMessage(error, 'Failed to create practice'),
+        getBetterAuthErrorMessage(error, 'Failed to create practice')
       );
     }
   },
@@ -118,7 +104,7 @@ export const practiceManagementService = {
    */
   async updatePractice(
     { organizationId, data }: UpdatePracticeParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
     if (ctx.ability.cannot('update', 'Organization')) {
       return forbidden('You do not have permission to update practices');
@@ -129,7 +115,7 @@ export const practiceManagementService = {
       const orgData = omit(data, DETAILS_FIELD_KEYS);
 
       const filteredOrgData = Object.fromEntries(
-        Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null),
+        Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null)
       ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
       let organization: Organization;
@@ -137,25 +123,19 @@ export const practiceManagementService = {
       let previousOrganization: Organization | null = null;
 
       if (hasOrganizationUpdates) {
-        const previousOrgResult = await organizationService.getFullOrganization(
-          { organizationId },
-          ctx,
-        );
+        const previousOrgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
         if (!previousOrgResult.success) return previousOrgResult;
         previousOrganization = previousOrgResult.data;
 
         const updateResult = await organizationService.updateOrganization(
           { data: { organizationId, data: filteredOrgData } },
-          ctx,
+          ctx
         );
 
         if (!updateResult.success) return updateResult;
         organization = updateResult.data;
       } else {
-        const orgResult = await organizationService.getFullOrganization(
-          { organizationId },
-          ctx,
-        );
+        const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
         if (!orgResult.success) return orgResult;
         organization = orgResult.data;
       }
@@ -189,14 +169,14 @@ export const practiceManagementService = {
                   },
                 },
               },
-              ctx,
+              ctx
             );
 
             if (!rollbackResult.success) {
-              logger.error(
-                'Update practice compensation failed for organization {organizationId}: {error}',
-                { organizationId, error: rollbackResult.error.message },
-              );
+              logger.error('Update practice compensation failed for organization {organizationId}: {error}', {
+                organizationId,
+                error: rollbackResult.error.message,
+              });
             }
           }
           throw detailsError;
@@ -222,7 +202,7 @@ export const practiceManagementService = {
     } catch (error) {
       logger.error('Failed to update practice {organizationId}: {error}', { organizationId, error });
       return internalError<{ practice: PracticeWithDetails }>(
-        getBetterAuthErrorMessage(error, 'Failed to update practice'),
+        getBetterAuthErrorMessage(error, 'Failed to update practice')
       );
     }
   },

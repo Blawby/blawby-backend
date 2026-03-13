@@ -35,7 +35,5 @@ export const isPaymentPayload = (payload: unknown): payload is PaymentEventPaylo
   if (!isRecord(payload)) return false;
   if (!('customer' in payload) || !('payment' in payload) || !('business' in payload)) return false;
 
-  return isRecord(payload.customer)
-    && isRecord(payload.payment)
-    && isRecord(payload.business);
+  return isRecord(payload.customer) && isRecord(payload.payment) && isRecord(payload.business);
 };

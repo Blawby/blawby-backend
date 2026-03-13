@@ -73,13 +73,13 @@ const saveEmailToFile = (to: string, subject: string, html: string) => {
  */
 export const sendEmail = async (
   payload: EmailJobPayload,
-  options: EmailSendOptions = {},
+  options: EmailSendOptions = {}
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
   try {
     // Render the template to HTML
     const html = renderTemplate(
       payload.template as EmailTemplateName,
-      payload.data as unknown as TemplateDataMap[EmailTemplateName],
+      payload.data as unknown as TemplateDataMap[EmailTemplateName]
     );
 
     // Development/Test: Save to file for instant preview
@@ -99,21 +99,24 @@ export const sendEmail = async (
     const shouldSkip = !isProdLike || !apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_') || isTestMode;
 
     if (shouldSkip) {
-      const reason = isTestMode ? 'TEST' : (!isProdLike ? 'DEV' : 'NO_API_KEY');
+      const reason = isTestMode ? 'TEST' : !isProdLike ? 'DEV' : 'NO_API_KEY';
       logger.info('📡 [{reason}] Skipping actual Resend call for "{subject}". Local preview saved.', {
         reason,
         subject: payload.subject,
       });
 
       // Log success in DB for local tracking
-      void db.insert(emailLogs).values({
-        recipientEmail: payload.to,
-        subject: payload.subject,
-        templateName: payload.template,
-        templateData: payload.data,
-        status: 'sent',
-        messageId: `${reason.toLowerCase()}_preview_${Date.now()}`,
-      }).catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
+      void db
+        .insert(emailLogs)
+        .values({
+          recipientEmail: payload.to,
+          subject: payload.subject,
+          templateName: payload.template,
+          templateData: payload.data,
+          status: 'sent',
+          messageId: `${reason.toLowerCase()}_preview_${Date.now()}`,
+        })
+        .catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
 
       return { success: true, messageId: `${reason.toLowerCase()}_preview` };
     }
@@ -138,14 +141,17 @@ export const sendEmail = async (
       logger.error('❌ Email send failed: {error}', { error: result.error });
 
       // Log failure (fire and forget)
-      void db.insert(emailLogs).values({
-        recipientEmail: payload.to,
-        subject: payload.subject,
-        templateName: payload.template,
-        templateData: payload.data,
-        status: 'failed',
-        errorMessage: result.error.message,
-      }).catch((err) => logger.error('Failed to log email failure to database: {error}', { error: err }));
+      void db
+        .insert(emailLogs)
+        .values({
+          recipientEmail: payload.to,
+          subject: payload.subject,
+          templateName: payload.template,
+          templateData: payload.data,
+          status: 'failed',
+          errorMessage: result.error.message,
+        })
+        .catch((err) => logger.error('Failed to log email failure to database: {error}', { error: err }));
 
       return {
         success: false,
@@ -156,14 +162,17 @@ export const sendEmail = async (
     logger.info('✅ Email sent successfully: {messageId}', { messageId: result.data?.id });
 
     // Log success (fire and forget)
-    void db.insert(emailLogs).values({
-      recipientEmail: payload.to,
-      subject: payload.subject,
-      templateName: payload.template,
-      templateData: payload.data,
-      status: 'sent',
-      messageId: result.data?.id,
-    }).catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
+    void db
+      .insert(emailLogs)
+      .values({
+        recipientEmail: payload.to,
+        subject: payload.subject,
+        templateName: payload.template,
+        templateData: payload.data,
+        status: 'sent',
+        messageId: result.data?.id,
+      })
+      .catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
 
     return {
       success: true,
@@ -174,14 +183,17 @@ export const sendEmail = async (
     logger.error('❌ Email send error: {error}', { error: errorMessage });
 
     // Log unexpected error (fire and forget)
-    void db.insert(emailLogs).values({
-      recipientEmail: payload.to,
-      subject: payload.subject,
-      templateName: payload.template,
-      templateData: payload.data,
-      status: 'failed',
-      errorMessage: errorMessage,
-    }).catch((err) => logger.error('Failed to log unexpected email error to database: {error}', { error: err }));
+    void db
+      .insert(emailLogs)
+      .values({
+        recipientEmail: payload.to,
+        subject: payload.subject,
+        templateName: payload.template,
+        templateData: payload.data,
+        status: 'failed',
+        errorMessage: errorMessage,
+      })
+      .catch((err) => logger.error('Failed to log unexpected email error to database: {error}', { error: err }));
 
     return {
       success: false,
@@ -195,7 +207,7 @@ export const sendEmail = async (
  */
 export const sendBulkEmails = async (
   payloads: EmailJobPayload[],
-  options: EmailSendOptions = {},
+  options: EmailSendOptions = {}
 ): Promise<{ success: boolean; results: Array<{ to: string; success: boolean; error?: string }> }> => {
   const results = await Promise.all(
     payloads.map(async (payload) => {
@@ -205,7 +217,7 @@ export const sendBulkEmails = async (
         success: result.success,
         error: result.error,
       };
-    }),
+    })
   );
 
   const allSuccessful = results.every((r) => r.success);

@@ -29,11 +29,12 @@ type IntakeCreationRequest = CreatePracticeClientIntakeRequest & {
   origin?: string | null;
 };
 
-const getIntakeSettings = async (
-  params: { slug: string; organization?: NonNullable<Awaited<ReturnType<typeof organizationRepository.findBySlug>>> },
-): Promise<Result<IntakeSettingsResponse>> => {
+const getIntakeSettings = async (params: {
+  slug: string;
+  organization?: NonNullable<Awaited<ReturnType<typeof organizationRepository.findBySlug>>>;
+}): Promise<Result<IntakeSettingsResponse>> => {
   try {
-    const organization = params.organization ?? await organizationRepository.findBySlug(params.slug);
+    const organization = params.organization ?? (await organizationRepository.findBySlug(params.slug));
 
     if (!organization) {
       return result.notFound(`Organization with slug '${params.slug}' not found`);
@@ -90,7 +91,7 @@ const insertIntakeRecordTx = async (
     stripePaymentLinkId: string | null;
     shouldBypassPayment: boolean;
     validatedUserId?: string;
-  },
+  }
 ): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined;
   if (params.request.address) {
@@ -140,9 +141,7 @@ const insertIntakeRecordTx = async (
   return practiceClientIntakesRepository.create(intakeData, tx);
 };
 
-const createIntake = async (
-  params: { data: IntakeCreationRequest },
-): Promise<Result<CreateIntakeResponse>> => {
+const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Result<CreateIntakeResponse>> => {
   const { data: request } = params;
 
   try {
@@ -208,19 +207,22 @@ const createIntake = async (
       });
     });
 
-    void IntakePaymentCreated.dispatch({
-      intake_payment_id: intake.id,
-      uuid: intake.id,
-      stripe_payment_link_id: stripePaymentLink?.id,
-      amount: request.amount,
-      currency: 'usd',
-      client_email: request.email,
-      client_name: request.name,
-      created_at: new Date(),
-    }, {
-      actorId: 'organization',
-      organizationId: organization.id,
-    });
+    void IntakePaymentCreated.dispatch(
+      {
+        intake_payment_id: intake.id,
+        uuid: intake.id,
+        stripe_payment_link_id: stripePaymentLink?.id,
+        amount: request.amount,
+        currency: 'usd',
+        client_email: request.email,
+        client_name: request.name,
+        created_at: new Date(),
+      },
+      {
+        actorId: 'organization',
+        organizationId: organization.id,
+      }
+    );
 
     return result.ok({
       success: true,
@@ -254,7 +256,7 @@ const createIntake = async (
 
 const updateIntake = async (
   params: { uuid: string; data: UpdatePracticeClientIntakeRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: boolean; message: string }>> => {
   try {
     const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'update');

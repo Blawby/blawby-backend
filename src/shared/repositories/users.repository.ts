@@ -5,7 +5,6 @@ import { db } from '@/shared/database';
 
 const logger = getLogger(['app', 'repositories', 'users']);
 
-
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 
@@ -43,7 +42,7 @@ const update = async (
     phone: string;
     primaryWorkspace: string;
     isAnonymous: boolean;
-  }>,
+  }>
 ): Promise<SelectUser | undefined> => {
   // Prepare update data for Better Auth API
   const updateFields: Record<string, unknown> = {};

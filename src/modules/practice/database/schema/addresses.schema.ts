@@ -24,11 +24,8 @@ export const addresses = pgTable(
   },
   (table) => [
     // Ensure at least one owner is present
-    check(
-      'owner_check',
-      sql`(${table.organization_id} IS NOT NULL) OR (${table.user_id} IS NOT NULL)`,
-    ),
-  ],
+    check('owner_check', sql`(${table.organization_id} IS NOT NULL) OR (${table.user_id} IS NOT NULL)`),
+  ]
 );
 
 // Define relations

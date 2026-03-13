@@ -5,26 +5,16 @@
  */
 
 import { eq, and, lte } from 'drizzle-orm';
-import {
-  stripeConnectedAccounts,
-} from '@/modules/onboarding/schemas/onboarding.schema';
-import type {
-  StripeConnectedAccount,
-  NewStripeConnectedAccount,
-} from '@/modules/onboarding/schemas/onboarding.schema';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import type { StripeConnectedAccount, NewStripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
-import {
-  webhookEvents,
-  type WebhookEvent,
-} from '@/shared/schemas/stripe.webhook-events.schema';
+import { webhookEvents, type WebhookEvent } from '@/shared/schemas/stripe.webhook-events.schema';
 
 /**
  * Connected Account Operations
  */
 
-export const findByOrganizationId = async (
-  organizationId: string,
-): Promise<StripeConnectedAccount | null> => {
+export const findByOrganizationId = async (organizationId: string): Promise<StripeConnectedAccount | null> => {
   const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
@@ -34,9 +24,7 @@ export const findByOrganizationId = async (
   return account || null;
 };
 
-export const findByStripeAccountId = async (
-  stripeAccountId: string,
-): Promise<StripeConnectedAccount | null> => {
+export const findByStripeAccountId = async (stripeAccountId: string): Promise<StripeConnectedAccount | null> => {
   const [account] = await db
     .select()
     .from(stripeConnectedAccounts)
@@ -46,21 +34,13 @@ export const findByStripeAccountId = async (
   return account || null;
 };
 
-export const findById = async (
-  id: string,
-): Promise<StripeConnectedAccount | null> => {
-  const [account] = await db
-    .select()
-    .from(stripeConnectedAccounts)
-    .where(eq(stripeConnectedAccounts.id, id))
-    .limit(1);
+export const findById = async (id: string): Promise<StripeConnectedAccount | null> => {
+  const [account] = await db.select().from(stripeConnectedAccounts).where(eq(stripeConnectedAccounts.id, id)).limit(1);
 
   return account || null;
 };
 
-export const create = async (
-  data: NewStripeConnectedAccount,
-): Promise<StripeConnectedAccount> => {
+export const create = async (data: NewStripeConnectedAccount): Promise<StripeConnectedAccount> => {
   const [account] = await db
     .insert(stripeConnectedAccounts)
     .values({
@@ -74,7 +54,7 @@ export const create = async (
 
 export const update = async (
   id: string,
-  data: Partial<NewStripeConnectedAccount>,
+  data: Partial<NewStripeConnectedAccount>
 ): Promise<StripeConnectedAccount | null> => {
   const [account] = await db
     .update(stripeConnectedAccounts)
@@ -90,7 +70,7 @@ export const update = async (
 
 export const updateByStripeAccountId = async (
   stripeAccountId: string,
-  data: Partial<NewStripeConnectedAccount>,
+  data: Partial<NewStripeConnectedAccount>
 ): Promise<StripeConnectedAccount | null> => {
   const [account] = await db
     .update(stripeConnectedAccounts)
@@ -104,9 +84,7 @@ export const updateByStripeAccountId = async (
   return account || null;
 };
 
-export const updateLastRefreshed = async (
-  stripeAccountId: string,
-): Promise<void> => {
+export const updateLastRefreshed = async (stripeAccountId: string): Promise<void> => {
   await db
     .update(stripeConnectedAccounts)
     .set({
@@ -125,22 +103,11 @@ export const getEventsToRetry = async (): Promise<WebhookEvent[]> => {
   return await db
     .select()
     .from(webhookEvents)
-    .where(
-      and(
-        eq(webhookEvents.processed, false),
-        lte(webhookEvents.nextRetryAt, now),
-      ),
-    );
+    .where(and(eq(webhookEvents.processed, false), lte(webhookEvents.nextRetryAt, now)));
 };
 
-export const findWebhookById = async (
-  id: string,
-): Promise<WebhookEvent | null> => {
-  const [event] = await db
-    .select()
-    .from(webhookEvents)
-    .where(eq(webhookEvents.id, id))
-    .limit(1);
+export const findWebhookById = async (id: string): Promise<WebhookEvent | null> => {
+  const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id)).limit(1);
 
   return event || null;
 };

@@ -3,6 +3,7 @@
 ## Purpose
 
 Provides **ABA/IOLTA-oriented** file upload workflows with:
+
 - **Direct frontend uploads** to Cloudflare **R2** (documents) and Cloudflare **Images** (profile pictures).
 - **Matter-based segregation** for legal files.
 - **Audit logging** (who did what, when).
@@ -13,6 +14,7 @@ This module follows the pattern used by other modules (`http.ts` + `routes.ts` O
 ## Storage Model
 
 ### Providers
+
 - **R2**: legal documents, intakes, trust-accounting files, firm assets.
 - **Cloudflare Images**: profile images (optimized delivery).
 
@@ -33,14 +35,17 @@ Implementation: `src/modules/uploads/services/uploads.service.ts` (`generateStor
 ## Data Model
 
 ### Tables
+
 - `uploads`: main upload record with metadata + compliance fields.
 - `upload_audit_logs`: immutable audit trail of actions.
 
 Files:
+
 - `src/modules/uploads/database/schema/uploads.schema.ts`
 - `src/modules/uploads/database/schema/upload-audit-logs.schema.ts`
 
 ### Compliance Fields (high level)
+
 - `matter_id`, `upload_context`: ensure segregation and allow filtering.
 - `is_privileged`: mark attorney-client privileged content.
 - `retention_until`: retention metadata (enforcement can be added via worker/job).
@@ -51,6 +56,7 @@ Files:
 All routes are mounted under `/api/uploads` (module name `uploads`).
 
 ### Endpoints
+
 - `POST /api/uploads/presign`
   - Returns a presigned upload URL (R2 `PUT`) or Images direct upload URL (Images `POST`).
 - `POST /api/uploads/:id/confirm`
@@ -87,6 +93,7 @@ HTTP wiring: `src/modules/uploads/http.ts`
 ## Environment Variables
 
 ### R2
+
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_R2_ACCESS_KEY_ID`
 - `CLOUDFLARE_R2_SECRET_ACCESS_KEY`
@@ -94,6 +101,7 @@ HTTP wiring: `src/modules/uploads/http.ts`
 - `CLOUDFLARE_R2_PUBLIC_URL` (optional; used to build a public URL for R2 objects)
 
 ### Images
+
 - `CLOUDFLARE_IMAGES_API_TOKEN`
 - `CLOUDFLARE_IMAGES_ACCOUNT_HASH`
 
@@ -101,4 +109,3 @@ HTTP wiring: `src/modules/uploads/http.ts`
 
 - **Retention enforcement**: currently stored as metadata; enforcing deletion/review can be implemented as a scheduled job/worker.
 - **User names in audit logs**: current handler returns `user_name: null`; joining users can be added if/when needed.
-

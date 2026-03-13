@@ -61,18 +61,20 @@ const deleteMatterHandler: AppRouteHandler<typeof matterRoutes.deleteMatterRoute
 
 // Matter resource handlers
 
-
 const getMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getMatterActivityRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
 
-  const activityResult = await matterActivityService.getMatterActivity({
-    limit: query.limit,
-    offset: query.offset,
-    activityId: query.activity_id,
-  }, scopedCtx);
+  const activityResult = await matterActivityService.getMatterActivity(
+    {
+      limit: query.limit,
+      offset: query.offset,
+      activityId: query.activity_id,
+    },
+    scopedCtx
+  );
 
   if (!activityResult.success) {
     return response.fromResult(c, activityResult);
@@ -86,9 +88,7 @@ const listMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listMatterNote
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
-  const result = await matterNotesService.listMatterNotes(
-    { filters: { noteId: query.note_id } }, scopedCtx,
-  );
+  const result = await matterNotesService.listMatterNotes({ filters: { noteId: query.note_id } }, scopedCtx);
   return response.fromResult(c, result);
 };
 
@@ -106,10 +106,7 @@ const updateMatterNoteHandler: AppRouteHandler<typeof matterRoutes.updateMatterN
   const { id: matterId, note_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
-  const result = await matterNotesService.updateMatterNote(
-    { noteId: note_id, data: validatedBody },
-    scopedCtx,
-  );
+  const result = await matterNotesService.updateMatterNote({ noteId: note_id, data: validatedBody }, scopedCtx);
   return response.fromResult(c, result);
 };
 
@@ -126,14 +123,17 @@ const listTimeEntriesHandler: AppRouteHandler<typeof matterRoutes.listTimeEntrie
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
-  const result = await matterTimeEntriesService.listMatterTimeEntries({
-    filters: {
-      billable: query.billable,
-      startDate: query.start_date,
-      endDate: query.end_date,
-      entryId: query.entry_id,
+  const result = await matterTimeEntriesService.listMatterTimeEntries(
+    {
+      filters: {
+        billable: query.billable,
+        startDate: query.start_date,
+        endDate: query.end_date,
+        entryId: query.entry_id,
+      },
     },
-  }, scopedCtx);
+    scopedCtx
+  );
   return response.fromResult(c, result);
 };
 
@@ -142,8 +142,7 @@ const createTimeEntryHandler: AppRouteHandler<typeof matterRoutes.createTimeEntr
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
-  const result = await matterTimeEntriesService
-    .createMatterTimeEntry({ data: validatedBody }, scopedCtx);
+  const result = await matterTimeEntriesService.createMatterTimeEntry({ data: validatedBody }, scopedCtx);
   return response.fromResult(c, result, 201);
 };
 
@@ -154,7 +153,7 @@ const updateTimeEntryHandler: AppRouteHandler<typeof matterRoutes.updateTimeEntr
   const validatedBody = c.req.valid('json');
   const result = await matterTimeEntriesService.updateMatterTimeEntry(
     { entryId: entry_id, data: validatedBody },
-    scopedCtx,
+    scopedCtx
   );
   return response.fromResult(c, result);
 };
@@ -163,10 +162,7 @@ const deleteTimeEntryHandler: AppRouteHandler<typeof matterRoutes.deleteTimeEntr
   const ctx = getServiceContext(c);
   const { id: matterId, entry_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
-  const result = await matterTimeEntriesService.deleteMatterTimeEntry(
-    { entryId: entry_id },
-    scopedCtx,
-  );
+  const result = await matterTimeEntriesService.deleteMatterTimeEntry({ entryId: entry_id }, scopedCtx);
   return response.fromResult(c, result);
 };
 
@@ -183,14 +179,17 @@ const listExpensesHandler: AppRouteHandler<typeof matterRoutes.listExpensesRoute
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
-  const result = await matterExpensesService.listMatterExpenses({
-    filters: {
-      billable: query.billable,
-      startDate: query.start_date,
-      endDate: query.end_date,
-      expenseId: query.expense_id,
+  const result = await matterExpensesService.listMatterExpenses(
+    {
+      filters: {
+        billable: query.billable,
+        startDate: query.start_date,
+        endDate: query.end_date,
+        expenseId: query.expense_id,
+      },
     },
-  }, scopedCtx);
+    scopedCtx
+  );
   return response.fromResult(c, result);
 };
 
@@ -199,8 +198,7 @@ const createExpenseHandler: AppRouteHandler<typeof matterRoutes.createExpenseRou
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
-  const result = await matterExpensesService
-    .createMatterExpense({ data: validatedBody }, scopedCtx);
+  const result = await matterExpensesService.createMatterExpense({ data: validatedBody }, scopedCtx);
   return response.fromResult(c, result, 201);
 };
 
@@ -211,7 +209,7 @@ const updateExpenseHandler: AppRouteHandler<typeof matterRoutes.updateExpenseRou
   const validatedBody = c.req.valid('json');
   const result = await matterExpensesService.updateMatterExpense(
     { expenseId: expense_id, data: validatedBody },
-    scopedCtx,
+    scopedCtx
   );
   return response.fromResult(c, result);
 };
@@ -220,10 +218,7 @@ const deleteExpenseHandler: AppRouteHandler<typeof matterRoutes.deleteExpenseRou
   const ctx = getServiceContext(c);
   const { id: matterId, expense_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
-  const result = await matterExpensesService.deleteMatterExpense(
-    { expenseId: expense_id },
-    scopedCtx,
-  );
+  const result = await matterExpensesService.deleteMatterExpense({ expenseId: expense_id }, scopedCtx);
   return response.fromResult(c, result);
 };
 
@@ -234,7 +229,7 @@ const listMilestonesHandler: AppRouteHandler<typeof matterRoutes.listMilestonesR
   const query = c.req.valid('query');
   const result = await matterMilestonesService.listMatterMilestones(
     { filters: { milestoneId: query.milestone_id } },
-    scopedCtx,
+    scopedCtx
   );
   return response.fromResult(c, result);
 };
@@ -251,7 +246,7 @@ const createMilestoneHandler: AppRouteHandler<typeof matterRoutes.createMileston
         order: validatedBody.order ?? 0,
       },
     },
-    scopedCtx,
+    scopedCtx
   );
   return response.fromResult(c, result, 201);
 };
@@ -263,7 +258,7 @@ const updateMilestoneHandler: AppRouteHandler<typeof matterRoutes.updateMileston
   const validatedBody = c.req.valid('json');
   const result = await matterMilestonesService.updateMatterMilestone(
     { milestoneId: milestone_id, data: validatedBody },
-    scopedCtx,
+    scopedCtx
   );
   return response.fromResult(c, result);
 };
@@ -272,10 +267,7 @@ const deleteMilestoneHandler: AppRouteHandler<typeof matterRoutes.deleteMileston
   const ctx = getServiceContext(c);
   const { id: matterId, milestone_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
-  const result = await matterMilestonesService.deleteMatterMilestone(
-    { milestoneId: milestone_id },
-    scopedCtx,
-  );
+  const result = await matterMilestonesService.deleteMatterMilestone({ milestoneId: milestone_id }, scopedCtx);
   return response.fromResult(c, result);
 };
 
@@ -284,11 +276,9 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
-  const result = await matterMilestonesService
-    .reorderMilestones({ data: validatedBody }, scopedCtx);
+  const result = await matterMilestonesService.reorderMilestones({ data: validatedBody }, scopedCtx);
   return response.fromResult(c, result);
 };
-
 
 const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
   const ctx = getServiceContext(c);

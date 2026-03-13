@@ -17,7 +17,9 @@ const calculateMountPath = (moduleName: string): string => {
   // If prefix is provided and starts with '/', use it as-is (full path)
   // Otherwise, construct path with module name
   return config?.prefix
-    ? (config.prefix.startsWith('/') ? config.prefix : `/api/${config.prefix}/${moduleName}`)
+    ? config.prefix.startsWith('/')
+      ? config.prefix
+      : `/api/${config.prefix}/${moduleName}`
     : `/api/${moduleName}`;
 };
 

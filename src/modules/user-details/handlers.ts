@@ -73,10 +73,15 @@ export const createUserDetailMemoHandler: AppRouteHandler<typeof createClientMem
   const body = c.req.valid('json');
   const user = c.get('user')!;
 
-  const result = await clientMemosService.createMemo(id, organizationId, {
-    ...body,
-    event_time: body.event_time ? new Date(body.event_time) : undefined,
-  }, user.id);
+  const result = await clientMemosService.createMemo(
+    id,
+    organizationId,
+    {
+      ...body,
+      event_time: body.event_time ? new Date(body.event_time) : undefined,
+    },
+    user.id
+  );
 
   if (!result.success) {
     return response.fromResult(c, result);

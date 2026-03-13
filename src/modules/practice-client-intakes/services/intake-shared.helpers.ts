@@ -1,16 +1,12 @@
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import {
-  practiceClientIntakesSchema,
-} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type {
   PracticeClientIntakeMetadata,
   SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type {
-  TriageStatus,
-} from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import type { TriageStatus } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -39,26 +35,23 @@ export const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadat
   }
 };
 
-const getAuthorizedMetadata = (
-  metadata: PracticeClientIntakeMetadata | null,
-  isAuthorized: boolean,
-) => {
+const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, isAuthorized: boolean) => {
   return isAuthorized && metadata
     ? {
-      email: metadata.email,
-      name: metadata.name,
-      phone: metadata.phone ?? undefined,
-      on_behalf_of: metadata.on_behalf_of ?? undefined,
-      opposing_party: metadata.opposing_party ?? undefined,
-      description: metadata.description ?? undefined,
-    }
+        email: metadata.email,
+        name: metadata.name,
+        phone: metadata.phone ?? undefined,
+        on_behalf_of: metadata.on_behalf_of ?? undefined,
+        opposing_party: metadata.opposing_party ?? undefined,
+        description: metadata.description ?? undefined,
+      }
     : { email: '', name: '' };
 };
 
 const isAuthorizedIntakeView = (
   metadata: PracticeClientIntakeMetadata | null,
   requestingUserId?: string,
-  isAdmin = false,
+  isAdmin = false
 ) => {
   return isAdmin || Boolean(metadata?.user_id && metadata.user_id === requestingUserId);
 };
@@ -69,7 +62,7 @@ const isUrgency = (value: string | null | undefined): value is 'routine' | 'time
 
 export const formatIntakeListItem = (
   intake: SelectPracticeClientIntake,
-  options?: { requestingUserId?: string; isAdmin?: boolean },
+  options?: { requestingUserId?: string; isAdmin?: boolean }
 ) => {
   const { requestingUserId, isAdmin = false } = options ?? {};
   const metadata = parseMetadata(intake.metadata);
@@ -84,7 +77,7 @@ export const formatIntakeListItem = (
     triage_status: normalizeTriageStatus(intake.triage_status),
     triage_reason: intake.triage_reason ?? null,
     triage_decided_at: intake.triage_decided_at ?? null,
-    conversation_id: isAuthorized ? intake.conversation_id ?? null : null,
+    conversation_id: isAuthorized ? (intake.conversation_id ?? null) : null,
     stripe_charge_id: intake.stripe_charge_id ?? null,
     metadata: getAuthorizedMetadata(metadata, isAuthorized),
     succeeded_at: intake.succeeded_at ?? null,
@@ -101,7 +94,7 @@ export const formatIntakeListItem = (
 
 export const formatIntakeStatusResponse = (
   intake: SelectPracticeClientIntake,
-  options?: { requestingUserId?: string; isAdmin?: boolean },
+  options?: { requestingUserId?: string; isAdmin?: boolean }
 ) => {
   const metadata = parseMetadata(intake.metadata);
   const isAuthorized = isAuthorizedIntakeView(metadata, options?.requestingUserId, options?.isAdmin);
@@ -109,7 +102,7 @@ export const formatIntakeStatusResponse = (
 
   return {
     ...formatted,
-    address_id: isAuthorized ? intake.address_id ?? undefined : undefined,
+    address_id: isAuthorized ? (intake.address_id ?? undefined) : undefined,
     conversation_id: formatted.conversation_id ?? undefined,
     stripe_charge_id: formatted.stripe_charge_id ?? undefined,
     urgency: formatted.urgency ?? undefined,
@@ -126,11 +119,11 @@ export type ResolveCheckoutSessionResult = {
 
 export const resolvePracticeClientIntakeByCheckoutSessionId = async (
   sessionId: string,
-  options?: { requireSession?: boolean },
+  options?: { requireSession?: boolean }
 ): Promise<Result<ResolveCheckoutSessionResult>> => {
   const { requireSession = false } = options ?? {};
-  let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined
-    = await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
+  let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
+    await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
 
   if (intake && !requireSession) {
     return result.ok({ intake });
@@ -138,9 +131,12 @@ export const resolvePracticeClientIntakeByCheckoutSessionId = async (
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const intakeUuid = typeof session.metadata?.intake_uuid === 'string'
-      ? session.metadata.intake_uuid
-      : (typeof session.client_reference_id === 'string' ? session.client_reference_id : undefined);
+    const intakeUuid =
+      typeof session.metadata?.intake_uuid === 'string'
+        ? session.metadata.intake_uuid
+        : typeof session.client_reference_id === 'string'
+          ? session.client_reference_id
+          : undefined;
 
     if (!intakeUuid) {
       return result.ok({ session });

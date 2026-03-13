@@ -1,18 +1,6 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  integer,
-  real,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
-import {
-  billingTransactions,
-  invoices,
-} from '@/modules/invoices/database/schema';
+import { pgTable, uuid, varchar, text, integer, real, timestamp, index } from 'drizzle-orm/pg-core';
+import { billingTransactions, invoices } from '@/modules/invoices/database/schema';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
@@ -90,12 +78,8 @@ export const matters = pgTable(
     on_behalf_of: text('on_behalf_of'),
 
     // Timestamps
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('matters_org_idx').on(table.organization_id),
@@ -107,7 +91,7 @@ export const matters = pgTable(
     index('matters_retainer_balance_idx').on(table.retainer_balance),
     index('matters_intake_uuid_idx').on(table.intake_uuid),
     index('matters_conversation_id_idx').on(table.conversation_id),
-  ],
+  ]
 );
 
 // Define relations

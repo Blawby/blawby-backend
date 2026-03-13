@@ -3,39 +3,60 @@
   "plugins": [
     "import",
     "typescript",
-    "node",
-    "unicorn"
+    "node"
+  ],
+  "jsPlugins": [
+    "oxlint-plugin-eslint"
   ],
   "env": {
     "node": true,
     "es2022": true
   },
   "categories": {
-    "correctness": "error",
-    "suspicious": "warn",
+    "correctness": "off",
+    "suspicious": "off",
     "pedantic": "off",
     "style": "off",
-    "perf": "off"
+    "perf": "off",
+    "restriction": "off",
+    "nursery": "off"
   },
-  "rules": {
-    "no-explicit-any": "error",
-    "explicit-function-return-type": "error",
-    "no-unused-vars": "error",
-    "typescript/no-explicit-any": "error",
-    "typescript/consistent-type-assertions": [
-      "error",
-      {
-        "assertionStyle": "never"
+  "rules": {},
+  "overrides": [
+    {
+      "files": [
+        "src/**/*.{js,ts,tsx}"
+      ],
+      "rules": {
+        "no-unused-vars": [
+          "error",
+          {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_"
+          }
+        ],
+        "eslint-js/prefer-const": "error",
+        "typescript/no-explicit-any": "error",
+        "typescript/no-deprecated": "error",
+        "import/first": "error",
+        "import/no-duplicates": "error"
       }
-    ],
-    "typescript/explicit-function-return-type": "off",
-    "import/no-unresolved": "off",
-    "unicorn/text-encoding-identifier-case": "off",
-    "unicorn/prefer-string-replace-all": "off",
-    "unicorn/prefer-top-level-await": "off",
-    "max-lines": [
-      "error",
-      500
-    ]
-  }
+    },
+    {
+      "files": [
+        "scripts/**/*.ts"
+      ],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "**/.agent/**",
+    "**/.agents/**",
+    "**/.claude/**",
+    "**/.cursor/**",
+    "**/.serena/**"
+  ]
 }

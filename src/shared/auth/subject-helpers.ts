@@ -16,9 +16,6 @@ import type { SubjectName } from '@/shared/auth/abilities';
  * signature.  This helper keeps the cast in one place so service code stays
  * clean.
  */
-export function toSubject<T extends Exclude<SubjectName, 'all'>>(
-  type: T,
-  obj: object,
-) {
+export function toSubject<T extends Exclude<SubjectName, 'all'>>(type: T, obj: object) {
   return subject(type, obj as Record<string, unknown>);
 }

@@ -1,15 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  integer,
-  text,
-  timestamp,
-  index,
-  pgEnum,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, text, timestamp, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
 import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import { invoiceLineItems } from '@/modules/invoices/database/schema/invoice-line-items.schema';
 import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
@@ -44,12 +34,8 @@ export const invoices = pgTable(
 
     invoice_number: varchar('invoice_number', { length: 50 }),
     invoice_type: invoiceTypeEnum('invoice_type').notNull().default('flat_fee'),
-    fund_destination: varchar('fund_destination', { length: 20 })
-      .notNull()
-      .default('operating'), // 'operating' | 'trust'
-    status: varchar('status', { length: 20 })
-      .notNull()
-      .default('draft'), // draft, pending, sent, paid, overdue, cancelled
+    fund_destination: varchar('fund_destination', { length: 20 }).notNull().default('operating'), // 'operating' | 'trust'
+    status: varchar('status', { length: 20 }).notNull().default('draft'), // draft, pending, sent, paid, overdue, cancelled
 
     subtotal: integer('subtotal').notNull().default(0),
     tax_amount: integer('tax_amount').notNull().default(0),
@@ -79,12 +65,8 @@ export const invoices = pgTable(
       onDelete: 'set null',
     }),
 
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('invoices_org_idx').on(table.organization_id),
@@ -98,7 +80,7 @@ export const invoices = pgTable(
     uniqueIndex('invoices_org_number_unique_idx')
       .on(table.organization_id, table.invoice_number)
       .where(sql`${table.invoice_number} IS NOT NULL AND ${table.deleted_at} IS NULL`),
-  ],
+  ]
 );
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

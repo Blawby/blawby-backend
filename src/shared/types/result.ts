@@ -5,9 +5,7 @@ export type AppError = {
   details?: unknown;
 };
 
-export type Result<T>
-  = { success: true; data: T }
-  | { success: false; error: AppError };
+export type Result<T> = { success: true; data: T } | { success: false; error: AppError };
 
 /**
  * Generic type for paginated data (items + total only)

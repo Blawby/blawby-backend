@@ -36,7 +36,7 @@ const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => {
  */
 const listInvoices = async (
   { filters }: { filters: ListInvoicesQuery },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<PaginatedResult<InvoiceResponse, 'invoices'>> => {
   if (ctx.ability.cannot('read', 'Invoice')) {
     return result.forbidden<PaginatedData<InvoiceResponse, 'invoices'>>('You do not have permission to view invoices');
@@ -81,13 +81,10 @@ const listInvoices = async (
  */
 const listClientInvoices = async (
   { filters }: { filters: { status?: string; page?: number; limit?: number } },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
   try {
-    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(
-      ctx.organizationId,
-      ctx.userId,
-    );
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) return userDetailResult;
 
     const page = filters.page ?? 1;
@@ -96,7 +93,7 @@ const listClientInvoices = async (
     const { invoices: list, total } = await invoicesRepository.findManyByClientId(
       ctx.organizationId,
       userDetailResult.data,
-      { status: filters.status, page, limit },
+      { status: filters.status, page, limit }
     );
 
     return result.ok({
@@ -118,19 +115,16 @@ const listClientInvoices = async (
  */
 const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
   try {
-    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(
-      ctx.organizationId,
-      ctx.userId,
-    );
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) return userDetailResult;
 
     const invoice = await invoicesRepository.findOneByIdAndClientId(
       ctx.organizationId,
       invoiceId,
-      userDetailResult.data,
+      userDetailResult.data
     );
     if (!invoice) return result.notFound('Invoice not found');
 

@@ -6,18 +6,29 @@ import type {
 } from '@/modules/practice/types/practice.types';
 
 export type DetailsData = Partial<
-  Pick<UpsertPracticeDetailsRequest,
-    | 'business_phone' | 'business_email' | 'consultation_fee'
-    | 'payment_url' | 'calendly_url' | 'billing_increment_minutes'
-    | 'website' | 'intro_message' | 'overview'
-    | 'is_public' | 'accent_color' | 'services' | 'supported_states' | 'address'
+  Pick<
+    UpsertPracticeDetailsRequest,
+    | 'business_phone'
+    | 'business_email'
+    | 'consultation_fee'
+    | 'payment_url'
+    | 'calendly_url'
+    | 'billing_increment_minutes'
+    | 'website'
+    | 'intro_message'
+    | 'overview'
+    | 'is_public'
+    | 'accent_color'
+    | 'services'
+    | 'supported_states'
+    | 'address'
   >
 >;
 
 export type PracticeMutationData = CreatePracticeRequest | UpdatePracticeRequest;
 
-export type DetailsFieldKeys
-  = | 'business_phone'
+export type DetailsFieldKeys =
+  | 'business_phone'
   | 'business_email'
   | 'consultation_fee'
   | 'payment_url'

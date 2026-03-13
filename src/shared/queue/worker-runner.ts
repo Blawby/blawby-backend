@@ -160,7 +160,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
       error: error instanceof Error ? error.message : String(error),
     });
     if (listenClient) {
-      await listenClient.end().catch(() => { });
+      await listenClient.end().catch(() => {});
     }
     process.exit(1);
   }

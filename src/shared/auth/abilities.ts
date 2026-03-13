@@ -1,9 +1,4 @@
-import {
-  AbilityBuilder,
-  createMongoAbility,
-  type ForcedSubject,
-  type MongoAbility,
-} from '@casl/ability';
+import { AbilityBuilder, createMongoAbility, type ForcedSubject, type MongoAbility } from '@casl/ability';
 import { OrgRole, ADMIN_ROLES, MEMBER_ROLES } from '@/shared/enums/org-roles';
 
 /**
@@ -14,8 +9,8 @@ export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
 /**
  * Subject names (resources) in the system
  */
-export type SubjectName
-  = | 'all'
+export type SubjectName =
+  | 'all'
   | 'OrganizationPreferences'
   | 'PracticeClientIntake'
   | 'User'
@@ -26,9 +21,7 @@ export type SubjectName
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
  */
-export type Subject
-  = | SubjectName
-  | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
+export type Subject = SubjectName | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
 
 /**
  * The application-wide Ability type
@@ -43,7 +36,7 @@ export type AppAbility = MongoAbility<[Action, Subject]>;
  */
 export const defineAbilityFor = (
   role: string | null,
-  metadata: { userId?: string; organizationId?: string } = {},
+  metadata: { userId?: string; organizationId?: string } = {}
 ): AppAbility => {
   const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 

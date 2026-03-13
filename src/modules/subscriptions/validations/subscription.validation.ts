@@ -23,7 +23,8 @@ const createSubscriptionSchema = z.object({
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
   plan: z.string().min(1).optional().openapi({
-    description: 'Plan name (optional) - Used as fallback if planId lookup fails. Example: "starter", "professional", "enterprise"',
+    description:
+      'Plan name (optional) - Used as fallback if planId lookup fails. Example: "starter", "professional", "enterprise"',
     example: 'professional',
   }),
   success_url: z.url().optional().openapi({
@@ -78,11 +79,16 @@ const subscriptionPlanResponseSchema = z.object({
     invoices_per_month: z.number(),
     storage_gb: z.number(),
   }),
-  metered_items: z.array(z.object({
-    price_id: z.string(),
-    meter_name: z.string(),
-    type: z.string(),
-  })).nullable().optional(),
+  metered_items: z
+    .array(
+      z.object({
+        price_id: z.string(),
+        meter_name: z.string(),
+        type: z.string(),
+      })
+    )
+    .nullable()
+    .optional(),
   is_active: z.boolean(),
   is_public: z.boolean(),
   sort_order: z.number(),
@@ -200,11 +206,15 @@ const errorResponseSchema = z
   .object({
     error: z.string(),
     message: z.string().optional(),
-    details: z.array(z.object({
-      field: z.string(),
-      message: z.string(),
-      code: z.string(),
-    })).optional(),
+    details: z
+      .array(
+        z.object({
+          field: z.string(),
+          message: z.string(),
+          code: z.string(),
+        })
+      )
+      .optional(),
   })
   .openapi({
     description: 'Error response',

@@ -14,7 +14,7 @@ const createMemo = async (
   clientId: string,
   organizationId: string,
   data: Omit<InsertPracticeClientMemo, 'client_id' | 'created_by'>,
-  userId: string,
+  userId: string
 ): Promise<Result<SelectPracticeClientMemo>> => {
   try {
     const client = await userDetailsRepository.findById(clientId);
@@ -39,7 +39,7 @@ const updateMemo = async (
   id: string,
   clientId: string,
   organizationId: string,
-  data: Partial<InsertPracticeClientMemo>,
+  data: Partial<InsertPracticeClientMemo>
 ): Promise<Result<SelectPracticeClientMemo>> => {
   try {
     const memo = await practiceClientMemosRepository.findById(id);
@@ -62,11 +62,7 @@ const updateMemo = async (
   }
 };
 
-const deleteMemo = async (
-  id: string,
-  clientId: string,
-  organizationId: string,
-): Promise<Result<void>> => {
+const deleteMemo = async (id: string, clientId: string, organizationId: string): Promise<Result<void>> => {
   try {
     const memo = await practiceClientMemosRepository.findById(id);
     if (!memo || memo.client_id !== clientId) {

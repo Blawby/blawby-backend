@@ -11,15 +11,12 @@ import {
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
 
-
 const logger = getLogger(['subscriptions', 'webhook-service']);
 
 /**
  * Process a Stripe webhook event for subscriptions
  */
-const processSubscriptionWebhookEvent = async (
-  event: Stripe.Event,
-): Promise<Result<void>> => {
+const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Result<void>> => {
   try {
     logger.info('Processing subscription webhook event: {eventType}', { eventType: event.type });
 
@@ -60,9 +57,7 @@ const processSubscriptionWebhookEvent = async (
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });
-    return internalError(
-      error instanceof Error ? error.message : 'Failed to process subscription webhook',
-    );
+    return internalError(error instanceof Error ? error.message : 'Failed to process subscription webhook');
   }
 };
 

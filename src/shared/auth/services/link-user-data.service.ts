@@ -1,8 +1,6 @@
 import { getLogger, type Logger } from '@logtape/logtape';
 import { eq, and, sql } from 'drizzle-orm';
-import {
-  practiceClientIntakes,
-} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
@@ -42,12 +40,7 @@ export const linkAnonymousUserData = async (params: {
       const [existing] = await tx
         .select()
         .from(members)
-        .where(
-          and(
-            eq(members.organizationId, membership.organizationId),
-            eq(members.userId, newUser.id),
-          ),
-        )
+        .where(and(eq(members.organizationId, membership.organizationId), eq(members.userId, newUser.id)))
         .limit(1);
 
       if (existing) {
@@ -70,12 +63,7 @@ export const linkAnonymousUserData = async (params: {
       const [existing] = await tx
         .select()
         .from(userDetails)
-        .where(
-          and(
-            eq(userDetails.organization_id, detail.organization_id),
-            eq(userDetails.user_id, newUser.id),
-          ),
-        )
+        .where(and(eq(userDetails.organization_id, detail.organization_id), eq(userDetails.user_id, newUser.id)))
         .limit(1);
 
       if (existing) {
@@ -94,8 +82,8 @@ export const linkAnonymousUserData = async (params: {
       .where(
         and(
           eq(practiceClientIntakes.status, 'succeeded'),
-          eq(sql<string>`${practiceClientIntakes.metadata} ->> 'user_id'`, anonymousUser.id),
-        ),
+          eq(sql<string>`${practiceClientIntakes.metadata} ->> 'user_id'`, anonymousUser.id)
+        )
       );
 
     for (const intake of userIntakes) {
@@ -103,22 +91,20 @@ export const linkAnonymousUserData = async (params: {
       const [existingMember] = await tx
         .select()
         .from(members)
-        .where(
-          and(
-            eq(members.organizationId, intake.organization_id),
-            eq(members.userId, newUser.id),
-          ),
-        )
+        .where(and(eq(members.organizationId, intake.organization_id), eq(members.userId, newUser.id)))
         .limit(1);
 
       if (!existingMember) {
         // Add new user to organization as client
-        const [newMember] = await tx.insert(members).values({
-          organizationId: intake.organization_id,
-          userId: newUser.id,
-          role: 'client',
-          createdAt: new Date(),
-        }).returning();
+        const [newMember] = await tx
+          .insert(members)
+          .values({
+            organizationId: intake.organization_id,
+            userId: newUser.id,
+            role: 'client',
+            createdAt: new Date(),
+          })
+          .returning();
 
         logger.info('Added user {userId} to organization {orgId} as client from intake {intakeId}', {
           userId: newUser.id,
@@ -139,9 +125,7 @@ export const linkAnonymousUserData = async (params: {
         });
 
         // Mark user as needing onboarding (profile completion)
-        await tx.update(users)
-          .set({ onboardingComplete: false })
-          .where(eq(users.id, newUser.id));
+        await tx.update(users).set({ onboardingComplete: false }).where(eq(users.id, newUser.id));
       }
     }
   });
@@ -166,4 +150,3 @@ export const linkAnonymousUserData = async (params: {
     }
   }
 };
-
