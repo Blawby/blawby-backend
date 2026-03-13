@@ -24,7 +24,6 @@ type AllowedComponent = (typeof ALLOWED_COMPONENTS)[number];
 
 const createAccountSessionSchema = z
   .object({
-    practice_id: z.uuid().openapi({ example: '123e4567-e89b-12d3-a456-426614174000' }),
     components: z
       .array(z.enum(ALLOWED_COMPONENTS))
       .min(1)

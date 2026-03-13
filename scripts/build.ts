@@ -49,7 +49,9 @@ const discoverModules = async (): Promise<string[]> => {
     .filter((name) => !EXCLUDED_MODULES.includes(name) && !name.startsWith('.'));
 
   console.log(`✅ Discovered ${modules.length} modules:`);
-  modules.forEach((mod) => console.log(`   • ${mod}`));
+  modules.forEach((mod) => {
+    console.log(`   • ${mod}`);
+  });
 
   return modules;
 };
