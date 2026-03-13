@@ -12,16 +12,48 @@
     "node": true,
     "es2022": true
   },
+  "options": {
+    "typeAware": true
+  },
   "categories": {
-    "correctness": "off",
-    "suspicious": "off",
+    "correctness": "warn",
+    "suspicious": "warn",
     "pedantic": "off",
-    "style": "off",
-    "perf": "off",
+    "style": "error",
+    "perf": "warn",
     "restriction": "off",
     "nursery": "off"
   },
-  "rules": {},
+  "rules": {
+    "import/no-cycle": [
+      "error",
+      {
+        "maxDepth": 3
+      }
+    ],
+    "import/no-nodejs-modules": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-deprecated": "warn",
+    "typescript/no-unsafe-return": "warn",
+    "typescript/no-unsafe-assignment": "warn",
+    "typescript/no-unsafe-call": "warn",
+    "typescript/no-unsafe-member-access": "warn",
+    "typescript/prefer-nullish-coalescing": "warn",
+    "typescript/prefer-optional-chain": "warn",
+    "typescript/consistent-type-definitions": [
+      "warn",
+      "interface"
+    ],
+    "typescript/no-require-imports": "error",
+    "max-statements": "off",
+    "max-params": "off",
+    "id-length": "off",
+    "sort-keys": "off",
+    "node/no-import": "off",
+    "sort-imports": "off",
+    "no-ternary": "off",
+    "no-magic-numbers": "off"
+  },
   "overrides": [
     {
       "files": [
@@ -37,8 +69,6 @@
           }
         ],
         "eslint-js/prefer-const": "error",
-        "typescript/no-explicit-any": "error",
-        "typescript/no-deprecated": "error",
         "import/first": "error",
         "import/no-duplicates": "error"
       }
