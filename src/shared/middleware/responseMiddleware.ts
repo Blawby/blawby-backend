@@ -20,7 +20,6 @@ type ValidationError = Error & {
   };
 };
 
-
 /**
  * Global Response Middleware
  *
@@ -78,7 +77,11 @@ export const responseMiddleware = (): MiddlewareHandler => {
       }
 
       // Handle custom errors with status codes
-      if (error instanceof Error && 'status' in error && typeof (error as unknown as { status: unknown }).status === 'number') {
+      if (
+        error instanceof Error &&
+        'status' in error &&
+        typeof (error as unknown as { status: unknown }).status === 'number'
+      ) {
         const status = Number(error.status);
 
         logError(error, {
@@ -99,7 +102,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
             message: error.message,
             request_id: requestId,
           },
-          status as ContentfulStatusCode,
+          status as ContentfulStatusCode
         );
       }
 
@@ -123,7 +126,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
             message: error.message,
             request_id: requestId,
           },
-          error.status as ContentfulStatusCode,
+          error.status as ContentfulStatusCode
         );
       }
 
@@ -135,7 +138,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
             message: 'Authentication required',
             request_id: requestId,
           },
-          401,
+          401
         );
       }
 
@@ -159,7 +162,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
           message: 'An unexpected error occurred',
           request_id: requestId,
         },
-        500,
+        500
       );
     }
   };

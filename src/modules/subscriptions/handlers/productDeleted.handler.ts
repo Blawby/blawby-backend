@@ -20,7 +20,7 @@ export const handleProductDeleted = async (product: Stripe.Product): Promise<voi
   try {
     logger.info('Processing product.deleted: {productId} - {productName}', {
       productId: product.id,
-      productName: product.name
+      productName: product.name,
     });
 
     // Deactivate the plan instead of hard delete
@@ -34,7 +34,7 @@ export const handleProductDeleted = async (product: Stripe.Product): Promise<voi
   } catch (error) {
     logger.error('Failed to process product.deleted: {productId}. Error: {error}', {
       productId: product.id,
-      error
+      error,
     });
     throw error;
   }

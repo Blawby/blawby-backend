@@ -1,22 +1,24 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { practiceIdParamSchema } from '@/shared/validations/openapi';
 
-const trustTransactionSchema = z.object({
-  id: z.uuid(),
-  organization_id: z.uuid(),
-  client_id: z.uuid(),
-  matter_id: z.uuid().nullable(),
-  transaction_type: z.enum(['deposit', 'withdrawal', 'transfer', 'refund']),
-  amount: z.number(),
-  balance_after: z.number(),
-  description: z.string().nullable(),
-  source: z.string().nullable(),
-  invoice_id: z.uuid().nullable(),
-  stripe_payment_intent_id: z.string().nullable(),
-  created_at: z.string().datetime(),
-  created_by: z.uuid(),
-  metadata: z.record(z.string(), z.unknown()).nullable(),
-}).openapi('TrustTransaction', { description: 'A trust ledger transaction record' });
+const trustTransactionSchema = z
+  .object({
+    id: z.uuid(),
+    organization_id: z.uuid(),
+    client_id: z.uuid(),
+    matter_id: z.uuid().nullable(),
+    transaction_type: z.enum(['deposit', 'withdrawal', 'transfer', 'refund']),
+    amount: z.number(),
+    balance_after: z.number(),
+    description: z.string().nullable(),
+    source: z.string().nullable(),
+    invoice_id: z.uuid().nullable(),
+    stripe_payment_intent_id: z.string().nullable(),
+    created_at: z.string().datetime(),
+    created_by: z.uuid(),
+    metadata: z.record(z.string(), z.unknown()).nullable(),
+  })
+  .openapi('TrustTransaction', { description: 'A trust ledger transaction record' });
 
 export const getTrustTransactionsRoute = createRoute({
   method: 'get',
@@ -63,10 +65,12 @@ export const getTrustBalanceRoute = createRoute({
         'application/json': {
           schema: z.object({
             total: z.number(),
-            byMatter: z.array(z.object({
-              matter_id: z.uuid().nullable(),
-              balance: z.number(),
-            })),
+            byMatter: z.array(
+              z.object({
+                matter_id: z.uuid().nullable(),
+                balance: z.number(),
+              })
+            ),
           }),
         },
       },

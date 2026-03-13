@@ -34,7 +34,7 @@ export const payoutSent = (data: PayoutSentData): string => {
       </mj-column>
     `)}
   `,
-    BLAWBY_LOGO_URL,
+    BLAWBY_LOGO_URL
   );
 
   return renderMjml(mjmlContent);

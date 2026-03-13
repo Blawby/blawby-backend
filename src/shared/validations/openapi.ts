@@ -4,33 +4,43 @@ import { z } from '@hono/zod-openapi';
  * Common response schemas for OpenAPI documentation
  */
 
-export const errorResponseSchema = z.object({
-  error: z.string().openapi({ example: 'Bad Request' }),
-  message: z.string().openapi({ example: 'Invalid request data' }),
-  details: z.any().optional(),
-}).openapi('ErrorResponse');
+export const errorResponseSchema = z
+  .object({
+    error: z.string().openapi({ example: 'Bad Request' }),
+    message: z.string().openapi({ example: 'Invalid request data' }),
+    details: z.any().optional(),
+  })
+  .openapi('ErrorResponse');
 
-export const unauthorizedResponseSchema = z.object({
-  error: z.string().openapi({ example: 'Unauthorized' }),
-  message: z.string().openapi({ example: 'Authentication required' }),
-  details: z.any().optional(),
-}).openapi('UnauthorizedResponse');
+export const unauthorizedResponseSchema = z
+  .object({
+    error: z.string().openapi({ example: 'Unauthorized' }),
+    message: z.string().openapi({ example: 'Authentication required' }),
+    details: z.any().optional(),
+  })
+  .openapi('UnauthorizedResponse');
 
-export const forbiddenResponseSchema = z.object({
-  error: z.string().openapi({ example: 'Forbidden' }),
-  message: z.string().openapi({ example: 'Access denied' }),
-  details: z.any().optional(),
-}).openapi('ForbiddenResponse');
+export const forbiddenResponseSchema = z
+  .object({
+    error: z.string().openapi({ example: 'Forbidden' }),
+    message: z.string().openapi({ example: 'Access denied' }),
+    details: z.any().optional(),
+  })
+  .openapi('ForbiddenResponse');
 
-export const notFoundResponseSchema = z.object({
-  error: z.string().openapi({ example: 'Not Found' }),
-  message: z.string().openapi({ example: 'Resource not found' }),
-}).openapi('NotFoundResponse');
+export const notFoundResponseSchema = z
+  .object({
+    error: z.string().openapi({ example: 'Not Found' }),
+    message: z.string().openapi({ example: 'Resource not found' }),
+  })
+  .openapi('NotFoundResponse');
 
-export const internalServerErrorResponseSchema = z.object({
-  error: z.string().openapi({ example: 'Internal Server Error' }),
-  message: z.string().openapi({ example: 'An unexpected error occurred' }),
-}).openapi('InternalServerErrorResponse');
+export const internalServerErrorResponseSchema = z
+  .object({
+    error: z.string().openapi({ example: 'Internal Server Error' }),
+    message: z.string().openapi({ example: 'An unexpected error occurred' }),
+  })
+  .openapi('InternalServerErrorResponse');
 
 /**
  * Common parameter schemas

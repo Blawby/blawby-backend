@@ -61,8 +61,6 @@ export type IntakePostPayStatusResponse = z.infer<
 export type ClaimPracticeClientIntakeResponse = z.infer<
   typeof intakeValidations.claimPracticeClientIntakeResponseSchema
 >;
-export type UpdateIntakeTriageStatusResponse = z.infer<
-  typeof intakeValidations.updateIntakeTriageStatusResponseSchema
->;
+export type UpdateIntakeTriageStatusResponse = z.infer<typeof intakeValidations.updateIntakeTriageStatusResponseSchema>;
 export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesResponseSchema>;
 export type ListIntakeItem = NonNullable<ListIntakesResponse['data']>['intakes'][number];

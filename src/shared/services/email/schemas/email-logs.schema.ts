@@ -3,7 +3,7 @@ import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 
 /**
  * Email Logs Table
- * 
+ *
  * Tracks all emails sent by the application for auditing and debugging.
  */
 export const emailLogs = pgTable('email_logs', {

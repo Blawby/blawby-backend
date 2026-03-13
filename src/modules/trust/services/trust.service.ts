@@ -42,7 +42,7 @@ const withTrustLock = async <T>(
       return tx ? await runWithLock(tx) : await db.transaction(runWithLock);
     } catch (error: unknown) {
       const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : null;
-      
+
       // Handle lock timeout
       if (code === '55P03') {
         logger.warn('Trust operation timed out waiting for lock: {error}', {
@@ -56,7 +56,7 @@ const withTrustLock = async <T>(
       const isSerializationFailure = code === '40001';
       if (isSerializationFailure && !tx && retries > 0) {
         retries--;
-        const delay = 100 * (2 ** (3 - retries));
+        const delay = 100 * 2 ** (3 - retries);
         logger.info('Retrying trust transaction due to serialization failure (retries left: {retries})', { retries });
         await new Promise((r) => setTimeout(r, delay));
         continue;
@@ -77,31 +77,38 @@ const recordDeposit = async (
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   try {
-    return await withTrustLock(params, async (trx) => {
-      const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
-        params.organizationId,
-        params.clientId,
-        params.matterId ?? null,
-        trx,
-      );
-      const currentBalance = balanceRow?.balance ?? 0;
-      const newBalance = currentBalance + params.amount;
+    return await withTrustLock(
+      params,
+      async (trx) => {
+        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+          params.organizationId,
+          params.clientId,
+          params.matterId ?? null,
+          trx
+        );
+        const currentBalance = balanceRow?.balance ?? 0;
+        const newBalance = currentBalance + params.amount;
 
-      const record = await trustTransactionsRepository.createTransaction({
-        organization_id: params.organizationId,
-        client_id: params.clientId,
-        matter_id: params.matterId ?? null,
-        transaction_type: 'deposit',
-        amount: params.amount,
-        balance_after: newBalance,
-        description: params.description ?? 'Retainer deposit',
-        source: 'retainer_invoice',
-        invoice_id: params.invoiceId ?? null,
-        stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-        created_by: params.createdBy,
-      }, trx);
-      return result.ok(record);
-    }, tx);
+        const record = await trustTransactionsRepository.createTransaction(
+          {
+            organization_id: params.organizationId,
+            client_id: params.clientId,
+            matter_id: params.matterId ?? null,
+            transaction_type: 'deposit',
+            amount: params.amount,
+            balance_after: newBalance,
+            description: params.description ?? 'Retainer deposit',
+            source: 'retainer_invoice',
+            invoice_id: params.invoiceId ?? null,
+            stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+            created_by: params.createdBy,
+          },
+          trx
+        );
+        return result.ok(record);
+      },
+      tx
+    );
   } catch (error) {
     logger.error('Failed to record trust deposit: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -131,36 +138,43 @@ const recordWithdrawal = async (
   if (params.amount <= 0) return result.badRequest('Amount must be positive');
 
   try {
-    return await withTrustLock(params, async (trx) => {
-      const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
-        params.organizationId,
-        params.clientId,
-        params.matterId ?? null,
-        trx,
-      );
-      const currentBalance = balanceRow?.balance ?? 0;
-      
-      if (currentBalance < params.amount) {
-        return result.badRequest('Insufficient funds');
-      }
-      
-      const newBalance = currentBalance - params.amount;
+    return await withTrustLock(
+      params,
+      async (trx) => {
+        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+          params.organizationId,
+          params.clientId,
+          params.matterId ?? null,
+          trx
+        );
+        const currentBalance = balanceRow?.balance ?? 0;
 
-      const record = await trustTransactionsRepository.createTransaction({
-        organization_id: params.organizationId,
-        client_id: params.clientId,
-        matter_id: params.matterId ?? null,
-        transaction_type: 'withdrawal',
-        amount: params.amount,
-        balance_after: newBalance,
-        description: params.description ?? 'Invoice payment from retainer',
-        source: 'invoice_payment',
-        invoice_id: params.invoiceId ?? null,
-        stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-        created_by: params.createdBy,
-      }, trx);
-      return result.ok(record);
-    }, tx);
+        if (currentBalance < params.amount) {
+          return result.badRequest('Insufficient funds');
+        }
+
+        const newBalance = currentBalance - params.amount;
+
+        const record = await trustTransactionsRepository.createTransaction(
+          {
+            organization_id: params.organizationId,
+            client_id: params.clientId,
+            matter_id: params.matterId ?? null,
+            transaction_type: 'withdrawal',
+            amount: params.amount,
+            balance_after: newBalance,
+            description: params.description ?? 'Invoice payment from retainer',
+            source: 'invoice_payment',
+            invoice_id: params.invoiceId ?? null,
+            stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+            created_by: params.createdBy,
+          },
+          trx
+        );
+        return result.ok(record);
+      },
+      tx
+    );
   } catch (error) {
     logger.error('Failed to record trust withdrawal: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -198,10 +212,7 @@ const getBalance = async (params: {
   clientId: string;
 }): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
   try {
-    const rows = await trustTransactionsRepository.getLatestBalanceByClient(
-      params.organizationId,
-      params.clientId,
-    );
+    const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId);
     const total = rows.reduce((sum, r) => sum + r.balance, 0);
     return result.ok({ total, byMatter: rows });
   } catch (error) {

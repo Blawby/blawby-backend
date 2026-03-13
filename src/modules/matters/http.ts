@@ -1,7 +1,5 @@
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
-import {
-  routes as matterRoutes,
-} from '@/modules/matters/routes';
+import { routes as matterRoutes } from '@/modules/matters/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 
@@ -43,6 +41,5 @@ app.openapi(matterRoutes.createMilestoneRoute, matterHandlers.createMilestoneHan
 app.openapi(matterRoutes.updateMilestoneRoute, matterHandlers.updateMilestoneHandler);
 app.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.deleteMilestoneHandler);
 app.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
-
 
 export default app;

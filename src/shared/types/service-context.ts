@@ -12,19 +12,13 @@ export type ServiceContext = {
   memberRole: string | null;
   ability: AppAbility;
   requestHeaders: Record<string, string>;
-  emit: <T extends Record<string, unknown>>(
-    event: EventClass<T>,
-    payload: T,
-    tx?: typeof db,
-  ) => Promise<string>;
+  emit: <T extends Record<string, unknown>>(event: EventClass<T>, payload: T, tx?: typeof db) => Promise<string>;
 };
 
 export const getServiceContext = (c: Context): ServiceContext => {
   const userId = c.get('userId');
   const user = c.get('user');
-  const organizationId = c.req.param('organization_id')
-    || c.req.param('practice_id')
-    || c.get('activeOrganizationId');
+  const organizationId = c.req.param('organization_id') || c.req.param('practice_id') || c.get('activeOrganizationId');
   const matterId = c.req.param('id') || c.req.param('matter_id');
 
   return {

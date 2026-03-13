@@ -5,7 +5,13 @@
  * R2 is S3-compatible, so we use AWS SDK
  */
 
-import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  HeadObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Lazy initialization of R2 client
@@ -22,7 +28,7 @@ const initR2Client = (): S3Client => {
 
     if (!accountId || !accessKeyId || !secretAccessKey) {
       throw new Error(
-        'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, and CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables are required',
+        'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, and CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables are required'
       );
     }
 
@@ -90,10 +96,7 @@ export const generatePresignedDownloadUrl = async (params: {
 /**
  * Verify file exists in R2
  */
-export const verifyFileExists = async (params: {
-  bucket: string;
-  key: string;
-}): Promise<boolean> => {
+export const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
   try {
     const client = getR2Client();
     const command = new HeadObjectCommand({
@@ -111,10 +114,7 @@ export const verifyFileExists = async (params: {
 /**
  * Delete file from R2
  */
-export const deleteFile = async (params: {
-  bucket: string;
-  key: string;
-}): Promise<void> => {
+export const deleteFile = async (params: { bucket: string; key: string }): Promise<void> => {
   const client = getR2Client();
   const command = new DeleteObjectCommand({
     Bucket: params.bucket,

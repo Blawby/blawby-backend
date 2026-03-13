@@ -52,7 +52,8 @@ export const createConnectedAccountRoute = createRoute({
   path: '/connected-accounts',
   tags: ['Onboarding'],
   summary: 'Initialize Hosted Onboarding Flow',
-  description: 'Creates a Stripe connected account (if needed) and returns a hosted onboarding URL for the organization',
+  description:
+    'Creates a Stripe connected account (if needed) and returns a hosted onboarding URL for the organization',
   request: {
     body: {
       content: {

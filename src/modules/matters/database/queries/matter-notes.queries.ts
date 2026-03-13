@@ -8,33 +8,19 @@ import type { MatterNoteListFilters } from '@/modules/matters/types/matter-filte
 import { db } from '@/shared/database';
 
 // Create matter note
-const createMatterNote = async (
-  data: InsertMatterNote,
-): Promise<SelectMatterNote> => {
-  const [note] = await db
-    .insert(matterNotes)
-    .values(data)
-    .returning();
+const createMatterNote = async (data: InsertMatterNote): Promise<SelectMatterNote> => {
+  const [note] = await db.insert(matterNotes).values(data).returning();
   return note;
 };
 
 // Find matter note by ID
-const findMatterNoteById = async (
-  id: string,
-): Promise<SelectMatterNote | undefined> => {
-  const [note] = await db
-    .select()
-    .from(matterNotes)
-    .where(eq(matterNotes.id, id))
-    .limit(1);
+const findMatterNoteById = async (id: string): Promise<SelectMatterNote | undefined> => {
+  const [note] = await db.select().from(matterNotes).where(eq(matterNotes.id, id)).limit(1);
   return note;
 };
 
 // List matter notes
-const listMatterNotes = async (
-  matterId: string,
-  filters?: MatterNoteListFilters,
-): Promise<SelectMatterNote[]> => {
+const listMatterNotes = async (matterId: string, filters?: MatterNoteListFilters): Promise<SelectMatterNote[]> => {
   const conditions = [eq(matterNotes.matter_id, matterId)];
   if (filters?.noteId) {
     conditions.push(eq(matterNotes.id, filters.noteId));
@@ -48,10 +34,7 @@ const listMatterNotes = async (
 };
 
 // Update matter note
-const updateMatterNote = async (
-  id: string,
-  data: Partial<InsertMatterNote>,
-): Promise<SelectMatterNote | undefined> => {
+const updateMatterNote = async (id: string, data: Partial<InsertMatterNote>): Promise<SelectMatterNote | undefined> => {
   const [note] = await db
     .update(matterNotes)
     .set({ ...data, updated_at: new Date() })

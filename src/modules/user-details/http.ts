@@ -16,7 +16,6 @@ userDetailsApp.openapi(routes.createUserDetailMemoRoute, handlers.createUserDeta
 userDetailsApp.openapi(routes.updateUserDetailsMemoRoute, handlers.updateUserDetailMemoHandler);
 userDetailsApp.openapi(routes.deleteUserDetailsMemoRoute, handlers.deleteUserDetailMemoHandler);
 
-
 // Register routes for OpenAPI documentation extraction
 registerOpenApiRoutes(userDetailsApp, routes);
 

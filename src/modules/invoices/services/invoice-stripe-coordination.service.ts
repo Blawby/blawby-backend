@@ -4,16 +4,10 @@ import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
-import type {
-  InvoiceResponse,
-  InvoiceWithRelations,
-} from '@/modules/invoices/types/invoices.types';
+import type { InvoiceResponse, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { handleServiceError } from '@/modules/invoices/utils/error-handler';
 import { db } from '@/shared/database';
-import {
-  InvoiceSent,
-  InvoiceVoided,
-} from '@/shared/events/definitions';
+import { InvoiceSent, InvoiceVoided } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
@@ -33,7 +27,7 @@ const finalizeAndSendStripeFlow = async (
     invWithRel: InvoiceWithRelations;
     idempotencyKeyPrefix?: string;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<InvoiceWithRelations>> => {
   // 1. Create on Stripe
   if (!invWithRel.client?.stripe_customer_id) {
@@ -44,17 +38,14 @@ const finalizeAndSendStripeFlow = async (
     invWithRel,
     invWithRel.client.stripe_customer_id,
     invWithRel.connected_account_id,
-    idempotencyKeyPrefix,
+    idempotencyKeyPrefix
   );
   if (!stripeResult.success) return { success: false, error: stripeResult.error };
 
   const stripeInvoice = stripeResult.data;
 
   // 2. Finalize and send
-  const sendResult = await stripeInvoicesService.finalizeAndSendInvoice(
-    stripeInvoice.id,
-    idempotencyKeyPrefix,
-  );
+  const sendResult = await stripeInvoicesService.finalizeAndSendInvoice(stripeInvoice.id, idempotencyKeyPrefix);
   if (!sendResult.success) return { success: false, error: sendResult.error };
 
   const finalInvoice = sendResult.data;
@@ -62,12 +53,17 @@ const finalizeAndSendStripeFlow = async (
   // 3. Update internal status
   try {
     const updated = await db.transaction(async (tx) => {
-      await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
-        status: 'sent',
-        stripe_invoice_id: finalInvoice.id,
-        stripe_hosted_invoice_url: finalInvoice.hosted_invoice_url,
-        issue_date: new Date(),
-      }, tx);
+      await invoicesRepository.updateInvoice(
+        invoiceId,
+        ctx.organizationId,
+        {
+          status: 'sent',
+          stripe_invoice_id: finalInvoice.id,
+          stripe_hosted_invoice_url: finalInvoice.hosted_invoice_url,
+          issue_date: new Date(),
+        },
+        tx
+      );
 
       await InvoiceSent.dispatch(
         {
@@ -83,9 +79,8 @@ const finalizeAndSendStripeFlow = async (
           actorType: 'user',
           organizationId: ctx.organizationId,
           tx,
-        },
+        }
       );
-
 
       return await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId, tx);
     });
@@ -105,12 +100,16 @@ const finalizeAndSendStripeFlow = async (
  * Coordination for external -> internal status mapping (SRP)
  */
 const syncStripeState = async (
-  { invoiceId, stripeInvoice, currentInvoice }: {
+  {
+    invoiceId,
+    stripeInvoice,
+    currentInvoice,
+  }: {
     invoiceId: string;
     stripeInvoice: Stripe.Invoice;
     currentInvoice: InvoiceWithRelations;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> => {
   const statusMap: Record<string, string> = {
     draft: 'draft',
@@ -135,10 +134,7 @@ const syncStripeState = async (
 /**
  * Send an invoice via Stripe
  */
-const sendInvoice = async (
-  { id }: { id: string },
-  ctx: ServiceContext,
-): Promise<Result<InvoiceResponse>> => {
+const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
@@ -154,21 +150,13 @@ const sendInvoice = async (
       return result.badRequest<InvoiceResponse>('Client is missing Stripe customer ID');
     }
 
-    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(
-      id,
-      ctx.organizationId,
-      'draft',
-      'sending',
-    );
+    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');
     if (!lockedInvoice) {
       return result.conflict<InvoiceResponse>('Invoice is already being sent by another request');
     }
 
     const idempotencyKeyPrefix = `invoice-send:${id}`;
-    const updated = await finalizeAndSendStripeFlow(
-      { invoiceId: id, invWithRel: invoice, idempotencyKeyPrefix },
-      ctx,
-    );
+    const updated = await finalizeAndSendStripeFlow({ invoiceId: id, invWithRel: invoice, idempotencyKeyPrefix }, ctx);
 
     if (!updated.success) {
       await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'sending', 'draft');
@@ -187,30 +175,30 @@ const sendInvoice = async (
 /**
  * Sync invoice with Stripe
  */
-const syncInvoice = async (
-  { id }: { id: string },
-  ctx: ServiceContext,
-): Promise<Result<InvoiceResponse>> => {
+const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) return result.notFound<InvoiceResponse>('Invoice not found');
-    if (!invoice.stripe_invoice_id) return result.badRequest<InvoiceResponse>('Invoice has not been synced with Stripe');
+    if (!invoice.stripe_invoice_id) {
+      return result.badRequest<InvoiceResponse>('Invoice has not been synced with Stripe');
+    }
 
     // 1. Fetch from Stripe
-    const stripeResult = await stripeInvoicesService.getStripeInvoice(
-      invoice.stripe_invoice_id,
-    );
+    const stripeResult = await stripeInvoicesService.getStripeInvoice(invoice.stripe_invoice_id);
     if (!stripeResult.success) return { success: false, error: stripeResult.error };
 
     // 2. Sync State
-    const updated = await syncStripeState({
-      invoiceId: id,
-      stripeInvoice: stripeResult.data,
-      currentInvoice: invoice,
-    }, ctx);
+    const updated = await syncStripeState(
+      {
+        invoiceId: id,
+        stripeInvoice: stripeResult.data,
+        currentInvoice: invoice,
+      },
+      ctx
+    );
 
     if (!updated) return result.notFound<InvoiceResponse>('Invoice not found');
 
@@ -223,10 +211,7 @@ const syncInvoice = async (
 /**
  * Void an invoice via Stripe
  */
-const voidInvoice = async (
-  { id }: { id: string },
-  ctx: ServiceContext,
-): Promise<Result<InvoiceResponse>> => {
+const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
@@ -243,24 +228,25 @@ const voidInvoice = async (
     }
 
     // Void on Stripe
-    const voidResult = await stripeInvoicesService.voidInvoice(
-      invoice.stripe_invoice_id,
-    );
+    const voidResult = await stripeInvoicesService.voidInvoice(invoice.stripe_invoice_id);
     if (!voidResult.success) return { success: false, error: voidResult.error };
 
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(id, ctx.organizationId, { status: 'cancelled' }, tx);
-      await InvoiceVoided.dispatch({
-        invoice_id: id,
-        organization_id: ctx.organizationId,
-        stripe_invoice_id: invoice.stripe_invoice_id!,
-        voided_by: 'user',
-      }, {
-        actorId: ctx.userId,
-        actorType: 'user',
-        organizationId: ctx.organizationId,
-        tx,
-      });
+      await InvoiceVoided.dispatch(
+        {
+          invoice_id: id,
+          organization_id: ctx.organizationId,
+          stripe_invoice_id: invoice.stripe_invoice_id!,
+          voided_by: 'user',
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+          tx,
+        }
+      );
     });
 
     const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId);

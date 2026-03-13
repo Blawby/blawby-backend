@@ -14,6 +14,5 @@ const logger = getLogger(['stripe', 'listeners']);
 export function registerStripeListeners(): void {
   logger.info('Registering Stripe event listeners...');
 
-
   logger.info('Stripe event listeners registered');
 }

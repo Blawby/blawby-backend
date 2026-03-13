@@ -33,11 +33,7 @@ interface GetActiveOrgParams {
  * This handles the case where anonymous session was lost but user authenticates
  * with the same email they used during intake.
  */
-const checkPendingIntakesByEmail = async ({
-  db,
-  userId,
-  email,
-}: CheckPendingIntakesParams): Promise<void> => {
+const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingIntakesParams): Promise<void> => {
   // Find succeeded intakes matching this email that haven't been processed
   const pendingIntakes = await db
     .select()
@@ -45,8 +41,8 @@ const checkPendingIntakesByEmail = async ({
     .where(
       and(
         eq(practiceClientIntakes.status, INTAKE_STATUS_SUCCEEDED),
-        eq(sql<string>`lower(${practiceClientIntakes.metadata} ->> 'email')`, email.toLowerCase()),
-      ),
+        eq(sql<string>`lower(${practiceClientIntakes.metadata} ->> 'email')`, email.toLowerCase())
+      )
     );
 
   for (const intake of pendingIntakes) {
@@ -65,9 +61,7 @@ const checkPendingIntakesByEmail = async ({
 
       if (newMember) {
         // Mark user as needing onboarding
-        await db.update(schema.users)
-          .set({ onboardingComplete: false })
-          .where(eq(schema.users.id, userId));
+        await db.update(schema.users).set({ onboardingComplete: false }).where(eq(schema.users.id, userId));
 
         logger.info('Added user {userId} to organization {orgId} from pending intake {intakeId} (email match)', {
           userId,
@@ -77,19 +71,25 @@ const checkPendingIntakesByEmail = async ({
 
         // Dispatch event with error handling
         try {
-          await PracticeMemberJoined.dispatch({
-            member_id: newMember.id,
-            intake_id: intake.id,
-          }, {
-            actorId: userId,
-            organizationId: intake.organization_id,
-          });
+          await PracticeMemberJoined.dispatch(
+            {
+              member_id: newMember.id,
+              intake_id: intake.id,
+            },
+            {
+              actorId: userId,
+              organizationId: intake.organization_id,
+            }
+          );
         } catch (dispatchError) {
-          logger.error('Failed to dispatch PracticeMemberJoined event for user {userId} and intake {intakeId}: {error}', {
-            userId,
-            intakeId: intake.id,
-            error: dispatchError,
-          });
+          logger.error(
+            'Failed to dispatch PracticeMemberJoined event for user {userId} and intake {intakeId}: {error}',
+            {
+              userId,
+              intakeId: intake.id,
+              error: dispatchError,
+            }
+          );
         }
       }
     } catch (error) {
@@ -106,26 +106,14 @@ const checkPendingIntakesByEmail = async ({
  * Get active organization ID for a user
  * Tries to preserve last active organization, falls back to first organization
  */
-const getActiveOrganizationId = async ({
-  db,
-  userId,
-  lastActiveOrgId,
-}: GetActiveOrgParams): Promise<string | null> => {
+const getActiveOrganizationId = async ({ db, userId, lastActiveOrgId }: GetActiveOrgParams): Promise<string | null> => {
   // First, try to use the last active organization if it's still valid
   if (lastActiveOrgId) {
     const orgValidation = await db
       .select({ id: schema.organizations.id })
       .from(schema.organizations)
-      .innerJoin(
-        schema.members,
-        eq(schema.organizations.id, schema.members.organizationId),
-      )
-      .where(
-        and(
-          eq(schema.organizations.id, lastActiveOrgId),
-          eq(schema.members.userId, userId),
-        ),
-      )
+      .innerJoin(schema.members, eq(schema.organizations.id, schema.members.organizationId))
+      .where(and(eq(schema.organizations.id, lastActiveOrgId), eq(schema.members.userId, userId)))
       .limit(1);
 
     if (orgValidation.length > 0) {
@@ -159,7 +147,7 @@ type SessionData = Record<string, unknown> & {
  * Create database hooks configuration
  */
 export const createDatabaseHooks = (
-  db: NodePgDatabase<typeof schema>,
+  db: NodePgDatabase<typeof schema>
 ): {
   user: {
     create: {
@@ -177,21 +165,24 @@ export const createDatabaseHooks = (
     user: {
       create: {
         after: async (userData: UserData): Promise<void> => {
-          AuthUserSignedUp.dispatch({
-            actor_id: userData.id,
-            user_id: userData.id,
-            email: userData.email,
-            name: userData.name,
-            signup_method: 'email',
-            is_anonymous: userData.isAnonymous ?? false,
-          }, { actorId: userData.id });
+          AuthUserSignedUp.dispatch(
+            {
+              actor_id: userData.id,
+              user_id: userData.id,
+              email: userData.email,
+              name: userData.name,
+              signup_method: 'email',
+              is_anonymous: userData.isAnonymous ?? false,
+            },
+            { actorId: userData.id }
+          );
         },
       },
     },
     session: {
       create: {
         before: async (
-          sessionData: SessionData,
+          sessionData: SessionData
         ): Promise<{ data: SessionData & { activeOrganizationId: string | null } }> => {
           // Get last active organization from previous session
           const lastActiveSession = await db
@@ -203,9 +194,7 @@ export const createDatabaseHooks = (
             .limit(1);
 
           // Delete all existing sessions for this user (single session per user)
-          await db
-            .delete(schema.sessions)
-            .where(eq(schema.sessions.userId, sessionData.userId));
+          await db.delete(schema.sessions).where(eq(schema.sessions.userId, sessionData.userId));
 
           // Determine active organization
           let activeOrganizationId: string | null = null;
@@ -247,4 +236,3 @@ export const createDatabaseHooks = (
     },
   };
 };
-

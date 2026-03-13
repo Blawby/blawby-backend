@@ -3,9 +3,7 @@ import { onboardingRepository } from '@/modules/onboarding/database/queries/onbo
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import {
-  practiceClientIntakesSchema,
-} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import {
   formatIntakeStatusResponse,
@@ -34,12 +32,7 @@ type ClaimIntakeAbort = {
 };
 
 const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
-  return Boolean(
-    value
-    && typeof value === 'object'
-    && '__claimIntakeResult' in value
-    && 'result' in value,
-  );
+  return Boolean(value && typeof value === 'object' && '__claimIntakeResult' in value && 'result' in value);
 };
 
 const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
@@ -55,8 +48,13 @@ const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metad
 
 const processClaimIntakeTx = async (
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  intake: NonNullable<Extract<Awaited<ReturnType<typeof resolvePracticeClientIntakeByCheckoutSessionId>>, { success: true }>['data']['intake']>,
-  userId: string,
+  intake: NonNullable<
+    Extract<
+      Awaited<ReturnType<typeof resolvePracticeClientIntakeByCheckoutSessionId>>,
+      { success: true }
+    >['data']['intake']
+  >,
+  userId: string
 ) => {
   const rollbackWithResult = (resultValue: Result<ClaimPracticeClientIntakeResponse>): never => {
     throw {
@@ -109,7 +107,7 @@ const processClaimIntakeTx = async (
 
   if (!userDetailsResult.success) {
     return rollbackWithResult(
-      result.fail(userDetailsResult.error.message, userDetailsResult.error.status, userDetailsResult.error.code),
+      result.fail(userDetailsResult.error.message, userDetailsResult.error.status, userDetailsResult.error.code)
     );
   }
 
@@ -139,7 +137,7 @@ const processClaimIntakeTx = async (
 
 const createCheckoutSession = async (
   params: { uuid: string; origin?: string | null },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<CreateCheckoutSessionResponse>> => {
   try {
     const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'update');
@@ -170,14 +168,13 @@ const createCheckoutSession = async (
       try {
         const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(
           practiceClientIntake.stripe_checkout_session_id,
-          { requireSession: true },
+          { requireSession: true }
         );
 
         const existingSession = resolveResult.success ? resolveResult.data.session : undefined;
 
-        const isReusable = existingSession
-          && existingSession.status === 'open'
-          && existingSession.payment_status !== 'paid';
+        const isReusable =
+          existingSession && existingSession.status === 'open' && existingSession.payment_status !== 'paid';
 
         if (isReusable && existingSession.url) {
           return result.ok({
@@ -246,7 +243,7 @@ const createCheckoutSession = async (
 
 const getIntakeStatus = async (
   params: { uuid: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<IntakeStatusResponse>> => {
   try {
     const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'read');
@@ -270,9 +267,7 @@ const getIntakeStatus = async (
   }
 };
 
-const getPostPayStatus = async (
-  params: { sessionId: string },
-): Promise<Result<IntakePostPayStatusResponse>> => {
+const getPostPayStatus = async (params: { sessionId: string }): Promise<Result<IntakePostPayStatusResponse>> => {
   try {
     const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
     if (!resolveResult.success) {
@@ -311,7 +306,7 @@ const getPostPayStatus = async (
 
 const claimIntake = async (
   params: { sessionId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
   try {
     const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);

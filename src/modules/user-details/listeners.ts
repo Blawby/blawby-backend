@@ -85,7 +85,7 @@ export const registerUserDetailsListeners = (): void => {
         email: payload.email,
         status: 'active',
       },
-      'system',
+      'system'
     );
 
     if (result.success) {

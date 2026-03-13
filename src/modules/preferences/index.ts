@@ -10,11 +10,6 @@ import { config } from '@/modules/preferences/routes.config';
 import { preferencesService } from '@/modules/preferences/services/preferences.service';
 import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 
-export {
-  preferencesHandlers,
-  preferencesService,
-  preferenceValidations,
-  config,
-};
+export { preferencesHandlers, preferencesService, preferenceValidations, config };
 
 export default http;

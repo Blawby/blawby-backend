@@ -31,7 +31,7 @@ const logMatterActivity = async (
     matterId?: string;
   },
   ctx: ServiceContext,
-  tx?: NodePgDatabase<typeof schema>,
+  tx?: NodePgDatabase<typeof schema>
 ): Promise<Result<SelectMatterActivityLog>> => {
   const matterId = params.matterId || ctx.matterId;
 
@@ -72,7 +72,7 @@ const logMatterActivity = async (
  */
 const getMatterActivity = async (
   options: MatterActivityListFilters | undefined,
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterActivityLog[]>> => {
   const matterId = ctx.matterId;
   if (!matterId) {

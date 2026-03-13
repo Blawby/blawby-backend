@@ -84,9 +84,4 @@ export type InvoiceListFilters = z.infer<typeof invoiceValidations.listInvoicesQ
   invoiceId?: string;
 };
 
-export type {
-  SelectInvoice,
-  SelectInvoiceLineItem,
-  SelectPaymentLink,
-  SelectBillingTransaction,
-};
+export type { SelectInvoice, SelectInvoiceLineItem, SelectPaymentLink, SelectBillingTransaction };

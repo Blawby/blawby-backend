@@ -33,12 +33,7 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
         const memberResult = await db
           .select({ role: members.role })
           .from(members)
-          .where(
-            and(
-              eq(members.userId, userId),
-              eq(members.organizationId, orgId),
-            ),
-          )
+          .where(and(eq(members.userId, userId), eq(members.organizationId, orgId)))
           .limit(1);
 
         if (memberResult[0]) {

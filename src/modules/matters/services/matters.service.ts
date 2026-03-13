@@ -21,21 +21,12 @@ import { userDetailsRepository } from '@/modules/user-details/database/queries/u
 import type { Action, Subject } from '@/shared/auth/abilities';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
-import {
-  MatterCreated,
-  MatterUpdated,
-  MatterDeleted,
-  MatterStatusChanged,
-} from '@/shared/events/definitions';
+import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import type { PaginatedResult, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
-const getForbiddenResult = (
-  ctx: ServiceContext,
-  action: Action,
-  subject: Subject,
-): Result<never> | undefined => {
+const getForbiddenResult = (ctx: ServiceContext, action: Action, subject: Subject): Result<never> | undefined => {
   try {
     ForbiddenError.from(ctx.ability).throwUnlessCan(action, subject);
     return undefined;
@@ -50,10 +41,7 @@ const getForbiddenResult = (
 /**
  * Create a new matter
  */
-const createMatter = async (
-  data: CreateMatterRequest,
-  ctx: ServiceContext,
-): Promise<Result<MatterRecord>> => {
+const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Promise<Result<MatterRecord>> => {
   const forbiddenResult = getForbiddenResult(ctx, 'create', 'Matter');
   if (forbiddenResult) return forbiddenResult;
 
@@ -110,7 +98,7 @@ const createMatter = async (
             order: milestone.order,
             status: 'pending' as const,
           })),
-          tx,
+          tx
         );
       }
 
@@ -122,7 +110,7 @@ const createMatter = async (
           metadata: { billing_type: newMatter.billing_type, status: newMatter.status },
         },
         ctx,
-        tx,
+        tx
       );
       if (!creationActivityResult.success) {
         throw new Error(creationActivityResult.error.message);
@@ -137,7 +125,7 @@ const createMatter = async (
           title: newMatter.title,
           billing_type: newMatter.billing_type,
         },
-        tx,
+        tx
       );
 
       return newMatter;
@@ -156,10 +144,7 @@ const createMatter = async (
  * Lightweight access check for sub-resource endpoints (notes, time entries, expenses, milestones).
  * Uses a minimal DB query — does NOT load relations.
  */
-const verifyMatterAccess = async (
-  matterId: string,
-  ctx: ServiceContext,
-): Promise<Result<void>> => {
+const verifyMatterAccess = async (matterId: string, ctx: ServiceContext): Promise<Result<void>> => {
   const matter = await mattersQueries.findMatterById(matterId);
 
   if (!matter || matter.organization_id !== ctx.organizationId) {
@@ -175,10 +160,7 @@ const verifyMatterAccess = async (
 /**
  * Get matter by ID (with full relations — for matter detail view only)
  */
-const getMatterById = async (
-  matterId: string,
-  ctx: ServiceContext,
-): Promise<Result<MatterRecord>> => {
+const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Result<MatterRecord>> => {
   const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
 
   if (!matter || matter.organization_id !== ctx.organizationId) {
@@ -199,7 +181,7 @@ const getMatterById = async (
  */
 const listMatters = async (
   filters: ListMattersQuery,
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<PaginatedResult<MatterRecord, 'matters'>> => {
   const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
   if (forbiddenResult) return forbiddenResult;
@@ -227,7 +209,7 @@ const listMatters = async (
 const updateMatter = async (
   matterId: string,
   data: UpdateMatterRequest,
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<MatterRecord>> => {
   // 1. Fetch existing for authorization
   const existing = await mattersQueries.findMatterByIdWithRelations(matterId);
@@ -311,7 +293,7 @@ const updateMatter = async (
             metadata: { changes: matterData, changed_fields: changedFields },
           },
           ctx,
-          tx,
+          tx
         );
         if (!updateActivityResult.success) {
           throw new Error(updateActivityResult.error.message);
@@ -324,7 +306,7 @@ const updateMatter = async (
             metadata: { changes: matterData, changed_fields: changedFields },
           },
           ctx,
-          tx,
+          tx
         );
         if (!noChangeActivityResult.success) {
           throw new Error(noChangeActivityResult.error.message);
@@ -340,7 +322,7 @@ const updateMatter = async (
             metadata: { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
           },
           ctx,
-          tx,
+          tx
         );
         if (!statusActivityResult.success) {
           throw new Error(statusActivityResult.error.message);
@@ -354,7 +336,7 @@ const updateMatter = async (
             old_status: existing.status,
             new_status: data.status,
           },
-          tx,
+          tx
         );
       }
 
@@ -366,7 +348,7 @@ const updateMatter = async (
           organization_id: ctx.organizationId,
           changes: { ...matterData },
         },
-        tx,
+        tx
       );
 
       return updated;
@@ -388,10 +370,7 @@ const updateMatter = async (
 /**
  * Delete matter (soft delete)
  */
-const deleteMatter = async (
-  matterId: string,
-  ctx: ServiceContext,
-): Promise<Result<{ success: true }>> => {
+const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<Result<{ success: true }>> => {
   // 1. Fetch for authorization
   const existing = await mattersQueries.findMatterByIdWithRelations(matterId);
 
@@ -415,7 +394,7 @@ const deleteMatter = async (
           metadata: undefined,
         },
         ctx,
-        tx,
+        tx
       );
       if (!deleteActivityResult.success) {
         throw new Error(deleteActivityResult.error.message);
@@ -428,7 +407,7 @@ const deleteMatter = async (
           matter_id: matterId,
           organization_id: ctx.organizationId,
         },
-        tx,
+        tx
       );
 
       return deleted;
@@ -448,19 +427,20 @@ const deleteMatter = async (
 /**
  * Get matter counts by status
  */
-const getMatterCounts = async (
-  ctx: ServiceContext,
-): Promise<Result<Record<string, number>>> => {
+const getMatterCounts = async (ctx: ServiceContext): Promise<Result<Record<string, number>>> => {
   const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
   if (forbiddenResult) return forbiddenResult;
 
   const counts = await mattersQueries.getMatterCountsByStatus(ctx.organizationId);
 
   // Transform to object format
-  const transformed = counts.reduce((acc: Record<string, number>, { status, count }) => {
-    acc[status] = count;
-    return acc;
-  }, {} as Record<string, number>);
+  const transformed = counts.reduce(
+    (acc: Record<string, number>, { status, count }) => {
+      acc[status] = count;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
 
   return result.ok(transformed);
 };

@@ -19,7 +19,8 @@ const COLORS = {
 };
 
 const BLAWBY_LOGO_URL = 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/27bc2bf2-8582-4ed1-e77c-45d7a3215b00/public';
-const INVOICE_ILLUSTRATION_URL = 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/02417d17-e2fb-4494-2ab5-ba89ef347e00/public';
+const INVOICE_ILLUSTRATION_URL =
+  'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/02417d17-e2fb-4494-2ab5-ba89ef347e00/public';
 
 /**
  * Currency formatter for USD

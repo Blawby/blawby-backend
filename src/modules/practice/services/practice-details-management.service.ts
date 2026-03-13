@@ -30,14 +30,11 @@ export const practiceDetailsManagementService = {
    */
   async upsertPracticeDetails(
     { organizationId, data }: UpsertPracticeDetailsParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<PracticeDetailsResponse>> {
     const { user } = ctx;
     try {
-      const orgResult = await organizationService.getFullOrganization(
-        { organizationId },
-        ctx,
-      );
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
       if (!orgResult.success) return orgResult;
 
       const organization = await organizationRepository.findById(organizationId);
@@ -58,13 +55,13 @@ export const practiceDetailsManagementService = {
         organization_id: organizationId,
         address: result.addressResult
           ? {
-            line1: result.addressResult.line1 ?? undefined,
-            line2: result.addressResult.line2 ?? undefined,
-            city: result.addressResult.city ?? undefined,
-            state: result.addressResult.state ?? undefined,
-            postal_code: result.addressResult.postal_code ?? undefined,
-            country: result.addressResult.country ?? undefined,
-          }
+              line1: result.addressResult.line1 ?? undefined,
+              line2: result.addressResult.line2 ?? undefined,
+              city: result.addressResult.city ?? undefined,
+              state: result.addressResult.state ?? undefined,
+              postal_code: result.addressResult.postal_code ?? undefined,
+              country: result.addressResult.country ?? undefined,
+            }
           : null,
         services: result.syncedServices.map((s) => ({ id: s.id, name: s.name, key: s.key })),
         name: orgResult.data.name,
@@ -75,10 +72,7 @@ export const practiceDetailsManagementService = {
 
       return ok<PracticeDetailsResponse>(responseData);
     } catch (error) {
-      logger.error(
-        'Failed to upsert practice details for {organizationId}: {error}',
-        { organizationId, error },
-      );
+      logger.error('Failed to upsert practice details for {organizationId}: {error}', { organizationId, error });
       return internalError<PracticeDetailsResponse>('Failed to save practice details');
     }
   },
@@ -88,23 +82,17 @@ export const practiceDetailsManagementService = {
    */
   async deletePracticeDetails(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<{ success: boolean }>> {
     try {
-      const orgResult = await organizationService.getFullOrganization(
-        { organizationId },
-        ctx,
-      );
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
       if (!orgResult.success) return orgResult;
 
       await findAndDeletePracticeDetails(ctx, organizationId);
 
       return ok<{ success: boolean }>({ success: true });
     } catch (error) {
-      logger.error(
-        'Failed to delete practice details for {organizationId}: {error}',
-        { organizationId, error },
-      );
+      logger.error('Failed to delete practice details for {organizationId}: {error}', { organizationId, error });
       return internalError<{ success: boolean }>('Failed to delete practice details');
     }
   },
@@ -114,22 +102,16 @@ export const practiceDetailsManagementService = {
    */
   async deletePractice(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<{ success: boolean }>> {
     const { user } = ctx;
     try {
-      const orgResult = await organizationService.getFullOrganization(
-        { organizationId },
-        ctx,
-      );
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
       if (!orgResult.success) return orgResult;
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
-      const deleteResult = await organizationService.deleteOrganization(
-        { organizationId },
-        ctx,
-      );
+      const deleteResult = await organizationService.deleteOrganization({ organizationId }, ctx);
       if (!deleteResult.success) return deleteResult;
 
       if (existing) {
@@ -155,14 +137,11 @@ export const practiceDetailsManagementService = {
    */
   async setActivePractice(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<{ success: boolean }>> {
     const { user } = ctx;
     try {
-      const activeResult = await organizationService.setActiveOrganization(
-        { organizationId },
-        ctx,
-      );
+      const activeResult = await organizationService.setActiveOrganization({ organizationId }, ctx);
       if (!activeResult.success) return activeResult;
 
       await ctx.emit(PracticeSwitched, {

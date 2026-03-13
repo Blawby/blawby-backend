@@ -48,8 +48,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
     }
 
     // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
-    const orgId = extractOrgIdFromPath(c.req.path)
-      || c.get('activeOrganizationId');
+    const orgId = extractOrgIdFromPath(c.req.path) || c.get('activeOrganizationId');
 
     if (!orgId) {
       logger.warn('No organization context found for user {userId}', { userId });
@@ -64,10 +63,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
         .limit(1);
 
       if (!membership) {
-        logger.warn(
-          'User {userId} attempted to access organization {orgId} without membership',
-          { userId, orgId },
-        );
+        logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
         return response.forbidden(c, 'You are not a member of this organization');
       }
 

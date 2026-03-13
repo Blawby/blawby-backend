@@ -6,10 +6,7 @@ import type {
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
-import type {
-  ActiveOrganization,
-  Organization,
-} from '@/shared/types/BetterAuth';
+import type { ActiveOrganization, Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { forbidden, internalError, ok } from '@/shared/utils/result';
@@ -29,7 +26,7 @@ export const organizationService = {
    */
   async createOrganization(
     { data }: { data: CreateOrganizationRequest },
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<Organization>> {
     try {
       const betterAuth = getBetterAuth();
@@ -61,9 +58,7 @@ export const organizationService = {
   /**
    * List organizations for a user
    */
-  async listOrganizations(
-    ctx: ServiceContext,
-  ): Promise<Result<Organization[]>> {
+  async listOrganizations(ctx: ServiceContext): Promise<Result<Organization[]>> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.listOrganizations({
@@ -81,7 +76,7 @@ export const organizationService = {
    */
   async getFullOrganization(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<ActiveOrganization>> {
     const betterAuth = getBetterAuth();
     try {
@@ -110,7 +105,7 @@ export const organizationService = {
    */
   async updateOrganization(
     { data }: { data: UpdateOrganizationRequest },
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<Organization>> {
     const betterAuth = getBetterAuth();
     try {
@@ -134,7 +129,7 @@ export const organizationService = {
    */
   async deleteOrganization(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<Organization>> {
     try {
       const betterAuth = getBetterAuth();
@@ -158,7 +153,7 @@ export const organizationService = {
    */
   async setActiveOrganization(
     { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<ActiveOrganization>> {
     try {
       const betterAuth = getBetterAuth();

@@ -39,7 +39,7 @@ const listIntakes = async (
   params: {
     query: z.infer<typeof intakeValidations.listIntakesQuerySchema>;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<PaginatedResultWithMeta<ListIntakeItem, 'intakes'>> => {
   try {
     const accessResult = ensureStaffOrganizationAccess(ctx.organizationId, ctx);
@@ -81,7 +81,7 @@ const listIntakes = async (
 
 const updateTriageStatus = async (
   params: { uuid: string; data: UpdateIntakeTriageStatusRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<UpdateIntakeTriageStatusResponse>> => {
   try {
     const intakeResult = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
@@ -90,7 +90,7 @@ const updateTriageStatus = async (
     }
 
     const nextTriageStatus = params.data.status;
-    const nextReason = nextTriageStatus === 'declined' ? params.data.reason?.trim() ?? null : null;
+    const nextReason = nextTriageStatus === 'declined' ? (params.data.reason?.trim() ?? null) : null;
 
     const updatedIntake = await practiceClientIntakesRepository.update(params.uuid, {
       triage_status: nextTriageStatus,
@@ -124,13 +124,13 @@ const createMatterFromIntakeTx = async (
     intake: Extract<Awaited<ReturnType<typeof getStaffAccessibleIntake>>, { success: true }>['data'];
     metadata: NonNullable<ReturnType<typeof parseMetadata>>;
     userId: string;
-  },
+  }
 ): Promise<string> => {
   let clientId: string | undefined;
   if (params.metadata.user_id) {
     const userDetailsRecord = await userDetailsRepository.findByOrgAndUser(
       params.intake.organization_id,
-      params.metadata.user_id,
+      params.metadata.user_id
     );
     if (userDetailsRecord) {
       clientId = userDetailsRecord.id;
@@ -143,23 +143,26 @@ const createMatterFromIntakeTx = async (
     }
   }
 
-  const matter = await mattersQueries.createMatter({
-    organization_id: params.intake.organization_id,
-    billing_type: params.data.billing_type ?? 'fixed',
-    client_id: clientId,
-    title: params.data.title ?? `Intake: ${params.metadata.name}`,
-    description: params.metadata.description,
-    status: params.data.status ?? 'engagement_pending',
-    urgency: params.intake.urgency ?? 'routine',
-    intake_uuid: params.uuid,
-    conversation_id: params.intake.conversation_id,
-    on_behalf_of: params.metadata.on_behalf_of,
-    opposing_party: params.metadata.opposing_party,
-    opposing_counsel: params.metadata.opposing_counsel,
-    responsible_attorney_id: params.data.responsible_attorney_id,
-    practice_service_id: params.data.practice_service_id,
-    open_date: params.data.open_date ? new Date(params.data.open_date) : undefined,
-  }, tx);
+  const matter = await mattersQueries.createMatter(
+    {
+      organization_id: params.intake.organization_id,
+      billing_type: params.data.billing_type ?? 'fixed',
+      client_id: clientId,
+      title: params.data.title ?? `Intake: ${params.metadata.name}`,
+      description: params.metadata.description,
+      status: params.data.status ?? 'engagement_pending',
+      urgency: params.intake.urgency ?? 'routine',
+      intake_uuid: params.uuid,
+      conversation_id: params.intake.conversation_id,
+      on_behalf_of: params.metadata.on_behalf_of,
+      opposing_party: params.metadata.opposing_party,
+      opposing_counsel: params.metadata.opposing_counsel,
+      responsible_attorney_id: params.data.responsible_attorney_id,
+      practice_service_id: params.data.practice_service_id,
+      open_date: params.data.open_date ? new Date(params.data.open_date) : undefined,
+    },
+    tx
+  );
 
   if (params.intake.court_date) {
     await tx.insert(matterMilestones).values({
@@ -194,7 +197,7 @@ const createMatterFromIntakeTx = async (
 };
 
 const toMatterResponse = (
-  matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>,
+  matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>
 ): MatterResponse => ({
   ...matter,
   status: matter.status as MatterResponse['status'],
@@ -210,7 +213,7 @@ const convertIntake = async (
     uuid: string;
     data: z.infer<typeof intakeValidations.convertIntakeSchema>;
   },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ matter_id: string; matter: MatterResponse }>> => {
   try {
     const intakeResult = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
@@ -249,13 +252,15 @@ const convertIntake = async (
       return result.badRequest('Intake metadata is missing');
     }
 
-    const matterId = await db.transaction((tx) => createMatterFromIntakeTx(tx, {
-      uuid: params.uuid,
-      data: params.data,
-      intake,
-      metadata,
-      userId: ctx.userId,
-    }));
+    const matterId = await db.transaction((tx) =>
+      createMatterFromIntakeTx(tx, {
+        uuid: params.uuid,
+        data: params.data,
+        intake,
+        metadata,
+        userId: ctx.userId,
+      })
+    );
 
     const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
     if (!matter) {
@@ -277,7 +282,7 @@ const convertIntake = async (
 
 const triggerInvitation = async (
   params: { uuid: string; origin?: string | null },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: true; message: string }>> => {
   try {
     const intakeResult = await getStaffAccessibleIntake(params.uuid, ctx, 'update');

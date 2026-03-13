@@ -9,17 +9,12 @@ import {
 import { db } from '@/shared/database';
 
 export const auditLogsRepository = {
-  create: async function create(
-    data: InsertUploadAuditLog,
-  ): Promise<SelectUploadAuditLog> {
+  create: async function create(data: InsertUploadAuditLog): Promise<SelectUploadAuditLog> {
     const [log] = await db.insert(uploadAuditLogs).values(data).returning();
     return log;
   },
 
-  findByUploadId: async function findByUploadId(
-    uploadId: string,
-    limit = 100,
-  ): Promise<SelectUploadAuditLog[]> {
+  findByUploadId: async function findByUploadId(uploadId: string, limit = 100): Promise<SelectUploadAuditLog[]> {
     return await db
       .select()
       .from(uploadAuditLogs)
@@ -36,7 +31,7 @@ export const auditLogsRepository = {
       userId?: string;
       limit?: number;
       offset?: number;
-    },
+    }
   ): Promise<SelectUploadAuditLog[]> {
     const conditions = [eq(uploadAuditLogs.organization_id, organizationId)];
 
@@ -64,9 +59,7 @@ export const auditLogsRepository = {
       .offset(offset);
   },
 
-  findByUploadIds: async function findByUploadIds(
-    uploadIds: string[],
-  ): Promise<SelectUploadAuditLog[]> {
+  findByUploadIds: async function findByUploadIds(uploadIds: string[]): Promise<SelectUploadAuditLog[]> {
     if (uploadIds.length === 0) {
       return [];
     }

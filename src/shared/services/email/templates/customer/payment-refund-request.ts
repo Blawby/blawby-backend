@@ -54,7 +54,7 @@ export const customerPaymentRefundRequest = (data: CustomerPaymentReceiptData): 
       </mj-column>
     `)}
   `,
-    data.teamPhotoUrl,
+    data.teamPhotoUrl
   );
 
   return renderMjml(mjmlContent);

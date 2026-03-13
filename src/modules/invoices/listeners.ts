@@ -50,7 +50,7 @@ export function registerInvoicesListeners(): void {
       organization_id,
       METERED_TYPES.INVOICE_FEE,
       1,
-      invoice_id, // idempotency key — invoice_id is stable and unique per payment
+      invoice_id // idempotency key — invoice_id is stable and unique per payment
     );
 
     if (!invoiceFeeResult.success) {
@@ -79,7 +79,7 @@ export function registerInvoicesListeners(): void {
         organization_id,
         METERED_TYPES.PAYOUT_FEE,
         meteredFeeCents,
-        `payout:${invoice_id}`, // distinct dedupe key from the invoice-fee key above
+        `payout:${invoice_id}` // distinct dedupe key from the invoice-fee key above
       );
 
       if (!payoutFeeResult.success) {

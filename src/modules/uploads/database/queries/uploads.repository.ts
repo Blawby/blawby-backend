@@ -1,10 +1,6 @@
 import { eq, and, desc, isNull, isNotNull, lte, count } from 'drizzle-orm';
 
-import {
-  uploads,
-  type InsertUpload,
-  type SelectUpload,
-} from '@/modules/uploads/database/schema/uploads.schema';
+import { uploads, type InsertUpload, type SelectUpload } from '@/modules/uploads/database/schema/uploads.schema';
 
 import { db } from '@/shared/database';
 
@@ -15,34 +11,17 @@ export const uploadsRepository = {
   },
 
   findById: async function findById(id: string): Promise<SelectUpload | undefined> {
-    const [result] = await db
-      .select()
-      .from(uploads)
-      .where(eq(uploads.id, id))
-      .limit(1);
+    const [result] = await db.select().from(uploads).where(eq(uploads.id, id)).limit(1);
     return result;
   },
 
-  findByStorageKey: async function findByStorageKey(
-    storageKey: string,
-  ): Promise<SelectUpload | undefined> {
-    const [result] = await db
-      .select()
-      .from(uploads)
-      .where(eq(uploads.storage_key, storageKey))
-      .limit(1);
+  findByStorageKey: async function findByStorageKey(storageKey: string): Promise<SelectUpload | undefined> {
+    const [result] = await db.select().from(uploads).where(eq(uploads.storage_key, storageKey)).limit(1);
     return result;
   },
 
-  update: async function update(
-    id: string,
-    data: Partial<SelectUpload>,
-  ): Promise<SelectUpload | null> {
-    const [updated] = await db
-      .update(uploads)
-      .set(data)
-      .where(eq(uploads.id, id))
-      .returning();
+  update: async function update(id: string, data: Partial<SelectUpload>): Promise<SelectUpload | null> {
+    const [updated] = await db.update(uploads).set(data).where(eq(uploads.id, id)).returning();
     if (!updated) {
       return null;
     }
@@ -59,7 +38,7 @@ export const uploadsRepository = {
       includeDeleted?: boolean;
       limit?: number;
       offset?: number;
-    },
+    }
   ): Promise<SelectUpload[]> {
     const conditions = [eq(uploads.organization_id, organizationId)];
 
@@ -103,7 +82,7 @@ export const uploadsRepository = {
       entityId?: string;
       status?: string;
       includeDeleted?: boolean;
-    },
+    }
   ): Promise<number> {
     const conditions = [eq(uploads.organization_id, organizationId)];
 
@@ -141,7 +120,7 @@ export const uploadsRepository = {
       includeDeleted?: boolean;
       limit?: number;
       offset?: number;
-    },
+    }
   ): Promise<SelectUpload[]> {
     const conditions = [eq(uploads.matter_id, matterId)];
 
@@ -161,11 +140,7 @@ export const uploadsRepository = {
       .offset(offset);
   },
 
-  softDelete: async function softDelete(
-    id: string,
-    deletedBy: string,
-    reason: string,
-  ): Promise<SelectUpload> {
+  softDelete: async function softDelete(id: string, deletedBy: string, reason: string): Promise<SelectUpload> {
     const [updated] = await db
       .update(uploads)
       .set({
@@ -197,10 +172,7 @@ export const uploadsRepository = {
     return updated;
   },
 
-  updateLastAccessed: async function updateLastAccessed(
-    id: string,
-    userId: string,
-  ): Promise<SelectUpload | null> {
+  updateLastAccessed: async function updateLastAccessed(id: string, userId: string): Promise<SelectUpload | null> {
     const [updated] = await db
       .update(uploads)
       .set({
@@ -215,33 +187,19 @@ export const uploadsRepository = {
     return updated;
   },
 
-  findExpiredUnconfirmed: async function findExpiredUnconfirmed(
-    beforeDate: Date,
-  ): Promise<SelectUpload[]> {
+  findExpiredUnconfirmed: async function findExpiredUnconfirmed(beforeDate: Date): Promise<SelectUpload[]> {
     return await db
       .select()
       .from(uploads)
-      .where(
-        and(
-          eq(uploads.status, 'pending'),
-          isNotNull(uploads.expires_at),
-          lte(uploads.expires_at, beforeDate),
-        ),
-      );
+      .where(and(eq(uploads.status, 'pending'), isNotNull(uploads.expires_at), lte(uploads.expires_at, beforeDate)));
   },
 
-  findRetentionExpired: async function findRetentionExpired(
-    beforeDate: Date,
-  ): Promise<SelectUpload[]> {
+  findRetentionExpired: async function findRetentionExpired(beforeDate: Date): Promise<SelectUpload[]> {
     return await db
       .select()
       .from(uploads)
       .where(
-        and(
-          isNotNull(uploads.retention_until),
-          lte(uploads.retention_until, beforeDate),
-          isNull(uploads.deleted_at),
-        ),
+        and(isNotNull(uploads.retention_until), lte(uploads.retention_until, beforeDate), isNull(uploads.deleted_at))
       );
   },
 };

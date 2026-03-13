@@ -1,13 +1,7 @@
 import { getLogger } from '@logtape/logtape';
-import {
-  onboardingRepository as onboardingRepo,
-} from '@/modules/onboarding/database/queries/onboarding.repository';
-import {
-  connectedAccountsService,
-} from '@/modules/onboarding/services/connected-accounts.service';
-import type {
-  OnboardingStatusResponse,
-} from '@/modules/onboarding/types/onboarding.types';
+import { onboardingRepository as onboardingRepo } from '@/modules/onboarding/database/queries/onboarding.repository';
+import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
+import type { OnboardingStatusResponse } from '@/modules/onboarding/types/onboarding.types';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import { OnboardingStarted } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
@@ -30,11 +24,9 @@ export const onboardingService = {
       refreshUrl: string;
       returnUrl: string;
     },
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<OnboardingStatusResponse>> {
-    const {
-      organizationEmail, organizationId, refreshUrl, returnUrl,
-    } = params;
+    const { organizationEmail, organizationId, refreshUrl, returnUrl } = params;
     const { user } = ctx;
 
     try {
@@ -50,7 +42,7 @@ export const onboardingService = {
         organizationEmail,
         refreshUrl,
         returnUrl,
-        user.id,
+        user.id
       );
 
       if (!result.success) return result;
@@ -78,14 +70,11 @@ export const onboardingService = {
         details_submitted: accountData.status.details_submitted,
       });
     } catch (error) {
-      logger.error(
-        'Failed to create onboarding session for organization {organizationId}: {error}',
-        {
-          organizationId,
-          userId: user.id,
-          error,
-        },
-      );
+      logger.error('Failed to create onboarding session for organization {organizationId}: {error}', {
+        organizationId,
+        userId: user.id,
+        error,
+      });
 
       return internalError(error instanceof Error ? error.message : 'Failed to create onboarding session');
     }
@@ -96,7 +85,7 @@ export const onboardingService = {
    */
   async getOnboardingStatus(
     { organizationId }: { organizationId: string },
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<OnboardingStatusResponse>> {
     try {
       // 1. Validate organization and user access using Better Auth
@@ -122,14 +111,11 @@ export const onboardingService = {
         details_submitted: account.details_submitted,
       });
     } catch (error) {
-      logger.error(
-        'Failed to get onboarding status for organization {organizationId}: {error}',
-        {
-          organizationId,
-          userId: ctx.user.id,
-          error,
-        },
-      );
+      logger.error('Failed to get onboarding status for organization {organizationId}: {error}', {
+        organizationId,
+        userId: ctx.user.id,
+        error,
+      });
 
       return internalError('Failed to get onboarding status');
     }
@@ -145,11 +131,9 @@ export const onboardingService = {
       refreshUrl: string;
       returnUrl: string;
     },
-    ctx: ServiceContext,
+    ctx: ServiceContext
   ): Promise<Result<OnboardingStatusResponse>> {
-    const {
-      email, organizationId, refreshUrl, returnUrl,
-    } = params;
+    const { email, organizationId, refreshUrl, returnUrl } = params;
     const { user } = ctx;
 
     try {
@@ -165,7 +149,7 @@ export const onboardingService = {
         email,
         refreshUrl,
         returnUrl,
-        user.id,
+        user.id
       );
 
       if (!result.success) return result;
@@ -185,20 +169,16 @@ export const onboardingService = {
         details_submitted: accountData.status.details_submitted,
       });
     } catch (error) {
-      logger.error(
-        'Failed to create connected account for organization {organizationId}: {error}',
-        {
-          organizationId,
-          userId: user.id,
-          error,
-        },
-      );
+      logger.error('Failed to create connected account for organization {organizationId}: {error}', {
+        organizationId,
+        userId: user.id,
+        error,
+      });
 
       return internalError(error instanceof Error ? error.message : 'Failed to create connected account');
     }
   },
 };
-
 
 export default onboardingService;
 

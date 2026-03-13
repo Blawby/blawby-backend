@@ -1,6 +1,4 @@
-import {
-  eq, and, desc, gte, lte, sql, inArray, isNull,
-} from 'drizzle-orm';
+import { eq, and, desc, gte, lte, sql, inArray, isNull } from 'drizzle-orm';
 import {
   matterExpenses,
   type InsertMatterExpense,
@@ -10,25 +8,14 @@ import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-fi
 import { db } from '@/shared/database';
 
 // Create matter expense
-const createMatterExpense = async (
-  data: InsertMatterExpense,
-): Promise<SelectMatterExpense> => {
-  const [expense] = await db
-    .insert(matterExpenses)
-    .values(data)
-    .returning();
+const createMatterExpense = async (data: InsertMatterExpense): Promise<SelectMatterExpense> => {
+  const [expense] = await db.insert(matterExpenses).values(data).returning();
   return expense;
 };
 
 // Find matter expense by ID
-const findMatterExpenseById = async (
-  id: string,
-): Promise<SelectMatterExpense | undefined> => {
-  const [expense] = await db
-    .select()
-    .from(matterExpenses)
-    .where(eq(matterExpenses.id, id))
-    .limit(1);
+const findMatterExpenseById = async (id: string): Promise<SelectMatterExpense | undefined> => {
+  const [expense] = await db.select().from(matterExpenses).where(eq(matterExpenses.id, id)).limit(1);
   return expense;
 };
 
@@ -42,7 +29,7 @@ const formatLocalDate = (date: Date): string => {
 // List matter expenses
 const listMatterExpenses = async (
   matterId: string,
-  filters?: MatterExpenseListFilters,
+  filters?: MatterExpenseListFilters
 ): Promise<SelectMatterExpense[]> => {
   const conditions = [eq(matterExpenses.matter_id, matterId)];
 
@@ -73,7 +60,7 @@ const listMatterExpenses = async (
 const updateMatterExpense = async (
   id: string,
   matterId: string,
-  data: Partial<InsertMatterExpense>,
+  data: Partial<InsertMatterExpense>
 ): Promise<SelectMatterExpense | undefined> => {
   const [expense] = await db
     .update(matterExpenses)
@@ -84,10 +71,7 @@ const updateMatterExpense = async (
 };
 
 // Delete matter expense
-const deleteMatterExpense = async (
-  id: string,
-  matterId: string,
-): Promise<boolean> => {
+const deleteMatterExpense = async (id: string, matterId: string): Promise<boolean> => {
   const deleted = await db
     .delete(matterExpenses)
     .where(and(eq(matterExpenses.id, id), eq(matterExpenses.matter_id, matterId)))
@@ -96,28 +80,19 @@ const deleteMatterExpense = async (
 };
 
 // Get total billable expenses for matter
-const getTotalBillableExpenses = async (
-  matterId: string,
-): Promise<number> => {
+const getTotalBillableExpenses = async (matterId: string): Promise<number> => {
   const [result] = await db
     .select({
       total: sql<number>`COALESCE(SUM(${matterExpenses.amount}), 0)`,
     })
     .from(matterExpenses)
-    .where(
-      and(
-        eq(matterExpenses.matter_id, matterId),
-        eq(matterExpenses.billable, true),
-      ),
-    );
+    .where(and(eq(matterExpenses.matter_id, matterId), eq(matterExpenses.billable, true)));
 
   return Number(result.total);
 };
 
 // Get total expenses for matter (billable and non-billable)
-const getTotalExpenses = async (
-  matterId: string,
-): Promise<number> => {
+const getTotalExpenses = async (matterId: string): Promise<number> => {
   const [result] = await db
     .select({
       total: sql<number>`COALESCE(SUM(${matterExpenses.amount}), 0)`,
@@ -131,11 +106,7 @@ const getTotalExpenses = async (
 /**
  * Mark expenses as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (
-  expenseIds: string[],
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const markAsInvoiced = async (expenseIds: string[], invoiceId: string, tx?: typeof db): Promise<void> => {
   if (expenseIds.length === 0) return;
   const client = tx || db;
   await client
@@ -151,10 +122,7 @@ const markAsInvoiced = async (
 /**
  * Unmark expenses as invoiced. Resets invoice_id and invoiced_at for expenses linked to the given invoice.
  */
-const unmarkInvoiced = async (
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
   const client = tx || db;
   await client
     .update(matterExpenses)
@@ -169,18 +137,12 @@ const unmarkInvoiced = async (
 /**
  * Get unbilled expenses for a matter: invoice_id IS NULL AND billable = true.
  */
-const getUnbilled = async (
-  matterId: string,
-): Promise<SelectMatterExpense[]> => {
+const getUnbilled = async (matterId: string): Promise<SelectMatterExpense[]> => {
   return await db
     .select()
     .from(matterExpenses)
     .where(
-      and(
-        eq(matterExpenses.matter_id, matterId),
-        isNull(matterExpenses.invoice_id),
-        eq(matterExpenses.billable, true),
-      ),
+      and(eq(matterExpenses.matter_id, matterId), isNull(matterExpenses.invoice_id), eq(matterExpenses.billable, true))
     )
     .orderBy(desc(matterExpenses.date));
 };

@@ -3,7 +3,6 @@ import * as routes from '@/modules/onboarding/routes';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
-
 const onboardingApp = createHonoApp();
 
 /**
@@ -18,9 +17,6 @@ onboardingApp.openapi(routes.getOnboardingStatusRoute, handlers.getOnboardingSta
  */
 onboardingApp.openapi(routes.createConnectedAccountRoute, handlers.createConnectedAccountHandler);
 
-registerOpenApiRoutes(onboardingApp, [
-  routes.getOnboardingStatusRoute,
-  routes.createConnectedAccountRoute,
-]);
+registerOpenApiRoutes(onboardingApp, [routes.getOnboardingStatusRoute, routes.createConnectedAccountRoute]);
 
 export default onboardingApp;
