@@ -11,9 +11,7 @@
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import {
-  METERED_TYPE_TO_STRIPE_EVENT,
-} from '@/modules/subscriptions/constants/meteredProducts';
+import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
 import * as schema from '@/schema';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import type { Result } from '@/shared/types/result';
@@ -41,7 +39,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
   organizationId: string,
   meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
   quantity: number = 1,
-  deduplicationId?: string,
+  deduplicationId?: string
 ): Promise<Result<void>> {
   try {
     // 1. Get organization's Stripe Customer ID
@@ -104,12 +102,15 @@ const reportMeteredUsage = async function reportMeteredUsage(
         },
       });
     } catch (dbError) {
-      logger.error('Failed to log meter usage audit for {meteredType} (org: {organizationId}, dedupe: {dedupeId}): {error}', {
-        meteredType,
-        organizationId,
-        dedupeId: deduplicationId,
-        error: dbError instanceof Error ? dbError.message : 'Unknown error',
-      });
+      logger.error(
+        'Failed to log meter usage audit for {meteredType} (org: {organizationId}, dedupe: {dedupeId}): {error}',
+        {
+          meteredType,
+          organizationId,
+          dedupeId: deduplicationId,
+          error: dbError instanceof Error ? dbError.message : 'Unknown error',
+        }
+      );
     }
 
     return ok(undefined);
@@ -121,10 +122,8 @@ const reportMeteredUsage = async function reportMeteredUsage(
 
 const getCurrentUsage = async function getCurrentUsage(
   db: NodePgDatabase<typeof schema>,
-  organizationId: string,
-): Promise<Result<
-  Array<{ meter_name: string; quantity: number; description: string | null }>
->> {
+  organizationId: string
+): Promise<Result<Array<{ meter_name: string; quantity: number; description: string | null }>>> {
   try {
     // 1. Get organization's active subscription to find current period start
     const [org] = await db
@@ -158,8 +157,8 @@ const getCurrentUsage = async function getCurrentUsage(
         and(
           eq(schema.events.organizationId, organizationId),
           eq(schema.events.type, METER_USAGE_REPORTED),
-          periodStart ? sql`${schema.events.createdAt} >= ${periodStart}` : undefined,
-        ),
+          periodStart ? sql`${schema.events.createdAt} >= ${periodStart}` : undefined
+        )
       )
       .groupBy(sql`${schema.events.payload}->>'meter_event_name'`);
 

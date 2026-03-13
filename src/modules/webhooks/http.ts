@@ -22,12 +22,14 @@ const handleWebhook = async (
     rawBody: string | Buffer,
     signature: string,
     headers: Record<string, string>,
-    url: string,
-  ) => Promise<Result<{
-    event: Stripe.Event;
-    alreadyProcessed: boolean;
-    webhookId?: string;
-  }>>,
+    url: string
+  ) => Promise<
+    Result<{
+      event: Stripe.Event;
+      alreadyProcessed: boolean;
+      webhookId?: string;
+    }>
+  >
 ): Promise<Response> => {
   const signature = c.req.header('stripe-signature');
   const body = Buffer.from(await c.req.arrayBuffer());
@@ -40,12 +42,7 @@ const handleWebhook = async (
 
   try {
     // 1. Verify signature and store event in database
-    const result = await verifyFn(
-      body,
-      signature,
-      c.req.header(),
-      url,
-    );
+    const result = await verifyFn(body, signature, c.req.header(), url);
 
     if (!result.success) {
       const { error } = result;
@@ -89,8 +86,9 @@ const handleWebhook = async (
  * Dedicated endpoint for Stripe Connect webhooks (using different signing secret)
  */
 webhooksApp.post('/stripe/connected-accounts', async (c) => {
-  return handleWebhook(c, (body, sig, headers, url) => onboardingWebhooksService
-    .verifyAndStore(body, sig, headers, url));
+  return handleWebhook(c, (body, sig, headers, url) =>
+    onboardingWebhooksService.verifyAndStore(body, sig, headers, url)
+  );
 });
 
 /**
@@ -99,8 +97,9 @@ webhooksApp.post('/stripe/connected-accounts', async (c) => {
  * Uses STRIPE_WEBHOOK_SECRET for signature verification
  */
 webhooksApp.post('/stripe/account', async (c) => {
-  return handleWebhook(c, (body, sig, headers, url) => onboardingWebhooksService
-    .verifyAndStoreAccount(body, sig, headers, url));
+  return handleWebhook(c, (body, sig, headers, url) =>
+    onboardingWebhooksService.verifyAndStoreAccount(body, sig, headers, url)
+  );
 });
 
 export default webhooksApp;

@@ -9,12 +9,15 @@ export const cors = (): MiddlewareHandler => {
       if (!origin) return origin;
 
       // 2. Allow Localhost (Any Port)
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === "https://adapted-humbly-lynx.ngrok-free.app") {
+      if (
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+        origin === 'https://adapted-humbly-lynx.ngrok-free.app'
+      ) {
         return origin;
       }
 
       // 3. Allow Production Domains from Env
-      const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') ?? []).map(o => o.trim());
+      const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') ?? []).map((o) => o.trim());
 
       // Exact match check
       if (allowedOrigins.includes(origin)) return origin;

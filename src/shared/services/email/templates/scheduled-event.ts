@@ -41,7 +41,7 @@ export const scheduledEventTemplate = (data: ScheduledEventData): string => {
       </mj-column>
     `)}
   `,
-    BLAWBY_LOGO_URL,
+    BLAWBY_LOGO_URL
   );
 
   return renderMjml(mjmlContent);

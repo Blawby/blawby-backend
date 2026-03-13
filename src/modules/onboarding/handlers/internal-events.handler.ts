@@ -32,18 +32,13 @@ export const handleAccountRequirementsChanged = async (event: BaseEvent): Promis
   const name = typeof payload.organization_name === 'string' ? payload.organization_name : 'there';
 
   if (email) {
-    void addEmailJob(
-      EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS,
-      email,
-      'Action required: Verify your account information',
-      {
-        recipientEmail: email,
-        recipientName: name,
-        dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
-        tutorialUrl: `${APP_URL}/docs/verification`,
-        supportUrl: 'https://blawby.com/help',
-      },
-    ).catch((error: unknown) => {
+    void addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {
+      recipientEmail: email,
+      recipientName: name,
+      dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
+      tutorialUrl: `${APP_URL}/docs/verification`,
+      supportUrl: 'https://blawby.com/help',
+    }).catch((error: unknown) => {
       logger.error('Failed to queue Connect status email for {organizationId}: {error}', {
         organizationId,
         error,

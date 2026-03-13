@@ -17,7 +17,7 @@ export interface FeeConfig {
 export const calculateFees = function calculateFees(
   amount: number,
   paymentMethodType: string = 'card',
-  _country: string = 'US',
+  _country: string = 'US'
 ): number {
   // Simple fee calculation - 2.9% + $0.30 for card payments
   if (paymentMethodType === 'card') {
@@ -39,7 +39,7 @@ export const calculateFees = function calculateFees(
 export const calculateInvoiceFees = function calculateInvoiceFees(
   amount: number,
   paymentMethodType: string = 'card',
-  country: string = 'US',
+  country: string = 'US'
 ): number {
   return calculateFees(amount, paymentMethodType, country);
 };
@@ -50,7 +50,7 @@ export const calculateInvoiceFees = function calculateInvoiceFees(
 export const calculatePayoutFees = function calculatePayoutFees(
   amount: number,
   payoutMethod: string = 'bank',
-  country: string = 'US',
+  country: string = 'US'
 ): number {
   // Simple payout fee calculation
   if (payoutMethod === 'bank') {
@@ -63,9 +63,7 @@ export const calculatePayoutFees = function calculatePayoutFees(
 /**
  * Get fee configuration for an organization
  */
-export const getFeeConfig = function getFeeConfig(
-  _organizationId: string,
-): FeeConfig {
+export const getFeeConfig = function getFeeConfig(_organizationId: string): FeeConfig {
   return {
     stripeFeePercentage: 2.9,
     stripeFeeFixed: 30,

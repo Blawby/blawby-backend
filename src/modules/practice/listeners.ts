@@ -116,7 +116,7 @@ export function registerPracticeListeners(): void {
         lineItems: items,
         paymentMethod: payment.method,
         supportEmail: business.supportEmail,
-      },
+      }
     ).catch((error) => {
       logError('Failed to queue customer receipt email', error, {
         invoiceNumber: payment.invoiceNumber,
@@ -132,9 +132,7 @@ export function registerPracticeListeners(): void {
         style: 'currency',
         currency: 'USD',
       }).format(payment.amount / 100)} received from ${
-        customer.name === 'Valued Client'
-          ? customer.email
-          : customer.name
+        customer.name === 'Valued Client' ? customer.email : customer.name
       }`,
       {
         recipientEmail: 'support@blawby.com',
@@ -146,7 +144,7 @@ export function registerPracticeListeners(): void {
         paymentMethod: payment.method,
         invoiceUrl: `${APP_URL}/dashboard/intakes/${payload.uuid}`,
         supportEmail: 'support@blawby.com',
-      },
+      }
     ).catch((error) => {
       logError('Failed to queue team receipt email', error, {
         invoiceNumber: payment.invoiceNumber,

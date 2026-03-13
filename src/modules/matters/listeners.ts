@@ -6,12 +6,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import { matterStatusHistoryQueries } from '@/modules/matters/database/queries/matter-status-history.queries';
-import {
-  MatterCreated,
-  MatterUpdated,
-  MatterDeleted,
-  MatterStatusChanged,
-} from '@/shared/events/definitions';
+import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 
 const logger = getLogger(['matters', 'listeners']);

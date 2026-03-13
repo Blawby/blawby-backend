@@ -54,7 +54,7 @@ export const customerPaymentRefunded = (data: CustomerPaymentReceiptData): strin
       </mj-column>
     `)}
   `,
-    data.teamPhotoUrl,
+    data.teamPhotoUrl
   );
 
   return renderMjml(mjmlContent);

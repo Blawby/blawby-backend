@@ -1,13 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  jsonb,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { users } from '@/schema';
@@ -28,16 +20,14 @@ export const matterStatusHistory = pgTable(
     }),
     reason: text('reason'),
     metadata: jsonb('metadata'),
-    changed_at: timestamp('changed_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    changed_at: timestamp('changed_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('matter_status_history_matter_idx').on(table.matter_id),
     index('matter_status_history_changed_by_idx').on(table.changed_by),
     index('matter_status_history_changed_at_idx').on(table.changed_at),
     index('matter_status_history_to_status_idx').on(table.to_status),
-  ],
+  ]
 );
 
 export const matterStatusHistoryRelations = relations(matterStatusHistory, ({ one }) => ({

@@ -1,9 +1,5 @@
 import { eq } from 'drizzle-orm';
-import {
-  listPlansRoute,
-  getCurrentSubscriptionRoute,
-  cancelSubscriptionRoute,
-} from '@/modules/subscriptions/routes';
+import { listPlansRoute, getCurrentSubscriptionRoute, cancelSubscriptionRoute } from '@/modules/subscriptions/routes';
 import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
@@ -26,7 +22,7 @@ export const getCurrentSubscriptionHandler: AppRouteHandler<typeof getCurrentSub
   const result = await subscriptionService.getCurrentSubscription(
     organizationId,
     user,
-    c.req.header() as Record<string, string>,
+    c.req.header() as Record<string, string>
   );
 
   return response.fromResult(c, result);
@@ -53,7 +49,6 @@ export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptio
     return response.notFound(c, 'Organization not found');
   }
 
-
   if (!organization?.activeSubscriptionId) {
     return response.badRequest(c, 'No active subscription found for this organization');
   }
@@ -63,7 +58,7 @@ export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptio
     organizationId,
     validatedBody,
     user,
-    c.req.header() as Record<string, string>,
+    c.req.header() as Record<string, string>
   );
 
   return response.fromResult(c, result);

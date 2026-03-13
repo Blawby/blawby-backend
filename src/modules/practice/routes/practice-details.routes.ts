@@ -2,16 +2,14 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 
 const practiceUuidParamOpenAPISchema = z.object({
-  uuid: z
-    .uuid()
-    .openapi({
-      param: {
-        name: 'uuid',
-        in: 'path',
-      },
-      description: 'Practice/Organization ID (UUID)',
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
+  uuid: z.uuid().openapi({
+    param: {
+      name: 'uuid',
+      in: 'path',
+    },
+    description: 'Practice/Organization ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
 });
 
 export const getPracticeDetailsRoute = createRoute({
@@ -109,7 +107,7 @@ export const updatePracticeDetailsRoute = createRoute({
   path: '/{uuid}/details',
   tags: ['Practice'],
   summary: 'Update practice details',
-  description: 'Update practice details for a practice (creates if doesn\'t exist)',
+  description: "Update practice details for a practice (creates if doesn't exist)",
   request: {
     params: practiceUuidParamOpenAPISchema,
     body: {

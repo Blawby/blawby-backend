@@ -8,10 +8,10 @@
 import { isDevelopment } from '@/shared/utils/env';
 
 interface TurnstileVerifyResponse {
-  'success': boolean;
+  success: boolean;
   'error-codes'?: string[];
-  'challenge_ts'?: string;
-  'hostname'?: string;
+  challenge_ts?: string;
+  hostname?: string;
 }
 
 /**
@@ -47,7 +47,7 @@ export const validateCaptchaToken = async (token?: string, ip?: string): Promise
       method: 'POST',
     });
 
-    const outcome = await result.json() as TurnstileVerifyResponse;
+    const outcome = (await result.json()) as TurnstileVerifyResponse;
 
     if (!outcome.success) {
       console.warn('Captcha validation failed:', outcome['error-codes']);

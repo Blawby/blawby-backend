@@ -26,5 +26,4 @@ export const createSettingsTemplateSchema = z.object({
   isPublic: z.boolean().default(false),
 });
 
-export const updateSettingsTemplateSchema
-  = createSettingsTemplateSchema.partial();
+export const updateSettingsTemplateSchema = createSettingsTemplateSchema.partial();

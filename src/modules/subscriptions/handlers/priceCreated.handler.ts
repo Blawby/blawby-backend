@@ -20,7 +20,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
   try {
     logger.info('Processing price.created: {priceId} for product {productId}', {
       priceId: price.id,
-      productId: typeof price.product === 'string' ? price.product : price.product.id
+      productId: typeof price.product === 'string' ? price.product : price.product.id,
     });
 
     // Find the plan for this product
@@ -30,7 +30,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
     if (!plan) {
       logger.warn('Plan not found for price.created: {priceId}, product: {productId}', {
         priceId: price.id,
-        productId
+        productId,
       });
       return;
     }
@@ -71,7 +71,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
   } catch (error) {
     logger.error('Failed to process price.created: {priceId}. Error: {error}', {
       priceId: price.id,
-      error
+      error,
     });
     throw error;
   }

@@ -52,7 +52,7 @@ export const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
       uuid,
       origin: c.req.header('origin'),
     },
-    ctx,
+    ctx
   );
   return response.fromResult(c, result, 201);
 };
@@ -65,9 +65,9 @@ export const updatePracticeClientIntakeHandler: AppRouteHandler<typeof updatePra
   return response.fromResult(c, result);
 };
 
-export const getPracticeClientIntakeStatusHandler: AppRouteHandler<
-  typeof getPracticeClientIntakeStatusRoute
-> = async (c) => {
+export const getPracticeClientIntakeStatusHandler: AppRouteHandler<typeof getPracticeClientIntakeStatusRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await intakeCheckoutService.getIntakeStatus({ uuid }, ctx);
@@ -89,9 +89,7 @@ export const claimPracticeClientIntakeHandler: AppRouteHandler<typeof claimPract
   return response.fromResult(c, result);
 };
 
-export const triggerIntakeInvitationHandler: AppRouteHandler<
-  typeof triggerIntakeInvitationRoute
-> = async (c) => {
+export const triggerIntakeInvitationHandler: AppRouteHandler<typeof triggerIntakeInvitationRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await intakeLifecycleService.triggerInvitation({ uuid, origin: c.req.header('origin') }, ctx);

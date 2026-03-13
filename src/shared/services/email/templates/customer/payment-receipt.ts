@@ -26,7 +26,7 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
         <td style="color: #6b7280; font-size: 14px; padding-bottom: 16px;">Qty ${item.quantity}</td>
         <td></td>
       </tr>
-    `,
+    `
     )
     .join('');
 
@@ -62,13 +62,14 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
             <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">From:</td>
             <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.businessName)}</td>
           </tr>
-          ${data.paymentMethod
-        ? `<tr>
+          ${
+            data.paymentMethod
+              ? `<tr>
               <td style="color: ${COLORS.textMuted}; font-size: 16px; font-weight: 500; padding: 4px;">Payment method:</td>
               <td style="font-size: 16px; font-weight: 500; padding: 4px;">${escapeHtml(data.paymentMethod)}</td>
             </tr>`
-        : ''
-      }
+              : ''
+          }
         </mj-table>
       </mj-column>
     `)}
@@ -95,7 +96,7 @@ export const customerPaymentReceipt = (data: CustomerPaymentReceiptData): string
       </mj-column>
     `)}
   `,
-    data.teamPhotoUrl,
+    data.teamPhotoUrl
   );
 
   return renderMjml(mjmlContent);

@@ -2,7 +2,13 @@
  * Email Template Preview Routes
  */
 
-import type { CustomerPaymentReceiptData, MagicLinkData, PracticeInvitationData, StripeConnectWelcomeData, WelcomeEmailData } from '@/shared/services/email/email.types';
+import type {
+  CustomerPaymentReceiptData,
+  MagicLinkData,
+  PracticeInvitationData,
+  StripeConnectWelcomeData,
+  WelcomeEmailData,
+} from '@/shared/services/email/email.types';
 import { Hono } from 'hono';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
 import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';

@@ -1,9 +1,11 @@
 import { z } from '@hono/zod-openapi';
 
-export const createMemoSchema = z.object({
-  content: z.string().min(1, 'Content is required'),
-  event_time: z.iso.datetime().optional(),
-}).openapi('CreateMemo');
+export const createMemoSchema = z
+  .object({
+    content: z.string().min(1, 'Content is required'),
+    event_time: z.iso.datetime().optional(),
+  })
+  .openapi('CreateMemo');
 
 export const updateMemoSchema = z.object({
   content: z.string().min(1, 'Content is required'),

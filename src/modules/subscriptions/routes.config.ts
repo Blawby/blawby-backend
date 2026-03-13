@@ -12,4 +12,3 @@ export const config: Partial<ModuleConfig> = {
   },
   prefix: undefined, // Mount at /api/subscriptions
 };
-

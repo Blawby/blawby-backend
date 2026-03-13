@@ -2,7 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Hono } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
-import type { MagicLinkData, CustomerPaymentReceiptData, CustomerPaymentRequestData, PracticeInvitationData, PayoutSentData, StripeConnectStatusData, StripeConnectWelcomeData, TeamPaymentReceiptData, WelcomeEmailData } from '@/shared/services/email/email.types';
+import type {
+  MagicLinkData,
+  CustomerPaymentReceiptData,
+  CustomerPaymentRequestData,
+  PracticeInvitationData,
+  PayoutSentData,
+  StripeConnectStatusData,
+  StripeConnectWelcomeData,
+  TeamPaymentReceiptData,
+  WelcomeEmailData,
+} from '@/shared/services/email/email.types';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
 import { customerPaymentRefundRejected } from '@/shared/services/email/templates/customer/payment-rejected';
 import { customerPaymentRefundRequest } from '@/shared/services/email/templates/customer/payment-refund-request';
@@ -39,15 +49,17 @@ http.get('/emails', async (c) => {
     `);
   }
 
-  const files = fs.readdirSync(EMAILS_DIR)
+  const files = fs
+    .readdirSync(EMAILS_DIR)
     .filter((f) => f.endsWith('.html'))
     .sort()
     .reverse();
 
-  const listItems = files.map((f) => {
-    const filePath = path.join(EMAILS_DIR, f);
-    const stat = fs.statSync(filePath);
-    return `
+  const listItems = files
+    .map((f) => {
+      const filePath = path.join(EMAILS_DIR, f);
+      const stat = fs.statSync(filePath);
+      return `
       <li style="margin-bottom: 10px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; list-style: none;">
         <a href="/api/dev/emails/${f}" style="text-decoration: none; color: #007bff; font-weight: bold;">
           ${f}
@@ -57,7 +69,8 @@ http.get('/emails', async (c) => {
         </div>
       </li>
     `;
-  }).join('');
+    })
+    .join('');
 
   return c.html(`
     <div style="font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">

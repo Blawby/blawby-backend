@@ -82,7 +82,7 @@ export const subscriptionPlans = pgTable(
     index('subscription_plans_stripe_product_idx').on(table.stripe_product_id),
     uniqueIndex('subscription_plans_stripe_monthly_price_idx').on(table.stripe_monthly_price_id),
     uniqueIndex('subscription_plans_stripe_yearly_price_idx').on(table.stripe_yearly_price_id),
-  ],
+  ]
 );
 
 export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
@@ -93,4 +93,3 @@ export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }
 // Type exports
 export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type NewSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
-

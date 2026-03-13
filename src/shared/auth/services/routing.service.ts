@@ -54,10 +54,7 @@ const hasPracticeEntitlement = async (organizationId: string | null): Promise<bo
         status: subscriptions.status,
       })
       .from(organizations)
-      .innerJoin(
-        subscriptions,
-        eq(organizations.activeSubscriptionId, subscriptions.id),
-      )
+      .innerJoin(subscriptions, eq(organizations.activeSubscriptionId, subscriptions.id))
       .where(eq(organizations.id, organizationId))
       .limit(1);
 
@@ -82,10 +79,7 @@ interface Membership {
 /**
  * Get user's membership role in active organization
  */
-const getActiveMembership = async (
-  userId: string,
-  organizationId: string | null,
-): Promise<Membership | null> => {
+const getActiveMembership = async (userId: string, organizationId: string | null): Promise<Membership | null> => {
   if (!organizationId) return null;
 
   try {
@@ -94,12 +88,7 @@ const getActiveMembership = async (
         role: members.role,
       })
       .from(members)
-      .where(
-        and(
-          eq(members.userId, userId),
-          eq(members.organizationId, organizationId),
-        ),
-      )
+      .where(and(eq(members.userId, userId), eq(members.organizationId, organizationId)))
       .limit(1);
 
     return membership;
@@ -195,15 +184,13 @@ export const computeRoutingClaims = async (context: RoutingContext): Promise<Rou
   // Compute workspace access based on rules
   const workspace_access: WorkspaceAccess = {
     // Practice access: not anonymous + membership + non-client role + entitlement
-    practice: !user.isAnonymous
-      && Boolean(membership)
-      && membershipRole !== 'client'
-      && practiceEntitled,
+    practice: !user.isAnonymous && Boolean(membership) && membershipRole !== 'client' && practiceEntitled,
 
     // Client access: actual client roles OR non-entitled staff fallback
-    client: !user.isAnonymous
-      && Boolean(membership)
-      && (membershipRole === 'client' || (!practiceEntitled && membershipRole !== 'client')),
+    client:
+      !user.isAnonymous &&
+      Boolean(membership) &&
+      (membershipRole === 'client' || (!practiceEntitled && membershipRole !== 'client')),
 
     // Public access: allowed unless explicitly banned
     public: user.banned !== true,

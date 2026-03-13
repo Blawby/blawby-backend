@@ -1,6 +1,4 @@
-import {
-  eq, and, desc, gte, lte, sql, inArray, isNull,
-} from 'drizzle-orm';
+import { eq, and, desc, gte, lte, sql, inArray, isNull } from 'drizzle-orm';
 import {
   matterTimeEntries,
   type InsertMatterTimeEntry,
@@ -10,32 +8,21 @@ import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-
 import { db } from '@/shared/database';
 
 // Create matter time entry
-const createMatterTimeEntry = async (
-  data: InsertMatterTimeEntry,
-): Promise<SelectMatterTimeEntry> => {
-  const [entry] = await db
-    .insert(matterTimeEntries)
-    .values(data)
-    .returning();
+const createMatterTimeEntry = async (data: InsertMatterTimeEntry): Promise<SelectMatterTimeEntry> => {
+  const [entry] = await db.insert(matterTimeEntries).values(data).returning();
   return entry;
 };
 
 // Find matter time entry by ID
-const findMatterTimeEntryById = async (
-  id: string,
-): Promise<SelectMatterTimeEntry | undefined> => {
-  const [entry] = await db
-    .select()
-    .from(matterTimeEntries)
-    .where(eq(matterTimeEntries.id, id))
-    .limit(1);
+const findMatterTimeEntryById = async (id: string): Promise<SelectMatterTimeEntry | undefined> => {
+  const [entry] = await db.select().from(matterTimeEntries).where(eq(matterTimeEntries.id, id)).limit(1);
   return entry;
 };
 
 // List matter time entries
 const listMatterTimeEntries = async (
   matterId: string,
-  filters?: MatterTimeEntryListFilters,
+  filters?: MatterTimeEntryListFilters
 ): Promise<SelectMatterTimeEntry[]> => {
   const conditions = [eq(matterTimeEntries.matter_id, matterId)];
 
@@ -65,7 +52,7 @@ const listMatterTimeEntries = async (
 // Update matter time entry
 const updateMatterTimeEntry = async (
   id: string,
-  data: Partial<InsertMatterTimeEntry>,
+  data: Partial<InsertMatterTimeEntry>
 ): Promise<SelectMatterTimeEntry | undefined> => {
   const [entry] = await db
     .update(matterTimeEntries)
@@ -81,28 +68,19 @@ const deleteMatterTimeEntry = async (id: string): Promise<void> => {
 };
 
 // Get total billable time for matter
-const getTotalBillableTime = async (
-  matterId: string,
-): Promise<number> => {
+const getTotalBillableTime = async (matterId: string): Promise<number> => {
   const [result] = await db
     .select({
       total: sql<number>`COALESCE(SUM(${matterTimeEntries.duration}), 0)`,
     })
     .from(matterTimeEntries)
-    .where(
-      and(
-        eq(matterTimeEntries.matter_id, matterId),
-        eq(matterTimeEntries.billable, true),
-      ),
-    );
+    .where(and(eq(matterTimeEntries.matter_id, matterId), eq(matterTimeEntries.billable, true)));
 
   return Number(result.total);
 };
 
 // Get total time for matter (billable and non-billable)
-const getTotalTime = async (
-  matterId: string,
-): Promise<number> => {
+const getTotalTime = async (matterId: string): Promise<number> => {
   const [result] = await db
     .select({
       total: sql<number>`COALESCE(SUM(${matterTimeEntries.duration}), 0)`,
@@ -116,11 +94,7 @@ const getTotalTime = async (
 /**
  * Mark time entries as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (
-  timeEntryIds: string[],
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const markAsInvoiced = async (timeEntryIds: string[], invoiceId: string, tx?: typeof db): Promise<void> => {
   if (timeEntryIds.length === 0) return;
   const client = tx || db;
   await client
@@ -136,10 +110,7 @@ const markAsInvoiced = async (
 /**
  * Unmark time entries as invoiced. Resets invoice_id and invoiced_at for entries linked to the given invoice.
  */
-const unmarkInvoiced = async (
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
+const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
   const client = tx || db;
   await client
     .update(matterTimeEntries)
@@ -154,9 +125,7 @@ const unmarkInvoiced = async (
 /**
  * Get unbilled time entries for a matter: invoice_id IS NULL AND billable = true.
  */
-const getUnbilled = async (
-  matterId: string,
-): Promise<SelectMatterTimeEntry[]> => {
+const getUnbilled = async (matterId: string): Promise<SelectMatterTimeEntry[]> => {
   return await db
     .select()
     .from(matterTimeEntries)
@@ -164,8 +133,8 @@ const getUnbilled = async (
       and(
         eq(matterTimeEntries.matter_id, matterId),
         isNull(matterTimeEntries.invoice_id),
-        eq(matterTimeEntries.billable, true),
-      ),
+        eq(matterTimeEntries.billable, true)
+      )
     )
     .orderBy(desc(matterTimeEntries.start_time));
 };

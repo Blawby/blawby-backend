@@ -6,7 +6,6 @@ import { db } from '@/shared/database';
 const logger = getLogger(['app', 'repositories', 'users']);
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 

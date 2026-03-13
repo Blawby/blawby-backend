@@ -14,4 +14,3 @@ export type MemberListItem = {
 export const isValidMemberRole = (role: unknown): role is MemberRole => {
   return typeof role === 'string' && ['owner', 'admin', 'attorney', 'paralegal', 'member', 'client'].includes(role);
 };
-

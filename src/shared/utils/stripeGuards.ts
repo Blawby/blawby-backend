@@ -18,9 +18,7 @@ const SUBSCRIPTION_PREFIX = 'customer.subscription.';
  * Type Guard: Checks if event is related to Payment Intents.
  * If true, TypeScript knows event.data.object is Stripe.PaymentIntent
  */
-const isPaymentIntentEvent = (
-  event: Stripe.Event,
-): event is StripeEventWithObject<Stripe.PaymentIntent> => {
+const isPaymentIntentEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.PaymentIntent> => {
   return event.type.startsWith(PAYMENT_INTENT_PREFIX);
 };
 
@@ -29,9 +27,7 @@ const isPaymentIntentEvent = (
  * If true, TypeScript knows event.data.object is Stripe.Charge
  * Also verifies the object is actually a Charge (not a Dispute)
  */
-const isChargeEvent = (
-  event: Stripe.Event,
-): event is StripeEventWithObject<Stripe.Charge> => {
+const isChargeEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Charge> => {
   return (
     event.type.startsWith(CHARGE_PREFIX) &&
     event.data?.object &&
@@ -45,9 +41,7 @@ const isChargeEvent = (
  * Type Guard: Checks if event is related to Subscriptions.
  * If true, TypeScript knows event.data.object is Stripe.Subscription
  */
-const isSubscriptionEvent = (
-  event: Stripe.Event,
-): event is StripeEventWithObject<Stripe.Subscription> => {
+const isSubscriptionEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Subscription> => {
   return event.type.startsWith(SUBSCRIPTION_PREFIX);
 };
 

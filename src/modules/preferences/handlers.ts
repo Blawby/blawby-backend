@@ -40,7 +40,7 @@ const updateCategoryPreferences = async (c: Context) => {
   const result = await preferencesService.updatePreferencesByCategory(
     category,
     validatedBody as Record<string, unknown>,
-    ctx,
+    ctx
   );
 
   return response.fromResult(c, result);

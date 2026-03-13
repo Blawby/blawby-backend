@@ -22,10 +22,7 @@ interface ProcessOnboardingWebhookPayload {
  *
  * Task name: process-onboarding-webhook
  */
-export const processOnboardingWebhook: Task = async (
-  payload: unknown,
-  helpers,
-): Promise<void> => {
+export const processOnboardingWebhook: Task = async (payload: unknown, helpers): Promise<void> => {
   const { webhookId, eventId, eventType } = payload as ProcessOnboardingWebhookPayload;
   const startTime = Date.now();
 

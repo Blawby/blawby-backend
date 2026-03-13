@@ -10,17 +10,10 @@ import type {
   DetailsFieldKeys,
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
-import type {
-  OrganizationApiShape,
-  PracticeWithDetails,
-} from '@/modules/practice/types/practice.types';
+import type { OrganizationApiShape, PracticeWithDetails } from '@/modules/practice/types/practice.types';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
-import {
-  PracticeDetailsCreated,
-  PracticeDetailsUpdated,
-  PracticeDetailsDeleted,
-} from '@/shared/events/definitions';
+import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const { parseBetterAuthMetadata } = betterAuthUtils;
@@ -44,15 +37,9 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
 
 export const buildPracticeWithDetails = (
   organization: OrganizationApiShape,
-  practiceDetails: PracticeDetails | null,
+  practiceDetails: PracticeDetails | null
 ): PracticeWithDetails => {
-  const {
-    paymentLinkEnabled,
-    paymentLinkPrefillAmount,
-    createdAt,
-    updatedAt,
-    ...rest
-  } = organization;
+  const { paymentLinkEnabled, paymentLinkPrefillAmount, createdAt, updatedAt, ...rest } = organization;
 
   return {
     ...practiceDetails,
@@ -68,7 +55,7 @@ export const buildPracticeWithDetails = (
 export const upsertDetailsTransaction = async (
   tx: typeof db,
   ctx: ServiceContext,
-  params: UpsertDetailsTransactionParams,
+  params: UpsertDetailsTransactionParams
 ) => {
   let addressId = params.existingAddressId;
   let addressResult: AddressData | null = null;
@@ -151,9 +138,10 @@ export const upsertDetailsTransaction = async (
     }
   }
 
-  const syncedServices = params.data.services !== undefined
-    ? await practiceServicesRepository.syncServicesTx(tx, params.organizationId, params.data.services)
-    : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
+  const syncedServices =
+    params.data.services !== undefined
+      ? await practiceServicesRepository.syncServicesTx(tx, params.organizationId, params.data.services)
+      : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
   await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data }, tx);
@@ -172,7 +160,7 @@ export const buildPracticeDetailsDeletedPayload = (existing: PracticeDetails) =>
 
 export const findAndDeletePracticeDetails = async (
   ctx: ServiceContext,
-  organizationId: string,
+  organizationId: string
 ): Promise<PracticeDetails | null> => {
   return await db.transaction(async (tx) => {
     const [deleted] = await tx

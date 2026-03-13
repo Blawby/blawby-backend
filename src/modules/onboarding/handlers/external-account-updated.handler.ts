@@ -2,13 +2,8 @@ import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
 
-import {
-  stripeConnectedAccounts,
-} from '@/modules/onboarding/schemas/onboarding.schema';
-import type {
-  ExternalAccount,
-  ExternalAccounts,
-} from '@/modules/onboarding/types/onboarding.types';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
 import { db } from '@/shared/database';
 import { OnboardingExternalAccountUpdated } from '@/shared/events/definitions';
@@ -16,16 +11,12 @@ import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
 const logger = getLogger(['onboarding', 'handler', 'external-account-updated']);
 
-const normalizeExternalAccounts = (input: {
-  externalAccounts: unknown;
-}): ExternalAccounts => {
+const normalizeExternalAccounts = (input: { externalAccounts: unknown }): ExternalAccounts => {
   const { externalAccounts } = input;
   if (stripeTypeGuards.isExternalAccountList(externalAccounts)) {
     return externalAccounts;
   }
-  const data = stripeTypeGuards.isRecord(externalAccounts)
-    ? Object.values(externalAccounts)
-    : [];
+  const data = stripeTypeGuards.isRecord(externalAccounts) ? Object.values(externalAccounts) : [];
   const normalizedData = data.filter(stripeTypeGuards.isExternalAccountItem);
   return { object: 'list', data: normalizedData };
 };
@@ -37,57 +28,43 @@ const normalizeExternalAccounts = (input: {
  * and publishes an ONBOARDING_EXTERNAL_ACCOUNT_UPDATED event.
  * This is a pure function that doesn't depend on Hono app instance.
  */
-export const handleExternalAccountUpdated = async (
-  externalAccount: Stripe.ExternalAccount,
-): Promise<void> => {
+export const handleExternalAccountUpdated = async (externalAccount: Stripe.ExternalAccount): Promise<void> => {
   try {
-    const accountType = externalAccount.object === 'bank_account'
-      || externalAccount.object === 'card'
-      ? externalAccount.object
-      : 'unknown';
+    const accountType =
+      externalAccount.object === 'bank_account' || externalAccount.object === 'card'
+        ? externalAccount.object
+        : 'unknown';
 
-    const stripeAccountId = typeof externalAccount.account === 'string'
-      ? externalAccount.account
-      : null;
+    const stripeAccountId = typeof externalAccount.account === 'string' ? externalAccount.account : null;
 
     if (!stripeAccountId) {
-      logger.warn('Missing Stripe account ID for external account: {externalAccountId}', { externalAccountId: externalAccount.id });
+      logger.warn('Missing Stripe account ID for external account: {externalAccountId}', {
+        externalAccountId: externalAccount.id,
+      });
       return;
     }
 
     logger.debug(
       'Processing external_account.updated: {externalAccountId} ({accountType}) for account: {stripeAccountId}',
-      { externalAccountId: externalAccount.id, accountType, stripeAccountId },
+      { externalAccountId: externalAccount.id, accountType, stripeAccountId }
     );
 
     // Get current account record
     const account = await db
       .select()
       .from(stripeConnectedAccounts)
-      .where(
-        eq(
-          stripeConnectedAccounts.stripe_account_id,
-          stripeAccountId,
-        ),
-      )
+      .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
       .limit(1);
 
     if (account.length === 0) {
-      logger.warn(
-        'Account not found for external account update: {stripeAccountId}',
-        { stripeAccountId },
-      );
+      logger.warn('Account not found for external account update: {stripeAccountId}', { stripeAccountId });
       return;
     }
 
     const currentAccount = account[0];
 
-    const bankAccount = stripeTypeGuards.isBankAccount(externalAccount)
-      ? externalAccount
-      : undefined;
-    const cardAccount = stripeTypeGuards.isCardAccount(externalAccount)
-      ? externalAccount
-      : undefined;
+    const bankAccount = stripeTypeGuards.isBankAccount(externalAccount) ? externalAccount : undefined;
+    const cardAccount = stripeTypeGuards.isCardAccount(externalAccount) ? externalAccount : undefined;
     const normalizedAccount: ExternalAccount = {
       id: externalAccount.id,
       object: externalAccount.object,
@@ -109,10 +86,7 @@ export const handleExternalAccountUpdated = async (
     });
     const updatedExternalAccounts: ExternalAccounts = {
       object: 'list',
-      data: [
-        ...currentExternalAccounts.data.filter((account) => account.id !== externalAccount.id),
-        normalizedAccount,
-      ],
+      data: [...currentExternalAccounts.data.filter((account) => account.id !== externalAccount.id), normalizedAccount],
     };
 
     // Update the account external accounts in the database within transaction with event publishing
@@ -120,42 +94,38 @@ export const handleExternalAccountUpdated = async (
       await tx
         .update(stripeConnectedAccounts)
         .set({
-          externalAccounts:
-            updatedExternalAccounts as unknown as ExternalAccounts,
+          externalAccounts: updatedExternalAccounts as unknown as ExternalAccounts,
           last_refreshed_at: new Date(),
         })
-        .where(
-          eq(
-            stripeConnectedAccounts.stripe_account_id,
-            stripeAccountId,
-          ),
-        );
+        .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId));
 
       // Publish external account updated event within transaction
-      await OnboardingExternalAccountUpdated.dispatch({
-        stripe_account_id: stripeAccountId,
-        organization_id: currentAccount.organization_id,
-        external_account_id: externalAccount.id,
-        external_account_type: accountType,
-        external_account_status: externalAccount.status,
-        updated_at: new Date().toISOString(),
-      }, {
-        actorId: WEBHOOK_ACTOR_UUID,
-        actorType: 'webhook',
-        organizationId: currentAccount.organization_id,
-        tx,
-      });
+      await OnboardingExternalAccountUpdated.dispatch(
+        {
+          stripe_account_id: stripeAccountId,
+          organization_id: currentAccount.organization_id,
+          external_account_id: externalAccount.id,
+          external_account_type: accountType,
+          external_account_status: externalAccount.status,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          actorId: WEBHOOK_ACTOR_UUID,
+          actorType: 'webhook',
+          organizationId: currentAccount.organization_id,
+          tx,
+        }
+      );
     });
 
-    logger.info(
-      'External account updated and event published for: {externalAccountId}',
-      { externalAccountId: externalAccount.id },
-    );
+    logger.info('External account updated and event published for: {externalAccountId}', {
+      externalAccountId: externalAccount.id,
+    });
   } catch (error) {
-    logger.error(
-      'Failed to update external account: {externalAccountId} {error}',
-      { externalAccountId: externalAccount.id, error },
-    );
+    logger.error('Failed to update external account: {externalAccountId} {error}', {
+      externalAccountId: externalAccount.id,
+      error,
+    });
     throw error;
   }
 };

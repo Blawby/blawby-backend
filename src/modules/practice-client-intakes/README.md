@@ -9,6 +9,7 @@
 The Practice Client Intakes module handles intake creation plus optional payment flow. It enables law practices to collect client intake information and, when required by organization settings, collect payment through Stripe connected accounts.
 
 **Boundaries:**
+
 - Handles payment intent creation, updates, and status tracking
 - Manages client intake metadata (contact info, case details)
 - Integrates with Stripe Connected Accounts when payment is required
@@ -20,14 +21,17 @@ The Practice Client Intakes module handles intake creation plus optional payment
 The module is mounted at `/api/practice/client-intakes`.
 
 ### 1. GET `/:slug/intake`
+
 **Public endpoint** - Retrieves practice details and payment settings for a practice's intake form.
 
 **Full Path:** `/api/practice/client-intakes/:slug/intake`
 
 **Path Parameters:**
+
 - `slug` (string, required): Practice slug (e.g., `my-practice`)
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -51,6 +55,7 @@ The module is mounted at `/api/practice/client-intakes`.
 ```
 
 **Error Responses:**
+
 - `404 Not Found`: Practice not found, payment links disabled, or connected account not ready
 
 **Use Case:** Frontend calls this to display the intake form with practice branding and pre-filled payment amount.
@@ -58,9 +63,11 @@ The module is mounted at `/api/practice/client-intakes`.
 ---
 
 ### 2. POST `/create`
+
 Creates a practice client intake. Stripe checkout is created only when payment is required by organization settings.
 
 **Request Body:**
+
 ```json
 {
   "slug": "my-practice",
@@ -75,6 +82,7 @@ Creates a practice client intake. Stripe checkout is created only when payment i
 ```
 
 **Field Validation:**
+
 - `slug`: string, 1-100 chars
 - `amount`: integer, 0-99999999 (cents)
 - `email`: valid email, max 255 chars
@@ -87,6 +95,7 @@ Creates a practice client intake. Stripe checkout is created only when payment i
 **Amount limits:** `0` to `99,999,999` cents. Use `0` when payment is not required by organization settings.
 
 **Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -105,6 +114,7 @@ Creates a practice client intake. Stripe checkout is created only when payment i
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation failed or payment link creation error
 - `500 Internal Server Error`: Stripe API error or database error
 
@@ -113,12 +123,15 @@ Creates a practice client intake. Stripe checkout is created only when payment i
 ---
 
 ### 3. PUT `/:uuid`
+
 Updates intake fields, including payment amount.
 
 **Path Parameters:**
+
 - `uuid` (UUID, required): Practice client intake UUID from create response
 
 **Request Body:**
+
 ```json
 {
   "amount": 7500
@@ -126,9 +139,11 @@ Updates intake fields, including payment amount.
 ```
 
 **Field Validation:**
+
 - `amount`: integer, 0-99999999 (cents)
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -143,6 +158,7 @@ Updates intake fields, including payment amount.
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation failed, payment already completed/expired, or update failed
 - `404 Not Found`: Intake not found
 - `500 Internal Server Error`: Stripe API error
@@ -152,12 +168,15 @@ Updates intake fields, including payment amount.
 ---
 
 ### 4. GET `/:uuid/status`
+
 Retrieves the current status of a practice client intake.
 
 **Path Parameters:**
+
 - `uuid` (UUID, required): Practice client intake UUID from create response
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -182,6 +201,7 @@ Retrieves the current status of a practice client intake.
 ```
 
 **Status Values:**
+
 - `open`: awaiting payment
 - `succeeded`: payment completed or intake succeeded directly
 - `expired`: payment expired
@@ -190,6 +210,7 @@ Retrieves the current status of a practice client intake.
 - `converted`: converted to matter
 
 **Error Responses:**
+
 - `404 Not Found`: Intake not found
 - `500 Internal Server Error`: Database error
 
@@ -202,23 +223,24 @@ Retrieves the current status of a practice client intake.
 ### Table: `practice_client_intakes`
 
 **Schema:**
+
 ```typescript
 {
   id: uuid (primary key)
   practice_id: uuid (foreign key → practices.id, cascade delete)
   connected_account_id: uuid (foreign key → stripe_connected_accounts.id, restrict delete)
-  
+
   // Stripe IDs
   stripe_payment_link_id: text (unique, not null) // Stripe Payment Link ID
   stripe_payment_intent_id: text (nullable) // Created by Payment Link, populated via webhook
   stripe_charge_id: text (nullable)
-  
+
   // Payment Details
   amount: integer (cents, not null)
   application_fee: integer (cents, nullable)
   currency: text (default: 'usd', not null)
   status: text (not null)
-  
+
   // Client Data
   metadata: jsonb {
     email: string
@@ -228,11 +250,11 @@ Retrieves the current status of a practice client intake.
     opposing_party?: string
     description?: string
   }
-  
+
   // Security & Tracking
   client_ip: text (nullable)
   user_agent: text (nullable)
-  
+
   // Timestamps
   succeeded_at: timestamp (nullable)
   created_at: timestamp (default: now, not null)
@@ -241,12 +263,14 @@ Retrieves the current status of a practice client intake.
 ```
 
 **Indexes:**
+
 - `practice_id` (for querying by practice)
 - `stripe_payment_link_id` (unique, for Payment Link lookups)
 - `stripe_payment_intent_id` (for Stripe webhook lookups)
 - `status` (for filtering by payment status)
 
 **Relations:**
+
 - `practice` → `practices` table (many-to-one)
 - `connectedAccount` → `stripe_connected_accounts` table (many-to-one)
 
@@ -255,6 +279,7 @@ Retrieves the current status of a practice client intake.
 **Location:** `database/queries/practice-client-intakes.repository.ts`
 
 **Key Methods:**
+
 - `create(intake: InsertPracticeClientIntake)`: Creates new intake record
 - `findByUuid(uuid: string)`: Finds intake by UUID
 - `findByStripePaymentLinkId(paymentLinkId: string)`: Finds intake by Stripe Payment Link ID
@@ -271,6 +296,7 @@ Retrieves the current status of a practice client intake.
 ### Service Methods
 
 #### `getPracticeClientIntakeSettings(slug: string)`
+
 1. Finds practice by slug
 2. Validates `paymentLinkEnabled` is true
 3. Retrieves connected Stripe account
@@ -278,6 +304,7 @@ Retrieves the current status of a practice client intake.
 5. Returns practice details, settings, and connected account info
 
 #### `createPracticeClientIntake(request)`
+
 1. Validates practice exists and payment links enabled
 2. Retrieves connected account
 3. Creates Stripe Payment Link with:
@@ -291,6 +318,7 @@ Retrieves the current status of a practice client intake.
 7. Returns UUID and Payment Link URL for frontend redirect
 
 #### `updatePracticeClientIntake(uuid: string, amount: number)`
+
 1. Finds intake by UUID
 2. Validates status allows updates (not `completed` or `expired`)
 3. Deactivates old Payment Link
@@ -299,6 +327,7 @@ Retrieves the current status of a practice client intake.
 6. Returns new Payment Link URL
 
 #### `getPracticeClientIntakeStatus(uuid: string)`
+
 1. Finds intake by UUID
 2. Returns current status, metadata, and timestamps
 
@@ -309,6 +338,7 @@ Retrieves the current status of a practice client intake.
 The module listens to Stripe webhook events via the webhooks module. All handlers use object parameters for explicit naming and share a common helper for finding intakes by Payment Intent.
 
 **Helper Function (`helpers.ts`):**
+
 - `findPracticeClientIntakeByPaymentIntent(paymentIntent)`: Finds intake by Payment Intent ID or Payment Link ID (since Payment Links create Payment Intents)
 
 - **`succeeded.ts`**: Handles `payment_intent.succeeded`
@@ -370,39 +400,46 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 ## Security and Compliance Considerations
 
 ### Authentication
+
 - **All endpoints are public** - No authentication required
 - Intake forms are meant to be accessible to anyone with the practice slug
 - Rate limiting should be applied at the application level
 
 ### Data Protection
+
 - **PII Storage**: Client email, name, phone stored in `metadata` JSONB field
 - **IP Tracking**: Client IP and user agent stored for security/audit purposes
 - **Data Retention**: Follow practice's data retention policy
 - **GDPR Compliance**: Consider data export/deletion capabilities for client requests
 
 ### Payment Security
+
 - **Stripe Integration**: All payment processing handled by Stripe
 - **Client Secrets**: Never expose server-side Stripe keys to frontend
 - **Webhook Verification**: Webhook events verified via Stripe signature (handled in webhooks module)
 - **Idempotency**: Stripe Payment Intents are idempotent by design
 
 ### Access Controls
+
 - **Practice Validation**: All operations validate practice exists and payment links enabled
 - **Connected Account Validation**: Ensures connected account is ready (`chargesEnabled`)
 - **Status Validation**: Update operations check status before allowing changes
 
 ### Audit Logging
+
 - **Payment Lifecycle**: All status changes logged via database timestamps
 - **Event Publishing**: Payment lifecycle events published for downstream processing
 - **Error Tracking**: Service errors should be logged with context (practice ID, intake UUID)
 
 ### Rate Limiting
+
 - Apply rate limiting to prevent abuse:
   - `/create`: Limit per IP to prevent spam
   - `/:uuid/status`: Limit polling frequency
   - Consider practice-level limits
 
 ### Input Validation
+
 - All inputs validated via Zod schemas
 - Amount limits: $0.50 - $999,999.99
 - String length limits enforced
@@ -414,6 +451,7 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 ## Integration Points
 
 ### Dependencies
+
 - **Stripe API**: Payment processing via Stripe Connected Accounts
 - **Practices Module**: Practice lookup and settings
 - **Onboarding Module**: Connected accounts repository
@@ -421,6 +459,7 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 - **Events System**: Event publishing for payment lifecycle
 
 ### Frontend Integration
+
 1. Call `GET /:slug/intake` to load form settings
 2. Display form with practice branding
 3. On submit, call `POST /create` to get `payment_link_url`
@@ -431,6 +470,7 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 8. Display success/failure based on status
 
 ### Webhook Flow
+
 1. Stripe sends webhook to `/api/webhooks/stripe`
 2. Webhooks module verifies signature and routes to appropriate handler
 3. Payment handler checks if Payment Intent is from a Payment Link (via `payment_link` property)
@@ -447,12 +487,14 @@ The module listens to Stripe webhook events via the webhooks module. All handler
 ## Testing
 
 ### Manual Testing
+
 1. **Get Settings**: `GET /api/practice/client-intakes/my-practice/intake`
 2. **Create Intake**: `POST /api/practice/client-intakes/create` with valid payload
 3. **Update Amount**: `PUT /api/practice/client-intakes/{uuid}` with new amount
 4. **Check Status**: `GET /api/practice/client-intakes/{uuid}/status`
 
 ### Test Scenarios
+
 - Practice with payment links disabled → 404
 - Practice without connected account → 404
 - Invalid amount (too low/high) → 400

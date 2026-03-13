@@ -11,13 +11,9 @@ const logger = getLogger(['shared', 'webhook-retries']);
  */
 
 /**
-   * Scan for failed events and re-queue them.
-   */
-const ONBOARDING_EVENT_PREFIXES = [
-  'account.',
-  'capability.',
-  'account.external_account.',
-] as const;
+ * Scan for failed events and re-queue them.
+ */
+const ONBOARDING_EVENT_PREFIXES = ['account.', 'capability.', 'account.external_account.'] as const;
 
 /**
  * Scan for failed events and re-queue them.

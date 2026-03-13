@@ -18,11 +18,9 @@ type NodeEnvironment = 'development' | 'production';
 export const getAppEnv = (): AppEnvironment => {
   const appEnv = process.env.APP_ENV?.toLowerCase();
 
-
   if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production' || appEnv === 'test') {
     return appEnv;
   }
-
 
   // Default to development
   return 'development';

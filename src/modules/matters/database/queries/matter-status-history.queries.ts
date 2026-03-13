@@ -10,22 +10,17 @@ import { db } from '@/shared/database';
 
 const createMatterStatusHistory = async (
   data: InsertMatterStatusHistory,
-  tx?: NodePgDatabase<typeof schema>,
+  tx?: NodePgDatabase<typeof schema>
 ): Promise<SelectMatterStatusHistory> => {
   const client = tx ?? db;
-  const [entry] = await client
-    .insert(matterStatusHistory)
-    .values(data)
-    .returning();
+  const [entry] = await client.insert(matterStatusHistory).values(data).returning();
   if (!entry) {
     throw new Error('Failed to create matter status history entry');
   }
   return entry;
 };
 
-const listMatterStatusHistory = async (
-  matterId: string,
-): Promise<SelectMatterStatusHistory[]> => {
+const listMatterStatusHistory = async (matterId: string): Promise<SelectMatterStatusHistory[]> => {
   return await db
     .select()
     .from(matterStatusHistory)

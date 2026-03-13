@@ -67,7 +67,7 @@ export const teamPaymentRefundRequest = (data: TeamPaymentReceiptData): string =
       </mj-column>
     `)}
   `,
-    BLAWBY_LOGO_URL,
+    BLAWBY_LOGO_URL
   );
 
   return renderMjml(mjmlContent);

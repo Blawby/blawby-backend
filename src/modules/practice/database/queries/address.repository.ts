@@ -16,15 +16,9 @@ export const upsertAddressTx = async (
     userId?: string | null;
     addressId?: string | null;
     type?: string;
-  },
+  }
 ): Promise<typeof addresses.$inferSelect | undefined> => {
-  const {
-    addressData,
-    organizationId,
-    userId,
-    addressId: providedAddressId,
-    type = 'practice_location',
-  } = params;
+  const { addressData, organizationId, userId, addressId: providedAddressId, type = 'practice_location' } = params;
   let targetAddressId = providedAddressId;
 
   // If no addressId provided but userId is present, try to find existing address of this type
@@ -33,7 +27,7 @@ export const upsertAddressTx = async (
       where: and(
         eq(addresses.user_id, userId),
         eq(addresses.organization_id, organizationId),
-        eq(addresses.type, type),
+        eq(addresses.type, type)
       ),
     });
     targetAddressId = existing?.id;
@@ -52,12 +46,7 @@ export const upsertAddressTx = async (
     const [updatedAddress] = await tx
       .update(addresses)
       .set({ ...dataToSave, updated_at: new Date() })
-      .where(
-        and(
-          eq(addresses.id, targetAddressId),
-          eq(addresses.organization_id, organizationId),
-        ),
-      )
+      .where(and(eq(addresses.id, targetAddressId), eq(addresses.organization_id, organizationId)))
       .returning();
 
     return updatedAddress;

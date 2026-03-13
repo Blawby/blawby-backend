@@ -21,7 +21,7 @@ const createStripeInvoice = async (
   invoice: InvoiceWithRelations,
   stripeCustomerId: string,
   onBehalfOfAccountId: string,
-  idempotencyKeyPrefix?: string,
+  idempotencyKeyPrefix?: string
 ): Promise<Result<Stripe.Invoice>> => {
   if (!onBehalfOfAccountId) {
     return result.badRequest('Missing Stripe account ID for on_behalf_of');
@@ -34,38 +34,44 @@ const createStripeInvoice = async (
     if (invoice.lineItems) {
       for (const [index, item] of invoice.lineItems.entries()) {
         const lineItemIdempotencySuffix = item.id ?? `${invoice.id}:${index}`;
-        const stripeItem = await stripe.invoiceItems.create({
-          customer: stripeCustomerId,
-          amount: item.line_total,
-          currency: 'usd',
-          description: item.description,
-          metadata: {
-            internal_line_item_id: item.id,
-            internal_invoice_id: invoice.id,
+        const stripeItem = await stripe.invoiceItems.create(
+          {
+            customer: stripeCustomerId,
+            amount: item.line_total,
+            currency: 'usd',
+            description: item.description,
+            metadata: {
+              internal_line_item_id: item.id,
+              internal_invoice_id: invoice.id,
+            },
           },
-        }, idempotencyKeyPrefix
-          ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${lineItemIdempotencySuffix}` }
-          : undefined);
+          idempotencyKeyPrefix
+            ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${lineItemIdempotencySuffix}` }
+            : undefined
+        );
         createdItemIds.push(stripeItem.id);
       }
     }
 
     // 2. Create the invoice
-    const stripeInvoice = await stripe.invoices.create({
-      customer: stripeCustomerId,
-      auto_advance: false,
-      collection_method: 'send_invoice',
-      on_behalf_of: onBehalfOfAccountId,
-      days_until_due: invoice.due_date
-        ? Math.max(0, Math.ceil((invoice.due_date.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-        : 30,
-      metadata: {
-        internal_invoice_id: invoice.id,
-        invoice_number: invoice.invoice_number,
+    const stripeInvoice = await stripe.invoices.create(
+      {
+        customer: stripeCustomerId,
+        auto_advance: false,
+        collection_method: 'send_invoice',
+        on_behalf_of: onBehalfOfAccountId,
+        days_until_due: invoice.due_date
+          ? Math.max(0, Math.ceil((invoice.due_date.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          : 30,
+        metadata: {
+          internal_invoice_id: invoice.id,
+          invoice_number: invoice.invoice_number,
+        },
+        description: invoice.notes || undefined,
+        footer: invoice.memo || undefined,
       },
-      description: invoice.notes || undefined,
-      footer: invoice.memo || undefined,
-    }, idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:invoice` } : undefined);
+      idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:invoice` } : undefined
+    );
 
     return result.ok(stripeInvoice);
   } catch (error) {
@@ -95,14 +101,14 @@ const createStripeInvoice = async (
  */
 const finalizeAndSendInvoice = async (
   stripeInvoiceId: string,
-  idempotencyKeyPrefix?: string,
+  idempotencyKeyPrefix?: string
 ): Promise<Result<Stripe.Invoice>> => {
   try {
     // Finalize the invoice (converts draft to open)
     await stripe.invoices.finalizeInvoice(
       stripeInvoiceId,
       {},
-      idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:finalize` } : undefined,
+      idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:finalize` } : undefined
     );
 
     // Send the invoice email with retries
@@ -112,7 +118,7 @@ const finalizeAndSendInvoice = async (
         const sent = await stripe.invoices.sendInvoice(
           stripeInvoiceId,
           {},
-          idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:send` } : undefined,
+          idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:send` } : undefined
         );
         return result.ok(sent);
       } catch (error) {
@@ -147,9 +153,7 @@ const finalizeAndSendInvoice = async (
 /**
  * Void a Stripe invoice
  */
-const voidInvoice = async (
-  stripeInvoiceId: string,
-): Promise<Result<Stripe.Invoice>> => {
+const voidInvoice = async (stripeInvoiceId: string): Promise<Result<Stripe.Invoice>> => {
   try {
     const voided = await stripe.invoices.voidInvoice(stripeInvoiceId);
     return result.ok(voided);
@@ -166,9 +170,7 @@ const voidInvoice = async (
 /**
  * Delete a draft Stripe invoice
  */
-const deleteDraftInvoice = async (
-  stripeInvoiceId: string,
-): Promise<Result<Stripe.DeletedInvoice>> => {
+const deleteDraftInvoice = async (stripeInvoiceId: string): Promise<Result<Stripe.DeletedInvoice>> => {
   try {
     const deleted = await stripe.invoices.del(stripeInvoiceId);
     return result.ok(deleted);
@@ -185,9 +187,7 @@ const deleteDraftInvoice = async (
 /**
  * Retrieve a Stripe invoice
  */
-const getStripeInvoice = async (
-  stripeInvoiceId: string,
-): Promise<Result<Stripe.Invoice>> => {
+const getStripeInvoice = async (stripeInvoiceId: string): Promise<Result<Stripe.Invoice>> => {
   try {
     const stripeInvoice = await stripe.invoices.retrieve(stripeInvoiceId);
     return result.ok(stripeInvoice);

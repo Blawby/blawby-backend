@@ -4,9 +4,7 @@ import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { forbidden, notFound, ok } from '@/shared/utils/result';
 
-const getIntakeById = async (
-  uuid: string,
-): Promise<Result<SelectPracticeClientIntake>> => {
+const getIntakeById = async (uuid: string): Promise<Result<SelectPracticeClientIntake>> => {
   const intake = await practiceClientIntakesRepository.findById(uuid);
   if (!intake) {
     return notFound('Practice client intake not found');
@@ -17,7 +15,7 @@ const getIntakeById = async (
 export const getActorAccessibleIntake = async (
   uuid: string,
   ctx: ServiceContext,
-  action: 'read' | 'update',
+  action: 'read' | 'update'
 ): Promise<Result<SelectPracticeClientIntake>> => {
   const intakeResult = await getIntakeById(uuid);
   if (!intakeResult.success) {
@@ -46,7 +44,7 @@ export const getActorAccessibleIntake = async (
 export const getStaffAccessibleIntake = async (
   uuid: string,
   ctx: ServiceContext,
-  action: 'read' | 'update',
+  action: 'read' | 'update'
 ): Promise<Result<SelectPracticeClientIntake>> => {
   if (!ctx.memberRole) {
     return forbidden('You do not have permission to access this intake');
@@ -54,10 +52,7 @@ export const getStaffAccessibleIntake = async (
   return getActorAccessibleIntake(uuid, ctx, action);
 };
 
-export const ensureStaffOrganizationAccess = (
-  organizationId: string,
-  ctx: ServiceContext,
-): Result<void> => {
+export const ensureStaffOrganizationAccess = (organizationId: string, ctx: ServiceContext): Result<void> => {
   if (!ctx.memberRole) {
     return forbidden('You do not have permission to access these intakes');
   }

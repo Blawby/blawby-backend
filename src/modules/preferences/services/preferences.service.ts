@@ -36,9 +36,7 @@ export interface UpdateProfileData {
 /**
  * Apply default values to notification preferences
  */
-const applyNotificationDefaults = (
-  stored: Record<string, unknown> | null | undefined,
-): NotificationPreferences => {
+const applyNotificationDefaults = (stored: Record<string, unknown> | null | undefined): NotificationPreferences => {
   const storedPrefs = (stored as unknown as NotificationPreferences) || {};
   return {
     ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -52,9 +50,7 @@ const applyNotificationDefaults = (
 /**
  * Apply default values to onboarding preferences
  */
-const applyOnboardingDefaults = (
-  stored: Record<string, unknown> | null | undefined,
-): OnboardingPreferences => {
+const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefined): OnboardingPreferences => {
   const storedPrefs = (stored as unknown as OnboardingPreferences) || {};
   return {
     ...DEFAULT_ONBOARDING_PREFERENCES,
@@ -66,11 +62,7 @@ const applyOnboardingDefaults = (
  * Get all preferences for a user
  */
 const getPreferences = async (ctx: ServiceContext): Promise<Result<Preferences>> => {
-  const result = await db
-    .select()
-    .from(preferences)
-    .where(eq(preferences.user_id, ctx.userId))
-    .limit(1);
+  const result = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   const prefs = result[0];
   if (!prefs) {
@@ -93,7 +85,7 @@ const getPreferences = async (ctx: ServiceContext): Promise<Result<Preferences>>
  */
 const getPreferencesByCategory = async (
   category: PreferenceCategory,
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<Record<string, unknown>>> => {
   if (category === 'profile') {
     return ok({});
@@ -135,18 +127,14 @@ const getPreferencesByCategory = async (
 const updatePreferencesByCategory = async (
   category: PreferenceCategory,
   data: Record<string, unknown>,
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<Record<string, unknown>>> => {
   if (category === 'profile') {
     return badRequest('Profile fields should be updated via Better Auth updateUser endpoint');
   }
 
   // 1. Fetch current preferences for ownership verification
-  const currentResult = await db
-    .select()
-    .from(preferences)
-    .where(eq(preferences.user_id, ctx.userId))
-    .limit(1);
+  const currentResult = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   const current = currentResult[0];
   if (!current) {
@@ -196,11 +184,7 @@ const updatePreferencesByCategory = async (
  * Initialize preferences for a new user
  */
 const initializeUserPreferences = async (userId: string): Promise<Result<Preferences>> => {
-  const existing = await db
-    .select()
-    .from(preferences)
-    .where(eq(preferences.user_id, userId))
-    .limit(1);
+  const existing = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
 
   if (existing[0]) {
     return ok(existing[0]);

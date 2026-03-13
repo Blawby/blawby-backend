@@ -35,7 +35,7 @@ export const getWorkerUtils = async (): Promise<WorkerUtils> => {
 
     // Extract connection info for logging (mask password)
     const connectionInfo = connectionString.replace(/:[^:@]+@/, ':****@');
-    
+
     console.log('🔌 Connecting to Graphile Worker...');
     console.log(`   Database: ${connectionInfo}`);
     console.log(`   Schema: ${schema}`);
@@ -73,4 +73,3 @@ export const closeWorkerUtils = async (): Promise<void> => {
     }
   }
 };
-
