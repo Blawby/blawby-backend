@@ -75,7 +75,7 @@ const buildOpenApiDocument = () => {
   if (!doc.components.securitySchemes) {
     doc.components.securitySchemes = {};
   }
-  doc.components.securitySchemes.cookieAuth = {
+  doc.components.securitySchemes['cookieAuth'] = {
     type: 'apiKey',
     in: 'cookie',
     name: 'better-auth.session-token',

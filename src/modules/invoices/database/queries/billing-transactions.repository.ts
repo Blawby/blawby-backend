@@ -12,6 +12,10 @@ const createTransaction = async (data: InsertBillingTransaction, tx?: typeof db)
   const client = tx || db;
   const [transaction] = await client.insert(billingTransactions).values(data).returning();
 
+  if (!transaction) {
+    throw new Error('Failed to create billing transaction');
+  }
+
   return transaction;
 };
 
@@ -25,7 +29,7 @@ const findByStripeTransferId = async (stripeTransferId: string): Promise<SelectB
     .where(eq(billingTransactions.stripe_transfer_id, stripeTransferId))
     .limit(1);
 
-  return transaction || null;
+  return transaction ?? null;
 };
 
 /**

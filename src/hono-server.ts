@@ -9,7 +9,7 @@ await initializeLogging();
 
 const port = Number(process.env.PORT ?? 3000);
 // Use '0.0.0.0' to listen on all network interfaces (required for ngrok/tunneling)
-const host = process.env.SERVER_HOSTNAME ?? process.env.HOST ?? process.env.SERVERNAME ?? '0.0.0.0';
+const host = process.env.SERVER_HOSTNAME ?? process.env['HOST'] ?? process.env['SERVERNAME'] ?? '0.0.0.0';
 
 const server = serve(
   {

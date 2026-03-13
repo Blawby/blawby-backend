@@ -98,12 +98,15 @@ export const linkAnonymousUserData = async (params: {
 
       if (!existingMember) {
         // Add new user to organization as client
-        const [newMember] = await txContext.insert(members).values({
-          organizationId: intake.organization_id,
-          userId: newUser.id,
-          role: 'client',
-          createdAt: new Date(),
-        }).returning();
+        const [newMember] = await txContext
+          .insert(members)
+          .values({
+            organizationId: intake.organization_id,
+            userId: newUser.id,
+            role: 'client',
+            createdAt: new Date(),
+          })
+          .returning();
 
         logger.info('Added user {userId} to organization {orgId} as client from intake {intakeId}', {
           userId: newUser.id,
@@ -124,9 +127,7 @@ export const linkAnonymousUserData = async (params: {
         });
 
         // Mark user as needing onboarding (profile completion)
-        await txContext.update(users)
-          .set({ onboardingComplete: false })
-          .where(eq(users.id, newUser.id));
+        await txContext.update(users).set({ onboardingComplete: false }).where(eq(users.id, newUser.id));
       }
     }
   };

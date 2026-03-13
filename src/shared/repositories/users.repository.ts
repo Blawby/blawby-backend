@@ -44,7 +44,7 @@ const update = async (
     primaryWorkspace: string;
     isAnonymous: boolean;
   }>,
-  tx: DbOrTx = db,
+  tx: DbOrTx = db
 ): Promise<SelectUser | undefined> => {
   // Prepare update data for Better Auth API
   const updateFields: Record<string, unknown> = {};

@@ -73,8 +73,9 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
 
     // Send Stripe Connect welcome email (fire and forget)
     const payload = event.payload as Record<string, unknown>;
-    const email = typeof payload.billing_email === 'string' ? payload.billing_email : org.billingEmail || undefined;
-    const name = typeof payload.organization_name === 'string' ? payload.organization_name : org.name;
+    const email =
+      typeof payload['billing_email'] === 'string' ? payload['billing_email'] : org.billingEmail || undefined;
+    const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
 
     if (email) {
       void addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {

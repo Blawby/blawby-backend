@@ -21,7 +21,7 @@ const isExternalAccountItem = (value: unknown): value is ExternalAccount => {
 
 const isStripeExternalAccountList = (value: unknown): value is { object: 'list'; data: Stripe.ExternalAccount[] } => {
   if (!isRecord(value)) return false;
-  return value.object === 'list' && Array.isArray(value.data);
+  return value['object'] === 'list' && Array.isArray(value.data);
 };
 
 const isBankAccount = (account: Stripe.ExternalAccount): account is Stripe.BankAccount => {
