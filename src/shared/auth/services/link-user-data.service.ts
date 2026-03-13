@@ -9,6 +9,8 @@ import { PracticeMemberJoined } from '@/shared/events/definitions';
 const logger: Logger = getLogger(['auth', 'link-service']);
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+const MEMBER_ROLE_CLIENT = 'client' as const;
+
 /**
  * Transfers data from an anonymous user to a new user account.
  * This is called by Better Auth's onLinkAccount hook.
@@ -103,7 +105,7 @@ export const linkAnonymousUserData = async (params: {
           .values({
             organizationId: intake.organization_id,
             userId: newUser.id,
-            role: 'client',
+            role: MEMBER_ROLE_CLIENT,
             createdAt: new Date(),
           })
           .returning();

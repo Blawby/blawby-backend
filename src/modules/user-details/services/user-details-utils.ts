@@ -52,7 +52,7 @@ export const resolveUserForIntake = async (params: {
       }
       return usersRepository.update(userId, {
         name: name || sessionUser.name,
-        phone: phone || sessionUser.phone || undefined,
+        phone: phone ?? sessionUser.phone ?? undefined,
       });
     }
   }

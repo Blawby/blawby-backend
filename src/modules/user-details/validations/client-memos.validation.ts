@@ -36,3 +36,11 @@ export const clientMemoSchema = z
     updated_at: z.date(),
   })
   .openapi('ClientMemo');
+
+// Grouped export for consistency
+export const clientMemosValidations = {
+  createMemoSchema,
+  updateMemoSchema,
+  memoParamsSchema,
+  clientMemoSchema,
+};
