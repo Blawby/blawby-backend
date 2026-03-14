@@ -15,6 +15,7 @@ app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
 app.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
 app.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
+app.openapi(matterRoutes.getMatterUnbilledRoute, matterHandlers.getMatterUnbilledHandler);
 
 // Notes
 app.openapi(matterRoutes.listMatterNotesRoute, matterHandlers.listMatterNotesHandler);

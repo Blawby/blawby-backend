@@ -33,6 +33,8 @@ import {
   getTimeEntryStatsRoute,
 } from '@/modules/matters/routes/time-entries.routes';
 
+import { getMatterUnbilledRoute } from '@/modules/matters/routes/unbilled.routes';
+
 export const routes = {
   createMatterRoute,
   getMattersRoute,
@@ -58,4 +60,5 @@ export const routes = {
   deleteMilestoneRoute,
   reorderMilestonesRoute,
   listMatterTasksRoute,
+  getMatterUnbilledRoute,
 };

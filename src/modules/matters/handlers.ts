@@ -1,4 +1,4 @@
-import { routes as matterRoutes } from '@/modules/matters/routes';
+import type { routes as matterRoutes } from '@/modules/matters/routes';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
@@ -7,7 +7,7 @@ import { matterTimeEntriesService } from '@/modules/matters/services/matter-time
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
-import { response } from '@/shared/utils/responseUtils';
+import { sendResult } from '@/shared/utils/responseUtils';
 
 const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -15,7 +15,7 @@ const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute
 
   const result = await mattersService.createMatter(validatedBody, ctx);
 
-  return response.fromResult(c, result);
+  return sendResult(c, result, 201);
 };
 
 const getMattersHandler: AppRouteHandler<typeof matterRoutes.getMattersRoute> = async (c) => {
@@ -24,23 +24,30 @@ const getMattersHandler: AppRouteHandler<typeof matterRoutes.getMattersRoute> = 
 
   if (query.matter_id) {
     const result = await mattersService.getMatterById(query.matter_id, ctx);
-    if (!result.success) return response.fromResult(c, result);
-    return response.ok(c, { matter: result.data });
+    if (!result.success) {
+      return sendResult(c, result);
+    }
+    return c.json({ matter: result.data }, 200);
   }
 
   const page = parseInt(String(query.page ?? '1'), 10);
   const limit = parseInt(String(query.limit ?? '20'), 10);
   const result = await mattersService.listMatters({ ...query, page, limit }, ctx);
 
-  if (!result.success) return response.fromResult(c, result);
+  if (!result.success) {
+    return sendResult(c, result);
+  }
 
-  return response.ok(c, {
-    matters: result.data.matters,
-    total: result.data.total,
-    page,
-    limit,
-    totalPages: Math.ceil(result.data.total / limit),
-  });
+  return c.json(
+    {
+      matters: result.data.matters,
+      total: result.data.total,
+      page,
+      limit,
+      totalPages: Math.ceil(result.data.total / limit),
+    },
+    200
+  );
 };
 
 const updateMatterHandler: AppRouteHandler<typeof matterRoutes.updateMatterRoute> = async (c) => {
@@ -49,14 +56,14 @@ const updateMatterHandler: AppRouteHandler<typeof matterRoutes.updateMatterRoute
   const validatedBody = c.req.valid('json');
   const result = await mattersService.updateMatter(id, validatedBody, ctx);
 
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const deleteMatterHandler: AppRouteHandler<typeof matterRoutes.deleteMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id } = c.req.valid('param');
   const result = await mattersService.deleteMatter(id, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 // Matter resource handlers
@@ -77,7 +84,7 @@ const getMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getMatterAct
   );
 
   if (!activityResult.success) {
-    return response.fromResult(c, activityResult);
+    return sendResult(c, activityResult);
   }
 
   return c.json({ activities: activityResult.data }, 200);
@@ -89,7 +96,7 @@ const listMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listMatterNote
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
   const result = await matterNotesService.listMatterNotes({ filters: { noteId: query.note_id } }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const createMatterNoteHandler: AppRouteHandler<typeof matterRoutes.createMatterNoteRoute> = async (c) => {
@@ -98,7 +105,7 @@ const createMatterNoteHandler: AppRouteHandler<typeof matterRoutes.createMatterN
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
   const result = await matterNotesService.createMatterNote({ data: validatedBody }, scopedCtx);
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
 const updateMatterNoteHandler: AppRouteHandler<typeof matterRoutes.updateMatterNoteRoute> = async (c) => {
@@ -107,7 +114,7 @@ const updateMatterNoteHandler: AppRouteHandler<typeof matterRoutes.updateMatterN
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
   const result = await matterNotesService.updateMatterNote({ noteId: note_id, data: validatedBody }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const deleteMatterNoteHandler: AppRouteHandler<typeof matterRoutes.deleteMatterNoteRoute> = async (c) => {
@@ -115,7 +122,7 @@ const deleteMatterNoteHandler: AppRouteHandler<typeof matterRoutes.deleteMatterN
   const { id: matterId, note_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const result = await matterNotesService.deleteMatterNote({ noteId: note_id }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const listTimeEntriesHandler: AppRouteHandler<typeof matterRoutes.listTimeEntriesRoute> = async (c) => {
@@ -134,7 +141,7 @@ const listTimeEntriesHandler: AppRouteHandler<typeof matterRoutes.listTimeEntrie
     },
     scopedCtx
   );
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const createTimeEntryHandler: AppRouteHandler<typeof matterRoutes.createTimeEntryRoute> = async (c) => {
@@ -143,7 +150,7 @@ const createTimeEntryHandler: AppRouteHandler<typeof matterRoutes.createTimeEntr
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
   const result = await matterTimeEntriesService.createMatterTimeEntry({ data: validatedBody }, scopedCtx);
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
 const updateTimeEntryHandler: AppRouteHandler<typeof matterRoutes.updateTimeEntryRoute> = async (c) => {
@@ -155,7 +162,7 @@ const updateTimeEntryHandler: AppRouteHandler<typeof matterRoutes.updateTimeEntr
     { entryId: entry_id, data: validatedBody },
     scopedCtx
   );
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const deleteTimeEntryHandler: AppRouteHandler<typeof matterRoutes.deleteTimeEntryRoute> = async (c) => {
@@ -163,7 +170,7 @@ const deleteTimeEntryHandler: AppRouteHandler<typeof matterRoutes.deleteTimeEntr
   const { id: matterId, entry_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const result = await matterTimeEntriesService.deleteMatterTimeEntry({ entryId: entry_id }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const getTimeEntryStatsHandler: AppRouteHandler<typeof matterRoutes.getTimeEntryStatsRoute> = async (c) => {
@@ -171,7 +178,7 @@ const getTimeEntryStatsHandler: AppRouteHandler<typeof matterRoutes.getTimeEntry
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const result = await matterTimeEntriesService.getTimeEntryStats(scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const listExpensesHandler: AppRouteHandler<typeof matterRoutes.listExpensesRoute> = async (c) => {
@@ -190,7 +197,7 @@ const listExpensesHandler: AppRouteHandler<typeof matterRoutes.listExpensesRoute
     },
     scopedCtx
   );
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const createExpenseHandler: AppRouteHandler<typeof matterRoutes.createExpenseRoute> = async (c) => {
@@ -199,7 +206,7 @@ const createExpenseHandler: AppRouteHandler<typeof matterRoutes.createExpenseRou
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
   const result = await matterExpensesService.createMatterExpense({ data: validatedBody }, scopedCtx);
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
 const updateExpenseHandler: AppRouteHandler<typeof matterRoutes.updateExpenseRoute> = async (c) => {
@@ -211,7 +218,7 @@ const updateExpenseHandler: AppRouteHandler<typeof matterRoutes.updateExpenseRou
     { expenseId: expense_id, data: validatedBody },
     scopedCtx
   );
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const deleteExpenseHandler: AppRouteHandler<typeof matterRoutes.deleteExpenseRoute> = async (c) => {
@@ -219,7 +226,7 @@ const deleteExpenseHandler: AppRouteHandler<typeof matterRoutes.deleteExpenseRou
   const { id: matterId, expense_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const result = await matterExpensesService.deleteMatterExpense({ expenseId: expense_id }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const listMilestonesHandler: AppRouteHandler<typeof matterRoutes.listMilestonesRoute> = async (c) => {
@@ -231,7 +238,7 @@ const listMilestonesHandler: AppRouteHandler<typeof matterRoutes.listMilestonesR
     { filters: { milestoneId: query.milestone_id } },
     scopedCtx
   );
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const createMilestoneHandler: AppRouteHandler<typeof matterRoutes.createMilestoneRoute> = async (c) => {
@@ -248,7 +255,7 @@ const createMilestoneHandler: AppRouteHandler<typeof matterRoutes.createMileston
     },
     scopedCtx
   );
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
 const updateMilestoneHandler: AppRouteHandler<typeof matterRoutes.updateMilestoneRoute> = async (c) => {
@@ -260,7 +267,7 @@ const updateMilestoneHandler: AppRouteHandler<typeof matterRoutes.updateMileston
     { milestoneId: milestone_id, data: validatedBody },
     scopedCtx
   );
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const deleteMilestoneHandler: AppRouteHandler<typeof matterRoutes.deleteMilestoneRoute> = async (c) => {
@@ -268,7 +275,7 @@ const deleteMilestoneHandler: AppRouteHandler<typeof matterRoutes.deleteMileston
   const { id: matterId, milestone_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const result = await matterMilestonesService.deleteMatterMilestone({ milestoneId: milestone_id }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMilestonesRoute> = async (c) => {
@@ -277,15 +284,27 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
   const result = await matterMilestonesService.reorderMilestones({ data: validatedBody }, scopedCtx);
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
 const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id: matterId } = c.req.valid('param');
   const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!accessResult.success) return response.fromResult(c, accessResult);
+  if (!accessResult.success) {
+    return sendResult(c, accessResult);
+  }
   return c.json({ error: 'Matter tasks are not yet implemented' }, 501);
+};
+
+const getMatterUnbilledHandler: AppRouteHandler<typeof matterRoutes.getMatterUnbilledRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId } = c.req.valid('param');
+  const scopedCtx = { ...ctx, matterId };
+
+  const result = await mattersService.getMatterUnbilled(matterId, scopedCtx);
+
+  return sendResult(c, result);
 };
 
 export const handlers = {
@@ -313,4 +332,5 @@ export const handlers = {
   updateMatterNoteHandler,
   deleteMatterNoteHandler,
   listMatterTasksHandler,
+  getMatterUnbilledHandler,
 };

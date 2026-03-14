@@ -6,7 +6,7 @@ import {
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
-import * as schema from '@/schema';
+import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter milestone
@@ -20,7 +20,9 @@ const createMatterMilestones = async (
   data: InsertMatterMilestone[],
   tx?: NodePgDatabase<typeof schema>
 ): Promise<SelectMatterMilestone[]> => {
-  if (data.length === 0) return [];
+  if (data.length === 0) {
+    return [];
+  }
 
   const client = tx ?? db;
   return await client.insert(matterMilestones).values(data).returning();
@@ -69,7 +71,9 @@ const deleteMatterMilestone = async (id: string): Promise<void> => {
 
 // Reorder milestones
 const reorderMilestones = async (updates: { id: string; order: number }[]): Promise<void> => {
-  if (updates.length === 0) return;
+  if (updates.length === 0) {
+    return;
+  }
 
   await db.transaction(async (tx) => {
     for (const update of updates) {
@@ -121,7 +125,7 @@ const getMilestoneStats = async (
  * Mark a milestone as invoiced.
  */
 const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(matterMilestones)
     .set({
@@ -136,7 +140,7 @@ const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeo
  * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
  */
 const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(matterMilestones)
     .set({

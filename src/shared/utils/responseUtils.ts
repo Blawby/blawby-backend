@@ -1,6 +1,55 @@
 import type { Context } from 'hono';
 import type { StatusCode, ContentfulStatusCode } from 'hono/utils/http-status';
-import type { Result } from '@/shared/types/result';
+import type { AppError, Result } from '@/shared/types/result';
+
+export const toContentfulStatusCode = (status: number): ContentfulStatusCode => {
+  switch (status) {
+    case 200:
+      return 200;
+    case 201:
+      return 201;
+    case 400:
+      return 400;
+    case 401:
+      return 401;
+    case 403:
+      return 403;
+    case 404:
+      return 404;
+    case 409:
+      return 409;
+    case 422:
+      return 422;
+    case 429:
+      return 429;
+    case 500:
+      return 500;
+    default:
+      return 500;
+  }
+};
+
+export const sendError = (c: Context, error: AppError) =>
+  c.json(
+    {
+      error: error.code,
+      message: error.message,
+      details: error.details,
+    },
+    toContentfulStatusCode(error.status)
+  );
+
+export const sendResult = <T, M = undefined>(c: Context, result: Result<T, M>, successCode: 200 | 201 | 204 = 200) => {
+  if (!result.success) {
+    return sendError(c, result.error);
+  }
+
+  if (successCode === 204) {
+    return c.body(null, 204);
+  }
+
+  return c.json(result.data, successCode);
+};
 
 /**
  * Response utilities for consistent API responses
@@ -19,18 +68,10 @@ export const response = {
       if ((successCode as number) === 204) {
         return c.body(null, 204);
       }
-      return c.json(result.data, successCode as ContentfulStatusCode);
+      return c.json(result.data, toContentfulStatusCode(successCode));
     }
 
-    const { error } = result;
-    return c.json(
-      {
-        error: error.code,
-        message: error.message,
-        details: error.details,
-      },
-      error.status as ContentfulStatusCode
-    );
+    return sendError(c, result.error);
   },
 
   /**
@@ -144,7 +185,7 @@ export const response = {
   /**
    * 422 Unprocessable Entity - Validation error
    */
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   unprocessableEntity: (c: Context, message: string, details?: unknown): any =>
     c.json(
       {
@@ -158,7 +199,7 @@ export const response = {
   /**
    * 500 Internal Server Error - Server error
    */
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   internalServerError: (c: Context, message = 'Internal server error'): any =>
     c.json(
       {
@@ -172,7 +213,7 @@ export const response = {
   /**
    * Paginated response
    */
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   paginated: (c: Context, data: unknown[], total: number, page: number, limit: number): any =>
     c.json({
       data,
