@@ -94,9 +94,16 @@ const getTotalTime = async (matterId: string): Promise<number> => {
 /**
  * Mark time entries as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (timeEntryIds: string[], invoiceId: string, tx?: typeof db): Promise<void> => {
-  if (timeEntryIds.length === 0) return;
-  const client = tx || db;
+const markAsInvoiced = async (
+  timeEntryIds: string[],
+  invoiceId: string,
+  matterId: string,
+  tx?: typeof db
+): Promise<void> => {
+  if (timeEntryIds.length === 0) {
+    return;
+  }
+  const client = tx ?? db;
   await client
     .update(matterTimeEntries)
     .set({
@@ -104,14 +111,14 @@ const markAsInvoiced = async (timeEntryIds: string[], invoiceId: string, tx?: ty
       invoiced_at: new Date(),
       updated_at: new Date(),
     })
-    .where(inArray(matterTimeEntries.id, timeEntryIds));
+    .where(and(inArray(matterTimeEntries.id, timeEntryIds), eq(matterTimeEntries.matter_id, matterId)));
 };
 
 /**
  * Unmark time entries as invoiced. Resets invoice_id and invoiced_at for entries linked to the given invoice.
  */
 const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(matterTimeEntries)
     .set({
@@ -125,8 +132,8 @@ const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> 
 /**
  * Get unbilled time entries for a matter: invoice_id IS NULL AND billable = true.
  */
-const getUnbilled = async (matterId: string): Promise<SelectMatterTimeEntry[]> => {
-  return await db
+const getUnbilled = async (matterId: string): Promise<SelectMatterTimeEntry[]> =>
+  await db
     .select()
     .from(matterTimeEntries)
     .where(
@@ -137,7 +144,6 @@ const getUnbilled = async (matterId: string): Promise<SelectMatterTimeEntry[]> =
       )
     )
     .orderBy(desc(matterTimeEntries.start_time));
-};
 
 export const matterTimeEntriesQueries = {
   createMatterTimeEntry,

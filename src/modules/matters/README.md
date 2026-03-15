@@ -1,280 +1,249 @@
 # Matters Module
 
-## Purpose
+Legal case management module for Blawby.
 
-Provides **legal matter/case management** workflows with:
+## Overview
 
-- **Matter tracking** with billing types (hourly, fixed, contingency)
-- **Time entries** for billable hours tracking
-- **Expenses** tracking (billable and non-billable)
-- **Milestones** for fixed-fee and milestone-based billing
-- **Notes** for matter documentation
-- **Activity log** for audit trail
-- **Practice areas** for matter categorization
-- **Assignees** for team member assignment
+A **Matter** represents a legal case, file, or engagement that a law firm handles for a client. This is the core entity around which all legal practice management revolves.
 
-This module follows the pattern used by other modules (`http.ts` + services + queries + validations).
+## Architecture
 
-## Data Model
+The matters module is organized into two tiers:
 
-### Tables
+### Core Matter Operations
 
-| Table                 | Description                                                          |
-| --------------------- | -------------------------------------------------------------------- |
-| `practice_areas`      | Legal practice area definitions (e.g., Family Law, Criminal Defense) |
-| `matters`             | Core matter/case records with billing configuration                  |
-| `matter_assignees`    | Many-to-many pivot table for matter team members                     |
-| `matter_notes`        | Notes and comments on matters                                        |
-| `matter_time_entries` | Time tracking with duration calculation                              |
-| `matter_expenses`     | Expense records with billable flag                                   |
-| `matter_milestones`   | Payment milestones for fixed-fee billing                             |
-| `matter_activity_log` | Audit trail of all matter activities                                 |
+Full CRUD operations for managing matters themselves. These routes handle the matter's metadata:
 
-### Schema Files
+- Name and description
+- Status and type
+- Client relationships
+- Assignees
+- Practice area
 
-- `src/modules/matters/database/schema/practice-areas.schema.ts`
-- `src/modules/matters/database/schema/matters.schema.ts`
-- `src/modules/matters/database/schema/matter-assignees.schema.ts`
-- `src/modules/matters/database/schema/matter-notes.schema.ts`
-- `src/modules/matters/database/schema/matter-time-entries.schema.ts`
-- `src/modules/matters/database/schema/matter-expenses.schema.ts`
-- `src/modules/matters/database/schema/matter-milestones.schema.ts`
-- `src/modules/matters/database/schema/matter-activity-log.schema.ts`
+**Security:** Each core route performs access checks in the service layer using `verifyMatterAccess()` which validates:
 
-### Matter Billing Types
+- Matter exists
+- Matter belongs to the user's organization
+- User has appropriate CASL ability for the operation
 
-| Type          | Fields Used                                               |
-| ------------- | --------------------------------------------------------- |
-| `hourly`      | `adminHourlyRate`, `attorneyHourlyRate`                   |
-| `fixed`       | `totalFixedPrice`, `paymentFrequency` (project/milestone) |
-| `contingency` | `contingencyPercentage`, `settlementAmount`               |
+### Matter Sub-Resources
 
-### Matter Status
+Matters have several related entities that are managed through nested routes under `/{practice_id}/matters/:id/`. All sub-resource routes use a sub-router with `requireMatterAccess()` middleware, which automatically verifies the user can access the parent matter before allowing any operation on sub-resources.
 
-- `draft` - Matter is being set up
-- `active` - Matter is active and billable
+## Sub-Resources
 
-## API
+### Activity
 
-All routes are mounted under `/api/organizations/:organizationId/...`
+**Path:** `/{practice_id}/matters/:id/activity`
 
-### Practice Areas
+| Aspect       | Description                                           |
+| ------------ | ----------------------------------------------------- |
+| **Purpose**  | Audit trail and activity log for the matter           |
+| **Tracks**   | All changes, updates, and actions taken on the matter |
+| **Use Case** | Compliance, matter history, "what happened when"      |
 
-| Method   | Endpoint              | Description          |
-| -------- | --------------------- | -------------------- |
-| `GET`    | `/practice-areas`     | List practice areas  |
-| `POST`   | `/practice-areas`     | Create practice area |
-| `PUT`    | `/practice-areas/:id` | Update practice area |
-| `DELETE` | `/practice-areas/:id` | Delete practice area |
-
-### Matters
-
-| Method   | Endpoint                  | Description                 |
-| -------- | ------------------------- | --------------------------- |
-| `GET`    | `/matters`                | List matters (with filters) |
-| `POST`   | `/matters`                | Create matter               |
-| `GET`    | `/matters/:uuid`          | Get matter by ID            |
-| `PUT`    | `/matters/:uuid`          | Update matter               |
-| `DELETE` | `/matters/:uuid`          | Soft delete matter          |
-| `GET`    | `/matters/:uuid/activity` | Get activity log            |
-| `GET`    | `/matters/counts`         | Get counts by status        |
-
-#### Query Parameters for List
-
-- `page` - Page number (default: 1)
-- `limit` - Items per page (default: 20)
-- `status` - Filter by status (draft/active)
-- `practiceAreaId` - Filter by practice area
-- `customerId` - Filter by customer
-- `assigneeId` - Filter by assignee
-- `search` - Search by title
-
-### Assignees
-
-| Method   | Endpoint                           | Description     |
-| -------- | ---------------------------------- | --------------- |
-| `GET`    | `/matters/:uuid/assignees`         | List assignees  |
-| `POST`   | `/matters/:uuid/assignees`         | Add assignee    |
-| `DELETE` | `/matters/:uuid/assignees/:userId` | Remove assignee |
+---
 
 ### Notes
 
-| Method   | Endpoint                       | Description |
-| -------- | ------------------------------ | ----------- |
-| `GET`    | `/matters/:uuid/notes`         | List notes  |
-| `POST`   | `/matters/:uuid/notes`         | Create note |
-| `PUT`    | `/matters/:uuid/notes/:noteId` | Update note |
-| `DELETE` | `/matters/:uuid/notes/:noteId` | Delete note |
+**Path:** `/{practice_id}/matters/:id/notes`
+
+| Aspect         | Description                                              |
+| -------------- | -------------------------------------------------------- |
+| **Purpose**    | Free-form notes and annotations on the matter            |
+| **Operations** | List, Create, Update, Delete                             |
+| **Use Case**   | Lawyer memos, case observations, internal communications |
+
+**Endpoints:**
+
+- `GET /{practice_id}/matters/:id/notes` - List all notes
+- `POST /{practice_id}/matters/:id/notes` - Create a new note
+- `PUT /{practice_id}/matters/:id/notes/:note_id` - Update a note
+- `DELETE /{practice_id}/matters/:id/notes/:note_id` - Delete a note
+
+---
 
 ### Time Entries
 
-| Method   | Endpoint                               | Description         |
-| -------- | -------------------------------------- | ------------------- |
-| `GET`    | `/matters/:uuid/time-entries`          | List time entries   |
-| `POST`   | `/matters/:uuid/time-entries`          | Create time entry   |
-| `PUT`    | `/matters/:uuid/time-entries/:entryId` | Update time entry   |
-| `DELETE` | `/matters/:uuid/time-entries/:entryId` | Delete time entry   |
-| `GET`    | `/matters/:uuid/time-entries/stats`    | Get time statistics |
+**Path:** `/{practice_id}/matters/:id/time-entries`
+
+| Aspect         | Description                                                             |
+| -------------- | ----------------------------------------------------------------------- |
+| **Purpose**    | Track billable and non-billable time spent on the matter                |
+| **Operations** | List, Create, Update, Delete, Get Stats                                 |
+| **Fields**     | Duration, description, hourly rate, billable flag, user who logged time |
+| **Use Case**   | Client billing, productivity tracking, matter profitability analysis    |
+
+**Endpoints:**
+
+- `GET /{practice_id}/matters/:id/time-entries` - List time entries
+- `POST /{practice_id}/matters/:id/time-entries` - Create a time entry
+- `PUT /{practice_id}/matters/:id/time-entries/:entry_id` - Update a time entry
+- `DELETE /{practice_id}/matters/:id/time-entries/:entry_id` - Delete a time entry
+- `GET /{practice_id}/matters/:id/time-stats` - Get time entry statistics
+
+---
 
 ### Expenses
 
-| Method   | Endpoint                             | Description            |
-| -------- | ------------------------------------ | ---------------------- |
-| `GET`    | `/matters/:uuid/expenses`            | List expenses          |
-| `POST`   | `/matters/:uuid/expenses`            | Create expense         |
-| `PUT`    | `/matters/:uuid/expenses/:expenseId` | Update expense         |
-| `DELETE` | `/matters/:uuid/expenses/:expenseId` | Delete expense         |
-| `GET`    | `/matters/:uuid/expenses/stats`      | Get expense statistics |
+**Path:** `/{practice_id}/matters/:id/expenses`
+
+| Aspect         | Description                                            |
+| -------------- | ------------------------------------------------------ |
+| **Purpose**    | Track out-of-pocket expenses incurred for the matter   |
+| **Operations** | List, Create, Update, Delete                           |
+| **Fields**     | Amount, description, category, billable flag           |
+| **Use Case**   | Client reimbursement, matter cost tracking, accounting |
+
+**Endpoints:**
+
+- `GET /{practice_id}/matters/:id/expenses` - List expenses
+- `POST /{practice_id}/matters/:id/expenses` - Create an expense
+- `PUT /{practice_id}/matters/:id/expenses/:expense_id` - Update an expense
+- `DELETE /{practice_id}/matters/:id/expenses/:expense_id` - Delete an expense
+
+---
 
 ### Milestones
 
-| Method   | Endpoint                                 | Description              |
-| -------- | ---------------------------------------- | ------------------------ |
-| `GET`    | `/matters/:uuid/milestones`              | List milestones          |
-| `POST`   | `/matters/:uuid/milestones`              | Create milestone         |
-| `PUT`    | `/matters/:uuid/milestones/:milestoneId` | Update milestone         |
-| `DELETE` | `/matters/:uuid/milestones/:milestoneId` | Delete milestone         |
-| `POST`   | `/matters/:uuid/milestones/reorder`      | Reorder milestones       |
-| `GET`    | `/matters/:uuid/milestones/stats`        | Get milestone statistics |
+**Path:** `/{practice_id}/matters/:id/milestones`
 
-## Services
+| Aspect         | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| **Purpose**    | Key dates, deadlines, and case progression markers                        |
+| **Operations** | List, Create, Update, Delete, Reorder                                     |
+| **Fields**     | Description, due date, amount (if milestone-based billing), status, order |
+| **Use Case**   | Case timeline management, deadline tracking, milestone billing            |
 
-| Service        | File                             | Description                      |
-| -------------- | -------------------------------- | -------------------------------- |
-| Practice Areas | `practice-areas.service.ts`      | CRUD for practice areas          |
-| Matters        | `matters.service.ts`             | Core matter operations           |
-| Notes          | `matter-notes.service.ts`        | Note management                  |
-| Time Entries   | `matter-time-entries.service.ts` | Time tracking with auto duration |
-| Expenses       | `matter-expenses.service.ts`     | Expense management               |
-| Milestones     | `matter-milestones.service.ts`   | Milestone management             |
-| Activity       | `matter-activity.service.ts`     | Activity logging                 |
+**Endpoints:**
 
-## Activity Logging
+- `GET /{practice_id}/matters/:id/milestones` - List milestones
+- `POST /{practice_id}/matters/:id/milestones` - Create a milestone
+- `PUT /{practice_id}/matters/:id/milestones/:milestone_id` - Update a milestone
+- `DELETE /{practice_id}/matters/:id/milestones/:milestone_id` - Delete a milestone
+- `POST /{practice_id}/matters/:id/milestones/reorder` - Reorder milestones
 
-All matter operations are logged to `matter_activity_log` with:
+---
 
-- `action` - Type of action (e.g., `matter_created`, `time_entry_added`)
-- `description` - Human-readable description
-- `userId` - Who performed the action
-- `metadata` - Additional context (JSON)
+### Tasks
 
-### Activity Actions
+**Path:** `/{practice_id}/matters/:id/tasks`
 
-```typescript
-ActivityAction = {
-  MATTER_CREATED,
-  MATTER_UPDATED,
-  MATTER_DELETED,
-  MATTER_STATUS_CHANGED,
-  NOTE_ADDED,
-  NOTE_UPDATED,
-  NOTE_DELETED,
-  TIME_ENTRY_ADDED,
-  TIME_ENTRY_UPDATED,
-  TIME_ENTRY_DELETED,
-  EXPENSE_ADDED,
-  EXPENSE_UPDATED,
-  EXPENSE_DELETED,
-  MILESTONE_CREATED,
-  MILESTONE_UPDATED,
-  MILESTONE_DELETED,
-  MILESTONE_COMPLETED,
-  ASSIGNEE_ADDED,
-  ASSIGNEE_REMOVED,
-};
-```
+| Aspect      | Description                                            |
+| ----------- | ------------------------------------------------------ |
+| **Purpose** | Action items and to-dos related to the matter          |
+| **Status**  | ⚠️ Not yet implemented (returns 501)                   |
+| **Planned** | Assign tasks, track completion, due dates, assignments |
 
-## Integration with Other Modules
+---
 
-### Uploads Module
+### Unbilled
 
-The uploads module already supports `matterId` field for file attachments:
+**Path:** `/{practice_id}/matters/:id/unbilled`
 
-- Documents can be linked to matters via `matter_id`
-- Use `upload_context: "matter"` when uploading
+| Aspect       | Description                                                   |
+| ------------ | ------------------------------------------------------------- |
+| **Purpose**  | Aggregate view of all unbilled items for invoice generation   |
+| **Returns**  | Unbilled time entries + unbilled expenses + unpaid milestones |
+| **Use Case** | Pre-invoice review, matter revenue analysis                   |
 
-### Organizations
+**Endpoints:**
 
-- Matters belong to organizations via `organizationId`
-- Authorization checks verify user has access to the organization
+- `GET /{practice_id}/matters/:id/unbilled` - Get all unbilled items
 
-### Users
+---
 
-- Matters can have a `customerId` (client user)
-- Assignees are linked to users
-- Time entries track which user logged time
+## API Reference
 
-## Setup
+### Core Routes
 
-### 1. Generate Database Migration
+| Method   | Path                         | Description                              |
+| -------- | ---------------------------- | ---------------------------------------- |
+| `POST`   | `/{practice_id}/matters`     | Create a new matter                      |
+| `GET`    | `/{practice_id}/matters`     | List matters (with pagination/filtering) |
+| `PUT`    | `/{practice_id}/matters/:id` | Update a matter                          |
+| `DELETE` | `/{practice_id}/matters/:id` | Delete a matter                          |
 
-```bash
-pnpm run db:generate
-```
+### Sub-Resource Routes
 
-### 2. Run Migration
+All sub-resource routes are nested under `/{practice_id}/matters/:id/`:
 
-```bash
-pnpm run db:migrate
-```
+| Resource           | GET             | POST                  | PUT                         | DELETE                      |
+| ------------------ | --------------- | --------------------- | --------------------------- | --------------------------- |
+| Activity           | `/activity`     | —                     | —                           | —                           |
+| Notes              | `/notes`        | `/notes`              | `/notes/:note_id`           | `/notes/:note_id`           |
+| Time Entries       | `/time-entries` | `/time-entries`       | `/time-entries/:entry_id`   | `/time-entries/:entry_id`   |
+| Time Stats         | `/time-stats`   | —                     | —                           | —                           |
+| Expenses           | `/expenses`     | `/expenses`           | `/expenses/:expense_id`     | `/expenses/:expense_id`     |
+| Milestones         | `/milestones`   | `/milestones`         | `/milestones/:milestone_id` | `/milestones/:milestone_id` |
+| Milestones Reorder | —               | `/milestones/reorder` | —                           | —                           |
+| Tasks              | `/tasks`        | —                     | —                           | —                           |
+| Unbilled           | `/unbilled`     | —                     | —                           | —                           |
 
-### 3. Register Module (if not already done)
+---
 
-In your main app file:
+## Security Model
 
-```typescript
-import mattersApp from '@/modules/matters';
+### Authentication
 
-app.route('/api', mattersApp);
-```
+All routes require authentication via the `injectAbility` middleware, which:
 
-## File Structure
+- Validates the user's session
+- Determines the user's role within the organization
+- Injects CASL ability into the request context
+
+### Authorization
+
+**Core Routes:** Each service method performs its own access check using `verifyMatterAccess()`.
+
+**Sub-Resource Routes:** Automatic access verification via the `requireMatterAccess()` middleware applied to the sub-router at `/:id/*`.
+
+The access check validates:
+
+1. **Existence** - The matter exists in the database
+2. **Organization Ownership** - The matter belongs to the user's organization
+3. **CASL Ability** - The user has the appropriate permission (e.g., `read` Matter)
+
+This ensures users cannot access sub-resources of matters they don't have permission to view, even if they know the matter ID.
+
+---
+
+## Module Structure
 
 ```
 src/modules/matters/
-├── database/
-│   ├── queries/
-│   │   ├── matters.queries.ts
-│   │   ├── matter-notes.queries.ts
-│   │   ├── matter-time-entries.queries.ts
-│   │   ├── matter-expenses.queries.ts
-│   │   ├── matter-milestones.queries.ts
-│   │   └── practice-areas.queries.ts
-│   └── schema/
-│       ├── matters.schema.ts
-│       ├── matter-assignees.schema.ts
-│       ├── matter-notes.schema.ts
-│       ├── matter-time-entries.schema.ts
-│       ├── matter-expenses.schema.ts
-│       ├── matter-milestones.schema.ts
-│       ├── matter-activity-log.schema.ts
-│       ├── practice-areas.schema.ts
-│       └── index.ts
+├── http.ts                 # Route registration & middleware setup
+├── handlers.ts             # Request handlers
+├── routes/
+│   ├── index.ts            # Route exports
+│   ├── core.routes.ts      # Core CRUD routes
+│   ├── activity.routes.ts  # Activity log routes
+│   ├── notes.routes.ts     # Note routes
+│   ├── time-entries.routes.ts
+│   ├── expenses.routes.ts
+│   ├── milestones.routes.ts
+│   ├── tasks.routes.ts
+│   └── unbilled.routes.ts
 ├── services/
-│   ├── matters.service.ts
-│   ├── matter-notes.service.ts
-│   ├── matter-time-entries.service.ts
-│   ├── matter-expenses.service.ts
-│   ├── matter-milestones.service.ts
-│   ├── matter-activity.service.ts
-│   └── practice-areas.service.ts
-├── validations/
-│   ├── matters.validation.ts
-│   ├── matter-notes.validation.ts
-│   ├── matter-time-entries.validation.ts
-│   ├── matter-expenses.validation.ts
-│   ├── matter-milestones.validation.ts
-│   └── practice-areas.validation.ts
-├── types/
-│   └── matter.types.ts
-├── http.ts
-├── index.ts
-└── README.md
+│   ├── matters.service.ts              # Core matter business logic
+│   ├── matter-activity.service.ts      # Activity log logic
+│   ├── matter-notes.service.ts         # Notes logic
+│   ├── matter-time-entries.service.ts  # Time tracking logic
+│   ├── matter-expenses.service.ts      # Expenses logic
+│   └── matter-milestones.service.ts    # Milestones logic
+├── database/
+│   ├── schema/             # Drizzle ORM table definitions
+│   └── queries/            # Database query repositories
+├── types/                  # TypeScript types and Zod schemas
+└── validations/            # Request validation schemas
 ```
 
-## Notes / Follow-ups
+---
 
-- **Soft delete**: Matters use soft delete with `deletedAt` and `deletedBy` fields
-- **Time calculation**: Duration is automatically calculated from start/end times in seconds
-- **Milestone reordering**: Supports drag-and-drop reorder via `order` field
-- **Statistics endpoints**: Return totals for billable time, expenses, and milestone completion
+## Related Modules
+
+- **Clients** - Matter clients are managed in the client intake module
+- **Invoices** - Unbilled items are converted to invoices
+- **Billing** - Time entries and expenses feed into billing workflows
+- **Trust** - Trust accounting may be linked to matters
+- **Documents** - Document management is matter-scoped

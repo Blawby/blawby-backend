@@ -6,12 +6,11 @@ const tags = ['Matters'];
 
 export const getMatterActivityRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/matters/{id}/activity',
+  path: '/{id}/activity',
   tags,
   summary: 'Get matter activity log',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       id: z.uuid(),
     }),
     query: getActivityLogQuerySchema,
@@ -22,7 +21,7 @@ export const getMatterActivityRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            activities: z.array(z.any()), // activity schema is complex/dynamic in original code
+            activities: z.array(z.any()), // Activity schema is complex/dynamic in original code.
           }),
         },
       },
