@@ -85,7 +85,7 @@
       "rules": {
         "no-console": "off"
       }
-    },
+    }
   ],
   "ignorePatterns": [
     "**/.agent/**",

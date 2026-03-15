@@ -1,12 +1,10 @@
 import { eq, sql, asc, and } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
-import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter milestone
@@ -18,7 +16,7 @@ const createMatterMilestone = async (data: InsertMatterMilestone): Promise<Selec
 // Create multiple milestones
 const createMatterMilestones = async (
   data: InsertMatterMilestone[],
-  tx?: NodePgDatabase<typeof schema>
+  tx?: typeof db
 ): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) {
     return [];
@@ -124,7 +122,12 @@ const getMilestoneStats = async (
 /**
  * Mark a milestone as invoiced.
  */
-const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeof db): Promise<void> => {
+const markAsInvoiced = async (
+  milestoneId: string,
+  invoiceId: string,
+  matterId: string,
+  tx?: typeof db
+): Promise<void> => {
   const client = tx ?? db;
   await client
     .update(matterMilestones)
@@ -133,7 +136,7 @@ const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeo
       invoiced_at: new Date(),
       updated_at: new Date(),
     })
-    .where(eq(matterMilestones.id, milestoneId));
+    .where(and(eq(matterMilestones.id, milestoneId), eq(matterMilestones.matter_id, matterId)));
 };
 
 /**

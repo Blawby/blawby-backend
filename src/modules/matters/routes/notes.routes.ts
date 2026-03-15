@@ -11,7 +11,7 @@ const tags = ['Matters'];
 
 export const listMatterNotesRoute = routeBuilder.build({
   method: 'get',
-  path: '/notes',
+  path: '/{id}/notes',
   tags,
   summary: 'List matter notes',
   request: {
@@ -34,7 +34,7 @@ export const listMatterNotesRoute = routeBuilder.build({
 
 export const createMatterNoteRoute = routeBuilder.build({
   method: 'post',
-  path: '/notes',
+  path: '/{id}/notes',
   tags,
   summary: 'Create a matter note',
   request: {
@@ -63,7 +63,7 @@ export const createMatterNoteRoute = routeBuilder.build({
 
 export const updateMatterNoteRoute = routeBuilder.build({
   method: 'put',
-  path: '/notes/{note_id}',
+  path: '/{id}/notes/{note_id}',
   tags,
   summary: 'Update a matter note',
   request: {
@@ -93,7 +93,7 @@ export const updateMatterNoteRoute = routeBuilder.build({
 
 export const deleteMatterNoteRoute = routeBuilder.build({
   method: 'delete',
-  path: '/notes/{note_id}',
+  path: '/{id}/notes/{note_id}',
   tags,
   summary: 'Delete a matter note',
   request: {

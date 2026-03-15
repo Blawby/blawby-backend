@@ -11,7 +11,7 @@ const tags = ['Matters'];
 
 export const listExpensesRoute = routeBuilder.build({
   method: 'get',
-  path: '/expenses',
+  path: '/{id}/expenses',
   tags,
   summary: 'List expenses',
   request: {
@@ -34,7 +34,7 @@ export const listExpensesRoute = routeBuilder.build({
 
 export const createExpenseRoute = routeBuilder.build({
   method: 'post',
-  path: '/expenses',
+  path: '/{id}/expenses',
   tags,
   summary: 'Create an expense',
   request: {
@@ -63,7 +63,7 @@ export const createExpenseRoute = routeBuilder.build({
 
 export const updateExpenseRoute = routeBuilder.build({
   method: 'put',
-  path: '/expenses/{expense_id}',
+  path: '/{id}/expenses/{expense_id}',
   tags,
   summary: 'Update an expense',
   request: {
@@ -93,7 +93,7 @@ export const updateExpenseRoute = routeBuilder.build({
 
 export const deleteExpenseRoute = routeBuilder.build({
   method: 'delete',
-  path: '/expenses/{expense_id}',
+  path: '/{id}/expenses/{expense_id}',
   tags,
   summary: 'Delete an expense',
   request: {

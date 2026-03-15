@@ -1,10 +1,8 @@
-import type { z } from 'zod';
+import type { z } from '@hono/zod-openapi';
 import type { SelectMatterActivityLog } from '@/modules/matters/database/schema/matter-activity-log.schema';
-import type { SelectMatterExpense } from '@/modules/matters/database/schema/matter-expenses.schema';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { SelectMatterStatusHistory } from '@/modules/matters/database/schema/matter-status-history.schema';
 import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';
-import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
 import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
@@ -174,9 +172,35 @@ export type MatterNoteResponse = z.infer<typeof matterNoteValidations.matterNote
 export type MatterTaskResponse = z.infer<typeof matterTaskValidations.matterTaskSchema>;
 export type TimeEntryResponse = z.infer<typeof matterTimeEntryValidations.timeEntrySchema>;
 
+export interface UnbilledTimeEntry {
+  id: string;
+  description: string | null;
+  duration_minutes: number;
+  hourly_rate: number;
+  total: number;
+  created_at: string;
+  user_id: string | null;
+}
+
+export interface UnbilledExpense {
+  id: string;
+  description: string | null;
+  amount: number;
+  created_at: string;
+}
+
+export interface UnbilledMilestone {
+  id: string;
+  description: string | null;
+  amount: number;
+  status: string;
+  due_date: string | null;
+  order: number;
+}
+
 export interface UnbilledMatterData {
-  time_entries: SelectMatterTimeEntry[];
-  expenses: SelectMatterExpense[];
-  milestones: SelectMatterMilestone[];
+  time_entries: UnbilledTimeEntry[];
+  expenses: UnbilledExpense[];
+  milestones: UnbilledMilestone[];
   connected_account_id: string | null;
 }
