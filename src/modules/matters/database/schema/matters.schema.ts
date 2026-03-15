@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, text, integer, real, timestamp, index } from 'drizzle-orm/pg-core';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { organizations, users } from '@/schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const matters = pgTable(
   'matters',
@@ -24,9 +24,9 @@ export const matters = pgTable(
     billing_type: varchar('billing_type', { length: 20 })
       .notNull()
       .$type<'hourly' | 'fixed' | 'contingency' | 'pro_bono'>(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
-    total_fixed_price: integer('total_fixed_price'), // in cents, nullable
-    contingency_percentage: real('contingency_percentage'), // float, nullable
-    settlement_amount: integer('settlement_amount'), // in cents, nullable
+    total_fixed_price: integer('total_fixed_price'), // In cents, nullable
+    contingency_percentage: real('contingency_percentage'), // Float, nullable
+    settlement_amount: integer('settlement_amount'), // In cents, nullable
 
     // Service/Practice area reference
     practice_service_id: uuid('practice_service_id').references(() => practiceServices.id, {
@@ -34,13 +34,13 @@ export const matters = pgTable(
     }),
 
     // Hourly rates
-    admin_hourly_rate: integer('admin_hourly_rate'), // in cents, nullable
-    attorney_hourly_rate: integer('attorney_hourly_rate'), // in cents, nullable
+    admin_hourly_rate: integer('admin_hourly_rate'), // In cents, nullable
+    attorney_hourly_rate: integer('attorney_hourly_rate'), // In cents, nullable
 
     // Payment settings
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
-    retainer_balance: integer('retainer_balance').notNull().default(0), // in cents
+    retainer_balance: integer('retainer_balance').notNull().default(0), // In cents
 
     // Status
     status: varchar('status', { length: 40 }).notNull().default('first_contact'),

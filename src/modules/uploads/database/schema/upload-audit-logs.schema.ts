@@ -1,8 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 
-import { users } from '@/schema';
-import { organizations } from '@/schema';
+import { users } from '@/schema/better-auth-schema';
+import { organizations } from '@/schema/better-auth-schema';
 import { uploads } from './uploads.schema';
 
 export const uploadAuditLogs = pgTable(

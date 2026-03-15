@@ -12,7 +12,7 @@ import { result } from '@/shared/utils/result';
 /**
  * Resolved client data with all necessary relations for invoice creation
  */
-export type ResolvedClientForInvoice = {
+export interface ResolvedClientForInvoice {
   id: string;
   user_id: string | null;
   name: string;
@@ -21,13 +21,13 @@ export type ResolvedClientForInvoice = {
   organization_id: string;
   connectedAccount: StripeConnectedAccount | null;
   matters: SelectMatter[];
-};
+}
 
 /**
  * Resolves a client for invoice creation
  * Validates client exists and pre-loads connected account and matters
  */
-export const resolveClientForInvoice = async (
+const resolveClientForInvoice = async (
   organizationId: string,
   clientId: string,
   connectedAccountId: string
