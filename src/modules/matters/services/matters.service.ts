@@ -449,9 +449,9 @@ const getMatterCounts = async (ctx: ServiceContext): Promise<Result<Record<strin
 };
 
 const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise<Result<UnbilledMatterData>> => {
-  const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
-  if (forbiddenResult) {
-    return forbiddenResult;
+  const accessResult = await verifyMatterAccess(matterId, ctx);
+  if (!accessResult.success) {
+    return accessResult;
   }
 
   const [timeEntries, expenses, milestones, connectedAccount] = await Promise.all([

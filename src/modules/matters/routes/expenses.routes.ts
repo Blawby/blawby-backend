@@ -11,12 +11,11 @@ const tags = ['Matters'];
 
 export const listExpensesRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/matters/{id}/expenses',
+  path: '/expenses',
   tags,
   summary: 'List expenses',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       id: z.uuid(),
     }),
     query: listMatterExpensesQuerySchema,
@@ -35,12 +34,11 @@ export const listExpensesRoute = routeBuilder.build({
 
 export const createExpenseRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/matters/{id}/expenses',
+  path: '/expenses',
   tags,
   summary: 'Create an expense',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       id: z.uuid(),
     }),
     body: {
@@ -65,12 +63,11 @@ export const createExpenseRoute = routeBuilder.build({
 
 export const updateExpenseRoute = routeBuilder.build({
   method: 'put',
-  path: '/{practice_id}/matters/{id}/expenses/{expense_id}',
+  path: '/expenses/{expense_id}',
   tags,
   summary: 'Update an expense',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       id: z.uuid(),
       expense_id: z.uuid(),
     }),
@@ -96,12 +93,11 @@ export const updateExpenseRoute = routeBuilder.build({
 
 export const deleteExpenseRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/matters/{id}/expenses/{expense_id}',
+  path: '/expenses/{expense_id}',
   tags,
   summary: 'Delete an expense',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       id: z.uuid(),
       expense_id: z.uuid(),
     }),

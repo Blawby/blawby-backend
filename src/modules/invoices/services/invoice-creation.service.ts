@@ -1,5 +1,8 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
+import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
+import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
+import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
@@ -65,24 +68,35 @@ const validateInvoiceCreation = async (
     data.client_id,
     data.connected_account_id
   );
-  if (!clientResult.success) return clientResult;
+  if (!clientResult.success) {
+    return clientResult;
+  }
 
   const { id: clientId, connectedAccount, matters } = clientResult.data;
 
   // 2. Validate connected account capabilities
   const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
-  if (!accountValidation.success) return accountValidation;
+  if (!accountValidation.success) {
+    return accountValidation;
+  }
 
   // 3. Validate matter belongs to client (if provided)
   if (data.matter_id) {
     const matter = matters.find((m) => m.id === data.matter_id);
     const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
-    if (!matterValidation.success) return matterValidation;
+    if (!matterValidation.success) {
+      return matterValidation;
+    }
+    if (matter?.billing_type === 'pro_bono') {
+      return result.badRequest('Cannot create invoice for a pro bono matter');
+    }
   }
 
   // 4. Validate invoice number is unique
   const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
-  if (!numberValidation.success) return numberValidation;
+  if (!numberValidation.success) {
+    return numberValidation;
+  }
 
   return result.ok<{ clientId: string }>({ clientId });
 };
@@ -93,9 +107,9 @@ const validateInvoiceCreation = async (
 const persistInvoiceStructure = async (
   { data, clientId, totals }: { data: CreateInvoiceRequest; clientId: string; totals: InvoiceTotals },
   ctx: ServiceContext
-): Promise<InvoiceWithRelations | undefined> => {
-  return await db.transaction(async (tx) => {
-    const { line_items, ...invoiceData } = data;
+): Promise<InvoiceWithRelations | undefined> =>
+  await db.transaction(async (tx) => {
+    const { line_items, time_entry_ids, expense_ids, milestone_id, ...invoiceData } = data;
     const invoice_type = data.invoice_type || 'flat_fee';
     const fund_destination = getFundDestination(invoice_type);
 
@@ -125,6 +139,16 @@ const persistInvoiceStructure = async (
       tx
     );
 
+    if (time_entry_ids?.length) {
+      await matterTimeEntriesQueries.markAsInvoiced(time_entry_ids, newInvoice.id, tx);
+    }
+    if (expense_ids?.length) {
+      await matterExpensesQueries.markAsInvoiced(expense_ids, newInvoice.id, tx);
+    }
+    if (milestone_id) {
+      await matterMilestonesQueries.markAsInvoiced(milestone_id, newInvoice.id, tx);
+    }
+
     const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, ctx.organizationId, tx);
     if (invWithRel) {
       await InvoiceCreated.dispatch(
@@ -132,7 +156,7 @@ const persistInvoiceStructure = async (
           invoice_id: newInvoice.id,
           organization_id: ctx.organizationId,
           client_id: clientId,
-          matter_id: data.matter_id || null,
+          matter_id: data.matter_id ?? null,
           invoice_number: newInvoice.invoice_number,
           total: totals.total,
         },
@@ -147,7 +171,6 @@ const persistInvoiceStructure = async (
 
     return invWithRel;
   });
-};
 
 /**
  * Create an invoice
@@ -161,7 +184,9 @@ const createInvoice = async (
 
   // 1. Validate State
   const validation = await validateInvoiceCreation(data, ctx);
-  if (!validation.success) return validation;
+  if (!validation.success) {
+    return validation;
+  }
 
   const { clientId } = validation.data;
   const totals = calculateInvoiceTotals(data.line_items);
@@ -169,7 +194,9 @@ const createInvoice = async (
   try {
     // 2. Persist
     const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
-    if (!invoice) return result.internalError<InvoiceResponse>('Failed to retrieve created invoice');
+    if (!invoice) {
+      return result.internalError<InvoiceResponse>('Failed to retrieve created invoice');
+    }
 
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(invoice));
   } catch (error) {

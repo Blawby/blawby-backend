@@ -287,16 +287,8 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
   return sendResult(c, result);
 };
 
-const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
-  const ctx = getServiceContext(c);
-  const { id: matterId } = c.req.valid('param');
-  const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!accessResult.success) {
-    return sendResult(c, accessResult);
-  }
-  return c.json({ error: 'Matter tasks are not yet implemented' }, 501);
-};
-
+const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) =>
+  c.json({ error: 'Matter tasks are not yet implemented' }, 501);
 const getMatterUnbilledHandler: AppRouteHandler<typeof matterRoutes.getMatterUnbilledRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id: matterId } = c.req.valid('param');
