@@ -68,23 +68,28 @@ const findRelationsFiles = (dir: string, includeNonSchema = false): string[] => 
   return results;
 };
 
-// For src/schema/ we pick up ALL relations files (*.ts and *.schema.ts)
-const findSchemaRelationsFiles = (): string[] => {
+// For src/schema/ we pick up ALL relations files (*.ts and *.schema.ts) recursively
+const findSchemaRelationsFiles = (dir: string = SCHEMA_DIR): string[] => {
   const results: string[] = [];
 
   try {
-    for (const item of readdirSync(SCHEMA_DIR)) {
-      if (SCHEMA_DIR_MANUAL.has(item)) {
-        continue;
-      }
-      if (!isRelationsFile(item)) {
-        continue;
-      }
+    for (const item of readdirSync(dir)) {
+      const fullPath = join(dir, item);
+      const stat = statSync(fullPath);
 
-      results.push(item.replace(/\.ts$/, ''));
+      if (stat.isDirectory()) {
+        // Recurse into subdirectories
+        results.push(...findSchemaRelationsFiles(fullPath));
+      } else if (SCHEMA_DIR_MANUAL.has(item)) {
+        continue;
+      } else if (isRelationsFile(item)) {
+        // Push relative path from SCHEMA_DIR, removing .ts extension
+        const relativePath = relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, '');
+        results.push(relativePath);
+      }
     }
   } catch {
-    console.warn('Warning: Could not read src/schema/');
+    console.warn('Warning: Could not read directory');
   }
 
   return results.sort();
