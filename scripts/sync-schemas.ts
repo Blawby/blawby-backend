@@ -35,8 +35,8 @@ const findTableFiles = (dir: string, excludeManual = false): string[] => {
         results.push(relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, ''));
       }
     }
-  } catch {
-    console.warn(`Warning: Could not read directory ${dir}`);
+  } catch (error) {
+    throw new Error(`Failed to read directory for table files: ${dir}`, { cause: error });
   }
 
   return results;
@@ -61,8 +61,8 @@ const findRelationsFiles = (dir: string, includeNonSchema = false): string[] => 
         results.push(relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, ''));
       }
     }
-  } catch {
-    console.warn(`Warning: Could not read directory ${dir}`);
+  } catch (error) {
+    throw new Error(`Failed to read directory for relations files: ${dir}`, { cause: error });
   }
 
   return results;
@@ -88,8 +88,8 @@ const findSchemaRelationsFiles = (dir: string = SCHEMA_DIR): string[] => {
         results.push(relativePath);
       }
     }
-  } catch {
-    console.warn('Warning: Could not read directory');
+  } catch (error) {
+    throw new Error(`Failed to read schema directory: ${dir}`, { cause: error });
   }
 
   return results.sort();
