@@ -4,7 +4,7 @@ import { pgTable, uuid, text, integer, jsonb, timestamp, index, varchar, boolean
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
-import { organizations } from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 
 import { addressSchema } from '@/shared/validations/address';
 

@@ -11,7 +11,7 @@ import type {
   FutureRequirements,
   TosAcceptance,
 } from '@/modules/onboarding/types/onboarding.types';
-import { organizations } from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 
 // Stripe connected accounts table
 export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {

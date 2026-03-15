@@ -2,7 +2,7 @@ import { pgTable, uuid, text, json, timestamp, boolean, integer } from 'drizzle-
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
-import { users, organizations } from '@/schema';
+import { users, organizations } from '@/schema/better-auth-schema';
 
 // TypeScript types for JSON fields
 export type EventMetadata = {

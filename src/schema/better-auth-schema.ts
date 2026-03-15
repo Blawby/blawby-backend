@@ -1,6 +1,4 @@
-import { relations } from 'drizzle-orm';
 import { pgTable, text, timestamp, boolean, integer, date, uuid, bigint, unique } from 'drizzle-orm/pg-core';
-import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -11,7 +9,7 @@ export const users = pgTable('users', {
   isAnonymous: boolean('is_anonymous').default(false).notNull(),
   primaryWorkspace: text('primary_workspace'), // 'public' | 'client' | 'practice'
   phone: text('phone'),
-  phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
+  phoneCountryCode: text('phone_country_code'), // E.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
   stripeCustomerId: text('stripe_customer_id'), // Platform customer ID for user billing/preferences (Platform account)
   role: text('role'), // Admin plugin: user role
@@ -185,72 +183,3 @@ export const rateLimits = pgTable('better_auth_rate_limits', {
   count: integer('count').notNull(),
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
-
-// Define relations
-export const usersRelations = relations(users, ({ many }) => ({
-  sessions: many(sessions),
-  accounts: many(accounts),
-  members: many(members),
-  invitations: many(invitations),
-}));
-
-export const organizationsRelations = relations(organizations, ({ many, one }) => ({
-  members: many(members),
-  invitations: many(invitations),
-  stripeConnectedAccounts: many(stripeConnectedAccounts),
-  subscriptions: many(subscriptions, { relationName: 'orgSubscriptions' }),
-  activeSubscription: one(subscriptions, {
-    fields: [organizations.activeSubscriptionId],
-    references: [subscriptions.id],
-    relationName: 'activeSubscription',
-  }),
-}));
-
-export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [subscriptions.referenceId],
-    references: [organizations.id],
-    relationName: 'orgSubscriptions',
-  }),
-  activeForOrganization: one(organizations, {
-    fields: [subscriptions.id],
-    references: [organizations.activeSubscriptionId],
-    relationName: 'activeSubscription',
-  }),
-}));
-
-export const sessionsRelations = relations(sessions, ({ one }) => ({
-  user: one(users, {
-    fields: [sessions.userId],
-    references: [users.id],
-  }),
-}));
-
-export const accountsRelations = relations(accounts, ({ one }) => ({
-  user: one(users, {
-    fields: [accounts.userId],
-    references: [users.id],
-  }),
-}));
-
-export const membersRelations = relations(members, ({ one }) => ({
-  user: one(users, {
-    fields: [members.userId],
-    references: [users.id],
-  }),
-  organization: one(organizations, {
-    fields: [members.organizationId],
-    references: [organizations.id],
-  }),
-}));
-
-export const invitationsRelations = relations(invitations, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [invitations.organizationId],
-    references: [organizations.id],
-  }),
-  inviter: one(users, {
-    fields: [invitations.inviterId],
-    references: [users.id],
-  }),
-}));
