@@ -1,11 +1,12 @@
 import { relations } from 'drizzle-orm';
-import { billingTransactions, invoices } from '@/modules/invoices/database/schema';
+import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { organizations, users } from '@/schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const mattersRelations = relations(matters, ({ one, many }) => ({
   organization: one(organizations, {

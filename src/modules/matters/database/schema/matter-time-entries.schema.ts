@@ -1,9 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
-
 import { matters } from './matters.schema';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
-import { users } from '@/schema';
+import { users } from '@/schema/better-auth-schema';
 
 export const matterTimeEntries = pgTable(
   'matter_time_entries',
@@ -21,7 +20,7 @@ export const matterTimeEntries = pgTable(
       }),
     start_time: timestamp('start_time', { withTimezone: true, mode: 'date' }).notNull(),
     end_time: timestamp('end_time', { withTimezone: true, mode: 'date' }).notNull(),
-    duration: integer('duration').notNull(), // in seconds
+    duration: integer('duration').notNull(),
     description: text('description'),
     billable: boolean('billable').notNull().default(true),
     invoice_id: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),

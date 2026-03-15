@@ -1,8 +1,7 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
-
 import { matters } from './matters.schema';
-import { users } from '@/schema';
+import { users } from '@/schema/better-auth-schema';
 
 export const matterActivityLog = pgTable(
   'matter_activity_log',

@@ -1,9 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, boolean, date, timestamp, index } from 'drizzle-orm/pg-core';
-
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
-import { users } from '@/schema';
+import { users } from '@/schema/better-auth-schema';
 
 export const matterExpenses = pgTable(
   'matter_expenses',
@@ -20,7 +19,7 @@ export const matterExpenses = pgTable(
         onDelete: 'cascade',
       }),
     description: varchar('description', { length: 255 }).notNull(),
-    amount: integer('amount').notNull(), // in cents
+    amount: integer('amount').notNull(),
     date: date('date').notNull(),
     billable: boolean('billable').notNull().default(true),
     invoice_id: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),

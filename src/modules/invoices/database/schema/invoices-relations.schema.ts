@@ -6,7 +6,7 @@ import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.s
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { organizations, users } from '@/schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   organization: one(organizations, {
