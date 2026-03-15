@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, integer, timestamp, index, jsonb } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
@@ -19,7 +18,7 @@ export const billingTransactions = pgTable(
     }),
     stripe_transfer_id: text('stripe_transfer_id').unique(),
     destination_account_id: text('destination_account_id').notNull(),
-    amount: integer('amount').notNull(), // in cents
+    amount: integer('amount').notNull(), // In cents
     application_fee_amount: integer('application_fee_amount').notNull().default(0),
     type: text('type', { enum: ['payout', 'retainer_draw', 'refund'] }).notNull(),
     status: text('status', {
@@ -42,20 +41,8 @@ export const billingTransactions = pgTable(
   ]
 );
 
-export const billingTransactionsRelations = relations(billingTransactions, ({ one }) => ({
-  invoice: one(invoices, {
-    fields: [billingTransactions.invoice_id],
-    references: [invoices.id],
-  }),
-  matter: one(matters, {
-    fields: [billingTransactions.matter_id],
-    references: [matters.id],
-  }),
-}));
-
 export const billingTransactionsSchema = {
   billingTransactions,
-  billingTransactionsRelations,
 };
 
 export type InsertBillingTransaction = typeof billingTransactions.$inferInsert;

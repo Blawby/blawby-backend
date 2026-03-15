@@ -1,46 +1,65 @@
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
 import { routes as matterRoutes } from '@/modules/matters/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireMatterAccess } from '@/shared/middleware/requireMatterAccess';
 import { createHonoApp } from '@/shared/router/factory';
+import type { AppContext } from '@/shared/types/hono';
 
 const app = createHonoApp();
 
 // Middleware
 app.use('*', injectAbility());
 
-// Matters
+// Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
 app.openapi(matterRoutes.getMattersRoute, matterHandlers.getMattersHandler);
 app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
-app.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
-app.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
-app.openapi(matterRoutes.getMatterUnbilledRoute, matterHandlers.getMatterUnbilledHandler);
+
+// Sub-router for matter sub-resources
+// All routes under this router automatically get matter access verification
+const matterSubResources = new OpenAPIHono<AppContext>();
+
+// Apply middleware once - affects all nested routes under /:id/*
+matterSubResources.use('/:id/*', requireMatterAccess());
+
+// Activity
+matterSubResources.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
+
+// Tasks
+matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
+
+// Unbilled
+matterSubResources.openapi(matterRoutes.getMatterUnbilledRoute, matterHandlers.getMatterUnbilledHandler);
 
 // Notes
-app.openapi(matterRoutes.listMatterNotesRoute, matterHandlers.listMatterNotesHandler);
-app.openapi(matterRoutes.createMatterNoteRoute, matterHandlers.createMatterNoteHandler);
-app.openapi(matterRoutes.updateMatterNoteRoute, matterHandlers.updateMatterNoteHandler);
-app.openapi(matterRoutes.deleteMatterNoteRoute, matterHandlers.deleteMatterNoteHandler);
+matterSubResources.openapi(matterRoutes.listMatterNotesRoute, matterHandlers.listMatterNotesHandler);
+matterSubResources.openapi(matterRoutes.createMatterNoteRoute, matterHandlers.createMatterNoteHandler);
+matterSubResources.openapi(matterRoutes.updateMatterNoteRoute, matterHandlers.updateMatterNoteHandler);
+matterSubResources.openapi(matterRoutes.deleteMatterNoteRoute, matterHandlers.deleteMatterNoteHandler);
 
 // Time Entries
-app.openapi(matterRoutes.listTimeEntriesRoute, matterHandlers.listTimeEntriesHandler);
-app.openapi(matterRoutes.createTimeEntryRoute, matterHandlers.createTimeEntryHandler);
-app.openapi(matterRoutes.updateTimeEntryRoute, matterHandlers.updateTimeEntryHandler);
-app.openapi(matterRoutes.deleteTimeEntryRoute, matterHandlers.deleteTimeEntryHandler);
-app.openapi(matterRoutes.getTimeEntryStatsRoute, matterHandlers.getTimeEntryStatsHandler);
+matterSubResources.openapi(matterRoutes.listTimeEntriesRoute, matterHandlers.listTimeEntriesHandler);
+matterSubResources.openapi(matterRoutes.createTimeEntryRoute, matterHandlers.createTimeEntryHandler);
+matterSubResources.openapi(matterRoutes.updateTimeEntryRoute, matterHandlers.updateTimeEntryHandler);
+matterSubResources.openapi(matterRoutes.deleteTimeEntryRoute, matterHandlers.deleteTimeEntryHandler);
+matterSubResources.openapi(matterRoutes.getTimeEntryStatsRoute, matterHandlers.getTimeEntryStatsHandler);
 
 // Expenses
-app.openapi(matterRoutes.listExpensesRoute, matterHandlers.listExpensesHandler);
-app.openapi(matterRoutes.createExpenseRoute, matterHandlers.createExpenseHandler);
-app.openapi(matterRoutes.updateExpenseRoute, matterHandlers.updateExpenseHandler);
-app.openapi(matterRoutes.deleteExpenseRoute, matterHandlers.deleteExpenseHandler);
+matterSubResources.openapi(matterRoutes.listExpensesRoute, matterHandlers.listExpensesHandler);
+matterSubResources.openapi(matterRoutes.createExpenseRoute, matterHandlers.createExpenseHandler);
+matterSubResources.openapi(matterRoutes.updateExpenseRoute, matterHandlers.updateExpenseHandler);
+matterSubResources.openapi(matterRoutes.deleteExpenseRoute, matterHandlers.deleteExpenseHandler);
 
 // Milestones
-app.openapi(matterRoutes.listMilestonesRoute, matterHandlers.listMilestonesHandler);
-app.openapi(matterRoutes.createMilestoneRoute, matterHandlers.createMilestoneHandler);
-app.openapi(matterRoutes.updateMilestoneRoute, matterHandlers.updateMilestoneHandler);
-app.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.deleteMilestoneHandler);
-app.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
+matterSubResources.openapi(matterRoutes.listMilestonesRoute, matterHandlers.listMilestonesHandler);
+matterSubResources.openapi(matterRoutes.createMilestoneRoute, matterHandlers.createMilestoneHandler);
+matterSubResources.openapi(matterRoutes.updateMilestoneRoute, matterHandlers.updateMilestoneHandler);
+matterSubResources.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.deleteMilestoneHandler);
+matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
+
+// Mount sub-router with prefix
+app.route('/{practice_id}/matters', matterSubResources);
 
 export default app;

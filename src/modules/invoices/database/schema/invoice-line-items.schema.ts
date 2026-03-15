@@ -12,11 +12,11 @@ export const invoiceLineItems = pgTable(
       .notNull()
       .references(() => invoices.id, { onDelete: 'cascade' }),
 
-    type: varchar('type', { length: 20 }).notNull(), // service, time_entry, expense, flat_fee, retainer, other
+    type: varchar('type', { length: 20 }).notNull(),
     description: text('description').notNull(),
     quantity: integer('quantity').notNull().default(1),
-    unit_price: integer('unit_price').notNull().default(0), // in cents
-    line_total: integer('line_total').notNull().default(0), // in cents
+    unit_price: integer('unit_price').notNull().default(0),
+    line_total: integer('line_total').notNull().default(0),
 
     time_entry_id: uuid('time_entry_id').references(() => matterTimeEntries.id, {
       onDelete: 'set null',
