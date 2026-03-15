@@ -94,7 +94,12 @@ const getTotalTime = async (matterId: string): Promise<number> => {
 /**
  * Mark time entries as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (timeEntryIds: string[], invoiceId: string, tx?: typeof db): Promise<void> => {
+const markAsInvoiced = async (
+  timeEntryIds: string[],
+  invoiceId: string,
+  matterId: string,
+  tx?: typeof db
+): Promise<void> => {
   if (timeEntryIds.length === 0) {
     return;
   }
@@ -106,7 +111,7 @@ const markAsInvoiced = async (timeEntryIds: string[], invoiceId: string, tx?: ty
       invoiced_at: new Date(),
       updated_at: new Date(),
     })
-    .where(inArray(matterTimeEntries.id, timeEntryIds));
+    .where(and(inArray(matterTimeEntries.id, timeEntryIds), eq(matterTimeEntries.matter_id, matterId)));
 };
 
 /**

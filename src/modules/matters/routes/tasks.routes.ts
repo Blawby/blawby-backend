@@ -9,7 +9,7 @@ const matterIdParamSchema = z.object({
 
 export const listMatterTasksRoute = routeBuilder.build({
   method: 'get',
-  path: '/tasks',
+  path: '/{id}/tasks',
   tags,
   summary: 'List matter tasks (not implemented)',
   request: {

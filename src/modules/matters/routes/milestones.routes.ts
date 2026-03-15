@@ -12,7 +12,7 @@ const tags = ['Matters'];
 
 export const listMilestonesRoute = routeBuilder.build({
   method: 'get',
-  path: '/milestones',
+  path: '/{id}/milestones',
   tags,
   summary: 'List milestones',
   request: {
@@ -35,7 +35,7 @@ export const listMilestonesRoute = routeBuilder.build({
 
 export const createMilestoneRoute = routeBuilder.build({
   method: 'post',
-  path: '/milestones',
+  path: '/{id}/milestones',
   tags,
   summary: 'Create a milestone',
   request: {
@@ -64,7 +64,7 @@ export const createMilestoneRoute = routeBuilder.build({
 
 export const updateMilestoneRoute = routeBuilder.build({
   method: 'put',
-  path: '/milestones/{milestone_id}',
+  path: '/{id}/milestones/{milestone_id}',
   tags,
   summary: 'Update a milestone',
   request: {
@@ -94,7 +94,7 @@ export const updateMilestoneRoute = routeBuilder.build({
 
 export const deleteMilestoneRoute = routeBuilder.build({
   method: 'delete',
-  path: '/milestones/{milestone_id}',
+  path: '/{id}/milestones/{milestone_id}',
   tags,
   summary: 'Delete a milestone',
   request: {
@@ -119,7 +119,7 @@ export const deleteMilestoneRoute = routeBuilder.build({
 
 export const reorderMilestonesRoute = routeBuilder.build({
   method: 'post',
-  path: '/milestones/reorder',
+  path: '/{id}/milestones/reorder',
   tags,
   summary: 'Reorder milestones',
   request: {

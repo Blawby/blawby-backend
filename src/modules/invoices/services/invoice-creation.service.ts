@@ -92,6 +92,38 @@ const validateInvoiceCreation = async (
     }
   }
 
+  // 3.5 Validate invoice-linked IDs are scoped to the same matter
+  if ((data.time_entry_ids?.length || data.expense_ids?.length || data.milestone_id) && !data.matter_id) {
+    return result.badRequest('matter_id is required when linking time entries, expenses, or milestones');
+  }
+
+  if (data.matter_id) {
+    if (data.time_entry_ids?.length) {
+      const matterTimeEntries = await matterTimeEntriesQueries.listMatterTimeEntries(data.matter_id);
+      const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
+      const hasInvalidTimeEntry = data.time_entry_ids.some((id) => !validTimeEntryIds.has(id));
+      if (hasInvalidTimeEntry) {
+        return result.badRequest('One or more time_entry_ids do not belong to the provided matter_id');
+      }
+    }
+
+    if (data.expense_ids?.length) {
+      const matterExpenses = await matterExpensesQueries.listMatterExpenses(data.matter_id);
+      const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
+      const hasInvalidExpense = data.expense_ids.some((id) => !validExpenseIds.has(id));
+      if (hasInvalidExpense) {
+        return result.badRequest('One or more expense_ids do not belong to the provided matter_id');
+      }
+    }
+
+    if (data.milestone_id) {
+      const milestone = await matterMilestonesQueries.findMatterMilestoneById(data.milestone_id);
+      if (!milestone || milestone.matter_id !== data.matter_id) {
+        return result.badRequest('milestone_id does not belong to the provided matter_id');
+      }
+    }
+  }
+
   // 4. Validate invoice number is unique
   const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
   if (!numberValidation.success) {
@@ -110,6 +142,7 @@ const persistInvoiceStructure = async (
 ): Promise<InvoiceWithRelations | undefined> =>
   await db.transaction(async (tx) => {
     const { line_items, time_entry_ids, expense_ids, milestone_id, ...invoiceData } = data;
+    const matterId = data.matter_id;
     const invoice_type = data.invoice_type || 'flat_fee';
     const fund_destination = getFundDestination(invoice_type);
 
@@ -139,14 +172,14 @@ const persistInvoiceStructure = async (
       tx
     );
 
-    if (time_entry_ids?.length) {
-      await matterTimeEntriesQueries.markAsInvoiced(time_entry_ids, newInvoice.id, tx);
+    if (matterId && time_entry_ids?.length) {
+      await matterTimeEntriesQueries.markAsInvoiced(time_entry_ids, newInvoice.id, matterId, tx);
     }
-    if (expense_ids?.length) {
-      await matterExpensesQueries.markAsInvoiced(expense_ids, newInvoice.id, tx);
+    if (matterId && expense_ids?.length) {
+      await matterExpensesQueries.markAsInvoiced(expense_ids, newInvoice.id, matterId, tx);
     }
-    if (milestone_id) {
-      await matterMilestonesQueries.markAsInvoiced(milestone_id, newInvoice.id, tx);
+    if (matterId && milestone_id) {
+      await matterMilestonesQueries.markAsInvoiced(milestone_id, newInvoice.id, matterId, tx);
     }
 
     const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, ctx.organizationId, tx);

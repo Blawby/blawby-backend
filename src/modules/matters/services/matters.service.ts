@@ -454,6 +454,11 @@ const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise
     return accessResult;
   }
 
+  const matter = await mattersQueries.findMatterById(matterId);
+  if (!matter) {
+    return result.notFound('Matter not found');
+  }
+
   const [timeEntries, expenses, milestones, connectedAccount] = await Promise.all([
     matterTimeEntriesQueries.getUnbilled(matterId),
     matterExpensesQueries.getUnbilled(matterId),
@@ -461,10 +466,37 @@ const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise
     onboardingRepository.findByOrganizationId(ctx.organizationId),
   ]);
 
+  const hourlyRate = matter.attorney_hourly_rate ?? matter.admin_hourly_rate ?? 0;
+
   return result.ok({
-    time_entries: timeEntries,
-    expenses: expenses,
-    milestones: milestones.filter((m) => !m.invoiced_at && m.status !== 'paid'),
+    time_entries: timeEntries.map((entry) => {
+      const durationMinutes = Math.round(entry.duration / 60);
+      return {
+        id: entry.id,
+        description: entry.description,
+        duration_minutes: durationMinutes,
+        hourly_rate: hourlyRate,
+        total: Math.round((entry.duration / 3600) * hourlyRate),
+        created_at: entry.created_at.toISOString(),
+        user_id: entry.user_id ?? null,
+      };
+    }),
+    expenses: expenses.map((expense) => ({
+      id: expense.id,
+      description: expense.description,
+      amount: expense.amount,
+      created_at: expense.created_at.toISOString(),
+    })),
+    milestones: milestones
+      .filter((m) => !m.invoiced_at && m.status !== 'paid')
+      .map((milestone) => ({
+        id: milestone.id,
+        description: milestone.description,
+        amount: milestone.amount,
+        status: milestone.status,
+        due_date: milestone.due_date ?? null,
+        order: milestone.order,
+      })),
     connected_account_id: connectedAccount?.id ?? null,
   });
 };

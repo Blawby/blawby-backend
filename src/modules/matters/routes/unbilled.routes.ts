@@ -6,7 +6,7 @@ const tags = ['Matters'];
 
 export const getMatterUnbilledRoute = routeBuilder.build({
   method: 'get',
-  path: '/unbilled',
+  path: '/{id}/unbilled',
   tags,
   summary: 'Get unbilled time entries, expenses, and milestones for a matter',
   request: {
@@ -49,7 +49,7 @@ export const getMatterUnbilledRoute = routeBuilder.build({
                 order: z.number(),
               })
             ),
-            connected_account_id: z.string().uuid().nullable(),
+            connected_account_id: z.uuid().nullable(),
           }),
         },
       },

@@ -24,8 +24,8 @@ export const requireMatterAccess =
 
     if (!accessResult.success) {
       const { error } = accessResult;
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      return c.json({ error: error.message }, error.status as 403 | 404);
+      const status = error.status === 404 ? 404 : 403;
+      return c.json({ error: error.message }, status);
     }
 
     return next();

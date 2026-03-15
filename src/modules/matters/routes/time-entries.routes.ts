@@ -11,7 +11,7 @@ const tags = ['Matters'];
 
 export const listTimeEntriesRoute = routeBuilder.build({
   method: 'get',
-  path: '/time-entries',
+  path: '/{id}/time-entries',
   tags,
   summary: 'List time entries',
   request: {
@@ -34,7 +34,7 @@ export const listTimeEntriesRoute = routeBuilder.build({
 
 export const createTimeEntryRoute = routeBuilder.build({
   method: 'post',
-  path: '/time-entries',
+  path: '/{id}/time-entries',
   tags,
   summary: 'Create a time entry',
   request: {
@@ -63,7 +63,7 @@ export const createTimeEntryRoute = routeBuilder.build({
 
 export const updateTimeEntryRoute = routeBuilder.build({
   method: 'put',
-  path: '/time-entries/{entry_id}',
+  path: '/{id}/time-entries/{entry_id}',
   tags,
   summary: 'Update a time entry',
   request: {
@@ -93,7 +93,7 @@ export const updateTimeEntryRoute = routeBuilder.build({
 
 export const deleteTimeEntryRoute = routeBuilder.build({
   method: 'delete',
-  path: '/time-entries/{entry_id}',
+  path: '/{id}/time-entries/{entry_id}',
   tags,
   summary: 'Delete a time entry',
   request: {
@@ -118,7 +118,7 @@ export const deleteTimeEntryRoute = routeBuilder.build({
 
 export const getTimeEntryStatsRoute = routeBuilder.build({
   method: 'get',
-  path: '/time-stats',
+  path: '/{id}/time-stats',
   tags,
   summary: 'Get time entry stats',
   request: {
@@ -132,7 +132,7 @@ export const getTimeEntryStatsRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            total_time: z.number(), // minutes? or milliseconds?
+            total_time: z.number(), // Minutes? or milliseconds?
             billable_time: z.number(),
           }),
         },
