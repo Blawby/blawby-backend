@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { users } from '@/schema/better-auth-schema';
 
 // Product usage options enum
-export const PRODUCT_USAGE_OPTIONS = [
+const PRODUCT_USAGE_OPTIONS = [
   'family_law',
   'criminal_defense',
   'personal_injury',
@@ -24,8 +24,6 @@ export const PRODUCT_USAGE_OPTIONS = [
   'bankruptcy',
   'other',
 ] as const;
-
-export type ProductUsage = (typeof PRODUCT_USAGE_OPTIONS)[number];
 
 // Zod schema for product usage validation
 const productUsageSchema = z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5);
@@ -90,3 +88,7 @@ export const updateCustomerDetailsSchema = insertCustomerDetailsSchema.partial()
 export type CustomerDetails = typeof customerDetails.$inferSelect;
 export type InsertCustomerDetails = typeof customerDetails.$inferInsert;
 export type UpdateCustomerDetails = z.infer<typeof updateCustomerDetailsSchema>;
+
+export { PRODUCT_USAGE_OPTIONS };
+
+export type ProductUsage = (typeof PRODUCT_USAGE_OPTIONS)[number];

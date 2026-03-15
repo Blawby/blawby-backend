@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, timestamp, index, jsonb } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
-import { organizations } from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 
 export const billingTransactions = pgTable(
   'billing_transactions',

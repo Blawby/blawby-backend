@@ -30,6 +30,7 @@
 7. **API interfaces are `snake_case`** — Database columns, request/response fields are all `snake_case`
 8. **Internal TypeScript is `camelCase`** — Variable names, function names, local logic
 9. **Use `practice_id` in API paths** — Even though DB column is `organization_id`, frontend uses `practice_id`
+10. **NEVER import `@/schema` in `*.schema.ts` files** — Import `organizations`/`users` from `@/schema/better-auth-schema` directly. Import other tables from their specific `*.schema.ts` file path, never from a barrel index (`*/database/schema`, `*/schemas`). Barrel imports in schema files create ESM circular dependency cycles.
 
 ## Key Commands
 

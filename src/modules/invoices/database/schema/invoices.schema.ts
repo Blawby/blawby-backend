@@ -3,7 +3,7 @@ import { pgTable, uuid, varchar, integer, text, timestamp, index, pgEnum, unique
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { organizations, users } from '@/schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const invoiceTypeEnum = pgEnum('invoice_type', [
   'flat_fee', // Earned upon receipt → operating

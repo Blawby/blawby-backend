@@ -1,7 +1,7 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, timestamp, index } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
-import { organizations } from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 
 export const paymentLinks = pgTable(
   'payment_links',
@@ -15,9 +15,9 @@ export const paymentLinks = pgTable(
     }),
 
     token: varchar('token', { length: 64 }).notNull().unique(),
-    status: varchar('status', { length: 20 }).notNull().default('active'), // active, expired, completed, cancelled
+    status: varchar('status', { length: 20 }).notNull().default('active'), // Active, expired, completed, cancelled
 
-    amount: integer('amount').notNull(), // in cents
+    amount: integer('amount').notNull(), // In cents
     currency: varchar('currency', { length: 3 }).notNull().default('usd'),
 
     expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }),

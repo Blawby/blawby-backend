@@ -1,6 +1,7 @@
 import { and, or, eq, isNull } from 'drizzle-orm';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
+import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
 import { members, users } from '@/schema/better-auth-schema';
@@ -10,24 +11,10 @@ import { createSystemContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
 /**
- * Resolved client data with all necessary relations for invoice creation
- */
-export type ResolvedClientForInvoice = {
-  id: string;
-  user_id: string | null;
-  name: string;
-  email: string;
-  status: string;
-  organization_id: string;
-  connectedAccount: StripeConnectedAccount | null;
-  matters: SelectMatter[];
-};
-
-/**
  * Resolves a client for invoice creation
  * Validates client exists and pre-loads connected account and matters
  */
-export const resolveClientForInvoice = async (
+const resolveClientForInvoice = async (
   organizationId: string,
   clientId: string,
   connectedAccountId: string
