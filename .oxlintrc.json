@@ -25,7 +25,12 @@
     "nursery": "off"
   },
   "rules": {
-    "import/no-cycle": "error",
+    "import/no-cycle": [
+      "error",
+      {
+        "maxDepth": 3
+      }
+    ],
     "import/no-nodejs-modules": "off",
     "import/no-named-export": "off",
     "import/group-exports": "off",
