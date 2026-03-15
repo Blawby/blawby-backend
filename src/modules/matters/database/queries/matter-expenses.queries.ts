@@ -106,9 +106,16 @@ const getTotalExpenses = async (matterId: string): Promise<number> => {
 /**
  * Mark expenses as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (expenseIds: string[], invoiceId: string, tx?: typeof db): Promise<void> => {
-  if (expenseIds.length === 0) return;
-  const client = tx || db;
+const markAsInvoiced = async (
+  expenseIds: string[],
+  invoiceId: string,
+  matterId: string,
+  tx?: typeof db
+): Promise<void> => {
+  if (expenseIds.length === 0) {
+    return;
+  }
+  const client = tx ?? db;
   await client
     .update(matterExpenses)
     .set({
@@ -116,14 +123,14 @@ const markAsInvoiced = async (expenseIds: string[], invoiceId: string, tx?: type
       invoiced_at: new Date(),
       updated_at: new Date(),
     })
-    .where(inArray(matterExpenses.id, expenseIds));
+    .where(and(inArray(matterExpenses.id, expenseIds), eq(matterExpenses.matter_id, matterId)));
 };
 
 /**
  * Unmark expenses as invoiced. Resets invoice_id and invoiced_at for expenses linked to the given invoice.
  */
 const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(matterExpenses)
     .set({
@@ -137,15 +144,14 @@ const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> 
 /**
  * Get unbilled expenses for a matter: invoice_id IS NULL AND billable = true.
  */
-const getUnbilled = async (matterId: string): Promise<SelectMatterExpense[]> => {
-  return await db
+const getUnbilled = async (matterId: string): Promise<SelectMatterExpense[]> =>
+  await db
     .select()
     .from(matterExpenses)
     .where(
       and(eq(matterExpenses.matter_id, matterId), isNull(matterExpenses.invoice_id), eq(matterExpenses.billable, true))
     )
     .orderBy(desc(matterExpenses.date));
-};
 
 export const matterExpensesQueries = {
   createMatterExpense,

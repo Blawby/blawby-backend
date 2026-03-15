@@ -354,6 +354,17 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 ---
 
+### PR-16 — Hono Response Typing Cleanup
+
+**Dependencies:** All Group A merged
+
+- [ ] Migrate handlers from `response.fromResult(...)`/`response.ok(...)` to direct `c.json(...)`/`c.body(...)` returns
+- [ ] Keep only payload-builder utilities (if needed), avoid response wrappers that return `any`
+- [ ] Remove temporary Oxlint rule overrides added for `no-unsafe-return`/unsafe assertions after migration
+- [ ] Update handler pattern examples in this plan to reflect direct Hono responses
+
+---
+
 ## Group C — Infrastructure
 
 > Independent of Groups A and B — can be started at any time.

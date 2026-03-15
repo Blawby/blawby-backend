@@ -16,7 +16,7 @@ const { invoiceLineItems } = invoiceLineItemsSchema;
  * Create a new invoice
  */
 const createInvoice = async (data: InsertInvoice, tx?: typeof db): Promise<SelectInvoice> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [invoice] = await client.insert(invoices).values(data).returning();
 
   if (!invoice) {
@@ -34,7 +34,7 @@ const findInvoiceById = async (
   organizationId: string,
   tx?: typeof db
 ): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.query.invoices.findFirst({
     where: and(eq(invoices.id, id), eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)),
     with: {
@@ -59,7 +59,7 @@ const findInvoiceByStripeId = async (
   stripeInvoiceId: string,
   tx?: typeof db
 ): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.query.invoices.findFirst({
     where: and(eq(invoices.stripe_invoice_id, stripeInvoiceId), isNull(invoices.deleted_at)),
     with: {
@@ -80,8 +80,8 @@ const listInvoicesByOrganization = async (
   organizationId: string,
   filters?: InvoiceListFilters
 ): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
-  const page = filters?.page || 1;
-  const limit = filters?.limit || 20;
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
   const offset = (page - 1) * limit;
 
   const conditions = [eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)];
@@ -133,7 +133,7 @@ const updateInvoice = async (
   data: Partial<InsertInvoice>,
   tx?: typeof db
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [invoice] = await client
     .update(invoices)
     .set({ ...data, updated_at: new Date() })
@@ -152,7 +152,7 @@ const transitionInvoiceStatus = async (
   toStatus: string,
   tx?: typeof db
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [invoice] = await client
     .update(invoices)
     .set({
@@ -181,7 +181,7 @@ const softDeleteInvoice = async (
   deletedBy: string | null,
   tx?: typeof db
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [invoice] = await client
     .update(invoices)
     .set({
@@ -201,7 +201,7 @@ const createInvoiceLineItems = async (
   items: InsertInvoiceLineItem[],
   tx?: typeof db
 ): Promise<SelectInvoiceLineItem[]> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.insert(invoiceLineItems).values(items).returning();
 };
 
@@ -209,7 +209,7 @@ const createInvoiceLineItems = async (
  * Delete line items for an invoice
  */
 const deleteInvoiceLineItems = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client.delete(invoiceLineItems).where(eq(invoiceLineItems.invoice_id, invoiceId));
 };
 
@@ -222,9 +222,9 @@ const findManyByClientId = async (
   filters?: { status?: string; page?: number; limit?: number },
   tx?: typeof db
 ): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
-  const client = tx || db;
-  const page = filters?.page || 1;
-  const limit = filters?.limit || 20;
+  const client = tx ?? db;
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
   const offset = (page - 1) * limit;
   const conditions: Parameters<typeof and>[0][] = [
     eq(invoices.organization_id, organizationId),
@@ -266,7 +266,7 @@ const findOneByIdAndClientId = async (
   userDetailId: string,
   tx?: typeof db
 ): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.query.invoices.findFirst({
     where: and(
       eq(invoices.id, invoiceId),

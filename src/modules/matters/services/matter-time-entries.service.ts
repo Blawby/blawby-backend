@@ -14,9 +14,8 @@ const logger = getLogger(['matters', 'services', 'time-entries']);
 /**
  * Calculate duration in seconds between two dates
  */
-const calculateDuration = (startTime: Date, endTime: Date): number => {
-  return Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-};
+const calculateDuration = (startTime: Date, endTime: Date): number =>
+  Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
 
 const getValidatedDuration = (startTime: Date, endTime: Date): Result<{ duration: number }> => {
   if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
@@ -35,7 +34,7 @@ const createMatterTimeEntry = async (
   params: { data: CreateMatterTimeEntryRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry>> => {
-  const matterId = ctx.matterId;
+  const { matterId } = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -114,7 +113,7 @@ const listMatterTimeEntries = async (
   params: { filters?: MatterTimeEntryListFilters },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
-  const matterId = ctx.matterId;
+  const { matterId } = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -133,10 +132,12 @@ const listMatterTimeEntries = async (
   try {
     // Short-circuit: direct lookup when a specific entry ID is provided.
     // When entryId is set, other filters (billable, startDate, endDate) are
-    // intentionally ignored — this path is for single-resource retrieval.
+    // Intentionally ignored — this path is for single-resource retrieval.
     if (params.filters?.entryId) {
       const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(params.filters.entryId);
-      if (!entry || entry.matter_id !== matterId) return ok([]);
+      if (!entry || entry.matter_id !== matterId) {
+        return ok([]);
+      }
       return ok([entry]);
     }
 
@@ -159,7 +160,7 @@ const updateMatterTimeEntry = async (
   params: { entryId: string; data: UpdateMatterTimeEntryRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry>> => {
-  const matterId = ctx.matterId;
+  const { matterId } = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -260,7 +261,7 @@ const deleteMatterTimeEntry = async (
   params: { entryId: string },
   ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
-  const matterId = ctx.matterId;
+  const { matterId } = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -326,7 +327,7 @@ const getTimeEntryStats = async (
     totalHours: number;
   }>
 > => {
-  const matterId = ctx.matterId;
+  const { matterId } = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }

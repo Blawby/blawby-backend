@@ -1,10 +1,10 @@
-import { getOnboardingStatusRoute, createConnectedAccountRoute } from '@/modules/onboarding/routes';
+import type { getOnboardingStatusRoute, createConnectedAccountRoute } from '@/modules/onboarding/routes';
 import { onboardingService } from '@/modules/onboarding/services/onboarding.service';
-import { AppRouteHandler } from '@/shared/types/hono';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { response } from '@/shared/utils/responseUtils';
 
-export const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingStatusRoute> = async (c) => {
+const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingStatusRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { practice_id: organizationId } = c.req.valid('param');
 
@@ -17,8 +17,7 @@ export const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingSta
 
   return response.fromResult(c, result);
 };
-
-export const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccountRoute> = async (c) => {
+const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccountRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const validatedBody = c.req.valid('json');
 
@@ -34,3 +33,5 @@ export const createConnectedAccountHandler: AppRouteHandler<typeof createConnect
 
   return response.fromResult(c, result, 201);
 };
+
+export { getOnboardingStatusHandler, createConnectedAccountHandler };

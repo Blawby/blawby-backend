@@ -1,12 +1,10 @@
 import { eq, sql, asc, and } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
-import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter milestone
@@ -18,9 +16,11 @@ const createMatterMilestone = async (data: InsertMatterMilestone): Promise<Selec
 // Create multiple milestones
 const createMatterMilestones = async (
   data: InsertMatterMilestone[],
-  tx?: NodePgDatabase<typeof schema>
+  tx?: typeof db
 ): Promise<SelectMatterMilestone[]> => {
-  if (data.length === 0) return [];
+  if (data.length === 0) {
+    return [];
+  }
 
   const client = tx ?? db;
   return await client.insert(matterMilestones).values(data).returning();
@@ -69,7 +69,9 @@ const deleteMatterMilestone = async (id: string): Promise<void> => {
 
 // Reorder milestones
 const reorderMilestones = async (updates: { id: string; order: number }[]): Promise<void> => {
-  if (updates.length === 0) return;
+  if (updates.length === 0) {
+    return;
+  }
 
   await db.transaction(async (tx) => {
     for (const update of updates) {
@@ -120,8 +122,13 @@ const getMilestoneStats = async (
 /**
  * Mark a milestone as invoiced.
  */
-const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+const markAsInvoiced = async (
+  milestoneId: string,
+  invoiceId: string,
+  matterId: string,
+  tx?: typeof db
+): Promise<void> => {
+  const client = tx ?? db;
   await client
     .update(matterMilestones)
     .set({
@@ -129,14 +136,14 @@ const markAsInvoiced = async (milestoneId: string, invoiceId: string, tx?: typeo
       invoiced_at: new Date(),
       updated_at: new Date(),
     })
-    .where(eq(matterMilestones.id, milestoneId));
+    .where(and(eq(matterMilestones.id, milestoneId), eq(matterMilestones.matter_id, matterId)));
 };
 
 /**
  * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
  */
 const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(matterMilestones)
     .set({

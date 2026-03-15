@@ -1,4 +1,4 @@
-import { routes } from '@/modules/practice/routes';
+import type { routes } from '@/modules/practice/routes';
 import { practiceDetailsManagementService } from '@/modules/practice/services/practice-details-management.service';
 import { practiceManagementService } from '@/modules/practice/services/practice-management.service';
 import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
@@ -49,7 +49,10 @@ export const deletePracticeHandler: AppRouteHandler<typeof routes.deletePractice
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await practiceDetailsManagementService.deletePractice({ organizationId: uuid }, ctx);
-  return response.fromResult(c, result, 204);
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+  return response.noContent(c);
 };
 
 export const setActivePracticeHandler: AppRouteHandler<typeof routes.setActivePracticeRoute> = async (c) => {
@@ -98,7 +101,10 @@ export const deletePracticeDetailsHandler: AppRouteHandler<typeof routes.deleteP
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await practiceDetailsManagementService.deletePracticeDetails({ organizationId: uuid }, ctx);
-  return response.fromResult(c, result, 204);
+  if (!result.success) {
+    return response.fromResult(c, result);
+  }
+  return response.noContent(c);
 };
 
 export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof routes.getPracticeDetailsBySlugRoute> = async (

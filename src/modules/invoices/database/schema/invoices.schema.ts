@@ -1,9 +1,5 @@
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, text, timestamp, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
-import { billingTransactions } from '@/modules/invoices/database/schema/billing-transactions.schema';
-import { invoiceLineItems } from '@/modules/invoices/database/schema/invoice-line-items.schema';
-import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
-
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
@@ -34,8 +30,8 @@ export const invoices = pgTable(
 
     invoice_number: varchar('invoice_number', { length: 50 }),
     invoice_type: invoiceTypeEnum('invoice_type').notNull().default('flat_fee'),
-    fund_destination: varchar('fund_destination', { length: 20 }).notNull().default('operating'), // 'operating' | 'trust'
-    status: varchar('status', { length: 20 }).notNull().default('draft'), // draft, pending, sent, paid, overdue, cancelled
+    fund_destination: varchar('fund_destination', { length: 20 }).notNull().default('operating'),
+    status: varchar('status', { length: 20 }).notNull().default('draft'),
 
     subtotal: integer('subtotal').notNull().default(0),
     tax_amount: integer('tax_amount').notNull().default(0),
@@ -83,35 +79,8 @@ export const invoices = pgTable(
   ]
 );
 
-export const invoicesRelations = relations(invoices, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [invoices.organization_id],
-    references: [organizations.id],
-  }),
-  client: one(userDetails, {
-    fields: [invoices.client_id],
-    references: [userDetails.id],
-  }),
-  matter: one(matters, {
-    fields: [invoices.matter_id],
-    references: [matters.id],
-  }),
-  connectedAccount: one(stripeConnectedAccounts, {
-    fields: [invoices.connected_account_id],
-    references: [stripeConnectedAccounts.id],
-  }),
-  deletedByUser: one(users, {
-    fields: [invoices.deleted_by],
-    references: [users.id],
-  }),
-  lineItems: many(invoiceLineItems),
-  paymentLinks: many(paymentLinks),
-  billingTransactions: many(billingTransactions),
-}));
-
 export const invoicesSchema = {
   invoices,
-  invoicesRelations,
 };
 
 export type InsertInvoice = typeof invoices.$inferInsert;
