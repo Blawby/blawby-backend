@@ -1,7 +1,7 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, date, timestamp, index } from 'drizzle-orm/pg-core';
 
-import { matters } from './matters.schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 
 export const matterMilestones = pgTable(
@@ -14,7 +14,7 @@ export const matterMilestones = pgTable(
         onDelete: 'cascade',
       }),
     description: varchar('description', { length: 255 }).notNull(),
-    amount: integer('amount').notNull(), // in cents
+    amount: integer('amount').notNull(), // In cents
     due_date: date('due_date').notNull(),
     status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'in_progress', 'completed', 'overdue'
     order: integer('order').notNull().default(0),

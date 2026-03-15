@@ -1,6 +1,6 @@
 // oxlint-disable import/exports-last
 import { readdirSync, statSync, writeFileSync, existsSync } from 'fs';
-import { join, relative } from 'path';
+import { basename, join, relative } from 'path';
 
 const MODULES_DIR = join(process.cwd(), 'src/modules');
 const SHARED_DIR = join(process.cwd(), 'src/shared');
@@ -13,9 +13,9 @@ const SCHEMA_DIR_MANUAL = new Set(['better-auth-schema.ts', 'index.ts']);
 const isRelationsFile = (filename: string): boolean =>
   filename.includes('-relations') && (filename.endsWith('.ts') || filename.endsWith('.schema.ts'));
 
-// ─── Table files (modules + shared only, no src/schema/) ─────────────────────
+// ─── Table files (modules + shared + src/schema/ excluding manual files) ──────
 
-const findTableFiles = (dir: string): string[] => {
+const findTableFiles = (dir: string, excludeManual = false): string[] => {
   const results: string[] = [];
 
   if (!existsSync(dir)) {
@@ -27,8 +27,11 @@ const findTableFiles = (dir: string): string[] => {
       const fullPath = join(dir, item);
 
       if (statSync(fullPath).isDirectory()) {
-        results.push(...findTableFiles(fullPath));
+        results.push(...findTableFiles(fullPath, excludeManual));
       } else if (item.endsWith('.schema.ts') && !isRelationsFile(item)) {
+        if (excludeManual && SCHEMA_DIR_MANUAL.has(item)) {
+          continue;
+        }
         results.push(relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, ''));
       }
     }
@@ -92,17 +95,23 @@ const findSchemaRelationsFiles = (): string[] => {
 export const generateSchemaIndex = (): void => {
   console.log('🔍 Scanning for schema files...');
 
-  const tablePaths = [...findTableFiles(MODULES_DIR), ...findTableFiles(SHARED_DIR)]
+  // Tables from modules + shared + src/schema/ (excluding manual files like better-auth-schema.ts)
+  const tablePaths = [
+    ...findTableFiles(MODULES_DIR),
+    ...findTableFiles(SHARED_DIR),
+    ...findTableFiles(SCHEMA_DIR, true), // ExcludeManual=true for src/schema/
+  ]
     .sort()
-    .filter((p) => !p.includes('index'));
+    .filter((p) => basename(p) !== 'index');
 
-  const moduleRelationPaths = [...findRelationsFiles(MODULES_DIR), ...findRelationsFiles(SHARED_DIR)]
+  // Relations from modules + shared + src/schema/
+  const allRelationPaths = [
+    ...findRelationsFiles(MODULES_DIR),
+    ...findRelationsFiles(SHARED_DIR),
+    ...findSchemaRelationsFiles(),
+  ]
     .sort()
-    .filter((p) => !p.includes('index'));
-
-  const schemaRelationPaths = findSchemaRelationsFiles();
-
-  const allRelationPaths = [...moduleRelationPaths, ...schemaRelationPaths];
+    .filter((p) => basename(p) !== 'index');
 
   const content = `/**
  * AUTO-GENERATED FILE - DO NOT EDIT MANUALLY

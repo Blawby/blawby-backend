@@ -1,6 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
-import { matters } from './matters.schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { users } from '@/schema/better-auth-schema';
 

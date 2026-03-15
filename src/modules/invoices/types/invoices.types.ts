@@ -1,5 +1,5 @@
 import type { BuildQueryResult, ExtractTablesWithRelations } from 'drizzle-orm';
-import type { z } from 'zod';
+import type { z } from '@hono/zod-openapi';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import type { SelectInvoiceLineItem } from '@/modules/invoices/database/schema/invoice-line-items.schema';
 import type { SelectInvoice } from '@/modules/invoices/database/schema/invoices.schema';

@@ -30,19 +30,6 @@ export const organizationsRelations = relations(organizations, ({ many, one }) =
   }),
 }));
 
-export const betterAuthSubscriptionsRelations = relations(subscriptions, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [subscriptions.referenceId],
-    references: [organizations.id],
-    relationName: 'orgSubscriptions',
-  }),
-  activeForOrganization: one(organizations, {
-    fields: [subscriptions.id],
-    references: [organizations.activeSubscriptionId],
-    relationName: 'activeSubscription',
-  }),
-}));
-
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, {
     fields: [sessions.userId],
