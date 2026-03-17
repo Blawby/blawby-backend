@@ -52,6 +52,7 @@ const createMatterSchema = z
     open_date: z.iso.date().optional(),
     close_date: z.iso.date().optional(),
     assignee_ids: z.array(uuidValidator).optional(), // User IDs to assign
+    retainer_low_balance_threshold: z.number().int().min(0).optional(), // Low balance threshold in cents
     milestones: z
       .array(
         z.object({
@@ -116,6 +117,7 @@ const updateMatterSchema = z
     open_date: z.iso.date().optional(),
     close_date: z.iso.date().optional(),
     assignee_ids: z.array(uuidValidator).optional(),
+    retainer_low_balance_threshold: z.number().int().min(0).nullable().optional(), // Low balance threshold in cents
   })
   .strict();
 
@@ -177,6 +179,7 @@ const matterSchema = z
     deleted_by: z.uuid().nullable(),
     created_at: z.date(),
     updated_at: z.date(),
+    retainer_low_balance_threshold: z.number().nullable(),
     assignees: z.array(z.any()).optional(),
     milestones: z.array(z.any()).optional(),
   })
