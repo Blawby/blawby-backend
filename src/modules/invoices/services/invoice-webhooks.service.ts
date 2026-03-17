@@ -61,7 +61,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           invoiceId: invoice.id,
           error: routingResult.error.message,
         });
-        return;
+        return result.internalError('Fund routing failed');
       }
 
       const routingInstruction = routingResult.data;
@@ -122,44 +122,60 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
             tx
           );
 
-          if (depositResult.success) {
-            // 4b. Sync denormalized cache from ledger balance
-            const balanceResult = await trustService.getBalance(
+          if (!depositResult.success) {
+            logger.error('Failed to record trust deposit for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: depositResult.error.message,
+            });
+            return result.internalError('Failed to record trust deposit');
+          }
+
+          // 4b. Sync denormalized cache from ledger balance
+          const balanceResult = await trustService.getBalance(
+            {
+              organizationId: invoice.organization_id,
+              clientId: matter.client_id,
+            },
+            tx
+          );
+
+          if (!balanceResult.success) {
+            logger.error('Failed to get trust balance for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: balanceResult.error.message,
+            });
+            return result.internalError('Failed to get trust balance');
+          }
+
+          const matterBalance =
+            balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
+
+          // 4c. Check low balance threshold
+          if (
+            matter.retainer_low_balance_threshold !== null &&
+            matter.retainer_low_balance_threshold > 0 &&
+            matterBalance < matter.retainer_low_balance_threshold
+          ) {
+            await RetainerLowBalance.dispatch(
               {
-                organizationId: invoice.organization_id,
-                clientId: matter.client_id,
+                matter_id: matter.id,
+                organization_id: matter.organization_id,
+                current_balance: matterBalance,
+                threshold: matter.retainer_low_balance_threshold,
               },
-              tx
-            );
-
-            if (balanceResult.success) {
-              const matterBalance =
-                balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
-              await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
-
-              // 4c. Check low balance threshold
-              if (
-                matter.retainer_low_balance_threshold !== null &&
-                matter.retainer_low_balance_threshold > 0 &&
-                matterBalance < matter.retainer_low_balance_threshold
-              ) {
-                await RetainerLowBalance.dispatch(
-                  {
-                    matter_id: matter.id,
-                    organization_id: matter.organization_id,
-                    current_balance: matterBalance,
-                    threshold: matter.retainer_low_balance_threshold,
-                  },
-                  {
-                    actorId: 'webhook',
-                    actorType: 'webhook',
-                    organizationId: invoice.organization_id,
-                    tx,
-                    critical: true,
-                  }
-                );
+              {
+                actorId: 'webhook',
+                actorType: 'webhook',
+                organizationId: invoice.organization_id,
+                tx,
+                critical: true,
               }
-            }
+            );
           }
         } else if (matter) {
           // Fallback: matter exists but no client_id - just update retainer_balance directly
@@ -187,44 +203,60 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
             tx
           );
 
-          if (withdrawalResult.success) {
-            // Sync denormalized cache from ledger balance
-            const balanceResult = await trustService.getBalance(
+          if (!withdrawalResult.success) {
+            logger.error('Failed to record trust withdrawal for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: withdrawalResult.error.message,
+            });
+            return result.internalError('Failed to record trust withdrawal');
+          }
+
+          // Sync denormalized cache from ledger balance
+          const balanceResult = await trustService.getBalance(
+            {
+              organizationId: invoice.organization_id,
+              clientId: matter.client_id,
+            },
+            tx
+          );
+
+          if (!balanceResult.success) {
+            logger.error('Failed to get trust balance for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: balanceResult.error.message,
+            });
+            return result.internalError('Failed to get trust balance');
+          }
+
+          const matterBalance =
+            balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
+
+          // Check low balance threshold
+          if (
+            matter.retainer_low_balance_threshold !== null &&
+            matter.retainer_low_balance_threshold > 0 &&
+            matterBalance < matter.retainer_low_balance_threshold
+          ) {
+            await RetainerLowBalance.dispatch(
               {
-                organizationId: invoice.organization_id,
-                clientId: matter.client_id,
+                matter_id: matter.id,
+                organization_id: matter.organization_id,
+                current_balance: matterBalance,
+                threshold: matter.retainer_low_balance_threshold,
               },
-              tx
-            );
-
-            if (balanceResult.success) {
-              const matterBalance =
-                balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
-              await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
-
-              // Check low balance threshold
-              if (
-                matter.retainer_low_balance_threshold !== null &&
-                matter.retainer_low_balance_threshold > 0 &&
-                matterBalance < matter.retainer_low_balance_threshold
-              ) {
-                await RetainerLowBalance.dispatch(
-                  {
-                    matter_id: matter.id,
-                    organization_id: matter.organization_id,
-                    current_balance: matterBalance,
-                    threshold: matter.retainer_low_balance_threshold,
-                  },
-                  {
-                    actorId: 'webhook',
-                    actorType: 'webhook',
-                    organizationId: invoice.organization_id,
-                    tx,
-                    critical: true,
-                  }
-                );
+              {
+                actorId: 'webhook',
+                actorType: 'webhook',
+                organizationId: invoice.organization_id,
+                tx,
+                critical: true,
               }
-            }
+            );
           }
         } else if (matter) {
           // Fallback: matter exists but no client_id - just decrement retainer_balance directly
@@ -260,6 +292,8 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           critical: true,
         }
       );
+
+      return result.ok<void>(undefined);
     });
 
     logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });
