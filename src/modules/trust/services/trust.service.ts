@@ -8,12 +8,12 @@ import type { Result } from '@/shared/types/result';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import type { ServiceContext } from '@/shared/types/service-context';
-import type {
-  RecordDepositParams,
-  RecordWithdrawalParams,
-  GetTransactionsParams,
-  GetBalanceParams,
-  GetReportParams,
+import {
+  type RecordDepositParams,
+  type RecordWithdrawalParams,
+  type GetTransactionsParams,
+  type GetBalanceParams,
+  type GetReportParams,
 } from '@/modules/trust/types/trust.types';
 
 const logger = getLogger(['trust', 'service']);
@@ -234,6 +234,10 @@ const syncBalanceAndCheckThreshold = async (
 ) => {
   const balanceResult = await getBalance({ organizationId, clientId }, tx);
   if (!balanceResult.success) {
+    logger.warn('Failed to sync balance for matter {matterId}: {error}', {
+      matterId,
+      error: balanceResult.error.message,
+    });
     return;
   }
 
