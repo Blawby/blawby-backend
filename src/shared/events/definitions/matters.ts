@@ -36,3 +36,12 @@ export class MatterStatusChanged extends BaseEvent<{
 }> {
   static type = 'matter.status_changed' as const;
 }
+
+export class RetainerLowBalance extends BaseEvent<{
+  matter_id: string;
+  organization_id: string;
+  current_balance: number;
+  threshold: number;
+}> {
+  static type = 'matter.retainer_low_balance' as const;
+}

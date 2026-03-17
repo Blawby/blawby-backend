@@ -6,8 +6,10 @@ import { fundRouterService } from '@/modules/invoices/services/fund-router.servi
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
+import { trustService } from '@/modules/trust/services/trust.service';
 import { db } from '@/shared/database';
 import { InvoicePaid, InvoicePaymentFailed, InvoiceVoided, InvoiceDeleted } from '@/shared/events/definitions';
+import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -59,7 +61,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           invoiceId: invoice.id,
           error: routingResult.error.message,
         });
-        return;
+        return result.internalError('Fund routing failed');
       }
 
       const routingInstruction = routingResult.data;
@@ -73,15 +75,6 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           destination: routingInstruction.destination,
           metadata: routingInstruction.metadata,
         });
-
-        logger.info(
-          'Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}',
-          {
-            transferId: transfer.id,
-            invoiceId: invoice.id,
-            fundDestination: routingInstruction.metadata.fund_destination,
-          }
-        );
 
         // 3. Create billing_transaction record with transfer ID
         await billingTransactionsRepository.createTransaction(
@@ -108,31 +101,166 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
         );
       }
 
-      // 4. Update retainer balance (if applicable)
+      // 4. Handle retainer transactions (if applicable)
       if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
+        // Get matter to access client_id for trust ledger
         const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-        if (matter) {
-          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
+        if (matter?.client_id) {
+          // 4a. Record in trust ledger (source of truth)
+          const depositResult = await trustService.recordDeposit(
+            {
+              organizationId: invoice.organization_id,
+              clientId: matter.client_id,
+              matterId: invoice.matter_id,
+              amount: stripeInvoice.amount_paid,
+              invoiceId: invoice.id,
+              stripePaymentIntentId: invoice.stripe_payment_intent_id,
+              source: 'stripe_payment',
+              description: `Retainer deposit — invoice ${invoice.invoice_number ?? invoice.id}`,
+              createdBy: 'webhook',
+            },
+            tx
+          );
 
-          logger.info('Incrementing retainer balance for matter {matterId} (deposit): {oldBalance} -> {newBalance}', {
-            matterId: invoice.matter_id,
-            oldBalance: matter.retainer_balance,
-            newBalance,
-          });
+          if (!depositResult.success) {
+            logger.error('Failed to record trust deposit for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: depositResult.error.message,
+            });
+            return result.internalError('Failed to record trust deposit');
+          }
+
+          // 4b. Sync denormalized cache from ledger balance
+          const balanceResult = await trustService.getBalance(
+            {
+              organizationId: invoice.organization_id,
+              clientId: matter.client_id,
+            },
+            tx
+          );
+
+          if (!balanceResult.success) {
+            logger.error('Failed to get trust balance for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: balanceResult.error.message,
+            });
+            return result.internalError('Failed to get trust balance');
+          }
+
+          const matterBalance =
+            balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
+
+          // 4c. Check low balance threshold
+          if (
+            matter.retainer_low_balance_threshold !== null &&
+            matter.retainer_low_balance_threshold > 0 &&
+            matterBalance < matter.retainer_low_balance_threshold
+          ) {
+            await RetainerLowBalance.dispatch(
+              {
+                matter_id: matter.id,
+                organization_id: matter.organization_id,
+                current_balance: matterBalance,
+                threshold: matter.retainer_low_balance_threshold,
+              },
+              {
+                actorId: 'webhook',
+                actorType: 'webhook',
+                organizationId: invoice.organization_id,
+                tx,
+                critical: true,
+              }
+            );
+          }
+        } else if (matter) {
+          // Fallback: matter exists but no client_id - just update retainer_balance directly
+          const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
 
           await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
         }
       } else if (invoice.matter_id && invoice.payment_from_retainer) {
         // Handle payment from retainer (decrement balance)
         const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-        if (matter) {
-          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
+        if (matter?.client_id) {
+          // Record withdrawal in trust ledger
+          const withdrawalResult = await trustService.recordWithdrawal(
+            {
+              organizationId: invoice.organization_id,
+              clientId: matter.client_id,
+              matterId: invoice.matter_id,
+              amount: stripeInvoice.amount_paid,
+              invoiceId: invoice.id,
+              stripePaymentIntentId: invoice.stripe_payment_intent_id,
+              source: 'invoice_payment',
+              description: `Invoice payment from retainer — invoice ${invoice.invoice_number ?? invoice.id}`,
+              createdBy: 'webhook',
+            },
+            tx
+          );
 
-          logger.info('Decrementing retainer balance for matter {matterId} (payment): {oldBalance} -> {newBalance}', {
-            matterId: invoice.matter_id,
-            oldBalance: matter.retainer_balance,
-            newBalance,
-          });
+          if (!withdrawalResult.success) {
+            logger.error('Failed to record trust withdrawal for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: withdrawalResult.error.message,
+            });
+            return result.internalError('Failed to record trust withdrawal');
+          }
+
+          // Sync denormalized cache from ledger balance
+          const balanceResult = await trustService.getBalance(
+            {
+              organizationId: invoice.organization_id,
+              clientId: matter.client_id,
+            },
+            tx
+          );
+
+          if (!balanceResult.success) {
+            logger.error('Failed to get trust balance for invoice {invoiceId}: {error}', {
+              invoiceId: invoice.id,
+              matterId: invoice.matter_id,
+              organizationId: invoice.organization_id,
+              error: balanceResult.error.message,
+            });
+            return result.internalError('Failed to get trust balance');
+          }
+
+          const matterBalance =
+            balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
+          await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
+
+          // Check low balance threshold
+          if (
+            matter.retainer_low_balance_threshold !== null &&
+            matter.retainer_low_balance_threshold > 0 &&
+            matterBalance < matter.retainer_low_balance_threshold
+          ) {
+            await RetainerLowBalance.dispatch(
+              {
+                matter_id: matter.id,
+                organization_id: matter.organization_id,
+                current_balance: matterBalance,
+                threshold: matter.retainer_low_balance_threshold,
+              },
+              {
+                actorId: 'webhook',
+                actorType: 'webhook',
+                organizationId: invoice.organization_id,
+                tx,
+                critical: true,
+              }
+            );
+          }
+        } else if (matter) {
+          // Fallback: matter exists but no client_id - just decrement retainer_balance directly
+          const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
 
           await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
         }
@@ -153,7 +281,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           matter_id: invoice.matter_id,
           stripe_invoice_id: stripeInvoice.id,
           amount_paid: stripeInvoice.amount_paid,
-          retainer_deducted: !!invoice.payment_from_retainer,
+          retainer_deducted: Boolean(invoice.payment_from_retainer),
           retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
         },
         {
@@ -164,6 +292,8 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           critical: true,
         }
       );
+
+      return result.ok<void>(undefined);
     });
 
     logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });
@@ -184,7 +314,9 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
 const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
-    if (!invoice) return result.ok<void>(undefined);
+    if (!invoice) {
+      return result.ok<void>(undefined);
+    }
 
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(
@@ -226,7 +358,9 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
 const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
-    if (!invoice) return result.ok<void>(undefined);
+    if (!invoice) {
+      return result.ok<void>(undefined);
+    }
 
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(
@@ -269,7 +403,9 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<Resul
 const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Result<void>> => {
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
-    if (!invoice) return result.ok<void>(undefined);
+    if (!invoice) {
+      return result.ok<void>(undefined);
+    }
 
     await db.transaction(async (tx) => {
       await invoicesRepository.softDeleteInvoice(invoice.id, invoice.organization_id, null, tx);
@@ -301,10 +437,8 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
 /**
  * Type guard for Stripe Invoice
  */
-function isStripeInvoice(obj: unknown): obj is Stripe.Invoice {
-  return !!obj && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
-}
-
+const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice =>
+  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
 /**
  * Process a Stripe invoice event
  */

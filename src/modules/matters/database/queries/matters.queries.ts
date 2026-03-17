@@ -127,6 +127,7 @@ const listMattersByOrganization = async (
         attorney_hourly_rate: matters.attorney_hourly_rate,
         payment_frequency: matters.payment_frequency,
         retainer_balance: matters.retainer_balance,
+        retainer_low_balance_threshold: matters.retainer_low_balance_threshold,
         status: matters.status,
         urgency: matters.urgency,
         responsible_attorney_id: matters.responsible_attorney_id,

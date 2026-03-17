@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, integer, real, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, real, timestamp, index, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
@@ -73,6 +74,9 @@ export const matters = pgTable(
     intake_uuid: uuid('intake_uuid'),
     on_behalf_of: text('on_behalf_of'),
 
+    // Retainer settings
+    retainer_low_balance_threshold: integer('retainer_low_balance_threshold'), // In cents, NULL = no warning
+
     // Timestamps
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
@@ -87,6 +91,8 @@ export const matters = pgTable(
     index('matters_retainer_balance_idx').on(table.retainer_balance),
     index('matters_intake_uuid_idx').on(table.intake_uuid),
     index('matters_conversation_id_idx').on(table.conversation_id),
+    index('matters_retainer_threshold_idx').on(table.retainer_low_balance_threshold).where(sql`${table.retainer_low_balance_threshold} IS NOT NULL`),
+    check('matters_retainer_threshold_non_negative', sql`${table.retainer_low_balance_threshold} >= 0`),
   ]
 );
 
