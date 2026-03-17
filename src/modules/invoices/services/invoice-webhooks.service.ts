@@ -76,15 +76,6 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           metadata: routingInstruction.metadata,
         });
 
-        logger.info(
-          'Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}',
-          {
-            transferId: transfer.id,
-            invoiceId: invoice.id,
-            fundDestination: routingInstruction.metadata.fund_destination,
-          }
-        );
-
         // 3. Create billing_transaction record with transfer ID
         await billingTransactionsRepository.createTransaction(
           {
@@ -173,14 +164,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
         } else if (matter) {
           // Fallback: matter exists but no client_id - just update retainer_balance directly
           const newBalance = matter.retainer_balance + stripeInvoice.amount_paid;
-          logger.info(
-            'Incrementing retainer balance for matter {matterId} (deposit, no client): {oldBalance} -> {newBalance}',
-            {
-              matterId: invoice.matter_id,
-              oldBalance: matter.retainer_balance,
-              newBalance,
-            }
-          );
+
           await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
         }
       } else if (invoice.matter_id && invoice.payment_from_retainer) {
@@ -217,19 +201,35 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
               const matterBalance =
                 balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
               await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
+
+              // Check low balance threshold
+              if (
+                matter.retainer_low_balance_threshold !== null &&
+                matter.retainer_low_balance_threshold > 0 &&
+                matterBalance < matter.retainer_low_balance_threshold
+              ) {
+                await RetainerLowBalance.dispatch(
+                  {
+                    matter_id: matter.id,
+                    organization_id: matter.organization_id,
+                    current_balance: matterBalance,
+                    threshold: matter.retainer_low_balance_threshold,
+                  },
+                  {
+                    actorId: 'webhook',
+                    actorType: 'webhook',
+                    organizationId: invoice.organization_id,
+                    tx,
+                    critical: true,
+                  }
+                );
+              }
             }
           }
         } else if (matter) {
           // Fallback: matter exists but no client_id - just decrement retainer_balance directly
           const newBalance = Math.max(0, matter.retainer_balance - stripeInvoice.amount_paid);
-          logger.info(
-            'Decrementing retainer balance for matter {matterId} (payment, no client): {oldBalance} -> {newBalance}',
-            {
-              matterId: invoice.matter_id,
-              oldBalance: matter.retainer_balance,
-              newBalance,
-            }
-          );
+
           await mattersQueries.updateRetainerBalance(invoice.matter_id, newBalance, tx);
         }
       }
@@ -404,12 +404,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
  * Type guard for Stripe Invoice
  */
 const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice =>
-  obj !== null &&
-  typeof obj === 'object' &&
-  'object' in obj &&
-  obj.object === 'invoice' &&
-  'object' in obj &&
-  obj.object === 'invoice';
+  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
 /**
  * Process a Stripe invoice event
  */

@@ -17,8 +17,8 @@ export const trustTransactions = pgTable(
       .references(() => userDetails.id),
     matter_id: uuid('matter_id').references(() => matters.id),
     transaction_type: varchar('transaction_type', { length: 50 }).notNull(),
-    amount: integer('amount').notNull(), // cents
-    balance_after: integer('balance_after').notNull(), // running balance in cents
+    amount: integer('amount').notNull(), // Cents
+    balance_after: integer('balance_after').notNull(), // Running balance in cents
     description: text('description'),
     source: varchar('source', { length: 100 }),
     invoice_id: uuid('invoice_id').references(() => invoices.id),

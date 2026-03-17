@@ -7,6 +7,7 @@
 import { getLogger } from '@logtape/logtape';
 import { matterStatusHistoryQueries } from '@/modules/matters/database/queries/matter-status-history.queries';
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
+import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import { Event } from '@/shared/events/event';
 
 const logger = getLogger(['matters', 'listeners']);
@@ -14,7 +15,7 @@ const logger = getLogger(['matters', 'listeners']);
 /**
  * Register all matter event listeners
  */
-export function registerMattersListeners(): void {
+export const registerMattersListeners = (): void => {
   logger.info('Registering matters event listeners...');
 
   // Matter CRUD events
@@ -55,5 +56,17 @@ export function registerMattersListeners(): void {
     }
   });
 
+  // Retainer low balance alert
+  Event.listen(RetainerLowBalance, async (payload) => {
+    logger.warn(
+      'Retainer balance below threshold for matter {matterId}: balance {currentBalance} < threshold {threshold}',
+      {
+        matterId: payload.matter_id,
+        currentBalance: payload.current_balance,
+        threshold: payload.threshold,
+      }
+    );
+  });
+
   logger.info('Matter event listeners registered');
-}
+};

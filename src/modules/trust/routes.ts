@@ -2,7 +2,7 @@ import { z } from '@hono/zod-openapi';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { practiceIdParamSchema } from '@/shared/validations/openapi';
 
-export const trustTransactionSchema = z
+const trustTransactionSchema = z
   .object({
     id: z.uuid(),
     organization_id: z.uuid(),
@@ -15,8 +15,8 @@ export const trustTransactionSchema = z
     source: z.string().nullable(),
     invoice_id: z.uuid().nullable(),
     stripe_payment_intent_id: z.string().nullable(),
-    created_at: z.string().datetime(),
-    created_by: z.uuid(),
+    created_at: z.iso.datetime({ offset: true }),
+    created_by: z.uuid().or(z.literal('webhook')),
     metadata: z.record(z.string(), z.unknown()).nullable(),
   })
   .openapi('TrustTransaction', { description: 'A trust ledger transaction record' });
@@ -28,12 +28,13 @@ const manualTrustBodySchema = z.object({
   description: z.string().optional(),
 });
 
-export const createDepositRoute = routeBuilder.build({
+const createDepositRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/deposit',
   tags: ['Trust'],
   summary: 'Record a manual trust deposit',
-  description: 'Staff-initiated retainer deposit. Creates a trust ledger entry, syncs matters.retainer_balance, and fires RetainerLowBalance if threshold is breached.',
+  description:
+    'Staff-initiated retainer deposit. Creates a trust ledger entry, syncs matters.retainer_balance, and fires RetainerLowBalance if threshold is breached.',
   request: {
     params: practiceIdParamSchema,
     body: { content: { 'application/json': { schema: manualTrustBodySchema } } },
@@ -46,12 +47,13 @@ export const createDepositRoute = routeBuilder.build({
   },
 });
 
-export const createWithdrawalRoute = routeBuilder.build({
+const createWithdrawalRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/withdrawal',
   tags: ['Trust'],
   summary: 'Record a manual trust withdrawal',
-  description: 'Staff-initiated retainer withdrawal. Rejects if balance would go below 0. Syncs matters.retainer_balance and checks threshold.',
+  description:
+    'Staff-initiated retainer withdrawal. Rejects if balance would go below 0. Syncs matters.retainer_balance and checks threshold.',
   request: {
     params: practiceIdParamSchema,
     body: { content: { 'application/json': { schema: manualTrustBodySchema } } },
@@ -64,7 +66,7 @@ export const createWithdrawalRoute = routeBuilder.build({
   },
 });
 
-export const getTrustTransactionsRoute = routeBuilder.build({
+const getTrustTransactionsRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/transactions',
   tags: ['Trust'],
@@ -87,7 +89,7 @@ export const getTrustTransactionsRoute = routeBuilder.build({
   },
 });
 
-export const getTrustBalanceRoute = routeBuilder.build({
+const getTrustBalanceRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/balance',
   tags: ['Trust'],
@@ -112,7 +114,7 @@ export const getTrustBalanceRoute = routeBuilder.build({
   },
 });
 
-export const getTrustReportRoute = routeBuilder.build({
+const getTrustReportRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/report',
   tags: ['Trust'],
@@ -132,3 +134,11 @@ export const getTrustReportRoute = routeBuilder.build({
     },
   },
 });
+
+export const trustRoutes = {
+  createDepositRoute,
+  createWithdrawalRoute,
+  getTrustTransactionsRoute,
+  getTrustBalanceRoute,
+  getTrustReportRoute,
+};

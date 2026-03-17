@@ -1,14 +1,16 @@
-import type {
-  createDepositRoute,
-  createWithdrawalRoute,
-  getTrustTransactionsRoute,
-  getTrustBalanceRoute,
-  getTrustReportRoute,
-} from '@/modules/trust/routes';
+import { trustRoutes } from '@/modules/trust/routes';
 import { trustService } from '@/modules/trust/services/trust.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
+
+const {
+  getTrustTransactionsRoute,
+  getTrustBalanceRoute,
+  getTrustReportRoute,
+  createDepositRoute,
+  createWithdrawalRoute,
+} = trustRoutes;
 
 export const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
   const ctx = getServiceContext(c);
