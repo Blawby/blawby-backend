@@ -10,7 +10,7 @@ import { db } from '@/shared/database';
  * Create a trust transaction record.
  */
 const createTransaction = async (data: InsertTrustTransaction, tx?: typeof db): Promise<SelectTrustTransaction> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const records = await client.insert(trustTransactions).values(data).returning();
   const [record] = records;
   if (!record) {
@@ -92,7 +92,7 @@ const getLatestBalanceByClient = async (
   clientId: string,
   tx?: typeof db
 ): Promise<{ matter_id: string | null; balance: number }[]> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const rows = await client
     .selectDistinctOn([trustTransactions.matter_id], {
       matter_id: trustTransactions.matter_id,
@@ -118,7 +118,7 @@ const getLatestBalanceForMatter = async (
     throw new Error('Transaction is required for getLatestBalanceForMatter due to row locking (.for update)');
   }
   const client = tx;
-  type Condition = ReturnType<typeof eq> | ReturnType<typeof isNull>;
+  type Condition = ReturnType<typeof eq>;
   const conditions: Condition[] = [
     eq(trustTransactions.organization_id, organizationId),
     eq(trustTransactions.client_id, clientId),
