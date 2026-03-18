@@ -12,21 +12,21 @@ const {
   createWithdrawalRoute,
 } = trustRoutes;
 
-export const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
+const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
   const res = await trustService.manualDeposit({ data: body }, ctx);
   return sendResult(c, res, 201);
 };
 
-export const createWithdrawalHandler: AppRouteHandler<typeof createWithdrawalRoute> = async (c) => {
+const createWithdrawalHandler: AppRouteHandler<typeof createWithdrawalRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
   const res = await trustService.manualWithdrawal({ data: body }, ctx);
   return sendResult(c, res, 201);
 };
 
-export const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRoute> = async (c) => {
+const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
@@ -41,7 +41,7 @@ export const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransac
   return sendResult(c, res);
 };
 
-export const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = async (c) => {
+const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
@@ -53,7 +53,7 @@ export const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute
   return sendResult(c, res);
 };
 
-export const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async (c) => {
+const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
@@ -64,4 +64,12 @@ export const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> 
   });
 
   return sendResult(c, res);
+};
+
+export const handlers = {
+  createDepositHandler,
+  createWithdrawalHandler,
+  getTrustTransactionsHandler,
+  getTrustBalanceHandler,
+  getTrustReportHandler,
 };
