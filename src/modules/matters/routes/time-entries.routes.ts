@@ -120,7 +120,7 @@ export const getTimeEntryStatsRoute = routeBuilder.build({
   method: 'get',
   path: '/{id}/time-entries/stats',
   tags,
-  summary: 'Get time entry stats',
+  summary: 'Get time entry',
   request: {
     params: z.object({
       id: z.uuid(),

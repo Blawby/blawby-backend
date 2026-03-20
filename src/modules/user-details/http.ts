@@ -10,6 +10,7 @@ userDetailsApp.use('*', injectAbility());
 
 // User Details (Note: No POST/create - clients are created via intake or invitation flows)
 userDetailsApp.openapi(routes.listUserDetailsRoute, handlers.listUserDetailsHandler);
+userDetailsApp.openapi(routes.getUserDetailRoute, handlers.getUserDetailHandler);
 userDetailsApp.openapi(routes.updateUserDetailsRoute, handlers.updateUserDetailsHandler);
 userDetailsApp.openapi(routes.deleteUserDetailRoute, handlers.deleteUserDetailHandler);
 
