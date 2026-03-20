@@ -61,6 +61,6 @@ matterSubResources.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.del
 matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
 
 // Mount sub-router with prefix
-app.route('/{practice_id}', matterSubResources);
+app.route('/:practice_id', matterSubResources);
 
 export default app;
