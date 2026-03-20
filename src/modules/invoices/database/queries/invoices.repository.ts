@@ -86,9 +86,6 @@ const listInvoicesByOrganization = async (
 
   const conditions = [eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)];
 
-  if (filters?.invoice_id) {
-    conditions.push(eq(invoices.id, filters.invoice_id));
-  }
   if (filters?.client_id) {
     conditions.push(eq(invoices.client_id, filters.client_id));
   }

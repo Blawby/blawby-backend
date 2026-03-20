@@ -2,7 +2,7 @@ import { slugParamOpenAPISchema } from '@/modules/practice-client-intakes/routes
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
-export const getIntakeSettingsRoute = routeBuilder.build({
+const getIntakeSettingsRoute = routeBuilder.build({
   method: 'get',
   path: '/{slug}/intake',
   tags: ['Practice Client Intakes'],
@@ -39,7 +39,7 @@ export const getIntakeSettingsRoute = routeBuilder.build({
   },
 });
 
-export const createPracticeClientIntakeRoute = routeBuilder.build({
+const createPracticeClientIntakeRoute = routeBuilder.build({
   method: 'post',
   path: '/create',
   tags: ['Practice Client Intakes'],
@@ -82,7 +82,7 @@ export const createPracticeClientIntakeRoute = routeBuilder.build({
   },
 });
 
-export const getPracticeClientIntakePostPayStatusRoute = routeBuilder.build({
+const getPracticeClientIntakePostPayStatusRoute = routeBuilder.build({
   method: 'get',
   path: '/post-pay/status',
   tags: ['Practice Client Intakes'],
@@ -118,3 +118,9 @@ export const getPracticeClientIntakePostPayStatusRoute = routeBuilder.build({
     },
   },
 });
+
+export const publicRoutes = {
+  getIntakeSettingsRoute,
+  createPracticeClientIntakeRoute,
+  getPracticeClientIntakePostPayStatusRoute,
+};

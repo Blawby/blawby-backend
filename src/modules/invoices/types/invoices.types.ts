@@ -97,9 +97,7 @@ export interface InvoiceTotals {
   amount_due: number;
 }
 
-export type InvoiceListFilters = z.infer<typeof invoiceValidations.listInvoicesQuerySchema> & {
-  invoiceId?: string;
-};
+export type InvoiceListFilters = z.infer<typeof invoiceValidations.listInvoicesQuerySchema>;
 
 export type {
   SelectInvoice,
