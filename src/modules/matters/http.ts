@@ -41,10 +41,10 @@ matterSubResources.openapi(matterRoutes.deleteMatterNoteRoute, matterHandlers.de
 
 // Time Entries
 matterSubResources.openapi(matterRoutes.listTimeEntriesRoute, matterHandlers.listTimeEntriesHandler);
+matterSubResources.openapi(matterRoutes.getTimeEntryStatsRoute, matterHandlers.getTimeEntryStatsHandler);
 matterSubResources.openapi(matterRoutes.createTimeEntryRoute, matterHandlers.createTimeEntryHandler);
 matterSubResources.openapi(matterRoutes.updateTimeEntryRoute, matterHandlers.updateTimeEntryHandler);
 matterSubResources.openapi(matterRoutes.deleteTimeEntryRoute, matterHandlers.deleteTimeEntryHandler);
-matterSubResources.openapi(matterRoutes.getTimeEntryStatsRoute, matterHandlers.getTimeEntryStatsHandler);
 
 // Expenses
 matterSubResources.openapi(matterRoutes.listExpensesRoute, matterHandlers.listExpensesHandler);

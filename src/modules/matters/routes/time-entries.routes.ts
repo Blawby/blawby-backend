@@ -118,7 +118,7 @@ export const deleteTimeEntryRoute = routeBuilder.build({
 
 export const getTimeEntryStatsRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/time-stats',
+  path: '/{id}/time-entries/stats',
   tags,
   summary: 'Get time entry stats',
   request: {
