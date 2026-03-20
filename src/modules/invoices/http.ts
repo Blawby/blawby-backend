@@ -1,4 +1,4 @@
-import * as handlers from '@/modules/invoices/handlers';
+import { handlers } from '@/modules/invoices/handlers';
 import { routes } from '@/modules/invoices/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
@@ -9,7 +9,8 @@ app.use('*', injectAbility());
 
 // ==================== PRACTICE-SIDE INVOICES ====================
 app.openapi(routes.createInvoiceRoute, handlers.createInvoiceHandler);
-app.openapi(routes.getInvoicesRoute, handlers.getInvoicesHandler);
+app.openapi(routes.listInvoicesRoute, handlers.listInvoicesHandler);
+app.openapi(routes.getInvoiceRoute, handlers.getInvoiceHandler);
 app.openapi(routes.updateInvoiceRoute, handlers.updateInvoiceHandler);
 app.openapi(routes.deleteInvoiceRoute, handlers.deleteInvoiceHandler);
 app.openapi(routes.sendInvoiceRoute, handlers.sendInvoiceHandler);

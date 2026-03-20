@@ -91,7 +91,9 @@ export const matters = pgTable(
     index('matters_retainer_balance_idx').on(table.retainer_balance),
     index('matters_intake_uuid_idx').on(table.intake_uuid),
     index('matters_conversation_id_idx').on(table.conversation_id),
-    index('matters_retainer_threshold_idx').on(table.retainer_low_balance_threshold).where(sql`${table.retainer_low_balance_threshold} IS NOT NULL`),
+    index('matters_retainer_threshold_idx')
+      .on(table.retainer_low_balance_threshold)
+      .where(sql`${table.retainer_low_balance_threshold} IS NOT NULL`),
     check('matters_retainer_threshold_non_negative', sql`${table.retainer_low_balance_threshold} >= 0`),
   ]
 );

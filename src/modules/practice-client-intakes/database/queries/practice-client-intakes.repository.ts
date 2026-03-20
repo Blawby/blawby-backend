@@ -1,8 +1,8 @@
 import { eq, desc, and, gte, lte, or, ilike, sql } from 'drizzle-orm';
-import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type {
-  InsertPracticeClientIntake,
-  SelectPracticeClientIntake,
+import {
+  practiceClientIntakesSchema,
+  type InsertPracticeClientIntake,
+  type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { db } from '@/shared/database';
 import { escapeLikeWildcards } from '@/shared/utils/database';
@@ -15,21 +15,15 @@ const buildIntakeConditions = ({
   search,
   from,
   to,
-  intakeId,
 }: {
   organizationId: string;
   status?: string;
   search?: string;
   from?: Date;
   to?: Date;
-  intakeId?: string;
 }) => {
   const triageStatuses = ['pending_review', 'accepted', 'declined'];
   const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
-
-  if (intakeId) {
-    conditions.push(eq(practiceClientIntakes.id, intakeId));
-  }
 
   if (status) {
     if (triageStatuses.includes(status)) {
@@ -128,7 +122,6 @@ const findByOrganizationId = async ({
   search,
   from,
   to,
-  intakeId,
   page = 1,
   limit = 20,
 }: {
@@ -137,7 +130,6 @@ const findByOrganizationId = async ({
   search?: string;
   from?: Date;
   to?: Date;
-  intakeId?: string;
   page?: number;
   limit?: number;
 }): Promise<{ intakes: SelectPracticeClientIntake[]; total: number }> => {
@@ -147,7 +139,6 @@ const findByOrganizationId = async ({
     search,
     from,
     to,
-    intakeId,
   });
 
   const [totalResult] = await db

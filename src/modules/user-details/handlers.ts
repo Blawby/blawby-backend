@@ -1,5 +1,6 @@
 import type {
   listUserDetailsRoute,
+  getUserDetailRoute,
   updateUserDetailsRoute as updateClientRoute,
   deleteUserDetailRoute as deleteClientRoute,
   listUserDetailsMemosRoute as listClientMemosRoute,
@@ -18,6 +19,14 @@ export const listUserDetailsHandler: AppRouteHandler<typeof listUserDetailsRoute
   const ctx = getServiceContext(c);
 
   const result = await userDetailsCrudService.listUserDetails(query, ctx);
+  return response.fromResult(c, result);
+};
+
+export const getUserDetailHandler: AppRouteHandler<typeof getUserDetailRoute> = async (c) => {
+  const { id } = c.req.valid('param');
+  const ctx = getServiceContext(c);
+
+  const result = await userDetailsCrudService.getUserDetail({ id }, ctx);
   return response.fromResult(c, result);
 };
 

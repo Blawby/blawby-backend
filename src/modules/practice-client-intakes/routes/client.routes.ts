@@ -2,7 +2,7 @@ import { uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
-export const createPracticeClientIntakeCheckoutSessionRoute = routeBuilder.build({
+const createPracticeClientIntakeCheckoutSessionRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/checkout-session',
   tags: ['Practice Client Intakes'],
@@ -55,7 +55,7 @@ export const createPracticeClientIntakeCheckoutSessionRoute = routeBuilder.build
   },
 });
 
-export const updatePracticeClientIntakeRoute = routeBuilder.build({
+const updatePracticeClientIntakeRoute = routeBuilder.build({
   method: 'put',
   path: '/{uuid}',
   tags: ['Practice Client Intakes'],
@@ -107,7 +107,7 @@ export const updatePracticeClientIntakeRoute = routeBuilder.build({
   },
 });
 
-export const getPracticeClientIntakeStatusRoute = routeBuilder.build({
+const getPracticeClientIntakeStatusRoute = routeBuilder.build({
   method: 'get',
   path: '/{uuid}/status',
   tags: ['Practice Client Intakes'],
@@ -144,7 +144,7 @@ export const getPracticeClientIntakeStatusRoute = routeBuilder.build({
   },
 });
 
-export const claimPracticeClientIntakeRoute = routeBuilder.build({
+const claimPracticeClientIntakeRoute = routeBuilder.build({
   method: 'post',
   path: '/claim',
   tags: ['Practice Client Intakes'],
@@ -202,3 +202,10 @@ export const claimPracticeClientIntakeRoute = routeBuilder.build({
     },
   },
 });
+
+export const clientRoutes = {
+  updatePracticeClientIntakeRoute,
+  getPracticeClientIntakeStatusRoute,
+  createPracticeClientIntakeCheckoutSessionRoute,
+  claimPracticeClientIntakeRoute,
+};

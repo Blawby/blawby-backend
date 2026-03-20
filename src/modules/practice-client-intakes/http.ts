@@ -1,35 +1,38 @@
-import * as handlers from '@/modules/practice-client-intakes/handlers';
-import * as routes from '@/modules/practice-client-intakes/routes';
+import { handlers } from '@/modules/practice-client-intakes/handlers';
+import { publicRoutes } from '@/modules/practice-client-intakes/routes/public.routes';
+import { clientRoutes } from '@/modules/practice-client-intakes/routes/client.routes';
+import { staffRoutes } from '@/modules/practice-client-intakes/routes/staff.routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const practiceClientIntakesApp = createHonoApp();
 
 practiceClientIntakesApp.use('*', injectAbility());
 
 // ==================== PRACTICE CLIENT INTAKES ====================
-practiceClientIntakesApp.openapi(routes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
-practiceClientIntakesApp.openapi(routes.createPracticeClientIntakeRoute, handlers.createPracticeClientIntakeHandler);
+practiceClientIntakesApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
 practiceClientIntakesApp.openapi(
-  routes.createPracticeClientIntakeCheckoutSessionRoute,
+  publicRoutes.createPracticeClientIntakeRoute,
+  handlers.createPracticeClientIntakeHandler
+);
+practiceClientIntakesApp.openapi(
+  clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
   handlers.createPracticeClientIntakeCheckoutSessionHandler
 );
-practiceClientIntakesApp.openapi(routes.updatePracticeClientIntakeRoute, handlers.updatePracticeClientIntakeHandler);
+practiceClientIntakesApp.openapi(clientRoutes.updatePracticeClientIntakeRoute, handlers.updatePracticeClientIntakeHandler);
 practiceClientIntakesApp.openapi(
-  routes.getPracticeClientIntakeStatusRoute,
+  clientRoutes.getPracticeClientIntakeStatusRoute,
   handlers.getPracticeClientIntakeStatusHandler
 );
 practiceClientIntakesApp.openapi(
-  routes.getPracticeClientIntakePostPayStatusRoute,
+  publicRoutes.getPracticeClientIntakePostPayStatusRoute,
   handlers.getPracticeClientIntakePostPayStatusHandler
 );
-practiceClientIntakesApp.openapi(routes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
-practiceClientIntakesApp.openapi(routes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
-practiceClientIntakesApp.openapi(routes.listIntakesRoute, handlers.listIntakesHandler);
-practiceClientIntakesApp.openapi(routes.updateIntakeTriageStatusRoute, handlers.updateIntakeTriageStatusHandler);
-practiceClientIntakesApp.openapi(routes.convertIntakeRoute, handlers.convertIntakeHandler);
-
-registerOpenApiRoutes(practiceClientIntakesApp, routes);
+practiceClientIntakesApp.openapi(clientRoutes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
+practiceClientIntakesApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
+practiceClientIntakesApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
+practiceClientIntakesApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);
+practiceClientIntakesApp.openapi(staffRoutes.updateIntakeTriageStatusRoute, handlers.updateIntakeTriageStatusHandler);
+practiceClientIntakesApp.openapi(staffRoutes.convertIntakeRoute, handlers.convertIntakeHandler);
 
 export default practiceClientIntakesApp;

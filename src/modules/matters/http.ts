@@ -13,7 +13,8 @@ app.use('*', injectAbility());
 
 // Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
-app.openapi(matterRoutes.getMattersRoute, matterHandlers.getMattersHandler);
+app.openapi(matterRoutes.listMattersRoute, matterHandlers.listMattersHandler);
+app.openapi(matterRoutes.getMatterRoute, matterHandlers.getMatterHandler);
 app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
 
@@ -60,6 +61,6 @@ matterSubResources.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.del
 matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
 
 // Mount sub-router with prefix
-app.route('/{practice_id}/matters', matterSubResources);
+app.route('/{practice_id}', matterSubResources);
 
 export default app;
