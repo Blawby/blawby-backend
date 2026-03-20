@@ -12,7 +12,7 @@ const tags = ['Matters'];
 
 export const createMatterRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/matters',
+  path: '/{practice_id}',
   tags,
   summary: 'Create a new matter',
   request: {
@@ -41,12 +41,12 @@ export const createMatterRoute = routeBuilder.build({
   },
 });
 
-export const getMattersRoute = routeBuilder.build({
+export const listMattersRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/matters',
+  path: '/{practice_id}',
   tags,
-  summary: 'Get matters',
-  description: 'Returns a single matter when `matter_id` is provided, otherwise returns a paginated list.',
+  summary: 'List matters',
+  description: 'Returns a paginated list of matters for the practice.',
   request: {
     params: z.object({
       practice_id: z.uuid(),
@@ -55,19 +55,42 @@ export const getMattersRoute = routeBuilder.build({
   },
   responses: {
     200: {
-      description: 'Matter(s) retrieved successfully',
+      description: 'Matters retrieved successfully',
       content: {
         'application/json': {
-          schema: z.union([
-            z.object({ matter: matterResponseSchema }),
-            z.object({
-              matters: z.array(matterResponseSchema),
-              total: z.number(),
-              page: z.number(),
-              limit: z.number(),
-              totalPages: z.number(),
-            }),
-          ]),
+          schema: z.object({
+            matters: z.array(matterResponseSchema),
+            total: z.number(),
+            page: z.number(),
+            limit: z.number(),
+            totalPages: z.number(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+export const getMatterRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/{id}',
+  tags,
+  summary: 'Get a matter',
+  description: 'Returns a single matter by ID.',
+  request: {
+    params: z.object({
+      practice_id: z.uuid(),
+      id: z.uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Matter retrieved successfully',
+      content: {
+        'application/json': {
+          schema: z.object({
+            matter: matterResponseSchema,
+          }),
         },
       },
     },
@@ -84,7 +107,7 @@ export const getMattersRoute = routeBuilder.build({
 
 export const updateMatterRoute = routeBuilder.build({
   method: 'put',
-  path: '/{practice_id}/matters/{id}',
+  path: '/{practice_id}/{id}',
   tags,
   summary: 'Update a matter',
   request: {
@@ -124,7 +147,7 @@ export const updateMatterRoute = routeBuilder.build({
 
 export const deleteMatterRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/matters/{id}',
+  path: '/{practice_id}/{id}',
   tags,
   summary: 'Delete a matter',
   request: {

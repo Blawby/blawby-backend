@@ -31,12 +31,12 @@ const createMatterSchema = z
     case_number: z.string().max(100).optional(),
     matter_type: z.string().max(100).optional(),
     billing_type: z.enum(['hourly', 'fixed', 'contingency', 'pro_bono']),
-    total_fixed_price: z.number().int().min(0).optional(), // in cents
+    total_fixed_price: z.number().int().min(0).optional(), // In cents
     contingency_percentage: z.number().min(0).max(100).optional(),
-    settlement_amount: z.number().int().min(0).optional(), // in cents
+    settlement_amount: z.number().int().min(0).optional(), // In cents
     practice_service_id: uuidValidator.optional(),
-    admin_hourly_rate: z.number().int().min(0).optional(), // in cents
-    attorney_hourly_rate: z.number().int().min(0).optional(), // in cents
+    admin_hourly_rate: z.number().int().min(0).optional(), // In cents
+    attorney_hourly_rate: z.number().int().min(0).optional(), // In cents
     payment_frequency: z.enum(['project', 'milestone']).optional(),
     status: matterStatusEnum.default('first_contact'),
     urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
@@ -57,7 +57,7 @@ const createMatterSchema = z
       .array(
         z.object({
           description: z.string().min(1).max(255),
-          amount: z.number().int().min(0), // in cents
+          amount: z.number().int().min(0), // In cents
           due_date: z.iso.date(),
           order: z.number().int().min(0).default(0),
         })
@@ -129,7 +129,6 @@ const matterIdParamSchema = z.object({
 });
 
 const listMattersQuerySchema = z.object({
-  matter_id: uuidValidator.optional(),
   status: matterStatusEnum.optional(),
   practice_service_id: uuidValidator.optional(),
   client_id: uuidValidator.optional(),

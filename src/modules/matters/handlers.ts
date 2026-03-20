@@ -18,17 +18,9 @@ const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute
   return sendResult(c, result, 201);
 };
 
-const getMattersHandler: AppRouteHandler<typeof matterRoutes.getMattersRoute> = async (c) => {
+const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-
-  if (query.matter_id) {
-    const result = await mattersService.getMatterById(query.matter_id, ctx);
-    if (!result.success) {
-      return sendResult(c, result);
-    }
-    return c.json({ matter: result.data }, 200);
-  }
 
   const page = parseInt(String(query.page ?? '1'), 10);
   const limit = parseInt(String(query.limit ?? '20'), 10);
@@ -48,6 +40,17 @@ const getMattersHandler: AppRouteHandler<typeof matterRoutes.getMattersRoute> = 
     },
     200
   );
+};
+
+const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id } = c.req.valid('param');
+
+  const result = await mattersService.getMatterById(id, ctx);
+  if (!result.success) {
+    return sendResult(c, result);
+  }
+  return c.json({ matter: result.data }, 200);
 };
 
 const updateMatterHandler: AppRouteHandler<typeof matterRoutes.updateMatterRoute> = async (c) => {
@@ -300,7 +303,8 @@ const getMatterUnbilledHandler: AppRouteHandler<typeof matterRoutes.getMatterUnb
 };
 
 export const handlers = {
-  getMattersHandler,
+  listMattersHandler,
+  getMatterHandler,
   createMatterHandler,
   updateMatterHandler,
   deleteMatterHandler,
