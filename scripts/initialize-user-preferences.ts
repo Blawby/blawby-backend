@@ -28,7 +28,7 @@ const parseArgs = (): { dryRun: boolean; verbose: boolean; batchSize: number } =
   return {
     dryRun: args.includes('--dry-run'),
     verbose: args.includes('--verbose'),
-    batchSize: parseInt(args.find(arg => arg.startsWith('--batch-size='))?.split('=')[1] || '100', 10),
+    batchSize: parseInt(args.find((arg) => arg.startsWith('--batch-size='))?.split('=')[1] ?? '100', 10),
   };
 };
 
@@ -37,9 +37,13 @@ const parseArgs = (): { dryRun: boolean; verbose: boolean; batchSize: number } =
  * Returns only the domain portion (e.g., "****@example.com")
  */
 const maskEmail = (email: string | null): string => {
-  if (!email) return 'no email';
+  if (!email) {
+    return 'no email';
+  }
   const atIndex = email.indexOf('@');
-  if (atIndex === -1) return '****';
+  if (atIndex === -1) {
+    return '****';
+  }
   return `****${email.slice(atIndex)}`;
 };
 
@@ -68,15 +72,13 @@ const main = async (): Promise<void> => {
     console.log(`Found ${allUsers.length} total users`);
 
     // Get users who already have preferences
-    const usersWithPreferences = await db
-      .select({ userId: preferences.user_id })
-      .from(preferences);
+    const usersWithPreferences = await db.select({ userId: preferences.user_id }).from(preferences);
 
-    const userIdsWithPreferences = new Set(usersWithPreferences.map(p => p.userId));
+    const userIdsWithPreferences = new Set(usersWithPreferences.map((p) => p.userId));
     console.log(`Found ${userIdsWithPreferences.size} users with existing preferences`);
 
     // Find users without preferences
-    const usersWithoutPreferences = allUsers.filter(user => !userIdsWithPreferences.has(user.id));
+    const usersWithoutPreferences = allUsers.filter((user) => !userIdsWithPreferences.has(user.id));
     console.log(`Found ${usersWithoutPreferences.length} users without preferences`);
     console.log('');
 
@@ -88,7 +90,7 @@ const main = async (): Promise<void> => {
     if (dryRun) {
       console.log('📋 Users that would get preferences initialized:');
       if (verbose) {
-        usersWithoutPreferences.forEach(user => {
+        usersWithoutPreferences.forEach((user) => {
           console.log(`  - ${user.id} (${maskEmail(user.email)})`);
         });
       } else {

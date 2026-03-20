@@ -7,10 +7,9 @@ import { upsertAddressTx } from '@/modules/practice/database/queries/address.rep
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { type SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
-import { AddressInput } from '@/modules/user-details/types';
-import { users } from '@/schema/better-auth-schema';
+import { userDetails, type SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
+import type { AddressInput } from '@/modules/user-details/types';
+import type { users } from '@/schema/better-auth-schema';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import { UserDetailsCreated, UserDetailsUpdated, UserDetailsDeleted } from '@/shared/events/definitions';
@@ -44,13 +43,6 @@ const createUserDetails = async (
 > => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'UserDetails');
 
-  let eventData:
-    | {
-        detail: SelectUserDetail;
-        user: typeof users.$inferSelect;
-      }
-    | undefined;
-
   const { data } = params;
   try {
     const user = await usersRepository.findByEmail(data.email);
@@ -58,12 +50,12 @@ const createUserDetails = async (
       return notFound('User not found. Please invite them using the invitations flow first.');
     }
 
-    let member = await membersRepository.findByOrgAndUser({
+    const existingMember = await membersRepository.findByOrgAndUser({
       organizationId: ctx.organizationId,
       userId: user.id,
     });
-    if (!member) {
-      member = await membersRepository.create({
+    if (!existingMember) {
+      await membersRepository.create({
         organizationId: ctx.organizationId,
         userId: user.id,
         role: 'client',
@@ -75,7 +67,7 @@ const createUserDetails = async (
       {
         email: user.email,
         name: user.name,
-        phone: user.phone || undefined,
+        phone: user.phone ?? undefined,
         metadata: {
           organization_id: ctx.organizationId,
           source: 'blawby_clients_api',
@@ -86,7 +78,7 @@ const createUserDetails = async (
 
     const txResult = await db.transaction(async (tx) => {
       try {
-        let addressId: string | undefined;
+        let addressId: string | undefined = undefined;
         if (data.address) {
           const address = await upsertAddressTx(tx, {
             addressData: {
@@ -115,7 +107,6 @@ const createUserDetails = async (
           })
           .returning();
 
-        eventData = { detail, user };
         return ok({ ...detail, user });
       } catch (error) {
         logger.error('Failed to create user details: {error}', {
@@ -126,14 +117,15 @@ const createUserDetails = async (
       }
     });
 
-    if (txResult.success && eventData) {
+    if (txResult.success) {
+      const createdDetail = txResult.data;
       void UserDetailsCreated.dispatch(
         {
-          user_detail_id: eventData.detail.id,
-          user_id: eventData.user.id,
-          name: eventData.user.name,
-          email: eventData.user.email,
-          stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
+          user_detail_id: createdDetail.id,
+          user_id: createdDetail.user.id,
+          name: createdDetail.user.name,
+          email: createdDetail.user.email,
+          stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
         },
         { actorId: ctx.userId, organizationId: ctx.organizationId }
       );
@@ -165,17 +157,16 @@ const updateUserDetails = async (
 ): Promise<Result<SelectUserDetail, { stripeSyncFailed?: boolean }>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserDetails');
   const { id, data } = params;
-  let stripeSyncPayload:
-    | {
-        customerId: string;
-        email?: string;
-        name?: string;
-        phone?: string;
-      }
-    | undefined;
+  interface StripeSyncPayload {
+    customerId: string;
+    email?: string;
+    name?: string;
+    phone?: string;
+  }
 
   const txResult = await db.transaction(async (tx) => {
     try {
+      let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
       const detailWithUser = await userDetailsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
         return notFound('User detail not found');
@@ -231,7 +222,9 @@ const updateUserDetails = async (
         },
         tx
       );
-      if (!updated) return internalError('Failed to update user details');
+      if (!updated) {
+        return internalError('Failed to update user details');
+      }
 
       await UserDetailsUpdated.dispatch(
         {
@@ -245,14 +238,20 @@ const updateUserDetails = async (
         }
       );
 
-      return ok(updated);
+      return ok({ updated, stripeSyncPayload });
     } catch (error) {
       logger.error('Failed to update user details {id}: {error}', { id, error });
       return internalError('Failed to update user details');
     }
   });
 
-  if (txResult.success && stripeSyncPayload) {
+  if (!txResult.success) {
+    return txResult;
+  }
+
+  const { updated, stripeSyncPayload } = txResult.data;
+
+  if (stripeSyncPayload) {
     try {
       await userDetailsStripeService.updateCustomer(stripeSyncPayload, ctx);
     } catch (error) {
@@ -265,13 +264,13 @@ const updateUserDetails = async (
       // The DB transaction succeeded, so we don't want to roll that back
       return {
         success: true,
-        data: txResult.data,
+        data: updated,
         metadata: { stripeSyncFailed: true },
       };
     }
   }
 
-  return txResult;
+  return ok(updated);
 };
 
 const listUserDetails = async (
@@ -313,6 +312,24 @@ const listUserDetails = async (
       organizationId: ctx.organizationId,
     });
     return internalError('Failed to list user details');
+  }
+};
+
+const getUserDetail = async (params: { id: string }, ctx: ServiceContext): Promise<Result<SelectUserDetail>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserDetails');
+  const { id } = params;
+  try {
+    const detail = await userDetailsRepository.findById(id);
+    if (!detail || detail.organization_id !== ctx.organizationId) {
+      return notFound('User detail not found');
+    }
+
+    ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('UserDetails', detail));
+
+    return ok(detail);
+  } catch (error) {
+    logger.error('Failed to get user detail {id}: {error}', { id, error });
+    return internalError('Failed to get user detail');
   }
 };
 
@@ -358,7 +375,9 @@ const ensureClientSetup = async (
     }
 
     const user = await usersRepository.findById(detail.user_id);
-    if (!user) return notFound('User not found');
+    if (!user) {
+      return notFound('User not found');
+    }
 
     let didBackfillStripeCustomerId = false;
 
@@ -367,7 +386,7 @@ const ensureClientSetup = async (
         {
           email: user.email,
           name: user.name,
-          phone: user.phone || undefined,
+          phone: user.phone ?? undefined,
           metadata: {
             organization_id: ctx.organizationId,
             source: 'auto_vivification_sync',
@@ -418,7 +437,9 @@ const createUserDetailsFromIntake = async (
   const { intakeId, userId, email, name, phone } = params.data;
   try {
     const intake = await practiceClientIntakesRepository.findById(intakeId);
-    if (!intake) return notFound(`Intake record with ID '${intakeId}' not found`);
+    if (!intake) {
+      return notFound(`Intake record with ID '${intakeId}' not found`);
+    }
 
     const user = await resolveUserForIntake({
       userId,
@@ -430,12 +451,12 @@ const createUserDetailsFromIntake = async (
       return internalError('Unable to process intake.');
     }
 
-    let member = await membersRepository.findByOrgAndUser({
+    const existingMember = await membersRepository.findByOrgAndUser({
       organizationId: ctx.organizationId,
       userId: user.id,
     });
-    if (!member) {
-      member = await membersRepository.create({
+    if (!existingMember) {
+      await membersRepository.create({
         organizationId: ctx.organizationId,
         userId: user.id,
         role: 'client',
@@ -478,7 +499,7 @@ const createUserDetailsFromIntake = async (
       {
         email: user.email,
         name: user.name,
-        phone: user.phone || undefined,
+        phone: user.phone ?? undefined,
         metadata: { organization_id: ctx.organizationId, intake_id: intakeId, source: 'blawby_intake' },
       },
       ctx
@@ -531,6 +552,7 @@ export const userDetailsCrudService = {
   createUserDetails,
   updateUserDetails,
   listUserDetails,
+  getUserDetail,
   deleteUserDetail,
   createUserDetailsFromIntake,
   ensureClientSetup,

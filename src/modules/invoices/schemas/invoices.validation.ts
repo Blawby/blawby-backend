@@ -52,7 +52,6 @@ const invoiceIdParamSchema = z.object({
 });
 
 const listInvoicesQuerySchema = z.object({
-  invoice_id: uuidValidator.optional(),
   client_id: uuidValidator.optional(),
   matter_id: uuidValidator.optional(),
   status: z.enum(['draft', 'pending', 'sent', 'paid', 'overdue', 'cancelled']).optional(),

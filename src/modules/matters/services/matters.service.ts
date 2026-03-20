@@ -196,7 +196,6 @@ const listMatters = async (
     status: filters.status,
     practiceServiceId: filters.practice_service_id,
     clientId: filters.client_id,
-    matterId: filters.matter_id,
     assigneeId: filters.assignee_id,
     search: filters.search,
     page: filters.page,

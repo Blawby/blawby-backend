@@ -1,4 +1,4 @@
-import { z } from '@hono/zod-openapi';
+import type { z } from '@hono/zod-openapi';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
@@ -11,6 +11,7 @@ import {
 } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import {
   formatIntakeListItem,
+  formatIntakeStatusResponse,
   logger,
   normalizeTriageStatus,
   parseMetadata,
@@ -20,7 +21,7 @@ import type {
   UpdateIntakeTriageStatusRequest,
   UpdateIntakeTriageStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
@@ -60,7 +61,6 @@ const listIntakes = async (
       ...params.query,
       from: params.query.from ? new Date(params.query.from) : undefined,
       to: params.query.to ? new Date(params.query.to) : undefined,
-      intakeId: params.query.intake_id,
     });
 
     return result.ok({
@@ -76,6 +76,29 @@ const listIntakes = async (
       error,
     });
     return result.internalError('Failed to list intakes');
+  }
+};
+
+const getIntakeById = async (
+  id: string,
+  ctx: ServiceContext
+): Promise<Result<{ data: z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>['data'] }>> => {
+  try {
+    const intakeResult = await getStaffAccessibleIntake(id, ctx, 'read');
+    if (!intakeResult.success) {
+      return intakeResult;
+    }
+
+    return result.ok({
+      success: true,
+      data: formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
+    });
+  } catch (error) {
+    logger.error('Failed to get intake {id}: {error}', {
+      id,
+      error,
+    });
+    return result.internalError('Failed to get intake');
   }
 };
 
@@ -126,7 +149,7 @@ const createMatterFromIntakeTx = async (
     userId: string;
   }
 ): Promise<string> => {
-  let clientId: string | undefined;
+  let clientId: string | undefined = undefined;
   if (params.metadata.user_id) {
     const userDetailsRecord = await userDetailsRepository.findByOrgAndUser(
       params.intake.organization_id,
@@ -313,7 +336,7 @@ const triggerInvitation = async (
     const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
     const auth = createBetterAuthInstance(db);
     const intakeRedirectUrl = await appConfigService.get<string>('intake_redirect_url');
-    const redirectPath = intakeRedirectUrl || 'auth/accept-invitation';
+    const redirectPath = intakeRedirectUrl ?? 'auth/accept-invitation';
     const separator = redirectPath.includes('?') ? '&' : '?';
 
     await auth.api.signInMagicLink({
@@ -332,8 +355,12 @@ const triggerInvitation = async (
       safeDetails.name = error.name;
     }
     if (typeof error === 'object' && error !== null) {
-      if ('code' in error) safeDetails.code = error.code;
-      if ('status' in error) safeDetails.status = error.status;
+      if ('code' in error) {
+        safeDetails.code = error.code;
+      }
+      if ('status' in error) {
+        safeDetails.status = error.status;
+      }
     }
     logger.error('Failed to send magic link for intake {uuid}: {error} {details}', {
       uuid: params.uuid,
@@ -346,6 +373,7 @@ const triggerInvitation = async (
 
 export const intakeLifecycleService = {
   listIntakes,
+  getIntakeById,
   updateTriageStatus,
   convertIntake,
   triggerInvitation,
