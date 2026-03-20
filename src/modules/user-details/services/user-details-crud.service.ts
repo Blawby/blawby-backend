@@ -316,7 +316,6 @@ const listUserDetails = async (
 };
 
 const getUserDetail = async (params: { id: string }, ctx: ServiceContext): Promise<Result<SelectUserDetail>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserDetails');
   const { id } = params;
   try {
     const detail = await userDetailsRepository.findById(id);
@@ -328,6 +327,10 @@ const getUserDetail = async (params: { id: string }, ctx: ServiceContext): Promi
 
     return ok(detail);
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return forbidden('You do not have permission to view user details');
+    }
+
     logger.error('Failed to get user detail {id}: {error}', { id, error });
     return internalError('Failed to get user detail');
   }
