@@ -1,8 +1,9 @@
+import { z } from '@hono/zod-openapi';
 import { practiceIdParamOpenAPISchema, uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
-export const triggerIntakeInvitationRoute = routeBuilder.build({
+const triggerIntakeInvitationRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/invite',
   tags: ['Practice Client Intakes'],
@@ -47,11 +48,11 @@ export const triggerIntakeInvitationRoute = routeBuilder.build({
   },
 });
 
-export const listIntakesRoute = routeBuilder.build({
+const listIntakesRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Practice Client Intakes'],
-  summary: 'List practice client intakes or get by ID',
+  summary: 'List practice client intakes',
   description: 'Retrieves a paginated list of client intakes for a specific practice.',
   request: {
     params: practiceIdParamOpenAPISchema,
@@ -85,7 +86,55 @@ export const listIntakesRoute = routeBuilder.build({
   },
 });
 
-export const updateIntakeTriageStatusRoute = routeBuilder.build({
+const getIntakeRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/{id}',
+  tags: ['Practice Client Intakes'],
+  summary: 'Get a practice client intake',
+  description: 'Retrieves a single client intake by ID.',
+  request: {
+    params: z.object({
+      practice_id: z.uuid(),
+      id: z.uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.practiceClientIntakeStatusResponseSchema,
+        },
+      },
+      description: 'Intake retrieved successfully.',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Intake not found',
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Unauthorized',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
+const updateIntakeTriageStatusRoute = routeBuilder.build({
   method: 'patch',
   path: '/{uuid}/status',
   tags: ['Practice Client Intakes'],
@@ -145,7 +194,7 @@ export const updateIntakeTriageStatusRoute = routeBuilder.build({
   },
 });
 
-export const convertIntakeRoute = routeBuilder.build({
+const convertIntakeRoute = routeBuilder.build({
   method: 'patch',
   path: '/{uuid}/convert',
   tags: ['Practice Client Intakes'],
@@ -212,3 +261,11 @@ export const convertIntakeRoute = routeBuilder.build({
     },
   },
 });
+
+export const staffRoutes = {
+  triggerIntakeInvitationRoute,
+  listIntakesRoute,
+  getIntakeRoute,
+  updateIntakeTriageStatusRoute,
+  convertIntakeRoute,
+};

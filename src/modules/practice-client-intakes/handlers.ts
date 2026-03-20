@@ -1,37 +1,27 @@
 import type { Context } from 'hono';
-import {
-  getIntakeSettingsRoute,
-  createPracticeClientIntakeRoute,
-  createPracticeClientIntakeCheckoutSessionRoute,
-  updatePracticeClientIntakeRoute,
-  getPracticeClientIntakeStatusRoute,
-  getPracticeClientIntakePostPayStatusRoute,
-  claimPracticeClientIntakeRoute,
-  triggerIntakeInvitationRoute,
-  listIntakesRoute,
-  updateIntakeTriageStatusRoute,
-  convertIntakeRoute,
-} from '@/modules/practice-client-intakes/routes';
+import type { publicRoutes } from '@/modules/practice-client-intakes/routes/public.routes';
+import type { clientRoutes } from '@/modules/practice-client-intakes/routes/client.routes';
+import type { staffRoutes } from '@/modules/practice-client-intakes/routes/staff.routes';
 import { intakeCheckoutService } from '@/modules/practice-client-intakes/services/intake-checkout.service';
 import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
-import { response } from '@/shared/utils/responseUtils';
+import { sendResult } from '@/shared/utils/responseUtils';
 
 const getCreateIntakeRequestMetadata = (c: Context) => ({
-  clientIp: c.req.header('x-forwarded-for') || c.req.header('remote-addr'),
+  clientIp: c.req.header('x-forwarded-for') ?? c.req.header('remote-addr'),
   userAgent: c.req.header('user-agent'),
   origin: c.req.header('origin'),
 });
 
-export const getIntakeSettingsHandler: AppRouteHandler<typeof getIntakeSettingsRoute> = async (c) => {
+const getIntakeSettingsHandler: AppRouteHandler<typeof publicRoutes.getIntakeSettingsRoute> = async (c) => {
   const { slug } = c.req.valid('param');
   const result = await intakeCreationService.getIntakeSettings({ slug });
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const createPracticeClientIntakeHandler: AppRouteHandler<typeof createPracticeClientIntakeRoute> = async (c) => {
+const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.createPracticeClientIntakeRoute> = async (c) => {
   const body = c.req.valid('json');
   const result = await intakeCreationService.createIntake({
     data: {
@@ -39,11 +29,11 @@ export const createPracticeClientIntakeHandler: AppRouteHandler<typeof createPra
       ...getCreateIntakeRequestMetadata(c),
     },
   });
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
-export const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
-  typeof createPracticeClientIntakeCheckoutSessionRoute
+const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
+  typeof clientRoutes.createPracticeClientIntakeCheckoutSessionRoute
 > = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
@@ -54,69 +44,89 @@ export const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
     },
     ctx
   );
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
-export const updatePracticeClientIntakeHandler: AppRouteHandler<typeof updatePracticeClientIntakeRoute> = async (c) => {
+const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.updatePracticeClientIntakeRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const result = await intakeCreationService.updateIntake({ uuid, data: body }, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const getPracticeClientIntakeStatusHandler: AppRouteHandler<typeof getPracticeClientIntakeStatusRoute> = async (
+const getPracticeClientIntakeStatusHandler: AppRouteHandler<typeof clientRoutes.getPracticeClientIntakeStatusRoute> = async (
   c
 ) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await intakeCheckoutService.getIntakeStatus({ uuid }, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const getPracticeClientIntakePostPayStatusHandler: AppRouteHandler<
-  typeof getPracticeClientIntakePostPayStatusRoute
+const getPracticeClientIntakePostPayStatusHandler: AppRouteHandler<
+  typeof publicRoutes.getPracticeClientIntakePostPayStatusRoute
 > = async (c) => {
   const { session_id: sessionId } = c.req.valid('query');
   const result = await intakeCheckoutService.getPostPayStatus({ sessionId });
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const claimPracticeClientIntakeHandler: AppRouteHandler<typeof claimPracticeClientIntakeRoute> = async (c) => {
+const claimPracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.claimPracticeClientIntakeRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { session_id: sessionId } = c.req.valid('json');
   const result = await intakeCheckoutService.claimIntake({ sessionId }, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const triggerIntakeInvitationHandler: AppRouteHandler<typeof triggerIntakeInvitationRoute> = async (c) => {
+const triggerIntakeInvitationHandler: AppRouteHandler<typeof staffRoutes.triggerIntakeInvitationRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await intakeLifecycleService.triggerInvitation({ uuid, origin: c.req.header('origin') }, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const listIntakesHandler: AppRouteHandler<typeof listIntakesRoute> = async (c) => {
-  // Validate route params (practice_id) even though we use ctx.organizationId
-  const { practice_id: _practice_id } = c.req.valid('param');
+const listIntakesHandler: AppRouteHandler<typeof staffRoutes.listIntakesRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
   const result = await intakeLifecycleService.listIntakes({ query }, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
 };
 
-export const convertIntakeHandler: AppRouteHandler<typeof convertIntakeRoute> = async (c) => {
+const getIntakeHandler: AppRouteHandler<typeof staffRoutes.getIntakeRoute> = async (c) => {
+  const { id } = c.req.valid('param');
+  const ctx = getServiceContext(c);
+  const result = await intakeLifecycleService.getIntakeById(id, ctx);
+  return sendResult(c, result, 200);
+};
+
+const convertIntakeHandler: AppRouteHandler<typeof staffRoutes.convertIntakeRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const result = await intakeLifecycleService.convertIntake({ uuid, data: body }, ctx);
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
-export const updateIntakeTriageStatusHandler: AppRouteHandler<typeof updateIntakeTriageStatusRoute> = async (c) => {
+const updateIntakeTriageStatusHandler: AppRouteHandler<typeof staffRoutes.updateIntakeTriageStatusRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
   const result = await intakeLifecycleService.updateTriageStatus({ uuid, data: body }, ctx);
-  return response.fromResult(c, result);
+  return sendResult(c, result, 200);
+};
+
+export const handlers = {
+  getIntakeSettingsHandler,
+  createPracticeClientIntakeHandler,
+  createPracticeClientIntakeCheckoutSessionHandler,
+  updatePracticeClientIntakeHandler,
+  getPracticeClientIntakeStatusHandler,
+  getPracticeClientIntakePostPayStatusHandler,
+  claimPracticeClientIntakeHandler,
+  triggerIntakeInvitationHandler,
+  listIntakesHandler,
+  getIntakeHandler,
+  updateIntakeTriageStatusHandler,
+  convertIntakeHandler,
 };

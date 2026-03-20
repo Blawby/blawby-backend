@@ -1,7 +1,8 @@
 import { getMatterActivityRoute } from './activity.routes';
 import {
   createMatterRoute,
-  getMattersRoute,
+  listMattersRoute,
+  getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
 } from '@/modules/matters/routes/core.routes';
@@ -37,7 +38,8 @@ import { getMatterUnbilledRoute } from '@/modules/matters/routes/unbilled.routes
 
 export const routes = {
   createMatterRoute,
-  getMattersRoute,
+  listMattersRoute,
+  getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
   getMatterActivityRoute,
