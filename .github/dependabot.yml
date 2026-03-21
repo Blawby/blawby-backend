@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # 1. Maintain Node.js dependencies (npm/pnpm/yarn)
+  - package-ecosystem: 'pnpm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    # Groups small updates together to avoid PR spam
+    groups:
+      dependencies:
+        patterns:
+          - '*'
+    open-pull-requests-limit: 10
+
+  # 2. Keep your GitHub Actions up to date
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+
+  # 3. (Optional) Maintain Docker images if you use them
+  # - package-ecosystem: "docker"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
