@@ -67,7 +67,9 @@ export const matters = pgTable(
 
     // Soft delete
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
-    deleted_by: uuid('deleted_by').references(() => users.id),
+    deleted_by: uuid('deleted_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
 
     // Intake and Conversation linking
     conversation_id: uuid('conversation_id'),

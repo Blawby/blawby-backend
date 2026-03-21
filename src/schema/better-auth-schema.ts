@@ -1,5 +1,18 @@
-import { pgTable, text, timestamp, boolean, integer, date, uuid, bigint, unique, relations } from 'drizzle-orm/pg-core';
-import stripeConnectedAccounts from '@/modules/onboarding/schemas/onboarding.schema';
+import { relations, sql } from 'drizzle-orm';
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  date,
+  uuid,
+  bigint,
+  unique,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -42,6 +55,7 @@ export const sessions = pgTable('sessions', {
     .references(() => users.id, { onDelete: 'cascade' }),
   activeOrganizationId: uuid('active_organization_id'),
   impersonatedBy: text('impersonated_by'), // Admin plugin: impersonator ID
+  previousAnonUserId: text('previous_anon_user_id'),
 });
 
 export const accounts = pgTable('accounts', {
@@ -185,7 +199,36 @@ export const rateLimits = pgTable('better_auth_rate_limits', {
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
+export const identityUpgradeClaims = pgTable(
+  'identity_upgrade_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    anonUserId: uuid('anon_user_id').references(() => users.id, { onDelete: 'set null' }),
+    registeredUserId: uuid('registered_user_id').references(() => users.id, { onDelete: 'set null' }),
+    claimed: boolean('claimed').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('identity_upgrade_claims_anon_user_idx').on(table.anonUserId),
+    index('identity_upgrade_claims_registered_user_idx').on(table.registeredUserId),
+    uniqueIndex('identity_upgrade_claims_anon_registered_unique')
+      .on(table.anonUserId, table.registeredUserId)
+      .where(sql`${table.anonUserId} IS NOT NULL AND ${table.registeredUserId} IS NOT NULL`),
+  ]
+);
+
 // Define relations
+export const usersRelations = relations(users, ({ many }) => ({
+  sessions: many(sessions),
+  accounts: many(accounts),
+  members: many(members),
+  invitations: many(invitations),
+}));
+
 export const organizationsRelations = relations(organizations, ({ many, one }) => ({
   members: many(members),
   invitations: many(invitations),

@@ -281,6 +281,13 @@
       "when": 1774027984633,
       "tag": "0039_sharp_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1774101327738,
+      "tag": "0040_neat_puck",
+      "breakpoints": true
     }
   ]
 }

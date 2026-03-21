@@ -1,8 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 
-import { users } from '@/schema/better-auth-schema';
-import { organizations } from '@/schema/better-auth-schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const uploads = pgTable(
   'uploads',
@@ -26,7 +26,9 @@ export const uploads = pgTable(
 
     // Context & Matter (for legal compliance)
     upload_context: varchar('upload_context', { length: 50 }).notNull(), // 'matter', 'intake', 'trust', 'profile', 'asset'
-    matter_id: uuid('matter_id'), // Link to client matter/case
+    matter_id: uuid('matter_id').references(() => matters.id, {
+      onDelete: 'set null',
+    }), // Link to client matter/case
     entity_type: varchar('entity_type', { length: 50 }), // 'user', 'organization', 'intake', 'matter'
     entity_id: uuid('entity_id'),
 
@@ -71,6 +73,10 @@ export const uploadsRelations = relations(uploads, ({ one }) => ({
   organization: one(organizations, {
     fields: [uploads.organization_id],
     references: [organizations.id],
+  }),
+  matter: one(matters, {
+    fields: [uploads.matter_id],
+    references: [matters.id],
   }),
   uploadedByUser: one(users, {
     fields: [uploads.uploaded_by],
