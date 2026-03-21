@@ -2,6 +2,7 @@ import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, anonymous, magicLink, organization } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
@@ -17,6 +18,12 @@ import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/share
 import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
+const authSessionAdditionalFields =
+  (
+    AUTH_CONFIG.session as {
+      additionalFields?: Record<string, unknown>;
+    }
+  ).additionalFields ?? {};
 
 /**
  * Internal factory to define the Better Auth configuration.
@@ -68,7 +75,6 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
 
           const frontendUrl = getMatchingFrontendUrl();
           // Queue the invitation email
-          // Queue the invitation email
           await addEmailJob(
             'practice-invitation',
             data.email,
@@ -101,6 +107,19 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
       createStripePlugin(db),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
+          await db
+            .insert(schema.identityUpgradeClaims)
+            .values({
+              anonUserId: anonymousUser.user.id,
+              registeredUserId: newUser.user.id,
+            })
+            .onConflictDoNothing();
+
+          await db
+            .update(schema.sessions)
+            .set({ previousAnonUserId: anonymousUser.user.id })
+            .where(eq(schema.sessions.id, newUser.session.id));
+
           await linkAnonymousUserData({
             anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
             newUser: { id: newUser.user.id, email: newUser.user.email },
@@ -161,7 +180,16 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
       },
     },
     databaseHooks: createDatabaseHooks(db),
-    session: AUTH_CONFIG.session,
+    session: {
+      ...AUTH_CONFIG.session,
+      additionalFields: {
+        ...authSessionAdditionalFields,
+        previousAnonUserId: {
+          type: 'string',
+          required: false,
+        },
+      },
+    },
     emailAndPassword: AUTH_CONFIG.emailAndPassword,
     user: {
       additionalFields: {

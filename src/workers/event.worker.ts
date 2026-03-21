@@ -3,6 +3,7 @@ import { config } from '@dotenvx/dotenvx';
 import { processOutboxEvent } from '@/shared/events/tasks/process-outbox-event';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { runWorker } from '@/shared/queue/worker-runner';
+import { cleanupEmailLogs } from '@/workers/tasks/cleanup-email-logs';
 import { processOnboardingWebhook } from '@/workers/tasks/process-onboarding-webhook';
 import { processStripeWebhook } from '@/workers/tasks/process-stripe-webhook';
 
@@ -15,9 +16,11 @@ void runWorker({
     [TASK_NAMES.PROCESS_STRIPE_WEBHOOK]: processStripeWebhook,
     [TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK]: processOnboardingWebhook,
     [TASK_NAMES.PROCESS_OUTBOX_EVENT]: processOutboxEvent,
+    [TASK_NAMES.CLEANUP_EMAIL_LOGS]: cleanupEmailLogs,
   },
   // Run outbox processing every minute to catch any missed events
   crontab: `
     * * * * * ${TASK_NAMES.PROCESS_OUTBOX_EVENT}
+    0 3 * * * ${TASK_NAMES.CLEANUP_EMAIL_LOGS}
   `,
 });
