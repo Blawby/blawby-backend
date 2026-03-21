@@ -124,6 +124,7 @@ const updateTriageStatus = async (
       success: true,
       data: {
         uuid: updatedIntake.id,
+        conversation_id: updatedIntake.conversation_id ?? null,
         triage_status: normalizeTriageStatus(updatedIntake.triage_status),
         triage_reason: updatedIntake.triage_reason ?? null,
         triage_decided_at: updatedIntake.triage_decided_at ?? null,

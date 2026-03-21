@@ -283,17 +283,10 @@
       "breakpoints": true
     },
     {
-      "idx": 38,
+      "idx": 40,
       "version": "7",
-      "when": 1772165603748,
-      "tag": "0038_omniscient_sunspot",
-      "breakpoints": true
-    },
-    {
-      "idx": 39,
-      "version": "7",
-      "when": 1772166310357,
-      "tag": "0039_thick_scourge",
+      "when": 1774101327738,
+      "tag": "0040_neat_puck",
       "breakpoints": true
     }
   ]
