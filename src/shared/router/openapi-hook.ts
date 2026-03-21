@@ -3,7 +3,7 @@ import type { AppContext } from '@/shared/types/hono';
 
 /**
  * Default hook for OpenAPIHono to format validation errors.
- * 
+ *
  * Instead of returning a raw Zod error, this formats it into a clean
  * JSON response with a specific structure.
  */

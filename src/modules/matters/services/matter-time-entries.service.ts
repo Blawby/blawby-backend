@@ -4,71 +4,96 @@ import type { SelectMatterTimeEntry } from '@/modules/matters/database/schema/ma
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
-import type {
-  CreateMatterTimeEntryRequest,
-  UpdateMatterTimeEntryRequest,
-} from '@/modules/matters/types/matter.types';
-import type { User } from '@/shared/types/BetterAuth';
+import type { CreateMatterTimeEntryRequest, UpdateMatterTimeEntryRequest } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import type { ServiceContext } from '@/shared/types/service-context';
+import { badRequest, ok, forbidden, internalError, notFound } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'time-entries']);
 
 /**
  * Calculate duration in seconds between two dates
  */
-const calculateDuration = (startTime: Date, endTime: Date): number => {
-  return Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
+const calculateDuration = (startTime: Date, endTime: Date): number =>
+  Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
+
+const getValidatedDuration = (startTime: Date, endTime: Date): Result<{ duration: number }> => {
+  if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+    return badRequest('start_time and end_time must be valid dates');
+  }
+  if (endTime <= startTime) {
+    return badRequest('end_time must be after start_time');
+  }
+  return ok({ duration: calculateDuration(startTime, endTime) });
 };
 
 /**
  * Create a matter time entry
  */
 const createMatterTimeEntry = async (
-  organizationId: string,
-  matterId: string,
-  data: CreateMatterTimeEntryRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  params: { data: CreateMatterTimeEntryRequest },
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry>> => {
+  const { matterId } = ctx;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
-    const startTime = new Date(data.start_time);
-    const endTime = new Date(data.end_time);
-    const duration = calculateDuration(startTime, endTime);
+    const startTime = new Date(params.data.start_time);
+    const endTime = new Date(params.data.end_time);
+    const durationResult = getValidatedDuration(startTime, endTime);
+    if (!durationResult.success) {
+      return durationResult;
+    }
+    const { duration } = durationResult.data;
 
     const entry = await matterTimeEntriesQueries.createMatterTimeEntry({
       matter_id: matterId,
-      user_id: user.id,
+      user_id: ctx.userId,
       start_time: startTime,
       end_time: endTime,
       duration,
-      description: data.description,
-      billable: data.billable,
+      description: params.data.description,
+      billable: params.data.billable,
     });
     const changedFields = [
       'start_time',
       'end_time',
       'duration',
-      ...(data.billable !== undefined ? ['billable'] : []),
-      ...(data.description !== undefined ? ['description'] : []),
+      ...(params.data.billable !== undefined ? ['billable'] : []),
+      ...(params.data.description !== undefined ? ['description'] : []),
     ];
 
     // Log activity
     const hours = Math.floor(duration / 3600);
     const minutes = Math.floor((duration % 3600) / 60);
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
-      `${user.name || user.email} logged ${hours}h ${minutes}m${data.billable ? ' (billable)' : ''}`,
-      user.id,
-      { duration, billable: data.billable, changed_fields: changedFields },
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.TIME_ENTRY_ADDED,
+        description: `${userName} logged ${hours}h ${minutes}m${params.data.billable ? ' (billable)' : ''}`,
+        metadata: { duration, billable: params.data.billable, changed_fields: changedFields },
+      },
+      ctx
     );
+    if (!activityResult.success) {
+      logger.error('Failed to log time-entry create activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
+    }
 
     return ok(entry);
   } catch (error) {
@@ -85,29 +110,38 @@ const createMatterTimeEntry = async (
  * List matter time entries
  */
 const listMatterTimeEntries = async (
-  organizationId: string,
-  matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  filters?: MatterTimeEntryListFilters,
+  params: { filters?: MatterTimeEntryListFilters },
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry[]>> => {
+  const { matterId } = ctx;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
     // Short-circuit: direct lookup when a specific entry ID is provided.
     // When entryId is set, other filters (billable, startDate, endDate) are
-    // intentionally ignored — this path is for single-resource retrieval.
-    if (filters?.entryId) {
-      const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(filters.entryId);
-      if (!entry || entry.matter_id !== matterId) return ok([]);
+    // Intentionally ignored — this path is for single-resource retrieval.
+    if (params.filters?.entryId) {
+      const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(params.filters.entryId);
+      if (!entry || entry.matter_id !== matterId) {
+        return ok([]);
+      }
       return ok([entry]);
     }
 
-    const entries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId, filters);
+    const entries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId, params.filters);
     return ok(entries);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -123,70 +157,97 @@ const listMatterTimeEntries = async (
  * Update matter time entry
  */
 const updateMatterTimeEntry = async (
-  organizationId: string,
-  matterId: string,
-  entryId: string,
-  data: UpdateMatterTimeEntryRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  params: { entryId: string; data: UpdateMatterTimeEntryRequest },
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterTimeEntry>> => {
+  const { matterId } = ctx;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
     // Verify entry exists and belongs to matter
-    const entry: SelectMatterTimeEntry | undefined = await matterTimeEntriesQueries.findMatterTimeEntryById(entryId);
+    const entry: SelectMatterTimeEntry | undefined = await matterTimeEntriesQueries.findMatterTimeEntryById(
+      params.entryId
+    );
     if (!entry || entry.matter_id !== matterId) {
       return notFound('Time entry not found');
     }
 
     // Recalculate duration if times changed
-    const startTime = data.start_time ? new Date(data.start_time) : entry.start_time;
-    const endTime = data.end_time ? new Date(data.end_time) : entry.end_time;
+    const startTime = params.data.start_time ? new Date(params.data.start_time) : entry.start_time;
+    const endTime = params.data.end_time ? new Date(params.data.end_time) : entry.end_time;
+    let nextDuration: number | undefined;
+    if (params.data.start_time !== undefined || params.data.end_time !== undefined) {
+      const durationResult = getValidatedDuration(startTime, endTime);
+      if (!durationResult.success) {
+        return durationResult;
+      }
+      nextDuration = durationResult.data.duration;
+    }
 
     const updateData: Parameters<typeof matterTimeEntriesQueries.updateMatterTimeEntry>[1] = {
-      ...(data.start_time && { start_time: startTime }),
-      ...(data.end_time && { end_time: endTime }),
-      ...(data.description !== undefined && { description: data.description }),
-      ...(data.billable !== undefined && { billable: data.billable }),
-      ...((data.start_time || data.end_time) && { duration: calculateDuration(startTime, endTime) }),
+      ...(params.data.start_time && { start_time: startTime }),
+      ...(params.data.end_time && { end_time: endTime }),
+      ...(params.data.description !== undefined && { description: params.data.description }),
+      ...(params.data.billable !== undefined && { billable: params.data.billable }),
+      ...(nextDuration !== undefined && { duration: nextDuration }),
     };
 
-    const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(entryId, updateData);
+    const updated = await matterTimeEntriesQueries.updateMatterTimeEntry(params.entryId, updateData);
+    if (!updated) {
+      return notFound('Time entry not found');
+    }
     const changedFields = [];
-    if (data.start_time && entry.start_time.getTime() !== startTime.getTime()) {
+    if (params.data.start_time && entry.start_time.toISOString() !== startTime.toISOString()) {
       changedFields.push('start_time');
     }
-    if (data.end_time && entry.end_time.getTime() !== endTime.getTime()) {
+    if (params.data.end_time && entry.end_time.toISOString() !== endTime.toISOString()) {
       changedFields.push('end_time');
     }
-    if (data.description !== undefined && data.description !== entry.description) {
+    if (params.data.description !== undefined && params.data.description !== entry.description) {
       changedFields.push('description');
     }
-    if (data.billable !== undefined && data.billable !== entry.billable) {
+    if (params.data.billable !== undefined && params.data.billable !== entry.billable) {
       changedFields.push('billable');
     }
-    if ((data.start_time || data.end_time) && entry.duration !== updateData.duration) {
+    if (nextDuration !== undefined && entry.duration !== nextDuration) {
       changedFields.push('duration');
     }
 
     // Log activity
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.TIME_ENTRY_UPDATED,
-      `${user.name || user.email} updated a time entry`,
-      user.id,
-      { changed_fields: changedFields },
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.TIME_ENTRY_UPDATED,
+        description: `${userName} updated a time entry`,
+        metadata: { changed_fields: changedFields },
+      },
+      ctx
     );
+    if (!activityResult.success) {
+      logger.error('Failed to log time-entry update activity {entryId}: {error}', {
+        entryId: params.entryId,
+        error: activityResult.error.message,
+      });
+    }
 
-    return ok(updated!);
+    return ok(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update time entry {entryId}: {error}', {
-      entryId,
+      entryId: params.entryId,
       error: message,
     });
     return internalError(message);
@@ -197,41 +258,56 @@ const updateMatterTimeEntry = async (
  * Delete matter time entry
  */
 const deleteMatterTimeEntry = async (
-  organizationId: string,
-  matterId: string,
-  entryId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  params: { entryId: string },
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
+  const { matterId } = ctx;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
     // Verify entry exists and belongs to matter
-    const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(entryId);
+    const entry = await matterTimeEntriesQueries.findMatterTimeEntryById(params.entryId);
     if (!entry || entry.matter_id !== matterId) {
       return notFound('Time entry not found');
     }
 
-    await matterTimeEntriesQueries.deleteMatterTimeEntry(entryId);
+    await matterTimeEntriesQueries.deleteMatterTimeEntry(params.entryId);
 
     // Log activity
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.TIME_ENTRY_DELETED,
-      `${user.name || user.email} deleted a time entry`,
-      user.id,
-      { changed_fields: ['deleted'] },
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.TIME_ENTRY_DELETED,
+        description: `${userName} deleted a time entry`,
+        metadata: { changed_fields: ['deleted'] },
+      },
+      ctx
     );
+    if (!activityResult.success) {
+      logger.error('Failed to log time-entry delete activity {entryId}: {error}', {
+        entryId: params.entryId,
+        error: activityResult.error.message,
+      });
+    }
 
     return ok({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete time entry {entryId}: {error}', {
-      entryId,
+      entryId: params.entryId,
       error: message,
     });
     return internalError(message);
@@ -242,20 +318,29 @@ const deleteMatterTimeEntry = async (
  * Get time entry statistics
  */
 const getTimeEntryStats = async (
-  organizationId: string,
-  matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<{
-  totalBillableSeconds: number;
-  totalSeconds: number;
-  totalBillableHours: number;
-  totalHours: number;
-}>> => {
+  ctx: ServiceContext
+): Promise<
+  Result<{
+    totalBillableSeconds: number;
+    totalSeconds: number;
+    totalBillableHours: number;
+    totalHours: number;
+  }>
+> => {
+  const { matterId } = ctx;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
-    return matterResult as Result<never>;
+    return matterResult;
   }
 
   try {
@@ -278,32 +363,10 @@ const getTimeEntryStats = async (
   }
 };
 
-/**
- * Get unbilled time entries for a matter (invoice_id IS NULL AND billable=true)
- */
-const getUnbilledTimeEntries = async (
-  organizationId: string,
-  matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<SelectMatterTimeEntry[]>> => {
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
-  if (!matterResult.success) return matterResult as Result<never>;
-  try {
-    const entries = await matterTimeEntriesQueries.getUnbilled(matterId);
-    return ok(entries);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get unbilled time entries {matterId}: {error}', { matterId, error: message });
-    return internalError(message);
-  }
-};
-
 export const matterTimeEntriesService = {
   createMatterTimeEntry,
   listMatterTimeEntries,
   updateMatterTimeEntry,
   deleteMatterTimeEntry,
   getTimeEntryStats,
-  getUnbilledTimeEntries,
 };

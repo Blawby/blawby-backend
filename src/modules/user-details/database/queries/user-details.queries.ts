@@ -1,6 +1,4 @@
-import {
-  eq, desc, and, ilike, or, sql, type SQL,
-} from 'drizzle-orm';
+import { eq, desc, and, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { addresses, type Address } from '@/modules/practice/database/schema/addresses.schema';
 import {
   userDetailsSchema,
@@ -10,22 +8,16 @@ import {
 import { users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const { userDetails } = userDetailsSchema;
 
-
-const create = async (
-  data: InsertUserDetail,
-): Promise<SelectUserDetail> => {
-  const [client] = await db
-    .insert(userDetails)
-    .values(data)
-    .returning();
+const create = async (data: InsertUserDetail): Promise<SelectUserDetail> => {
+  const [client] = await db.insert(userDetails).values(data).returning();
   return client;
 };
 
-const findById = async (
-  id: string,
-): Promise<(SelectUserDetail & { user: typeof users.$inferSelect }) | undefined> => {
+const findById = async (id: string): Promise<(SelectUserDetail & { user: typeof users.$inferSelect }) | undefined> => {
   return db.query.userDetails.findFirst({
     where: and(eq(userDetails.id, id), sql`${userDetails.deleted_at} IS NULL`),
     with: {
@@ -34,11 +26,7 @@ const findById = async (
   });
 };
 
-
-const findByOrgAndUser = async (
-  organizationId: string,
-  userId: string,
-): Promise<SelectUserDetail | undefined> => {
+const findByOrgAndUser = async (organizationId: string, userId: string): Promise<SelectUserDetail | undefined> => {
   const [result] = await db
     .select()
     .from(userDetails)
@@ -46,16 +34,14 @@ const findByOrgAndUser = async (
       and(
         eq(userDetails.organization_id, organizationId),
         eq(userDetails.user_id, userId),
-        sql`${userDetails.deleted_at} IS NULL`,
-      ),
+        sql`${userDetails.deleted_at} IS NULL`
+      )
     )
     .limit(1);
   return result;
 };
 
-const findByStripeCustomerId = async (
-  stripeCustomerId: string,
-): Promise<SelectUserDetail | undefined> => {
+const findByStripeCustomerId = async (stripeCustomerId: string): Promise<SelectUserDetail | undefined> => {
   const [result] = await db
     .select()
     .from(userDetails)
@@ -67,8 +53,9 @@ const findByStripeCustomerId = async (
 const update = async (
   id: string,
   data: Partial<SelectUserDetail>,
+  tx: DbOrTx = db
 ): Promise<SelectUserDetail | undefined> => {
-  const [updated] = await db
+  const [updated] = await tx
     .update(userDetails)
     .set({ ...data, updated_at: new Date() })
     .where(eq(userDetails.id, id))
@@ -76,10 +63,7 @@ const update = async (
   return updated;
 };
 
-const softDelete = async (
-  id: string,
-  deletedBy: string,
-): Promise<SelectUserDetail | undefined> => {
+const softDelete = async (id: string, deletedBy: string): Promise<SelectUserDetail | undefined> => {
   const [updated] = await db
     .update(userDetails)
     .set({
@@ -103,14 +87,9 @@ const listClients = async (params: {
   data: (SelectUserDetail & { user: typeof users.$inferSelect; address: Address | null })[];
   total: number;
 }> => {
-  const {
-    organizationId, clientId, search, status, limit = 20, offset = 0,
-  } = params;
+  const { organizationId, clientId, search, status, limit = 20, offset = 0 } = params;
 
-  const conditions: SQL[] = [
-    eq(userDetails.organization_id, organizationId),
-    sql`${userDetails.deleted_at} IS NULL`,
-  ];
+  const conditions: SQL[] = [eq(userDetails.organization_id, organizationId), sql`${userDetails.deleted_at} IS NULL`];
 
   if (clientId) {
     conditions.push(eq(userDetails.id, clientId));
@@ -125,7 +104,7 @@ const listClients = async (params: {
     const searchCondition: SQL = or(
       ilike(users.name, searchPattern),
       ilike(users.email, searchPattern),
-      ilike(sql`COALESCE(${users.phone}, '')`, searchPattern),
+      ilike(sql`COALESCE(${users.phone}, '')`, searchPattern)
     )!;
     conditions.push(searchCondition);
   }
@@ -167,7 +146,6 @@ const listClients = async (params: {
   };
 };
 
-
 export const userDetailsRepository = {
   create,
   findById,
@@ -177,4 +155,3 @@ export const userDetailsRepository = {
   softDelete,
   listClients,
 };
-

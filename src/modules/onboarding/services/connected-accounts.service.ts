@@ -1,11 +1,6 @@
 import { getLogger } from '@logtape/logtape';
-import {
-  onboardingRepository as onboardingRepo,
-} from '@/modules/onboarding/database/queries/onboarding.repository';
-import type {
-  StripeConnectedAccount,
-  NewStripeConnectedAccount,
-} from '@/modules/onboarding/schemas/onboarding.schema';
+import { onboardingRepository as onboardingRepo } from '@/modules/onboarding/database/queries/onboarding.repository';
+import type { StripeConnectedAccount, NewStripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import type {
   CreateAccountResponse,
   GetAccountResponse,
@@ -28,9 +23,7 @@ const deriveReadinessStatus = (params: {
   missingRequirements: string[];
   isActive: boolean;
 }): 'active' | 'requirements_due' | 'verification_pending' | 'disabled' | 'inactive' => {
-  const {
-    disabledReason, pendingVerification, missingRequirements, isActive,
-  } = params;
+  const { disabledReason, pendingVerification, missingRequirements, isActive } = params;
 
   if (disabledReason) return 'disabled';
   if (pendingVerification.length > 0) return 'verification_pending';
@@ -60,18 +53,19 @@ const getAccountReadiness = (input: {
   const currentDeadline = requirements?.current_deadline ?? null;
 
   const capabilities = account.capabilities || {};
-  const hasCardPayments = capabilities.card_payments === 'active';
-  const hasTransfers = capabilities.transfers === 'active';
+  const hasCardPayments = capabilities['card_payments'] === 'active';
+  const hasTransfers = capabilities['transfers'] === 'active';
 
   const missingRequirements = [...currentDue, ...pastDue];
   const isBaseEnabled = account.charges_enabled && account.payouts_enabled;
 
-  const isActive = isBaseEnabled
-    && hasCardPayments
-    && hasTransfers
-    && missingRequirements.length === 0
-    && !disabledReason
-    && pendingVerification.length === 0;
+  const isActive =
+    isBaseEnabled &&
+    hasCardPayments &&
+    hasTransfers &&
+    missingRequirements.length === 0 &&
+    !disabledReason &&
+    pendingVerification.length === 0;
 
   const readinessStatus = deriveReadinessStatus({
     disabledReason,
@@ -98,9 +92,7 @@ export const connectedAccountsService = {
   /**
    * Find existing account for an organization
    */
-  async findAccountByOrganization(
-    organizationId: string,
-  ): Promise<StripeConnectedAccount | null> {
+  async findAccountByOrganization(organizationId: string): Promise<StripeConnectedAccount | null> {
     return onboardingRepo.findByOrganizationId(organizationId);
   },
 
@@ -110,7 +102,7 @@ export const connectedAccountsService = {
   async createStripeAccount(
     organizationId: string,
     email: string,
-    userId?: string,
+    userId?: string
   ): Promise<Result<StripeConnectedAccount>> {
     try {
       const stripeAccount = await stripe.accounts.create({
@@ -151,14 +143,17 @@ export const connectedAccountsService = {
 
       const createdAccount = await onboardingRepo.create(newAccount);
 
-      void StripeConnectedAccountCreated.dispatch({
-        account_id: stripeAccount.id,
-        email,
-        country: 'US',
-      }, {
-        actorId: userId ?? 'system',
-        organizationId,
-      });
+      void StripeConnectedAccountCreated.dispatch(
+        {
+          account_id: stripeAccount.id,
+          email,
+          country: 'US',
+        },
+        {
+          actorId: userId ?? 'system',
+          organizationId,
+        }
+      );
 
       return ok(createdAccount);
     } catch (error) {
@@ -177,7 +172,7 @@ export const connectedAccountsService = {
   async createAccountLinkForAccount(
     account: StripeConnectedAccount,
     refreshUrl: string,
-    returnUrl: string,
+    returnUrl: string
   ): Promise<Result<CreateSessionResponse>> {
     try {
       const accountLink = await stripe.accountLinks.create({
@@ -208,7 +203,7 @@ export const connectedAccountsService = {
     email: string,
     refreshUrl: string,
     returnUrl: string,
-    userId?: string,
+    userId?: string
   ): Promise<Result<CreateAccountResponse>> {
     // Check if account exists
     let account = await connectedAccountsService.findAccountByOrganization(organizationId);
@@ -243,9 +238,7 @@ export const connectedAccountsService = {
   /**
    * Create embedded payments session
    */
-  async createPaymentsSession(
-    stripeAccountId: string,
-  ): Promise<Result<CreateSessionResponse>> {
+  async createPaymentsSession(stripeAccountId: string): Promise<Result<CreateSessionResponse>> {
     try {
       const session = await stripe.accountSessions.create({
         account: stripeAccountId,
@@ -277,9 +270,7 @@ export const connectedAccountsService = {
   /**
    * Get account status and requirements
    */
-  async getAccount(
-    organizationId: string,
-  ): Promise<Result<GetAccountResponse | null>> {
+  async getAccount(organizationId: string): Promise<Result<GetAccountResponse | null>> {
     try {
       const account = await onboardingRepo.findByOrganizationId(organizationId);
 
@@ -324,9 +315,7 @@ export const connectedAccountsService = {
   /**
    * Create payments session for organization
    */
-  async createPaymentsSessionForOrganization(
-    organizationId: string,
-  ): Promise<Result<CreateSessionResponse>> {
+  async createPaymentsSessionForOrganization(organizationId: string): Promise<Result<CreateSessionResponse>> {
     const result = await connectedAccountsService.getAccount(organizationId);
     if (!result.success) return result;
 

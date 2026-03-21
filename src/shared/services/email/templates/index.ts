@@ -44,7 +44,6 @@ import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
 
-
 /**
  * Mapping of email templates to their specific data types
  */
@@ -99,10 +98,7 @@ const templateRegistry = {
 /**
  * Render an email template by name in a type-safe way
  */
-export const renderTemplate = <T extends EmailTemplateName>(
-  templateName: T,
-  data: TemplateDataMap[T],
-): string => {
+export const renderTemplate = <T extends EmailTemplateName>(templateName: T, data: TemplateDataMap[T]): string => {
   const templateFn = (templateRegistry as Record<string, Function>)[templateName];
 
   if (!templateFn) {

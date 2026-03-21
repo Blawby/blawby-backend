@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import {
+import type {
   listPlansRoute,
   getCurrentSubscriptionRoute,
   cancelSubscriptionRoute,
@@ -7,7 +7,7 @@ import {
 import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
-import { AppRouteHandler } from '@/shared/types/hono';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
 export const listPlansHandler: AppRouteHandler<typeof listPlansRoute> = async (c) => {
@@ -23,11 +23,7 @@ export const getCurrentSubscriptionHandler: AppRouteHandler<typeof getCurrentSub
     return response.badRequest(c, 'No active organization. Please select an organization first.');
   }
 
-  const result = await subscriptionService.getCurrentSubscription(
-    organizationId,
-    user,
-    c.req.header() as Record<string, string>,
-  );
+  const result = await subscriptionService.getCurrentSubscription(organizationId, user, c.req.header());
 
   return response.fromResult(c, result);
 };
@@ -53,18 +49,12 @@ export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptio
     return response.notFound(c, 'Organization not found');
   }
 
-
   if (!organization?.activeSubscriptionId) {
     return response.badRequest(c, 'No active subscription found for this organization');
   }
 
   // Optimize: We delegate subscription lookup to the service to avoid extra queries
-  const result = await subscriptionService.cancelSubscription(
-    organizationId,
-    validatedBody,
-    user,
-    c.req.header() as Record<string, string>,
-  );
+  const result = await subscriptionService.cancelSubscription(organizationId, validatedBody, user, c.req.header());
 
   return response.fromResult(c, result);
 };

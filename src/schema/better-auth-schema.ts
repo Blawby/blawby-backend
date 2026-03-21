@@ -1,15 +1,4 @@
-import {
-  pgTable,
-  text,
-  timestamp,
-  boolean,
-  integer,
-  date,
-  uuid,
-  bigint,
-  unique,
-  relations,
-} from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, date, uuid, bigint, unique, relations } from 'drizzle-orm/pg-core';
 import stripeConnectedAccounts from '@/modules/onboarding/schemas/onboarding.schema';
 
 export const users = pgTable('users', {
@@ -21,7 +10,7 @@ export const users = pgTable('users', {
   isAnonymous: boolean('is_anonymous').default(false).notNull(),
   primaryWorkspace: text('primary_workspace'), // 'public' | 'client' | 'practice'
   phone: text('phone'),
-  phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
+  phoneCountryCode: text('phone_country_code'), // E.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
   stripeCustomerId: text('stripe_customer_id'), // Platform customer ID for user billing/preferences (Platform account)
   role: text('role'), // Admin plugin: user role
@@ -54,7 +43,6 @@ export const sessions = pgTable('sessions', {
   activeOrganizationId: uuid('active_organization_id'),
   impersonatedBy: text('impersonated_by'), // Admin plugin: impersonator ID
 });
-
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -113,23 +101,25 @@ export const organizations = pgTable('organizations', {
   paymentLinkPrefillAmount: integer('payment_link_prefill_amount').default(0),
 });
 
-export const members = pgTable('members', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id')
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  role: text('role').default('member').notNull(),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-}, (table) => [
-  unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId),
-]);
+export const members = pgTable(
+  'members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').default('member').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId)]
+);
 
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -149,7 +139,6 @@ export const invitations = pgTable('invitations', {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
-
 
 /**
  * Subscriptions table for Better Auth Stripe plugin
@@ -175,7 +164,6 @@ export const subscriptions = pgTable('subscriptions', {
     .notNull(),
 });
 
-
 /**
  * Rate Limits table for Better Auth's built-in rate limiting
  *
@@ -196,7 +184,6 @@ export const rateLimits = pgTable('better_auth_rate_limits', {
   count: integer('count').notNull(),
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
-
 
 // Define relations
 export const organizationsRelations = relations(organizations, ({ many, one }) => ({
@@ -259,4 +246,3 @@ export const invitationsRelations = relations(invitations, ({ one }) => ({
     references: [users.id],
   }),
 }));
-

@@ -13,9 +13,7 @@ import type {
 } from '@/modules/onboarding/types/onboarding.types';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
 
-const normalizeAddress = (
-  address: Stripe.Address | null | undefined,
-): OnboardingAddress | undefined => {
+const normalizeAddress = (address: Stripe.Address | null | undefined): OnboardingAddress | undefined => {
   if (!address) {
     return undefined;
   }
@@ -29,24 +27,18 @@ const normalizeAddress = (
   };
 };
 
-const normalizeCompany = (
-  company: Stripe.Account['company'],
-): CompanyInfo | undefined => {
+const normalizeCompany = (company: Stripe.Account['company']): CompanyInfo | undefined => {
   if (!company) {
     return undefined;
   }
   return {
     name: company.name ?? undefined,
-    tax_id: 'tax_id' in company && typeof company.tax_id === 'string'
-      ? company.tax_id
-      : undefined,
+    tax_id: 'tax_id' in company && typeof company.tax_id === 'string' ? company.tax_id : undefined,
     address: normalizeAddress(company.address),
   };
 };
 
-const normalizeIndividual = (
-  individual: Stripe.Account['individual'],
-): IndividualInfo | undefined => {
+const normalizeIndividual = (individual: Stripe.Account['individual']): IndividualInfo | undefined => {
   if (!individual) {
     return undefined;
   }
@@ -56,21 +48,18 @@ const normalizeIndividual = (
     email: individual.email ?? undefined,
     dob: individual.dob
       ? {
-        day: individual.dob.day ?? undefined,
-        month: individual.dob.month ?? undefined,
-        year: individual.dob.year ?? undefined,
-      }
+          day: individual.dob.day ?? undefined,
+          month: individual.dob.month ?? undefined,
+          year: individual.dob.year ?? undefined,
+        }
       : undefined,
-    ssn_last_4: 'ssn_last_4' in individual && typeof individual.ssn_last_4 === 'string'
-      ? individual.ssn_last_4
-      : undefined,
+    ssn_last_4:
+      'ssn_last_4' in individual && typeof individual.ssn_last_4 === 'string' ? individual.ssn_last_4 : undefined,
     address: normalizeAddress(individual.address),
   };
 };
 
-const normalizeRequirements = (
-  requirements: Stripe.Account['requirements'],
-): Requirements | undefined => {
+const normalizeRequirements = (requirements: Stripe.Account['requirements']): Requirements | undefined => {
   if (!requirements) {
     return undefined;
   }
@@ -84,9 +73,7 @@ const normalizeRequirements = (
   };
 };
 
-const normalizeCapabilities = (
-  capabilities: Stripe.Account['capabilities'],
-): Capabilities | undefined => {
+const normalizeCapabilities = (capabilities: Stripe.Account['capabilities']): Capabilities | undefined => {
   if (!capabilities) {
     return undefined;
   }
@@ -100,15 +87,9 @@ const normalizeCapabilities = (
   return normalized;
 };
 
-const normalizeExternalAccount = (
-  externalAccount: Stripe.ExternalAccount,
-): ExternalAccount => {
-  const bankAccount = stripeTypeGuards.isBankAccount(externalAccount)
-    ? externalAccount
-    : undefined;
-  const cardAccount = stripeTypeGuards.isCardAccount(externalAccount)
-    ? externalAccount
-    : undefined;
+const normalizeExternalAccount = (externalAccount: Stripe.ExternalAccount): ExternalAccount => {
+  const bankAccount = stripeTypeGuards.isBankAccount(externalAccount) ? externalAccount : undefined;
+  const cardAccount = stripeTypeGuards.isCardAccount(externalAccount) ? externalAccount : undefined;
   return {
     id: externalAccount.id,
     object: externalAccount.object,
@@ -128,7 +109,7 @@ const normalizeExternalAccount = (
 };
 
 const normalizeExternalAccounts = (
-  externalAccounts: Stripe.Account['external_accounts'],
+  externalAccounts: Stripe.Account['external_accounts']
 ): ExternalAccounts | undefined => {
   if (!externalAccounts) {
     return undefined;
@@ -143,7 +124,7 @@ const normalizeExternalAccounts = (
 };
 
 const normalizeFutureRequirements = (
-  requirements: Stripe.Account['future_requirements'],
+  requirements: Stripe.Account['future_requirements']
 ): FutureRequirements | undefined => {
   if (!requirements) {
     return undefined;
@@ -158,9 +139,7 @@ const normalizeFutureRequirements = (
   };
 };
 
-const normalizeTosAcceptance = (
-  tosAcceptance: Stripe.Account['tos_acceptance'],
-): TosAcceptance | undefined => {
+const normalizeTosAcceptance = (tosAcceptance: Stripe.Account['tos_acceptance']): TosAcceptance | undefined => {
   if (!tosAcceptance) {
     return undefined;
   }

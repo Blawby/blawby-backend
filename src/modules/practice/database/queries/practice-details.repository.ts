@@ -1,27 +1,19 @@
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import type {
-  InsertPracticeDetails,
-  PracticeDetails,
-} from '@/modules/practice/database/schema/practice.schema';
+import type { InsertPracticeDetails, PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
 import * as schema from '@/schema';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
-export const createPracticeDetails = async (
-  data: InsertPracticeDetails,
-): Promise<PracticeDetails> => {
-  const [practiceDetail] = await db
-    .insert(practiceDetails)
-    .values(data)
-    .returning();
+export const createPracticeDetails = async (data: InsertPracticeDetails): Promise<PracticeDetails> => {
+  const [practiceDetail] = await db.insert(practiceDetails).values(data).returning();
   return practiceDetail;
 };
 
 export const findPracticeDetailsByOrganization = async (
-  organizationId: string,
+  organizationId: string
 ): Promise<PracticeDetails | undefined> => {
   const [practiceDetail] = await db
     .select()
@@ -32,7 +24,7 @@ export const findPracticeDetailsByOrganization = async (
 };
 
 export const findPracticeWithOrganization = async (
-  organizationId: string,
+  organizationId: string
 ): Promise<{
   practice: PracticeDetails | null;
   organization: typeof organizations.$inferSelect | null;
@@ -43,10 +35,7 @@ export const findPracticeWithOrganization = async (
       organization: organizations,
     })
     .from(organizations)
-    .leftJoin(
-      practiceDetails,
-      eq(practiceDetails.organization_id, organizations.id),
-    )
+    .leftJoin(practiceDetails, eq(practiceDetails.organization_id, organizations.id))
     .where(eq(organizations.id, organizationId))
     .limit(1);
 
@@ -59,7 +48,7 @@ export const findPracticeWithOrganization = async (
 
 export const updatePracticeDetails = async (
   organizationId: string,
-  data: Partial<InsertPracticeDetails>,
+  data: Partial<InsertPracticeDetails>
 ): Promise<PracticeDetails | undefined> => {
   const [practiceDetail] = await db
     .update(practiceDetails)
@@ -72,7 +61,7 @@ export const updatePracticeDetails = async (
 export const upsertPracticeDetails = async (
   organizationId: string,
   userId: string,
-  data: Partial<InsertPracticeDetails>,
+  data: Partial<InsertPracticeDetails>
 ): Promise<PracticeDetails> => {
   const { id: _id, created_at: _created_at, updated_at: _updated_at, ...dataWithoutMetadata } = data;
   const [result] = await db
@@ -97,7 +86,7 @@ export const upsertPracticeDetails = async (
 export const insertOrIgnorePracticeDetails = async (
   organizationId: string,
   userId: string,
-  data: Partial<InsertPracticeDetails>,
+  data: Partial<InsertPracticeDetails>
 ): Promise<PracticeDetails | null> => {
   const { id: _id, created_at: _created_at, updated_at: _updated_at, ...dataWithoutMetadata } = data;
   const [result] = await db
@@ -118,9 +107,7 @@ export const insertOrIgnorePracticeDetails = async (
 
 export const deletePracticeDetails = async (
   db: NodePgDatabase<typeof schema>,
-  organizationId: string,
+  organizationId: string
 ): Promise<void> => {
-  await db
-    .delete(practiceDetails)
-    .where(eq(practiceDetails.organization_id, organizationId));
+  await db.delete(practiceDetails).where(eq(practiceDetails.organization_id, organizationId));
 };

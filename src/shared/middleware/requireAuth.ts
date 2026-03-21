@@ -83,4 +83,3 @@ export const requireAdmin = (): MiddlewareHandler<{ Variables: Variables }> => {
     return next();
   };
 };
-

@@ -53,10 +53,7 @@ const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => 
 /**
  * Helper to safely parse and validate metadata
  */
-const parseMetadata = <T>(
-  data: unknown,
-  guard: (obj: unknown) => obj is T,
-): T | null => {
+const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T | null => {
   if (data === null || data === undefined) return null;
 
   let parsed = data;
@@ -70,7 +67,6 @@ const parseMetadata = <T>(
 
   return guard(parsed) ? parsed : null;
 };
-
 
 /**
  * List all available subscription plans
@@ -96,7 +92,7 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
 const getCurrentSubscription = async (
   organizationId: string,
   _user: User,
-  _requestHeaders: Record<string, string>,
+  _requestHeaders: Record<string, string>
 ): Promise<Result<GetCurrentSubscriptionResponse>> => {
   try {
     // Manual query to handle text vs uuid type mismatch in database
@@ -123,10 +119,7 @@ const getCurrentSubscription = async (
         },
       })
       .from(organizations)
-      .leftJoin(
-        subscriptions,
-        eq(organizations.activeSubscriptionId, subscriptions.id),
-      )
+      .leftJoin(subscriptions, eq(organizations.activeSubscriptionId, subscriptions.id))
       .where(eq(organizations.id, organizationId))
       .limit(1);
 
@@ -199,10 +192,10 @@ const getCurrentSubscription = async (
         events: mappedEvents,
         plan: planResult
           ? {
-            ...planResult,
-            metadata: planResult.metadata ?? null,
-            metered_items: planResult.metered_items ?? null,
-          }
+              ...planResult,
+              metadata: planResult.metadata ?? null,
+              metered_items: planResult.metered_items ?? null,
+            }
           : null,
       },
     });
@@ -222,21 +215,19 @@ const createSubscription = async (
   organizationId: string,
   data: CreateSubscriptionRequest,
   user: User,
-  requestHeaders: Record<string, string>,
-): Promise<Result<{
-  subscription_id?: string;
-  checkout_url?: string;
-  message: string;
-}>> => {
+  requestHeaders: Record<string, string>
+): Promise<
+  Result<{
+    subscription_id?: string;
+    checkout_url?: string;
+    message: string;
+  }>
+> => {
   try {
     const authInstance = createBetterAuthInstance(db);
 
     // Verify organization exists
-    const [organization] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
 
     if (!organization) {
       return notFound('Organization not found');
@@ -255,7 +246,6 @@ const createSubscription = async (
 
     // Use plan name for Better Auth (Better Auth expects plan name, not UUID)
     const planName = plan.name;
-
 
     // Check if organization already has an active subscription
     if (organization.activeSubscriptionId) {
@@ -299,7 +289,7 @@ const cancelSubscription = async (
   organizationId: string,
   data: CancelSubscriptionRequest,
   _user: User,
-  requestHeaders: Record<string, string>,
+  requestHeaders: Record<string, string>
 ): Promise<Result<{ url: string; redirect: boolean }>> => {
   try {
     const authInstance = createBetterAuthInstance(db);

@@ -1,16 +1,8 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  json,
-  timestamp,
-  boolean,
-  integer,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, json, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
-import { users, organizations } from '@/schema';
+import { users, organizations } from '@/schema/better-auth-schema';
 
 // TypeScript types for JSON fields
 export type EventMetadata = {
@@ -120,20 +112,15 @@ export const baseEventSchema = z.object({
 
 export const selectEventSchema = createSelectSchema(events);
 
-export const createEventSubscriptionSchema = createInsertSchema(
-  eventSubscriptions,
-  {
-    eventType: z.string().min(1),
-    channel: z.enum(['email', 'webhook', 'in_app']),
-    config: z.record(z.string(), z.any()).default({}),
-  },
-);
+export const createEventSubscriptionSchema = createInsertSchema(eventSubscriptions, {
+  eventType: z.string().min(1),
+  channel: z.enum(['email', 'webhook', 'in_app']),
+  config: z.record(z.string(), z.any()).default({}),
+});
 
-export const updateEventSubscriptionSchema
-  = createEventSubscriptionSchema.partial();
+export const updateEventSubscriptionSchema = createEventSubscriptionSchema.partial();
 
-export const selectEventSubscriptionSchema
-  = createSelectSchema(eventSubscriptions);
+export const selectEventSubscriptionSchema = createSelectSchema(eventSubscriptions);
 
 // Request/Response schemas
 export const publishEventRequestSchema = z.object({
@@ -169,4 +156,3 @@ export type NewEventSubscription = typeof eventSubscriptions.$inferInsert;
 
 export type PublishEventRequest = z.infer<typeof publishEventRequestSchema>;
 export type EventTimelineQuery = z.infer<typeof eventTimelineQuerySchema>;
-

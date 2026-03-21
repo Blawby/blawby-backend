@@ -107,11 +107,15 @@ const auditLogResponseSchema = z.object({
 const errorResponseSchema = z.object({
   error: z.string(),
   message: z.string().optional(),
-  details: z.array(z.object({
-    field: z.string(),
-    message: z.string(),
-    code: z.string(),
-  })).optional(),
+  details: z
+    .array(
+      z.object({
+        field: z.string(),
+        message: z.string(),
+        code: z.string(),
+      })
+    )
+    .optional(),
 });
 
 const notFoundResponseSchema = z.object({

@@ -1,14 +1,4 @@
-import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  index,
-  unique,
-} from 'drizzle-orm/pg-core';
-import { invoices } from '@/modules/invoices/database/schema';
-import { matters } from '@/modules/matters/database/schema';
+import { pgTable, uuid, varchar, timestamp, index, unique } from 'drizzle-orm/pg-core';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
@@ -36,12 +26,8 @@ export const userDetails = pgTable(
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     deleted_by: uuid('deleted_by').references(() => users.id, { onDelete: 'set null' }),
 
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('user_details_org_idx').on(table.organization_id),
@@ -52,39 +38,11 @@ export const userDetails = pgTable(
     index('user_details_deleted_at_idx').on(table.deleted_at),
     index('user_details_created_at_idx').on(table.created_at),
     unique('user_details_org_user_unique').on(table.organization_id, table.user_id),
-  ],
+  ]
 );
-
-export const userDetailsRelations = relations(userDetails, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [userDetails.organization_id],
-    references: [organizations.id],
-  }),
-  user: one(users, {
-    fields: [userDetails.user_id],
-    references: [users.id],
-    relationName: 'user',
-  }),
-  intake: one(practiceClientIntakes, {
-    fields: [userDetails.intake_id],
-    references: [practiceClientIntakes.id],
-  }),
-  address: one(addresses, {
-    fields: [userDetails.address_id],
-    references: [addresses.id],
-  }),
-  deletedByUser: one(users, {
-    fields: [userDetails.deleted_by],
-    references: [users.id],
-    relationName: 'deletedBy',
-  }),
-  invoices: many(invoices),
-  matters: many(matters),
-}));
 
 export const userDetailsSchema = {
   userDetails,
-  userDetailsRelations,
 };
 
 export type InsertUserDetail = typeof userDetails.$inferInsert;

@@ -32,11 +32,7 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
 
   try {
     // Get organization details for event context
-    const orgResults = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
+    const orgResults = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
 
     const org = orgResults[0];
     if (!org) {
@@ -48,45 +44,47 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
 
     // Note: This handler processes events, so we can't use transactions
     // Event is written directly to database for guaranteed persistence
-    void OnboardingCompletedProcessed.dispatch({
-      organization_id: organizationId,
-      organization_name: org.name,
-      billing_email: org.billingEmail,
-      stripe_customer_id: org.stripeCustomerId,
-      onboarding_completed_at: new Date().toISOString(),
-    }, {
-      actorId: organizationId,
-      organizationId,
-    });
+    void OnboardingCompletedProcessed.dispatch(
+      {
+        organization_id: organizationId,
+        organization_name: org.name,
+        billing_email: org.billingEmail,
+        stripe_customer_id: org.stripeCustomerId,
+        onboarding_completed_at: new Date().toISOString(),
+      },
+      {
+        actorId: organizationId,
+        organizationId,
+      }
+    );
 
-    void PracticeUpdated.dispatch({
-      organization_id: organizationId,
-      organization_name: org.name,
-      update_type: 'onboarding_completed',
-      updated_at: new Date().toISOString(),
-    }, {
-      actorId: SYSTEM_ACTOR_UUID,
-      organizationId,
-    });
+    void PracticeUpdated.dispatch(
+      {
+        organization_id: organizationId,
+        organization_name: org.name,
+        update_type: 'onboarding_completed',
+        updated_at: new Date().toISOString(),
+      },
+      {
+        actorId: SYSTEM_ACTOR_UUID,
+        organizationId,
+      }
+    );
 
     // Send Stripe Connect welcome email (fire and forget)
     const payload = event.payload as Record<string, unknown>;
-    const email = typeof payload.billing_email === 'string' ? payload.billing_email : (org.billingEmail || undefined);
-    const name = typeof payload.organization_name === 'string' ? payload.organization_name : org.name;
+    const email =
+      typeof payload['billing_email'] === 'string' ? payload['billing_email'] : org.billingEmail || undefined;
+    const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
 
     if (email) {
-      void addEmailJob(
-        EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME,
-        email,
-        'Your Stripe account is connected!',
-        {
-          recipientEmail: email,
-          recipientName: name,
-          dashboardUrl: `${APP_URL}/dashboard`,
-          tutorialUrl: `${APP_URL}/docs/payments`,
-          supportUrl: 'https://blawby.com/help',
-        },
-      ).catch((error: unknown) => {
+      void addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
+        recipientEmail: email,
+        recipientName: name,
+        dashboardUrl: `${APP_URL}/dashboard`,
+        tutorialUrl: `${APP_URL}/docs/payments`,
+        supportUrl: 'https://blawby.com/help',
+      }).catch((error: unknown) => {
         logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {
           organizationId,
           error,

@@ -5,9 +5,7 @@ import { upsertAddressTx } from '@/modules/practice/database/queries/address.rep
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
-import {
-  type SelectUserDetail,
-} from '@/modules/user-details/database/schema/user-details.schema';
+import { type SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
 import { users } from '@/schema/better-auth-schema';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { db } from '@/shared/database';
@@ -20,7 +18,6 @@ import { ok, internalError, notFound, type AcceptedResponse } from '@/shared/uti
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['user-details', 'service']);
-
 
 type AddressInput = {
   line1?: string;
@@ -41,13 +38,15 @@ const createUserDetails = async (
     status?: string;
     currency?: string;
   },
-  actorId: string,
-): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect } | AcceptedResponse>> => {
+  actorId: string
+): Promise<Result<(SelectUserDetail & { user: typeof users.$inferSelect }) | AcceptedResponse>> => {
   // Variables to capture for post-transaction event dispatch
-  let eventData: {
-    detail: SelectUserDetail;
-    user: typeof users.$inferSelect;
-  } | undefined;
+  let eventData:
+    | {
+        detail: SelectUserDetail;
+        user: typeof users.$inferSelect;
+      }
+    | undefined;
 
   const txResult = await db.transaction(async (tx) => {
     try {
@@ -71,24 +70,26 @@ const createUserDetails = async (
         });
       }
 
-
       // 3. Create Stripe customer on CONNECTED ACCOUNT
       const connectedAccount = await onboardingRepository.findByOrganizationId(organizationId);
       let stripeCustomerId: string | undefined;
 
       if (connectedAccount?.stripe_account_id) {
         try {
-          const stripeCustomer = await stripe.customers.create({
-            email: user.email,
-            name: user.name,
-            phone: user.phone || undefined,
-            metadata: {
-              organization_id: organizationId,
-              source: 'blawby_clients_api',
+          const stripeCustomer = await stripe.customers.create(
+            {
+              email: user.email,
+              name: user.name,
+              phone: user.phone || undefined,
+              metadata: {
+                organization_id: organizationId,
+                source: 'blawby_clients_api',
+              },
             },
-          }, {
-            stripeAccount: connectedAccount.stripe_account_id,
-          });
+            {
+              stripeAccount: connectedAccount.stripe_account_id,
+            }
+          );
           stripeCustomerId = stripeCustomer.id;
         } catch (stripeError) {
           logger.error('Failed to create Stripe customer for user-detail {email}: {error}', {
@@ -139,18 +140,20 @@ const createUserDetails = async (
 
   // 6. Publish event AFTER transaction commits successfully
   if (txResult.success && eventData) {
-    void UserDetailsCreated.dispatch({
-      user_detail_id: eventData.detail.id,
-      user_id: eventData.user.id,
-      name: eventData.user.name,
-      email: eventData.user.email,
-      stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
-    }, { actorId, organizationId });
+    void UserDetailsCreated.dispatch(
+      {
+        user_detail_id: eventData.detail.id,
+        user_id: eventData.user.id,
+        name: eventData.user.name,
+        email: eventData.user.email,
+        stripe_customer_id: eventData.detail.stripe_customer_id ?? undefined,
+      },
+      { actorId, organizationId }
+    );
   }
 
   return txResult;
 };
-
 
 /**
  * Ensures a client is fully set up (Stripe customer created, events dispatched).
@@ -159,7 +162,7 @@ const createUserDetails = async (
 const ensureClientSetup = async (
   id: string,
   organizationId: string,
-  actorId: string,
+  actorId: string
 ): Promise<Result<SelectUserDetail & { user: typeof users.$inferSelect }>> => {
   try {
     const detail = await userDetailsRepository.findById(id);
@@ -175,17 +178,20 @@ const ensureClientSetup = async (
       const connectedAccount = await onboardingRepository.findByOrganizationId(organizationId);
       if (connectedAccount?.stripe_account_id) {
         try {
-          const stripeCustomer = await stripe.customers.create({
-            email: user.email,
-            name: user.name,
-            phone: user.phone || undefined,
-            metadata: {
-              organization_id: organizationId,
-              source: 'auto_vivification_sync',
+          const stripeCustomer = await stripe.customers.create(
+            {
+              email: user.email,
+              name: user.name,
+              phone: user.phone || undefined,
+              metadata: {
+                organization_id: organizationId,
+                source: 'auto_vivification_sync',
+              },
             },
-          }, {
-            stripeAccount: connectedAccount.stripe_account_id,
-          });
+            {
+              stripeAccount: connectedAccount.stripe_account_id,
+            }
+          );
 
           await userDetailsRepository.update(id, {
             stripe_customer_id: stripeCustomer.id,
@@ -193,20 +199,24 @@ const ensureClientSetup = async (
           detail.stripe_customer_id = stripeCustomer.id;
         } catch (stripeError) {
           logger.error('Failed to create background Stripe customer for {id}: {error}', {
-            id, error: stripeError,
+            id,
+            error: stripeError,
           });
         }
       }
     }
 
     // 2. Publish event if it hasn't been handled yet (minimal check)
-    void UserDetailsCreated.dispatch({
-      user_detail_id: detail.id,
-      user_id: user.id,
-      name: user.name,
-      email: user.email,
-      stripe_customer_id: detail.stripe_customer_id ?? undefined,
-    }, { actorId, organizationId });
+    void UserDetailsCreated.dispatch(
+      {
+        user_detail_id: detail.id,
+        user_id: user.id,
+        name: user.name,
+        email: user.email,
+        stripe_customer_id: detail.stripe_customer_id ?? undefined,
+      },
+      { actorId, organizationId }
+    );
 
     return ok({ ...detail, user });
   } catch (error) {
@@ -214,7 +224,6 @@ const ensureClientSetup = async (
     return internalError('Failed to complete client setup');
   }
 };
-
 
 const updateUserDetails = async (
   id: string,
@@ -227,7 +236,7 @@ const updateUserDetails = async (
     status?: string;
     currency?: string;
   },
-  actorId: string,
+  actorId: string
 ): Promise<Result<SelectUserDetail>> => {
   return await db.transaction(async (tx) => {
     try {
@@ -252,13 +261,17 @@ const updateUserDetails = async (
           const connectedAccount = await onboardingRepository.findByOrganizationId(organizationId);
           if (connectedAccount?.stripe_account_id) {
             try {
-              await stripe.customers.update(detailWithUser.stripe_customer_id, {
-                email: data.email || undefined,
-                name: data.name || undefined,
-                phone: data.phone || undefined,
-              }, {
-                stripeAccount: connectedAccount.stripe_account_id,
-              });
+              await stripe.customers.update(
+                detailWithUser.stripe_customer_id,
+                {
+                  email: data.email || undefined,
+                  name: data.name || undefined,
+                  phone: data.phone || undefined,
+                },
+                {
+                  stripeAccount: connectedAccount.stripe_account_id,
+                }
+              );
             } catch (stripeError) {
               logger.error('Failed to update Stripe customer {customerId}: {error}', {
                 customerId: detailWithUser.stripe_customer_id,
@@ -296,10 +309,13 @@ const updateUserDetails = async (
       });
       if (!updated) return internalError('Failed to update user details');
 
-      await UserDetailsUpdated.dispatch({
-        user_detail_id: updated.id,
-        changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
-      }, { actorId, organizationId, tx: tx });
+      await UserDetailsUpdated.dispatch(
+        {
+          user_detail_id: updated.id,
+          changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
+        },
+        { actorId, organizationId, tx: tx }
+      );
 
       return ok(updated);
     } catch (error) {
@@ -316,11 +332,12 @@ const listUserDetails = async (params: {
   status?: string;
   limit?: number;
   offset?: number;
-}): Promise<Result<{
-  data:
-  (SelectUserDetail & { user: typeof users.$inferSelect; address: Address | null })[];
-  total: number;
-}>> => {
+}): Promise<
+  Result<{
+    data: (SelectUserDetail & { user: typeof users.$inferSelect; address: Address | null })[];
+    total: number;
+  }>
+> => {
   try {
     const result = await userDetailsRepository.listClients(params);
     return ok(result);
@@ -330,16 +347,13 @@ const listUserDetails = async (params: {
   }
 };
 
-
 const resolveUserForIntake = async (params: {
   userId?: string;
   email: string;
   name: string;
   phone?: string;
 }): Promise<typeof users.$inferSelect | undefined> => {
-  const {
-    userId, email, name, phone,
-  } = params;
+  const { userId, email, name, phone } = params;
   const existingUserByEmail = await usersRepository.findByEmail(email);
 
   // 1. Check if we have a valid session user
@@ -428,14 +442,15 @@ const createUserDetailsFromIntake = async (params: {
   phone?: string;
   metadata?: Record<string, unknown>;
 }): Promise<Result<SelectUserDetail>> => {
-  const {
-    organizationId, intakeId, userId, email, name, phone,
-  } = params;
+  const { organizationId, intakeId, userId, email, name, phone } = params;
 
   try {
     // 1. Identify user - prefer session user, fallback to email lookup
     const user = await resolveUserForIntake({
-      userId, email, name, phone,
+      userId,
+      email,
+      name,
+      phone,
     });
 
     if (!user) {
@@ -447,7 +462,6 @@ const createUserDetailsFromIntake = async (params: {
       return internalError('Unable to process intake. Please sign in or create an account first.');
     }
 
-
     // 2. Create/find organization membership with role: 'client'
     let member = await membersRepository.findByOrgAndUser({ organizationId, userId: user.id });
     if (!member) {
@@ -457,7 +471,6 @@ const createUserDetailsFromIntake = async (params: {
         role: 'client',
       });
     }
-
 
     // 3. Fetch intake record to get address_id
     const intake = await practiceClientIntakesRepository.findById(intakeId);
@@ -485,18 +498,21 @@ const createUserDetailsFromIntake = async (params: {
 
     if (connectedAccount?.stripe_account_id) {
       try {
-        const stripeCustomer = await stripe.customers.create({
-          email: user.email,
-          name: user.name,
-          phone: user.phone || undefined,
-          metadata: {
-            organization_id: organizationId,
-            intake_id: intakeId,
-            source: 'blawby_intake',
+        const stripeCustomer = await stripe.customers.create(
+          {
+            email: user.email,
+            name: user.name,
+            phone: user.phone || undefined,
+            metadata: {
+              organization_id: organizationId,
+              intake_id: intakeId,
+              source: 'blawby_intake',
+            },
           },
-        }, {
-          stripeAccount: connectedAccount.stripe_account_id,
-        });
+          {
+            stripeAccount: connectedAccount.stripe_account_id,
+          }
+        );
         stripeCustomerId = stripeCustomer.id;
       } catch (stripeError) {
         logger.error('Failed to create Stripe customer from intake for {email}: {error}', {
@@ -518,13 +534,16 @@ const createUserDetailsFromIntake = async (params: {
     });
 
     // 6. Publish event
-    void UserDetailsCreated.dispatch({
-      user_detail_id: detail.id,
-      user_id: user.id,
-      name: user.name,
-      email: user.email,
-      stripe_customer_id: detail.stripe_customer_id ?? undefined,
-    }, { actorId: 'system', actorType: 'system', organizationId });
+    void UserDetailsCreated.dispatch(
+      {
+        user_detail_id: detail.id,
+        user_id: user.id,
+        name: user.name,
+        email: user.email,
+        stripe_customer_id: detail.stripe_customer_id ?? undefined,
+      },
+      { actorId: 'system', actorType: 'system', organizationId }
+    );
 
     return ok(detail);
   } catch (error) {

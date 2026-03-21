@@ -5,14 +5,7 @@
  */
 
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-  jsonb,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, jsonb, index } from 'drizzle-orm/pg-core';
 import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 import { subscriptions } from '@/schema/better-auth-schema';
 
@@ -29,12 +22,12 @@ export const SUBSCRIPTION_EVENT_TYPES = [
   'trial_ended',
 ] as const;
 
-export type SubscriptionEventType = typeof SUBSCRIPTION_EVENT_TYPES[number];
+export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
 
 // Triggered by type enum
 export const SUBSCRIPTION_TRIGGERED_BY_TYPES = ['user', 'system', 'webhook'] as const;
 
-export type SubscriptionTriggeredByType = typeof SUBSCRIPTION_TRIGGERED_BY_TYPES[number];
+export type SubscriptionTriggeredByType = (typeof SUBSCRIPTION_TRIGGERED_BY_TYPES)[number];
 
 export const subscriptionEvents = pgTable(
   'subscription_events',
@@ -72,7 +65,7 @@ export const subscriptionEvents = pgTable(
     index('subscription_events_type_idx').on(table.event_type),
     index('subscription_events_created_at_idx').on(table.created_at),
     index('subscription_events_plan_idx').on(table.plan_id),
-  ],
+  ]
 );
 
 export const subscriptionEventsRelations = relations(subscriptionEvents, ({ one }) => ({
@@ -93,4 +86,3 @@ export const subscriptionEventsRelations = relations(subscriptionEvents, ({ one 
 // Type exports
 export type SubscriptionEvent = typeof subscriptionEvents.$inferSelect;
 export type NewSubscriptionEvent = typeof subscriptionEvents.$inferInsert;
-

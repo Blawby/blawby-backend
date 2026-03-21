@@ -1,6 +1,4 @@
-import {
-  eq, and, desc, gte, lte, isNull,
-} from 'drizzle-orm';
+import { eq, and, desc, gte, lte, isNull } from 'drizzle-orm';
 import {
   trustTransactions,
   type InsertTrustTransaction,
@@ -11,15 +9,9 @@ import { db } from '@/shared/database';
 /**
  * Create a trust transaction record.
  */
-const createTransaction = async (
-  data: InsertTrustTransaction,
-  tx?: typeof db,
-): Promise<SelectTrustTransaction> => {
-  const client = tx || db;
-  const records = await client
-    .insert(trustTransactions)
-    .values(data)
-    .returning();
+const createTransaction = async (data: InsertTrustTransaction, tx?: typeof db): Promise<SelectTrustTransaction> => {
+  const client = tx ?? db;
+  const records = await client.insert(trustTransactions).values(data).returning();
   const [record] = records;
   if (!record) {
     throw new Error('Failed to create trust transaction: no row returned');
@@ -69,9 +61,7 @@ const listByOrg = async (params: {
   startDate?: Date;
   endDate?: Date;
 }): Promise<SelectTrustTransaction[]> => {
-  const conditions = [
-    eq(trustTransactions.organization_id, params.organizationId),
-  ];
+  const conditions = [eq(trustTransactions.organization_id, params.organizationId)];
 
   if (params.clientId) {
     conditions.push(eq(trustTransactions.client_id, params.clientId));
@@ -100,21 +90,16 @@ const listByOrg = async (params: {
 const getLatestBalanceByClient = async (
   organizationId: string,
   clientId: string,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<{ matter_id: string | null; balance: number }[]> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const rows = await client
     .selectDistinctOn([trustTransactions.matter_id], {
       matter_id: trustTransactions.matter_id,
       balance: trustTransactions.balance_after,
     })
     .from(trustTransactions)
-    .where(
-      and(
-        eq(trustTransactions.organization_id, organizationId),
-        eq(trustTransactions.client_id, clientId),
-      ),
-    )
+    .where(and(eq(trustTransactions.organization_id, organizationId), eq(trustTransactions.client_id, clientId)))
     .orderBy(trustTransactions.matter_id, desc(trustTransactions.created_at));
 
   return rows.map((r) => ({ matter_id: r.matter_id, balance: Number(r.balance) }));
@@ -127,13 +112,13 @@ const getLatestBalanceForMatter = async (
   organizationId: string,
   clientId: string,
   matterId: string | null,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<{ balance: number } | undefined> => {
   if (!tx) {
     throw new Error('Transaction is required for getLatestBalanceForMatter due to row locking (.for update)');
   }
   const client = tx;
-  type Condition = ReturnType<typeof eq> | ReturnType<typeof isNull>;
+  type Condition = ReturnType<typeof eq>;
   const conditions: Condition[] = [
     eq(trustTransactions.organization_id, organizationId),
     eq(trustTransactions.client_id, clientId),
@@ -150,7 +135,7 @@ const getLatestBalanceForMatter = async (
     .orderBy(desc(trustTransactions.created_at))
     .limit(1)
     .for('update');
-  
+
   return row ? { balance: Number(row.balance) } : undefined;
 };
 

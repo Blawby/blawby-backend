@@ -101,7 +101,8 @@ const onboardingPreferencesSchema = z.object({
     example: false,
   }),
   practice_welcome_shown: z.boolean().optional().openapi({
-    description: 'Whether the practice welcome modal has been shown. Omit or false to show modal; set to true when dismissed.',
+    description:
+      'Whether the practice welcome modal has been shown. Omit or false to show modal; set to true when dismissed.',
     example: false,
   }),
 });
@@ -115,7 +116,6 @@ const profilePreferencesSchema = z.object({
 // Category validation - uses PREFERENCE_CATEGORIES from types as single source of truth
 const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 
-
 // Legacy schema (for backward compatibility during migration)
 // Note: phone and dob should be updated via Better Auth updateUser endpoint
 const updateUserDetailsSchema = z.object({
@@ -124,7 +124,6 @@ const updateUserDetailsSchema = z.object({
   dob: z.iso.date().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
 });
-
 
 // Response schemas for OpenAPI documentation
 const preferencesResponseSchema = z
@@ -154,11 +153,15 @@ const errorResponseSchema = z
   .object({
     error: z.string(),
     message: z.string().optional(),
-    details: z.array(z.object({
-      field: z.string(),
-      message: z.string(),
-      code: z.string(),
-    })).optional(),
+    details: z
+      .array(
+        z.object({
+          field: z.string(),
+          message: z.string(),
+          code: z.string(),
+        })
+      )
+      .optional(),
   })
   .openapi('ErrorResponse');
 

@@ -26,7 +26,7 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
         <td style="color: #6b7280; font-size: 14px; padding-bottom: 16px;">Qty ${item.quantity}</td>
         <td></td>
       </tr>
-    `,
+    `
     )
     .join('');
 
@@ -94,7 +94,7 @@ export const customerPaymentRequest = (data: CustomerPaymentRequestData): string
       </mj-column>
     `)}
   `,
-    data.teamPhotoUrl,
+    data.teamPhotoUrl
   );
 
   return renderMjml(mjmlContent);

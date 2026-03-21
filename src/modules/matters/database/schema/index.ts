@@ -1,4 +1,5 @@
 export * from './matters.schema';
+export * from './matters-relations.schema';
 export * from './matter-assignees.schema';
 export * from './matter-notes.schema';
 export * from './matter-time-entries.schema';

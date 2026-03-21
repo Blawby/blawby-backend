@@ -1,21 +1,12 @@
-import {
-  eq, and, isNull, sql, desc,
-} from 'drizzle-orm';
-import type {
-  InvoiceWithRelations,
-  InvoiceSummary,
-  InvoiceListFilters,
-} from '@/modules/invoices/types/invoices.types';
-import {
-  invoicesSchema,
-  invoiceLineItemsSchema,
-} from '@/modules/invoices/database/schema';
+import { eq, and, isNull, sql, desc } from 'drizzle-orm';
+import { invoicesSchema, invoiceLineItemsSchema } from '@/modules/invoices/database/schema';
 import type {
   InsertInvoice,
   SelectInvoice,
   InsertInvoiceLineItem,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/database/schema';
+import type { InvoiceWithRelations, InvoiceSummary, InvoiceListFilters } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
 const { invoices } = invoicesSchema;
@@ -24,15 +15,14 @@ const { invoiceLineItems } = invoiceLineItemsSchema;
 /**
  * Create a new invoice
  */
-const createInvoice = async (
-  data: InsertInvoice,
-  tx?: typeof db,
-): Promise<SelectInvoice> => {
-  const client = tx || db;
-  const [invoice] = await client
-    .insert(invoices)
-    .values(data)
-    .returning();
+const createInvoice = async (data: InsertInvoice, tx?: typeof db): Promise<SelectInvoice> => {
+  const client = tx ?? db;
+  const [invoice] = await client.insert(invoices).values(data).returning();
+
+  if (!invoice) {
+    throw new Error('Failed to create invoice');
+  }
+
   return invoice;
 };
 
@@ -42,15 +32,11 @@ const createInvoice = async (
 const findInvoiceById = async (
   id: string,
   organizationId: string,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.query.invoices.findFirst({
-    where: and(
-      eq(invoices.id, id),
-      eq(invoices.organization_id, organizationId),
-      isNull(invoices.deleted_at),
-    ),
+    where: and(eq(invoices.id, id), eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)),
     with: {
       lineItems: {
         orderBy: (li, { asc }) => [asc(li.sort_order)],
@@ -71,14 +57,11 @@ const findInvoiceById = async (
  */
 const findInvoiceByStripeId = async (
   stripeInvoiceId: string,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.query.invoices.findFirst({
-    where: and(
-      eq(invoices.stripe_invoice_id, stripeInvoiceId),
-      isNull(invoices.deleted_at),
-    ),
+    where: and(eq(invoices.stripe_invoice_id, stripeInvoiceId), isNull(invoices.deleted_at)),
     with: {
       lineItems: true,
       client: {
@@ -95,20 +78,14 @@ const findInvoiceByStripeId = async (
  */
 const listInvoicesByOrganization = async (
   organizationId: string,
-  filters?: InvoiceListFilters,
+  filters?: InvoiceListFilters
 ): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
-  const page = filters?.page || 1;
-  const limit = filters?.limit || 20;
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
   const offset = (page - 1) * limit;
 
-  const conditions = [
-    eq(invoices.organization_id, organizationId),
-    isNull(invoices.deleted_at),
-  ];
+  const conditions = [eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)];
 
-  if (filters?.invoice_id) {
-    conditions.push(eq(invoices.id, filters.invoice_id));
-  }
   if (filters?.client_id) {
     conditions.push(eq(invoices.client_id, filters.client_id));
   }
@@ -140,7 +117,7 @@ const listInvoicesByOrganization = async (
 
   return {
     invoices: results,
-    total: Number(countResult.count),
+    total: Number(countResult?.count ?? 0),
   };
 };
 
@@ -151,14 +128,44 @@ const updateInvoice = async (
   id: string,
   organizationId: string,
   data: Partial<InsertInvoice>,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [invoice] = await client
     .update(invoices)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId)))
     .returning();
+  return invoice;
+};
+
+/**
+ * Transition invoice status atomically (only when current status matches expected)
+ */
+const transitionInvoiceStatus = async (
+  id: string,
+  organizationId: string,
+  fromStatus: string,
+  toStatus: string,
+  tx?: typeof db
+): Promise<SelectInvoice | undefined> => {
+  const client = tx ?? db;
+  const [invoice] = await client
+    .update(invoices)
+    .set({
+      status: toStatus,
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(invoices.id, id),
+        eq(invoices.organization_id, organizationId),
+        eq(invoices.status, fromStatus),
+        isNull(invoices.deleted_at)
+      )
+    )
+    .returning();
+
   return invoice;
 };
 
@@ -169,9 +176,9 @@ const softDeleteInvoice = async (
   id: string,
   organizationId: string,
   deletedBy: string | null,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [invoice] = await client
     .update(invoices)
     .set({
@@ -189,26 +196,18 @@ const softDeleteInvoice = async (
  */
 const createInvoiceLineItems = async (
   items: InsertInvoiceLineItem[],
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<SelectInvoiceLineItem[]> => {
-  const client = tx || db;
-  return await client
-    .insert(invoiceLineItems)
-    .values(items)
-    .returning();
+  const client = tx ?? db;
+  return await client.insert(invoiceLineItems).values(items).returning();
 };
 
 /**
  * Delete line items for an invoice
  */
-const deleteInvoiceLineItems = async (
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<void> => {
-  const client = tx || db;
-  await client
-    .delete(invoiceLineItems)
-    .where(eq(invoiceLineItems.invoice_id, invoiceId));
+const deleteInvoiceLineItems = async (invoiceId: string, tx?: typeof db): Promise<void> => {
+  const client = tx ?? db;
+  await client.delete(invoiceLineItems).where(eq(invoiceLineItems.invoice_id, invoiceId));
 };
 
 /**
@@ -218,11 +217,11 @@ const findManyByClientId = async (
   organizationId: string,
   userDetailId: string,
   filters?: { status?: string; page?: number; limit?: number },
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
-  const client = tx || db;
-  const page = filters?.page || 1;
-  const limit = filters?.limit || 20;
+  const client = tx ?? db;
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
   const offset = (page - 1) * limit;
   const conditions: Parameters<typeof and>[0][] = [
     eq(invoices.organization_id, organizationId),
@@ -262,15 +261,15 @@ const findOneByIdAndClientId = async (
   organizationId: string,
   invoiceId: string,
   userDetailId: string,
-  tx?: typeof db,
+  tx?: typeof db
 ): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.query.invoices.findFirst({
     where: and(
       eq(invoices.id, invoiceId),
       eq(invoices.organization_id, organizationId),
       eq(invoices.client_id, userDetailId),
-      isNull(invoices.deleted_at),
+      isNull(invoices.deleted_at)
     ),
     with: {
       lineItems: { orderBy: (li, { asc }) => [asc(li.sort_order)] },
@@ -292,6 +291,7 @@ export const invoicesRepository = {
   findManyByClientId,
   findOneByIdAndClientId,
   updateInvoice,
+  transitionInvoiceStatus,
   softDeleteInvoice,
   createInvoiceLineItems,
   deleteInvoiceLineItems,

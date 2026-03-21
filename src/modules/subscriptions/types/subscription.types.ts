@@ -62,7 +62,6 @@ export type RestoreSubscriptionBody = {
   customer_type?: 'user' | 'organization';
 };
 
-
 export type UpgradeSubscriptionResponse = {
   subscriptionId?: string;
   url?: string;

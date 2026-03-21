@@ -12,10 +12,7 @@ import subscriptionWebhooksService from '@/modules/subscriptions/services/subscr
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
-import {
-  isPaymentIntentEvent,
-  isSubscriptionEvent,
-} from '@/shared/utils/stripeGuards';
+import { isPaymentIntentEvent, isSubscriptionEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['app', 'worker', 'stripe-webhook']);
 
@@ -32,9 +29,9 @@ interface ProcessStripeWebhookPayload {
  */
 const isOnboardingEvent = (eventType: string): boolean => {
   return (
-    eventType.startsWith('account.')
-    || eventType.startsWith('capability.')
-    || eventType.startsWith('account.external_account.')
+    eventType.startsWith('account.') ||
+    eventType.startsWith('capability.') ||
+    eventType.startsWith('account.external_account.')
   );
 };
 

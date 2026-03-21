@@ -26,7 +26,7 @@ type ValidationError = Error & {
  */
 export const validateParams = <T extends z.ZodType>(
   schema: T,
-  errorMessage = 'Invalid parameters',
+  errorMessage = 'Invalid parameters'
 ): MiddlewareHandler<{ Variables: Variables & { validatedParams: z.infer<T> } }> => {
   return async (c, next) => {
     const params = c.req.param();
@@ -43,13 +43,16 @@ export const validateParams = <T extends z.ZodType>(
         stack: JSON.stringify(validationResult.error.issues),
       });
 
-
       // Return the proper response directly instead of throwing
-      return response.badRequest(c, errorMessage, validationResult.error.issues.map((issue) => ({
-        field: issue.path.join('.'),
-        message: issue.message,
-        code: issue.code,
-      })));
+      return response.badRequest(
+        c,
+        errorMessage,
+        validationResult.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+        }))
+      );
     }
 
     // Store validated params in context for use in route handler
@@ -64,7 +67,7 @@ export const validateParams = <T extends z.ZodType>(
  */
 export const validateJson = <T extends z.ZodTypeAny>(
   schema: T,
-  errorMessage = 'Invalid request data',
+  errorMessage = 'Invalid request data'
 ): MiddlewareHandler<{ Variables: Variables & { validatedBody: z.infer<T> } }> => {
   return async (c, next) => {
     try {
@@ -88,15 +91,19 @@ export const validateJson = <T extends z.ZodTypeAny>(
             field: issue.path.join('.'),
             message: issue.message,
             code: issue.code,
-          }))
+          })),
         });
 
         // Return the proper response directly instead of throwing
-        return response.badRequest(c, errorMessage, validationResult.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-          code: issue.code,
-        })));
+        return response.badRequest(
+          c,
+          errorMessage,
+          validationResult.error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code,
+          }))
+        );
       }
 
       // Store validated body in context for use in route handler
@@ -130,17 +137,13 @@ export const validateJson = <T extends z.ZodTypeAny>(
  * Combined parameter and JSON validation middleware
  * Validates both route parameters and request body
  */
-export const validateParamsAndJson = <
-  TParams extends z.ZodTypeAny,
-  TBody extends z.ZodTypeAny
->(
+export const validateParamsAndJson = <TParams extends z.ZodTypeAny, TBody extends z.ZodTypeAny>(
   paramSchema: TParams,
   bodySchema: TBody,
   paramErrorMessage = 'Invalid parameters',
-  bodyErrorMessage = 'Invalid request data',
+  bodyErrorMessage = 'Invalid request data'
 ): MiddlewareHandler<{
-  Variables: Variables
-  & { validatedParams: z.infer<TParams>; validatedBody: z.infer<TBody> };
+  Variables: Variables & { validatedParams: z.infer<TParams>; validatedBody: z.infer<TBody> };
 }> => {
   return async (c, next) => {
     // Validate parameters
@@ -164,15 +167,19 @@ export const validateParamsAndJson = <
           field: issue.path.join('.'),
           message: issue.message,
           code: issue.code,
-        }))
+        })),
       });
 
       // Return the proper response directly instead of throwing
-      return response.badRequest(c, paramErrorMessage, paramValidation.error.issues.map((issue) => ({
-        field: issue.path.join('.'),
-        message: issue.message,
-        code: issue.code,
-      })));
+      return response.badRequest(
+        c,
+        paramErrorMessage,
+        paramValidation.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+        }))
+      );
     }
 
     // Validate JSON body
@@ -208,15 +215,19 @@ export const validateParamsAndJson = <
             field: issue.path.join('.'),
             message: issue.message,
             code: issue.code,
-          }))
+          })),
         });
 
         // Return the proper response directly instead of throwing
-        return response.badRequest(c, bodyErrorMessage, bodyValidation.error.issues.map((issue) => ({
-          field: issue.path.join('.'),
-          message: issue.message,
-          code: issue.code,
-        })));
+        return response.badRequest(
+          c,
+          bodyErrorMessage,
+          bodyValidation.error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+            code: issue.code,
+          }))
+        );
       }
 
       // Store validated data in context

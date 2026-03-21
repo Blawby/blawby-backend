@@ -6,50 +6,53 @@
 
 import type { Context } from 'hono';
 import { preferencesService } from './services/preferences.service';
-import { response } from '@/shared/utils/responseUtils';
 import type { PreferenceCategory } from '@/modules/preferences/types/preferences.types';
+import { getServiceContext } from '@/shared/types/service-context';
+import { response } from '@/shared/utils/responseUtils';
 
 /**
  * GET /api/preferences - Get all preferences
  */
-export const getAllPreferences = async (c: Context) => {
-  const user = c.get('user')!; // Auth middleware guarantees user is non-null
-  const result = await preferencesService.getPreferences(user.id);
+const getAllPreferences = async (c: Context) => {
+  const ctx = getServiceContext(c);
+  const result = await preferencesService.getPreferences(ctx);
   return response.fromResult(c, result);
 };
 
 /**
  * GET /api/preferences/:category - Get preferences by category
  */
-export const getCategoryPreferences = async (c: Context) => {
-  const user = c.get('user')!;
+const getCategoryPreferences = async (c: Context) => {
+  const ctx = getServiceContext(c);
   const category = c.req.param('category') as PreferenceCategory;
-  const result = await preferencesService.getPreferencesByCategory(user.id, category);
+  const result = await preferencesService.getPreferencesByCategory(category, ctx);
   return response.fromResult(c, result);
 };
 
 /**
  * PUT /api/preferences/:category - Update preferences by category
  */
-export const updateCategoryPreferences = async (c: Context) => {
-  const user = c.get('user')!;
+const updateCategoryPreferences = async (c: Context) => {
+  const ctx = getServiceContext(c);
   const category = c.req.param('category') as PreferenceCategory;
   const validatedBody = c.get('validatedBody');
 
   const result = await preferencesService.updatePreferencesByCategory(
-    user.id,
     category,
     validatedBody as Record<string, unknown>,
+    ctx
   );
 
   return response.fromResult(c, result);
 };
 
 /**
- * Legacy handlers for backward compatibility
+ * Preferences Handlers
  */
-export const getDetails = getAllPreferences;
-export const updateDetails = async (c: Context) => {
-  // Legacy endpoint - update profile category
-  return updateCategoryPreferences(c);
+export const preferencesHandlers = {
+  getAllPreferences,
+  getCategoryPreferences,
+  updateCategoryPreferences,
 };
+
+export default preferencesHandlers;

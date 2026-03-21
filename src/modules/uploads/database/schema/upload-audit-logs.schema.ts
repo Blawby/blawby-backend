@@ -1,16 +1,8 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  timestamp,
-  jsonb,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 
-import { users } from '@/schema';
-import { organizations } from '@/schema';
+import { users } from '@/schema/better-auth-schema';
+import { organizations } from '@/schema/better-auth-schema';
 import { uploads } from './uploads.schema';
 
 export const uploadAuditLogs = pgTable(
@@ -35,9 +27,7 @@ export const uploadAuditLogs = pgTable(
     // Additional context
     metadata: jsonb('metadata'), // Any additional action-specific data
 
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('audit_logs_upload_idx').on(table.upload_id),
@@ -45,7 +35,7 @@ export const uploadAuditLogs = pgTable(
     index('audit_logs_action_idx').on(table.action),
     index('audit_logs_user_idx').on(table.user_id),
     index('audit_logs_created_at_idx').on(table.created_at),
-  ],
+  ]
 );
 
 // Define relations

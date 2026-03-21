@@ -1,9 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import type Stripe from 'stripe';
-import {
-  stripeConnectedAccounts,
-} from '@/modules/onboarding/schemas/onboarding.schema';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
@@ -19,9 +17,7 @@ const logger = getLogger(['onboarding', 'handler', 'account-updated']);
  * and publishes an ONBOARDING_ACCOUNT_UPDATED event.
  * Optimized to use .returning() to avoid redundant SELECT.
  */
-export const handleAccountUpdated = async (
-  account: Stripe.Account,
-): Promise<void> => {
+export const handleAccountUpdated = async (account: Stripe.Account): Promise<void> => {
   try {
     const updateData = {
       charges_enabled: account.charges_enabled,
@@ -50,7 +46,9 @@ export const handleAccountUpdated = async (
         .returning({ organization_id: stripeConnectedAccounts.organization_id });
 
       if (!updatedRecord) {
-        logger.warn('Account not found for Stripe ID: {stripeAccountId}, skipping update.', { stripeAccountId: account.id });
+        logger.warn('Account not found for Stripe ID: {stripeAccountId}, skipping update.', {
+          stripeAccountId: account.id,
+        });
         return;
       }
 
@@ -58,27 +56,27 @@ export const handleAccountUpdated = async (
 
       // Auto-enable payment links if charges are enabled
       if (account.charges_enabled && organizationId) {
-        await tx
-          .update(organizations)
-          .set({ paymentLinkEnabled: true })
-          .where(eq(organizations.id, organizationId));
+        await tx.update(organizations).set({ paymentLinkEnabled: true }).where(eq(organizations.id, organizationId));
       }
 
       // Publish account updated event within transaction
-      await OnboardingAccountUpdated.dispatch({
-        stripe_account_id: account.id,
-        organization_id: organizationId,
-        charges_enabled: account.charges_enabled,
-        payouts_enabled: account.payouts_enabled,
-        details_submitted: account.details_submitted,
-        business_type: account.business_type,
-        updated_at: new Date().toISOString(),
-      }, {
-        actorId: WEBHOOK_ACTOR_UUID,
-        actorType: 'webhook',
-        organizationId: organizationId,
-        tx,
-      });
+      await OnboardingAccountUpdated.dispatch(
+        {
+          stripe_account_id: account.id,
+          organization_id: organizationId,
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+          business_type: account.business_type,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          actorId: WEBHOOK_ACTOR_UUID,
+          actorType: 'webhook',
+          organizationId: organizationId,
+          tx,
+        }
+      );
     });
 
     if (organizationId) {

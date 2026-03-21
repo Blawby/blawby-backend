@@ -37,7 +37,7 @@ const logger = getLogger(['events', 'system']);
 type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | boolean>;
 
 // Dispatch options type
-type DispatchOptions = {
+export type DispatchOptions = {
   actorId?: string;
   actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
   organizationId?: string;
@@ -47,9 +47,10 @@ type DispatchOptions = {
 };
 
 // Event class type - infers payload type T from constructor parameter
-type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
+export type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
   type: string;
-  new(payload: T, actorId?: string, organizationId?: string): BaseEvent<T>;
+  new (payload: T, actorId?: string, organizationId?: string): BaseEvent<T>;
+  dispatch(payload: T, options?: DispatchOptions): string | Promise<string>;
 };
 
 // Global handler registry - populated by Event.listen()
@@ -103,8 +104,8 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
   constructor(
     public readonly payload: T,
     public readonly actorId: string = 'system',
-    public readonly organizationId?: string,
-  ) { }
+    public readonly organizationId?: string
+  ) {}
 
   /**
    * Dispatch event - Three-tier approach for production-grade performance
@@ -118,17 +119,18 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
    * @returns Event ID (UUID) - for async dispatch, returns before DB write completes
    */
   static dispatch<T extends Record<string, unknown>>(
-    this: { type: string; new(payload: T): BaseEvent<T> },
+    this: { type: string; new (payload: T): BaseEvent<T> },
     payload: T,
-    options?: DispatchOptions,
+    options?: DispatchOptions
   ): string | Promise<string> {
     const eventId = randomUUID();
     const rawActorId = options?.actorId ?? 'system';
     const resolvedActorId = resolveActorId(rawActorId);
 
     // Derive actorType from rawActorId if not explicitly provided
-    const resolvedActorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization' = options?.actorType ?? (
-      rawActorId === 'system'
+    const resolvedActorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization' =
+      options?.actorType ??
+      (rawActorId === 'system'
         ? 'system'
         : rawActorId === 'webhook'
           ? 'webhook'
@@ -138,8 +140,7 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
               ? 'api'
               : rawActorId === 'organization'
                 ? 'organization'
-                : 'user'
-    );
+                : 'user');
 
     const record = {
       eventId,
@@ -178,7 +179,7 @@ async function dispatchTransactional(
   record: NewEvent,
   tx: NodePgDatabase<typeof schema>,
   eventId: string,
-  eventType: string,
+  eventType: string
 ): Promise<string> {
   try {
     await tx.insert(events).values(record);
@@ -203,11 +204,7 @@ async function dispatchTransactional(
  * Critical dispatch: Immediate DB write, no transaction
  * Used for Stripe/payment events that must persist before API response
  */
-async function dispatchCritical(
-  record: NewEvent,
-  eventId: string,
-  eventType: string,
-): Promise<string> {
+async function dispatchCritical(record: NewEvent, eventId: string, eventType: string): Promise<string> {
   try {
     await db.insert(events).values(record);
     // Use NOTIFY for instant worker pickup
@@ -228,11 +225,7 @@ async function dispatchCritical(
  * Used for fire-and-forget events (practice, client, user activity)
  * Events are still persisted to outbox (durable), just doesn't block the response
  */
-function dispatchAsync(
-  record: NewEvent,
-  eventId: string,
-  eventType: string,
-): void {
+function dispatchAsync(record: NewEvent, eventId: string, eventType: string): void {
   // Use setImmediate to defer to next event loop tick - truly non-blocking
   setImmediate(async () => {
     try {
@@ -262,10 +255,7 @@ export const Event = {
    * @param eventClass - The event class to listen for
    * @param handler - Handler function to execute when event fires
    */
-  listen<T extends Record<string, unknown>>(
-    eventClass: EventClass<T>,
-    handler: Handler<T>,
-  ): void {
+  listen<T extends Record<string, unknown>>(eventClass: EventClass<T>, handler: Handler<T>): void {
     const list = handlers.get(eventClass.type) ?? [];
     list.push(handler as Handler<Record<string, unknown>>);
     handlers.set(eventClass.type, list);
@@ -323,10 +313,4 @@ export const Event = {
 };
 
 // Re-export constants for convenience
-export {
-  SYSTEM_ACTOR_UUID,
-  WEBHOOK_ACTOR_UUID,
-  CRON_ACTOR_UUID,
-  API_ACTOR_UUID,
-  ORGANIZATION_ACTOR_UUID,
-};
+export { SYSTEM_ACTOR_UUID, WEBHOOK_ACTOR_UUID, CRON_ACTOR_UUID, API_ACTOR_UUID, ORGANIZATION_ACTOR_UUID };

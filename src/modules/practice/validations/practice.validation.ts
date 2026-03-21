@@ -12,27 +12,31 @@ import {
 const businessPhoneSchema = phoneValidator.optional();
 const businessEmailSchema = z.email().optional();
 const consultationFeeSchema = currencyValidator.optional();
-const paymentUrlSchema = urlValidator.optional().or(z.literal(''));
-const calendlyUrlSchema = urlValidator.optional().or(z.literal(''));
-const billingIncrementMinutesSchema = z
-  .number()
-  .int()
-  .min(1)
-  .max(60)
-  .openapi({
-    description: 'Billing increment in minutes',
-    example: 15,
-  });
+const paymentUrlSchema = urlValidator.optional();
+const calendlyUrlSchema = urlValidator.optional();
+const billingIncrementMinutesSchema = z.number().int().min(1).max(60).openapi({
+  description: 'Billing increment in minutes',
+  example: 15,
+});
 
 // Practice module specific param schemas
 const practiceIdParamSchema = z.object({
   uuid: z.uuid().refine((val) => val.length > 0, 'Invalid practice UUID'),
 });
 
-
 export const supportedStatesItemSchema = z.object({
-  country: z.string().regex(/^[A-Z]{2}$/).openapi({ example: 'US' }),
-  states: z.array(z.string().min(1).max(10).transform((val) => val.toUpperCase()))
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .openapi({ example: 'US' }),
+  states: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .max(10)
+        .transform((val) => val.toUpperCase())
+    )
     .optional()
     .refine((items) => !items || new Set(items).size === items.length, {
       message: 'States must be unique',
@@ -47,7 +51,7 @@ const practiceDetailsValidationSchema = z.object({
   consultation_fee: consultationFeeSchema,
   payment_url: paymentUrlSchema,
   calendly_url: calendlyUrlSchema,
-  website: urlValidator.optional().or(z.literal('')).openapi({ example: 'https://example.com' }),
+  website: urlValidator.optional().openapi({ example: 'https://example.com' }),
   intro_message: z.string().optional().openapi({ example: 'Welcome to our practice' }),
   overview: z.string().optional().openapi({ example: 'We specialize in family law' }),
   accent_color: z.string().optional().openapi({ example: '#3B82F6' }),
@@ -59,7 +63,8 @@ const practiceDetailsValidationSchema = z.object({
     .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
   // Nested Address
   address: addressSchema.optional(),
-  supported_states: z.array(supportedStatesItemSchema)
+  supported_states: z
+    .array(supportedStatesItemSchema)
     .optional()
     .refine((items) => !items || new Set(items.map((i) => i.country)).size === items.length, {
       message: 'Country codes must be unique',
@@ -76,7 +81,7 @@ const practiceDetailsValidationSchema = z.object({
 const isAnyFieldProvided = (
   data: Record<string, unknown>,
   schema: z.ZodObject,
-  options: { treatEmptyStringAsProvided?: boolean } = {},
+  options: { treatEmptyStringAsProvided?: boolean } = {}
 ): boolean => {
   const { treatEmptyStringAsProvided = false } = options;
   return Object.keys(schema.shape).some((key) => {
@@ -98,7 +103,7 @@ const createPracticeSchema = z.object({
   // Organization fields (required)
   name: nameValidator,
   slug: slugValidator,
-  logo: urlValidator.optional().or(z.literal('')),
+  logo: urlValidator.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 
   // Practice details
@@ -109,7 +114,7 @@ const updatePracticeSchemaBase = z.object({
   // Organization fields (all optional for updates)
   name: nameValidator.optional(),
   slug: slugValidator.optional(),
-  logo: urlValidator.optional().or(z.literal('')),
+  logo: urlValidator.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 
   // Practice details
@@ -120,7 +125,7 @@ const updatePracticeSchema = updatePracticeSchemaBase.refine(
   (data) => isAnyFieldProvided(data, updatePracticeSchemaBase, { treatEmptyStringAsProvided: true }),
   {
     message: 'At least one field must be provided to update the practice',
-  },
+  }
 );
 
 // Response schemas with OpenAPI metadata
@@ -139,9 +144,12 @@ const practiceResponseSchema = z
     logo: z.string().nullable().openapi({
       example: 'https://example.com/logo.png',
     }),
-    metadata: z.record(z.string(), z.unknown()).nullable().openapi({
-      example: { key: 'value' },
-    }),
+    metadata: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .openapi({
+        example: { key: 'value' },
+      }),
     business_phone: z.string().nullable().openapi({
       description: 'Business phone number',
       example: '+1234567890',
@@ -182,11 +190,11 @@ const practiceResponseSchema = z
       description: 'Whether the practice details are publicly visible',
       example: true,
     }),
-    paymentLinkEnabled: z.boolean().nullable().openapi({
+    payment_link_enabled: z.boolean().nullable().openapi({
       description: 'Whether the practice has payment links enabled',
       example: true,
     }),
-    paymentLinkPrefillAmount: z.number().nullable().openapi({
+    payment_link_prefill_amount: z.number().nullable().openapi({
       description: 'Default prefill amount for payment links (in cents)',
       example: 5000,
     }),
@@ -194,11 +202,13 @@ const practiceResponseSchema = z
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
     }),
-    createdAt: z.date().openapi({
+    created_at: z.date().openapi({
+      format: 'date-time',
       description: 'Organization creation timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
-    updatedAt: z.date().optional().openapi({
+    updated_at: z.date().optional().openapi({
+      format: 'date-time',
       description: 'Organization last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
@@ -221,13 +231,8 @@ const practiceSingleResponseSchema = z
 
 const setActivePracticeResponseSchema = z
   .object({
-    result: z.object({
-      success: z.boolean().openapi({
-        example: true,
-      }),
-      message: z.string().openapi({
-        example: 'Practice set as active',
-      }),
+    success: z.boolean().openapi({
+      example: true,
     }),
   })
   .openapi('SetActivePracticeResponse');
@@ -247,7 +252,7 @@ const errorResponseSchema = z
           field: z.string(),
           message: z.string(),
           code: z.string(),
-        }),
+        })
       )
       .optional()
       .openapi({
@@ -389,13 +394,25 @@ const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
   (data) => isAnyFieldProvided(data, practiceDetailsValidationSchema),
   {
     message: 'At least one practice detail field must be provided',
-  },
+  }
 );
 
 const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
 
 const practiceDetailsResponseSchema = z
   .object({
+    id: z.uuid().openapi({
+      description: 'Practice Details ID',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    user_id: z.uuid().openapi({
+      description: 'User ID of the creator',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
+    address_id: z.uuid().nullable().openapi({
+      description: 'Linked Address ID',
+      example: '123e4567-e89b-12d3-a456-426614174000',
+    }),
     business_phone: z.string().nullable().openapi({
       example: '+1234567890',
     }),
@@ -450,46 +467,43 @@ const practiceDetailsResponseSchema = z
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
     }),
-    createdAt: z.date().openapi({
-      description: 'Organization creation timestamp',
+    created_at: z.date().openapi({
+      description: 'Practice details creation timestamp',
+      format: 'date-time',
       example: '2024-01-01T00:00:00Z',
     }),
-    updatedAt: z.date().optional().openapi({
-      description: 'Organization last update timestamp',
+    updated_at: z.date().optional().openapi({
+      format: 'date-time',
+      description: 'Practice details last update timestamp',
       example: '2024-01-01T00:00:00Z',
     }),
-    supported_states: z.array(z.object({
-      country: z.string().openapi({ example: 'US' }),
-      states: z.array(z.string()).optional().openapi({ example: ['NY', 'NJ'] }),
-    })).nullable().openapi({
-      description: 'List of supported countries and states',
-      example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
-    }),
+    supported_states: z
+      .array(
+        z.object({
+          country: z.string().openapi({ example: 'US' }),
+          states: z
+            .array(z.string())
+            .optional()
+            .openapi({ example: ['NY', 'NJ'] }),
+        })
+      )
+      .nullable()
+      .openapi({
+        description: 'List of supported countries and states',
+        example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
+      }),
   })
   .openapi('PracticeDetailsResponse');
 
-const practiceDetailsSingleResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsSingleResponse');
+const practiceDetailsSingleResponseSchema = practiceDetailsResponseSchema;
 
-const practiceDetailsCreateResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsCreateResponse');
+const practiceDetailsCreateResponseSchema = practiceDetailsResponseSchema;
 
-const practiceDetailsUpdateResponseSchema = z
-  .object({
-    details: practiceDetailsResponseSchema,
-  })
-  .openapi('PracticeDetailsUpdateResponse');
+const practiceDetailsUpdateResponseSchema = practiceDetailsResponseSchema;
 
 const slugParamSchema = z.object({
   slug: z.string(),
 });
-
 
 export const practiceValidations = {
   createPracticeSchema,
