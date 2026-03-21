@@ -1,7 +1,7 @@
 version: 2
 updates:
   # 1. Maintain Node.js dependencies (npm/pnpm/yarn)
-  - package-ecosystem: 'pnpm'
+  - package-ecosystem: 'npm'
     directory: '/'
     schedule:
       interval: 'weekly'
