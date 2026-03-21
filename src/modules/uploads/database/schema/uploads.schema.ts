@@ -2,8 +2,7 @@ import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { matters } from '@/modules/matters/database/schema/matters.schema';
-import { users } from '@/schema';
-import { organizations } from '@/schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const uploads = pgTable(
   'uploads',
