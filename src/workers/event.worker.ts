@@ -9,7 +9,6 @@ import { processStripeWebhook } from '@/workers/tasks/process-stripe-webhook';
 
 config();
 
-
 // Start the worker
 void runWorker({
   name: 'Event Worker',

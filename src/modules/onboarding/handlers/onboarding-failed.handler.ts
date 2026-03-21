@@ -11,7 +11,7 @@ export const handleOnboardingFailed = async (event: BaseEvent): Promise<void> =>
     organizationId: event.organizationId,
     actorId: event.actorId,
     eventId: event.eventId,
-    error: event.payload?.error,
+    error: event.payload?.['error'],
   });
 
   // Future: Alert support, retry logic, user notification, etc.

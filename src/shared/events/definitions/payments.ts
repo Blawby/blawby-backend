@@ -62,7 +62,6 @@ export class IntakePaymentSucceeded extends BaseEvent<{
   static type = 'intake_payment.succeeded' as const;
 }
 
-
 export class IntakePaymentFailed extends BaseEvent<{
   stripe_payment_intent_id: string;
   intake_payment_id: string;

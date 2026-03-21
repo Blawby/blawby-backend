@@ -8,10 +8,7 @@ import { z } from 'zod';
  * @returns Validated parameters
  * @throws HTTPException if validation fails
  */
-const validateParams = <T extends z.ZodSchema>(
-  context: Context,
-  schema: T,
-): z.infer<T> => {
+const validateParams = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
   try {
     const params = context.req.param();
     const validatedParams = schema.parse(params);
@@ -31,10 +28,7 @@ const validateParams = <T extends z.ZodSchema>(
  * @returns Validated query parameters
  * @throws HTTPException if validation fails
  */
-const validateQuery = <T extends z.ZodSchema>(
-  context: Context,
-  schema: T,
-): z.infer<T> => {
+const validateQuery = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
   try {
     const query = context.req.query();
     const validatedQuery = schema.parse(query);
@@ -54,10 +48,7 @@ const validateQuery = <T extends z.ZodSchema>(
  * @returns Validated body data
  * @throws HTTPException if validation fails
  */
-const validateBody = async <T extends z.ZodSchema>(
-  context: Context,
-  schema: T,
-): Promise<z.infer<T>> => {
+const validateBody = async <T extends z.ZodSchema>(context: Context, schema: T): Promise<z.infer<T>> => {
   try {
     const body = await context.req.json();
     const validatedBody = schema.parse(body);
@@ -77,10 +68,7 @@ const validateBody = async <T extends z.ZodSchema>(
  * @returns Validated headers
  * @throws HTTPException if validation fails
  */
-const validateHeaders = <T extends z.ZodSchema>(
-  context: Context,
-  schema: T,
-): z.infer<T> => {
+const validateHeaders = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
   try {
     const headers = context.req.header();
     const validatedHeaders = schema.parse(headers);
@@ -100,14 +88,16 @@ const validateHeaders = <T extends z.ZodSchema>(
  * @returns Object with validated data for each part
  * @throws HTTPException if any validation fails
  */
-const validateRequest = async <T extends {
-  params?: z.ZodSchema;
-  query?: z.ZodSchema;
-  body?: z.ZodSchema;
-  headers?: z.ZodSchema;
-}>(
+const validateRequest = async <
+  T extends {
+    params?: z.ZodSchema;
+    query?: z.ZodSchema;
+    body?: z.ZodSchema;
+    headers?: z.ZodSchema;
+  },
+>(
   context: Context,
-  schemas: T,
+  schemas: T
 ): Promise<{
   params?: T['params'] extends z.ZodSchema ? z.infer<T['params']> : never;
   query?: T['query'] extends z.ZodSchema ? z.infer<T['query']> : never;
@@ -145,4 +135,3 @@ export const validator = {
   validateHeaders,
   validateRequest,
 } as const;
-

@@ -1,6 +1,5 @@
 import { getEnvArray } from '@/shared/utils/env';
 
-
 /**
  * Trusted Origins Utility
  *
@@ -11,9 +10,7 @@ import { getEnvArray } from '@/shared/utils/env';
  * Check if origin matches a pattern (supports wildcards)
  */
 export const matchesPattern = (origin: string, pattern: string): boolean => {
-  const regexPattern = pattern
-    .replace(/\./g, '\\.')
-    .replace(/\*/g, '.*');
+  const regexPattern = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
   const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(origin);
 };
@@ -50,4 +47,3 @@ export const getTrustedOrigins = (request?: Request): string[] => {
 
   return origins;
 };
-

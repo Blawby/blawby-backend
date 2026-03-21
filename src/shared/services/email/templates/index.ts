@@ -25,6 +25,9 @@ import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-
 // Customer templates
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
 import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
+import { customerPaymentRefundRequest } from '@/shared/services/email/templates/customer/payment-refund-request';
+import { customerPaymentRefunded } from '@/shared/services/email/templates/customer/payment-refunded';
+import { customerPaymentRefundRejected } from '@/shared/services/email/templates/customer/payment-rejected';
 
 // Onboarding templates
 import { payoutSent } from '@/shared/services/email/templates/onboarding/payout-sent';
@@ -37,8 +40,9 @@ import { scheduledEventTemplate } from '@/shared/services/email/templates/schedu
 
 // Team templates
 import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
+import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team/payment-refund-request';
+import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
-
 
 /**
  * Mapping of email templates to their specific data types
@@ -47,12 +51,13 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: CustomerPaymentReceiptData;
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: CustomerPaymentRequestData;
   [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: CustomerPaymentReceiptData;
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]: CustomerPaymentReceiptData;
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]: CustomerPaymentReceiptData;
-  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_REQUEST]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_APPROVED]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_REJECTED]: CustomerPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_REFUND_PROCESSED]: TeamPaymentReceiptData;
   [EMAIL_TEMPLATES.PRACTICE_INVITATION]: PracticeInvitationData;
   [EMAIL_TEMPLATES.WELCOME]: WelcomeEmailData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
@@ -68,17 +73,15 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: customerPaymentReceipt,
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: customerPaymentRequest,
   [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: customerPaymentReceipt,
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_INITIATED]:
-    customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
-  [EMAIL_TEMPLATES.CUSTOMER_REFUND_COMPLETED]:
-    customerPaymentReceipt, // Intentional reuse: refund details are similar to receipts
-  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REJECTED]:
-    customerPaymentReceipt, // Intentional reuse: notification uses receipt layout
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_REQUEST]: customerPaymentRefundRequest,
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_APPROVED]: customerPaymentRefunded,
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_REJECTED]: customerPaymentRefundRejected,
 
   // Team templates
   [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: teamPaymentReceipt,
   [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: teamPaymentReceipt, // Reusing team receipt for custom cases
-  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: teamPaymentReceipt, // Intentional reuse: notification uses team receipt layout
+  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: teamPaymentRefundRequest,
+  [EMAIL_TEMPLATES.TEAM_REFUND_PROCESSED]: teamPaymentRefunded,
   [EMAIL_TEMPLATES.PRACTICE_INVITATION]: practiceInvitation,
 
   // Onboarding templates
@@ -95,10 +98,7 @@ const templateRegistry = {
 /**
  * Render an email template by name in a type-safe way
  */
-export const renderTemplate = <T extends EmailTemplateName>(
-  templateName: T,
-  data: TemplateDataMap[T],
-): string => {
+export const renderTemplate = <T extends EmailTemplateName>(templateName: T, data: TemplateDataMap[T]): string => {
   const templateFn = (templateRegistry as Record<string, Function>)[templateName];
 
   if (!templateFn) {

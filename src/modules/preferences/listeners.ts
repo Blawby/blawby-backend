@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { initializeUserPreferences } from '@/modules/preferences/services/preferences.service';
+import { preferencesService } from '@/modules/preferences/services/preferences.service';
 import { AuthUserSignedUp } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 
@@ -14,7 +14,7 @@ const logger = getLogger(['preferences', 'listeners']);
 /**
  * Register all preferences event listeners
  */
-export function registerPreferencesListeners(): void {
+const registerPreferencesListeners = (): void => {
   logger.info('Registering preferences event listeners...');
 
   // Initialize user preferences on signup
@@ -26,7 +26,7 @@ export function registerPreferencesListeners(): void {
     }
 
     try {
-      await initializeUserPreferences(userId);
+      await preferencesService.initializeUserPreferences(userId);
       logger.info('User preferences initialized with defaults', { userId });
     } catch (error) {
       logger.error('Failed to initialize user preferences', {
@@ -38,4 +38,7 @@ export function registerPreferencesListeners(): void {
   });
 
   logger.info('Preferences event listeners registered');
-}
+};
+
+// Direct named export for auto-generated bootstrap
+export { registerPreferencesListeners };

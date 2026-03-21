@@ -16,8 +16,8 @@ const loggerInstance = getLogger(['app', 'api']);
 /**
  * Hono Logger Middleware
  *
- * Provides request/response logging similar to Fastify's logger.
- * Uses Hono's built-in logger middleware with custom formatting.
+ * Provides request/response logging using Hono's built-in logger.
+ * Uses Hono's logger middleware with custom formatting.
  */
 export const logger = (): MiddlewareHandler => {
   return honoLogger((message, ...rest) => {
@@ -31,18 +31,21 @@ export const logger = (): MiddlewareHandler => {
  *
  * Provides detailed error logging
  */
-export const logError = (error: unknown, context?: {
-  method?: string;
-  url?: string;
-  statusCode: number;
-  userId?: string;
-  organizationId?: string;
-  requestId?: string;
-  responseTime?: number;
-  errorType?: string;
-  errorMessage?: string;
-  stack?: string;
-}): void => {
+export const logError = (
+  error: unknown,
+  context?: {
+    method?: string;
+    url?: string;
+    statusCode: number;
+    userId?: string;
+    organizationId?: string;
+    requestId?: string;
+    responseTime?: number;
+    errorType?: string;
+    errorMessage?: string;
+    stack?: string;
+  }
+): void => {
   // Skip logging for certain requests
   if (context?.url && context?.method && shouldSkipLogging(context.url, context.method)) {
     return;

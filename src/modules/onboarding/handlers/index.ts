@@ -22,11 +22,7 @@ import {
 import { handleOnboardingCompleted } from './onboarding-completed.handler';
 import { handleOnboardingFailed } from './onboarding-failed.handler';
 import { handleOnboardingStarted } from './onboarding-started.handler';
-import {
-  handleWebhookReceived,
-  handleWebhookProcessed,
-  handleWebhookFailed,
-} from './webhook-events.handler';
+import { handleWebhookReceived, handleWebhookProcessed, handleWebhookFailed } from './webhook-events.handler';
 
 const onboardingHandlers = {
   // Stripe Webhook Handlers

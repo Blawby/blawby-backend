@@ -1,60 +1,134 @@
+// oxlint-disable import/exports-last
 import { readdirSync, statSync, writeFileSync, existsSync } from 'fs';
-import { join, relative } from 'path';
+import { basename, join, relative } from 'path';
 
 const MODULES_DIR = join(process.cwd(), 'src/modules');
 const SHARED_DIR = join(process.cwd(), 'src/shared');
 const SCHEMA_DIR = join(process.cwd(), 'src/schema');
 const OUTPUT_FILE = join(process.cwd(), 'src/schema/index.ts');
 
-const findSchemaFiles = (dir: string): string[] => {
-  const schemas: string[] = [];
+// Files in src/schema/ that are manually managed and must not be auto-discovered
+const SCHEMA_DIR_MANUAL = new Set(['better-auth-schema.ts', 'index.ts']);
+
+const isRelationsFile = (filename: string): boolean =>
+  filename.includes('-relations') && (filename.endsWith('.ts') || filename.endsWith('.schema.ts'));
+
+// ─── Table files (modules + shared + src/schema/ excluding manual files) ──────
+
+const findTableFiles = (dir: string, excludeManual = false): string[] => {
+  const results: string[] = [];
 
   if (!existsSync(dir)) {
-    return schemas;
+    return results;
   }
 
   try {
-    const items = readdirSync(dir);
+    for (const item of readdirSync(dir)) {
+      const fullPath = join(dir, item);
 
-    for (const item of items) {
+      if (statSync(fullPath).isDirectory()) {
+        results.push(...findTableFiles(fullPath, excludeManual));
+      } else if (item.endsWith('.schema.ts') && !isRelationsFile(item)) {
+        if (excludeManual && SCHEMA_DIR_MANUAL.has(item)) {
+          continue;
+        }
+        results.push(relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, ''));
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to read directory for table files: ${dir}`, { cause: error });
+  }
+
+  return results;
+};
+
+// ─── Relations files (modules + shared + src/schema/) ────────────────────────
+
+const findRelationsFiles = (dir: string, includeNonSchema = false): string[] => {
+  const results: string[] = [];
+
+  if (!existsSync(dir)) {
+    return results;
+  }
+
+  try {
+    for (const item of readdirSync(dir)) {
+      const fullPath = join(dir, item);
+
+      if (statSync(fullPath).isDirectory()) {
+        results.push(...findRelationsFiles(fullPath, includeNonSchema));
+      } else if (isRelationsFile(item) && (item.endsWith('.schema.ts') || includeNonSchema)) {
+        results.push(relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, ''));
+      }
+    }
+  } catch (error) {
+    throw new Error(`Failed to read directory for relations files: ${dir}`, { cause: error });
+  }
+
+  return results;
+};
+
+// For src/schema/ we pick up ALL relations files (*.ts and *.schema.ts) recursively
+const findSchemaRelationsFiles = (dir: string = SCHEMA_DIR): string[] => {
+  const results: string[] = [];
+
+  try {
+    for (const item of readdirSync(dir)) {
       const fullPath = join(dir, item);
       const stat = statSync(fullPath);
 
       if (stat.isDirectory()) {
-        schemas.push(...findSchemaFiles(fullPath));
-      } else if (item.endsWith('.schema.ts')) {
-        // Get relative path from src/schema to the schema file
-        const relativePath = relative(SCHEMA_DIR, fullPath)
-          .replace(/\\/g, '/')
-          .replace(/\.ts$/, '');
-        schemas.push(relativePath);
+        // Recurse into subdirectories
+        results.push(...findSchemaRelationsFiles(fullPath));
+      } else if (SCHEMA_DIR_MANUAL.has(item)) {
+        continue;
+      } else if (isRelationsFile(item)) {
+        // Push relative path from SCHEMA_DIR, removing .ts extension
+        const relativePath = relative(SCHEMA_DIR, fullPath).replace(/\\/g, '/').replace(/\.ts$/, '');
+        results.push(relativePath);
       }
     }
   } catch (error) {
-    console.warn(`Warning: Could not read directory ${dir}`);
+    throw new Error(`Failed to read schema directory: ${dir}`, { cause: error });
   }
 
-  return schemas;
+  return results.sort();
 };
+
+// ─── Generator ────────────────────────────────────────────────────────────────
 
 export const generateSchemaIndex = (): void => {
   console.log('🔍 Scanning for schema files...');
 
-  const moduleSchemas = findSchemaFiles(MODULES_DIR);
-  const sharedSchemas = findSchemaFiles(SHARED_DIR);
-  const allSchemas = [...moduleSchemas, ...sharedSchemas]
+  // Tables from modules + shared + src/schema/ (excluding manual files like better-auth-schema.ts)
+  const tablePaths = [
+    ...findTableFiles(MODULES_DIR),
+    ...findTableFiles(SHARED_DIR),
+    ...findTableFiles(SCHEMA_DIR, true), // ExcludeManual=true for src/schema/
+  ]
     .sort()
-    .filter((path) => !path.includes('index')); // Exclude index files
+    .filter((p) => basename(p) !== 'index');
+
+  // Relations from modules + shared + src/schema/
+  const allRelationPaths = [
+    ...findRelationsFiles(MODULES_DIR),
+    ...findRelationsFiles(SHARED_DIR),
+    ...findSchemaRelationsFiles(),
+  ]
+    .sort()
+    .filter((p) => basename(p) !== 'index');
 
   const content = `/**
  * AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
  *
- * This file is automatically generated by: pnpm run schemas:sync
- * It exports all schema files from modules and shared directories.
+ * This file is automatically generated by: pnpm run sync:schemas
+ * It exports all schema TABLE and RELATIONS files from modules and shared directories.
  *
- * To add a new schema:
- * 1. Create a new *.schema.ts file in your module
- * 2. Run: pnpm run schemas:sync
+ * Tables are exported before relations to avoid ESM initialization order issues.
+ *
+ * To add a new schema or relations file:
+ * 1. Create a new *.schema.ts (table) or *-relations.schema.ts (relations) file
+ * 2. Run: pnpm run sync:schemas
  *
  * Last updated: ${new Date().toISOString()}
  */
@@ -62,30 +136,21 @@ export const generateSchemaIndex = (): void => {
 // Better Auth core schemas (users, sessions, organizations, etc.)
 export * from './better-auth-schema';
 
-// Auto-discovered schemas from modules and shared directories
-${allSchemas.length > 0
-      ? allSchemas.map((path) => `export * from './${path}';`).join('\n')
-      : '// No additional schemas found'
-    }
+// Auto-discovered schema TABLES from modules and shared directories
+${tablePaths.map((p) => `export * from './${p}';`).join('\n')}
+
+// Auto-discovered RELATIONS files — exported after tables to avoid TDZ issues
+${allRelationPaths.map((p) => `export * from './${p}';`).join('\n')}
 `;
 
   writeFileSync(OUTPUT_FILE, content, 'utf-8');
-
-  console.log('✅ Schema index generated successfully!');
-  console.log(`   📦 ${allSchemas.length} schemas exported`);
-
-  if (allSchemas.length > 0) {
-    console.log('\n   Exported schemas:');
-    allSchemas.forEach((schema) => {
-      console.log(`   - ${schema}`);
-    });
-  }
+  console.log(`✅ Schema index generated (${tablePaths.length} tables, ${allRelationPaths.length} relations files)`);
 };
 
-// Run the generator
 try {
   generateSchemaIndex();
+  console.log('✅ Schema sync complete!');
 } catch (error) {
-  console.error('❌ Failed to generate schema index:', error);
+  console.error('❌ Failed to generate schemas:', error);
   process.exit(1);
 }

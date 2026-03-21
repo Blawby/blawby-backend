@@ -20,7 +20,7 @@ const initStripe = (): Stripe => {
     }
 
     _stripeInstance = new Stripe(apiKey, {
-      apiVersion: '2025-12-15.clover',
+      apiVersion: '2026-02-25.clover',
     });
   }
 
@@ -49,6 +49,4 @@ export const stripe = new Proxy({} as Stripe, {
  * Usage: import { getStripeInstance } from './stripe-client'
  *        const stripeClient = getStripeInstance()
  */
-export const getStripeInstance = (): Stripe => {
-  return initStripe();
-};
+export const getStripeInstance = (): Stripe => initStripe();

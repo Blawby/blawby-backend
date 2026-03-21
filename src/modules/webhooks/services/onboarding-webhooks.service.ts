@@ -36,12 +36,14 @@ export const onboardingWebhooksService = {
     signature: string,
     headers: Record<string, string>,
     url: string,
-    webhookSecret: string,
-  ): Promise<Result<{
-    event: Stripe.Event;
-    alreadyProcessed: boolean;
-    webhookId?: string;
-  }>> {
+    webhookSecret: string
+  ): Promise<
+    Result<{
+      event: Stripe.Event;
+      alreadyProcessed: boolean;
+      webhookId?: string;
+    }>
+  > {
     if (!webhookSecret) {
       logger.error('Webhook secret is required but missing');
       return internalError('Webhook secret is required');
@@ -51,24 +53,16 @@ export const onboardingWebhooksService = {
     let event: Stripe.Event;
     try {
       logger.info('Verifying webhook signature', {
-        secretPresent: true
+        secretPresent: true,
       });
-      event = stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        webhookSecret,
-      );
+      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     } catch (err) {
       logger.warn('Invalid webhook signature received', { error: err instanceof Error ? err.message : 'Unknown' });
       return badRequest('Invalid signature');
     }
 
     // Atomic verify and store
-    const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(
-      event,
-      headers,
-      url,
-    );
+    const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(event, headers, url);
 
     if (!webhookEvent) {
       // Check if it already exists to determine processing status
@@ -88,12 +82,14 @@ export const onboardingWebhooksService = {
     rawBody: string | Buffer,
     signature: string,
     headers: Record<string, string>,
-    url: string,
-  ): Promise<Result<{
-    event: Stripe.Event;
-    alreadyProcessed: boolean;
-    webhookId?: string;
-  }>> {
+    url: string
+  ): Promise<
+    Result<{
+      event: Stripe.Event;
+      alreadyProcessed: boolean;
+      webhookId?: string;
+    }>
+  > {
     const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
@@ -112,12 +108,14 @@ export const onboardingWebhooksService = {
     rawBody: string | Buffer,
     signature: string,
     headers: Record<string, string>,
-    url: string,
-  ): Promise<Result<{
-    event: Stripe.Event;
-    alreadyProcessed: boolean;
-    webhookId?: string;
-  }>> {
+    url: string
+  ): Promise<
+    Result<{
+      event: Stripe.Event;
+      alreadyProcessed: boolean;
+      webhookId?: string;
+    }>
+  > {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
@@ -132,9 +130,7 @@ export const onboardingWebhooksService = {
    * Process an onboarding webhook event
    */
   async processEvent(eventId: string): Promise<Result<void>> {
-    let webhookEvent: Awaited<
-      ReturnType<typeof stripeWebhookEventsRepository.existsByStripeEventId>
-    > | null = null;
+    let webhookEvent: Awaited<ReturnType<typeof stripeWebhookEventsRepository.existsByStripeEventId>> | null = null;
 
     try {
       webhookEvent = await stripeWebhookEventsRepository.existsByStripeEventId(eventId);
@@ -303,11 +299,7 @@ export const onboardingWebhooksService = {
   /**
    * Queue a webhook event for asynchronous processing
    */
-  async processWebhookAsync(
-    eventId: string,
-    webhookId?: string,
-    eventType?: string,
-  ): Promise<void> {
+  async processWebhookAsync(eventId: string, webhookId?: string, eventType?: string): Promise<void> {
     try {
       let wId = webhookId;
       let type = eventType;

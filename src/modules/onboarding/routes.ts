@@ -3,12 +3,12 @@ import { createRoute } from '@hono/zod-openapi';
 import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 /**
- * GET /api/onboarding/organization/:practiceId/status
+ * GET /api/onboarding/organization/:practice_id/status
  * Get onboarding status for organization
  */
 export const getOnboardingStatusRoute = createRoute({
   method: 'get',
-  path: '/organization/{practiceId}/status',
+  path: '/organization/{practice_id}/status',
   tags: ['Onboarding'],
   summary: 'Get onboarding status',
   description: 'Retrieve the onboarding status for a specific organization',
@@ -52,7 +52,8 @@ export const createConnectedAccountRoute = createRoute({
   path: '/connected-accounts',
   tags: ['Onboarding'],
   summary: 'Initialize Hosted Onboarding Flow',
-  description: 'Creates a Stripe connected account (if needed) and returns a hosted onboarding URL for the organization',
+  description:
+    'Creates a Stripe connected account (if needed) and returns a hosted onboarding URL for the organization',
   request: {
     body: {
       content: {

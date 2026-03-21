@@ -9,7 +9,6 @@ const auth = createBetterAuthInstance(db);
 export type InsertMember = typeof members.$inferInsert;
 export type SelectMember = typeof members.$inferSelect;
 
-
 const findByOrgAndUser = async (params: {
   organizationId: string;
   userId: string;
@@ -17,12 +16,7 @@ const findByOrgAndUser = async (params: {
   const [member] = await db
     .select()
     .from(members)
-    .where(
-      and(
-        eq(members.organizationId, params.organizationId),
-        eq(members.userId, params.userId),
-      ),
-    )
+    .where(and(eq(members.organizationId, params.organizationId), eq(members.userId, params.userId)))
     .limit(1);
   return member;
 };
@@ -35,11 +29,8 @@ type OrganizationRole = 'owner' | 'admin' | 'member' | 'attorney' | 'paralegal' 
 /**
  * Type guard to validate member record shape from Better Auth API
  */
-const isMemberRecord = (value: unknown): value is SelectMember => typeof value === 'object'
-  && value !== null
-  && 'id' in value
-  && 'organizationId' in value
-  && 'userId' in value;
+const isMemberRecord = (value: unknown): value is SelectMember =>
+  typeof value === 'object' && value !== null && 'id' in value && 'organizationId' in value && 'userId' in value;
 
 /**
  * Programmatically add a member to an organization using the Better Auth API

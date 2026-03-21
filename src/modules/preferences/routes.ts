@@ -1,30 +1,26 @@
-import { createRoute, z } from '@hono/zod-openapi';
-
-import {
-  preferenceValidations,
-} from './validations/preferences.validation';
+import { z } from '@hono/zod-openapi';
+import { preferenceValidations } from './validations/preferences.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
 
 /**
  * OpenAPI param schema for category
  */
 const categoryParamOpenAPISchema = z.object({
-  category: z
-    .enum(['general', 'notifications', 'security', 'account', 'onboarding', 'profile'])
-    .openapi({
-      param: {
-        name: 'category',
-        in: 'path',
-      },
-      description: 'Preference category',
-      example: 'general',
-    }),
+  category: z.enum(['general', 'notifications', 'security', 'account', 'onboarding', 'profile']).openapi({
+    param: {
+      name: 'category',
+      in: 'path',
+    },
+    description: 'Preference category',
+    example: 'general',
+  }),
 });
 
 /**
  * GET /api/preferences
  * Get all preferences for the authenticated user
  */
-export const getAllPreferencesRoute = createRoute({
+export const getAllPreferencesRoute = routeBuilder.build({
   method: 'get',
   path: '/',
   tags: ['Preferences'],
@@ -40,22 +36,6 @@ export const getAllPreferencesRoute = createRoute({
       },
       description: 'Preferences retrieved successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Preferences not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
 
@@ -63,12 +43,13 @@ export const getAllPreferencesRoute = createRoute({
  * GET /api/preferences/:category
  * Get preferences by category
  */
-export const getCategoryPreferencesRoute = createRoute({
+export const getCategoryPreferencesRoute = routeBuilder.build({
   method: 'get',
   path: '/{category}',
   tags: ['Preferences'],
   summary: 'Get preferences by category',
-  description: 'Retrieve preferences for a specific category (general, notifications, security, account, onboarding, profile)',
+  description:
+    'Retrieve preferences for a specific category (general, notifications, security, account, onboarding, profile)',
   security: [{ Bearer: [] }],
   request: {
     params: categoryParamOpenAPISchema,
@@ -82,14 +63,6 @@ export const getCategoryPreferencesRoute = createRoute({
       },
       description: 'Category preferences retrieved successfully',
     },
-    500: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
 
@@ -97,12 +70,13 @@ export const getCategoryPreferencesRoute = createRoute({
  * PUT /api/preferences/:category
  * Update preferences by category
  */
-export const updateCategoryPreferencesRoute = createRoute({
+export const updateCategoryPreferencesRoute = routeBuilder.build({
   method: 'put',
   path: '/{category}',
   tags: ['Preferences'],
   summary: 'Update preferences by category',
-  description: 'Update preferences for a specific category. The request body schema varies by category. Supports partial updates - only include fields you want to change. For notifications category, system_push and system_email are always set to true regardless of input.',
+  description:
+    'Update preferences for a specific category. The request body schema varies by category. Supports partial updates - only include fields you want to change. For notifications category, system_push and system_email are always set to true regardless of input.',
   security: [{ Bearer: [] }],
   request: {
     params: categoryParamOpenAPISchema,
@@ -110,7 +84,8 @@ export const updateCategoryPreferencesRoute = createRoute({
       content: {
         'application/json': {
           schema: preferenceValidations.notificationPreferencesSchema.openapi({
-            description: 'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
+            description:
+              'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
             example: {
               messages_push: true,
               messages_email: true,
@@ -126,7 +101,8 @@ export const updateCategoryPreferencesRoute = createRoute({
           }),
         },
       },
-      description: 'Category-specific preferences data. Schema varies by category. For notifications: system_push and system_email are always true.',
+      description:
+        'Category-specific preferences data. Schema varies by category. For notifications: system_push and system_email are always true.',
     },
   },
   responses: {
@@ -138,22 +114,5 @@ export const updateCategoryPreferencesRoute = createRoute({
       },
       description: 'Preferences updated successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid category or request data',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: preferenceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
-

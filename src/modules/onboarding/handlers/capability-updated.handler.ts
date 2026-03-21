@@ -15,23 +15,19 @@ const logger = getLogger(['onboarding', 'handler', 'capability-updated']);
  * and publishes an ONBOARDING_ACCOUNT_CAPABILITIES_UPDATED event.
  * Optimized to use .returning() to avoid redundant SELECT.
  */
-export const handleCapabilityUpdated = async (
-  capability: Stripe.Capability,
-): Promise<void> => {
+export const handleCapabilityUpdated = async (capability: Stripe.Capability): Promise<void> => {
   try {
-    const stripeAccountId = typeof capability.account === 'string'
-      ? capability.account
-      : null;
+    const stripeAccountId = typeof capability.account === 'string' ? capability.account : null;
 
     if (!stripeAccountId) {
       logger.warn('Missing Stripe account ID for capability: {capabilityId}', { capabilityId: capability.id });
       return;
     }
 
-    logger.debug(
-      'Processing capability.updated: {capabilityId} for account: {stripeAccountId}',
-      { capabilityId: capability.id, stripeAccountId },
-    );
+    logger.debug('Processing capability.updated: {capabilityId} for account: {stripeAccountId}', {
+      capabilityId: capability.id,
+      stripeAccountId,
+    });
 
     // Update capabilities using SQL jsonb merge and return organization_id
     // This assumes PG 9.5+ for || operator on jsonb, or we can use returning() after a find
@@ -57,19 +53,22 @@ export const handleCapabilityUpdated = async (
       }
 
       // Publish capability updated event within transaction
-      await OnboardingAccountCapabilitiesUpdated.dispatch({
-        stripe_account_id: stripeAccountId,
-        organization_id: record.organization_id,
-        capability_id: capability.id,
-        capability_status: capability.status,
-        requested: capability.requested,
-        updated_at: new Date().toISOString(),
-      }, {
-        actorId: WEBHOOK_ACTOR_UUID,
-        actorType: 'webhook',
-        organizationId: record.organization_id,
-        tx,
-      });
+      await OnboardingAccountCapabilitiesUpdated.dispatch(
+        {
+          stripe_account_id: stripeAccountId,
+          organization_id: record.organization_id,
+          capability_id: capability.id,
+          capability_status: capability.status,
+          requested: capability.requested,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          actorId: WEBHOOK_ACTOR_UUID,
+          actorType: 'webhook',
+          organizationId: record.organization_id,
+          tx,
+        }
+      );
     });
 
     logger.info('Capability updated and event published for: {capabilityId}', { capabilityId: capability.id });

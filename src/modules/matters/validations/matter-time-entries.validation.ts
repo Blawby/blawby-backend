@@ -9,15 +9,14 @@ const createMatterTimeEntrySchema = z.object({
   billable: z.boolean().default(true),
 });
 
-const updateMatterTimeEntrySchema = z.object({
-  start_time: z.iso.datetime().optional(),
-  end_time: z.iso.datetime().optional(),
-  description: z.string().optional(),
-  billable: z.boolean().optional(),
-}).refine(
-  (data) => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' },
-);
+const updateMatterTimeEntrySchema = z
+  .object({
+    start_time: z.iso.datetime().optional(),
+    end_time: z.iso.datetime().optional(),
+    description: z.string().optional(),
+    billable: z.boolean().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided for update' });
 
 const matterTimeEntryIdParamSchema = z.object({
   id: uuidValidator,
@@ -34,19 +33,20 @@ const listTimeEntriesQuerySchema = z.object({
   end_date: z.coerce.date().optional(),
 });
 
-const timeEntrySchema = z.object({
-  id: z.uuid(),
-  matter_id: z.uuid(),
-  user_id: z.uuid(),
-  start_time: z.date(),
-  end_time: z.date(),
-  duration: z.number().describe('Duration in seconds'),
-  description: z.string().nullable(),
-  billable: z.boolean(),
-  created_at: z.date(),
-  updated_at: z.date(),
-}).openapi('TimeEntry');
-
+const timeEntrySchema = z
+  .object({
+    id: z.uuid(),
+    matter_id: z.uuid(),
+    user_id: z.uuid(),
+    start_time: z.date().openapi({ format: 'date-time' }),
+    end_time: z.date().openapi({ format: 'date-time' }),
+    duration: z.number().describe('Duration in seconds'),
+    description: z.string().nullable(),
+    billable: z.boolean(),
+    created_at: z.date().openapi({ format: 'date-time' }),
+    updated_at: z.date().openapi({ format: 'date-time' }),
+  })
+  .openapi('TimeEntry');
 
 export const matterTimeEntryValidations = {
   createMatterTimeEntrySchema,

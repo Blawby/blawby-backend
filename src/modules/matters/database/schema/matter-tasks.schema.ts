@@ -1,15 +1,7 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  date,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, date, timestamp, index } from 'drizzle-orm/pg-core';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
-import { users } from '@/schema';
+import { users } from '@/schema/better-auth-schema';
 
 export const matterTasks = pgTable(
   'matter_tasks',
@@ -29,18 +21,14 @@ export const matterTasks = pgTable(
     status: varchar('status', { length: 20 }).notNull().default('pending'),
     priority: varchar('priority', { length: 20 }).notNull().default('normal'),
     stage: varchar('stage', { length: 100 }).notNull(),
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('matter_tasks_matter_idx').on(table.matter_id),
     index('matter_tasks_assignee_idx').on(table.assignee_id),
     index('matter_tasks_due_date_idx').on(table.due_date),
-  ],
+  ]
 );
 
 export const matterTasksRelations = relations(matterTasks, ({ one }) => ({

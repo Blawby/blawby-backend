@@ -1,22 +1,18 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import {
-  uploadValidations,
-} from '@/modules/uploads/validations/uploads.validation';
+import { uploadValidations } from '@/modules/uploads/validations/uploads.validation';
 
 /**
  * OpenAPI param schemas with metadata
  */
 const uploadIdParamOpenAPISchema = z.object({
-  id: z
-    .uuid()
-    .openapi({
-      param: {
-        name: 'id',
-        in: 'path',
-      },
-      description: 'Upload ID (UUID)',
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
+  id: z.uuid().openapi({
+    param: {
+      name: 'id',
+      in: 'path',
+    },
+    description: 'Upload ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
 });
 
 /**

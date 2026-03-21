@@ -1,14 +1,7 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  timestamp,
-  primaryKey,
-  index,
-} from 'drizzle-orm/pg-core';
-
-import { matters } from './matters.schema';
-import { users } from '@/schema';
+import { pgTable, uuid, timestamp, primaryKey, index } from 'drizzle-orm/pg-core';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { users } from '@/schema/better-auth-schema';
 
 export const matterAssignees = pgTable(
   'matter_assignees',
@@ -23,15 +16,13 @@ export const matterAssignees = pgTable(
       .references(() => users.id, {
         onDelete: 'cascade',
       }),
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.matter_id, table.user_id] }),
     index('matter_assignees_matter_idx').on(table.matter_id),
     index('matter_assignees_user_idx').on(table.user_id),
-  ],
+  ]
 );
 
 // Define relations

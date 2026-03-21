@@ -1,12 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  text,
-  jsonb,
-  timestamp,
-  boolean,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, jsonb, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import type {
@@ -18,7 +11,7 @@ import type {
   FutureRequirements,
   TosAcceptance,
 } from '@/modules/onboarding/types/onboarding.types';
-import { organizations } from '@/schema';
+import { organizations } from '@/schema/better-auth-schema';
 
 // Stripe connected accounts table
 export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
@@ -48,48 +41,31 @@ export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
-export const stripeConnectedAccountsRelations = relations(
-  stripeConnectedAccounts,
-  ({ one }) => ({
-    organization: one(organizations, {
-      fields: [stripeConnectedAccounts.organization_id],
-      references: [organizations.id],
-    }),
+export const stripeConnectedAccountsRelations = relations(stripeConnectedAccounts, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [stripeConnectedAccounts.organization_id],
+    references: [organizations.id],
   }),
-);
+}));
 
 // Zod schemas for database interaction
-export const createStripeConnectedAccountSchema = createInsertSchema(
-  stripeConnectedAccounts,
-  {
-    email: z.email('Invalid email format'),
-    country: z.string().length(2),
-    business_type: z
-      .enum(['individual', 'company', 'non_profit', 'government_entity'])
-      .optional(),
-  },
-);
+export const createStripeConnectedAccountSchema = createInsertSchema(stripeConnectedAccounts, {
+  email: z.email('Invalid email format'),
+  country: z.string().length(2),
+  business_type: z.enum(['individual', 'company', 'non_profit', 'government_entity']).optional(),
+});
 
-export const updateStripeConnectedAccountSchema = createInsertSchema(
-  stripeConnectedAccounts,
-  {
-    email: z.email().optional(),
-    country: z.string().length(2).optional(),
-    business_type: z
-      .enum(['individual', 'company', 'non_profit', 'government_entity'])
-      .optional(),
-  },
-).partial();
+export const updateStripeConnectedAccountSchema = createInsertSchema(stripeConnectedAccounts, {
+  email: z.email().optional(),
+  country: z.string().length(2).optional(),
+  business_type: z.enum(['individual', 'company', 'non_profit', 'government_entity']).optional(),
+}).partial();
 
-export const selectStripeConnectedAccountSchema = createSelectSchema(
-  stripeConnectedAccounts,
-);
+export const selectStripeConnectedAccountSchema = createSelectSchema(stripeConnectedAccounts);
 
 // Export types
-export type StripeConnectedAccount
-  = typeof stripeConnectedAccounts.$inferSelect;
-export type NewStripeConnectedAccount
-  = typeof stripeConnectedAccounts.$inferInsert;
+export type StripeConnectedAccount = typeof stripeConnectedAccounts.$inferSelect;
+export type NewStripeConnectedAccount = typeof stripeConnectedAccounts.$inferInsert;
 
 // Main export
 export { stripeConnectedAccounts as default };

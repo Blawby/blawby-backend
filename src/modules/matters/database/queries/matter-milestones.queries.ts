@@ -1,55 +1,41 @@
 import { eq, sql, asc, and } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterMilestones,
   type InsertMatterMilestone,
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
-import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 // Create matter milestone
-const createMatterMilestone = async (
-  data: InsertMatterMilestone,
-): Promise<SelectMatterMilestone> => {
-  const [milestone] = await db
-    .insert(matterMilestones)
-    .values(data)
-    .returning();
+const createMatterMilestone = async (data: InsertMatterMilestone): Promise<SelectMatterMilestone> => {
+  const [milestone] = await db.insert(matterMilestones).values(data).returning();
   return milestone;
 };
 
 // Create multiple milestones
 const createMatterMilestones = async (
   data: InsertMatterMilestone[],
-  tx?: NodePgDatabase<typeof schema>,
+  tx?: typeof db
 ): Promise<SelectMatterMilestone[]> => {
-  if (data.length === 0) return [];
+  if (data.length === 0) {
+    return [];
+  }
 
   const client = tx ?? db;
-  return await client
-    .insert(matterMilestones)
-    .values(data)
-    .returning();
+  return await client.insert(matterMilestones).values(data).returning();
 };
 
 // Find matter milestone by ID
-const findMatterMilestoneById = async (
-  id: string,
-): Promise<SelectMatterMilestone | undefined> => {
-  const [milestone] = await db
-    .select()
-    .from(matterMilestones)
-    .where(eq(matterMilestones.id, id))
-    .limit(1);
+const findMatterMilestoneById = async (id: string): Promise<SelectMatterMilestone | undefined> => {
+  const [milestone] = await db.select().from(matterMilestones).where(eq(matterMilestones.id, id)).limit(1);
   return milestone;
 };
 
 // List matter milestones
 const listMatterMilestones = async (
   matterId: string,
-  filters?: MatterMilestoneListFilters,
+  filters?: MatterMilestoneListFilters
 ): Promise<SelectMatterMilestone[]> => {
   const conditions = [eq(matterMilestones.matter_id, matterId)];
   if (filters?.milestoneId) {
@@ -66,7 +52,7 @@ const listMatterMilestones = async (
 // Update matter milestone
 const updateMatterMilestone = async (
   id: string,
-  data: Partial<InsertMatterMilestone>,
+  data: Partial<InsertMatterMilestone>
 ): Promise<SelectMatterMilestone | undefined> => {
   const [milestone] = await db
     .update(matterMilestones)
@@ -82,10 +68,10 @@ const deleteMatterMilestone = async (id: string): Promise<void> => {
 };
 
 // Reorder milestones
-const reorderMilestones = async (
-  updates: { id: string; order: number }[],
-): Promise<void> => {
-  if (updates.length === 0) return;
+const reorderMilestones = async (updates: { id: string; order: number }[]): Promise<void> => {
+  if (updates.length === 0) {
+    return;
+  }
 
   await db.transaction(async (tx) => {
     for (const update of updates) {
@@ -99,7 +85,7 @@ const reorderMilestones = async (
 
 // Get milestone statistics
 const getMilestoneStats = async (
-  matterId: string,
+  matterId: string
 ): Promise<{
   total: number;
   pending: number;
@@ -133,6 +119,41 @@ const getMilestoneStats = async (
   };
 };
 
+/**
+ * Mark a milestone as invoiced.
+ */
+const markAsInvoiced = async (
+  milestoneId: string,
+  invoiceId: string,
+  matterId: string,
+  tx?: typeof db
+): Promise<void> => {
+  const client = tx ?? db;
+  await client
+    .update(matterMilestones)
+    .set({
+      invoice_id: invoiceId,
+      invoiced_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(and(eq(matterMilestones.id, milestoneId), eq(matterMilestones.matter_id, matterId)));
+};
+
+/**
+ * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
+ */
+const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
+  const client = tx ?? db;
+  await client
+    .update(matterMilestones)
+    .set({
+      invoice_id: null,
+      invoiced_at: null,
+      updated_at: new Date(),
+    })
+    .where(eq(matterMilestones.invoice_id, invoiceId));
+};
+
 export const matterMilestonesQueries = {
   createMatterMilestone,
   createMatterMilestones,
@@ -142,4 +163,6 @@ export const matterMilestonesQueries = {
   deleteMatterMilestone,
   reorderMilestones,
   getMilestoneStats,
+  markAsInvoiced,
+  unmarkInvoiced,
 };

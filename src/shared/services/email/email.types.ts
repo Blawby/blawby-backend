@@ -10,13 +10,14 @@ export const EMAIL_TEMPLATES = {
   CUSTOMER_PAYMENT_RECEIPT: 'customer-payment-receipt',
   CUSTOMER_PAYMENT_REQUEST: 'customer-payment-request',
   CUSTOMER_CUSTOM_RECEIPT: 'customer-custom-receipt',
-  CUSTOMER_REFUND_INITIATED: 'customer-refund-initiated',
-  CUSTOMER_REFUND_COMPLETED: 'customer-refund-completed',
-  CUSTOMER_PAYMENT_REJECTED: 'customer-payment-rejected',
+  CUSTOMER_REFUND_REQUEST: 'customer-payment-refund-request',
+  CUSTOMER_REFUND_APPROVED: 'customer-payment-refunded',
+  CUSTOMER_REFUND_REJECTED: 'customer-payment-rejected',
   // Team emails
   TEAM_PAYMENT_RECEIPT: 'team-payment-receipt',
   TEAM_CUSTOM_RECEIPT: 'team-custom-receipt',
   TEAM_REFUND_REQUEST: 'team-refund-request',
+  TEAM_REFUND_PROCESSED: 'team-payment-refunded',
   PRACTICE_INVITATION: 'practice-invitation',
   // Onboarding emails
   WELCOME: 'welcome',
