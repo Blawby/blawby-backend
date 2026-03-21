@@ -66,7 +66,7 @@ export const initializeRateLimiter = (): Promise<void> => {
         tableName: 'rate_limits',
         keyPrefix: 'rl:',
       },
-      ready,
+      ready
     );
 
     limiters.set(key, limiter);
@@ -95,22 +95,13 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
   return limiters.get(key)!;
 };
 
-export const rateLimit = (options?: {
-  points?: number;
-  duration?: number;
-  routeKey?: string;
-}): MiddlewareHandler => {
+export const rateLimit = (options?: { points?: number; duration?: number; routeKey?: string }): MiddlewareHandler => {
   return async (c, next) => {
     const userId = c.get('userId');
 
-    const ip =
-      c.req.header('x-real-ip') ??
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
-      'unknown';
+    const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
 
-    const identifier = userId
-      ? `user:${userId}`
-      : `ip:${ip}`;
+    const identifier = userId ? `user:${userId}` : `ip:${ip}`;
 
     const routeKey = options?.routeKey ?? 'global';
     const key = `${routeKey}:${identifier}`;
@@ -137,11 +128,7 @@ export const rateLimit = (options?: {
         const msBeforeNext = (rejRes as { msBeforeNext: number }).msBeforeNext;
         const retryAfter = Math.ceil(msBeforeNext / 1000) || 1;
 
-        return response.tooManyRequests(
-          c,
-          `Too many requests. Please try again in ${retryAfter} seconds.`,
-          retryAfter,
-        );
+        return response.tooManyRequests(c, `Too many requests. Please try again in ${retryAfter} seconds.`, retryAfter);
       }
 
       // Not a rate limit rejection - likely a DB/connection error

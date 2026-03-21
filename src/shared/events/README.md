@@ -37,6 +37,7 @@ Graphile Worker (polls events table)
 ```
 
 **Key Benefits:**
+
 - **Zero data loss**: Events are written atomically with business data
 - **Reliable processing**: Workers can retry failed events
 - **Observability**: Track processing status, retry counts, and errors
@@ -148,7 +149,7 @@ Use `publishEventTx(tx, event)` within database transactions:
 await db.transaction(async (tx) => {
   // 1. Business logic
   const practice = await tx.insert(practices).values(data).returning();
-  
+
   // 2. Publish event within same transaction
   await publishEventTx(tx, {
     type: EventType.PRACTICE_CREATED,
@@ -164,6 +165,7 @@ await db.transaction(async (tx) => {
 ```
 
 **Benefits:**
+
 - Event is written atomically with business data
 - Zero data loss guarantee
 - Event will be processed by workers even if process crashes
@@ -235,6 +237,7 @@ subscribeToEvent(EventType.PRACTICE_CREATED, async (event: BaseEvent) => {
 ```
 
 **How it works:**
+
 1. Events are published via `publishEventTx()` or `publishSimpleEvent()`
 2. Events are stored in `events` table with `processed = false`
 3. `process-outbox-event` worker polls the table
@@ -243,6 +246,7 @@ subscribeToEvent(EventType.PRACTICE_CREATED, async (event: BaseEvent) => {
 6. Retries failed events up to `MAX_RETRIES` times
 
 **Benefits:**
+
 - Guaranteed delivery (events persist in database)
 - Automatic retries for failed handlers
 - Error tracking and observability
@@ -308,6 +312,7 @@ Events use `event_version` for forward compatibility:
 ### "Why is `actor_id` a UUID now?"
 
 To enforce strict typing and consistency:
+
 - `actor_id` must be a UUID (not a string literal)
 - Publish functions automatically convert string IDs to UUIDs
 - System actors use constant UUIDs from `constants.ts`
@@ -315,11 +320,13 @@ To enforce strict typing and consistency:
 ### "Why is `organization_id` sometimes null?"
 
 Some events are user-level, not organization-level:
+
 - User signup/login events don't have `organizationId`
 - Stripe customer events are user-level
 - Practice/payment events should always include `organizationId`
 
 **Fix pattern:**
+
 - Use `publishPracticeEvent()` for org-scoped events
 - Use `publishSystemEvent(..., organizationId)` when organization context is available
 - Ensure `organizationId` is passed when creating practice/payment events
@@ -327,6 +334,7 @@ Some events are user-level, not organization-level:
 ### "How do I know if an event was processed?"
 
 Check the `events` table:
+
 - `processed = true` → Event was successfully processed
 - `processed = false` → Event is pending or failed
 - `retry_count > 0` → Event failed and was retried
@@ -335,6 +343,7 @@ Check the `events` table:
 ### "Can I replay events?"
 
 Yes! Events are persisted with full payloads. You can:
+
 1. Query `events` table for specific events
 2. Reset `processed = false` to reprocess
 3. Workers will pick them up on next poll

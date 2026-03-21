@@ -2,11 +2,7 @@ import { eq, and, lte, isNotNull } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 
 import { db } from '@/shared/database';
-import {
-  webhookEvents,
-  type WebhookEvent,
-  type NewWebhookEvent,
-} from '@/shared/schemas/stripe.webhook-events.schema';
+import { webhookEvents, type WebhookEvent, type NewWebhookEvent } from '@/shared/schemas/stripe.webhook-events.schema';
 
 /**
  * Shared Webhook Events Repository
@@ -18,14 +14,8 @@ export const stripeWebhookEventsRepository = {
   /**
    * Check if a webhook event exists by its Stripe Event ID.
    */
-  async existsByStripeEventId(
-    stripeEventId: string,
-  ): Promise<WebhookEvent | null> {
-    const events = await db
-      .select()
-      .from(webhookEvents)
-      .where(eq(webhookEvents.stripeEventId, stripeEventId))
-      .limit(1);
+  async existsByStripeEventId(stripeEventId: string): Promise<WebhookEvent | null> {
+    const events = await db.select().from(webhookEvents).where(eq(webhookEvents.stripeEventId, stripeEventId)).limit(1);
 
     return events[0] || null;
   },
@@ -33,11 +23,7 @@ export const stripeWebhookEventsRepository = {
   /**
    * Create a new webhook event.
    */
-  async create(
-    event: Stripe.Event,
-    headers: Record<string, string>,
-    url: string,
-  ): Promise<WebhookEvent> {
+  async create(event: Stripe.Event, headers: Record<string, string>, url: string): Promise<WebhookEvent> {
     const newEvent: NewWebhookEvent = {
       stripeEventId: event.id,
       eventType: event.type,
@@ -46,10 +32,7 @@ export const stripeWebhookEventsRepository = {
       url,
     };
 
-    const [webhookEvent] = await db
-      .insert(webhookEvents)
-      .values(newEvent)
-      .returning();
+    const [webhookEvent] = await db.insert(webhookEvents).values(newEvent).returning();
 
     return webhookEvent;
   },
@@ -61,7 +44,7 @@ export const stripeWebhookEventsRepository = {
   async createIfNotExists(
     event: Stripe.Event,
     headers: Record<string, string>,
-    url: string,
+    url: string
   ): Promise<WebhookEvent | null> {
     const newEvent: NewWebhookEvent = {
       stripeEventId: event.id,
@@ -83,14 +66,8 @@ export const stripeWebhookEventsRepository = {
   /**
    * Find a webhook event by its internal database ID.
    */
-  async findById(
-    id: string,
-  ): Promise<WebhookEvent | null> {
-    const events = await db
-      .select()
-      .from(webhookEvents)
-      .where(eq(webhookEvents.id, id))
-      .limit(1);
+  async findById(id: string): Promise<WebhookEvent | null> {
+    const events = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id)).limit(1);
 
     return events[0] || null;
   },
@@ -111,11 +88,7 @@ export const stripeWebhookEventsRepository = {
   /**
    * Mark a webhook event as failed and schedule a retry.
    */
-  async markFailed(
-    id: string,
-    error: string,
-    errorStack?: string,
-  ): Promise<void> {
+  async markFailed(id: string, error: string, errorStack?: string): Promise<void> {
     const event = await stripeWebhookEventsRepository.findById(id);
     if (!event) return;
 
@@ -149,8 +122,8 @@ export const stripeWebhookEventsRepository = {
         and(
           eq(webhookEvents.processed, false),
           isNotNull(webhookEvents.nextRetryAt),
-          lte(webhookEvents.nextRetryAt, now),
-        ),
+          lte(webhookEvents.nextRetryAt, now)
+        )
       );
   },
 };

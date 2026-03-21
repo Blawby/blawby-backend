@@ -9,15 +9,14 @@ const createMatterExpenseSchema = z.object({
   billable: z.boolean().default(true),
 });
 
-const updateMatterExpenseSchema = z.object({
-  description: z.string().min(1).optional(),
-  amount: z.number().min(0).optional(),
-  date: z.string().optional(),
-  billable: z.boolean().optional(),
-}).refine(
-  (data) => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' },
-);
+const updateMatterExpenseSchema = z
+  .object({
+    description: z.string().min(1).optional(),
+    amount: z.number().min(0).optional(),
+    date: z.string().optional(),
+    billable: z.boolean().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided for update' });
 
 const matterExpenseIdParamSchema = z.object({
   id: uuidValidator,
@@ -34,17 +33,18 @@ const listExpensesQuerySchema = z.object({
   end_date: z.coerce.date().optional(),
 });
 
-const expenseSchema = z.object({
-  id: z.uuid(),
-  matter_id: z.uuid(),
-  description: z.string(),
-  amount: z.number().describe('Amount in cents'),
-  date: z.string(),
-  billable: z.boolean(),
-  created_at: z.date(),
-  updated_at: z.date(),
-}).openapi('Expense');
-
+const expenseSchema = z
+  .object({
+    id: z.uuid(),
+    matter_id: z.uuid(),
+    description: z.string(),
+    amount: z.number().describe('Amount in cents'),
+    date: z.string(),
+    billable: z.boolean(),
+    created_at: z.date(),
+    updated_at: z.date(),
+  })
+  .openapi('Expense');
 
 export const matterExpenseValidations = {
   createMatterExpenseSchema,

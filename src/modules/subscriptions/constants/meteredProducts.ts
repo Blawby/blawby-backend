@@ -30,7 +30,7 @@ export enum StripeMeterNames {
   ACTIVE_USER_COUNT = 'active_user_count',
   INVOICE_FEE = 'invoice_fee',
   PAYOUT_FEE = 'payout_fee',
-  PAYMENT_FEE = 'team_custom_payment'
+  PAYMENT_FEE = 'team_custom_payment',
 }
 
 /**
@@ -70,7 +70,7 @@ export const getInternalTypeFromMeterName = (meterName: string): string | undefi
  */
 export const getMeteredItemsForOrganization = async (
   db: NodePgDatabase<typeof schema>,
-  organizationId: string,
+  organizationId: string
 ): Promise<MeteredItem[]> => {
   // 1. Get organization's active subscription
   const [org] = await db
@@ -120,10 +120,7 @@ export const getMeteredItemsForOrganization = async (
  * @param type - Metered item type (e.g., 'metered_invoice_fee')
  * @returns Metered item or undefined
  */
-export const getMeteredItemByType = (
-  meteredItems: MeteredItem[],
-  type: string,
-): MeteredItem | undefined => {
+export const getMeteredItemByType = (meteredItems: MeteredItem[], type: string): MeteredItem | undefined => {
   return meteredItems.find((item) => item.type === type);
 };
 
@@ -134,10 +131,7 @@ export const getMeteredItemByType = (
  * @param organizationId - Organization UUID
  * @returns True if organization has metered items
  */
-export const hasMeteredItems = async (
-  db: NodePgDatabase<typeof schema>,
-  organizationId: string,
-): Promise<boolean> => {
+export const hasMeteredItems = async (db: NodePgDatabase<typeof schema>, organizationId: string): Promise<boolean> => {
   const items = await getMeteredItemsForOrganization(db, organizationId);
   return items.length > 0;
 };

@@ -1,16 +1,7 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  jsonb,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
-
-import { matters } from './matters.schema';
-import { users } from '@/schema';
+import { pgTable, uuid, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { users } from '@/schema/better-auth-schema';
 
 export const matterActivityLog = pgTable(
   'matter_activity_log',
@@ -27,16 +18,14 @@ export const matterActivityLog = pgTable(
     action: varchar('action', { length: 50 }).notNull(), // 'created', 'updated', 'note_added', 'time_entry_added', etc.
     description: text('description').notNull(), // Human-readable description
     metadata: jsonb('metadata'), // Additional context
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('matter_activity_log_matter_idx').on(table.matter_id),
     index('matter_activity_log_user_idx').on(table.user_id),
     index('matter_activity_log_action_idx').on(table.action),
     index('matter_activity_log_created_at_idx').on(table.created_at),
-  ],
+  ]
 );
 
 // Define relations

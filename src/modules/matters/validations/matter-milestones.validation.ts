@@ -10,22 +10,25 @@ const createMatterMilestoneSchema = z.object({
   order: z.number().int().min(0).default(0),
 });
 
-const updateMatterMilestoneSchema = z.object({
-  description: z.string().min(1).optional(),
-  amount: z.number().min(0).optional(),
-  due_date: z.string().optional(),
-  status: z.enum(['pending', 'in_progress', 'completed', 'overdue']).optional(),
-  order: z.number().int().min(0).optional(),
-}).refine(
-  (data) => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' },
-);
+const updateMatterMilestoneSchema = z
+  .object({
+    description: z.string().min(1).optional(),
+    amount: z.number().min(0).optional(),
+    due_date: z.string().optional(),
+    status: z.enum(['pending', 'in_progress', 'completed', 'overdue']).optional(),
+    order: z.number().int().min(0).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided for update' });
 
 const reorderMilestonesSchema = z.object({
-  milestones: z.array(z.object({
-    id: uuidValidator,
-    order: z.number().int().min(0),
-  })).min(1),
+  milestones: z
+    .array(
+      z.object({
+        id: uuidValidator,
+        order: z.number().int().min(0),
+      })
+    )
+    .min(1),
 });
 
 const matterMilestoneIdParamSchema = z.object({
@@ -40,18 +43,19 @@ const listMilestonesQuerySchema = z.object({
   milestone_id: uuidValidator.optional(),
 });
 
-const milestoneSchema = z.object({
-  id: z.uuid(),
-  matter_id: z.uuid(),
-  description: z.string(),
-  amount: z.number().describe('Amount in cents'),
-  due_date: z.string(),
-  status: z.enum(['pending', 'in_progress', 'completed', 'overdue']),
-  order: z.number(),
-  created_at: z.date(),
-  updated_at: z.date(),
-}).openapi('Milestone');
-
+const milestoneSchema = z
+  .object({
+    id: z.uuid(),
+    matter_id: z.uuid(),
+    description: z.string(),
+    amount: z.number().describe('Amount in cents'),
+    due_date: z.string(),
+    status: z.enum(['pending', 'in_progress', 'completed', 'overdue']),
+    order: z.number(),
+    created_at: z.date(),
+    updated_at: z.date(),
+  })
+  .openapi('Milestone');
 
 export const matterMilestoneValidations = {
   createMatterMilestoneSchema,

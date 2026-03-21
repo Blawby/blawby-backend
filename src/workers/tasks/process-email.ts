@@ -16,7 +16,7 @@ const isEmailJobInput = (input: unknown): input is EmailJobInput => {
   if (typeof input !== 'object' || input === null) return false;
   const i = input as Record<string, unknown>;
   return typeof i.payload === 'object' && i.payload !== null;
-}
+};
 
 /**
  * Process an email job from the queue
@@ -41,7 +41,7 @@ export const processEmail: Task = async (input, helpers) => {
 
     helpers.logger.info(`✅ Email sent: ${result.messageId}`);
   } catch (error) {
-    helpers.logger.error(`❌ Email processing error:`, { error });
+    helpers.logger.error('❌ Email processing error:', { error });
     throw error; // Re-throw so Graphile Worker can retry
   }
 };

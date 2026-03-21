@@ -48,7 +48,8 @@ You can customize limits for specific routes:
 // In your route handler
 import { rateLimit } from '@/shared/middleware/rateLimit';
 
-app.post('/api/heavy-operation', 
+app.post(
+  '/api/heavy-operation',
   rateLimit({ points: 10, duration: 60 }), // 10 requests per minute
   handler
 );
@@ -59,11 +60,12 @@ app.post('/api/heavy-operation',
 Use `routeKey` to isolate rate limits per route:
 
 ```typescript
-app.post('/api/upload',
-  rateLimit({ 
-    points: 5, 
+app.post(
+  '/api/upload',
+  rateLimit({
+    points: 5,
     duration: 60,
-    routeKey: 'upload' // Separate limit for uploads
+    routeKey: 'upload', // Separate limit for uploads
   }),
   handler
 );
@@ -105,6 +107,7 @@ When rate limit is exceeded:
 ```
 
 Headers:
+
 ```http
 Retry-After: 45
 ```

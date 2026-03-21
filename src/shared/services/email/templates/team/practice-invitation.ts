@@ -46,23 +46,23 @@ export const practiceInvitation = (data: PracticeInvitationData): string => {
         
         <mj-divider border-color="${COLORS.border}" padding="30px 0" />
         
-        <mj-text color="${COLORS.subtext}" font-size="14px" line-height="20px">
+        <mj-text color="${COLORS.textMuted}" font-size="16px" font-weight="500" line-height="20px">
           If the button above doesn't work, copy and paste this link into your browser:
         </mj-text>
         
-        <mj-text color="${COLORS.primary}" font-size="12px" line-height="16px" padding-top="5px">
-          <a href="${sanitizedInviteLink}" style="color: ${COLORS.primary}; word-break: break-all;">
+        <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" line-height="16px" padding-top="5px">
+          <a href="${sanitizedInviteLink}" style="color: #1a202c; word-break: break-all;">
             ${escapedInviteLink}
           </a>
         </mj-text>
         
-        <mj-text color="${COLORS.subtext}" font-size="14px" padding-top="20px">
+        <mj-text color="${COLORS.textMuted}" font-size="16px" font-weight="500" padding-top="20px">
           If you weren't expecting this invitation, you can safely ignore this email.
         </mj-text>
       </mj-column>
     `)}
   `,
-    BLAWBY_LOGO_URL,
+    BLAWBY_LOGO_URL
   );
 
   return renderMjml(mjmlContent);

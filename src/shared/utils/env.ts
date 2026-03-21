@@ -1,3 +1,7 @@
+// oxlint-disable import/group-exports
+// oxlint-disable import/no-named-export
+// oxlint-disable no-magic-numbers
+
 /**
  * Environment Utilities
  *
@@ -18,11 +22,9 @@ type NodeEnvironment = 'development' | 'production';
 export const getAppEnv = (): AppEnvironment => {
   const appEnv = process.env.APP_ENV?.toLowerCase();
 
-
   if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production' || appEnv === 'test') {
     return appEnv;
   }
-
 
   // Default to development
   return 'development';
@@ -39,37 +41,27 @@ export const getNodeEnv = (): NodeEnvironment => {
 /**
  * Check if running in development environment
  */
-export const isDevelopment = (): boolean => {
-  return getAppEnv() === 'development';
-};
+export const isDevelopment = (): boolean => getAppEnv() === 'development';
 
 /**
  * Check if running in test environment
  */
-export const isTest = (): boolean => {
-  return getAppEnv() === 'test';
-};
+export const isTest = (): boolean => getAppEnv() === 'test';
 
 /**
  * Check if running in staging environment
  */
-export const isStaging = (): boolean => {
-  return getAppEnv() === 'staging';
-};
+export const isStaging = (): boolean => getAppEnv() === 'staging';
 
 /**
  * Check if running in production environment
  */
-export const isProduction = (): boolean => {
-  return getAppEnv() === 'production';
-};
+export const isProduction = (): boolean => getAppEnv() === 'production';
 
 /**
  * Check if running in a non-development environment (staging or production)
  */
-export const isNonDevelopment = (): boolean => {
-  return !isDevelopment();
-};
+export const isNonDevelopment = (): boolean => !isDevelopment();
 
 /**
  * Check if running in a production-like environment (staging or production)
@@ -84,7 +76,9 @@ export const isProductionLike = (): boolean => {
  */
 export const getEnvArray = (key: string, defaultValue: string[] = []): string[] => {
   const value = process.env[key];
-  if (!value) return defaultValue;
+  if (!value) {
+    return defaultValue;
+  }
 
   return value
     .split(',')
@@ -98,8 +92,12 @@ export const getEnvArray = (key: string, defaultValue: string[] = []): string[] 
  */
 export const getMatchingFrontendUrl = (origin?: string | null): string => {
   const urls = getEnvArray('FRONTEND_URL');
-  if (urls.length === 0) return process.env.BASE_URL || '';
-  if (urls.length === 1 || !origin) return urls[0] || '';
+  if (urls.length === 0) {
+    return process.env.BASE_URL || '';
+  }
+  if (urls.length === 1 || !origin) {
+    return urls[0] ?? '';
+  }
 
   const normalizedOrigin = origin.toLowerCase().trim().replace(/\/$/, '');
   const match = urls.find((url) => {
@@ -107,5 +105,5 @@ export const getMatchingFrontendUrl = (origin?: string | null): string => {
     return normalizedUrl === normalizedOrigin;
   });
 
-  return match || urls[0];
+  return match ?? urls[0];
 };

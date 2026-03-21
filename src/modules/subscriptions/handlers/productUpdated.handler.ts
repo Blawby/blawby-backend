@@ -17,7 +17,7 @@ const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
  * Extract plan limits from product metadata
  */
 const extractLimits = (
-  metadata: Record<string, string>,
+  metadata: Record<string, string>
 ): {
   users: number;
   invoices_per_month: number;
@@ -58,9 +58,7 @@ const extractLimits = (
 const extractFeatures = (product: Stripe.Product): string[] | [] => {
   // Priority 1: Stripe Marketing Features (Native)
   if (product.marketing_features && product.marketing_features.length > 0) {
-    return product.marketing_features
-      .map((f) => f.name)
-      .filter((name): name is string => name !== undefined);
+    return product.marketing_features.map((f) => f.name).filter((name): name is string => name !== undefined);
   }
 
   const metadata = product.metadata || {};
@@ -101,12 +99,8 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     });
 
     // Find monthly and yearly prices
-    const monthlyPrice = prices.data.find(
-      (price) => price.recurring?.interval === 'month',
-    );
-    const yearlyPrice = prices.data.find(
-      (price) => price.recurring?.interval === 'year',
-    );
+    const monthlyPrice = prices.data.find((price) => price.recurring?.interval === 'month');
+    const yearlyPrice = prices.data.find((price) => price.recurring?.interval === 'year');
 
     // Extract metadata
     const metadata = product.metadata || {};
@@ -131,12 +125,8 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
       stripe_product_id: product.id,
       stripe_monthly_price_id: monthlyPrice?.id || null,
       stripe_yearly_price_id: yearlyPrice?.id || null,
-      monthly_price: monthlyPrice?.unit_amount
-        ? (monthlyPrice.unit_amount / 100).toString()
-        : null,
-      yearly_price: yearlyPrice?.unit_amount
-        ? (yearlyPrice.unit_amount / 100).toString()
-        : null,
+      monthly_price: monthlyPrice?.unit_amount ? (monthlyPrice.unit_amount / 100).toString() : null,
+      yearly_price: yearlyPrice?.unit_amount ? (yearlyPrice.unit_amount / 100).toString() : null,
       currency: monthlyPrice?.currency || yearlyPrice?.currency || 'usd',
       image: product.images?.[0] || null,
       features,

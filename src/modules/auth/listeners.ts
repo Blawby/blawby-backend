@@ -43,18 +43,13 @@ export function registerAuthListeners(): void {
 
     logger.info('User signed up, sending welcome email');
 
-    void addEmailJob(
-      EMAIL_TEMPLATES.WELCOME,
-      payload.email,
-      'Welcome to Blawby!',
-      {
-        recipientEmail: payload.email,
-        recipientName: payload.name ?? 'User',
-        dashboardUrl: `${APP_URL}/dashboard`,
-        tutorialUrl: `${APP_URL}/docs/getting-started`,
-        supportUrl: 'https://blawby.com/support',
-      },
-    ).catch((error) => {
+    void addEmailJob(EMAIL_TEMPLATES.WELCOME, payload.email, 'Welcome to Blawby!', {
+      recipientEmail: payload.email,
+      recipientName: payload.name ?? 'User',
+      dashboardUrl: `${APP_URL}/dashboard`,
+      tutorialUrl: `${APP_URL}/docs/getting-started`,
+      supportUrl: 'https://blawby.com/help',
+    }).catch((error) => {
       logError('Failed to queue welcome email', error, {
         email: payload.email,
       });

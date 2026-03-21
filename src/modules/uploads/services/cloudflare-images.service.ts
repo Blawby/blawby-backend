@@ -20,21 +20,18 @@ export const generateImagesUploadUrl = async (params: {
 
   if (!accountHash || !apiToken) {
     throw new Error(
-      'CLOUDFLARE_IMAGES_ACCOUNT_HASH and CLOUDFLARE_IMAGES_API_TOKEN environment variables are required',
+      'CLOUDFLARE_IMAGES_ACCOUNT_HASH and CLOUDFLARE_IMAGES_API_TOKEN environment variables are required'
     );
   }
 
   // POST to Cloudflare API to get upload URL and image ID
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountHash}/images/v2/direct_upload`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        'Content-Type': 'application/json',
-      },
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountHash}/images/v2/direct_upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
     },
-  );
+  });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -79,7 +76,7 @@ export const deleteImage = async (params: {
 
   if (!accountHash || !apiToken) {
     throw new Error(
-      'CLOUDFLARE_IMAGES_ACCOUNT_HASH and CLOUDFLARE_IMAGES_API_TOKEN environment variables are required',
+      'CLOUDFLARE_IMAGES_ACCOUNT_HASH and CLOUDFLARE_IMAGES_API_TOKEN environment variables are required'
     );
   }
 
@@ -90,12 +87,12 @@ export const deleteImage = async (params: {
       headers: {
         Authorization: `Bearer ${apiToken}`,
       },
-    },
+    }
   );
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    
+
     // Extract Cloudflare-specific error message
     let errorMessage = 'Failed to delete image';
     if (errorData.success === false && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
@@ -105,7 +102,7 @@ export const deleteImage = async (params: {
     } else if (errorData.detail) {
       errorMessage = errorData.detail;
     }
-    
+
     throw new Error(errorMessage);
   }
 };

@@ -41,10 +41,10 @@ const isSessionResponse = (obj: unknown): obj is SessionResponse => {
   const u = user as Record<string, unknown>;
   const s = session as Record<string, unknown>;
   return (
-    typeof u.id === 'string'
-    && typeof u.isAnonymous === 'boolean'
-    && typeof s.id === 'string'
-    && typeof s.userId === 'string'
+    typeof u.id === 'string' &&
+    typeof u.isAnonymous === 'boolean' &&
+    typeof s.id === 'string' &&
+    typeof s.userId === 'string'
   );
 };
 
@@ -58,9 +58,8 @@ function buildResponse(body: string, original: Response): Response {
 
   // Preserve individual Set-Cookie headers which Headers.forEach() would concatenate
   // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
-  const setCookies: string[] = typeof original.headers.getSetCookie === 'function'
-    ? original.headers.getSetCookie()
-    : [];
+  const setCookies: string[] =
+    typeof original.headers.getSetCookie === 'function' ? original.headers.getSetCookie() : [];
 
   const newResponse = new Response(body, {
     status: original.status,

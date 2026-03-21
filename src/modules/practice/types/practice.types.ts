@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
+import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import type { Organization, User } from '@/shared/types/BetterAuth';
-import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 
 // ============================================================================
 // ORGANIZATION API TYPES
@@ -11,13 +11,13 @@ import { practiceValidations } from '@/modules/practice/validations/practice.val
 /**
  * Organization API request types inferred from Better Auth 1.4+
  */
-export type CreateOrganizationRequest = z.infer<
-  BetterAuthInstance['api']['createOrganization']['options']['body']
->;
+export interface OrganizationRequestParams {
+  organizationId: string;
+}
 
-export type UpdateOrganizationRequest = z.infer<
-  BetterAuthInstance['api']['updateOrganization']['options']['body']
->;
+export type CreateOrganizationRequest = z.infer<BetterAuthInstance['api']['createOrganization']['options']['body']>;
+
+export type UpdateOrganizationRequest = z.infer<BetterAuthInstance['api']['updateOrganization']['options']['body']>;
 
 export type SetActiveOrganizationRequest = z.infer<
   BetterAuthInstance['api']['setActiveOrganization']['options']['body']
@@ -31,15 +31,32 @@ export type GetFullOrganizationRequest = z.infer<
   NonNullable<BetterAuthInstance['api']['getFullOrganization']['options']['query']>
 >;
 
-export type DeleteOrganizationRequest = z.infer<
-  BetterAuthInstance['api']['deleteOrganization']['options']['body']
->;
+export type DeleteOrganizationRequest = z.infer<BetterAuthInstance['api']['deleteOrganization']['options']['body']>;
 
 // Using Better Auth types directly from the instance
-export type PracticeWithDetails = Organization & Partial<PracticeDetails>;
+export type OrganizationApiShape = Organization & {
+  paymentLinkEnabled?: boolean | null;
+  paymentLinkPrefillAmount?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date | null;
+};
+
+type OrganizationWithoutCamelCase = Omit<
+  OrganizationApiShape,
+  'paymentLinkEnabled' | 'paymentLinkPrefillAmount' | 'createdAt' | 'updatedAt'
+>;
+
+export type NormalizedOrganization = OrganizationWithoutCamelCase & {
+  payment_link_enabled: boolean | null;
+  payment_link_prefill_amount: number | null;
+  created_at: Date;
+  updated_at: Date | undefined;
+};
+
+export type PracticeWithDetails = NormalizedOrganization & Partial<PracticeDetails>;
 
 export type PracticeWithUser = {
-  practice: Organization;
+  practice: NormalizedOrganization;
   user: User;
   practice_details: Partial<PracticeDetails> | null;
 };

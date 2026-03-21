@@ -15,25 +15,25 @@ export const PRODUCT_USAGE_OPTIONS = [
   'others',
 ] as const;
 
-export type ProductUsage = typeof PRODUCT_USAGE_OPTIONS[number];
+export type ProductUsage = (typeof PRODUCT_USAGE_OPTIONS)[number];
 
 /**
  * Theme options for UI appearance
  */
 export const THEME_OPTIONS = ['light', 'dark', 'system'] as const;
-export type Theme = typeof THEME_OPTIONS[number];
+export type Theme = (typeof THEME_OPTIONS)[number];
 
 /**
  * Date format options
  */
 export const DATE_FORMAT_OPTIONS = ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'] as const;
-export type DateFormat = typeof DATE_FORMAT_OPTIONS[number];
+export type DateFormat = (typeof DATE_FORMAT_OPTIONS)[number];
 
 /**
  * Time format options
  */
 export const TIME_FORMAT_OPTIONS = ['12h', '24h'] as const;
-export type TimeFormat = typeof TIME_FORMAT_OPTIONS[number];
+export type TimeFormat = (typeof TIME_FORMAT_OPTIONS)[number];
 
 /**
  * General user preferences
@@ -101,7 +101,7 @@ export const PREFERENCE_CATEGORIES = [
 /**
  * Preference category type
  */
-export type PreferenceCategory = typeof PREFERENCE_CATEGORIES[number];
+export type PreferenceCategory = (typeof PREFERENCE_CATEGORIES)[number];
 
 // Inferred from Zod schemas
 export type UpdateUserDetailsRequest = z.infer<typeof preferenceValidations.updateUserDetailsSchema>;

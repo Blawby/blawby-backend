@@ -27,10 +27,7 @@ const MAX_RETRIES = 5; // Maximum retry attempts before giving up
  * This task queries for unprocessed events and processes them in batches.
  * It can be called directly or scheduled to run periodically.
  */
-export const processOutboxEvent: Task = async (
-  payload: unknown,
-  helpers,
-): Promise<void> => {
+export const processOutboxEvent: Task = async (payload: unknown, helpers): Promise<void> => {
   const { eventId } = (payload as { eventId?: string }) || {};
 
   if (eventId) {
@@ -51,8 +48,8 @@ export const processOutboxEvent: Task = async (
           and(
             eq(events.eventId, eventId),
             eq(events.processed, false), // Only process if still pending
-            lt(events.retryCount, MAX_RETRIES),
-          ),
+            lt(events.retryCount, MAX_RETRIES)
+          )
         )
         .limit(1);
     } else {
@@ -62,12 +59,7 @@ export const processOutboxEvent: Task = async (
       unprocessedEvents = await db
         .select()
         .from(events)
-        .where(
-          and(
-            eq(events.processed, false),
-            lt(events.retryCount, MAX_RETRIES),
-          ),
-        )
+        .where(and(eq(events.processed, false), lt(events.retryCount, MAX_RETRIES)))
         .orderBy(asc(events.createdAt))
         .limit(BATCH_SIZE);
     }

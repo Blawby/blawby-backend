@@ -4,28 +4,29 @@ import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterNoteListFilters } from '@/modules/matters/types/matter-filters.types';
-import type {
-  CreateMatterNoteRequest,
-  UpdateMatterNoteRequest,
-} from '@/modules/matters/types/matter.types';
-import type { User } from '@/shared/types/BetterAuth';
+import type { CreateMatterNoteRequest, UpdateMatterNoteRequest } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import type { ServiceContext } from '@/shared/types/service-context';
+import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'notes']);
 
-/**
- * Create a matter note
- */
 const createMatterNote = async (
-  organizationId: string,
-  matterId: string,
-  data: CreateMatterNoteRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  params: { data: CreateMatterNoteRequest },
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterNote>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check — generally only members/admins can modify matters
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -33,18 +34,26 @@ const createMatterNote = async (
   try {
     const note = await matterNotesQueries.createMatterNote({
       matter_id: matterId,
-      user_id: user.id,
-      content: data.content,
+      user_id: ctx.userId,
+      content: params.data.content,
     });
 
     // Log activity
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.NOTE_ADDED,
-      `${user.name || user.email} added a note`,
-      user.id,
-      { changed_fields: ['content'] },
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.NOTE_ADDED,
+        description: `${userName} added a note`,
+        metadata: { changed_fields: ['content'] },
+      },
+      ctx
     );
+    if (!activityResult.success) {
+      logger.error('Failed to log note create activity {matterId}: {error}', {
+        matterId,
+        error: activityResult.error.message,
+      });
+    }
 
     return ok(note);
   } catch (error) {
@@ -61,27 +70,34 @@ const createMatterNote = async (
  * List matter notes
  */
 const listMatterNotes = async (
-  organizationId: string,
-  matterId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
-  filters?: MatterNoteListFilters,
+  params: { filters?: MatterNoteListFilters },
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterNote[]>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('read', 'Matter')) {
+    return forbidden('You do not have permission to read this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Short-circuit: direct lookup when a specific note ID is provided
-    if (filters?.noteId) {
-      const note = await matterNotesQueries.findMatterNoteById(filters.noteId);
+    if (params.filters?.noteId) {
+      const note = await matterNotesQueries.findMatterNoteById(params.filters.noteId);
       if (!note || note.matter_id !== matterId) return ok([]);
       return ok([note]);
     }
 
-    const notes = await matterNotesQueries.listMatterNotes(matterId, filters);
+    const notes = await matterNotesQueries.listMatterNotes(matterId, params.filters);
     return ok(notes);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -97,46 +113,63 @@ const listMatterNotes = async (
  * Update matter note
  */
 const updateMatterNote = async (
-  organizationId: string,
-  matterId: string,
-  noteId: string,
-  data: UpdateMatterNoteRequest,
-  user: User,
-  requestHeaders: Record<string, string>,
+  params: { noteId: string; data: UpdateMatterNoteRequest },
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterNote>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Verify note exists and belongs to matter
-    const note = await matterNotesQueries.findMatterNoteById(noteId);
+    const note = await matterNotesQueries.findMatterNoteById(params.noteId);
     if (!note || note.matter_id !== matterId) {
       return notFound('Note not found');
     }
 
-    const updated = await matterNotesQueries.updateMatterNote(noteId, data);
+    const updated = await matterNotesQueries.updateMatterNote(params.noteId, params.data);
+    if (!updated) {
+      return notFound('Note not found');
+    }
     const changedFields = [];
-    if (data.content !== undefined && data.content !== note.content) {
+    if (params.data.content !== undefined && params.data.content !== note.content) {
       changedFields.push('content');
     }
 
     // Log activity
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.NOTE_UPDATED,
-      `${user.name || user.email} updated a note`,
-      user.id,
-      { changed_fields: changedFields },
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.NOTE_UPDATED,
+        description: `${userName} updated a note`,
+        metadata: { changed_fields: changedFields },
+      },
+      ctx
     );
+    if (!activityResult.success) {
+      logger.error('Failed to log note update activity {noteId}: {error}', {
+        noteId: params.noteId,
+        error: activityResult.error.message,
+      });
+    }
 
-    return ok(updated!);
+    return ok(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update matter note {noteId}: {error}', {
-      noteId,
+      noteId: params.noteId,
       error: message,
     });
     return internalError(message);
@@ -147,41 +180,56 @@ const updateMatterNote = async (
  * Delete matter note
  */
 const deleteMatterNote = async (
-  organizationId: string,
-  matterId: string,
-  noteId: string,
-  user: User,
-  requestHeaders: Record<string, string>,
+  params: { noteId: string },
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
+  const matterId = ctx.matterId;
+  if (!matterId) {
+    return internalError('Matter ID not found in context');
+  }
+
+  // CASL Check
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(organizationId, matterId, user, requestHeaders);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
 
   try {
     // Verify note exists and belongs to matter
-    const note = await matterNotesQueries.findMatterNoteById(noteId);
+    const note = await matterNotesQueries.findMatterNoteById(params.noteId);
     if (!note || note.matter_id !== matterId) {
       return notFound('Note not found');
     }
 
-    await matterNotesQueries.deleteMatterNote(noteId);
+    await matterNotesQueries.deleteMatterNote(params.noteId);
 
     // Log activity
-    await matterActivityService.logMatterActivity(
-      matterId,
-      matterActivityService.ActivityAction.NOTE_DELETED,
-      `${user.name || user.email} deleted a note`,
-      user.id,
-      { changed_fields: ['deleted'] },
+    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+    const activityResult = await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.NOTE_DELETED,
+        description: `${userName} deleted a note`,
+        metadata: { changed_fields: ['deleted'] },
+      },
+      ctx
     );
+    if (!activityResult.success) {
+      logger.error('Failed to log note delete activity {noteId}: {error}', {
+        noteId: params.noteId,
+        error: activityResult.error.message,
+      });
+    }
 
     return ok({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete matter note {noteId}: {error}', {
-      noteId,
+      noteId: params.noteId,
       error: message,
     });
     return internalError(message);

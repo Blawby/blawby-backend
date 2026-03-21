@@ -20,7 +20,7 @@ const validateFundDestination = (value: unknown, invoiceId: string): Result<Fund
   }
   return badRequest(
     `Invalid fund_destination '${String(value)}' on invoice ${invoiceId}. Expected one of: ${VALID_FUND_DESTINATIONS.join(', ')}`,
-    'INVALID_FUND_DESTINATION',
+    'INVALID_FUND_DESTINATION'
   );
 };
 
@@ -33,7 +33,7 @@ export interface TransferInstruction {
   /** Metadata to include in Stripe transfer */
   metadata: {
     invoice_id: string;
-    invoice_number: string;
+    invoice_number: string | null;
     invoice_type: string;
     fund_destination: FundDestination;
     matter_id: string;
@@ -61,16 +61,15 @@ export interface TransferInstruction {
  * - milestone_escrow (OPTIONAL): Held until approval → escrow
  */
 /**
- * Calculates the platform application fee for a given amount.
- * Standard formula: 2.9% + 30 cents.
+ * Application fees are not deducted from transfers in the current model.
+ * Fees are billed via metered usage after payment settlement.
  *
  * @param amount - Amount in cents
- * @returns Fee in cents
+ * @returns Always 0
  */
 const calculateApplicationFee = (amount: number): number => {
-  if (amount <= 0) return 0;
-  // 2.9% = 0.029, 30 cents = 30
-  return Math.round(amount * 0.029) + 30;
+  void amount;
+  return 0;
 };
 
 /**
@@ -80,10 +79,7 @@ const calculateApplicationFee = (amount: number): number => {
  * @param connectedAccountId - Practice's Stripe connected account ID
  * @returns Result with transfer instruction or failure
  */
-const routePayment = (
-  invoice: SelectInvoice,
-  connectedAccountId: string,
-): Result<TransferInstruction> => {
+const routePayment = (invoice: SelectInvoice, connectedAccountId: string): Result<TransferInstruction> => {
   const destinationResult = validateFundDestination(invoice.fund_destination, invoice.id);
   if (!destinationResult.success) {
     return destinationResult;
@@ -92,7 +88,7 @@ const routePayment = (
   if (!invoice.matter_id) {
     return badRequest(
       `Missing matter_id on invoice ${invoice.id}. Fund routing requires a matter association.`,
-      'MISSING_MATTER_ID',
+      'MISSING_MATTER_ID'
     );
   }
 
@@ -100,11 +96,10 @@ const routePayment = (
 
   const baseMetadata = {
     invoice_id: invoice.id,
-    invoice_number: invoice.invoice_number,
+    invoice_number: invoice.invoice_number ?? null,
     invoice_type: invoice.invoice_type,
     fund_destination: destinationResult.data,
     matter_id: invoice.matter_id,
-    application_fee_amount: applicationFeeAmount.toString(),
   };
 
   switch (invoice.invoice_type) {
@@ -142,10 +137,7 @@ const routePayment = (
       });
 
     default:
-      return badRequest(
-        `Unknown invoice type: ${invoice.invoice_type}`,
-        'UNKNOWN_INVOICE_TYPE',
-      );
+      return badRequest(`Unknown invoice type: ${invoice.invoice_type}`, 'UNKNOWN_INVOICE_TYPE');
   }
 };
 
