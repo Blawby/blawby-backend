@@ -1,6 +1,6 @@
 {
-  "id": "a5443650-b2e4-4dcf-b58d-968132b02a62",
-  "prevId": "913aca66-e739-4191-858e-deba7773569d",
+  "id": "ac09512f-9eaf-4444-b0eb-fa9de3c92c95",
+  "prevId": "ded48c3f-53c4-4dbc-9fb1-819beae0eb34",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -103,6 +103,139 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.identity_upgrade_claims": {
+      "name": "identity_upgrade_claims",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "anon_user_id": {
+          "name": "anon_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registered_user_id": {
+          "name": "registered_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed": {
+          "name": "claimed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "identity_upgrade_claims_anon_user_idx": {
+          "name": "identity_upgrade_claims_anon_user_idx",
+          "columns": [
+            {
+              "expression": "anon_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "identity_upgrade_claims_registered_user_idx": {
+          "name": "identity_upgrade_claims_registered_user_idx",
+          "columns": [
+            {
+              "expression": "registered_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "identity_upgrade_claims_anon_registered_unique": {
+          "name": "identity_upgrade_claims_anon_registered_unique",
+          "columns": [
+            {
+              "expression": "anon_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "registered_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"identity_upgrade_claims\".\"anon_user_id\" IS NOT NULL AND \"identity_upgrade_claims\".\"registered_user_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "identity_upgrade_claims_anon_user_id_users_id_fk": {
+          "name": "identity_upgrade_claims_anon_user_id_users_id_fk",
+          "tableFrom": "identity_upgrade_claims",
+          "tableTo": "users",
+          "columnsFrom": [
+            "anon_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "identity_upgrade_claims_registered_user_id_users_id_fk": {
+          "name": "identity_upgrade_claims_registered_user_id_users_id_fk",
+          "tableFrom": "identity_upgrade_claims",
+          "tableTo": "users",
+          "columnsFrom": [
+            "registered_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -508,6 +641,12 @@
         },
         "impersonated_by": {
           "name": "impersonated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_anon_user_id": {
+          "name": "previous_anon_user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -3437,6 +3576,7 @@
             }
           ],
           "isUnique": false,
+          "where": "\"matters\".\"retainer_low_balance_threshold\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -3518,14 +3658,19 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "matters_retainer_threshold_non_negative": {
+          "name": "matters_retainer_threshold_non_negative",
+          "value": "\"matters\".\"retainer_low_balance_threshold\" >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.stripe_connected_accounts": {
@@ -5928,6 +6073,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "uploads_matter_id_matters_id_fk": {
+          "name": "uploads_matter_id_matters_id_fk",
+          "tableFrom": "uploads",
+          "tableTo": "matters",
+          "columnsFrom": [
+            "matter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "uploads_uploaded_by_users_id_fk": {
           "name": "uploads_uploaded_by_users_id_fk",
           "tableFrom": "uploads",
@@ -6864,6 +7022,26 @@
           "primaryKey": false,
           "notNull": false
         },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now() + interval '90 days'"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_anonymized": {
+          "name": "is_anonymized",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "sent_at": {
           "name": "sent_at",
           "type": "timestamp",
@@ -6879,7 +7057,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "email_logs_expires_at_anonymized_idx": {
+          "name": "email_logs_expires_at_anonymized_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "is_anonymized",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

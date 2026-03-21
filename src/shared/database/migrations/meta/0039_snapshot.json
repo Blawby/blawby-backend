@@ -1,6 +1,6 @@
 {
-  "id": "c712d7ec-7d21-4820-bc22-01ea5945017d",
-  "prevId": "084cff24-aa5a-442e-9205-b586a08a9464",
+  "id": "ded48c3f-53c4-4dbc-9fb1-819beae0eb34",
+  "prevId": "a5443650-b2e4-4dcf-b58d-968132b02a62",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -103,139 +103,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.identity_upgrade_claims": {
-      "name": "identity_upgrade_claims",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "anon_user_id": {
-          "name": "anon_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "registered_user_id": {
-          "name": "registered_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "claimed": {
-          "name": "claimed",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "identity_upgrade_claims_anon_user_idx": {
-          "name": "identity_upgrade_claims_anon_user_idx",
-          "columns": [
-            {
-              "expression": "anon_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "identity_upgrade_claims_registered_user_idx": {
-          "name": "identity_upgrade_claims_registered_user_idx",
-          "columns": [
-            {
-              "expression": "registered_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "identity_upgrade_claims_anon_registered_unique": {
-          "name": "identity_upgrade_claims_anon_registered_unique",
-          "columns": [
-            {
-              "expression": "anon_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "registered_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"identity_upgrade_claims\".\"anon_user_id\" IS NOT NULL AND \"identity_upgrade_claims\".\"registered_user_id\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "identity_upgrade_claims_anon_user_id_users_id_fk": {
-          "name": "identity_upgrade_claims_anon_user_id_users_id_fk",
-          "tableFrom": "identity_upgrade_claims",
-          "tableTo": "users",
-          "columnsFrom": [
-            "anon_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "identity_upgrade_claims_registered_user_id_users_id_fk": {
-          "name": "identity_upgrade_claims_registered_user_id_users_id_fk",
-          "tableFrom": "identity_upgrade_claims",
-          "tableTo": "users",
-          "columnsFrom": [
-            "registered_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -644,12 +511,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "previous_anon_user_id": {
-          "name": "previous_anon_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -986,7 +847,7 @@
           "name": "organization_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "invoice_id": {
           "name": "invoice_id",
@@ -1420,7 +1281,7 @@
           "name": "invoice_number",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "invoice_type": {
           "name": "invoice_type",
@@ -1513,6 +1374,24 @@
         },
         "stripe_invoice_id": {
           "name": "stripe_invoice_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_invoice_number": {
+          "name": "stripe_invoice_number",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_charge_id": {
+          "name": "stripe_charge_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_transfer_id": {
+          "name": "stripe_transfer_id",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
@@ -1681,6 +1560,21 @@
           "method": "btree",
           "with": {}
         },
+        "invoices_stripe_invoice_unique_idx": {
+          "name": "invoices_stripe_invoice_unique_idx",
+          "columns": [
+            {
+              "expression": "stripe_invoice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "invoices_org_number_unique_idx": {
           "name": "invoices_org_number_unique_idx",
           "columns": [
@@ -1698,21 +1592,7 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "invoices_stripe_invoice_unique_idx": {
-          "name": "invoices_stripe_invoice_unique_idx",
-          "columns": [
-            {
-              "expression": "stripe_invoice_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
+          "where": "\"invoices\".\"invoice_number\" IS NOT NULL AND \"invoices\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2265,6 +2145,18 @@
           "notNull": true,
           "default": true
         },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoiced_at": {
+          "name": "invoiced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2368,6 +2260,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "matter_expenses_invoice_id_invoices_id_fk": {
+          "name": "matter_expenses_invoice_id_invoices_id_fk",
+          "tableFrom": "matter_expenses",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2424,6 +2329,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoiced_at": {
+          "name": "invoiced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -2514,6 +2431,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "matter_milestones_invoice_id_invoices_id_fk": {
+          "name": "matter_milestones_invoice_id_invoices_id_fk",
+          "tableFrom": "matter_milestones",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -3010,6 +2940,18 @@
           "notNull": true,
           "default": true
         },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoiced_at": {
+          "name": "invoiced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3112,6 +3054,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "matter_time_entries_invoice_id_invoices_id_fk": {
+          "name": "matter_time_entries_invoice_id_invoices_id_fk",
+          "tableFrom": "matter_time_entries",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -3314,6 +3269,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "retainer_low_balance_threshold": {
+          "name": "retainer_low_balance_threshold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3464,6 +3425,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "matters_retainer_threshold_idx": {
+          "name": "matters_retainer_threshold_idx",
+          "columns": [
+            {
+              "expression": "retainer_low_balance_threshold",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"matters\".\"retainer_low_balance_threshold\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -3542,14 +3519,19 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "matters_retainer_threshold_non_negative": {
+          "name": "matters_retainer_threshold_non_negative",
+          "value": "\"matters\".\"retainer_low_balance_threshold\" >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.stripe_connected_accounts": {
@@ -5219,6 +5201,264 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.trust_transactions": {
+      "name": "trust_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "matter_id": {
+          "name": "matter_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_type": {
+          "name": "transaction_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balance_after": {
+          "name": "balance_after",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_payment_intent_id": {
+          "name": "stripe_payment_intent_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_trust_transactions_client": {
+          "name": "idx_trust_transactions_client",
+          "columns": [
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_trust_transactions_matter": {
+          "name": "idx_trust_transactions_matter",
+          "columns": [
+            {
+              "expression": "matter_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_trust_transactions_invoice": {
+          "name": "idx_trust_transactions_invoice",
+          "columns": [
+            {
+              "expression": "invoice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_trust_transactions_org": {
+          "name": "idx_trust_transactions_org",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_trust_transactions_org_client_created": {
+          "name": "idx_trust_transactions_org_client_created",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "trust_transactions_organization_id_organizations_id_fk": {
+          "name": "trust_transactions_organization_id_organizations_id_fk",
+          "tableFrom": "trust_transactions",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trust_transactions_client_id_user_details_id_fk": {
+          "name": "trust_transactions_client_id_user_details_id_fk",
+          "tableFrom": "trust_transactions",
+          "tableTo": "user_details",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trust_transactions_matter_id_matters_id_fk": {
+          "name": "trust_transactions_matter_id_matters_id_fk",
+          "tableFrom": "trust_transactions",
+          "tableTo": "matters",
+          "columnsFrom": [
+            "matter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trust_transactions_invoice_id_invoices_id_fk": {
+          "name": "trust_transactions_invoice_id_invoices_id_fk",
+          "tableFrom": "trust_transactions",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trust_transactions_created_by_users_id_fk": {
+          "name": "trust_transactions_created_by_users_id_fk",
+          "tableFrom": "trust_transactions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "trust_txn_type_check": {
+          "name": "trust_txn_type_check",
+          "value": "transaction_type IN ('deposit', 'withdrawal', 'transfer', 'refund')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.upload_audit_logs": {
       "name": "upload_audit_logs",
       "schema": "",
@@ -5731,19 +5971,6 @@
             "id"
           ],
           "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "uploads_matter_id_matters_id_fk": {
-          "name": "uploads_matter_id_matters_id_fk",
-          "tableFrom": "uploads",
-          "tableTo": "matters",
-          "columnsFrom": [
-            "matter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -6643,26 +6870,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now() + interval '90 days'"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_anonymized": {
-          "name": "is_anonymized",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "sent_at": {
           "name": "sent_at",
           "type": "timestamp",
@@ -6678,29 +6885,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "email_logs_expires_at_anonymized_idx": {
-          "name": "email_logs_expires_at_anonymized_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "is_anonymized",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
