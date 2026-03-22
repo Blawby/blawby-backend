@@ -1,9 +1,9 @@
 // oxlint-disable typescript/no-unsafe-assignment
 import type { Context } from 'hono';
-import { defineAbilityFor, type AppAbility } from '../auth/abilities';
-import type { DispatchOptions, EventClass } from '../events/event';
-import type { User } from './BetterAuth';
-import type { db } from '../database';
+import { defineAbilityFor, type AppAbility } from '@/shared/auth/abilities';
+import type { DispatchOptions, EventClass } from '@/shared/events/event';
+import type { User } from '@/shared/types/BetterAuth';
+import type { db } from '@/shared/database';
 export interface ServiceContext {
   userId: string;
   user: User;
@@ -44,12 +44,14 @@ export const getServiceContext = (c: Context): ServiceContext => {
   };
 };
 
+type SystemUser = Pick<User, 'id' | 'email' | 'name'>;
+
 /**
  * Creates a system/background ServiceContext for use in listeners or batch jobs.
  */
 export const createSystemContext = (organizationId: string, userId = 'system'): ServiceContext => ({
   userId,
-  user: { id: userId, email: 'system@blawby.com', name: 'System' } as User,
+  user: { id: userId, email: 'system@blawby.com', name: 'System' } as SystemUser as User,
   organizationId,
   memberRole: 'admin',
   ability: defineAbilityFor('admin'),

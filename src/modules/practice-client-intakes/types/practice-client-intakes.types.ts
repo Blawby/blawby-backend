@@ -1,5 +1,4 @@
 import type { z } from '@hono/zod-openapi';
-import type { MatterResponse } from '@/modules/matters/types/matter.types';
 import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
 export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
@@ -66,7 +65,4 @@ export type UpdateIntakeTriageStatusResponse = z.infer<typeof intakeValidations.
 export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesResponseSchema>;
 export type ListIntakeItem = NonNullable<ListIntakesResponse['data']>['intakes'][number];
 export type TriggerIntakeInvitationResponse = z.infer<typeof intakeValidations.triggerIntakeInvitationResponseSchema>;
-export interface ConvertIntakeResponse {
-  matter_id: string;
-  matter: MatterResponse;
-}
+export type ConvertIntakeResponse = z.infer<typeof intakeValidations.convertIntakeResponseSchema>;

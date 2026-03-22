@@ -58,15 +58,16 @@ const createAnonymousUser = async (): Promise<TestUser> => {
 };
 
 const createTestOrganization = async (
-  overrides?: Partial<{ name: string; slug: string }>
+  overrides?: Partial<{ name: string; slug: string; id: string }>
 ): Promise<TestOrganization> => {
   const test = await getTest();
   if (!test.createOrganization || !test.saveOrganization) {
     throw new Error('Organization helpers require the organization plugin to be installed.');
   }
   const orgFactory = test.createOrganization(overrides);
+  const idToInsert = overrides?.id ?? orgFactory.id;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const savedOrg = (await test.saveOrganization(orgFactory)) as unknown as TestOrganization;
+  const savedOrg = (await test.saveOrganization({ ...orgFactory, id: idToInsert })) as unknown as TestOrganization;
   return {
     id: savedOrg.id,
     name: savedOrg.name,

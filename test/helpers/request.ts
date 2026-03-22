@@ -1,6 +1,6 @@
 import supertest from 'supertest';
 import { getRequestListener } from '@hono/node-server';
-import { app } from './app';
+import { app } from '@/test/helpers/app';
 
 type RequestMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 

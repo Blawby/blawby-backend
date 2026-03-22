@@ -1,8 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
-const TEST_TIMEOUT = Number.parseInt(process.env.VITEST_TEST_TIMEOUT ?? '60000', 10);
-const HOOK_TIMEOUT = Number.parseInt(process.env.VITEST_HOOK_TIMEOUT ?? '120000', 10);
+const DEFAULT_TEST_TIMEOUT = 30_000;
+const DEFAULT_HOOK_TIMEOUT = 100_000;
+
+const parseTimeout = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const TEST_TIMEOUT = parseTimeout(process.env.VITEST_TEST_TIMEOUT, DEFAULT_TEST_TIMEOUT);
+const HOOK_TIMEOUT = parseTimeout(process.env.VITEST_HOOK_TIMEOUT, DEFAULT_HOOK_TIMEOUT);
 
 export default defineConfig({
   plugins: [tsconfigPaths({ projects: ['./test/tsconfig.json', './tsconfig.json'] })],

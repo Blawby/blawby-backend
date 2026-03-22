@@ -17,9 +17,7 @@ export default async function globalSetup() {
   }
 
   if (!dbUrl.includes(testDbName)) {
-    throw new Error(
-      `DATABASE_URL must target the test database '${testDbName}'. Current URL: ${dbUrl}`
-    );
+    throw new Error(`DATABASE_URL must target the test database '${testDbName}'. Current URL: ${dbUrl}`);
   }
 
   // Connect to postgres database to manage test database
@@ -45,19 +43,19 @@ export default async function globalSetup() {
     await managementClient.end();
   }
 
+  // Use drizzle-kit push to sync schema directly (bypasses migrations)
+  console.log('  → Syncing database schema...');
+
   try {
-    // Use drizzle-kit push to sync schema directly (bypasses migrations)
-    console.log('  → Syncing database schema...');
-    
-    // Use yes command to automatically confirm
     execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit push --force`, {
       stdio: 'inherit',
       shell: '/bin/bash',
     });
-    
+
     console.log('✅ Test database setup complete!\n');
-  } catch (error: any) {
-    console.error('❌ Failed to setup test database:', error?.message || error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Failed to setup test database:', errorMessage);
     throw error;
   }
 }

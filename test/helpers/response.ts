@@ -1,4 +1,4 @@
-import type { TypedResponse } from '../types/shared';
+import type { TypedResponse } from '@/test/types/shared';
 import type supertest from 'supertest';
 
 export const toTypedResponse = async <TBody>(

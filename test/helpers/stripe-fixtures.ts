@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { vi } from 'vitest';
 import type { Stripe } from 'stripe';
+import { stripe } from '@/shared/utils/stripe-client';
 
 const FIXTURES_DIR = join(process.cwd(), 'test', 'fixtures', 'stripe');
 
@@ -79,4 +79,4 @@ const isMockResolvedValueFunction = (
 } => typeof value === 'function' && 'mockResolvedValue' in value;
 
 // Re-export stripe for convenience
-export { stripe } from '@/shared/utils/stripe-client';
+export { stripe };

@@ -131,7 +131,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
           await addEmailJob('magic-link', email, 'Sign in to Blawby', { url, year: new Date().getFullYear() });
         },
       }),
-      testUtils(),
+      ...(isDevelopment() ? [testUtils()] : []),
     ],
     baseURL: process.env.BASE_URL,
     basePath: '/api/auth',
