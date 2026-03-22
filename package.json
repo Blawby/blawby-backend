@@ -28,8 +28,12 @@
     "lint:fix": "oxlint --fix --ignore-path .oxlintignore src",
     "start": "node dist/hono-server.js",
     "start:all": "concurrently \"pnpm start\" \"pnpm run event-worker\" \"pnpm run email-worker\" --names \"API,EVENT,EMAIL\" --prefix-colors \"blue,green,magenta\"",
-    "test": "cross-env APP_ENV=test tap test/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "test:verbose": "vitest run --reporter=verbose --includeTaskLocation",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
@@ -61,25 +65,30 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
     "@hono/zod-validator": "^0.7.6",
     "@tapjs/test": "4.4.2",
     "@types/mjml": "^4.7.4",
     "@types/node": "25.5.0",
     "@types/pg": "8.20.0",
+    "@types/supertest": "^6.0.3",
+    "@vitest/ui": "4.1.0",
     "concurrently": "^9.2.1",
-    "cross-env": "10.1.0",
     "drizzle-kit": "0.31.10",
     "husky": "9.1.7",
     "oxfmt": "^0.41.0",
     "oxlint": "1.56.0",
     "oxlint-plugin-eslint": "1.56.0",
     "oxlint-tsgolint": "^0.17.1",
+    "supertest": "^7.2.2",
     "tap": "21.6.2",
-    "ts-node": "10.9.2",
     "tsc-alias": "^1.8.16",
     "tsup": "^8.5.1",
     "tsx": "4.21.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.0.18",
+    "vitest-mock-extended": "^3.1.0"
   },
   "tap": {
     "plugin": [
@@ -92,6 +101,6 @@
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=18.17.0"
+    "node": ">=24.14.0"
   }
 }

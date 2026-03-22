@@ -1,9 +1,11 @@
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, anonymous, magicLink, organization } from 'better-auth/plugins';
+import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+// Schema is used as namespace for drizzle adapter
+// oxlint-disable-next-line no-namespace
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
@@ -19,11 +21,8 @@ import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
 const authSessionAdditionalFields =
-  (
-    AUTH_CONFIG.session as {
-      additionalFields?: Record<string, unknown>;
-    }
-  ).additionalFields ?? {};
+  // oxlint-disable-next-line no-unsafe-type-assertion
+  (AUTH_CONFIG.session as { additionalFields?: Record<string, unknown> }).additionalFields ?? {};
 
 /**
  * Internal factory to define the Better Auth configuration.
@@ -31,7 +30,7 @@ const authSessionAdditionalFields =
  */
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
   betterAuth({
-    secret: process.env.BETTER_AUTH_SECRET!,
+    secret: process.env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
@@ -132,13 +131,14 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
           await addEmailJob('magic-link', email, 'Sign in to Blawby', { url, year: new Date().getFullYear() });
         },
       }),
+      ...(isDevelopment() ? [testUtils()] : []),
     ],
-    baseURL: process.env.BASE_URL!,
+    baseURL: process.env.BASE_URL,
     basePath: '/api/auth',
     rateLimit: {
       enabled: true,
-      window: 60, // seconds
-      max: 100, // requests per window (default)
+      window: 60, // Seconds
+      max: 100, // Requests per window (default)
       storage: 'database', // Use PostgreSQL instead of memory
       customRules: {
         '/sign-in/email': {
@@ -222,8 +222,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
     },
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         redirectURI: process.env.GOOGLE_REDIRECT_URI,
       },
     },
@@ -261,21 +261,24 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
  * BetterAuthInstance type derived from the config factory.
  * This ensures full plugin type inference without executing betterAuth at import time.
  */
-export type BetterAuthInstance = ReturnType<typeof betterAuthConfig>;
 
 /**
  * Singleton instance of Better Auth
  */
-let authInstance: BetterAuthInstance | null = null;
+let authInstance: ReturnType<typeof betterAuthConfig> | null = null;
 
 /**
  * Singleton factory function to create or retrieve the Better Auth instance.
  */
-export const createBetterAuthInstance = (db: NodePgDatabase<typeof schema>): BetterAuthInstance => {
-  if (!authInstance) {
-    authInstance = betterAuthConfig(db);
-  }
+export const createBetterAuthInstance = (db: NodePgDatabase<typeof schema>): ReturnType<typeof betterAuthConfig> => {
+  authInstance ??= betterAuthConfig(db);
   return authInstance;
 };
 
 export const auth = createBetterAuthInstance;
+
+/**
+ * BetterAuthInstance type derived from the config factory.
+ * This ensures full plugin type inference without executing betterAuth at import time.
+ */
+export type BetterAuthInstance = ReturnType<typeof betterAuthConfig>;

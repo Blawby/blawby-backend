@@ -1,10 +1,10 @@
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type {
-  PracticeClientIntakeMetadata,
-  SelectPracticeClientIntake,
+import {
+  practiceClientIntakesSchema,
+  type PracticeClientIntakeMetadata,
+  type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { TriageStatus } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import type { Result } from '@/shared/types/result';
@@ -35,8 +35,8 @@ export const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadat
   }
 };
 
-const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, isAuthorized: boolean) => {
-  return isAuthorized && metadata
+const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, isAuthorized: boolean) =>
+  isAuthorized && metadata
     ? {
         email: metadata.email,
         name: metadata.name,
@@ -46,19 +46,15 @@ const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, is
         description: metadata.description ?? undefined,
       }
     : { email: '', name: '' };
-};
 
 const isAuthorizedIntakeView = (
   metadata: PracticeClientIntakeMetadata | null,
   requestingUserId?: string,
   isAdmin = false
-) => {
-  return isAdmin || Boolean(metadata?.user_id && metadata.user_id === requestingUserId);
-};
+) => isAdmin || Boolean(metadata?.user_id && metadata.user_id === requestingUserId);
 
-const isUrgency = (value: string | null | undefined): value is 'routine' | 'time_sensitive' | 'emergency' => {
-  return value === 'routine' || value === 'time_sensitive' || value === 'emergency';
-};
+const isUrgency = (value: string | null | undefined): value is 'routine' | 'time_sensitive' | 'emergency' =>
+  value === 'routine' || value === 'time_sensitive' || value === 'emergency';
 
 export const formatIntakeListItem = (
   intake: SelectPracticeClientIntake,
@@ -112,10 +108,10 @@ export const formatIntakeStatusResponse = (
   };
 };
 
-export type ResolveCheckoutSessionResult = {
+export interface ResolveCheckoutSessionResult {
   intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
   session?: Stripe.Checkout.Session;
-};
+}
 
 export const resolvePracticeClientIntakeByCheckoutSessionId = async (
   sessionId: string,
@@ -131,20 +127,19 @@ export const resolvePracticeClientIntakeByCheckoutSessionId = async (
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const intakeUuid =
-      typeof session.metadata?.intake_uuid === 'string'
-        ? session.metadata.intake_uuid
-        : typeof session.client_reference_id === 'string'
-          ? session.client_reference_id
-          : undefined;
+    let intakeUuid: string | undefined = undefined;
+
+    if (typeof session.metadata?.intake_uuid === 'string') {
+      intakeUuid = session.metadata.intake_uuid;
+    } else if (typeof session.client_reference_id === 'string') {
+      intakeUuid = session.client_reference_id;
+    }
 
     if (!intakeUuid) {
       return result.ok({ session });
     }
 
-    if (!intake) {
-      intake = await practiceClientIntakesRepository.findById(intakeUuid);
-    }
+    intake ??= await practiceClientIntakesRepository.findById(intakeUuid);
 
     if (intake && !intake.stripe_checkout_session_id) {
       await practiceClientIntakesRepository.update(intake.id, {

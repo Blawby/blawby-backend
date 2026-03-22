@@ -1,0 +1,22 @@
+import { defineConfig } from 'vitest/config';
+import tsconfigPaths from 'vite-tsconfig-paths';
+
+const TEST_TIMEOUT = 30000;
+const HOOK_TIMEOUT = 60000;
+
+export default defineConfig({
+  plugins: [tsconfigPaths({ projects: ['./test/tsconfig.json', './tsconfig.json'] })],
+  test: {
+    globals: true,
+    environment: 'node',
+    env: {
+      BASE_URL: 'http://localhost:3000',
+      BETTER_AUTH_BASE_URL: 'http://localhost:3000',
+      BETTER_AUTH_SECRET: 'test-secret-key-for-testing-only',
+    },
+    globalSetup: ['./test/setup/globalSetup.ts'],
+    setupFiles: ['./test/setup/setupFiles.ts'],
+    testTimeout: TEST_TIMEOUT,
+    hookTimeout: HOOK_TIMEOUT,
+  },
+});

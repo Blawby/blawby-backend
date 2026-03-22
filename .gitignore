@@ -68,6 +68,7 @@ dump.rdb
 .env
 .envrc
 .env.docker
+.env.test
 
 # Linter caches
 .eslintcache
