@@ -4,10 +4,29 @@
  * Orchestrates the entire build process in phases
  */
 
-import { execSync } from 'child_process';
-import { readdir, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { isDevelopment } from '@/shared/utils/env';
+import { execSync, spawn } from 'node:child_process';
+import { readdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+// Inline APP_ENV check — avoids loading app code in the build script
+const isDevelopment = (): boolean => (process.env.APP_ENV?.toLowerCase() ?? 'development') === 'development';
+
+/**
+ * Runs a shell command asynchronously with real-time stdio.
+ * Resolves on exit code 0, rejects otherwise.
+ */
+const spawnAsync = (cmd: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const child = spawn(cmd, [], { stdio: 'inherit', shell: true });
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`"${cmd}" exited with code ${String(code)}`));
+      }
+    });
+    child.on('error', reject);
+  });
 
 // ============================================================================
 // Configuration
@@ -57,9 +76,7 @@ const discoverModules = async (): Promise<string[]> => {
   return modules;
 };
 
-function toCamelCase(str: string): string {
-  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-}
+const toCamelCase = (str: string): string => str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 
 const generateModuleRegistry = async (modules: string[]): Promise<void> => {
   const imports = modules.map((mod) => `import ${toCamelCase(mod)}Http from '@/modules/${mod}/http';`).join('\n');
@@ -83,7 +100,7 @@ export type ModuleName = typeof MODULE_REGISTRY[number]['name'];
 };
 
 const generateConfigRegistry = async (modules: string[]): Promise<void> => {
-  const { existsSync } = await import('fs');
+  const { existsSync } = await import('node:fs');
 
   const configImports: string[] = [];
   const configEntries: string[] = [];
@@ -115,29 +132,11 @@ ${configEntries.join(',\n')}
 };
 
 // ============================================================================
-// Phase 2: Schema Sync
-// ============================================================================
-
-const syncSchemas = (): void => {
-  console.log('\n🔄 Phase 2: Schema Sync');
-  console.log('─'.repeat(50));
-
-  execSync('tsx scripts/sync-schemas.ts', { stdio: 'inherit' });
-};
-
-const syncListeners = (): void => {
-  console.log('\n🔊 Phase 2.1: Listener Sync');
-  console.log('─'.repeat(50));
-
-  execSync('tsx scripts/sync-listeners.ts', { stdio: 'inherit' });
-};
-
-// ============================================================================
-// Phase 2.5: Type Checking
+// Phase 2: Type Checking
 // ============================================================================
 
 const typeCheck = (): void => {
-  console.log('\n🔍 Phase 2.5: Type Checking');
+  console.log('\n🔍 Phase 2: Type Checking');
   console.log('─'.repeat(50));
 
   try {
@@ -184,18 +183,20 @@ const main = async (): Promise<void> => {
   console.log('╚════════════════════════════════════════════════╝');
 
   try {
-    // Phase 1: Discover and register modules
+    // Phase 1: All codegen steps write to independent files — run concurrently
+    console.log('\n⚡ Phase 1: Codegen (parallel)');
+    console.log('─'.repeat(50));
+
     const modules = await discoverModules();
-    await generateModuleRegistry(modules);
-    await generateConfigRegistry(modules);
 
-    // Phase 2: Sync database schemas
-    syncSchemas();
+    await Promise.all([
+      generateModuleRegistry(modules),
+      generateConfigRegistry(modules),
+      spawnAsync('tsx scripts/sync-schemas.ts'),
+      spawnAsync('tsx scripts/sync-listeners.ts'),
+    ]);
 
-    // Phase 2.1: Sync event listeners
-    syncListeners();
-
-    // Phase 2.5: Type checking (catch errors before bundling)
+    // Phase 2: Type checking — must follow codegen (generated files are tsc inputs)
     typeCheck();
 
     // Phase 3: Build TypeScript (bundled)
