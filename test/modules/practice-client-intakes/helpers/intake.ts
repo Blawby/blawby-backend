@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 import { getTestDb } from '@/test/helpers/db';
 import { loadStripeFixture } from '@/test/helpers/stripe-fixtures';
+import { stripe } from '@/shared/utils/stripe-client';
 import {
   practiceClientIntakes,
   type InsertPracticeClientIntake,
@@ -16,18 +17,9 @@ import { organizations, subscriptions } from '@/schema/better-auth-schema';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { MemberRole } from '@/modules/practice/types/members.types';
 
-const {
-  signInMagicLinkMock,
-  intakePaymentCreatedDispatchMock,
-  stripeCheckoutCreateMock,
-  stripeCheckoutRetrieveMock,
-  stripePaymentLinksCreateMock,
-} = vi.hoisted(() => ({
+const { signInMagicLinkMock, intakePaymentCreatedDispatchMock } = vi.hoisted(() => ({
   signInMagicLinkMock: vi.fn().mockResolvedValue(undefined),
   intakePaymentCreatedDispatchMock: vi.fn(),
-  stripeCheckoutCreateMock: vi.fn(),
-  stripeCheckoutRetrieveMock: vi.fn(),
-  stripePaymentLinksCreateMock: vi.fn(),
 }));
 
 const createStripeResponse = <T extends object>(data: T): Stripe.Response<T> => ({
@@ -90,37 +82,6 @@ const createPaymentLinkFixture = (overrides?: Partial<Stripe.PaymentLink>): Stri
     ...overrides,
   }) as Stripe.PaymentLink;
 
-vi.mock('@/shared/utils/stripe-client', () => ({
-  stripe: {
-    checkout: {
-      sessions: {
-        create: stripeCheckoutCreateMock,
-        retrieve: stripeCheckoutRetrieveMock,
-      },
-    },
-    customers: {
-      create: vi.fn().mockResolvedValue({ id: 'cus_test_mock' }),
-    },
-    paymentLinks: {
-      create: stripePaymentLinksCreateMock,
-    },
-  },
-  getStripeInstance: () => ({
-    checkout: {
-      sessions: {
-        create: stripeCheckoutCreateMock,
-        retrieve: stripeCheckoutRetrieveMock,
-      },
-    },
-    customers: {
-      create: vi.fn().mockResolvedValue({ id: 'cus_test_mock' }),
-    },
-    paymentLinks: {
-      create: stripePaymentLinksCreateMock,
-    },
-  }),
-}));
-
 // Mock events to prevent side effects
 vi.mock('@/shared/events/definitions', () => ({
   IntakePaymentCreated: {
@@ -157,7 +118,7 @@ export const mockStripeSessionRetrieve = (data: {
   metadata?: Record<string, string>;
   url?: string;
 }): void => {
-  stripeCheckoutRetrieveMock.mockResolvedValue(
+  vi.mocked(stripe.checkout.sessions.retrieve).mockResolvedValue(
     createStripeResponse(
       createCheckoutSessionFixture({
         id: data.id,
@@ -188,7 +149,7 @@ export const mockStripeSessionCreate = (data: {
   status?: Stripe.Checkout.Session['status'];
   paymentStatus?: Stripe.Checkout.Session['payment_status'];
 }): void => {
-  stripeCheckoutCreateMock.mockResolvedValue(
+  vi.mocked(stripe.checkout.sessions.create).mockResolvedValue(
     createStripeResponse(
       createCheckoutSessionFixture({
         id: data.id,
@@ -204,7 +165,7 @@ export const mockStripeSessionCreate = (data: {
  * Mock Stripe payment link create
  */
 export const mockStripePaymentLinkCreate = (data: Partial<Stripe.PaymentLink>): void => {
-  stripePaymentLinksCreateMock.mockResolvedValue(createStripeResponse(createPaymentLinkFixture(data)));
+  vi.mocked(stripe.paymentLinks.create).mockResolvedValue(createStripeResponse(createPaymentLinkFixture(data)));
 };
 
 /**
@@ -267,12 +228,12 @@ export const mockConnectedAccount = (overrides?: Partial<StripeConnectedAccount>
   }) as StripeConnectedAccount;
 
 export const mockStripe = (): void => {
-  stripeCheckoutCreateMock.mockReset();
-  stripeCheckoutRetrieveMock.mockReset();
-  stripePaymentLinksCreateMock.mockReset();
-  stripeCheckoutCreateMock.mockResolvedValue(createStripeResponse(createCheckoutSessionFixture()));
-  stripeCheckoutRetrieveMock.mockResolvedValue(createStripeResponse(createCheckoutSessionFixture()));
-  stripePaymentLinksCreateMock.mockResolvedValue(createStripeResponse(createPaymentLinkFixture()));
+  vi.mocked(stripe.checkout.sessions.create).mockReset();
+  vi.mocked(stripe.checkout.sessions.retrieve).mockReset();
+  vi.mocked(stripe.paymentLinks.create).mockReset();
+  vi.mocked(stripe.checkout.sessions.create).mockResolvedValue(createStripeResponse(createCheckoutSessionFixture()));
+  vi.mocked(stripe.checkout.sessions.retrieve).mockResolvedValue(createStripeResponse(createCheckoutSessionFixture()));
+  vi.mocked(stripe.paymentLinks.create).mockResolvedValue(createStripeResponse(createPaymentLinkFixture()));
 };
 
 export const mockEvents = (): void => {

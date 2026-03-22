@@ -8,7 +8,7 @@ const SCHEMA_DIR = join(process.cwd(), 'src/schema');
 const OUTPUT_FILE = join(process.cwd(), 'src/schema/index.ts');
 
 // Files in src/schema/ that are manually managed and must not be auto-discovered
-const SCHEMA_DIR_MANUAL = new Set(['better-auth-schema.ts', 'index.ts']);
+const SCHEMA_DIR_MANUAL = new Set(['better-auth-schema.ts', 'index.ts', 'better-auth-relations.ts']);
 
 const isRelationsFile = (filename: string): boolean =>
   filename.includes('-relations') && (filename.endsWith('.ts') || filename.endsWith('.schema.ts'));
