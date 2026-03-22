@@ -189,12 +189,18 @@ const main = async (): Promise<void> => {
 
     const modules = await discoverModules();
 
-    await Promise.all([
+    const results = await Promise.allSettled([
       generateModuleRegistry(modules),
       generateConfigRegistry(modules),
       spawnAsync('tsx scripts/sync-schemas.ts'),
       spawnAsync('tsx scripts/sync-listeners.ts'),
     ]);
+
+    const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failures.length > 0) {
+      const messages = failures.map((f) => (f.reason instanceof Error ? f.reason.message : String(f.reason)));
+      throw new Error(`Codegen failed:\n${messages.join('\n')}`);
+    }
 
     // Phase 2: Type checking — must follow codegen (generated files are tsc inputs)
     typeCheck();
