@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsx scripts/build.ts",
+    "codegen": "tsx scripts/codegen.ts",
     "dev": "tsx watch src/hono-server.ts",
     "dev:full": "concurrently \"ENABLE_QUEUE=true pnpm run dev\" \"pnpm run event-worker:dev\" \"pnpm run email-worker:dev\" --names \"API,EVENT,EMAIL\" --prefix-colors \"blue,green,magenta\"",
     "event-worker": "node dist/workers/event.worker.js",

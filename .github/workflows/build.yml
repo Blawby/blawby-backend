@@ -13,12 +13,12 @@ on:
       - '.github/dependabot.yml'
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  check:
+    name: Check
     runs-on: ubuntu-latest
 
     steps:
@@ -46,5 +46,5 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm run build
+      - name: Codegen + Typecheck
+        run: pnpm run codegen && pnpm run typecheck
