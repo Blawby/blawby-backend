@@ -25,6 +25,38 @@ import type {
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 
+// Mock Stripe to prevent real API calls — must be in the test file so it is hoisted before any module loads
+vi.mock('@/shared/utils/stripe-client', () => ({
+  stripe: {
+    checkout: {
+      sessions: {
+        create: vi.fn(),
+        retrieve: vi.fn(),
+      },
+    },
+    customers: {
+      create: vi.fn().mockResolvedValue({ id: 'cus_test_mock' }),
+    },
+    paymentLinks: {
+      create: vi.fn(),
+    },
+  },
+  getStripeInstance: () => ({
+    checkout: {
+      sessions: {
+        create: vi.fn(),
+        retrieve: vi.fn(),
+      },
+    },
+    customers: {
+      create: vi.fn().mockResolvedValue({ id: 'cus_test_mock' }),
+    },
+    paymentLinks: {
+      create: vi.fn(),
+    },
+  }),
+}));
+
 // Mock user details service to avoid nested db.transaction inside the outer FOR UPDATE transaction
 vi.mock('@/modules/user-details/services/user-details-crud.service', () => ({
   userDetailsService: {

@@ -90,6 +90,7 @@ const getIntakeById = async (
     }
 
     return result.ok({
+      success: true,
       data: formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
     });
   } catch (error) {
