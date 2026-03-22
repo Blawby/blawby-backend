@@ -1,10 +1,11 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
+const TEST_TIMEOUT = 30000;
+const HOOK_TIMEOUT = 60000;
+
 export default defineConfig({
   plugins: [tsconfigPaths({ projects: ['./test/tsconfig.json', './tsconfig.json'] })],
-  resolve: {
-  },
   test: {
     globals: true,
     environment: 'node',
@@ -15,11 +16,7 @@ export default defineConfig({
     },
     globalSetup: ['./test/setup/globalSetup.ts'],
     setupFiles: ['./test/setup/setupFiles.ts'],
-    testTimeout: 30000,
-    hookTimeout: 60000,
-    // pool: 'forks' is default in newer Vitest, but let's keep it explicit if needed.
-    // However, 'pool' option might be deprecated in Vitest 3 in favor of 'pool' configuration object?
-    // Let's check docs or just use simple config first.
-    // Vitest 3 uses 'pool' option still.
+    testTimeout: TEST_TIMEOUT,
+    hookTimeout: HOOK_TIMEOUT,
   },
 });

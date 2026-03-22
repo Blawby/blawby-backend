@@ -29,6 +29,7 @@
     "start": "node dist/hono-server.js",
     "start:all": "concurrently \"pnpm start\" \"pnpm run event-worker\" \"pnpm run email-worker\" --names \"API,EVENT,EMAIL\" --prefix-colors \"blue,green,magenta\"",
     "test": "vitest run",
+    "test:verbose": "vitest run --reporter=verbose --includeTaskLocation",
     "test:watch": "vitest watch",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
@@ -71,6 +72,7 @@
     "@types/node": "25.5.0",
     "@types/pg": "8.20.0",
     "@types/supertest": "^6.0.3",
+    "@vitest/ui": "4.1.0",
     "concurrently": "^9.2.1",
     "drizzle-kit": "0.31.10",
     "husky": "9.1.7",
@@ -99,6 +101,6 @@
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=18.17.0"
+    "node": ">=24.14.0"
   }
 }

@@ -1,12 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  users,
-  sessions,
-  accounts,
-  organizations,
-  members,
-  invitations,
-} from './better-auth-schema';
+import { users, sessions, accounts, organizations, members, invitations } from '@/schema/better-auth-schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
 // Define relations

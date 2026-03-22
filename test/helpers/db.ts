@@ -1,11 +1,14 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from '@/schema/index';
 
-let _testPool: Pool | null = null;
-let _testDb: ReturnType<typeof drizzle> | null = null;
+type TestDb = NodePgDatabase<typeof schema> & { $client: Pool };
 
-export const getTestDb = (): ReturnType<typeof drizzle> => {
+let _testPool: Pool | null = null;
+let _testDb: TestDb | null = null;
+
+export const getTestDb = (): TestDb => {
   if (!_testDb) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
@@ -15,7 +18,7 @@ export const getTestDb = (): ReturnType<typeof drizzle> => {
     _testPool = new Pool({
       connectionString,
     });
-    _testDb = drizzle(_testPool, { schema });
+    _testDb = drizzle(_testPool, { schema }) as TestDb;
   }
   return _testDb;
 };

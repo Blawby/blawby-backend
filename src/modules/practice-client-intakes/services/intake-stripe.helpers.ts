@@ -4,7 +4,7 @@ import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { stripe } from '@/shared/utils/stripe-client';
 import type { addressSchema } from '@/shared/validations/address';
 
-export type CreateIntakePaymentLinkParams = {
+export interface CreateIntakePaymentLinkParams {
   amount: number;
   currency?: string;
   description?: string;
@@ -22,7 +22,7 @@ export type CreateIntakePaymentLinkParams = {
   conversationId?: string | null;
   address?: z.infer<typeof addressSchema>;
   userId?: string | null;
-};
+}
 
 export const createIntakePaymentLink = async (
   params: CreateIntakePaymentLinkParams
@@ -35,10 +35,10 @@ export const createIntakePaymentLink = async (
     line_items: [
       {
         price_data: {
-          currency: params.currency || 'usd',
+          currency: params.currency ?? 'usd',
           product_data: {
             name: `Client Intake - ${params.organizationName}`,
-            description: params.description || 'Legal consultation payment',
+            description: params.description ?? 'Legal consultation payment',
           },
           unit_amount: params.amount,
         },
@@ -53,10 +53,10 @@ export const createIntakePaymentLink = async (
       metadata: {
         email: params.email,
         name: params.name,
-        phone: params.phone || '',
-        on_behalf_of: params.on_behalf_of || '',
-        opposing_party: params.opposing_party || '',
-        description: params.description || '',
+        phone: params.phone ?? '',
+        on_behalf_of: params.on_behalf_of ?? '',
+        opposing_party: params.opposing_party ?? '',
+        description: params.description ?? '',
         organization_id: params.organizationId,
         intake_uuid: params.intakeId,
         ...(params.address ? { address: JSON.stringify(params.address) } : {}),
@@ -72,7 +72,7 @@ export const createIntakePaymentLink = async (
   });
 };
 
-export type CreateIntakeSessionParams = {
+export interface CreateIntakeSessionParams {
   currency: string;
   amount: number;
   email?: string;
@@ -89,7 +89,7 @@ export type CreateIntakeSessionParams = {
   origin?: string | null;
   conversationId?: string | null;
   userId?: string | null;
-};
+}
 
 export const createIntakeCheckoutSession = async (
   params: CreateIntakeSessionParams
@@ -99,14 +99,30 @@ export const createIntakeCheckoutSession = async (
     organization_id: params.organizationId,
   };
 
-  if (params.email) metadata.email = params.email;
-  if (params.name) metadata.name = params.name;
-  if (params.phone) metadata.phone = params.phone;
-  if (params.on_behalf_of) metadata.on_behalf_of = params.on_behalf_of;
-  if (params.opposing_party) metadata.opposing_party = params.opposing_party;
-  if (params.description) metadata.description = params.description;
-  if (params.conversationId) metadata.conversation_id = params.conversationId;
-  if (params.userId) metadata.user_id = params.userId;
+  if (params.email) {
+    metadata.email = params.email;
+  }
+  if (params.name) {
+    metadata.name = params.name;
+  }
+  if (params.phone) {
+    metadata.phone = params.phone;
+  }
+  if (params.on_behalf_of) {
+    metadata.on_behalf_of = params.on_behalf_of;
+  }
+  if (params.opposing_party) {
+    metadata.opposing_party = params.opposing_party;
+  }
+  if (params.description) {
+    metadata.description = params.description;
+  }
+  if (params.conversationId) {
+    metadata.conversation_id = params.conversationId;
+  }
+  if (params.userId) {
+    metadata.user_id = params.userId;
+  }
 
   const conversationParam = params.conversationId
     ? `&conversation_id=${encodeURIComponent(params.conversationId)}`
@@ -123,7 +139,7 @@ export const createIntakeCheckoutSession = async (
           currency: params.currency,
           product_data: {
             name: `Client Intake - ${params.organizationName}`,
-            description: params.description || 'Legal consultation payment',
+            description: params.description ?? 'Legal consultation payment',
           },
           unit_amount: params.amount,
         },

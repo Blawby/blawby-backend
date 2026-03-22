@@ -1,10 +1,10 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
 import { routes as matterRoutes } from '@/modules/matters/routes';
-import { createHonoApp } from '@/shared/router/factory';
-import type { AppContext } from '@/shared/types/hono';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { requireMatterAccess } from '@/shared/middleware/requireMatterAccess';
+import { createHonoApp } from '@/shared/router/factory';
+import type { AppContext } from '@/shared/types/hono';
 
 const app = createHonoApp();
 

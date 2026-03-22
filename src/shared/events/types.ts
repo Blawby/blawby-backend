@@ -9,9 +9,7 @@ import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 /**
  * Event handler function type
  */
-export interface EventHandler<T = BaseEvent> {
-  (event: T): Promise<void | boolean>;
-}
+export type EventHandler<T = BaseEvent> = (event: T) => Promise<void | boolean>;
 
 /**
  * Event configuration for Laravel-style registration
@@ -24,9 +22,7 @@ export interface EventConfig {
 /**
  * Event map type for centralized event registration
  */
-export interface EventMap {
-  [eventType: string]: EventConfig;
-}
+export type EventMap = Record<string, EventConfig>;
 
 /**
  * Handler options interface (Laravel-style)
@@ -55,6 +51,4 @@ export type EventRegistrationFunction = () => void;
 /**
  * Event handler registration map
  */
-export interface EventHandlerRegistrations {
-  [moduleName: string]: EventRegistrationFunction;
-}
+export type EventHandlerRegistrations = Record<string, EventRegistrationFunction>;

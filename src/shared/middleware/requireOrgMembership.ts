@@ -23,7 +23,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 const extractOrgIdFromPath = (path: string): string | undefined => {
   const segments = path.split('/').filter(Boolean);
-  const candidate = segments[2];
+  const [candidate] = segments.slice(2);
   return candidate && UUID_REGEX.test(candidate) ? candidate : undefined;
 };
 
@@ -39,43 +39,44 @@ const extractOrgIdFromPath = (path: string): string | undefined => {
  *  - No organization context is found at all
  *  - The user is not a member of the target organization
  */
-export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables }> => {
-  return async (c, next) => {
-    const userId = c.get('userId');
+export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
+  const userId = c.get('userId');
 
-    if (!userId) {
-      return response.unauthorized(c, 'Authentication required');
+  if (!userId) {
+    // oxlint-disable-next-line no-unsafe-return
+    return response.unauthorized(c, 'Authentication required');
+  }
+
+  // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
+  const orgId = extractOrgIdFromPath(c.req.path) ?? c.get('activeOrganizationId');
+
+  if (!orgId) {
+    logger.warn('No organization context found for user {userId}', { userId });
+    // oxlint-disable-next-line no-unsafe-return
+    return response.forbidden(c, 'No organization context found');
+  }
+
+  try {
+    const [membership] = await db
+      .select({ role: members.role })
+      .from(members)
+      .where(and(eq(members.userId, userId), eq(members.organizationId, orgId)))
+      .limit(1);
+
+    if (!membership) {
+      logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
+      // oxlint-disable-next-line no-unsafe-return
+      return response.forbidden(c, 'You are not a member of this organization');
     }
 
-    // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
-    const orgId = extractOrgIdFromPath(c.req.path) || c.get('activeOrganizationId');
+    // 🚨 CRITICAL: Propagate context to the Hono context
+    // This ensures downstream injectAbility and Services use the CORRECT targeted organization
+    c.set('activeOrganizationId', orgId);
+    c.set('memberRole', membership.role);
 
-    if (!orgId) {
-      logger.warn('No organization context found for user {userId}', { userId });
-      return response.forbidden(c, 'No organization context found');
-    }
-
-    try {
-      const [membership] = await db
-        .select({ role: members.role })
-        .from(members)
-        .where(and(eq(members.userId, userId), eq(members.organizationId, orgId)))
-        .limit(1);
-
-      if (!membership) {
-        logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
-        return response.forbidden(c, 'You are not a member of this organization');
-      }
-
-      // 🚨 CRITICAL: Propagate context to the Hono context
-      // This ensures downstream injectAbility and Services use the CORRECT targeted organization
-      c.set('activeOrganizationId', orgId);
-      c.set('memberRole', membership.role);
-
-      return next();
-    } catch (error) {
-      logger.error('Failed to check organization membership: {error}', { error, userId, orgId });
-      return c.json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to verify organization membership' }, 500);
-    }
-  };
+    return next();
+  } catch (error) {
+    logger.error('Failed to check organization membership: {error}', { error, userId, orgId });
+    return c.json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to verify organization membership' }, 500);
+  }
 };

@@ -219,4 +219,3 @@ export const identityUpgradeClaims = pgTable(
       .where(sql`${table.anonUserId} IS NOT NULL AND ${table.registeredUserId} IS NOT NULL`),
   ]
 );
-

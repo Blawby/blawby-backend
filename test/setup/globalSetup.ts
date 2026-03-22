@@ -8,42 +8,56 @@ config({ path: '.env.test', override: true });
 export default async function globalSetup() {
   console.log('🧪 Setting up test database...');
 
-  const dbUrl = process.env.DATABASE_URL!;
+  const dbUrl = process.env.DATABASE_URL;
   const testDbName = 'blawby_test';
 
+  // Validate DATABASE_URL exists and targets the test database
+  if (!dbUrl) {
+    throw new Error('DATABASE_URL environment variable is required for tests');
+  }
+
+  if (!dbUrl.includes(testDbName)) {
+    throw new Error(
+      `DATABASE_URL must target the test database '${testDbName}'. Current URL: ${dbUrl}`
+    );
+  }
+
   // Connect to postgres database to manage test database
-  const client = new Client({
+  const managementClient = new Client({
     host: '127.0.0.1',
     port: 5432,
-    user: process.env.POSTGRES_USER || 'postgres',
+    user: process.env.POSTGRES_USER ?? 'postgres',
     password: process.env.POSTGRES_PASSWORD,
     database: 'postgres',
   });
 
   try {
-    await client.connect();
+    await managementClient.connect();
 
     // Drop test database if exists
     console.log(`  → Dropping ${testDbName} database if exists...`);
-    await client.query(`DROP DATABASE IF EXISTS ${testDbName}`);
+    await managementClient.query(`DROP DATABASE IF EXISTS ${testDbName}`);
 
     // Create fresh test database
     console.log(`  → Creating fresh ${testDbName} database...`);
-    await client.query(`CREATE DATABASE ${testDbName}`);
+    await managementClient.query(`CREATE DATABASE ${testDbName}`);
+  } finally {
+    await managementClient.end();
+  }
 
-    await client.end();
-
-    // Run Drizzle migrations
-    console.log('  → Running Drizzle migrations...');
-    // We need to pass the specific database URL for the migration
-    execSync('pnpm drizzle-kit migrate', {
-      env: { ...process.env, DATABASE_URL: dbUrl },
+  try {
+    // Use drizzle-kit push to sync schema directly (bypasses migrations)
+    console.log('  → Syncing database schema...');
+    
+    // Use yes command to automatically confirm
+    execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit push --force`, {
       stdio: 'inherit',
+      shell: '/bin/bash',
     });
-
+    
     console.log('✅ Test database setup complete!\n');
-  } catch (error) {
-    console.error('❌ Failed to setup test database:', error);
+  } catch (error: any) {
+    console.error('❌ Failed to setup test database:', error?.message || error);
     throw error;
   }
 }

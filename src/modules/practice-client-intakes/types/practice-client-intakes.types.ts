@@ -1,5 +1,6 @@
 import type { z } from '@hono/zod-openapi';
-import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import type { MatterResponse } from '@/modules/matters/types/matter.types';
+import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
 export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
 
@@ -16,15 +17,15 @@ export type UpdateIntakeTriageStatusRequest = z.infer<typeof intakeValidations.u
 /**
  * Onboarding settings for client intakes
  */
-export type IntakeSettings = {
+export interface IntakeSettings {
   paymentLinkEnabled: boolean;
   prefillAmount: number;
-};
+}
 
 /**
  * Intake data from database
  */
-export type ClientIntake = {
+export interface ClientIntake {
   uuid: string;
   organization_id: string;
   amount: number;
@@ -43,7 +44,7 @@ export type ClientIntake = {
   succeeded_at?: Date | null;
   created_at: Date;
   updated_at: Date;
-};
+}
 
 /**
  * Response types
@@ -64,3 +65,8 @@ export type ClaimPracticeClientIntakeResponse = z.infer<
 export type UpdateIntakeTriageStatusResponse = z.infer<typeof intakeValidations.updateIntakeTriageStatusResponseSchema>;
 export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesResponseSchema>;
 export type ListIntakeItem = NonNullable<ListIntakesResponse['data']>['intakes'][number];
+export type TriggerIntakeInvitationResponse = z.infer<typeof intakeValidations.triggerIntakeInvitationResponseSchema>;
+export interface ConvertIntakeResponse {
+  matter_id: string;
+  matter: MatterResponse;
+}

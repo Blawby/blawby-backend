@@ -90,6 +90,7 @@ const getIntakeById = async (
     }
 
     return result.ok({
+      success: true,
       data: formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
     });
   } catch (error) {
@@ -223,8 +224,11 @@ const toMatterResponse = (
   matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>
 ): MatterResponse => ({
   ...matter,
+  // oxlint-disable-next-line no-unsafe-type-assertion
   status: matter.status as MatterResponse['status'],
+  // oxlint-disable-next-line no-unsafe-type-assertion
   payment_frequency: (matter.payment_frequency as 'project' | 'milestone' | null) ?? null,
+  // oxlint-disable-next-line no-unsafe-type-assertion
   urgency: (matter.urgency as MatterResponse['urgency']) ?? null,
   deleted_at: matter.deleted_at ?? null,
   open_date: matter.open_date ?? null,

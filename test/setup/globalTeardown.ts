@@ -1,11 +1,14 @@
 import { Client } from 'pg';
 import { config } from '@dotenvx/dotenvx';
+import { getLogger } from '@logtape/logtape';
 
 // Load test environment variables so we can read POSTGRES_USER/PASSWORD
 config({ path: '.env.test' });
 
+const logger = getLogger(['test', 'global-teardown']);
+
 export default async function globalTeardown() {
-  console.log('\n🧹 Cleaning up test database...');
+  logger.info('🧹 Cleaning up test database...');
 
   const testDbName = 'blawby_test';
   const client = new Client({
@@ -20,7 +23,7 @@ export default async function globalTeardown() {
     await client.connect();
 
     // Drop test database
-    console.log(`  → Dropping ${testDbName} database...`);
+    logger.info(`  → Dropping ${testDbName} database...`);
     // Force disconnect other sessions to allow drop
     await client.query(`
       SELECT pg_terminate_backend(pg_stat_activity.pid)
@@ -30,10 +33,11 @@ export default async function globalTeardown() {
     `);
     await client.query(`DROP DATABASE IF EXISTS ${testDbName}`);
 
-    await client.end();
-    console.log('✅ Test database cleanup complete!');
+    logger.info('✅ Test database cleanup complete!');
   } catch (error) {
-    console.error('❌ Failed to cleanup test database:', error);
+    logger.error('❌ Failed to cleanup test database: {error}', { error });
     // Don't throw - allow tests to complete even if cleanup fails
+  } finally {
+    await client.end();
   }
 }

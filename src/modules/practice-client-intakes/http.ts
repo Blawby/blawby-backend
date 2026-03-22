@@ -10,11 +10,15 @@ const practiceClientIntakesApp = createHonoApp();
 practiceClientIntakesApp.use('*', injectAbility());
 
 // ==================== PRACTICE CLIENT INTAKES ====================
-practiceClientIntakesApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
+// Static routes must be registered before dynamic routes with path parameters
 practiceClientIntakesApp.openapi(
-  publicRoutes.createPracticeClientIntakeRoute,
-  handlers.createPracticeClientIntakeHandler
+  publicRoutes.getPracticeClientIntakePostPayStatusRoute,
+  handlers.getPracticeClientIntakePostPayStatusHandler
 );
+practiceClientIntakesApp.openapi(clientRoutes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
+practiceClientIntakesApp.openapi(publicRoutes.createPracticeClientIntakeRoute, handlers.createPracticeClientIntakeHandler);
+// Dynamic routes with path parameters
+practiceClientIntakesApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
 practiceClientIntakesApp.openapi(
   clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
   handlers.createPracticeClientIntakeCheckoutSessionHandler
@@ -24,11 +28,6 @@ practiceClientIntakesApp.openapi(
   clientRoutes.getPracticeClientIntakeStatusRoute,
   handlers.getPracticeClientIntakeStatusHandler
 );
-practiceClientIntakesApp.openapi(
-  publicRoutes.getPracticeClientIntakePostPayStatusRoute,
-  handlers.getPracticeClientIntakePostPayStatusHandler
-);
-practiceClientIntakesApp.openapi(clientRoutes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
 practiceClientIntakesApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
 practiceClientIntakesApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
 practiceClientIntakesApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);

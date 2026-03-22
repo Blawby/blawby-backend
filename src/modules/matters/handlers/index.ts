@@ -1,7 +1,3 @@
-export * from './matters.handlers';
-export * from './notes.handlers';
-export * from './time-entries.handlers';
-export * from './expenses.handlers';
-export * from './milestones.handlers';
-export * from './tasks.handlers';
-export * from './billing.handlers';
+// Re-export all handlers from the main handlers file
+export { handlers } from '../handlers';
+export * from '../handlers';

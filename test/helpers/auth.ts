@@ -1,104 +1,111 @@
-import { getTestDb } from './db';
-import { users, organizations, members } from '@/schema';
-import crypto from 'crypto';
-import { faker } from '@faker-js/faker';
-import { auth } from '@/shared/auth/better-auth'; // Factory function
-import type { User, Session } from '@/shared/types/better-auth'; // Adjust import if needed
+import type { TestHelpers } from 'better-auth/plugins';
+import { auth } from '@/shared/auth/better-auth';
+import { getTestDb } from '@/test/helpers/db';
+import type { MemberRole } from '@/modules/practice/types/members.types';
+import type { TestOrganization, TestUser } from '@/test/types/shared.ts';
 
-// Initialize Better Auth with testDb
 const betterAuth = auth(getTestDb());
 
-export interface TestUser {
-  id: string;
-  email: string;
-  name: string;
-  sessionToken: string;
+let _test: TestHelpers | null = null;
+
+const hasTestHelpers = (ctx: unknown): ctx is { test: TestHelpers } =>
+  typeof ctx === 'object' && ctx !== null && 'test' in ctx;
+
+interface AnonymousSignInResponse {
+  user: { id: string; email: string | null; name: string };
+  token: string;
 }
 
-export interface TestOrganization {
-  id: string;
-  name: string;
-  slug: string;
-}
+const hasAnonymousSignIn = (
+  api: unknown
+): api is {
+  signInAnonymous: (opts: { headers: Headers }) => Promise<AnonymousSignInResponse>;
+} => typeof api === 'object' && api !== null && typeof Reflect.get(api, 'signInAnonymous') === 'function';
 
-/**
- * Create a test user with session using Better Auth SDK
- */
-export async function createTestUser(overrides: Partial<typeof users.$inferInsert> = {}): Promise<TestUser> {
-  const email = overrides.email || faker.internet.email();
-  const name = overrides.name || faker.person.fullName();
-  const password = 'password123'; // Default password
+const getTest = async (): Promise<TestHelpers> => {
+  if (!_test) {
+    const ctx = await betterAuth.$context;
+    if (!hasTestHelpers(ctx)) {
+      throw new Error('testUtils plugin is not installed. Add testUtils() to the Better Auth plugins array.');
+    }
 
-  // Use Better Auth API to sign up
-  // This handles password hashing, user creation, and session creation
-  const response = await betterAuth.api.signUpEmail({
-    body: {
-      email,
-      password,
-      name,
-    },
-    asResponse: false // Return data directly
-  });
+    _test = ctx.test;
+    if (!_test) {
+      throw new Error('testUtils plugin is not installed. Add testUtils() to the Better Auth plugins array.');
+    }
+  }
+  return _test;
+};
 
-  if (!response?.user || !response?.token) {
-    throw new Error('Failed to create test user via Better Auth');
+const createTestUser = async (overrides?: Partial<{ email: string; name: string }>): Promise<TestUser> => {
+  const test = await getTest();
+  const userFactory = test.createUser(overrides);
+  const savedUser = await test.saveUser(userFactory);
+  return savedUser;
+};
+
+const createAnonymousUser = async (): Promise<TestUser> => {
+  if (!hasAnonymousSignIn(betterAuth.api)) {
+    throw new Error('Anonymous auth helpers require the anonymous plugin to be installed.');
   }
 
+  const response = await betterAuth.api.signInAnonymous({ headers: new Headers() });
   return {
     id: response.user.id,
-    email: response.user.email,
-    name: response.user.name,
-    sessionToken: response.token,
+    email: response.user.email ?? '',
+    name: response.user.name ?? '',
   };
-}
+};
 
-/**
- * Create a test organization
- */
-export async function createTestOrganization(
-  overrides: Partial<typeof organizations.$inferInsert> = {}
-): Promise<TestOrganization> {
-  const orgId = crypto.randomUUID();
-  const slug = overrides.slug || faker.helpers.slugify(faker.company.name()).toLowerCase() + '-' + Date.now();
-  const name = overrides.name || faker.company.name();
+const createTestOrganization = async (
+  overrides?: Partial<{ name: string; slug: string }>
+): Promise<TestOrganization> => {
+  const test = await getTest();
+  if (!test.createOrganization || !test.saveOrganization) {
+    throw new Error('Organization helpers require the organization plugin to be installed.');
+  }
+  const orgFactory = test.createOrganization(overrides);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const savedOrg = (await test.saveOrganization(orgFactory)) as unknown as TestOrganization;
+  return {
+    id: savedOrg.id,
+    name: savedOrg.name,
+    slug: savedOrg.slug,
+  };
+};
 
-  await getTestDb().insert(organizations).values({
-    id: orgId,
-    name,
-    slug,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  });
+const addUserToOrganization = async (userId: string, orgId: string, role: MemberRole) => {
+  const test = await getTest();
+  if (!test.addMember) {
+    throw new Error('addMember helper requires the organization plugin to be installed.');
+  }
+  await test.addMember({ userId, organizationId: orgId, role });
+};
 
-  return { id: orgId, name, slug };
-}
+const createTestContext = async (role: MemberRole = 'owner') => {
+  const test = await getTest();
 
-/**
- * Add user as member of organization
- */
-export async function addUserToOrganization(
-  userId: string,
-  orgId: string,
-  role: 'owner' | 'admin' | 'member' = 'member'
-) {
-  await getTestDb().insert(members).values({
-    id: crypto.randomUUID(),
-    organizationId: orgId,
-    userId,
-    role,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-}
+  if (!test.createOrganization || !test.saveOrganization || !test.addMember) {
+    throw new Error('Organization plugin helpers are required but not installed.');
+  }
 
-/**
- * Create a full test context (user + org + membership)
- */
-export async function createTestContext(role: 'owner' | 'admin' | 'member' = 'owner') {
-  const user = await createTestUser();
-  const org = await createTestOrganization();
-  await addUserToOrganization(user.id, org.id, role);
+  const user: TestUser = await test.saveUser(test.createUser());
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const org = (await test.saveOrganization(test.createOrganization())) as unknown as TestOrganization;
 
-  return { user, org };
-}
+  await test.addMember({ userId: user.id, organizationId: org.id, role });
+
+  const headers = await test.getAuthHeaders({ userId: user.id });
+  const session = await betterAuth.api.getSession({ headers });
+  const sessionToken = headers.get('cookie') ?? '';
+
+  return { org, session, sessionToken };
+};
+
+export const authHelpers = {
+  createTestUser,
+  createAnonymousUser,
+  createTestOrganization,
+  addUserToOrganization,
+  createTestContext,
+};
