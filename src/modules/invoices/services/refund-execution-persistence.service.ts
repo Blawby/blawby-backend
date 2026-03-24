@@ -3,9 +3,9 @@ import { and, eq } from 'drizzle-orm';
 
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
-import { PLATFORM_VARIABLE_FEE_RATE } from '@/modules/invoices/constants';
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
+import { requirePayoutMeteredFeeCents } from '@/modules/invoices/services/payout-metered-fee.service';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
@@ -57,6 +57,7 @@ const buildRefundEventPayload = async (opts: {
 }): Promise<RefundEventPayload> => {
   const amountPaidCents = opts.invoice.amount_paid ?? 0;
   const payoutFeeCreditCents = calculatePayoutFeeCreditCents(
+    opts.invoice.id,
     amountPaidCents,
     opts.refundedAmount,
     opts.invoiceTxs,
@@ -81,18 +82,6 @@ const buildRefundEventPayload = async (opts: {
   };
 };
 
-const getPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): number => {
-  const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout');
-  if (!payoutTx) return 0;
-
-  if (typeof payoutTx.metered_fee_cents === 'number' && payoutTx.metered_fee_cents > 0) {
-    return payoutTx.metered_fee_cents;
-  }
-
-  const metadataFee = (payoutTx.metadata as Record<string, unknown> | null | undefined)?.metered_fee_cents;
-  return typeof metadataFee === 'number' && metadataFee > 0 ? metadataFee : 0;
-};
-
 const getRefundDestinationAccountId = (
   invoice: InvoiceRecord,
   invoiceTxs: SelectBillingTransaction[],
@@ -106,13 +95,13 @@ const getRefundDestinationAccountId = (
 };
 
 const calculatePayoutFeeCreditCents = (
+  invoiceId: string,
   amountPaidCents: number,
   refundedAmount: number,
   invoiceTxs: SelectBillingTransaction[],
   refundRequestId?: string,
 ): number => {
-  const originalPayoutMeteredFeeCents = getPayoutMeteredFeeCents(invoiceTxs)
-    || Math.round(amountPaidCents * PLATFORM_VARIABLE_FEE_RATE);
+  const originalPayoutMeteredFeeCents = requirePayoutMeteredFeeCents(invoiceTxs, invoiceId);
   const priorRefundTxs = invoiceTxs.filter((tx) => {
     if (tx.type !== 'refund') return false;
 
@@ -183,6 +172,7 @@ const persistExecutedRefund = async (opts: {
     const lockedInvoiceTxs = await billingTransactionsRepository.listByInvoiceId(lockedInvoice.id, tx);
     const amountPaidCents = lockedInvoice.amount_paid ?? 0;
     const payoutFeeCreditCents = calculatePayoutFeeCreditCents(
+      lockedInvoice.id,
       amountPaidCents,
       opts.refundedAmount,
       lockedInvoiceTxs,
@@ -284,7 +274,6 @@ const persistExecutedRefund = async (opts: {
 
 export const refundExecutionPersistenceService = {
   calculatePayoutFeeCreditCents,
-  getPayoutMeteredFeeCents,
   getRefundDestinationAccountId,
   buildRefundEventPayload,
   persistExecutedRefund,

@@ -46,6 +46,7 @@ test('refund execution persistence payout fee credit math', async (t) => {
     ];
 
     const payoutFeeCreditCents = refundExecutionPersistenceService.calculatePayoutFeeCreditCents(
+      'inv_fixture',
       1000,
       333,
       invoiceTxs,
@@ -76,6 +77,7 @@ test('refund execution persistence payout fee credit math', async (t) => {
     ];
 
     const payoutFeeCreditCents = refundExecutionPersistenceService.calculatePayoutFeeCreditCents(
+      'inv_fixture',
       1500,
       500,
       invoiceTxs,

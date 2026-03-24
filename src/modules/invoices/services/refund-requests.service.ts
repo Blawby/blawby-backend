@@ -519,10 +519,11 @@ const executeRefund = async (opts: {
           organizationId: ctx.organizationId,
         });
       } catch (dispatchError) {
+        const dispatchErrorMessage = dispatchError instanceof Error ? dispatchError.message : 'Unknown error';
         logger.error('Refund executed but failed to dispatch InvoiceRefunded for request {requestId}', {
           requestId: opts.requestId,
           invoiceId: invoice.id,
-          error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+          error: dispatchErrorMessage,
         });
         try {
           await addRefundReconciliationJob({
@@ -540,11 +541,48 @@ const executeRefund = async (opts: {
             refundId: refund.stripeRefundId,
           });
         } catch (queueError) {
+          const queueErrorMessage = queueError instanceof Error ? queueError.message : 'Unknown error';
           logger.error('Failed to queue refund reconciliation after InvoiceRefunded dispatch failure', {
             requestId: opts.requestId,
+            invoiceId: invoice.id,
             refundId: refund.stripeRefundId,
-            error: queueError instanceof Error ? queueError.message : 'Unknown error',
+            error: queueErrorMessage,
           });
+
+          let systemErrorDispatchMessage: string | null = null;
+
+          try {
+            await SystemErrorOccurred.dispatch({
+              error: 'Refund succeeded but both InvoiceRefunded dispatch and reconciliation queueing failed',
+              context: {
+                requestId: opts.requestId,
+                invoiceId: invoice.id,
+                refundId: refund.stripeRefundId,
+                dispatchError: dispatchErrorMessage,
+                queueError: queueErrorMessage,
+              },
+            }, {
+              actorId: ctx.userId,
+              actorType: 'user',
+              organizationId: ctx.organizationId,
+            });
+          } catch (systemErrorDispatch) {
+            systemErrorDispatchMessage = systemErrorDispatch instanceof Error
+              ? systemErrorDispatch.message
+              : 'Unknown error';
+            logger.error('Failed to dispatch SystemErrorOccurred after refund event/reconciliation failure', {
+              requestId: opts.requestId,
+              invoiceId: invoice.id,
+              refundId: refund.stripeRefundId,
+              error: systemErrorDispatchMessage,
+            });
+          }
+
+          throw new Error(
+            systemErrorDispatchMessage
+              ? `Refund follow-up handling failed: dispatch=${dispatchErrorMessage}; queue=${queueErrorMessage}; system_event=${systemErrorDispatchMessage}`
+              : `Refund follow-up handling failed: dispatch=${dispatchErrorMessage}; queue=${queueErrorMessage}`,
+          );
         }
       }
     }

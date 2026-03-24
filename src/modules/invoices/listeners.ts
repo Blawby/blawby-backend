@@ -10,7 +10,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { PLATFORM_VARIABLE_FEE_RATE } from '@/modules/invoices/constants';
+import { loadRequiredPayoutMeteredFeeCents } from '@/modules/invoices/services/payout-metered-fee.service';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
@@ -137,12 +137,11 @@ export function registerInvoicesListeners(): void {
    * (1 unit) and, if the payout fee amount is present in the context
    * record's metadata, for the payout fee as well.
    *
-   * Note: the payout fee in cents is stored as metadata on the event
-   * record by the webhook handler so the listener can access it without
-   * an extra DB round-trip.
+   * Note: payout-fee metering is rebuilt from the persisted payout
+   * transaction so retries stay consistent with later refund credits.
    */
   Event.listen(InvoicePaid, async (payload) => {
-    const { invoice_id, organization_id, amount_paid } = payload;
+    const { invoice_id, organization_id } = payload;
 
     logger.info('InvoicePaid listener: reporting metered usage for invoice {invoiceId}', {
       invoiceId: invoice_id,
@@ -158,14 +157,9 @@ export function registerInvoicesListeners(): void {
       failureLabel: 'invoice fee usage',
     });
 
-    // 2. Payout fee — amount_paid carries the gross payout cents; the
-    //    per-event metered fee (Stripe fee + platform variable fee) is
-    //    stored in context.metadata.metered_fee_cents if available.
-    //    Fall back to the variable-only estimate when metadata is absent.
-    const meteredFeeCents: number
-      = typeof payload.metered_fee_cents === 'number'
-        ? payload.metered_fee_cents
-        : Math.round(amount_paid * PLATFORM_VARIABLE_FEE_RATE);
+    // 2. Payout fee — use the persisted payout transaction as the single
+    //    source of truth so listener retries and refund credits stay aligned.
+    const meteredFeeCents = await loadRequiredPayoutMeteredFeeCents(invoice_id);
 
     if (meteredFeeCents > 0) {
       await reportMeteredUsageWithRetry({
