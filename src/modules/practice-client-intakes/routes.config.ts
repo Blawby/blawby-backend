@@ -1,6 +1,6 @@
-export const config = {
-  name: 'practice-client-intakes',
-  prefix: '/api/practice/client-intakes',
+import type { ModuleConfig } from '@/shared/router/module-router';
+
+export const config: Partial<ModuleConfig> = {
   middleware: {
     '*': ['requireAuth', 'requireOrgMembership'],
     '/:slug/intake': ['public'],
