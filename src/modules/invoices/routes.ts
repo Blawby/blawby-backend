@@ -22,10 +22,11 @@ const invoiceParamSchema = practiceIdParamSchema.extend({
 
 const createInvoiceRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/create',
+  path: '/{practice_id}',
   tags: ['Invoices'],
   summary: 'Create invoice',
-  description: 'Create a new draft invoice. The client_id can be either a User ID or a UserDetails ID; the system will automatically resolve and create the necessary client records in a non-blocking way.',
+  description:
+    'Create a new draft invoice. The client_id can be either a User ID or a UserDetails ID; the system will automatically resolve and create the necessary client records in a non-blocking way.',
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -51,12 +52,12 @@ const createInvoiceRoute = routeBuilder.build({
   },
 });
 
-const getInvoicesRoute = routeBuilder.build({
+const listInvoicesRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Invoices'],
-  summary: 'List invoices or get by ID',
-  description: 'Get all invoices for a practice. Use the `invoice_id` query parameter to retrieve a specific invoice.',
+  summary: 'List invoices',
+  description: 'Get all invoices for a practice.',
   request: {
     params: practiceIdParamSchema,
     query: invoiceValidations.listInvoicesQuerySchema,
@@ -76,9 +77,31 @@ const getInvoicesRoute = routeBuilder.build({
   },
 });
 
+const getInvoiceRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/{id}',
+  tags: ['Invoices'],
+  summary: 'Get invoice',
+  description: 'Get a single invoice by ID.',
+  request: {
+    params: invoiceParamSchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: invoiceValidations.invoiceSchema,
+        },
+      },
+      description: 'Invoice retrieved successfully',
+    },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Invoice not found' },
+  },
+});
+
 const updateInvoiceRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}/update/{id}',
+  path: '/{practice_id}/{id}',
   tags: ['Invoices'],
   summary: 'Update invoice',
   description: 'Update a draft invoice',
@@ -102,7 +125,7 @@ const updateInvoiceRoute = routeBuilder.build({
 
 const deleteInvoiceRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/delete/{id}',
+  path: '/{practice_id}/{id}',
   tags: ['Invoices'],
   summary: 'Delete invoice',
   description: 'Soft delete a draft invoice',
@@ -221,7 +244,8 @@ const getClientInvoiceDetailRoute = routeBuilder.build({
 
 export const routes = {
   createInvoiceRoute,
-  getInvoicesRoute,
+  listInvoicesRoute,
+  getInvoiceRoute,
   updateInvoiceRoute,
   deleteInvoiceRoute,
   sendInvoiceRoute,

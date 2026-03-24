@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { PLATFORM_VARIABLE_FEE_RATE } from '@/modules/invoices/constants';
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
@@ -12,7 +13,6 @@ import { db } from '@/shared/database';
 
 
 const logger = getLogger(['invoices', 'refund-execution-persistence']);
-const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
 
 type InvoiceRecord = NonNullable<Awaited<ReturnType<typeof invoicesRepository.findInvoiceById>>>;
 
@@ -257,6 +257,13 @@ const persistExecutedRefund = async (opts: {
         });
 
         await mattersQueries.updateRetainerBalance(lockedInvoice.matter_id, newBalance, tx);
+      } else {
+        logger.warn('Skipping retainer balance update for refund because matter was not found', {
+          matterId: lockedInvoice.matter_id,
+          invoiceId: lockedInvoice.id,
+          refundId: opts.stripeRefundId,
+          refundRequestId: opts.requestId,
+        });
       }
     }
 

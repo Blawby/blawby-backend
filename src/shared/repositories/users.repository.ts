@@ -4,7 +4,7 @@ import { users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
 const logger = getLogger(['app', 'repositories', 'users']);
-
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
@@ -21,13 +21,13 @@ export type SelectUser = typeof users.$inferSelect;
  * should go through Better Auth to maintain proper authentication state.
  */
 
-const findById = async (id: string): Promise<SelectUser | undefined> => {
-  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+const findById = async (id: string, tx: DbOrTx = db): Promise<SelectUser | undefined> => {
+  const [user] = await tx.select().from(users).where(eq(users.id, id)).limit(1);
   return user ?? undefined;
 };
 
-const findByEmail = async (email: string): Promise<SelectUser | undefined> => {
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+const findByEmail = async (email: string, tx: DbOrTx = db): Promise<SelectUser | undefined> => {
+  const [user] = await tx.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
   return user ?? undefined;
 };
 
@@ -44,6 +44,7 @@ const update = async (
     primaryWorkspace: string;
     isAnonymous: boolean;
   }>,
+  tx: DbOrTx = db
 ): Promise<SelectUser | undefined> => {
   // Prepare update data for Better Auth API
   const updateFields: Record<string, unknown> = {};
@@ -56,7 +57,7 @@ const update = async (
 
   if (Object.keys(updateFields).length > 0) {
     try {
-      await db.update(users).set(updateFields).where(eq(users.id, id));
+      await tx.update(users).set(updateFields).where(eq(users.id, id));
     } catch (error) {
       logger.error('Failed to update user {userId} in database', { userId: id, error });
       throw error;
@@ -64,7 +65,7 @@ const update = async (
   }
 
   // Return fresh user from DB (may be undefined if user was not found)
-  return await findById(id);
+  return await findById(id, tx);
 };
 
 const usersRepository = {

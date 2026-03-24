@@ -1,8 +1,5 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable, uuid, text, timestamp, integer, boolean, jsonb,
-  uniqueIndex, index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { addresses } from './addresses.schema';
 import type { PracticeDetailsSupportedStates } from '@/modules/practice/types/practice-details.types';
 import { organizations, users } from '@/schema/better-auth-schema';
@@ -37,54 +34,52 @@ export const practiceDetails = pgTable('practice_details', {
 });
 
 // Practice services table (normalized)
-export const practiceServices = pgTable('practice_services', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  key: text('key').notNull(),
-  organization_id: uuid('organization_id')
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
-  description: text('description'),
-  created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-}, (table) => [
-  uniqueIndex('practice_services_org_key_idx').on(table.organization_id, table.key),
-  index('practice_services_key_idx').on(table.key),
-]);
+export const practiceServices = pgTable(
+  'practice_services',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    key: text('key').notNull(),
+    organization_id: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    description: text('description'),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('practice_services_org_key_idx').on(table.organization_id, table.key),
+    index('practice_services_key_idx').on(table.key),
+  ]
+);
 
 // Define relations
-export const practiceDetailsRelations = relations(
-  practiceDetails,
-  ({ many, one }) => ({
-    organization: one(organizations, {
-      fields: [practiceDetails.organization_id],
-      references: [organizations.id],
-    }),
-    user: one(users, {
-      fields: [practiceDetails.user_id],
-      references: [users.id],
-    }),
-    address: one(addresses, {
-      fields: [practiceDetails.address_id],
-      references: [addresses.id],
-    }),
-    services: many(practiceServices),
+export const practiceDetailsRelations = relations(practiceDetails, ({ many, one }) => ({
+  organization: one(organizations, {
+    fields: [practiceDetails.organization_id],
+    references: [organizations.id],
   }),
-);
+  user: one(users, {
+    fields: [practiceDetails.user_id],
+    references: [users.id],
+  }),
+  address: one(addresses, {
+    fields: [practiceDetails.address_id],
+    references: [addresses.id],
+  }),
+  services: many(practiceServices),
+}));
 
-export const practiceServicesRelations = relations(
-  practiceServices,
-  ({ one }) => ({
-    organization: one(organizations, {
-      fields: [practiceServices.organization_id],
-      references: [organizations.id],
-    }),
-    practiceDetails: one(practiceDetails, {
-      fields: [practiceServices.organization_id],
-      references: [practiceDetails.organization_id],
-    }),
+export const practiceServicesRelations = relations(practiceServices, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [practiceServices.organization_id],
+    references: [organizations.id],
   }),
-);
+  practiceDetails: one(practiceDetails, {
+    fields: [practiceServices.organization_id],
+    references: [practiceDetails.organization_id],
+  }),
+}));
 
 // Types inferred from the table
 export type PracticeDetails = typeof practiceDetails.$inferSelect;

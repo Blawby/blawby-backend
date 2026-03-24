@@ -3,39 +3,95 @@
   "plugins": [
     "import",
     "typescript",
-    "node",
-    "unicorn"
+    "node"
+  ],
+  "jsPlugins": [
+    "oxlint-plugin-eslint"
   ],
   "env": {
     "node": true,
     "es2022": true
   },
+  "options": {
+    "typeAware": true
+  },
   "categories": {
-    "correctness": "error",
+    "correctness": "warn",
     "suspicious": "warn",
     "pedantic": "off",
-    "style": "off",
-    "perf": "off"
+    "style": "error",
+    "perf": "warn",
+    "restriction": "off",
+    "nursery": "off"
   },
   "rules": {
-    "no-explicit-any": "error",
-    "explicit-function-return-type": "error",
-    "no-unused-vars": "error",
-    "typescript/no-explicit-any": "error",
-    "typescript/consistent-type-assertions": [
+    "import/no-cycle": [
       "error",
       {
-        "assertionStyle": "never"
+        "maxDepth": 3
       }
     ],
-    "typescript/explicit-function-return-type": "off",
-    "import/no-unresolved": "off",
-    "unicorn/text-encoding-identifier-case": "off",
-    "unicorn/prefer-string-replace-all": "off",
-    "unicorn/prefer-top-level-await": "off",
-    "max-lines": [
-      "error",
-      500
-    ]
-  }
+    "import/no-nodejs-modules": "off",
+    "import/no-named-export": "off",
+    "import/group-exports": "off",
+    "eslint-plugin-import/group-exports": "off",
+    "import/consistent-type-specifier-style": "off",
+    "import/prefer-default-export": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-deprecated": "warn",
+    "typescript/no-unsafe-return": "warn",
+    "typescript/no-unsafe-assignment": "warn",
+    "typescript/no-unsafe-call": "warn",
+    "typescript/no-unsafe-member-access": "warn",
+    "typescript/prefer-nullish-coalescing": "warn",
+    "typescript/prefer-optional-chain": "warn",
+    "typescript/consistent-type-definitions": [
+      "warn",
+      "interface"
+    ],
+    "typescript/no-require-imports": "error",
+    "max-statements": "off",
+    "max-params": "off",
+    "id-length": "off",
+    "sort-keys": "off",
+    "node/no-import": "off",
+    "sort-imports": "off",
+    "no-ternary": "off",
+    "no-magic-numbers": "off"
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/**/*.{js,ts,tsx}"
+      ],
+      "rules": {
+        "no-unused-vars": [
+          "error",
+          {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_"
+          }
+        ],
+        "eslint-js/prefer-const": "error",
+        "import/first": "error",
+        "import/no-duplicates": "error"
+      }
+    },
+    {
+      "files": [
+        "scripts/**/*.ts"
+      ],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "**/.agent/**",
+    "**/.agents/**",
+    "**/.claude/**",
+    "**/.cursor/**",
+    "**/.serena/**"
+  ]
 }

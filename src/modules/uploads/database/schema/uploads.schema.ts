@@ -1,16 +1,8 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  integer,
-  boolean,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 
-import { users } from '@/schema';
-import { organizations } from '@/schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const uploads = pgTable(
   'uploads',
@@ -34,7 +26,9 @@ export const uploads = pgTable(
 
     // Context & Matter (for legal compliance)
     upload_context: varchar('upload_context', { length: 50 }).notNull(), // 'matter', 'intake', 'trust', 'profile', 'asset'
-    matter_id: uuid('matter_id'), // Link to client matter/case
+    matter_id: uuid('matter_id').references(() => matters.id, {
+      onDelete: 'set null',
+    }), // Link to client matter/case
     entity_type: varchar('entity_type', { length: 50 }), // 'user', 'organization', 'intake', 'matter'
     entity_id: uuid('entity_id'),
 
@@ -56,9 +50,7 @@ export const uploads = pgTable(
     deletion_reason: varchar('deletion_reason', { length: 255 }),
 
     // Timestamps
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     verified_at: timestamp('verified_at', { withTimezone: true, mode: 'date' }),
     expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }), // For cleanup of unconfirmed uploads
   },
@@ -69,7 +61,7 @@ export const uploads = pgTable(
     index('uploads_status_idx').on(table.status),
     index('uploads_matter_id_idx').on(table.matter_id),
     index('uploads_created_at_idx').on(table.created_at),
-  ],
+  ]
 );
 
 // Define relations
@@ -81,6 +73,10 @@ export const uploadsRelations = relations(uploads, ({ one }) => ({
   organization: one(organizations, {
     fields: [uploads.organization_id],
     references: [organizations.id],
+  }),
+  matter: one(matters, {
+    fields: [uploads.matter_id],
+    references: [matters.id],
   }),
   uploadedByUser: one(users, {
     fields: [uploads.uploaded_by],

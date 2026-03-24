@@ -6,15 +6,13 @@ import {
   matterResponseSchema,
 } from '@/modules/matters/types/matter.types';
 import { routeBuilder } from '@/shared/router/route-builder';
-import {
-  errorResponseSchema,
-} from '@/shared/validations/openapi';
+import { errorResponseSchema } from '@/shared/validations/openapi';
 
 const tags = ['Matters'];
 
 export const createMatterRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/matters',
+  path: '/{practice_id}',
   tags,
   summary: 'Create a new matter',
   request: {
@@ -43,11 +41,12 @@ export const createMatterRoute = routeBuilder.build({
   },
 });
 
-export const getMattersRoute = routeBuilder.build({
+export const listMattersRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/matters',
+  path: '/{practice_id}',
   tags,
   summary: 'List matters',
+  description: 'Returns a paginated list of matters for the practice.',
   request: {
     params: z.object({
       practice_id: z.uuid(),
@@ -72,9 +71,43 @@ export const getMattersRoute = routeBuilder.build({
   },
 });
 
+export const getMatterRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/{id}',
+  tags,
+  summary: 'Get a matter',
+  description: 'Returns a single matter by ID.',
+  request: {
+    params: z.object({
+      practice_id: z.uuid(),
+      id: z.uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Matter retrieved successfully',
+      content: {
+        'application/json': {
+          schema: z.object({
+            matter: matterResponseSchema,
+          }),
+        },
+      },
+    },
+    404: {
+      description: 'Matter not found',
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
 export const updateMatterRoute = routeBuilder.build({
   method: 'put',
-  path: '/{practice_id}/matters/{id}',
+  path: '/{practice_id}/{id}',
   tags,
   summary: 'Update a matter',
   request: {
@@ -114,7 +147,7 @@ export const updateMatterRoute = routeBuilder.build({
 
 export const deleteMatterRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/matters/{id}',
+  path: '/{practice_id}/{id}',
   tags,
   summary: 'Delete a matter',
   request: {

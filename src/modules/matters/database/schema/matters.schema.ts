@@ -1,23 +1,8 @@
-import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  integer,
-  real,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
-import {
-  billingTransactions,
-  invoices,
-} from '@/modules/invoices/database/schema';
-import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
-import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
+import { pgTable, uuid, varchar, text, integer, real, timestamp, index, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { organizations, users } from '@/schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const matters = pgTable(
   'matters',
@@ -40,9 +25,9 @@ export const matters = pgTable(
     billing_type: varchar('billing_type', { length: 20 })
       .notNull()
       .$type<'hourly' | 'fixed' | 'contingency' | 'pro_bono'>(), // 'hourly', 'fixed', 'contingency', 'pro_bono'
-    total_fixed_price: integer('total_fixed_price'), // in cents, nullable
-    contingency_percentage: real('contingency_percentage'), // float, nullable
-    settlement_amount: integer('settlement_amount'), // in cents, nullable
+    total_fixed_price: integer('total_fixed_price'), // In cents, nullable
+    contingency_percentage: real('contingency_percentage'), // Float, nullable
+    settlement_amount: integer('settlement_amount'), // In cents, nullable
 
     // Service/Practice area reference
     practice_service_id: uuid('practice_service_id').references(() => practiceServices.id, {
@@ -50,13 +35,13 @@ export const matters = pgTable(
     }),
 
     // Hourly rates
-    admin_hourly_rate: integer('admin_hourly_rate'), // in cents, nullable
-    attorney_hourly_rate: integer('attorney_hourly_rate'), // in cents, nullable
+    admin_hourly_rate: integer('admin_hourly_rate'), // In cents, nullable
+    attorney_hourly_rate: integer('attorney_hourly_rate'), // In cents, nullable
 
     // Payment settings
     payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
 
-    retainer_balance: integer('retainer_balance').notNull().default(0), // in cents
+    retainer_balance: integer('retainer_balance').notNull().default(0), // In cents
 
     // Status
     status: varchar('status', { length: 40 }).notNull().default('first_contact'),
@@ -82,20 +67,21 @@ export const matters = pgTable(
 
     // Soft delete
     deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
-    deleted_by: uuid('deleted_by').references(() => users.id),
+    deleted_by: uuid('deleted_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
 
     // Intake and Conversation linking
     conversation_id: uuid('conversation_id'),
     intake_uuid: uuid('intake_uuid'),
     on_behalf_of: text('on_behalf_of'),
 
+    // Retainer settings
+    retainer_low_balance_threshold: integer('retainer_low_balance_threshold'), // In cents, NULL = no warning
+
     // Timestamps
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('matters_org_idx').on(table.organization_id),
@@ -107,43 +93,12 @@ export const matters = pgTable(
     index('matters_retainer_balance_idx').on(table.retainer_balance),
     index('matters_intake_uuid_idx').on(table.intake_uuid),
     index('matters_conversation_id_idx').on(table.conversation_id),
-  ],
+    index('matters_retainer_threshold_idx')
+      .on(table.retainer_low_balance_threshold)
+      .where(sql`${table.retainer_low_balance_threshold} IS NOT NULL`),
+    check('matters_retainer_threshold_non_negative', sql`${table.retainer_low_balance_threshold} >= 0`),
+  ]
 );
-
-// Define relations
-export const mattersRelations = relations(matters, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [matters.organization_id],
-    references: [organizations.id],
-  }),
-  client: one(userDetails, {
-    fields: [matters.client_id],
-    references: [userDetails.id],
-  }),
-  practiceService: one(practiceServices, {
-    fields: [matters.practice_service_id],
-    references: [practiceServices.id],
-  }),
-  deletedByUser: one(users, {
-    fields: [matters.deleted_by],
-    references: [users.id],
-    relationName: 'deletedBy',
-  }),
-  responsibleAttorney: one(users, {
-    fields: [matters.responsible_attorney_id],
-    references: [users.id],
-    relationName: 'responsibleAttorney',
-  }),
-  originatingAttorney: one(users, {
-    fields: [matters.originating_attorney_id],
-    references: [users.id],
-    relationName: 'originatingAttorney',
-  }),
-  assignees: many(matterAssignees),
-  milestones: many(matterMilestones),
-  invoices: many(invoices),
-  billingTransactions: many(billingTransactions),
-}));
 
 export type InsertMatter = typeof matters.$inferInsert;
 export type SelectMatter = typeof matters.$inferSelect;

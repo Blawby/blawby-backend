@@ -20,11 +20,7 @@ const logger = getLogger(['queue', 'manager']);
 /**
  * Add a webhook processing job to the queue
  */
-export const addWebhookJob = async (
-  webhookId: string,
-  eventId: string,
-  eventType: string,
-): Promise<void> => {
+export const addWebhookJob = async (webhookId: string, eventId: string, eventType: string): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -38,7 +34,7 @@ export const addWebhookJob = async (
       {
         jobKey: eventId, // Use Stripe event ID for deduplication
         maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
+      }
     );
 
     logger.info('Webhook job queued: {eventId} ({eventType})', { eventId, eventType });
@@ -51,11 +47,7 @@ export const addWebhookJob = async (
 /**
  * Add an onboarding webhook processing job to the queue
  */
-export const addOnboardingWebhookJob = async (
-  webhookId: string,
-  eventId: string,
-  eventType: string,
-): Promise<void> => {
+export const addOnboardingWebhookJob = async (webhookId: string, eventId: string, eventType: string): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -69,7 +61,7 @@ export const addOnboardingWebhookJob = async (
       {
         jobKey: eventId, // Use Stripe event ID for deduplication
         maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
+      }
     );
 
     logger.info('Onboarding webhook job queued: {eventId} ({eventType})', { eventId, eventType });
@@ -86,7 +78,7 @@ export const addEmailJob = async (
   template: string,
   to: string,
   subject: string,
-  data: Record<string, unknown>,
+  data: Record<string, unknown>
 ): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
@@ -103,7 +95,7 @@ export const addEmailJob = async (
       },
       {
         maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
+      }
     );
 
     logger.info('Email job queued: {template} to {to}', { template, to });
@@ -182,14 +174,12 @@ export const addRefundReconciliationJob = async (payload: {
     throw error;
   }
 };
-
-
 /**
  * Get queue statistics for monitoring
  * Queries Graphile Worker's job tables directly
  */
 export const getQueueStats = async (
-  taskName: string,
+  taskName: string
 ): Promise<{
   waiting: number;
   active: number;
@@ -214,7 +204,7 @@ export const getQueueStats = async (
         COUNT(*) FILTER (WHERE attempts >= max_attempts AND locked_at IS NULL) as failed
       FROM "${schemaEscaped}".jobs
       WHERE task_identifier = '${taskNameEscaped}'
-    `),
+    `)
   );
 
   const row = stats.rows[0] as {
@@ -256,20 +246,16 @@ export const closeQueues = async (): Promise<void> => {
 // Legacy exports for backward compatibility during migration
 // TODO: Remove after full migration
 export const getQueue = (_name: string): never => {
-  throw new Error(
-    'getQueue() is deprecated. Use getWorkerUtils() and addJob() directly.',
-  );
+  throw new Error('getQueue() is deprecated. Use getWorkerUtils() and addJob() directly.');
 };
 
 export const getWebhookQueue = (): never => {
-  throw new Error(
-    'getWebhookQueue() is deprecated. Use addWebhookJob() directly.',
-  );
+  throw new Error('getWebhookQueue() is deprecated. Use addWebhookJob() directly.');
 };
 
 export const getQueueEvents = (_name: string): never => {
   throw new Error(
-    'getQueueEvents() is not available in Graphile Worker. Query the jobs table directly for monitoring.',
+    'getQueueEvents() is not available in Graphile Worker. Query the jobs table directly for monitoring.'
   );
 };
 

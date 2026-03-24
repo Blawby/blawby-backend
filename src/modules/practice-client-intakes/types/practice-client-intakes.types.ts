@@ -1,11 +1,12 @@
-import { z } from 'zod';
-import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import type { z } from '@hono/zod-openapi';
+import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 
 export type TriageStatus = 'pending_review' | 'accepted' | 'declined';
 
 // Inferred from Zod schemas
 export type CreatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.createPracticeClientIntakeSchema>;
 export type UpdatePracticeClientIntakeRequest = z.infer<typeof intakeValidations.updatePracticeClientIntakeSchema>;
+export type ConvertIntakeRequest = z.infer<typeof intakeValidations.convertIntakeSchema>;
 export type SlugParam = z.infer<typeof intakeValidations.slugParamSchema>;
 export type UuidParam = z.infer<typeof intakeValidations.uuidParamSchema>;
 export type CheckoutSessionStatusQuery = z.infer<typeof intakeValidations.checkoutSessionStatusQuerySchema>;
@@ -15,15 +16,15 @@ export type UpdateIntakeTriageStatusRequest = z.infer<typeof intakeValidations.u
 /**
  * Onboarding settings for client intakes
  */
-export type IntakeSettings = {
+export interface IntakeSettings {
   paymentLinkEnabled: boolean;
   prefillAmount: number;
-};
+}
 
 /**
  * Intake data from database
  */
-export type ClientIntake = {
+export interface ClientIntake {
   uuid: string;
   organization_id: string;
   amount: number;
@@ -42,7 +43,7 @@ export type ClientIntake = {
   succeeded_at?: Date | null;
   created_at: Date;
   updated_at: Date;
-};
+}
 
 /**
  * Response types
@@ -60,6 +61,8 @@ export type IntakePostPayStatusResponse = z.infer<
 export type ClaimPracticeClientIntakeResponse = z.infer<
   typeof intakeValidations.claimPracticeClientIntakeResponseSchema
 >;
-export type UpdateIntakeTriageStatusResponse = z.infer<
-  typeof intakeValidations.updateIntakeTriageStatusResponseSchema
->;
+export type UpdateIntakeTriageStatusResponse = z.infer<typeof intakeValidations.updateIntakeTriageStatusResponseSchema>;
+export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesResponseSchema>;
+export type ListIntakeItem = NonNullable<ListIntakesResponse['data']>['intakes'][number];
+export type TriggerIntakeInvitationResponse = z.infer<typeof intakeValidations.triggerIntakeInvitationResponseSchema>;
+export type ConvertIntakeResponse = z.infer<typeof intakeValidations.convertIntakeResponseSchema>;

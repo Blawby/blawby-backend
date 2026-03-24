@@ -25,19 +25,21 @@ interface PlanWithPrice {
  *
  * Returns active plans sorted by sort_order
  */
-export const fetchStripePlans = async (): Promise<Array<{
-  name: string;
-  priceId: string;
-  annualDiscountPriceId?: string;
-  limits: {
-    users: number;
-    invoices_per_month: number;
-    storage_gb: number;
-  };
-}>> => {
+export const fetchStripePlans = async (): Promise<
+  Array<{
+    name: string;
+    priceId: string;
+    annualDiscountPriceId?: string;
+    limits: {
+      users: number;
+      invoices_per_month: number;
+      storage_gb: number;
+    };
+  }>
+> => {
   try {
     // Fetch all active plans from database
-    const plans = await subscriptionRepository.findAllActivePlans(db) as PlanWithPrice[];
+    const plans = (await subscriptionRepository.findAllActivePlans(db)) as PlanWithPrice[];
 
     // Map to Better Auth format
     return plans
@@ -60,4 +62,3 @@ export const fetchStripePlans = async (): Promise<Array<{
     return [];
   }
 };
-

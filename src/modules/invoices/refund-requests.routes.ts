@@ -34,22 +34,19 @@ const refundRequestIdParam = practiceIdParamSchema.extend({
   id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, description: 'Refund request ID' }),
 });
 
-const invoiceIdParam = practiceIdParamSchema.extend({
-  invoice_id: z.uuid().openapi({ param: { name: 'invoice_id', in: 'path' }, description: 'Invoice ID' }),
-});
-
 export const createRefundRequestRoute = createRoute({
   method: 'post',
-  path: '/{practice_id}/client/{invoice_id}/refund-requests',
+  path: '/{practice_id}/client/refund-requests',
   tags: ['Client Refund Requests'],
   summary: 'Request a refund',
   description: 'Client creates a refund request for a paid invoice.',
   request: {
-    params: invoiceIdParam,
+    params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
           schema: z.object({
+            invoice_id: z.uuid(),
             requested_amount: z.number().int().min(1),
             reason: z.string().min(1).max(2000),
             notes: z.string().max(5000).optional(),

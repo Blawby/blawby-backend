@@ -4,7 +4,6 @@ import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
-
 const practiceApp = createHonoApp();
 
 practiceApp.use('*', injectAbility());

@@ -2,7 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Hono } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
-import type { MagicLinkData, CustomerPaymentReceiptData, CustomerPaymentRequestData, PracticeInvitationData, PayoutSentData, StripeConnectStatusData, StripeConnectWelcomeData, TeamPaymentReceiptData, WelcomeEmailData } from '@/shared/services/email/email.types';
+import type {
+  CustomerPaymentReceiptData,
+  CustomerPaymentRequestData,
+  MagicLinkData,
+  PayoutSentData,
+  PracticeInvitationData,
+  StripeConnectStatusData,
+  StripeConnectWelcomeData,
+  TeamPaymentReceiptData,
+  WelcomeEmailData,
+} from '@/shared/services/email/email.types';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
 import { customerPaymentRefundRejected } from '@/shared/services/email/templates/customer/payment-rejected';
 import { customerPaymentRefundRequest } from '@/shared/services/email/templates/customer/payment-refund-request';
@@ -17,6 +27,7 @@ import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payme
 import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team/payment-refund-request';
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
+import { HttpStatus } from '@/shared/utils/result';
 
 const http = new Hono<AppContext>();
 
@@ -27,7 +38,7 @@ const EMAILS_DIR = path.join(process.cwd(), 'storage', 'emails');
  */
 http.get('/emails', async (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
 
   if (!fs.existsSync(EMAILS_DIR)) {
@@ -39,15 +50,17 @@ http.get('/emails', async (c) => {
     `);
   }
 
-  const files = fs.readdirSync(EMAILS_DIR)
+  const files = fs
+    .readdirSync(EMAILS_DIR)
     .filter((f) => f.endsWith('.html'))
     .sort()
     .reverse();
 
-  const listItems = files.map((f) => {
-    const filePath = path.join(EMAILS_DIR, f);
-    const stat = fs.statSync(filePath);
-    return `
+  const listItems = files
+    .map((f) => {
+      const filePath = path.join(EMAILS_DIR, f);
+      const stat = fs.statSync(filePath);
+      return `
       <li style="margin-bottom: 10px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; list-style: none;">
         <a href="/api/dev/emails/${f}" style="text-decoration: none; color: #007bff; font-weight: bold;">
           ${f}
@@ -57,7 +70,8 @@ http.get('/emails', async (c) => {
         </div>
       </li>
     `;
-  }).join('');
+    })
+    .join('');
 
   return c.html(`
     <div style="font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
@@ -74,21 +88,21 @@ http.get('/emails', async (c) => {
  */
 http.get('/emails/:filename', async (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
 
   const filename = c.req.param('filename');
   const sanitizedFilename = path.basename(filename);
 
   if (!sanitizedFilename.endsWith('.html')) {
-    return c.json({ error: 'Email not found' }, 404);
+    return c.json({ error: 'Email not found' }, HttpStatus.NOT_FOUND);
   }
 
   const filePath = path.resolve(EMAILS_DIR, sanitizedFilename);
 
   // Ensure the resolved path is still within EMAILS_DIR
   if (!filePath.startsWith(EMAILS_DIR) || !fs.existsSync(filePath)) {
-    return c.json({ error: 'Email not found' }, 404);
+    return c.json({ error: 'Email not found' }, HttpStatus.NOT_FOUND);
   }
 
   const content = fs.readFileSync(filePath, 'utf-8');
@@ -137,27 +151,27 @@ const samplePaymentReceiptData: CustomerPaymentReceiptData = {
 };
 
 const sampleWelcomeData: WelcomeEmailData = {
+  dashboardUrl: 'https://blawby.com/dashboard',
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
-  dashboardUrl: 'https://blawby.com/dashboard',
-  tutorialUrl: 'https://blawby.com/tutorials/account-basics',
   supportUrl: 'https://blawby.com/help',
+  tutorialUrl: 'https://blawby.com/tutorials/account-basics',
 };
 
 const sampleStripeConnectData: StripeConnectWelcomeData = {
+  dashboardUrl: 'https://blawby.com/dashboard',
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
-  dashboardUrl: 'https://blawby.com/dashboard',
-  tutorialUrl: 'https://blawby.com/tutorials/getting-started',
   supportUrl: 'https://blawby.com/help',
+  tutorialUrl: 'https://blawby.com/tutorials/getting-started',
 };
 
 const samplePracticeInvitationData: PracticeInvitationData = {
-  recipientEmail: 'associate@example.com',
-  recipientName: 'Michael Chen',
+  inviteLink: 'https://blawby.com/invite/abc123def456',
   inviterName: 'Sarah Johnson',
   practiceName: 'Smith & Associates Law Firm',
-  inviteLink: 'https://blawby.com/invite/abc123def456',
+  recipientEmail: 'associate@example.com',
+  recipientName: 'Michael Chen',
 };
 
 // Sample refund data (reuse payment receipt data structure)
@@ -172,10 +186,10 @@ const sampleRefundData: CustomerPaymentReceiptData = {
   paidAt: 'March 2, 2026',
   lineItems: [
     {
+      amount: 150000,
       description: 'Legal Consultation',
       quantity: 1,
       unitPrice: 150000,
-      amount: 150000,
     },
   ],
   paymentMethod: 'Credit Card ending in 4242',
@@ -192,10 +206,10 @@ const sampleTeamRefundData: TeamPaymentReceiptData = {
   amountPaid: 150000, // $1,500.00 in cents
   lineItems: [
     {
+      amount: 150000,
       description: 'Legal Consultation',
       quantity: 1,
       unitPrice: 150000,
-      amount: 150000,
     },
   ],
   paymentMethod: 'Credit Card ending in 4242',
@@ -234,50 +248,50 @@ const samplePaymentRequestData: CustomerPaymentRequestData = {
 };
 
 const sampleTeamPaymentReceiptData: TeamPaymentReceiptData = {
-  recipientEmail: 'lawyer@example.com',
-  recipientName: 'Sarah Johnson',
+  amountPaid: 150000,
   businessName: 'Smith & Associates Law Firm',
   invoiceNumber: 'PAY-2026-001',
-  amountPaid: 150000,
+  invoiceUrl: 'https://blawby.com/invoices/PAY-2026-001',
   lineItems: [
     {
+      amount: 50000,
       description: 'Legal Consultation - Initial Case Review',
       quantity: 1,
       unitPrice: 50000,
-      amount: 50000,
     },
     {
+      amount: 50000,
       description: 'Document Preparation & Filing',
       quantity: 2,
       unitPrice: 25000,
-      amount: 50000,
     },
     {
+      amount: 50000,
       description: 'Court Appearance Fee',
       quantity: 1,
       unitPrice: 50000,
-      amount: 50000,
     },
   ],
   paymentMethod: 'Credit Card ending in 4242',
-  invoiceUrl: 'https://blawby.com/invoices/PAY-2026-001',
+  recipientEmail: 'lawyer@example.com',
+  recipientName: 'Sarah Johnson',
   supportEmail: 'help@blawby.com',
   supportUrl: 'https://blawby.com/help',
 };
 
 const samplePayoutSentData: PayoutSentData = {
-  recipientEmail: 'lawyer@example.com',
-  recipientName: 'Sarah Johnson',
   businessName: 'Smith & Associates Law Firm',
   dashboardUrl: 'https://blawby.com/dashboard',
+  recipientEmail: 'lawyer@example.com',
+  recipientName: 'Sarah Johnson',
 };
 
 const sampleStripeConnectStatusData: StripeConnectStatusData = {
+  dashboardUrl: 'https://blawby.com/dashboard',
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
-  dashboardUrl: 'https://blawby.com/dashboard',
-  tutorialUrl: 'https://blawby.com/tutorials/getting-started',
   supportUrl: 'https://blawby.com/help',
+  tutorialUrl: 'https://blawby.com/tutorials/getting-started',
 };
 
 /**
@@ -285,7 +299,7 @@ const sampleStripeConnectStatusData: StripeConnectStatusData = {
  */
 http.get('/email-templates', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
 
   return c.html(`
@@ -376,10 +390,10 @@ http.get('/email-templates', (c) => {
     <h1>📧 Email Templates Preview</h1>
     <p>Review all email templates with the new premium design</p>
   </div>
-  
+
   <div class="template-grid">
     <div class="section-title">Authentication</div>
-    
+
     <div class="template-card">
       <div class="template-header">Sign in to Blawby</div>
       <div class="template-content">
@@ -388,9 +402,9 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="section-title">Customer Emails</div>
-    
+
     <div class="template-card">
       <div class="template-header">New invoice from Smith & Associates INV-2026-002</div>
       <div class="template-content">
@@ -399,7 +413,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Your receipt from Smith & Associates INV-2026-001</div>
       <div class="template-content">
@@ -408,7 +422,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Refund Request Received for INV-2026-001</div>
       <div class="template-content">
@@ -417,7 +431,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Refund Processed for INV-2026-001</div>
       <div class="template-content">
@@ -426,7 +440,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Refund Request Not Approved for INV-2026-001</div>
       <div class="template-content">
@@ -435,9 +449,9 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="section-title">Team/Practice Emails</div>
-    
+
     <div class="template-card">
       <div class="template-header">Payment of $1,500.00 received from John Doe</div>
       <div class="template-content">
@@ -446,7 +460,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Refund Request Received for $1,500.00</div>
       <div class="template-content">
@@ -455,7 +469,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Refund Processed for $1,500.00</div>
       <div class="template-content">
@@ -464,7 +478,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">You've been invited to join Smith & Associates on Blawby</div>
       <div class="template-content">
@@ -473,9 +487,9 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="section-title">Onboarding Emails</div>
-    
+
     <div class="template-card">
       <div class="template-header">Welcome to Blawby!</div>
       <div class="template-content">
@@ -484,7 +498,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Your Stripe account is connected!</div>
       <div class="template-content">
@@ -493,7 +507,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">Action required: Verify your account information</div>
       <div class="template-content">
@@ -502,7 +516,7 @@ http.get('/email-templates', (c) => {
         </div>
       </div>
     </div>
-    
+
     <div class="template-card">
       <div class="template-header">A payout was sent to your bank account</div>
       <div class="template-content">
@@ -522,7 +536,7 @@ http.get('/email-templates', (c) => {
  */
 http.get('/email-templates/magic-link', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = magicLinkTemplate(sampleMagicLinkData);
   return c.html(html);
@@ -530,7 +544,7 @@ http.get('/email-templates/magic-link', (c) => {
 
 http.get('/email-templates/payment-receipt', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentReceipt(samplePaymentReceiptData);
   return c.html(html);
@@ -538,7 +552,7 @@ http.get('/email-templates/payment-receipt', (c) => {
 
 http.get('/email-templates/welcome', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = welcomeEmail(sampleWelcomeData);
   return c.html(html);
@@ -546,7 +560,7 @@ http.get('/email-templates/welcome', (c) => {
 
 http.get('/email-templates/stripe-connect-welcome', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = stripeConnectWelcome(sampleStripeConnectData);
   return c.html(html);
@@ -554,7 +568,7 @@ http.get('/email-templates/stripe-connect-welcome', (c) => {
 
 http.get('/email-templates/practice-invitation', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = practiceInvitation(samplePracticeInvitationData);
   return c.html(html);
@@ -562,7 +576,7 @@ http.get('/email-templates/practice-invitation', (c) => {
 
 http.get('/email-templates/payment-request', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRequest(samplePaymentRequestData);
   return c.html(html);
@@ -570,7 +584,7 @@ http.get('/email-templates/payment-request', (c) => {
 
 http.get('/email-templates/team-payment-receipt', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = teamPaymentReceipt(sampleTeamPaymentReceiptData);
   return c.html(html);
@@ -579,7 +593,7 @@ http.get('/email-templates/team-payment-receipt', (c) => {
 // Customer refund templates
 http.get('/email-templates/customer-refund-request', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRefundRequest(sampleRefundData);
   return c.html(html);
@@ -587,7 +601,7 @@ http.get('/email-templates/customer-refund-request', (c) => {
 
 http.get('/email-templates/customer-refunded', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRefunded(sampleRefundData);
   return c.html(html);
@@ -595,7 +609,7 @@ http.get('/email-templates/customer-refunded', (c) => {
 
 http.get('/email-templates/customer-refund-rejected', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRefundRejected(sampleRefundData);
   return c.html(html);
@@ -604,7 +618,7 @@ http.get('/email-templates/customer-refund-rejected', (c) => {
 // Team refund templates
 http.get('/email-templates/team-refund-request', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = teamPaymentRefundRequest(sampleTeamRefundData);
   return c.html(html);
@@ -612,7 +626,7 @@ http.get('/email-templates/team-refund-request', (c) => {
 
 http.get('/email-templates/team-refunded', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = teamPaymentRefunded(sampleTeamRefundData);
   return c.html(html);
@@ -620,7 +634,7 @@ http.get('/email-templates/team-refunded', (c) => {
 
 http.get('/email-templates/payout-sent', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = payoutSent(samplePayoutSentData);
   return c.html(html);
@@ -628,7 +642,7 @@ http.get('/email-templates/payout-sent', (c) => {
 
 http.get('/email-templates/stripe-connect-status', (c) => {
   if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Not available in production' }, 403);
+    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = stripeConnectStatus(sampleStripeConnectStatusData);
   return c.html(html);

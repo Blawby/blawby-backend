@@ -67,4 +67,3 @@ export const organizationRoles = {
   paralegal: paralegalRole,
   client: clientRole,
 };
-

@@ -1,9 +1,4 @@
-import {
-  AbilityBuilder,
-  createMongoAbility,
-  type ForcedSubject,
-  type MongoAbility,
-} from '@casl/ability';
+import { AbilityBuilder, createMongoAbility, type ForcedSubject, type MongoAbility } from '@casl/ability';
 import { OrgRole, ADMIN_ROLES, MEMBER_ROLES } from '@/shared/enums/org-roles';
 
 /**
@@ -14,21 +9,22 @@ export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
 /**
  * Subject names (resources) in the system
  */
-export type SubjectName
-  = | 'all'
+export type SubjectName =
+  | 'all'
   | 'OrganizationPreferences'
   | 'PracticeClientIntake'
   | 'User'
   | 'Organization'
   | 'Matter'
-  | 'Invoice';
+  | 'Invoice'
+  | 'RefundRequest'
+  | 'UserDetails'
+  | 'ClientMemo';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
  */
-export type Subject
-  = | SubjectName
-  | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
+export type Subject = SubjectName | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
 
 /**
  * The application-wide Ability type
@@ -43,7 +39,7 @@ export type AppAbility = MongoAbility<[Action, Subject]>;
  */
 export const defineAbilityFor = (
   role: string | null,
-  metadata: { userId?: string; organizationId?: string } = {},
+  metadata: { userId?: string; organizationId?: string } = {}
 ): AppAbility => {
   const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
@@ -54,16 +50,31 @@ export const defineAbilityFor = (
   if (orgRole && (ADMIN_ROLES as readonly string[]).includes(orgRole)) {
     can('manage', 'all');
   } else if (orgRole && (MEMBER_ROLES as readonly string[]).includes(orgRole)) {
-    // Specific roles logic
+    // Member roles have broad read access but restricted manage access
     can('read', 'all');
     can('update', 'OrganizationPreferences');
     can('update', 'Matter');
+    can('update', 'PracticeClientIntake');
+    can('read', 'Invoice');
+    can('update', 'Invoice');
+    can('read', 'RefundRequest');
+    can('create', 'RefundRequest');
+    can('update', 'RefundRequest');
+    can('manage', 'UserDetails');
+    can('manage', 'ClientMemo');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');
     // They can manage their own intake data
     if (metadata.userId) {
-      can('manage', 'PracticeClientIntake');
+      const canWithConditions = can as unknown as (action: Action, subject: SubjectName, conditions: unknown) => void;
+      canWithConditions('manage', 'PracticeClientIntake', { userId: metadata.userId });
+      canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('update', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('read', 'ClientMemo', { client_user_id: metadata.userId });
+      can('create', 'RefundRequest');
+      can('read', 'RefundRequest');
+      can('update', 'RefundRequest');
     }
   }
 

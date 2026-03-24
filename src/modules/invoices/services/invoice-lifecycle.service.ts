@@ -9,10 +9,7 @@ import type {
   InvoiceLineItemInput,
 } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
-import {
-  InvoiceUpdated,
-  InvoiceDeleted,
-} from '@/shared/events/definitions';
+import { InvoiceUpdated, InvoiceDeleted } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
@@ -23,11 +20,14 @@ const logger = getLogger(['invoices', 'lifecycle-service']);
  * Internal helper to manage line item persistence (SRP)
  */
 const syncLineItems = async (
-  { invoiceId, lineItems }: {
+  {
+    invoiceId,
+    lineItems,
+  }: {
     invoiceId: string;
     lineItems: InvoiceLineItemInput[];
   },
-  tx: typeof db,
+  tx: typeof db
 ): Promise<void> => {
   await invoicesRepository.deleteInvoiceLineItems(invoiceId, tx);
   await invoicesRepository.createInvoiceLineItems(
@@ -38,7 +38,7 @@ const syncLineItems = async (
       line_total: item.quantity * item.unit_price,
       sort_order: item.sort_order ?? index,
     })),
-    tx,
+    tx
   );
 };
 
@@ -46,7 +46,7 @@ const syncLineItems = async (
  * Calculate invoice subtotal and total based on line items (Shared utility)
  */
 const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotals => {
-  const subtotal = lineItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+  const subtotal = lineItems.reduce((acc, item) => acc + item.quantity * item.unit_price, 0);
   const tax_amount = 0;
   const discount_amount = 0;
   const total = subtotal + tax_amount - discount_amount;
@@ -65,7 +65,7 @@ const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotal
  */
 const updateInvoice = async (
   { id, data }: { id: string; data: UpdateInvoiceRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
@@ -90,10 +90,7 @@ const updateInvoice = async (
       let totals = {};
       if (line_items) {
         totals = calculateInvoiceTotals(line_items);
-        await syncLineItems(
-          { invoiceId: id, lineItems: line_items },
-          tx,
-        );
+        await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
       }
 
       await invoicesRepository.updateInvoice(
@@ -104,21 +101,24 @@ const updateInvoice = async (
           ...totals,
           due_date: data.due_date ? new Date(data.due_date) : undefined,
         },
-        tx,
+        tx
       );
 
       const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
       if (updated) {
-        await InvoiceUpdated.dispatch({
-          invoice_id: id,
-          organization_id: ctx.organizationId,
-          changes: data,
-        }, {
-          actorId: ctx.userId,
-          actorType: 'user',
-          organizationId: ctx.organizationId,
-          tx,
-        });
+        await InvoiceUpdated.dispatch(
+          {
+            invoice_id: id,
+            organization_id: ctx.organizationId,
+            changes: data,
+          },
+          {
+            actorId: ctx.userId,
+            actorType: 'user',
+            organizationId: ctx.organizationId,
+            tx,
+          }
+        );
       }
 
       return updated;
@@ -140,10 +140,7 @@ const updateInvoice = async (
 /**
  * Soft delete an invoice
  */
-const deleteInvoice = async (
-  { id }: { id: string },
-  ctx: ServiceContext,
-): Promise<Result<{ success: true }>> => {
+const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<{ success: true }>> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Invoice');
 
@@ -157,16 +154,19 @@ const deleteInvoice = async (
 
     await db.transaction(async (tx) => {
       await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, tx);
-      await InvoiceDeleted.dispatch({
-        invoice_id: id,
-        organization_id: ctx.organizationId,
-        deleted_by: 'user',
-      }, {
-        actorId: ctx.userId,
-        actorType: 'user',
-        organizationId: ctx.organizationId,
-        tx,
-      });
+      await InvoiceDeleted.dispatch(
+        {
+          invoice_id: id,
+          organization_id: ctx.organizationId,
+          deleted_by: 'user',
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+          tx,
+        }
+      );
     });
     return result.ok<{ success: true }>({ success: true });
   } catch (error) {

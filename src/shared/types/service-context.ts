@@ -1,28 +1,25 @@
+// oxlint-disable typescript/no-unsafe-assignment
 import type { Context } from 'hono';
-import type { AppAbility } from '../auth/abilities';
-import { db } from '../database';
-import type { DispatchOptions, EventClass } from '../events/event';
-import type { User } from './BetterAuth';
-
-export type ServiceContext = {
+import { defineAbilityFor, type AppAbility } from '@/shared/auth/abilities';
+import type { DispatchOptions, EventClass } from '@/shared/events/event';
+import type { User } from '@/shared/types/BetterAuth';
+import type { db } from '@/shared/database';
+export interface ServiceContext {
   userId: string;
   user: User;
   organizationId: string;
   matterId?: string;
   memberRole: string | null;
   ability: AppAbility;
-  emit: <T extends Record<string, unknown>>(
-    event: EventClass<T>,
-    payload: T,
-    tx?: typeof db,
-  ) => Promise<string>;
-};
+  requestHeaders: Record<string, string>;
+  emit: <T extends Record<string, unknown>>(event: EventClass<T>, payload: T, tx?: typeof db) => Promise<string>;
+}
 
 export const getServiceContext = (c: Context): ServiceContext => {
   const userId = c.get('userId');
   const user = c.get('user');
-  const organizationId = c.req.param('organization_id') || c.get('activeOrganizationId');
-  const matterId = c.req.param('id') || c.req.param('matter_id');
+  const organizationId = c.req.param('organization_id') ?? c.req.param('practice_id') ?? c.get('activeOrganizationId');
+  const matterId = c.req.param('id') ?? c.req.param('matter_id');
 
   return {
     userId,
@@ -31,18 +28,14 @@ export const getServiceContext = (c: Context): ServiceContext => {
     matterId,
     memberRole: c.get('memberRole'),
     ability: c.get('ability'),
+    requestHeaders: c.req.header(),
     emit: (event, payload, tx) => {
-      // Create options object
       const options: DispatchOptions = {
         actorId: userId,
         organizationId,
         tx,
       };
-
-      // Dispatch event
       const result = event.dispatch(payload, options);
-
-      // Handle return type (Promise or string)
       if (result instanceof Promise) {
         return result;
       }
@@ -51,3 +44,20 @@ export const getServiceContext = (c: Context): ServiceContext => {
   };
 };
 
+type SystemUser = Pick<User, 'id' | 'email' | 'name'>;
+
+/**
+ * Creates a system/background ServiceContext for use in listeners or batch jobs.
+ */
+export const createSystemContext = (organizationId: string, userId = 'system'): ServiceContext => ({
+  userId,
+  user: { id: userId, email: 'system@blawby.com', name: 'System' } as SystemUser as User,
+  organizationId,
+  memberRole: 'admin',
+  ability: defineAbilityFor('admin'),
+  requestHeaders: {},
+  emit: (event, payload, tx) => {
+    const r = event.dispatch(payload, { actorId: userId, organizationId, tx });
+    return r instanceof Promise ? r : Promise.resolve(r);
+  },
+});

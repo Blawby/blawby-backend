@@ -4,10 +4,7 @@ import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterNoteListFilters } from '@/modules/matters/types/matter-filters.types';
-import type {
-  CreateMatterNoteRequest,
-  UpdateMatterNoteRequest,
-} from '@/modules/matters/types/matter.types';
+import type { CreateMatterNoteRequest, UpdateMatterNoteRequest } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
@@ -16,7 +13,7 @@ const logger = getLogger(['matters', 'services', 'notes']);
 
 const createMatterNote = async (
   params: { data: CreateMatterNoteRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterNote>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -29,7 +26,7 @@ const createMatterNote = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -49,7 +46,7 @@ const createMatterNote = async (
         description: `${userName} added a note`,
         metadata: { changed_fields: ['content'] },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log note create activity {matterId}: {error}', {
@@ -74,7 +71,7 @@ const createMatterNote = async (
  */
 const listMatterNotes = async (
   params: { filters?: MatterNoteListFilters },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterNote[]>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -87,7 +84,7 @@ const listMatterNotes = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -117,7 +114,7 @@ const listMatterNotes = async (
  */
 const updateMatterNote = async (
   params: { noteId: string; data: UpdateMatterNoteRequest },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<SelectMatterNote>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -130,7 +127,7 @@ const updateMatterNote = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -159,7 +156,7 @@ const updateMatterNote = async (
         description: `${userName} updated a note`,
         metadata: { changed_fields: changedFields },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log note update activity {noteId}: {error}', {
@@ -184,7 +181,7 @@ const updateMatterNote = async (
  */
 const deleteMatterNote = async (
   params: { noteId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
   const matterId = ctx.matterId;
   if (!matterId) {
@@ -197,7 +194,7 @@ const deleteMatterNote = async (
   }
 
   // Verify user has access to matter
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
+  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (!matterResult.success) {
     return matterResult;
   }
@@ -219,7 +216,7 @@ const deleteMatterNote = async (
         description: `${userName} deleted a note`,
         metadata: { changed_fields: ['deleted'] },
       },
-      ctx,
+      ctx
     );
     if (!activityResult.success) {
       logger.error('Failed to log note delete activity {noteId}: {error}', {

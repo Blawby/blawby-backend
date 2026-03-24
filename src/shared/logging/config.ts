@@ -30,7 +30,7 @@ export const initializeLogging = async () => {
       {
         category: [], // Root logger catch-all for the entire application
         sinks: ['console', 'file'],
-        lowestLevel: (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+        lowestLevel: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
       },
     ],
   });

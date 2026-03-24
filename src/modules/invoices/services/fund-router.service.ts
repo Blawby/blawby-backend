@@ -3,6 +3,7 @@ import type { Result } from '@/shared/types/result';
 import { ok, badRequest } from '@/shared/utils/result';
 
 export type FundDestination = 'operating' | 'trust';
+type FundRoutingInvoice = Pick<SelectInvoice, 'id' | 'fund_destination' | 'matter_id' | 'invoice_number' | 'invoice_type'>;
 
 const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust'] as const;
 
@@ -20,7 +21,7 @@ const validateFundDestination = (value: unknown, invoiceId: string): Result<Fund
   }
   return badRequest(
     `Invalid fund_destination '${String(value)}' on invoice ${invoiceId}. Expected one of: ${VALID_FUND_DESTINATIONS.join(', ')}`,
-    'INVALID_FUND_DESTINATION',
+    'INVALID_FUND_DESTINATION'
   );
 };
 
@@ -77,10 +78,7 @@ const calculateApplicationFee = (amount: number): number => {
  * @param connectedAccountId - Practice's Stripe connected account ID
  * @returns Result with transfer instruction or failure
  */
-const routePayment = (
-  invoice: SelectInvoice,
-  connectedAccountId: string,
-): Result<TransferInstruction> => {
+const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): Result<TransferInstruction> => {
   const destinationResult = validateFundDestination(invoice.fund_destination, invoice.id);
   if (!destinationResult.success) {
     return destinationResult;
@@ -89,7 +87,7 @@ const routePayment = (
   if (!invoice.matter_id) {
     return badRequest(
       `Missing matter_id on invoice ${invoice.id}. Fund routing requires a matter association.`,
-      'MISSING_MATTER_ID',
+      'MISSING_MATTER_ID'
     );
   }
 
@@ -134,10 +132,7 @@ const routePayment = (
       });
 
     default:
-      return badRequest(
-        `Unknown invoice type: ${invoice.invoice_type}`,
-        'UNKNOWN_INVOICE_TYPE',
-      );
+      return badRequest(`Unknown invoice type: ${invoice.invoice_type}`, 'UNKNOWN_INVOICE_TYPE');
   }
 };
 
@@ -159,7 +154,7 @@ const shouldHoldForApproval = (): boolean => {
  * @param invoice - The invoice
  * @returns Whether to update retainer balance
  */
-const shouldUpdateRetainerBalance = (invoice: SelectInvoice): boolean => {
+const shouldUpdateRetainerBalance = (invoice: FundRoutingInvoice): boolean => {
   return invoice.invoice_type === 'retainer_deposit';
 };
 

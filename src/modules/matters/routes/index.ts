@@ -1,7 +1,8 @@
 import { getMatterActivityRoute } from './activity.routes';
 import {
   createMatterRoute,
-  getMattersRoute,
+  listMattersRoute,
+  getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
 } from '@/modules/matters/routes/core.routes';
@@ -24,6 +25,7 @@ import {
   updateMatterNoteRoute,
   deleteMatterNoteRoute,
 } from '@/modules/matters/routes/notes.routes';
+import { listMatterTasksRoute } from '@/modules/matters/routes/tasks.routes';
 import {
   listTimeEntriesRoute,
   createTimeEntryRoute,
@@ -32,21 +34,24 @@ import {
   getTimeEntryStatsRoute,
 } from '@/modules/matters/routes/time-entries.routes';
 
+import { getMatterUnbilledRoute } from '@/modules/matters/routes/unbilled.routes';
+
 export const routes = {
   createMatterRoute,
-  getMattersRoute,
+  listMattersRoute,
+  getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
   getMatterActivityRoute,
   getTimeEntryStatsRoute,
-  listMatterNotesRoute,
-  createMatterNoteRoute,
-  updateMatterNoteRoute,
-  deleteMatterNoteRoute,
   listTimeEntriesRoute,
   createTimeEntryRoute,
   updateTimeEntryRoute,
   deleteTimeEntryRoute,
+  listMatterNotesRoute,
+  createMatterNoteRoute,
+  updateMatterNoteRoute,
+  deleteMatterNoteRoute,
   listExpensesRoute,
   createExpenseRoute,
   updateExpenseRoute,
@@ -56,4 +61,6 @@ export const routes = {
   updateMilestoneRoute,
   deleteMilestoneRoute,
   reorderMilestonesRoute,
+  listMatterTasksRoute,
+  getMatterUnbilledRoute,
 };

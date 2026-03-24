@@ -1,8 +1,11 @@
+import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 
 import { refundReconciliationService } from '@/modules/invoices/services/refund-reconciliation.service';
 
-export const processRefundReconciliation: Task = async (payload, helpers): Promise<void> => {
+const logger = getLogger(['workers', 'process-refund-reconciliation']);
+
+export const processRefundReconciliation: Task = async (payload): Promise<void> => {
   const {
     organizationId,
     requestId,
@@ -22,7 +25,7 @@ export const processRefundReconciliation: Task = async (payload, helpers): Promi
   }) || {};
 
   if (!organizationId || !requestId || !executorUserId || !stripePaymentIntentId || typeof refundedAmount !== 'number') {
-    helpers.logger.error('Invalid refund reconciliation payload', { payload });
+    logger.error('Invalid refund reconciliation payload', { payload });
     throw new Error('Invalid refund reconciliation payload');
   }
 
@@ -42,7 +45,7 @@ export const processRefundReconciliation: Task = async (payload, helpers): Promi
     throw new Error(message);
   }
 
-  helpers.logger.info('Processed refund reconciliation job {requestId}', {
+  logger.info('Processed refund reconciliation job {requestId}', {
     requestId,
     organizationId,
     repaired: res.data.repaired,

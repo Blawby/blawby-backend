@@ -1,7 +1,10 @@
+import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
+
+const logger = getLogger(['workers', 'process-metered-usage']);
 
 const isKnownMeteredType = (
   value: string,
@@ -10,7 +13,7 @@ const isKnownMeteredType = (
   value,
 );
 
-export const processMeteredUsage: Task = async (payload, helpers): Promise<void> => {
+export const processMeteredUsage: Task = async (payload): Promise<void> => {
   const {
     organizationId,
     meteredType,
@@ -30,7 +33,7 @@ export const processMeteredUsage: Task = async (payload, helpers): Promise<void>
     || typeof quantity !== 'number'
     || !deduplicationId
   ) {
-    helpers.logger.error('Invalid metered usage retry payload', { payload });
+    logger.error('Invalid metered usage retry payload', { payload });
     throw new Error('Invalid metered usage retry payload');
   }
 
@@ -46,7 +49,7 @@ export const processMeteredUsage: Task = async (payload, helpers): Promise<void>
     throw new Error(res.error.message);
   }
 
-  helpers.logger.info('Processed metered usage retry job {deduplicationId}', {
+  logger.info('Processed metered usage retry job {deduplicationId}', {
     organizationId,
     meteredType,
     deduplicationId,

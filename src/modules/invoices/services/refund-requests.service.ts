@@ -1,3 +1,4 @@
+import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { eq, and } from 'drizzle-orm';
 import Stripe from 'stripe';
@@ -11,10 +12,12 @@ import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
+import type { Action, Subject } from '@/shared/auth/abilities';
 import { db } from '@/shared/database';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
@@ -30,10 +33,22 @@ type RefundOutcome = {
   notes?: string;
 };
 
+const getForbiddenResult = (ctx: ServiceContext, action: Action, subject: Subject): Result<never> | undefined => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan(action, subject);
+    return undefined;
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return result.forbidden(error.message);
+    }
+    throw error;
+  }
+};
+
 const rollbackExecutingRefundToApproved = async (opts: {
   requestId: string;
   organizationId: string;
-  logMessage: string;
+  rollbackTrigger: string;
   logContext?: Record<string, unknown>;
 }): Promise<void> => {
   try {
@@ -44,9 +59,10 @@ const rollbackExecutingRefundToApproved = async (opts: {
       { status: 'approved' },
     );
   } catch (rollbackError) {
-    logger.error(opts.logMessage, {
+    logger.error('Rollback to approved failed; request remains stuck in executing status', {
       requestId: opts.requestId,
       organizationId: opts.organizationId,
+      rollbackTrigger: opts.rollbackTrigger,
       error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
       ...opts.logContext,
     });
@@ -94,26 +110,29 @@ export const maybeCancelCancelablePaymentIntent = async (opts: {
 };
 
 const createRequest = async (opts: {
-  organizationId: string;
   invoiceId: string;
-  userId: string;
   requestedAmount: number;
   reason: string;
   notes?: string;
-}): Promise<Result<SelectRefundRequest>> => {
+}, ctx: ServiceContext): Promise<Result<SelectRefundRequest>> => {
   try {
-    const clientResult = await invoiceClientResolver.resolveUserDetailId(opts.organizationId, opts.userId);
+    const forbiddenResult = getForbiddenResult(ctx, 'create', 'RefundRequest');
+    if (forbiddenResult) {
+      return forbiddenResult;
+    }
+
+    const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!clientResult.success) return clientResult;
     const clientUserDetailsId = clientResult.data;
 
     return await db.transaction(async (tx) => {
       await tx.select({ id: invoices.id })
         .from(invoices)
-        .where(and(eq(invoices.id, opts.invoiceId), eq(invoices.organization_id, opts.organizationId)))
+        .where(and(eq(invoices.id, opts.invoiceId), eq(invoices.organization_id, ctx.organizationId)))
         .for('update');
 
       const invoice = await invoicesRepository.findOneByIdAndClientId(
-        opts.organizationId,
+        ctx.organizationId,
         opts.invoiceId,
         clientUserDetailsId,
         tx,
@@ -123,12 +142,8 @@ const createRequest = async (opts: {
         return result.badRequest('Refunds can only be requested for paid invoices');
       }
 
-      if (typeof opts.requestedAmount !== 'number' || !Number.isInteger(opts.requestedAmount) || opts.requestedAmount <= 0) {
-        return result.badRequest('Requested amount must be a positive integer amount in cents');
-      }
-
       const existingRefunds = await refundRequestsQueries.listByOrganization(
-        opts.organizationId,
+        ctx.organizationId,
         { invoice_id: opts.invoiceId },
         tx,
       );
@@ -149,7 +164,7 @@ const createRequest = async (opts: {
       }
 
       const req = await refundRequestsQueries.create({
-        organization_id: opts.organizationId,
+        organization_id: ctx.organizationId,
         invoice_id: opts.invoiceId,
         client_user_details_id: clientUserDetailsId,
         created_by_user_details_id: clientUserDetailsId,
@@ -169,14 +184,16 @@ const createRequest = async (opts: {
   }
 };
 
-const listClientRequests = async (
-  organizationId: string,
-  userId: string,
-): Promise<Result<SelectRefundRequest[]>> => {
+const listClientRequests = async (ctx: ServiceContext): Promise<Result<SelectRefundRequest[]>> => {
   try {
-    const clientResult = await invoiceClientResolver.resolveUserDetailId(organizationId, userId);
+    const forbiddenResult = getForbiddenResult(ctx, 'read', 'RefundRequest');
+    if (forbiddenResult) {
+      return forbiddenResult;
+    }
+
+    const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!clientResult.success) return clientResult;
-    return result.ok(await refundRequestsQueries.listByClient(organizationId, clientResult.data));
+    return result.ok(await refundRequestsQueries.listByClient(ctx.organizationId, clientResult.data));
   } catch (error) {
     logger.error('Failed to list refund requests', { error });
     return result.internalError('Failed to list refund requests');
@@ -184,17 +201,20 @@ const listClientRequests = async (
 };
 
 const cancelRequest = async (opts: {
-  organizationId: string;
   requestId: string;
-  userId: string;
-}): Promise<Result<SelectRefundRequest>> => {
+}, ctx: ServiceContext): Promise<Result<SelectRefundRequest>> => {
   try {
-    const clientResult = await invoiceClientResolver.resolveUserDetailId(opts.organizationId, opts.userId);
+    const forbiddenResult = getForbiddenResult(ctx, 'update', 'RefundRequest');
+    if (forbiddenResult) {
+      return forbiddenResult;
+    }
+
+    const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!clientResult.success) return clientResult;
 
     const updated = await refundRequestsQueries.transitionStatusForClient(
       opts.requestId,
-      opts.organizationId,
+      ctx.organizationId,
       clientResult.data,
       'requested',
       { status: 'cancelled' },
@@ -210,11 +230,16 @@ const cancelRequest = async (opts: {
 };
 
 const listPracticeRequests = async (
-  organizationId: string,
+  ctx: ServiceContext,
   filters?: { status?: string; invoice_id?: string; client_user_details_id?: string },
 ): Promise<Result<SelectRefundRequest[]>> => {
   try {
-    return result.ok(await refundRequestsQueries.listByOrganization(organizationId, filters));
+    const forbiddenResult = getForbiddenResult(ctx, 'read', 'RefundRequest');
+    if (forbiddenResult) {
+      return forbiddenResult;
+    }
+
+    return result.ok(await refundRequestsQueries.listByOrganization(ctx.organizationId, filters));
   } catch (error) {
     logger.error('Failed to list refund requests', { error });
     return result.internalError('Failed to list refund requests');
@@ -222,20 +247,23 @@ const listPracticeRequests = async (
 };
 
 const reviewRequest = async (opts: {
-  organizationId: string;
   requestId: string;
-  reviewerUserId: string;
   action: 'approved' | 'rejected';
   reviewNotes?: string;
-}): Promise<Result<SelectRefundRequest>> => {
+}, ctx: ServiceContext): Promise<Result<SelectRefundRequest>> => {
   try {
+    const forbiddenResult = getForbiddenResult(ctx, 'update', 'RefundRequest');
+    if (forbiddenResult) {
+      return forbiddenResult;
+    }
+
     const updated = await refundRequestsQueries.transitionStatus(
       opts.requestId,
-      opts.organizationId,
+      ctx.organizationId,
       'requested',
       {
         status: opts.action,
-        reviewed_by_user_id: opts.reviewerUserId,
+        reviewed_by_user_id: ctx.userId,
         reviewed_at: new Date(),
         review_notes: opts.reviewNotes,
       },
@@ -250,28 +278,33 @@ const reviewRequest = async (opts: {
   }
 };
 
+const PAYMENT_INTENT_CANCELED_REFUND_ID_PREFIX = 'payment_intent_cancelled';
+
 const executeRefund = async (opts: {
-  organizationId: string;
   requestId: string;
-  executorUserId: string;
-}): Promise<Result<SelectRefundRequest>> => {
+}, ctx: ServiceContext): Promise<Result<SelectRefundRequest>> => {
   try {
-    const claimedReq = await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'approved', {
+    const forbiddenResult = getForbiddenResult(ctx, 'update', 'RefundRequest');
+    if (forbiddenResult) {
+      return forbiddenResult;
+    }
+
+    const claimedReq = await refundRequestsQueries.transitionStatus(opts.requestId, ctx.organizationId, 'approved', {
       status: 'executing',
     });
 
     if (!claimedReq) {
-      const existing = await refundRequestsQueries.findById(opts.requestId, opts.organizationId);
+      const existing = await refundRequestsQueries.findById(opts.requestId, ctx.organizationId);
       if (!existing) return result.notFound('Refund request not found');
       return result.badRequest('Only approved refund requests can be executed, or request is currently being executed');
     }
 
-    const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, opts.organizationId);
+    const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, ctx.organizationId);
     if (!invoice) {
       await rollbackExecutingRefundToApproved({
         requestId: opts.requestId,
-        organizationId: opts.organizationId,
-        logMessage: 'Failed to rollback refund request after invoice lookup failure',
+        organizationId: ctx.organizationId,
+        rollbackTrigger: 'invoice lookup failed after claim',
       });
       return result.notFound('Invoice not found');
     }
@@ -280,8 +313,8 @@ const executeRefund = async (opts: {
     if (!stripePaymentIntentId) {
       await rollbackExecutingRefundToApproved({
         requestId: opts.requestId,
-        organizationId: opts.organizationId,
-        logMessage: 'Failed to rollback refund request after missing payment intent',
+        organizationId: ctx.organizationId,
+        rollbackTrigger: 'missing Stripe payment intent on invoice',
       });
       return result.badRequest('Invoice has no Stripe payment intent ID — cannot refund');
     }
@@ -299,11 +332,11 @@ const executeRefund = async (opts: {
       refundableBalanceCheck = await db.transaction(async (tx) => {
         await tx.select({ id: invoices.id })
           .from(invoices)
-          .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, opts.organizationId)))
+          .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, ctx.organizationId)))
           .for('update');
 
         const priorRefunds = await refundRequestsQueries.listByOrganization(
-          opts.organizationId,
+          ctx.organizationId,
           { invoice_id: invoice.id },
           tx,
         );
@@ -319,14 +352,14 @@ const executeRefund = async (opts: {
     } catch (error) {
       logger.error('Failed to prepare refund execution before Stripe call', {
         requestId: opts.requestId,
-        organizationId: opts.organizationId,
+        organizationId: ctx.organizationId,
         invoiceId: invoice.id,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       await rollbackExecutingRefundToApproved({
         requestId: opts.requestId,
-        organizationId: opts.organizationId,
-        logMessage: 'Failed to rollback refund request after pre-Stripe preparation error',
+        organizationId: ctx.organizationId,
+        rollbackTrigger: 'pre-Stripe preparation error',
         logContext: { invoiceId: invoice.id },
       });
       return result.internalError('Failed to prepare refund execution');
@@ -335,8 +368,8 @@ const executeRefund = async (opts: {
     if (claimedReq.requested_amount > refundableBalanceCheck) {
       await rollbackExecutingRefundToApproved({
         requestId: opts.requestId,
-        organizationId: opts.organizationId,
-        logMessage: 'Failed to rollback over-limit refund request back to approved',
+        organizationId: ctx.organizationId,
+        rollbackTrigger: 'requested refund exceeded remaining refundable balance',
       });
       return result.badRequest(`Requested refund amount exceeds remaining refundable amount (${refundableBalanceCheck} cents)`);
     }
@@ -357,7 +390,7 @@ const executeRefund = async (opts: {
         metadata: {
           refund_request_id: claimedReq.id,
           invoice_id: claimedReq.invoice_id,
-          organization_id: opts.organizationId,
+          organization_id: ctx.organizationId,
           ...(stripeTransferId ? { stripe_transfer_id: stripeTransferId } : {}),
         },
         ...(stripeTransferId ? { reverse_transfer: true } : {}),
@@ -368,6 +401,12 @@ const executeRefund = async (opts: {
         stripeRefundId: stripeRefund.id,
         notes: undefined,
       }));
+      if (canceledPaymentIntent) {
+        refund = {
+          ...canceledPaymentIntent,
+          stripeRefundId: `${PAYMENT_INTENT_CANCELED_REFUND_ID_PREFIX}:${stripePaymentIntentId}`,
+        };
+      }
     } catch (stripeError) {
       const errorMsg = stripeError instanceof Error ? stripeError.message : 'Unknown error';
       const isTransient = (isStripeError(stripeError) && (
@@ -383,15 +422,15 @@ const executeRefund = async (opts: {
       if (isTransient) {
         await rollbackExecutingRefundToApproved({
           requestId: opts.requestId,
-          organizationId: opts.organizationId,
-          logMessage: 'Failed to rollback transient refund request back to approved',
+          organizationId: ctx.organizationId,
+          rollbackTrigger: 'transient Stripe refund error',
         });
         return result.internalError('Stripe refund transient error — please retry later');
       }
 
-      await refundRequestsQueries.transitionStatus(opts.requestId, opts.organizationId, 'executing', {
+      await refundRequestsQueries.transitionStatus(opts.requestId, ctx.organizationId, 'executing', {
         status: 'failed',
-        executed_by_user_id: opts.executorUserId,
+        executed_by_user_id: ctx.userId,
         executed_at: new Date(),
         review_notes: claimedReq.review_notes ? `${claimedReq.review_notes}\n\nStripe error: ${errorMsg}` : `Stripe error: ${errorMsg}`,
       });
@@ -400,9 +439,9 @@ const executeRefund = async (opts: {
     }
 
     const { updated, refundEventPayload } = await refundExecutionPersistenceService.persistExecutedRefund({
-      organizationId: opts.organizationId,
+      organizationId: ctx.organizationId,
       requestId: opts.requestId,
-      executorUserId: opts.executorUserId,
+      executorUserId: ctx.userId,
       claimedReq,
       invoice,
       invoiceTxs,
@@ -418,18 +457,18 @@ const executeRefund = async (opts: {
         refundId: refund.stripeRefundId,
         requestId: opts.requestId,
         invoiceId: invoice.id,
-        organizationId: opts.organizationId,
+        organizationId: ctx.organizationId,
         paymentIntentId: stripePaymentIntentId,
         stripeTransferId,
-        executorUserId: opts.executorUserId,
+        executorUserId: ctx.userId,
         requestedAmount: claimedReq.requested_amount,
         refundedAmount: refund.refundedAmount,
       });
       try {
         await addRefundReconciliationJob({
-          organizationId: opts.organizationId,
+          organizationId: ctx.organizationId,
           requestId: opts.requestId,
-          executorUserId: opts.executorUserId,
+          executorUserId: ctx.userId,
           stripePaymentIntentId,
           stripeTransferId,
           stripeRefundId: refund.stripeRefundId,
@@ -449,17 +488,17 @@ const executeRefund = async (opts: {
             refundId: refund.stripeRefundId,
             requestId: opts.requestId,
             invoiceId: invoice.id,
-            organizationId: opts.organizationId,
+            organizationId: ctx.organizationId,
             paymentIntentId: stripePaymentIntentId,
             stripeTransferId,
-            executorUserId: opts.executorUserId,
+            executorUserId: ctx.userId,
             requestedAmount: claimedReq.requested_amount,
             refundedAmount: refund.refundedAmount,
           },
         }, {
-          actorId: opts.executorUserId,
+          actorId: ctx.userId,
           actorType: 'user',
-          organizationId: opts.organizationId,
+          organizationId: ctx.organizationId,
         });
       } catch (dispatchError) {
         logger.error('Failed to dispatch SystemErrorOccurred after refund DB update failure', {
@@ -475,9 +514,9 @@ const executeRefund = async (opts: {
     if (refundEventPayload) {
       try {
         await InvoiceRefunded.dispatch(refundEventPayload, {
-          actorId: opts.executorUserId,
+          actorId: ctx.userId,
           actorType: 'user',
-          organizationId: opts.organizationId,
+          organizationId: ctx.organizationId,
         });
       } catch (dispatchError) {
         logger.error('Refund executed but failed to dispatch InvoiceRefunded for request {requestId}', {
@@ -487,9 +526,9 @@ const executeRefund = async (opts: {
         });
         try {
           await addRefundReconciliationJob({
-            organizationId: opts.organizationId,
+            organizationId: ctx.organizationId,
             requestId: opts.requestId,
-            executorUserId: opts.executorUserId,
+            executorUserId: ctx.userId,
             stripePaymentIntentId,
             stripeTransferId,
             stripeRefundId: refund.stripeRefundId,

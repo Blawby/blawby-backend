@@ -10,6 +10,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
+import { PLATFORM_VARIABLE_FEE_RATE } from '@/modules/invoices/constants';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
@@ -161,7 +162,6 @@ export function registerInvoicesListeners(): void {
     //    per-event metered fee (Stripe fee + platform variable fee) is
     //    stored in context.metadata.metered_fee_cents if available.
     //    Fall back to the variable-only estimate when metadata is absent.
-    const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
     const meteredFeeCents: number
       = typeof payload.metered_fee_cents === 'number'
         ? payload.metered_fee_cents

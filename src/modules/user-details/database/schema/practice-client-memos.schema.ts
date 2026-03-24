@@ -1,17 +1,10 @@
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { userDetailsSchema } from '@/modules/user-details/database/schema/user-details.schema';
 import { users } from '@/schema/better-auth-schema';
 
 const { userDetails } = userDetailsSchema;
-
 
 export const practiceClientMemos = pgTable(
   'practice_client_memos',
@@ -27,32 +20,25 @@ export const practiceClientMemos = pgTable(
     content: text('content').notNull(),
     event_time: timestamp('event_time', { withTimezone: true, mode: 'date' }),
 
-    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     index('practice_client_memos_client_idx').on(table.client_id),
     index('practice_client_memos_created_by_idx').on(table.created_by),
-  ],
+  ]
 );
 
-export const practiceClientMemosRelations = relations(
-  practiceClientMemos,
-  ({ one }) => ({
-    client: one(userDetails, {
-      fields: [practiceClientMemos.client_id],
-      references: [userDetails.id],
-    }),
-    creator: one(users, {
-      fields: [practiceClientMemos.created_by],
-      references: [users.id],
-    }),
+export const practiceClientMemosRelations = relations(practiceClientMemos, ({ one }) => ({
+  client: one(userDetails, {
+    fields: [practiceClientMemos.client_id],
+    references: [userDetails.id],
   }),
-);
+  creator: one(users, {
+    fields: [practiceClientMemos.created_by],
+    references: [users.id],
+  }),
+}));
 
 export const practiceClientMemosSchema = {
   practiceClientMemos,

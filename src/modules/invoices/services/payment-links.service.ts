@@ -2,7 +2,11 @@ import { getLogger } from '@logtape/logtape';
 import { eq, and, sql } from 'drizzle-orm';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 
-import { paymentLinks, type SelectPaymentLink, type InsertPaymentLink } from '@/modules/invoices/database/schema/payment-links.schema';
+import {
+  paymentLinks,
+  type SelectPaymentLink,
+  type InsertPaymentLink,
+} from '@/modules/invoices/database/schema/payment-links.schema';
 
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
@@ -21,17 +25,14 @@ export const paymentLinksService = {
   /**
    * Create or retrieve an active payment link for an invoice
    */
-  async createPaymentLink(
-    invoiceId: string,
-    organizationId: string,
-  ): Promise<Result<SelectPaymentLink>> {
+  async createPaymentLink(invoiceId: string, organizationId: string): Promise<Result<SelectPaymentLink>> {
     try {
       // 1. Check for existing active link
       const existing = await db.query.paymentLinks.findFirst({
         where: and(
           eq(paymentLinks.invoice_id, invoiceId),
           eq(paymentLinks.status, 'active'),
-          sql`${paymentLinks.expires_at} > now()`,
+          sql`${paymentLinks.expires_at} > now()`
         ),
       });
 
@@ -57,10 +58,7 @@ export const paymentLinksService = {
         expires_at: new Date(Date.now() + PAYMENT_LINK_TTL_MS),
       };
 
-      const [link] = await db
-        .insert(paymentLinks)
-        .values(insertData)
-        .returning();
+      const [link] = await db.insert(paymentLinks).values(insertData).returning();
 
       return result.ok(link);
     } catch (error) {
@@ -79,10 +77,7 @@ export const paymentLinksService = {
   async getInvoiceByToken(token: string): Promise<Result<unknown>> {
     try {
       const link = await db.query.paymentLinks.findFirst({
-        where: and(
-          eq(paymentLinks.token, token),
-          eq(paymentLinks.status, 'active'),
-        ),
+        where: and(eq(paymentLinks.token, token), eq(paymentLinks.status, 'active')),
         with: {
           invoice: {
             with: {
@@ -117,6 +112,4 @@ export const paymentLinksService = {
       return result.internalError('Failed to retrieve invoice');
     }
   },
-
-
 };

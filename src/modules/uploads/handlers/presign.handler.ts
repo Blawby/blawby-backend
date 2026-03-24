@@ -12,11 +12,7 @@ export const presignHandler: AppRouteHandler<typeof presignUploadRoute> = async 
     return response.unauthorized(c, 'Authentication required');
   }
 
-  const result = await uploadsService.presignUpload(
-    validatedBody,
-    userId,
-    organizationId ?? null,
-  );
+  const result = await uploadsService.presignUpload(validatedBody, userId, organizationId ?? null);
 
   return response.fromResult(c, result, 201);
 };

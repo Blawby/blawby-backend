@@ -68,9 +68,11 @@ dump.rdb
 .env
 .envrc
 .env.docker
+.env.test
 
-# Eslint cache
+# Linter caches
 .eslintcache
+.oxlintcache
 .tap
 
 # TypeScript

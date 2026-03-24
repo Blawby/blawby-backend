@@ -17,6 +17,8 @@ BEGIN
       SET "metered_fee_cents" = "application_fee_amount"::integer
       WHERE ("metered_fee_cents" IS NULL OR "metered_fee_cents" = 0)
         AND "application_fee_amount" IS NOT NULL;
+    ALTER TABLE "billing_transactions"
+      DROP COLUMN "application_fee_amount";
   END IF;
 
   IF EXISTS (

@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -9,8 +9,9 @@ import {
   uuid,
   bigint,
   unique,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -21,7 +22,7 @@ export const users = pgTable('users', {
   isAnonymous: boolean('is_anonymous').default(false).notNull(),
   primaryWorkspace: text('primary_workspace'), // 'public' | 'client' | 'practice'
   phone: text('phone'),
-  phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
+  phoneCountryCode: text('phone_country_code'), // E.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
   stripeCustomerId: text('stripe_customer_id'), // Platform customer ID for user billing/preferences (Platform account)
   role: text('role'), // Admin plugin: user role
@@ -53,8 +54,8 @@ export const sessions = pgTable('sessions', {
     .references(() => users.id, { onDelete: 'cascade' }),
   activeOrganizationId: uuid('active_organization_id'),
   impersonatedBy: text('impersonated_by'), // Admin plugin: impersonator ID
+  previousAnonUserId: text('previous_anon_user_id'),
 });
-
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -113,23 +114,25 @@ export const organizations = pgTable('organizations', {
   paymentLinkPrefillAmount: integer('payment_link_prefill_amount').default(0),
 });
 
-export const members = pgTable('members', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id')
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  role: text('role').default('member').notNull(),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-}, (table) => [
-  unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId),
-]);
+export const members = pgTable(
+  'members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').default('member').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId)]
+);
 
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -149,7 +152,6 @@ export const invitations = pgTable('invitations', {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
-
 
 /**
  * Subscriptions table for Better Auth Stripe plugin
@@ -175,7 +177,6 @@ export const subscriptions = pgTable('subscriptions', {
     .notNull(),
 });
 
-
 /**
  * Rate Limits table for Better Auth's built-in rate limiting
  *
@@ -197,73 +198,24 @@ export const rateLimits = pgTable('better_auth_rate_limits', {
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
-
-// Define relations
-export const usersRelations = relations(users, ({ many }) => ({
-  sessions: many(sessions),
-  accounts: many(accounts),
-  members: many(members),
-  invitations: many(invitations),
-}));
-
-export const organizationsRelations = relations(organizations, ({ many, one }) => ({
-  members: many(members),
-  invitations: many(invitations),
-  stripeConnectedAccounts: many(stripeConnectedAccounts),
-  subscriptions: many(subscriptions, { relationName: 'orgSubscriptions' }),
-  activeSubscription: one(subscriptions, {
-    fields: [organizations.activeSubscriptionId],
-    references: [subscriptions.id],
-    relationName: 'activeSubscription',
-  }),
-}));
-
-export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [subscriptions.referenceId],
-    references: [organizations.id],
-    relationName: 'orgSubscriptions',
-  }),
-  activeForOrganization: one(organizations, {
-    fields: [subscriptions.id],
-    references: [organizations.activeSubscriptionId],
-    relationName: 'activeSubscription',
-  }),
-}));
-
-export const sessionsRelations = relations(sessions, ({ one }) => ({
-  user: one(users, {
-    fields: [sessions.userId],
-    references: [users.id],
-  }),
-}));
-
-export const accountsRelations = relations(accounts, ({ one }) => ({
-  user: one(users, {
-    fields: [accounts.userId],
-    references: [users.id],
-  }),
-}));
-
-export const membersRelations = relations(members, ({ one }) => ({
-  user: one(users, {
-    fields: [members.userId],
-    references: [users.id],
-  }),
-  organization: one(organizations, {
-    fields: [members.organizationId],
-    references: [organizations.id],
-  }),
-}));
-
-export const invitationsRelations = relations(invitations, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [invitations.organizationId],
-    references: [organizations.id],
-  }),
-  inviter: one(users, {
-    fields: [invitations.inviterId],
-    references: [users.id],
-  }),
-}));
-
+export const identityUpgradeClaims = pgTable(
+  'identity_upgrade_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    anonUserId: uuid('anon_user_id').references(() => users.id, { onDelete: 'set null' }),
+    registeredUserId: uuid('registered_user_id').references(() => users.id, { onDelete: 'set null' }),
+    claimed: boolean('claimed').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('identity_upgrade_claims_anon_user_idx').on(table.anonUserId),
+    index('identity_upgrade_claims_registered_user_idx').on(table.registeredUserId),
+    uniqueIndex('identity_upgrade_claims_anon_registered_unique')
+      .on(table.anonUserId, table.registeredUserId)
+      .where(sql`${table.anonUserId} IS NOT NULL AND ${table.registeredUserId} IS NOT NULL`),
+  ]
+);

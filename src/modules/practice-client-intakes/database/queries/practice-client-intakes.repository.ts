@@ -1,12 +1,8 @@
-import {
-  eq, desc, and, gte, lte, or, ilike, sql,
-} from 'drizzle-orm';
+import { eq, desc, and, gte, lte, or, ilike, sql } from 'drizzle-orm';
 import {
   practiceClientIntakesSchema,
-} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type {
-  InsertPracticeClientIntake,
-  SelectPracticeClientIntake,
+  type InsertPracticeClientIntake,
+  type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { db } from '@/shared/database';
 import { escapeLikeWildcards } from '@/shared/utils/database';
@@ -19,21 +15,15 @@ const buildIntakeConditions = ({
   search,
   from,
   to,
-  intakeId,
 }: {
   organizationId: string;
   status?: string;
   search?: string;
   from?: Date;
   to?: Date;
-  intakeId?: string;
 }) => {
   const triageStatuses = ['pending_review', 'accepted', 'declined'];
   const conditions = [eq(practiceClientIntakes.organization_id, organizationId)];
-
-  if (intakeId) {
-    conditions.push(eq(practiceClientIntakes.id, intakeId));
-  }
 
   if (status) {
     if (triageStatuses.includes(status)) {
@@ -49,8 +39,8 @@ const buildIntakeConditions = ({
       or(
         ilike(sql`${practiceClientIntakes.metadata}->>'email'`, `%${escapedSearch}%`),
         ilike(sql`${practiceClientIntakes.metadata}->>'name'`, `%${escapedSearch}%`),
-        ilike(sql`${practiceClientIntakes.metadata}->>'opposing_party'`, `%${escapedSearch}%`),
-      )!,
+        ilike(sql`${practiceClientIntakes.metadata}->>'opposing_party'`, `%${escapedSearch}%`)
+      )!
     );
   }
 
@@ -65,31 +55,17 @@ const buildIntakeConditions = ({
   return and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
 };
 
-const create = async (
-  data: InsertPracticeClientIntake,
-  tx: typeof db = db,
-): Promise<SelectPracticeClientIntake> => {
-  const [practiceClientIntake] = await tx
-    .insert(practiceClientIntakes)
-    .values(data)
-    .returning();
+const create = async (data: InsertPracticeClientIntake, tx: typeof db = db): Promise<SelectPracticeClientIntake> => {
+  const [practiceClientIntake] = await tx.insert(practiceClientIntakes).values(data).returning();
   return practiceClientIntake;
 };
 
-const findById = async (
-  id: string,
-): Promise<SelectPracticeClientIntake | undefined> => {
-  const [result] = await db
-    .select()
-    .from(practiceClientIntakes)
-    .where(eq(practiceClientIntakes.id, id))
-    .limit(1);
+const findById = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {
+  const [result] = await db.select().from(practiceClientIntakes).where(eq(practiceClientIntakes.id, id)).limit(1);
   return result;
 };
 
-const findByStripePaymentLinkId = async (
-  linkId: string,
-): Promise<SelectPracticeClientIntake | undefined> => {
+const findByStripePaymentLinkId = async (linkId: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [result] = await db
     .select()
     .from(practiceClientIntakes)
@@ -98,9 +74,7 @@ const findByStripePaymentLinkId = async (
   return result;
 };
 
-const findByStripePaymentIntentId = async (
-  intentId: string,
-): Promise<SelectPracticeClientIntake | undefined> => {
+const findByStripePaymentIntentId = async (intentId: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [result] = await db
     .select()
     .from(practiceClientIntakes)
@@ -109,9 +83,7 @@ const findByStripePaymentIntentId = async (
   return result;
 };
 
-const findByStripeCheckoutSessionId = async (
-  sessionId: string,
-): Promise<SelectPracticeClientIntake | undefined> => {
+const findByStripeCheckoutSessionId = async (sessionId: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [result] = await db
     .select()
     .from(practiceClientIntakes)
@@ -120,10 +92,7 @@ const findByStripeCheckoutSessionId = async (
   return result;
 };
 
-const update = async (
-  id: string,
-  data: Partial<SelectPracticeClientIntake>,
-): Promise<SelectPracticeClientIntake> => {
+const update = async (id: string, data: Partial<SelectPracticeClientIntake>): Promise<SelectPracticeClientIntake> => {
   const [updated] = await db
     .update(practiceClientIntakes)
     .set({ ...data, updated_at: new Date() })
@@ -135,11 +104,7 @@ const update = async (
   return updated;
 };
 
-const updateStatus = async (
-  id: string,
-  status: string,
-  tx: typeof db = db,
-): Promise<SelectPracticeClientIntake> => {
+const updateStatus = async (id: string, status: string, tx: typeof db = db): Promise<SelectPracticeClientIntake> => {
   const [updated] = await tx
     .update(practiceClientIntakes)
     .set({ status, updated_at: new Date() })
@@ -157,7 +122,6 @@ const findByOrganizationId = async ({
   search,
   from,
   to,
-  intakeId,
   page = 1,
   limit = 20,
 }: {
@@ -166,7 +130,6 @@ const findByOrganizationId = async ({
   search?: string;
   from?: Date;
   to?: Date;
-  intakeId?: string;
   page?: number;
   limit?: number;
 }): Promise<{ intakes: SelectPracticeClientIntake[]; total: number }> => {
@@ -176,7 +139,6 @@ const findByOrganizationId = async ({
     search,
     from,
     to,
-    intakeId,
   });
 
   const [totalResult] = await db
@@ -200,7 +162,7 @@ const findByOrganizationId = async ({
 const getStats = async (
   organizationId: string,
   startDate?: Date,
-  endDate?: Date,
+  endDate?: Date
 ): Promise<{
   totalAmount: number;
   count: number;

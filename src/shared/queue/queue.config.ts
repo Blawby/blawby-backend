@@ -10,6 +10,7 @@ export const TASK_NAMES = {
   PROCESS_OUTBOX_EVENT: 'process-outbox-event',
   PROCESS_METERED_USAGE: 'process-metered-usage',
   PROCESS_REFUND_RECONCILIATION: 'process-refund-reconciliation',
+  CLEANUP_EMAIL_LOGS: 'cleanup-email-logs',
   SEND_EMAIL: 'send-email',
 } as const;
 

@@ -1,7 +1,7 @@
 /**
  * Independent Database Connection
  *
- * This creates a standalone database connection that doesn't depend on Fastify plugins.
+ * This creates a standalone database connection for use with Hono.
  * Uses lazy initialization to ensure environment variables are loaded before connecting.
  */
 
@@ -87,10 +87,7 @@ export const getPool = (): pg.Pool => {
 
 // Export db and pool as proxies that initialize on first access
 export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
-  get(
-    _,
-    prop,
-  ): NodePgDatabase<typeof schema>[keyof NodePgDatabase<typeof schema>] {
+  get(_, prop): NodePgDatabase<typeof schema>[keyof NodePgDatabase<typeof schema>] {
     return getDb()[prop as keyof NodePgDatabase<typeof schema>];
   },
 });

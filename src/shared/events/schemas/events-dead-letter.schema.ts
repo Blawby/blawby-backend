@@ -6,15 +6,7 @@
  * allowing for manual inspection and potential reprocessing.
  */
 
-import {
-  pgTable,
-  serial,
-  uuid,
-  text,
-  jsonb,
-  timestamp,
-  integer,
-} from 'drizzle-orm/pg-core';
+import { pgTable, serial, uuid, text, jsonb, timestamp, integer } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import type { EventMetadata } from './events.schema';
 

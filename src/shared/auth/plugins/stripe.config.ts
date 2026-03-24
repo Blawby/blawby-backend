@@ -8,9 +8,7 @@ import * as schema from '@/schema';
 import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
-import {
-  createWebhookEventIfNotExists,
-} from '@/shared/repositories/stripe.webhook-events.repository';
+import { createWebhookEventIfNotExists } from '@/shared/repositories/stripe.webhook-events.repository';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
@@ -33,25 +31,18 @@ const syncSubscriptionToOrg = async (
     planName: string;
     eventType: 'created' | 'active' | 'updated';
     trigger: 'webhook' | 'user';
-  },
+  }
 ): Promise<void> => {
-  const {
-    stripeSubscription,
-    subscriptionId,
-    referenceId,
-    stripeCustomerId,
-    planName,
-    eventType,
-    trigger,
-  } = params;
-
+  const { stripeSubscription, subscriptionId, referenceId, stripeCustomerId, planName, eventType, trigger } = params;
 
   // 1. Resolve Customer ID
-  const customerId = stripeCustomerId
-    || (typeof stripeSubscription.customer === 'string' ? stripeSubscription.customer : null);
+  const customerId =
+    stripeCustomerId || (typeof stripeSubscription.customer === 'string' ? stripeSubscription.customer : null);
 
   if (!customerId) {
-    logger.warn('[Stripe Plugin] No customer ID found for subscription {subscriptionId}, skipping sync.', { subscriptionId });
+    logger.warn('[Stripe Plugin] No customer ID found for subscription {subscriptionId}, skipping sync.', {
+      subscriptionId,
+    });
     return;
   }
 
@@ -77,7 +68,6 @@ const syncSubscriptionToOrg = async (
     return;
   }
 
-
   // 3. TRANSACTION: Update Org, Line Items, and Logs atomically
   await db.transaction(async (tx) => {
     // Check for existing active subscription (Race Condition Handling)
@@ -102,20 +92,27 @@ const syncSubscriptionToOrg = async (
         const existingCreated = oldSub.createdAt;
 
         if (incomingCreated < existingCreated) {
-          logger.warn('[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is OLDER than active subscription {existingId}. Canceling incoming.', {
-            incomingId: subscriptionId,
-            existingId: oldSub.id,
-            incomingCreated,
-            existingCreated,
-          });
+          logger.warn(
+            '[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is OLDER than active subscription {existingId}. Canceling incoming.',
+            {
+              incomingId: subscriptionId,
+              existingId: oldSub.id,
+              incomingCreated,
+              existingCreated,
+            }
+          );
 
           // Cancel the incoming stale subscription in Stripe
           try {
             const stripeClient = getStripeInstance();
             await stripeClient.subscriptions.cancel(stripeSubscription.id);
-            logger.info('[Stripe Plugin] Canceled stale incoming subscription {stripeId} in Stripe.', { stripeId: stripeSubscription.id });
+            logger.info('[Stripe Plugin] Canceled stale incoming subscription {stripeId} in Stripe.', {
+              stripeId: stripeSubscription.id,
+            });
           } catch (err) {
-            logger.error('[Stripe Plugin] Failed to cancel stale incoming subscription in Stripe: {error}', { error: err });
+            logger.error('[Stripe Plugin] Failed to cancel stale incoming subscription in Stripe: {error}', {
+              error: err,
+            });
           }
 
           // Mark as canceled in DB
@@ -127,21 +124,28 @@ const syncSubscriptionToOrg = async (
           // ABORT sync to prevent overwriting the valid active subscription
           return;
         } else {
-          logger.warn('[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is NEWER than active subscription {existingId}. Canceling existing.', {
-            incomingId: subscriptionId,
-            existingId: oldSub.id,
-            incomingCreated,
-            existingCreated,
-          });
+          logger.warn(
+            '[Stripe Plugin] ⚠️ Race Condition: Incoming subscription {incomingId} is NEWER than active subscription {existingId}. Canceling existing.',
+            {
+              incomingId: subscriptionId,
+              existingId: oldSub.id,
+              incomingCreated,
+              existingCreated,
+            }
+          );
 
           // Cancel the existing (now stale) subscription in Stripe
           if (oldSub.stripeSubscriptionId) {
             try {
               const stripeClient = getStripeInstance();
               await stripeClient.subscriptions.cancel(oldSub.stripeSubscriptionId);
-              logger.info('[Stripe Plugin] Canceled stale existing subscription {stripeId} in Stripe.', { stripeId: oldSub.stripeSubscriptionId });
+              logger.info('[Stripe Plugin] Canceled stale existing subscription {stripeId} in Stripe.', {
+                stripeId: oldSub.stripeSubscriptionId,
+              });
             } catch (err) {
-              logger.error('[Stripe Plugin] Failed to cancel stale existing subscription in Stripe: {error}', { error: err });
+              logger.error('[Stripe Plugin] Failed to cancel stale existing subscription in Stripe: {error}', {
+                error: err,
+              });
             }
           }
 
@@ -167,11 +171,14 @@ const syncSubscriptionToOrg = async (
       .returning({ id: schema.organizations.id });
 
     if (updated.length === 0) {
-      logger.error('[Stripe Plugin] CRITICAL: Failed to update organization table for {organizationId}. Row not found.', {
-        organizationId,
-        subscriptionId,
-        customerId,
-      });
+      logger.error(
+        '[Stripe Plugin] CRITICAL: Failed to update organization table for {organizationId}. Row not found.',
+        {
+          organizationId,
+          subscriptionId,
+          customerId,
+        }
+      );
       throw new Error('Failed to update organization table during sync - organization not found');
     }
 
@@ -180,21 +187,22 @@ const syncSubscriptionToOrg = async (
       subscriptionId,
     });
 
-
     // B. Sync Line Items (Parallelized)
     if (stripeSubscription.items?.data) {
       // Use Promise.all for concurrency instead of sequential for-loop
       await Promise.all(
-        stripeSubscription.items.data.map((item) => subscriptionRepository.upsertLineItem(tx, {
-          subscription_id: subscriptionId,
-          stripe_subscription_item_id: item.id,
-          stripe_price_id: item.price.id,
-          item_type: 'base_fee',
-          description: item.price.nickname || item.price.product?.toString(),
-          quantity: item.quantity || 1,
-          unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
-          metadata: {},
-        })),
+        stripeSubscription.items.data.map((item) =>
+          subscriptionRepository.upsertLineItem(tx, {
+            subscription_id: subscriptionId,
+            stripe_subscription_item_id: item.id,
+            stripe_price_id: item.price.id,
+            item_type: 'base_fee',
+            description: item.price.nickname || item.price.product?.toString(),
+            quantity: item.quantity || 1,
+            unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
+            metadata: {},
+          })
+        )
       );
     }
 
@@ -218,22 +226,23 @@ const syncSubscriptionToOrg = async (
   // No longer needed: ensureSubscriptionMeteredItems.
 
   // 5. Idempotency Check before dispatching
-  const existingEvents = await subscriptionRepository.findEventsBySubscriptionIdAndType(
-    db, subscriptionId, 'created',
-  );
+  const existingEvents = await subscriptionRepository.findEventsBySubscriptionIdAndType(db, subscriptionId, 'created');
 
   if (existingEvents.length === 0) {
     // Use critical: true for immediate DB write with NOTIFY
-    await SubscriptionCreated.dispatch({
-      subscription_id: subscriptionId,
-      stripe_subscription_id: stripeSubscription.id,
-      plan_name: planName,
-      organization_id: organizationId,
-    }, {
-      actorId: 'system',
-      organizationId,
-      critical: true,
-    });
+    await SubscriptionCreated.dispatch(
+      {
+        subscription_id: subscriptionId,
+        stripe_subscription_id: stripeSubscription.id,
+        plan_name: planName,
+        organization_id: organizationId,
+      },
+      {
+        actorId: 'system',
+        organizationId,
+        critical: true,
+      }
+    );
   }
 };
 
@@ -254,7 +263,8 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
       if (organizationId && stripeCustomer.id) {
         // 1. Link to organization locally
-        await db.update(schema.organizations)
+        await db
+          .update(schema.organizations)
           .set({ stripeCustomerId: stripeCustomer.id })
           .where(eq(schema.organizations.id, organizationId));
 
@@ -268,7 +278,9 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
               type: 'platform_billing',
             },
           });
-          logger.info('[Stripe Plugin] Enriched new organization customer {customerId} with custom metadata.', { customerId: stripeCustomer.id });
+          logger.info('[Stripe Plugin] Enriched new organization customer {customerId} with custom metadata.', {
+            customerId: stripeCustomer.id,
+          });
         } catch (err) {
           logger.error('[Stripe Plugin] Failed to enrich organization customer {customerId}: {error}', {
             customerId: stripeCustomer.id,
@@ -284,7 +296,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         const webhookEvent = await createWebhookEventIfNotExists(
           event,
           { 'stripe-event-id': event.id, 'stripe-event-type': event.type },
-          '/api/auth/stripe/webhook',
+          '/api/auth/stripe/webhook'
         );
 
         if (!webhookEvent) {
@@ -292,7 +304,15 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           return;
         }
 
-        const CUSTOM_PROCESS_PREFIXES = ['product.', 'price.', 'account.', 'capability.', 'payment_intent.', 'charge.', 'invoice.'];
+        const CUSTOM_PROCESS_PREFIXES = [
+          'product.',
+          'price.',
+          'account.',
+          'capability.',
+          'payment_intent.',
+          'charge.',
+          'invoice.',
+        ];
         const needsProcessing = CUSTOM_PROCESS_PREFIXES.some((prefix) => event.type.startsWith(prefix));
 
         if (needsProcessing) {
@@ -322,10 +342,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         const member = await db
           .select({ role: schema.members.role })
           .from(schema.members)
-          .where(and(
-            eq(schema.members.userId, user.id),
-            eq(schema.members.organizationId, referenceId),
-          ))
+          .where(and(eq(schema.members.userId, user.id), eq(schema.members.organizationId, referenceId)))
           .limit(1);
 
         if (!member.length) return false;
@@ -400,7 +417,8 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
         await db.transaction(async (tx) => {
           // Update active subscription pointer
-          await tx.update(schema.organizations)
+          await tx
+            .update(schema.organizations)
             .set({ activeSubscriptionId: subscription.id })
             .where(eq(schema.organizations.id, subscription.referenceId!));
 
@@ -420,16 +438,20 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
           // Sync line items if available
           if (stripeSub?.items?.data) {
-            await Promise.all(stripeSub.items.data.map((item) => subscriptionRepository.upsertLineItem(tx, {
-              subscription_id: subscription.id,
-              stripe_subscription_item_id: item.id,
-              stripe_price_id: item.price.id,
-              item_type: 'base_fee',
-              description: item.price.nickname || item.price.product?.toString(),
-              quantity: item.quantity || 1,
-              unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
-              metadata: {},
-            })));
+            await Promise.all(
+              stripeSub.items.data.map((item) =>
+                subscriptionRepository.upsertLineItem(tx, {
+                  subscription_id: subscription.id,
+                  stripe_subscription_item_id: item.id,
+                  stripe_price_id: item.price.id,
+                  item_type: 'base_fee',
+                  description: item.price.nickname || item.price.product?.toString(),
+                  quantity: item.quantity || 1,
+                  unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
+                  metadata: {},
+                })
+              )
+            );
           }
 
           // Log event
@@ -466,7 +488,8 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
         await db.transaction(async (tx) => {
           // Now we clear the active subscription pointer
-          await tx.update(schema.organizations)
+          await tx
+            .update(schema.organizations)
             .set({ activeSubscriptionId: null })
             .where(eq(schema.organizations.id, subscription.referenceId!));
 
@@ -510,9 +533,8 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
         const currentPath = path ? `${path}.${propName}` : propName;
 
         if (typeof val === 'function') {
-          const needsInterception
-            = currentPath === 'checkout.sessions.create'
-            || currentPath === 'billingPortal.sessions.create';
+          const needsInterception =
+            currentPath === 'checkout.sessions.create' || currentPath === 'billingPortal.sessions.create';
 
           if (needsInterception) {
             return async (...args: unknown[]) => {
@@ -529,9 +551,9 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                 } else if (currentPath === 'billingPortal.sessions.create') {
                   const params = currentArgs[0];
                   if (
-                    isBillingPortalSessionCreateParams(params)
-                    && params.flow_data?.type === 'subscription_update_confirm'
-                    && params.flow_data.subscription_update_confirm
+                    isBillingPortalSessionCreateParams(params) &&
+                    params.flow_data?.type === 'subscription_update_confirm' &&
+                    params.flow_data.subscription_update_confirm
                   ) {
                     // To inject items here, we must have existing subscription item IDs.
                     // We look them up from the subscription being updated.
@@ -542,7 +564,7 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                     if (subscriptionId) {
                       const stripeClient = getStripeInstance();
                       const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
-                      const meteredIds = await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY) ?? [];
+                      const meteredIds = (await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY)) ?? [];
 
                       const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
@@ -588,16 +610,14 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
  * returns a new array with metered items injected.
  */
 const injectMeteredItems = async <T extends { price?: string }>(
-  items: T[] | undefined,
+  items: T[] | undefined
 ): Promise<(T | { price: string })[] | undefined> => {
-  const meteredIds = await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY) ?? [];
+  const meteredIds = (await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY)) ?? [];
   if (meteredIds.length === 0) return undefined;
 
   const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
 
-  const newEntries = meteredIds
-    .filter((id) => !existingPrices.has(id))
-    .map((id) => ({ price: id }));
+  const newEntries = meteredIds.filter((id) => !existingPrices.has(id)).map((id) => ({ price: id }));
 
   if (newEntries.length === 0) return undefined;
 

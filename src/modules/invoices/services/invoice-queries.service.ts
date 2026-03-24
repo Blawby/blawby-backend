@@ -13,47 +13,51 @@ import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['invoices', 'queries-service']);
 
+type InvoiceLineItemType = NonNullable<InvoiceResponse['line_items']>[number]['type'];
+
+const isInvoiceLineItemType = (value: string): value is InvoiceLineItemType =>
+  value === 'service' ||
+  value === 'time_entry' ||
+  value === 'expense' ||
+  value === 'flat_fee' ||
+  value === 'retainer' ||
+  value === 'other';
+
 /**
  * Transform a full invoice (with line items) to response format
  */
-export const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
+const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceResponse => {
   const { lineItems, ...rest } = invoice;
+  const line_items = lineItems.map((lineItem) => ({
+    ...lineItem,
+    type: isInvoiceLineItemType(lineItem.type) ? lineItem.type : 'other',
+  }));
+
   return {
     ...rest,
-    line_items: lineItems,
-  } as InvoiceResponse;
+    line_items,
+  };
 };
 
 /**
  * Transform a summary invoice (no line items) to response format
  */
-const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => {
-  return invoice as unknown as InvoiceResponse;
-};
+const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => ({
+  ...invoice,
+});
 
 /**
  * List invoices for a practice (admin/member view)
  */
 const listInvoices = async (
   { filters }: { filters: ListInvoicesQuery },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<PaginatedResult<InvoiceResponse, 'invoices'>> => {
   if (ctx.ability.cannot('read', 'Invoice')) {
     return result.forbidden<PaginatedData<InvoiceResponse, 'invoices'>>('You do not have permission to view invoices');
   }
 
   try {
-    if (filters.invoice_id) {
-      const invoice = await invoicesRepository.findInvoiceById(filters.invoice_id, ctx.organizationId);
-
-      if (!invoice) return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({ invoices: [], total: 0 });
-
-      return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({
-        invoices: [transformInvoiceResponse(invoice)],
-        total: 1,
-      });
-    }
-
     const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(ctx.organizationId, {
       client_id: filters.client_id,
       matter_id: filters.matter_id,
@@ -81,14 +85,13 @@ const listInvoices = async (
  */
 const listClientInvoices = async (
   { filters }: { filters: { status?: string; page?: number; limit?: number } },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
   try {
-    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(
-      ctx.organizationId,
-      ctx.userId,
-    );
-    if (!userDetailResult.success) return userDetailResult;
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
+    if (!userDetailResult.success) {
+      return userDetailResult;
+    }
 
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
@@ -96,7 +99,7 @@ const listClientInvoices = async (
     const { invoices: list, total } = await invoicesRepository.findManyByClientId(
       ctx.organizationId,
       userDetailResult.data,
-      { status: filters.status, page, limit },
+      { status: filters.status, page, limit }
     );
 
     return result.ok({
@@ -114,25 +117,51 @@ const listClientInvoices = async (
 };
 
 /**
+ * Get a single invoice by ID (practice admin/member view)
+ */
+const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
+  try {
+    if (ctx.ability.cannot('read', 'Invoice')) {
+      return result.forbidden<InvoiceResponse>('You do not have permission to view this invoice');
+    }
+
+    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+    if (!invoice) {
+      return result.notFound('Invoice not found');
+    }
+
+    return result.ok(transformInvoiceResponse(invoice));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to get invoice {invoiceId}: {error}', {
+      invoiceId: id,
+      error: message,
+    });
+    return result.internalError('Failed to get invoice');
+  }
+};
+
+/**
  * Get a single invoice for the authenticated client (client-facing, with line items)
  */
 const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
-  ctx: ServiceContext,
+  ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
   try {
-    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(
-      ctx.organizationId,
-      ctx.userId,
-    );
-    if (!userDetailResult.success) return userDetailResult;
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
+    if (!userDetailResult.success) {
+      return userDetailResult;
+    }
 
     const invoice = await invoicesRepository.findOneByIdAndClientId(
       ctx.organizationId,
       invoiceId,
-      userDetailResult.data,
+      userDetailResult.data
     );
-    if (!invoice) return result.notFound('Invoice not found');
+    if (!invoice) {
+      return result.notFound('Invoice not found');
+    }
 
     return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
@@ -147,7 +176,9 @@ const getClientInvoiceDetail = async (
 
 export const invoiceQueriesService = {
   listInvoices,
+  getInvoiceById,
   listClientInvoices,
   getClientInvoiceDetail,
   transformInvoiceResponse,
+  transformSummaryResponse,
 };

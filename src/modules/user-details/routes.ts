@@ -1,21 +1,33 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { createMemoSchema, updateMemoSchema, memoParamsSchema, clientMemoSchema } from '@/modules/user-details/validations/client-memos.validation';
 import {
-  updateUserDetailsSchema, listUserDetailsSchema,
-  userDetailParamsSchema, practiceParamsSchema, userDetailSchema,
+  createMemoSchema,
+  updateMemoSchema,
+  memoParamsSchema,
+  clientMemoSchema,
+} from '@/modules/user-details/validations/client-memos.validation';
+import {
+  updateUserDetailsSchema,
+  listUserDetailsSchema,
+  userDetailParamsSchema,
+  practiceParamsSchema,
+  userDetailSchema,
 } from '@/modules/user-details/validations/user-details.validation';
 
 // Common response schemas
-const errorResponseSchema = z.object({
-  error: z.string(),
-  message: z.string().optional(),
-  details: z.any().optional(),
-}).openapi('ErrorResponse');
+const errorResponseSchema = z
+  .object({
+    error: z.string(),
+    message: z.string().optional(),
+    details: z.any().optional(),
+  })
+  .openapi('ErrorResponse');
 
-const notFoundResponseSchema = z.object({
-  error: z.string(),
-  message: z.string(),
-}).openapi('NotFoundResponse');
+const notFoundResponseSchema = z
+  .object({
+    error: z.string(),
+    message: z.string(),
+  })
+  .openapi('NotFoundResponse');
 
 // ==================== USER DETAILS ====================
 
@@ -23,8 +35,8 @@ export const listUserDetailsRoute = createRoute({
   method: 'get',
   path: '/{practice_id}',
   tags: ['UserDetails'],
-  summary: 'List user details or get by ID',
-  description: 'Get all user details for an organization. Use the `client_id` query parameter to retrieve a specific record.',
+  summary: 'List user details',
+  description: 'Get all user details for an organization.',
   request: {
     params: practiceParamsSchema,
     query: listUserDetailsSchema,
@@ -38,11 +50,29 @@ export const listUserDetailsRoute = createRoute({
   },
 });
 
+export const getUserDetailRoute = createRoute({
+  method: 'get',
+  path: '/{practice_id}/{id}',
+  tags: ['UserDetails'],
+  summary: 'Get user detail',
+  description: 'Get a specific user detail by ID.',
+  request: {
+    params: userDetailParamsSchema,
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.object({ data: userDetailSchema }) } },
+      description: 'User detail retrieved successfully',
+    },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
+  },
+});
+
 // Note: No POST/create route - clients are created via intake or invitation flows
 
 export const updateUserDetailsRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/update/{id}',
+  path: '/{practice_id}/{id}',
   tags: ['UserDetails'],
   summary: 'Update user detail',
   description: 'Update user detail profile',
@@ -51,20 +81,26 @@ export const updateUserDetailsRoute = createRoute({
     body: { content: { 'application/json': { schema: updateUserDetailsSchema } } },
   },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ data: userDetailSchema }) } }, description: 'User detail updated' },
+    200: {
+      content: { 'application/json': { schema: z.object({ data: userDetailSchema }) } },
+      description: 'User detail updated',
+    },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
   },
 });
 
 export const deleteUserDetailRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/delete/{id}',
+  path: '/{practice_id}/{id}',
   tags: ['UserDetails'],
   summary: 'Delete user detail',
   description: 'Delete a user detail (soft delete)',
   request: { params: userDetailParamsSchema },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'User detail deleted' },
+    200: {
+      content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+      description: 'User detail deleted',
+    },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
   },
 });
@@ -79,7 +115,10 @@ export const listUserDetailsMemosRoute = createRoute({
   description: 'Get all memos for a user detail',
   request: { params: userDetailParamsSchema },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ data: z.array(clientMemoSchema) }) } }, description: 'Memos retrieved' },
+    200: {
+      content: { 'application/json': { schema: z.object({ data: z.array(clientMemoSchema) }) } },
+      description: 'Memos retrieved',
+    },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
   },
 });
@@ -95,33 +134,48 @@ export const createUserDetailMemoRoute = createRoute({
     body: { content: { 'application/json': { schema: createMemoSchema } } },
   },
   responses: {
-    201: { content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } }, description: 'Memo created' },
+    201: {
+      content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } },
+      description: 'Memo created',
+    },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'User detail not found' },
   },
 });
 
 export const updateUserDetailsMemoRoute = createRoute({
   method: 'patch',
-  path: '/{practice_id}/{id}/memos/update/{memo_id}',
+  path: '/{practice_id}/{id}/memos/{memo_id}',
   tags: ['UserDetails: Memos'],
   summary: 'Update user detail memo',
   description: 'Update a specific memo content',
   request: { params: memoParamsSchema, body: { content: { 'application/json': { schema: updateMemoSchema } } } },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } }, description: 'Memo updated' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Memo or User detail not found' },
+    200: {
+      content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } },
+      description: 'Memo updated',
+    },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Memo or User detail not found',
+    },
   },
 });
 
 export const deleteUserDetailsMemoRoute = createRoute({
   method: 'delete',
-  path: '/{practice_id}/{id}/memos/delete/{memo_id}',
+  path: '/{practice_id}/{id}/memos/{memo_id}',
   tags: ['UserDetails: Memos'],
   summary: 'Delete user detail memo',
   description: 'Delete a specific memo',
   request: { params: memoParamsSchema },
   responses: {
-    200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Memo deleted' },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Memo or User detail not found' },
+    200: {
+      content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+      description: 'Memo deleted',
+    },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Memo or User detail not found',
+    },
   },
 });

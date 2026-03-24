@@ -17,10 +17,7 @@ const getByKeyStmt = db
   .limit(1)
   .prepare('get_app_config_by_key');
 
-const getAllStmt = db
-  .select()
-  .from(appConfig)
-  .prepare('get_all_app_configs');
+const getAllStmt = db.select().from(appConfig).prepare('get_all_app_configs');
 
 /**
  * Get a configuration value by key.
@@ -41,12 +38,7 @@ const get = async <T extends ConfigValue = ConfigValue>(key: string): Promise<T 
  * Set a configuration value.
  * Upserts the key with the new value, type, and optional description.
  */
-const set = async (
-  key: string,
-  value: ConfigValue,
-  type: ConfigType,
-  description?: string,
-): Promise<AppConfig> => {
+const set = async (key: string, value: ConfigValue, type: ConfigType, description?: string): Promise<AppConfig> => {
   const [updatedConfig] = await db
     .insert(appConfig)
     .values({
@@ -90,10 +82,13 @@ const remove = async (key: string): Promise<void> => {
 const getAll = async (): Promise<Record<string, ConfigValue>> => {
   const allConfigs = await getAllStmt.execute();
 
-  return allConfigs.reduce((acc, config) => {
-    acc[config.key] = config.value as ConfigValue;
-    return acc;
-  }, {} as Record<string, ConfigValue>);
+  return allConfigs.reduce(
+    (acc, config) => {
+      acc[config.key] = config.value as ConfigValue;
+      return acc;
+    },
+    {} as Record<string, ConfigValue>
+  );
 };
 
 export const appConfigService = {

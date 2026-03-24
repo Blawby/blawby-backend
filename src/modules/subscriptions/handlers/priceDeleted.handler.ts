@@ -72,7 +72,7 @@ export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => 
   } catch (error) {
     logger.error('Failed to process price.deleted: {priceId}. Error: {error}', {
       priceId: price.id,
-      error
+      error,
     });
     throw error;
   }

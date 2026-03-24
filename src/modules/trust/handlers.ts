@@ -1,82 +1,75 @@
-import {
+import { trustRoutes } from '@/modules/trust/routes';
+import { trustService } from '@/modules/trust/services/trust.service';
+import type { AppRouteHandler } from '@/shared/types/hono';
+import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
+
+const {
   getTrustTransactionsRoute,
   getTrustBalanceRoute,
   getTrustReportRoute,
-} from '@/modules/trust/routes';
-import { trustService } from '@/modules/trust/services/trust.service';
-import { computeRoutingClaims } from '@/shared/auth/services/routing.service';
-import type { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+  createDepositRoute,
+  createWithdrawalRoute,
+} = trustRoutes;
 
-export const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id } = c.req.valid('param');
+const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const res = await trustService.manualDeposit({ data: body }, ctx);
+  return sendResult(c, res, 201);
+};
+
+const createWithdrawalHandler: AppRouteHandler<typeof createWithdrawalRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const res = await trustService.manualWithdrawal({ data: body }, ctx);
+  return sendResult(c, res, 201);
+};
+
+const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const routing = await computeRoutingClaims({
-    user: { id: user.id, isAnonymous: user.isAnonymous ?? false, banned: user.banned ?? null },
-    session: { activeOrganizationId: practice_id },
-  });
-  if (!routing.workspace_access.practice) {
-    return response.forbidden(c, 'Practice access required');
-  }
-
   const res = await trustService.getTransactions({
-    organizationId: practice_id,
+    organizationId: ctx.organizationId,
     clientId: query.client_id,
     matterId: query.matter_id,
     startDate: query.start_date ? new Date(query.start_date) : undefined,
     endDate: query.end_date ? new Date(query.end_date) : undefined,
   });
 
-  if (!res.success) return response.fromResult(c, res);
-  return response.ok(c, { transactions: res.data });
+  return sendResult(c, res);
 };
 
-export const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id } = c.req.valid('param');
+const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const routing = await computeRoutingClaims({
-    user: { id: user.id, isAnonymous: user.isAnonymous ?? false, banned: user.banned ?? null },
-    session: { activeOrganizationId: practice_id },
-  });
-  if (!routing.workspace_access.practice) {
-    return response.forbidden(c, 'Practice access required');
-  }
-
   const res = await trustService.getBalance({
-    organizationId: practice_id,
+    organizationId: ctx.organizationId,
     clientId: query.client_id,
   });
 
-  if (!res.success) return response.fromResult(c, res);
-  return response.ok(c, res.data);
+  return sendResult(c, res);
 };
 
-export const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async (c) => {
-  const user = c.get('user');
-  if (!user) return response.unauthorized(c);
-  const { practice_id } = c.req.valid('param');
+const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async (c) => {
+  const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const routing = await computeRoutingClaims({
-    user: { id: user.id, isAnonymous: user.isAnonymous ?? false, banned: user.banned ?? null },
-    session: { activeOrganizationId: practice_id },
-  });
-  if (!routing.workspace_access.practice) {
-    return response.forbidden(c, 'Practice access required');
-  }
-
   const res = await trustService.getReport({
-    organizationId: practice_id,
+    organizationId: ctx.organizationId,
     startDate: query.start_date ? new Date(query.start_date) : undefined,
     endDate: query.end_date ? new Date(query.end_date) : undefined,
   });
 
-  if (!res.success) return response.fromResult(c, res);
-  return response.ok(c, { report: res.data });
+  return sendResult(c, res);
+};
+
+export const handlers = {
+  createDepositHandler,
+  createWithdrawalHandler,
+  getTrustTransactionsHandler,
+  getTrustBalanceHandler,
+  getTrustReportHandler,
 };

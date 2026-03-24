@@ -13,16 +13,11 @@ import type { Organization, User } from '@/shared/types/BetterAuth';
  */
 export interface OrganizationRequestParams {
   organizationId: string;
-  requestHeaders: Record<string, string>;
 }
 
-export type CreateOrganizationRequest = z.infer<
-  BetterAuthInstance['api']['createOrganization']['options']['body']
->;
+export type CreateOrganizationRequest = z.infer<BetterAuthInstance['api']['createOrganization']['options']['body']>;
 
-export type UpdateOrganizationRequest = z.infer<
-  BetterAuthInstance['api']['updateOrganization']['options']['body']
->;
+export type UpdateOrganizationRequest = z.infer<BetterAuthInstance['api']['updateOrganization']['options']['body']>;
 
 export type SetActiveOrganizationRequest = z.infer<
   BetterAuthInstance['api']['setActiveOrganization']['options']['body']
@@ -36,9 +31,7 @@ export type GetFullOrganizationRequest = z.infer<
   NonNullable<BetterAuthInstance['api']['getFullOrganization']['options']['query']>
 >;
 
-export type DeleteOrganizationRequest = z.infer<
-  BetterAuthInstance['api']['deleteOrganization']['options']['body']
->;
+export type DeleteOrganizationRequest = z.infer<BetterAuthInstance['api']['deleteOrganization']['options']['body']>;
 
 // Using Better Auth types directly from the instance
 export type OrganizationApiShape = Organization & {
@@ -48,7 +41,10 @@ export type OrganizationApiShape = Organization & {
   updatedAt?: Date | null;
 };
 
-type OrganizationWithoutCamelCase = Omit<OrganizationApiShape, 'paymentLinkEnabled' | 'paymentLinkPrefillAmount' | 'createdAt' | 'updatedAt'>;
+type OrganizationWithoutCamelCase = Omit<
+  OrganizationApiShape,
+  'paymentLinkEnabled' | 'paymentLinkPrefillAmount' | 'createdAt' | 'updatedAt'
+>;
 
 export type NormalizedOrganization = OrganizationWithoutCamelCase & {
   payment_link_enabled: boolean | null;
@@ -71,7 +67,6 @@ export type PracticeStats = {
   totalInvoices: number;
   activeSubscriptions: number;
 };
-
 
 // Inferred from Zod schemas
 export type CreatePracticeRequest = z.infer<typeof practiceValidations.createPracticeSchema>;

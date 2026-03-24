@@ -1,23 +1,18 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
-import {
-  findPracticeDetailsByOrganization,
-} from '@/modules/practice/database/queries/practice-details.repository';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { addresses as addressesTable } from '@/modules/practice/database/schema/addresses.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import type { PracticeDetailsResponse } from '@/modules/practice/types/practice-details.types';
-import type {
-  PracticeWithDetails,
-  OrganizationRequestParams,
-} from '@/modules/practice/types/practice.types';
+import type { PracticeWithDetails, OrganizationRequestParams } from '@/modules/practice/types/practice.types';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import type { Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound } from '@/shared/utils/result';
+import { forbidden, ok, internalError, notFound } from '@/shared/utils/result';
 import type { Address } from '@/shared/validations/address';
 
 const { parseBetterAuthMetadata } = betterAuthUtils;
@@ -28,10 +23,7 @@ const logger = getLogger(['practice', 'queries-service']);
 const fetchAddressData = async (addressId: string | null): Promise<Address | null> => {
   if (!addressId) return null;
 
-  const [address] = await db
-    .select()
-    .from(addressesTable)
-    .where(eq(addressesTable.id, addressId));
+  const [address] = await db.select().from(addressesTable).where(eq(addressesTable.id, addressId));
 
   if (address) {
     return {
@@ -57,11 +49,12 @@ export const practiceQueriesService = {
   /**
    * List all practices (organizations) for the current user
    */
-  async listPractices(
-    { requestHeaders }: { requestHeaders: Record<string, string> },
-    ctx: ServiceContext,
-  ): Promise<Result<{ practices: Organization[] }>> {
-    const result = await organizationService.listOrganizations({ requestHeaders }, ctx);
+  async listPractices(ctx: ServiceContext): Promise<Result<{ practices: Organization[] }>> {
+    if (ctx.ability.cannot('read', 'Organization')) {
+      return forbidden('You do not have permission to read practices');
+    }
+
+    const result = await organizationService.listOrganizations(ctx);
     if (!result.success) return result;
     return ok<{ practices: Organization[] }>({ practices: result.data });
   },
@@ -70,15 +63,16 @@ export const practiceQueriesService = {
    * Get practice by ID with details (flat view)
    */
   async getPracticeById(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    { organizationId }: OrganizationRequestParams,
+    ctx: ServiceContext
   ): Promise<Result<{ practice: PracticeWithDetails }>> {
+    if (ctx.ability.cannot('read', 'Organization')) {
+      return forbidden('You do not have permission to read this practice');
+    }
+
     try {
       // 1. Get organization from Better Auth
-      const orgResult = await organizationService.getFullOrganization(
-        { organizationId, requestHeaders },
-        ctx,
-      );
+      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!orgResult.success) {
         return orgResult;
@@ -112,15 +106,16 @@ export const practiceQueriesService = {
    * Get full practice details (structured UI view)
    */
   async getPracticeDetails(
-    { organizationId, requestHeaders }: OrganizationRequestParams,
-    ctx: ServiceContext,
+    { organizationId }: OrganizationRequestParams,
+    ctx: ServiceContext
   ): Promise<Result<PracticeDetailsResponse>> {
+    if (ctx.ability.cannot('read', 'Organization')) {
+      return forbidden('You do not have permission to read practice details');
+    }
+
     try {
       // 1. Verify organization exists and user has access via Better Auth
-      const organizationResult = await organizationService.getFullOrganization(
-        { organizationId, requestHeaders },
-        ctx,
-      );
+      const organizationResult = await organizationService.getFullOrganization({ organizationId }, ctx);
 
       if (!organizationResult.success) {
         return organizationResult;
@@ -136,9 +131,7 @@ export const practiceQueriesService = {
       ]);
 
       if (!fetchedDetails) {
-        return notFound<PracticeDetailsResponse>(
-          `Practice details not found for organization '${organizationId}'`,
-        );
+        return notFound<PracticeDetailsResponse>(`Practice details not found for organization '${organizationId}'`);
       }
 
       // 4. Fetch address if linked
@@ -166,10 +159,7 @@ export const practiceQueriesService = {
   /**
    * Get practice details by slug (Public lookup)
    */
-  async getPracticeBySlug(
-    { slug }: { slug: string },
-    _ctx: ServiceContext,
-  ): Promise<Result<PracticeDetailsResponse>> {
+  async getPracticeBySlug({ slug }: { slug: string }, _ctx: ServiceContext): Promise<Result<PracticeDetailsResponse>> {
     try {
       // 1. Find organization by slug
       const slugResult = await organizationRepository.findBySlug(slug);

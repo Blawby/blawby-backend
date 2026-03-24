@@ -171,18 +171,21 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/practice/`
 
-- [ ] Wire `injectAbility()` in `http.ts`
-- [ ] Rewrite handlers to use `getServiceContext(c)` (currently: `c.get('user')!` + positional args)
-- [ ] Remove all `if (!user)` checks
-- [ ] Convert all service functions from `(orgId, user, headers)` → `(params, ctx)`
-- [ ] Add CASL checks in every service method
-- [ ] Split `practice.routes.ts` (869 lines) → `organization.routes.ts`, `members.routes.ts`, `practice-details.routes.ts`
-- [ ] Split `practice.service.ts` (507 lines) into focused sub-services
-- [ ] Split `practice-details.service.ts` (369 lines)
+- [x] Wire `injectAbility()` in `http.ts`
+- [x] Rewrite handlers to use `getServiceContext(c)` (thin handlers)
+- [x] Remove all `if (!user)` checks in handlers
+- [x] Split old services:
+  - `practice.service.ts` → `practice-management.service.ts`, `practice-queries.service.ts`, `practice-management.helpers.ts`
+  - `practice-details.service.ts` behavior folded into split services above
+- [x] Split routes into focused files:
+  - `practice.routes.ts`
+  - `practice-details.routes.ts`
+- [x] Add CASL checks in practice mutation/query services (admin writes, read-gated queries)
+- [x] Convert service signatures to `(params, ctx)` for practice services
 - [ ] **Event definitions** (`src/shared/events/definitions/practice.ts`):
   - [x] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` — DONE
   - [x] Simplify `PracticeDetailsUpsertedPayload` — DONE
-- [ ] **Note:** `members.service.ts` and `invitations.service.ts` are Better Auth wrappers — keep `requestHeaders` param (required by `betterAuth.api.*`), but standardize everything else to `(params, ctx)`
+- [x] **Note:** Better Auth wrapper calls keep `requestHeaders` param (required by `betterAuth.api.*`) as an explicit exception in practice types/services
 
 ---
 
@@ -190,13 +193,23 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/practice-client-intakes/`
 
-- [ ] Split `practice-client-intakes.service.ts` (935 lines) → `intake-creation.service.ts`, `intake-checkout.service.ts`, `intake-lifecycle.service.ts`
+- [x] Fully replace legacy `practice-client-intakes.service.ts`
+  - [x] Extract route-facing services: `intake-creation.service.ts`, `intake-checkout.service.ts`, `intake-lifecycle.service.ts`
+  - [x] Extract shared helpers: `intake-access.helpers.ts`, `intake-shared.helpers.ts`
+  - [x] Move core DB + Stripe orchestration out of the legacy service into the extracted services/helpers
 - [ ] Extract Stripe logic into dedicated helpers (not mixed with DB + validation)
 - [ ] Flatten nested code (4+ levels deep) into early-return + helper functions
-- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)`, convert to `(params, ctx)`
-- [ ] Add CASL ownership checks
-- [ ] Split `practice-client-intakes.routes.ts` (542 lines) into logical groups
-- [ ] Remove `requestHeaders` params
+- [x] Wire `injectAbility()` in `http.ts`
+- [x] Rewrite handlers to use `getServiceContext(c)` and thin `(params, ctx)` service entrypoints
+- [x] Add CASL ownership/staff access checks
+- [x] Split large routes file into logical groups:
+  - `routes/public.routes.ts`
+  - `routes/client.routes.ts`
+  - `routes/staff.routes.ts`
+  - `routes/shared.ts`
+- [x] Remove raw `Headers` passthrough from intake invitation flow (minimal origin-only header passed to Better Auth)
+- [ ] Replace base64url-encoded `PrefillData` in magic-link `callbackURL` with an opaque, short-lived server-side token (store minimal payload in DB/Redis, pass only the token ID in the URL, validate/consume on callback)
+- [ ] Move `convertIntake` eligibility checks (`status`, `triage_status`, metadata) inside `db.transaction` with `SELECT … FOR UPDATE` on the intake row to prevent race-condition duplicates
 
 ---
 
@@ -204,12 +217,13 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/user-details/`
 
-- [ ] Wire `injectAbility()` in `http.ts`
-- [ ] Rewrite handlers to use `getServiceContext(c)` (currently: manual `organizationId` extraction)
-- [ ] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
-- [ ] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
-- [ ] Add CASL ownership checks
-- [ ] Remove `if (!user)` checks
+- [x] Wire `injectAbility()` in `http.ts`
+- [x] Rewrite handlers to use `getServiceContext(c)`
+- [x] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
+- [x] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
+- [x] Add CASL ownership checks
+- [x] Remove `if (!user)` checks
+- [x] Extract `resolveUserForIntake` to `user-details-utils.ts`
 
 ---
 
@@ -249,13 +263,12 @@ PRs within a group can be developed **in parallel**.
 
 ---
 
-### PR-8 — Stripe Customers Module
+### PR-8 — Stripe Module (Re-scope Needed)
 
-**Files:** `src/modules/stripe/customers/`
+**Files:** `src/modules/stripe/`
 
-- [ ] Split `stripe-customer.service.ts` (417 lines) into DB queries vs Stripe API calls
-- [ ] Adopt `(params, ctx)` pattern
-- [ ] Remove `if (!user)` checks in `customers.repository.ts`
+- [ ] Re-scope this PR based on current repo contents (currently only `listeners.ts` exists under `src/modules/stripe/`)
+- [ ] If customer logic was moved, update target paths before implementation
 
 ---
 
@@ -341,6 +354,17 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 ---
 
+### PR-16 — Hono Response Typing Cleanup
+
+**Dependencies:** All Group A merged
+
+- [ ] Migrate handlers from `response.fromResult(...)`/`response.ok(...)` to direct `c.json(...)`/`c.body(...)` returns
+- [ ] Keep only payload-builder utilities (if needed), avoid response wrappers that return `any`
+- [ ] Remove temporary Oxlint rule overrides added for `no-unsafe-return`/unsafe assertions after migration
+- [ ] Update handler pattern examples in this plan to reflect direct Hono responses
+
+---
+
 ## Group C — Infrastructure
 
 > Independent of Groups A and B — can be started at any time.
@@ -411,7 +435,6 @@ PR-14 (Env Config) ── independent, merge any time
 
 | File | Lines | Target PR |
 |------|-------|-----------|
-| `practice-client-intakes.service.ts` | **935** | PR-3 |
 | `uploads.service.ts` | **633** | PR-5 |
 | `user-details.service.ts` | **543** | PR-4 |
 | `practice.service.ts` | **507** | PR-2 |
@@ -432,7 +455,6 @@ PR-14 (Env Config) ── independent, merge any time
 | File | Lines | Target PR |
 |------|-------|-----------|
 | `practice.routes.ts` | **869** | PR-2 |
-| `practice-client-intakes.routes.ts` | **542** | PR-3 |
 | `uploads.routes.ts` | **405** | PR-5 |
 
 ---
@@ -441,13 +463,13 @@ PR-14 (Env Config) ── independent, merge any time
 
 | Metric | Before | Now | Target |
 |--------|--------|-----|--------|
-| Modules using `ServiceContext` | 2 | **3** (matters, preferences, invoices) | all |
-| Modules using CASL | 2 | **3** | all authenticated |
-| Service files >200 lines | 9 | **~14** | **0** |
+| Modules using `ServiceContext` | 2 | **4** (matters, preferences, invoices, user-details) | all |
+| Modules using CASL | 2 | **4** | all authenticated |
+| Service files >200 lines | 9 | **~13** | **0** |
 | Route files >300 lines | 3 | **3** | **0** |
-| `if (!user)` checks | ~50 | **~2** | **0** |
+| `if (!user)` checks | ~50 | **0** | **0** |
 | `computeRoutingClaims` usages | ~15 | **0** | **0** |
-| `requestHeaders` params | ~20 | **~10** | **0** |
+| `requestHeaders` params | ~20 | **~5** | **0** |
 | Direct `process.env` reads | 70 files | **24 files** | **0** |
-| `any` type usages | 23 files | **6 files** | **0** |
+| `any` type usages | 23 files | **5 files** | **0** |
 | `as` type assertions | many | many | **0** |
