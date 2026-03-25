@@ -48,7 +48,22 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
   }
 
   // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
-  const orgId = extractOrgIdFromPath(c.req.path) ?? c.get('activeOrganizationId');
+  const urlOrgId = extractOrgIdFromPath(c.req.path);
+  const sessionOrgId = c.get('activeOrganizationId');
+
+  // If the URL explicitly targets an org, it must match the session's active org.
+  // Acting on a non-active org requires calling setActiveOrganization first.
+  if (urlOrgId && sessionOrgId && urlOrgId !== sessionOrgId) {
+    logger.warn('User {userId} attempted cross-org access: session={sessionOrgId} requested={urlOrgId}', {
+      userId,
+      sessionOrgId,
+      urlOrgId,
+    });
+    // oxlint-disable-next-line no-unsafe-return
+    return response.forbidden(c, 'Organization context mismatch: switch your active organization first');
+  }
+
+  const orgId = urlOrgId ?? sessionOrgId;
 
   if (!orgId) {
     logger.warn('No organization context found for user {userId}', { userId });
