@@ -30,11 +30,13 @@ const logger = getLogger(['uploads', 'service']);
 /**
  * Sanitize filename for storage
  */
-const sanitizeFileName = (fileName: string): string => fileName
+const sanitizeFileName = (fileName: string): string => {
+  return fileName
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .replace(/\.\./g, '_')
     .replace(/^\./, '_')
     .substring(0, 255);
+};
 
 /**
  * Generate storage key based on upload context
@@ -68,7 +70,7 @@ const generateStorageKey = (params: {
       if (!params.matter_id) {
         throw new Error('Matter ID required for matter uploads');
       }
-      const subFolder = params.sub_context ?? 'documents';
+      const subFolder = params.sub_context || 'documents';
       return `orgs/${params.organization_id}/matters/${params.matter_id}/${subFolder}/${params.uploadId}_${sanitizedFileName}`;
     }
 
@@ -180,7 +182,7 @@ export const uploadsService = {
         method = 'PUT';
       }
 
-      const {file_name} = request;
+      const file_name = request.file_name;
       const lastDotIndex = file_name.lastIndexOf('.');
       const file_type =
         lastDotIndex > 0 && lastDotIndex < file_name.length - 1 ? file_name.slice(lastDotIndex + 1) : 'unknown';
@@ -197,10 +199,10 @@ export const uploadsService = {
         storage_provider: storageProvider,
         storage_key,
         upload_context: request.upload_context,
-        matter_id: request.matter_id ?? null,
+        matter_id: request.matter_id || null,
         entity_type:
           request.upload_context === 'matter' ? 'matter' : request.upload_context === 'intake' ? 'intake' : null,
-        entity_id: request.entity_id ?? null,
+        entity_id: request.entity_id || null,
         status: 'pending',
         is_privileged: request.is_privileged ?? true,
         retention_until: calculateRetentionUntil(request.upload_context),
@@ -303,7 +305,7 @@ export const uploadsService = {
       // Create audit log
       await createAuditLog({
         upload_id: uploadId,
-        organization_id: upload.organization_id ?? undefined,
+        organization_id: upload.organization_id || undefined,
         action: 'confirmed',
         user_id: userId,
       });
@@ -312,8 +314,8 @@ export const uploadsService = {
 
       return ok({
         upload_id: uploadId,
-        public_url: publicUrl ?? '',
-        storage_key: upload.storage_key ?? '',
+        public_url: publicUrl || '',
+        storage_key: upload.storage_key || '',
         status: 'verified' as const,
       });
     } catch (error) {
@@ -339,7 +341,7 @@ export const uploadsService = {
       // Create audit log
       await createAuditLog({
         upload_id: uploadId,
-        organization_id: upload.organization_id ?? undefined,
+        organization_id: upload.organization_id || undefined,
         action: 'viewed',
         user_id: userId,
       });
@@ -351,7 +353,7 @@ export const uploadsService = {
         file_size: upload.file_size,
         mime_type: upload.mime_type,
         storage_provider: upload.storage_provider as 'r2' | 'images',
-        storage_key: upload.storage_key ?? '',
+        storage_key: upload.storage_key || '',
         public_url: upload.public_url,
         upload_context: upload.upload_context as 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
         matter_id: upload.matter_id,
@@ -425,7 +427,7 @@ export const uploadsService = {
       // Create audit log
       await createAuditLog({
         upload_id: uploadId,
-        organization_id: upload.organization_id ?? undefined,
+        organization_id: upload.organization_id || undefined,
         action: 'downloaded',
         user_id: userId,
         ip_address: ipAddress,
@@ -463,7 +465,7 @@ export const uploadsService = {
       // Create audit log
       await createAuditLog({
         upload_id: uploadId,
-        organization_id: upload.organization_id ?? undefined,
+        organization_id: upload.organization_id || undefined,
         action: 'deleted',
         user_id: userId,
         metadata: { reason: request.reason },
@@ -499,7 +501,7 @@ export const uploadsService = {
       // Create audit log
       await createAuditLog({
         upload_id: uploadId,
-        organization_id: upload.organization_id ?? undefined,
+        organization_id: upload.organization_id || undefined,
         action: 'restored',
         user_id: userId,
       });
@@ -549,7 +551,7 @@ export const uploadsService = {
         file_size: upload.file_size,
         mime_type: upload.mime_type,
         storage_provider: upload.storage_provider as 'r2' | 'images',
-        storage_key: upload.storage_key ?? '',
+        storage_key: upload.storage_key || '',
         public_url: upload.public_url,
         upload_context: upload.upload_context as 'matter' | 'intake' | 'trust' | 'profile' | 'asset',
         matter_id: upload.matter_id,

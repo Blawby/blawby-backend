@@ -3,8 +3,8 @@ import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
 export const appConfig = pgTable('app_configs', {
-  key: text('key').primaryKey(), // E.g. "max_upload_size"
-  value: jsonb('value').notNull(), // Any JSON value: string, number, boolean, array, object
+  key: text('key').primaryKey(), // e.g. "max_upload_size"
+  value: jsonb('value').notNull(), // any JSON value: string, number, boolean, array, object
   type: text('type', {
     enum: ['string', 'number', 'boolean', 'multiselect', 'json'],
   }).notNull(),

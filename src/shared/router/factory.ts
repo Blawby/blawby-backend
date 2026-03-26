@@ -8,6 +8,8 @@ import type { AppContext } from '@/shared/types/hono';
  * Automatically registers the global validation error hook to ensure
  * readable JSON error responses across all modules.
  */
-export const createHonoApp = () => new OpenAPIHono<AppContext>({
+export const createHonoApp = () => {
+  return new OpenAPIHono<AppContext>({
     defaultHook: hasValidationErrors,
   });
+};

@@ -55,7 +55,7 @@ export const processOnboardingWebhook: Task = async (payload: unknown, helpers):
           processed: webhookEvent.processed,
           processedAt: webhookEvent.processedAt?.toISOString(),
           retryCount: webhookEvent.retryCount,
-          error: webhookEvent.error ?? 'None',
+          error: webhookEvent.error || 'None',
         });
       } else {
         logger.warn('⚠️  Webhook event not found in database: {eventId}', { eventId });

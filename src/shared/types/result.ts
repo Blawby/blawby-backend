@@ -1,16 +1,18 @@
-export interface AppError {
+export type AppError = {
   status: number;
   code: string;
   message: string;
   details?: unknown;
-}
+};
 
 export type Result<T, M = undefined> = { success: true; data: T; metadata?: M } | { success: false; error: AppError };
 
 /**
  * Generic type for paginated data (items + total only)
  */
-export type PaginatedData<T, K extends string = 'items'> = Record<K, T[]> & {
+export type PaginatedData<T, K extends string = 'items'> = {
+  [P in K]: T[];
+} & {
   total: number;
 };
 

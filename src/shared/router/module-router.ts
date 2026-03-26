@@ -28,7 +28,9 @@ export type MiddlewareConfig =
  * Only string arrays (MiddlewareConfig[]) are supported.
  * Use pattern strings like '*', '/path', '/path/:id' as keys.
  */
-export type RouteMiddlewareConfig = Record<string, MiddlewareConfig[]>;
+export interface RouteMiddlewareConfig {
+  [pattern: string]: MiddlewareConfig[];
+}
 
 /**
  * Module configuration interface
@@ -63,12 +65,12 @@ const loadMiddleware = async (): Promise<void> => {
     const authModule = await import('@/shared/middleware/requireAuth');
     const orgMembershipModule = await import('@/shared/middleware/requireOrgMembership');
     const rateLimitModule = await import('@/shared/middleware/rateLimit');
-    ({ requireAuth } = authModule);
-    ({ requireGuest } = authModule);
-    ({ requireAdmin } = authModule);
-    ({ requireCaptcha } = captchaModule);
-    ({ requireOrgMembership } = orgMembershipModule);
-    ({ rateLimit } = rateLimitModule);
+    requireAuth = authModule.requireAuth;
+    requireGuest = authModule.requireGuest;
+    requireAdmin = authModule.requireAdmin;
+    requireCaptcha = captchaModule.requireCaptcha;
+    requireOrgMembership = orgMembershipModule.requireOrgMembership;
+    rateLimit = rateLimitModule.rateLimit;
   }
 };
 
@@ -130,7 +132,8 @@ const resolveMiddleware = async (config: MiddlewareConfig): Promise<MiddlewareHa
 /**
  * Create middleware chain executor
  */
-const createMiddlewareChain = (middlewares: MiddlewareHandler[]): MiddlewareHandler => async (c, next) => {
+const createMiddlewareChain = (middlewares: MiddlewareHandler[]): MiddlewareHandler => {
+  return async (c, next) => {
     let index = 0;
     let blockedResponse: Response | undefined;
 
@@ -149,6 +152,7 @@ const createMiddlewareChain = (middlewares: MiddlewareHandler[]): MiddlewareHand
 
     return blockedResponse ?? next();
   };
+};
 
 /**
  * Register middleware for a pattern
@@ -241,7 +245,8 @@ const registerModuleMiddleware = async (app: AppType, mountPath: string, config:
     // Wrap middleware if it could be overridden by later patterns
     if ((path === WILDCARD || path.includes('*')) && laterPatterns.length > 0) {
       try {
-        const wrappedConfig: MiddlewareConfig[] = middlewareConfig.map((mwConfig) => (async (c: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]) => {
+        const wrappedConfig: MiddlewareConfig[] = middlewareConfig.map((mwConfig) => {
+          return (async (c: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]) => {
             const requestPath = c.req.path;
             const requestMethod = c.req.method;
 
@@ -268,7 +273,7 @@ const registerModuleMiddleware = async (app: AppType, mountPath: string, config:
                 // Use path-to-regexp to check if path matches (battle-tested, used by Hono)
                 try {
                   const matcher = match(laterPath, { decode: decodeURIComponent });
-                  return Boolean(matcher(relativePath));
+                  return !!matcher(relativePath);
                 } catch (error) {
                   // If pattern is invalid, fall back to simple string matching
                   console.warn(`[Middleware Override] Pattern matching failed for "${laterPath}":`, error);
@@ -305,7 +310,8 @@ const registerModuleMiddleware = async (app: AppType, mountPath: string, config:
             // Invoke the actual middleware - re-throw errors so upstream can handle them
             // This ensures security middleware errors (e.g., auth failures) are properly handled
             return mw(c, next);
-          }) as MiddlewareHandler);
+          }) as MiddlewareHandler;
+        });
 
         await registerPattern(app, mountPath, pattern, wrappedConfig, registeredPaths);
         continue;
@@ -326,7 +332,9 @@ const registerModuleMiddleware = async (app: AppType, mountPath: string, config:
 /**
  * Get list of module names from static registry
  */
-const getModuleNames = (): string[] => MODULE_REGISTRY.map((m) => m.name);
+const getModuleNames = (): string[] => {
+  return MODULE_REGISTRY.map((m) => m.name);
+};
 
 /**
  * Load module configuration or return default
@@ -338,7 +346,7 @@ const loadModuleConfig = async (moduleName: string): Promise<ModuleConfig> => {
   // Default middleware based on module type
   // Only the 'public' module gets rate limiting only by default.
   // Other modules requiring public access should use the 'public' marker
-  // In their route config to opt out of authentication.
+  // in their route config to opt out of authentication.
   const defaultMiddleware: MiddlewareConfig[] =
     moduleName === 'public'
       ? ['rateLimit'] // Public routes: rate limiting only

@@ -25,16 +25,18 @@ const INVOICE_ILLUSTRATION_URL =
 /**
  * Currency formatter for USD
  */
-export const formatCurrency = (amountInCents: number): string => new Intl.NumberFormat('en-US', {
+export const formatCurrency = (amountInCents: number): string => {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
   }).format(amountInCents / 100);
+};
 
 /**
  * Escape HTML special characters
  */
 export const escapeHtml = (str: string): string => {
-  if (!str) {return '';}
+  if (!str) return '';
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -47,7 +49,7 @@ export const escapeHtml = (str: string): string => {
  * Sanitize URLs to prevent protocol-based attacks
  */
 export const sanitizeUrl = (url: string | undefined): string => {
-  if (!url) {return '#';}
+  if (!url) return '#';
   try {
     const parsed = new URL(url);
     if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
@@ -65,7 +67,7 @@ export const sanitizeUrl = (url: string | undefined): string => {
  * Wrap content in the base email layout
  */
 export const baseLayout = (content: string, headerImageUrl?: string): string => {
-  const headerImg = headerImageUrl ?? BLAWBY_LOGO_URL;
+  const headerImg = headerImageUrl || BLAWBY_LOGO_URL;
 
   return `
 <mjml>
@@ -105,12 +107,14 @@ export const baseLayout = (content: string, headerImageUrl?: string): string => 
 /**
  * Create a white card section (common pattern in all emails)
  */
-export const cardSection = (content: string): string => `
+export const cardSection = (content: string): string => {
+  return `
     <mj-section background-color="#ffffff" border-radius="12px" padding="16px">
       ${content}
     </mj-section>
     <mj-section padding="6px 0"></mj-section>
   `;
+};
 
 /**
  * Render MJML to HTML
