@@ -3,7 +3,7 @@ import { onboardingRepository } from '@/modules/onboarding/database/queries/onbo
 import type { ServiceContext } from '@/shared/types/service-context';
 import { stripe } from '@/shared/utils/stripe-client';
 
-const logger = getLogger(['user-details', 'stripe-service']);
+const logger = getLogger(['clients', 'stripe-service']);
 
 const createCustomer = async (
   params: {
@@ -73,7 +73,7 @@ const updateCustomer = async (
   }
 };
 
-export const userDetailsStripeService = {
+export const clientsStripeService = {
   createCustomer,
   updateCustomer,
 };

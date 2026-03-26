@@ -15,7 +15,7 @@ const createMatterNote = async (
   params: { data: CreateMatterNoteRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterNote>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -73,7 +73,7 @@ const listMatterNotes = async (
   params: { filters?: MatterNoteListFilters },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterNote[]>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -93,7 +93,7 @@ const listMatterNotes = async (
     // Short-circuit: direct lookup when a specific note ID is provided
     if (params.filters?.noteId) {
       const note = await matterNotesQueries.findMatterNoteById(params.filters.noteId);
-      if (!note || note.matter_id !== matterId) return ok([]);
+      if (!note || note.matter_id !== matterId) {return ok([]);}
       return ok([note]);
     }
 
@@ -116,7 +116,7 @@ const updateMatterNote = async (
   params: { noteId: string; data: UpdateMatterNoteRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterNote>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -183,7 +183,7 @@ const deleteMatterNote = async (
   params: { noteId: string },
   ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }

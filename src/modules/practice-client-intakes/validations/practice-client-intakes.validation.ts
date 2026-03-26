@@ -51,12 +51,17 @@ const uuidParamSchema = z.object({
   uuid: z.uuid(), // UUID format
 });
 
+const stripeCheckoutSessionIdSchema = z
+  .string()
+  .min(1)
+  .regex(/^cs_[A-Za-z0-9_]+$/, 'Invalid Stripe Checkout Session ID format');
+
 const checkoutSessionStatusQuerySchema = z.object({
-  session_id: z.string().min(1),
+  session_id: stripeCheckoutSessionIdSchema,
 });
 
 const claimPracticeClientIntakeSchema = z.object({
-  session_id: z.string().min(1),
+  session_id: stripeCheckoutSessionIdSchema,
 });
 
 // Response schemas for OpenAPI

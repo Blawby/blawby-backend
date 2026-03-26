@@ -69,7 +69,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
 
     // 3. Report usage to Stripe Billing Meters API
     const stripe = getStripeInstance();
-    const dedupeSuffix = deduplicationId || Date.now().toString();
+    const dedupeSuffix = deduplicationId ?? Date.now().toString();
 
     // Use Stripe v2 Billing Meters API for synchronous validation and deduplication
     await stripe.v2.billing.meterEvents.create({
@@ -123,7 +123,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
 const getCurrentUsage = async function getCurrentUsage(
   db: NodePgDatabase<typeof schema>,
   organizationId: string
-): Promise<Result<Array<{ meter_name: string; quantity: number; description: string | null }>>> {
+): Promise<Result<{ meter_name: string; quantity: number; description: string | null }[]>> {
   try {
     // 1. Get organization's active subscription to find current period start
     const [org] = await db
@@ -143,7 +143,7 @@ const getCurrentUsage = async function getCurrentUsage(
         .from(schema.subscriptions)
         .where(eq(schema.subscriptions.id, org.activeSubscriptionId))
         .limit(1);
-      periodStart = sub?.periodStart || null;
+      periodStart = sub?.periodStart ?? null;
     }
 
     // 2. Aggregate usage within the current period

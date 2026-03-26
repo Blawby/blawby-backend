@@ -46,7 +46,7 @@ const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => {
         orderBy: (milestones, { asc }) => [asc(milestones.order)],
       },
       client: {
-        columns: { id: true },
+        columns: { id: true, name: true, email: true },
         with: {
           user: {
             columns: { name: true, email: true },

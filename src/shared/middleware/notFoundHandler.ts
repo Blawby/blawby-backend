@@ -6,6 +6,4 @@ import { response } from '@/shared/utils/responseUtils';
  *
  * Handles 404 responses for routes that don't exist.
  */
-export const notFoundHandler: NotFoundHandler = (c) => {
-  return response.notFound(c, `The requested resource ${c.req.path} was not found`);
-};
+export const notFoundHandler: NotFoundHandler = (c) => response.notFound(c, `The requested resource ${c.req.path} was not found`);

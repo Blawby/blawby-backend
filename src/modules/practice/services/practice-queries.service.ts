@@ -21,7 +21,7 @@ const logger = getLogger(['practice', 'queries-service']);
 // --- Local Helpers ---
 
 const fetchAddressData = async (addressId: string | null): Promise<Address | null> => {
-  if (!addressId) return null;
+  if (!addressId) {return null;}
 
   const [address] = await db.select().from(addressesTable).where(eq(addressesTable.id, addressId));
 
@@ -55,7 +55,7 @@ export const practiceQueriesService = {
     }
 
     const result = await organizationService.listOrganizations(ctx);
-    if (!result.success) return result;
+    if (!result.success) {return result;}
     return ok<{ practices: Organization[] }>({ practices: result.data });
   },
 

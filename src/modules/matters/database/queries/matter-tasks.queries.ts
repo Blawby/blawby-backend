@@ -6,7 +6,7 @@ import {
   type SelectMatterTask,
 } from '@/modules/matters/database/schema/matter-tasks.schema';
 import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
-import * as schema from '@/schema';
+import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 const createMatterTasks = async (
@@ -14,7 +14,7 @@ const createMatterTasks = async (
   tx?: NodePgDatabase<typeof schema>
 ): Promise<SelectMatterTask[]> => {
   const items = Array.isArray(data) ? data : [data];
-  if (items.length === 0) return [];
+  if (items.length === 0) {return [];}
 
   const client = tx ?? db;
   return await client.insert(matterTasks).values(items).returning();

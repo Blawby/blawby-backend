@@ -112,12 +112,8 @@ const invoiceSchema = z
       .object({
         id: z.uuid(),
         status: z.string(),
-        user: z.object({
-          id: z.uuid(),
-          name: z.string(),
-          email: z.string(),
-          image: z.string().nullable(),
-        }),
+        name: z.string(),
+        email: z.string(),
       })
       .optional(),
     matter: z.any().optional(),

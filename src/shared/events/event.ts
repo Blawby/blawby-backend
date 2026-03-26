@@ -26,7 +26,7 @@ import {
   ORGANIZATION_ACTOR_UUID,
 } from './constants';
 import { events, type EventMetadata, type BaseEvent as BaseEventRecord, type NewEvent } from './schemas/events.schema';
-import * as schema from '@/schema';
+import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { getAppEnv } from '@/shared/utils/env';
@@ -37,21 +37,21 @@ const logger = getLogger(['events', 'system']);
 type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | boolean>;
 
 // Dispatch options type
-export type DispatchOptions = {
+export interface DispatchOptions {
   actorId?: string;
   actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
   organizationId?: string;
   tx?: NodePgDatabase<typeof schema>;
   /** For critical events (Stripe/payments): immediate DB write, guaranteed before response */
   critical?: boolean;
-};
+}
 
 // Event class type - infers payload type T from constructor parameter
-export type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
+export interface EventClass<T extends Record<string, unknown> = Record<string, unknown>> {
   type: string;
   new (payload: T, actorId?: string, organizationId?: string): BaseEvent<T>;
   dispatch(payload: T, options?: DispatchOptions): string | Promise<string>;
-};
+}
 
 // Global handler registry - populated by Event.listen()
 const handlers = new Map<string, Handler<Record<string, unknown>>[]>();
@@ -276,7 +276,7 @@ export const Event = {
       return;
     }
 
-    const payload = record.payload as Record<string, unknown>;
+    const {payload} = record;
 
     for (const handler of list) {
       try {

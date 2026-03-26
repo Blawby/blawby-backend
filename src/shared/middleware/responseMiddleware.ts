@@ -13,10 +13,10 @@ type ValidationError = Error & {
   details: {
     error: string;
     message: string;
-    details: Array<{
+    details: {
       field: string;
       message: string;
-    }>;
+    }[];
   };
 };
 
@@ -32,8 +32,7 @@ type ValidationError = Error & {
  * - Better Auth error handling
  * - Development request logging
  */
-export const responseMiddleware = (): MiddlewareHandler => {
-  return async (c: Context, next: Next) => {
+export const responseMiddleware = (): MiddlewareHandler => async (c: Context, next: Next) => {
     const startTime = Date.now();
     const requestId = c.get('requestId');
 
@@ -126,7 +125,7 @@ export const responseMiddleware = (): MiddlewareHandler => {
             message: error.message,
             request_id: requestId,
           },
-          error.status as ContentfulStatusCode
+          error.status
         );
       }
 
@@ -166,4 +165,3 @@ export const responseMiddleware = (): MiddlewareHandler => {
       );
     }
   };
-};

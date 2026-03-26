@@ -13,10 +13,10 @@ type ValidationError = Error & {
   details: {
     error: string;
     message: string;
-    details: Array<{
+    details: {
       field: string;
       message: string;
-    }>;
+    }[];
   };
 };
 
@@ -27,8 +27,7 @@ type ValidationError = Error & {
 export const validateParams = <T extends z.ZodType>(
   schema: T,
   errorMessage = 'Invalid parameters'
-): MiddlewareHandler<{ Variables: Variables & { validatedParams: z.infer<T> } }> => {
-  return async (c, next) => {
+): MiddlewareHandler<{ Variables: Variables & { validatedParams: z.infer<T> } }> => async (c, next) => {
     const params = c.req.param();
     const validationResult = schema.safeParse(params);
 
@@ -59,7 +58,6 @@ export const validateParams = <T extends z.ZodType>(
     c.set('validatedParams', validationResult.data);
     return next();
   };
-};
 
 /**
  * Generic JSON body validation middleware
@@ -68,8 +66,7 @@ export const validateParams = <T extends z.ZodType>(
 export const validateJson = <T extends z.ZodTypeAny>(
   schema: T,
   errorMessage = 'Invalid request data'
-): MiddlewareHandler<{ Variables: Variables & { validatedBody: z.infer<T> } }> => {
-  return async (c, next) => {
+): MiddlewareHandler<{ Variables: Variables & { validatedBody: z.infer<T> } }> => async (c, next) => {
     try {
       const body = await c.req.json();
       const validationResult = schema.safeParse(body);
@@ -131,7 +128,6 @@ export const validateJson = <T extends z.ZodTypeAny>(
       });
     }
   };
-};
 
 /**
  * Combined parameter and JSON validation middleware
@@ -144,8 +140,7 @@ export const validateParamsAndJson = <TParams extends z.ZodTypeAny, TBody extend
   bodyErrorMessage = 'Invalid request data'
 ): MiddlewareHandler<{
   Variables: Variables & { validatedParams: z.infer<TParams>; validatedBody: z.infer<TBody> };
-}> => {
-  return async (c, next) => {
+}> => async (c, next) => {
     // Validate parameters
     const params = c.req.param();
     const paramValidation = paramSchema.safeParse(params);
@@ -240,4 +235,3 @@ export const validateParamsAndJson = <TParams extends z.ZodTypeAny, TBody extend
       return response.badRequest(c, 'Invalid JSON');
     }
   };
-};

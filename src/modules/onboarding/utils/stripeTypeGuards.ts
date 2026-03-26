@@ -7,30 +7,20 @@ import { onboardingValidations } from '@/modules/onboarding/validations/onboardi
  * Optimized to use Zod schemas where applicable for guaranteed runtime safety.
  */
 
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null;
-};
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
-const isExternalAccountList = (value: unknown): value is ExternalAccounts => {
-  return onboardingValidations.externalAccountsSchema.safeParse(value).success;
-};
+const isExternalAccountList = (value: unknown): value is ExternalAccounts => onboardingValidations.externalAccountsSchema.safeParse(value).success;
 
-const isExternalAccountItem = (value: unknown): value is ExternalAccount => {
-  return onboardingValidations.externalAccountSchema.safeParse(value).success;
-};
+const isExternalAccountItem = (value: unknown): value is ExternalAccount => onboardingValidations.externalAccountSchema.safeParse(value).success;
 
 const isStripeExternalAccountList = (value: unknown): value is { object: 'list'; data: Stripe.ExternalAccount[] } => {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value)) {return false;}
   return value['object'] === 'list' && Array.isArray(value.data);
 };
 
-const isBankAccount = (account: Stripe.ExternalAccount): account is Stripe.BankAccount => {
-  return account.object === 'bank_account';
-};
+const isBankAccount = (account: Stripe.ExternalAccount): account is Stripe.BankAccount => account.object === 'bank_account';
 
-const isCardAccount = (account: Stripe.ExternalAccount): account is Stripe.Card => {
-  return account.object === 'card';
-};
+const isCardAccount = (account: Stripe.ExternalAccount): account is Stripe.Card => account.object === 'card';
 
 export const stripeTypeGuards = {
   isBankAccount,

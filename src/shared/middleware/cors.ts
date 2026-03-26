@@ -1,12 +1,11 @@
-// src/shared/middleware/cors.ts
+// Src/shared/middleware/cors.ts
 import type { MiddlewareHandler } from 'hono';
 import { cors as honoCors } from 'hono/cors';
 
-export const cors = (): MiddlewareHandler => {
-  return honoCors({
+export const cors = (): MiddlewareHandler => honoCors({
     origin: (origin) => {
       // 1. Allow non-browser requests (mobile apps, curl, server-to-server)
-      if (!origin) return origin;
+      if (!origin) {return origin;}
 
       // 2. Allow Localhost (Any Port)
       if (
@@ -20,22 +19,22 @@ export const cors = (): MiddlewareHandler => {
       const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') ?? []).map((o) => o.trim());
 
       // Exact match check
-      if (allowedOrigins.includes(origin)) return origin;
+      if (allowedOrigins.includes(origin)) {return origin;}
 
       // Wildcard check (e.g. *.myapp.com)
       for (const pattern of allowedOrigins) {
         if (pattern.includes('*')) {
           // Escape dots, replace * with .*
           const regex = new RegExp(`^${pattern.replace(/\./g, '\\.').replace(/\*/g, '.*')}$`);
-          if (regex.test(origin)) return origin;
+          if (regex.test(origin)) {return origin;}
         }
       }
 
       // 4. BLOCK: Return specific string or null carefully
       // Hono's cors middleware handles 'undefined' by reflecting origin (bad for security)
-      // or 'string' by setting it.
+      // Or 'string' by setting it.
       // We return the origin if matched, otherwise we return a specific blocked value
-      // or simply don't match (which causes CORS error in browser).
+      // Or simply don't match (which causes CORS error in browser).
       // Returning `origin` here allows the request, returning `null` blocks it.
       return null;
     },
@@ -45,4 +44,3 @@ export const cors = (): MiddlewareHandler => {
     credentials: true, // <--- CRITICAL for Cookies
     maxAge: 600, // Cache preflight requests for 10 mins
   });
-};

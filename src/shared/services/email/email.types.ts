@@ -54,8 +54,8 @@ export interface MagicLinkData {
 export interface LineItem {
   description: string;
   quantity: number;
-  unitPrice: number; // in cents
-  amount: number; // in cents (quantity * unitPrice)
+  unitPrice: number; // In cents
+  amount: number; // In cents (quantity * unitPrice)
 }
 
 // Base email data
@@ -69,8 +69,8 @@ export interface CustomerPaymentReceiptData extends BaseEmailData {
   businessName: string;
   teamPhotoUrl: string;
   invoiceNumber: string;
-  amountPaid: number; // in cents
-  amountDue: number; // in cents
+  amountPaid: number; // In cents
+  amountDue: number; // In cents
   paidAt: string;
   lineItems: LineItem[];
   paymentMethod?: string;
@@ -84,9 +84,9 @@ export interface CustomerPaymentRequestData extends BaseEmailData {
   businessName: string;
   teamPhotoUrl: string;
   invoiceNumber: string;
-  amountDue: number; // in cents
-  amountPaid: number; // in cents
-  amountRemaining: number; // in cents
+  amountDue: number; // In cents
+  amountPaid: number; // In cents
+  amountRemaining: number; // In cents
   dueDate: string;
   lineItems: LineItem[];
   paymentLink: string;
@@ -98,7 +98,7 @@ export interface CustomerPaymentRequestData extends BaseEmailData {
 export interface TeamPaymentReceiptData extends BaseEmailData {
   businessName: string;
   invoiceNumber: string;
-  amountPaid: number; // in cents
+  amountPaid: number; // In cents
   lineItems: LineItem[];
   paymentMethod?: string;
   payingOnBehalfOf?: string;
@@ -138,7 +138,7 @@ export interface PayoutSentData extends BaseEmailData {
 export interface RefundData extends BaseEmailData {
   businessName: string;
   invoiceNumber: string;
-  amountRefunded: number; // in cents
+  amountRefunded: number; // In cents
   lineItems: LineItem[];
   invoiceUrl?: string;
   supportEmail: string;

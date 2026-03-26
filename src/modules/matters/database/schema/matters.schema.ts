@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, text, integer, real, timestamp, index, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 export const matters = pgTable(
@@ -13,7 +13,7 @@ export const matters = pgTable(
       .references(() => organizations.id, {
         onDelete: 'cascade',
       }),
-    client_id: uuid('client_id').references(() => userDetails.id, {
+    client_id: uuid('client_id').references(() => clients.id, {
       onDelete: 'set null',
     }),
     title: varchar('title', { length: 255 }).notNull(),

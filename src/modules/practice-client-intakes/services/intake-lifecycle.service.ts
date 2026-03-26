@@ -15,7 +15,7 @@ import type {
   UpdateIntakeTriageStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
-import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { appConfigService } from '@/shared/services/app-config.service';
@@ -148,14 +148,14 @@ const createMatterFromIntakeTx = async (
 ): Promise<string> => {
   let clientId: string | undefined = undefined;
   if (params.metadata.user_id) {
-    const userDetailsRecord = await userDetailsRepository.findByOrgAndUser(
+    const clientRecord = await clientsRepository.findByOrgAndUser(
       params.intake.organization_id,
       params.metadata.user_id
     );
-    if (userDetailsRecord) {
-      clientId = userDetailsRecord.id;
+    if (clientRecord) {
+      clientId = clientRecord.id;
     } else {
-      logger.warn('User ID {userId} from intake metadata not found in user_details for organization {organizationId}', {
+      logger.warn('User ID {userId} from intake metadata not found in clients for organization {organizationId}', {
         userId: params.metadata.user_id,
         organizationId: params.intake.organization_id,
         intakeUuid: params.uuid,

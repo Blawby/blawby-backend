@@ -1,31 +1,31 @@
 /**
- * User Details Module Event Listeners
+ * Clients Module Event Listeners
  *
- * Handles user-detail-related events including automatic creation
+ * Handles client-related events including automatic creation
  * from successful intake payments.
  */
 
 import { getLogger } from '@logtape/logtape';
-import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
+import { clientsService } from '@/modules/clients/services/clients-crud.service';
 import {
   IntakePaymentSucceeded,
-  UserDetailsCreated,
-  UserDetailsUpdated,
-  UserDetailsDeleted,
+  ClientCreated,
+  ClientUpdated,
+  ClientDeleted,
   InvitationAccepted,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { createSystemContext } from '@/shared/types/service-context';
 
-const logger = getLogger(['user-details', 'listeners']);
+const logger = getLogger(['clients', 'listeners']);
 
 /**
- * Register all user-details event listeners
+ * Register all client event listeners
  */
-export const registerUserDetailsListeners = (): void => {
-  logger.info('Registering user-details event listeners...');
+export const registerClientsListeners = (): void => {
+  logger.info('Registering client event listeners...');
 
-  // Auto-create user details on intake payment success
+  // Auto-create client on intake payment success
   Event.listen(IntakePaymentSucceeded, async (payload, context) => {
     if (!payload.uuid) {
       logger.warn('Intake payment succeeded event missing uuid');
@@ -37,18 +37,18 @@ export const registerUserDetailsListeners = (): void => {
       return;
     }
 
-    // user_id is optional - if present, it's the anonymous user ID from the session
+    // User_id is optional - if present, it's the anonymous user ID from the session
     const userId = payload.user_id;
-    const organizationId = context?.organizationId || payload.organization_id;
+    const organizationId = context?.organizationId ?? payload.organization_id;
 
-    logger.info('Creating user details from successful intake', {
+    logger.info('Creating client from successful intake', {
       intakeId: payload.uuid,
       userId: userId ?? 'none',
     });
 
     const sysCtx = createSystemContext(organizationId);
 
-    const result = await userDetailsService.createUserDetailsFromIntake(
+    const result = await clientsService.createClientFromIntake(
       {
         data: {
           intakeId: payload.uuid,
@@ -62,12 +62,12 @@ export const registerUserDetailsListeners = (): void => {
     );
 
     if (result.success) {
-      logger.info('Successfully created user details from intake', {
-        userDetailId: result.data.id,
+      logger.info('Successfully created client from intake', {
+        clientId: result.data.id,
         intakeId: payload.uuid,
       });
     } else {
-      logger.error('Failed to create user details from intake', {
+      logger.error('Failed to create client from intake', {
         intakeId: payload.uuid,
         error: result.error,
       });
@@ -80,7 +80,7 @@ export const registerUserDetailsListeners = (): void => {
       return;
     }
 
-    logger.info('Invitation accepted by client, creating user details', {
+    logger.info('Invitation accepted by client, creating client record', {
       userId: payload.userId,
       organizationId: payload.organizationId,
     });
@@ -89,7 +89,7 @@ export const registerUserDetailsListeners = (): void => {
 
     const DEFAULT_CLIENT_NAME = 'New Client';
 
-    const result = await userDetailsService.createUserDetails(
+    const result = await clientsService.createClient(
       {
         data: {
           name: DEFAULT_CLIENT_NAME, // Name might be updated later
@@ -102,36 +102,36 @@ export const registerUserDetailsListeners = (): void => {
 
     if (result.success) {
       if ('id' in result.data) {
-        logger.info('Successfully created user details for invited client', {
-          userDetailId: result.data.id,
+        logger.info('Successfully created client for invited client', {
+          clientId: result.data.id,
           userId: payload.userId,
         });
       } else {
-        logger.info('User details creation accepted (pending)', {
+        logger.info('Client creation accepted (pending)', {
           userId: payload.userId,
           message: result.data.message,
         });
       }
     } else {
-      logger.error('Failed to create user details for invited client', {
+      logger.error('Failed to create client for invited client', {
         userId: payload.userId,
         error: result.error,
       });
     }
   });
 
-  // User Detail CRUD events
-  Event.listen(UserDetailsCreated, async (payload) => {
-    logger.info('User details created', { userDetailId: payload.user_detail_id });
+  // Client CRUD events
+  Event.listen(ClientCreated, async (payload) => {
+    logger.info('Client created', { clientId: payload.client_id });
   });
 
-  Event.listen(UserDetailsUpdated, async (payload) => {
-    logger.info('User details updated', { userDetailId: payload.user_detail_id });
+  Event.listen(ClientUpdated, async (payload) => {
+    logger.info('Client updated', { clientId: payload.client_id });
   });
 
-  Event.listen(UserDetailsDeleted, async (payload) => {
-    logger.info('User details deleted', { userDetailId: payload.user_detail_id });
+  Event.listen(ClientDeleted, async (payload) => {
+    logger.info('Client deleted', { clientId: payload.client_id });
   });
 
-  logger.info('User-details event listeners registered');
+  logger.info('Client event listeners registered');
 };

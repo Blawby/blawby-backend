@@ -53,11 +53,11 @@ export const subscriptionPlans = pgTable(
     // Metered items configuration
     metered_items: jsonb('metered_items')
       .$type<
-        Array<{
+        {
           price_id: string;
           meter_name: string;
           type: string;
-        }>
+        }[]
       >()
       .default([]),
 

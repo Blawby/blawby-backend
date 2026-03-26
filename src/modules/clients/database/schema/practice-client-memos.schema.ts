@@ -1,10 +1,8 @@
 import { relations } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 
-import { userDetailsSchema } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { users } from '@/schema/better-auth-schema';
-
-const { userDetails } = userDetailsSchema;
 
 export const practiceClientMemos = pgTable(
   'practice_client_memos',
@@ -12,7 +10,7 @@ export const practiceClientMemos = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     client_id: uuid('client_id')
       .notNull()
-      .references(() => userDetails.id, { onDelete: 'cascade' }),
+      .references(() => clients.id, { onDelete: 'cascade' }),
     created_by: uuid('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -30,9 +28,9 @@ export const practiceClientMemos = pgTable(
 );
 
 export const practiceClientMemosRelations = relations(practiceClientMemos, ({ one }) => ({
-  client: one(userDetails, {
+  client: one(clients, {
     fields: [practiceClientMemos.client_id],
-    references: [userDetails.id],
+    references: [clients.id],
   }),
   creator: one(users, {
     fields: [practiceClientMemos.created_by],

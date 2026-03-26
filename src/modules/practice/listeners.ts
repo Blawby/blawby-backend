@@ -22,7 +22,7 @@ import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
-const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
+const APP_URL = process.env.APP_URL ?? 'https://app.blawby.com';
 
 /**
  * Register all practice event listeners
@@ -76,8 +76,8 @@ export function registerPracticeListeners(): void {
   Event.listen(IntakePaymentSucceeded, async (payload) => {
     // Map intake payload fields to local variables for templates
     const customer = {
-      email: payload.client_email || '',
-      name: payload.client_name || 'Valued Client',
+      email: payload.client_email ?? '',
+      name: payload.client_name ?? 'Valued Client',
     };
 
     const payment = {

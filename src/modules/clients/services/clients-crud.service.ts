@@ -1,27 +1,27 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { and, eq, isNull } from 'drizzle-orm';
-import { userDetailsStripeService } from './user-details-stripe.service';
-import { resolveUserForIntake } from './user-details-utils';
+import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
+import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
-import { userDetails, type SelectUserDetail } from '@/modules/user-details/database/schema/user-details.schema';
-import type { AddressInput } from '@/modules/user-details/types';
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
+import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
+import type { AddressInput } from '@/modules/clients/types';
 import type { users } from '@/schema/better-auth-schema';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
-import { UserDetailsCreated, UserDetailsUpdated, UserDetailsDeleted } from '@/shared/events/definitions';
+import { ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, internalError, notFound, forbidden, type AcceptedResponse } from '@/shared/utils/result';
 
-const logger = getLogger(['user-details', 'crud-service']);
+const logger = getLogger(['clients', 'crud-service']);
 
-const createUserDetails = async (
+const createClient = async (
   params: {
     data: {
       name: string;
@@ -35,13 +35,13 @@ const createUserDetails = async (
   ctx: ServiceContext
 ): Promise<
   Result<
-    | (SelectUserDetail & {
-        user: typeof users.$inferSelect;
+    | (SelectClient & {
+        user: typeof users.$inferSelect | null;
       })
     | AcceptedResponse
   >
 > => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'UserDetails');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Client');
 
   const { data } = params;
   try {
@@ -61,20 +61,6 @@ const createUserDetails = async (
         role: 'client',
       });
     }
-
-    // External call intentionally happens before transaction to avoid holding DB locks.
-    const stripeCustomerId = await userDetailsStripeService.createCustomer(
-      {
-        email: user.email,
-        name: user.name,
-        phone: user.phone ?? undefined,
-        metadata: {
-          organization_id: ctx.organizationId,
-          source: 'blawby_clients_api',
-        },
-      },
-      ctx
-    );
 
     const txResult = await db.transaction(async (tx) => {
       try {
@@ -96,11 +82,13 @@ const createUserDetails = async (
         }
 
         const [detail] = await tx
-          .insert(userDetails)
+          .insert(clients)
           .values({
             organization_id: ctx.organizationId,
             user_id: user.id,
-            stripe_customer_id: stripeCustomerId,
+            name: data.name,
+            email: data.email,
+            stripe_customer_id: null,
             address_id: addressId,
             status: data.status ?? 'lead',
             currency: data.currency ?? 'usd',
@@ -109,22 +97,22 @@ const createUserDetails = async (
 
         return ok({ ...detail, user });
       } catch (error) {
-        logger.error('Failed to create user details: {error}', {
+        logger.error('Failed to create client: {error}', {
           error,
           organizationId: ctx.organizationId,
         });
-        return internalError('Failed to create user details');
+        return internalError('Failed to create client');
       }
     });
 
     if (txResult.success) {
       const createdDetail = txResult.data;
-      void UserDetailsCreated.dispatch(
+      void ClientCreated.dispatch(
         {
-          user_detail_id: createdDetail.id,
-          user_id: createdDetail.user.id,
-          name: createdDetail.user.name,
-          email: createdDetail.user.email,
+          client_id: createdDetail.id,
+          user_id: user.id,
+          name: user.name,
+          email: user.email,
           stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
         },
         { actorId: ctx.userId, organizationId: ctx.organizationId }
@@ -133,15 +121,15 @@ const createUserDetails = async (
 
     return txResult;
   } catch (error) {
-    logger.error('Failed to create user details: {error}', {
+    logger.error('Failed to create client: {error}', {
       error,
       organizationId: ctx.organizationId,
     });
-    return internalError('Failed to create user details');
+    return internalError('Failed to create client');
   }
 };
 
-const updateUserDetails = async (
+const updateClient = async (
   params: {
     id: string;
     data: {
@@ -154,8 +142,8 @@ const updateUserDetails = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectUserDetail, { stripeSyncFailed?: boolean }>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserDetails');
+): Promise<Result<SelectClient, { stripeSyncFailed?: boolean }>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Client');
   const { id, data } = params;
   interface StripeSyncPayload {
     customerId: string;
@@ -167,23 +155,39 @@ const updateUserDetails = async (
   const txResult = await db.transaction(async (tx) => {
     try {
       let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
-      const detailWithUser = await userDetailsRepository.findById(id);
+      const detailWithUser = await clientsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
-        return notFound('User detail not found');
+        return notFound('Client not found');
       }
 
-      ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('UserDetails', detailWithUser));
+      ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('Client', detailWithUser));
 
       if (data.name || data.email || data.phone) {
-        await usersRepository.update(
-          detailWithUser.user_id,
-          {
-            name: data.name,
-            email: data.email?.toLowerCase(),
-            phone: data.phone,
-          },
-          tx
-        );
+        // Update clients table fields directly
+        const updatePayload: Partial<typeof clients.$inferInsert> = {};
+        if (data.name) {
+          updatePayload.name = data.name;
+        }
+        if (data.email) {
+          updatePayload.email = data.email;
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+          await tx.update(clients).set(updatePayload).where(eq(clients.id, id));
+        }
+
+        // Also update user record if linked
+        if (detailWithUser.user_id && (data.name || data.email || data.phone)) {
+          await usersRepository.update(
+            detailWithUser.user_id,
+            {
+              name: data.name,
+              email: data.email?.toLowerCase(),
+              phone: data.phone,
+            },
+            tx
+          );
+        }
 
         if (detailWithUser.stripe_customer_id) {
           stripeSyncPayload = {
@@ -204,7 +208,7 @@ const updateUserDetails = async (
             city: data.address.city,
             state: data.address.state,
             postal_code: data.address.postal_code,
-            country: data.address.country,
+            country: data.address.country ?? 'US',
           },
           organizationId: ctx.organizationId,
           addressId: detailWithUser.address_id,
@@ -213,7 +217,7 @@ const updateUserDetails = async (
         addressId = address?.id ?? addressId;
       }
 
-      const updated = await userDetailsRepository.update(
+      const updated = await clientsRepository.update(
         id,
         {
           address_id: addressId,
@@ -223,12 +227,12 @@ const updateUserDetails = async (
         tx
       );
       if (!updated) {
-        return internalError('Failed to update user details');
+        return internalError('Failed to update client');
       }
 
-      await UserDetailsUpdated.dispatch(
+      void ClientUpdated.dispatch(
         {
-          user_detail_id: updated.id,
+          client_id: updated.id,
           changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
         },
         {
@@ -240,8 +244,8 @@ const updateUserDetails = async (
 
       return ok({ updated, stripeSyncPayload });
     } catch (error) {
-      logger.error('Failed to update user details {id}: {error}', { id, error });
-      return internalError('Failed to update user details');
+      logger.error('Failed to update client {id}: {error}', { id, error });
+      return internalError('Failed to update client');
     }
   });
 
@@ -253,10 +257,10 @@ const updateUserDetails = async (
 
   if (stripeSyncPayload) {
     try {
-      await userDetailsStripeService.updateCustomer(stripeSyncPayload, ctx);
+      await clientsStripeService.updateCustomer(stripeSyncPayload, ctx);
     } catch (error) {
-      logger.error('Failed to sync user details to Stripe for user {user_id}: {error}', {
-        user_id: ctx.userId,
+      logger.error('Failed to sync client to Stripe for client {client_id}: {error}', {
+        client_id: id,
         customer_id: stripeSyncPayload.customerId,
         error,
       });
@@ -273,7 +277,7 @@ const updateUserDetails = async (
   return ok(updated);
 };
 
-const listUserDetails = async (
+const listClients = async (
   params: {
     clientId?: string;
     search?: string;
@@ -284,79 +288,82 @@ const listUserDetails = async (
   ctx: ServiceContext
 ): Promise<
   Result<{
-    data: (SelectUserDetail & {
-      user: typeof users.$inferSelect;
+    data: (SelectClient & {
+      user: typeof users.$inferSelect | null;
       address: Address | null;
     })[];
     total: number;
   }>
 > => {
-  if (ctx.ability.can('read', 'UserDetails')) {
+  let effectiveClientId: string | undefined = params.clientId;
+
+  if (ctx.ability.can('read', 'Client')) {
     // Admin/Member can list all or filter by clientId
-  } else if (ctx.ability.can('read', toSubject('UserDetails', { user_id: ctx.userId }))) {
-    // Client can ONLY see their own record
-    params.clientId = ctx.userId;
+  } else if (
+    !ctx.ability.can('read', 'Client') &&
+    ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))
+  ) {
+    // Client can ONLY see their own record (restricted to own record)
+    effectiveClientId = ctx.userId;
   } else {
-    return forbidden('You do not have permission to view user details');
+    return forbidden('You do not have permission to view clients');
   }
 
   try {
-    const data = await userDetailsRepository.listClients({
+    const data = await clientsRepository.listClients({
       ...params,
+      clientId: effectiveClientId,
       organizationId: ctx.organizationId,
     });
     return ok(data);
   } catch (error) {
-    logger.error('Failed to list user details: {error}', {
+    logger.error('Failed to list clients: {error}', {
       error,
       organizationId: ctx.organizationId,
     });
-    return internalError('Failed to list user details');
+    return internalError('Failed to list clients');
   }
 };
 
-const getUserDetail = async (params: { id: string }, ctx: ServiceContext): Promise<Result<SelectUserDetail>> => {
+const getClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<SelectClient>> => {
   const { id } = params;
   try {
-    const detail = await userDetailsRepository.findById(id);
+    const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
-      return notFound('User detail not found');
+      return notFound('Client not found');
     }
 
-    ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('UserDetails', detail));
+    ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Client', detail));
 
     return ok(detail);
   } catch (error) {
     if (error instanceof ForbiddenError) {
-      return forbidden('You do not have permission to view user details');
+      return forbidden('You do not have permission to view client');
     }
 
-    logger.error('Failed to get user detail {id}: {error}', { id, error });
-    return internalError('Failed to get user detail');
+    logger.error('Failed to get client {id}: {error}', { id, error });
+    return internalError('Failed to get client');
   }
 };
 
-const deleteUserDetail = async (params: { id: string }, ctx: ServiceContext): Promise<Result<void>> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'UserDetails');
+const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<void>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Client');
   const { id } = params;
   try {
-    const detail = await userDetailsRepository.findById(id);
+    const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
-      return notFound('User detail not found');
+      return notFound('Client not found');
     }
 
-    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('UserDetails', detail));
+    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Client', detail));
 
-    await userDetailsRepository.softDelete(id, ctx.userId);
-    void UserDetailsDeleted.dispatch(
-      { user_detail_id: id },
-      { actorId: ctx.userId, organizationId: ctx.organizationId }
-    );
+    await clientsRepository.softDelete(id, ctx.userId);
+    void ClientDeleted.dispatch({ client_id: id }, { actorId: ctx.userId, organizationId: ctx.organizationId });
 
     return ok(undefined);
   } catch (error) {
-    logger.error('Failed to delete user detail {id}: {error}', { id, error });
-    return internalError('Failed to delete user detail');
+    logger.error('Failed to delete client {id}: {error}', { id, error });
+    return internalError('Failed to delete client');
   }
 };
 
@@ -365,31 +372,30 @@ const ensureClientSetup = async (
   ctx: ServiceContext
 ): Promise<
   Result<
-    SelectUserDetail & {
-      user: typeof users.$inferSelect;
+    SelectClient & {
+      user: typeof users.$inferSelect | null;
     }
   >
 > => {
   const { id } = params;
   try {
-    const detail = await userDetailsRepository.findById(id);
+    const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
       return notFound('Client details not found');
-    }
-
-    const user = await usersRepository.findById(detail.user_id);
-    if (!user) {
-      return notFound('User not found');
     }
 
     let didBackfillStripeCustomerId = false;
 
     if (!detail.stripe_customer_id) {
-      const stripeCustomerId = await userDetailsStripeService.createCustomer(
+      // For lazy customer creation, we use the client's stored email/name
+      if (!detail.email || !detail.name) {
+        return notFound('Client is missing email or name for Stripe customer creation');
+      }
+
+      const stripeCustomerId = await clientsStripeService.createCustomer(
         {
-          email: user.email,
-          name: user.name,
-          phone: user.phone ?? undefined,
+          email: detail.email,
+          name: detail.name,
           metadata: {
             organization_id: ctx.organizationId,
             source: 'auto_vivification_sync',
@@ -399,7 +405,7 @@ const ensureClientSetup = async (
       );
 
       if (stripeCustomerId) {
-        await userDetailsRepository.update(id, {
+        await clientsRepository.update(id, {
           stripe_customer_id: stripeCustomerId,
         });
         detail.stripe_customer_id = stripeCustomerId;
@@ -408,15 +414,16 @@ const ensureClientSetup = async (
     }
 
     if (didBackfillStripeCustomerId) {
-      void UserDetailsUpdated.dispatch(
+      void ClientUpdated.dispatch(
         {
-          user_detail_id: detail.id,
+          client_id: detail.id,
           changes: { stripe_customer_id: true },
         },
         { actorId: ctx.userId, organizationId: ctx.organizationId }
       );
     }
 
+    const user = detail.user_id ? ((await usersRepository.findById(detail.user_id)) ?? null) : null;
     return ok({ ...detail, user });
   } catch (error) {
     logger.error('Failed to ensure client setup for {id}: {error}', { id, error });
@@ -424,7 +431,7 @@ const ensureClientSetup = async (
   }
 };
 
-const createUserDetailsFromIntake = async (
+const createClientFromIntake = async (
   params: {
     data: {
       intakeId: string;
@@ -436,7 +443,7 @@ const createUserDetailsFromIntake = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectUserDetail>> => {
+): Promise<Result<SelectClient>> => {
   const { intakeId, userId, email, name, phone } = params.data;
   try {
     const intake = await practiceClientIntakesRepository.findById(intakeId);
@@ -466,28 +473,24 @@ const createUserDetailsFromIntake = async (
       });
     }
 
-    // Check for existing detail (read-only query before transaction)
+    // Check for existing client (read-only query before transaction)
     const [existingDetail] = await db
       .select()
-      .from(userDetails)
+      .from(clients)
       .where(
-        and(
-          eq(userDetails.organization_id, ctx.organizationId),
-          eq(userDetails.user_id, user.id),
-          isNull(userDetails.deleted_at)
-        )
+        and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
       )
       .limit(1);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
         const [updatedDetail] = await db
-          .update(userDetails)
+          .update(clients)
           .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
-          .where(eq(userDetails.id, existingDetail.id))
+          .where(eq(clients.id, existingDetail.id))
           .returning();
-        void UserDetailsUpdated.dispatch(
+        void ClientUpdated.dispatch(
           {
-            user_detail_id: updatedDetail.id,
+            client_id: updatedDetail.id,
             changes: { intake_id: true, status: true },
           },
           { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
@@ -497,27 +500,18 @@ const createUserDetailsFromIntake = async (
       return ok(existingDetail);
     }
 
-    // External call happens BEFORE transaction to avoid holding DB locks
-    const stripeCustomerId = await userDetailsStripeService.createCustomer(
-      {
-        email: user.email,
-        name: user.name,
-        phone: user.phone ?? undefined,
-        metadata: { organization_id: ctx.organizationId, intake_id: intakeId, source: 'blawby_intake' },
-      },
-      ctx
-    );
-
     // Transaction only for database operations
     const txResult = await db.transaction(async (tx) => {
       const [detail] = await tx
-        .insert(userDetails)
+        .insert(clients)
         .values({
           organization_id: ctx.organizationId,
           user_id: user.id,
+          name: user.name,
+          email: user.email,
           intake_id: intakeId,
           address_id: intake.address_id ?? undefined,
-          stripe_customer_id: stripeCustomerId,
+          stripe_customer_id: null,
           status: 'active',
           event_name: 'client_intake_success',
         })
@@ -527,15 +521,15 @@ const createUserDetailsFromIntake = async (
     });
 
     if (!txResult.success) {
-      return internalError('Failed to create user details from intake');
+      return internalError('Failed to create client from intake');
     }
 
     const detail = txResult.data;
 
     // Event dispatch happens AFTER transaction completes
-    void UserDetailsCreated.dispatch(
+    void ClientCreated.dispatch(
       {
-        user_detail_id: detail.id,
+        client_id: detail.id,
         user_id: user.id,
         name: user.name,
         email: user.email,
@@ -546,20 +540,20 @@ const createUserDetailsFromIntake = async (
 
     return ok(detail);
   } catch (error) {
-    logger.error('Failed to create user details from intake {intakeId}: {error}', { intakeId, error });
-    return internalError('Failed to create user details from intake');
+    logger.error('Failed to create client from intake {intakeId}: {error}', { intakeId, error });
+    return internalError('Failed to create client from intake');
   }
 };
 
-export const userDetailsCrudService = {
-  createUserDetails,
-  updateUserDetails,
-  listUserDetails,
-  getUserDetail,
-  deleteUserDetail,
-  createUserDetailsFromIntake,
+export const clientsCrudService = {
+  createClient,
+  updateClient,
+  listClients,
+  getClient,
+  deleteClient,
+  createClientFromIntake,
   ensureClientSetup,
 };
 
 // Compatibility export
-export const userDetailsService = userDetailsCrudService;
+export const clientsService = clientsCrudService;

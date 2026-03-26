@@ -56,9 +56,9 @@ const createAccountSession = async (
     return notFound('No connected Stripe account found for this practice');
   }
 
-  const builtComponents = components.reduce(
+  const builtComponents = components.reduce< NonNullable<ComponentsParam>>(
     (acc, name) => ({ ...acc, [name]: COMPONENT_CONFIGS[name] }),
-    {} as NonNullable<ComponentsParam>
+    {}
   );
 
   try {

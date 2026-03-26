@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import * as schema from '@/schema';
@@ -160,79 +160,78 @@ export const createDatabaseHooks = (
       after: (session: SessionData) => Promise<void>;
     };
   };
-} => {
-  return {
-    user: {
-      create: {
-        after: async (userData: UserData): Promise<void> => {
-          AuthUserSignedUp.dispatch(
-            {
-              actor_id: userData.id,
-              user_id: userData.id,
-              email: userData.email,
-              name: userData.name,
-              signup_method: 'email',
-              is_anonymous: userData.isAnonymous ?? false,
-            },
-            { actorId: userData.id }
-          );
-        },
+} => ({
+  user: {
+    create: {
+      after: async (userData: UserData): Promise<void> => {
+        await AuthUserSignedUp.dispatch(
+          {
+            actor_id: userData.id,
+            user_id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            signup_method: 'email',
+            is_anonymous: userData.isAnonymous ?? false,
+          },
+          { actorId: userData.id, critical: true }
+        );
       },
     },
-    session: {
-      create: {
-        before: async (
-          sessionData: SessionData
-        ): Promise<{ data: SessionData & { activeOrganizationId: string | null } }> => {
-          // Get last active organization from previous session
-          const lastActiveSession = await db
-            .select({
-              activeOrganizationId: schema.sessions.activeOrganizationId,
-            })
-            .from(schema.sessions)
-            .where(eq(schema.sessions.userId, sessionData.userId))
+  },
+  session: {
+    create: {
+      before: async (
+        sessionData: SessionData
+      ): Promise<{ data: SessionData & { activeOrganizationId: string | null } }> => {
+        // Get last active organization from previous session
+        const lastActiveSession = await db
+          .select({
+            activeOrganizationId: schema.sessions.activeOrganizationId,
+          })
+          .from(schema.sessions)
+          .where(eq(schema.sessions.userId, sessionData.userId))
+          .orderBy(desc(schema.sessions.createdAt))
+          .limit(1);
+
+        // Delete all existing sessions for this user (single session per user)
+        await db.delete(schema.sessions).where(eq(schema.sessions.userId, sessionData.userId));
+
+        // Determine active organization
+        let activeOrganizationId: string | null = null;
+        try {
+          activeOrganizationId = await getActiveOrganizationId({
+            db,
+            userId: sessionData.userId,
+            lastActiveOrgId: lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
+          });
+        } catch (error) {
+          logger.warn('Failed to set active organization for user {userId}', { userId: sessionData.userId, error });
+        }
+
+        return {
+          data: { ...sessionData, activeOrganizationId },
+        };
+      },
+      after: async (session: SessionData): Promise<void> => {
+        // Check for pending intakes by email (handles lost anonymous session case)
+        try {
+          const [user] = await db
+            .select({ email: schema.users.email, isAnonymous: schema.users.isAnonymous })
+            .from(schema.users)
+            .where(eq(schema.users.id, session.userId))
             .limit(1);
 
-          // Delete all existing sessions for this user (single session per user)
-          await db.delete(schema.sessions).where(eq(schema.sessions.userId, sessionData.userId));
-
-          // Determine active organization
-          let activeOrganizationId: string | null = null;
-          try {
-            activeOrganizationId = await getActiveOrganizationId({
-              db,
-              userId: sessionData.userId,
-              lastActiveOrgId: lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
-            });
-          } catch (error) {
-            logger.warn('Failed to set active organization', { error });
+          // Only check for non-anonymous users (anonymous users are handled by onLinkAccount)
+          if (user && !user.isAnonymous) {
+            await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
           }
-
-          return {
-            data: { ...sessionData, activeOrganizationId },
-          };
-        },
-        after: async (session: SessionData): Promise<void> => {
-          // Check for pending intakes by email (handles lost anonymous session case)
-          try {
-            const [user] = await db
-              .select({ email: schema.users.email, isAnonymous: schema.users.isAnonymous })
-              .from(schema.users)
-              .where(eq(schema.users.id, session.userId))
-              .limit(1);
-
-            // Only check for non-anonymous users (anonymous users are handled by onLinkAccount)
-            if (user && !user.isAnonymous) {
-              await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
-            }
-          } catch (error) {
-            logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
-              sessionId: session.id,
-              error,
-            });
-          }
-        },
+        } catch (error) {
+          logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
+            sessionId: session.id,
+            error,
+          });
+        }
       },
     },
-  };
-};
+  },
+});

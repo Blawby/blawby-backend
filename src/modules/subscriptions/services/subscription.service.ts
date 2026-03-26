@@ -31,30 +31,26 @@ const logger = getLogger(['subscriptions', 'services', 'subscription']);
 /**
  * Helper to safely cast authed API to SubscriptionAPI
  */
-const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInstance>): SubscriptionAPI => {
-  return authInstance.api as unknown as SubscriptionAPI;
-};
+const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInstance>): SubscriptionAPI => authInstance.api as unknown as SubscriptionAPI;
 
 /**
  * Type guard for Record<string, string>
  */
 const isRecordStringString = (obj: unknown): obj is Record<string, string> => {
-  if (typeof obj !== 'object' || obj === null) return false;
+  if (typeof obj !== 'object' || obj === null) {return false;}
   return Object.values(obj).every((val) => typeof val === 'string');
 };
 
 /**
  * Type guard for Record<string, unknown>
  */
-const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => {
-  return typeof obj === 'object' && obj !== null;
-};
+const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => typeof obj === 'object' && obj !== null;
 
 /**
  * Helper to safely parse and validate metadata
  */
 const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T | null => {
-  if (data === null || data === undefined) return null;
+  if (data === null || data === undefined) {return null;}
 
   let parsed = data;
   if (typeof data === 'string') {
@@ -76,7 +72,7 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
     const plans = await subscriptionRepository.findAllActivePlans(db);
 
     // The repository returns plans which are already snake_case in the schema
-    // so we can return them directly.
+    // So we can return them directly.
     return ok({
       plans: plans as SubscriptionPlanResponse[],
     });
@@ -183,8 +179,8 @@ const getCurrentSubscription = async (
     }));
 
     // Construct the response by spreading the raw DB record (which contains snake_case keys from the aliased select)
-    // and adding the details. The 'plan' from the DB record is just a string name,
-    // we override it here with the full plan object.
+    // And adding the details. The 'plan' from the DB record is just a string name,
+    // We override it here with the full plan object.
     return ok({
       subscription: {
         ...subscriptionRecordWithoutPlanName,
@@ -259,8 +255,8 @@ const createSubscription = async (
         plan: planName,
         reference_id: organizationId,
         customer_type: 'organization',
-        success_url: data.success_url || '/dashboard',
-        cancel_url: data.cancel_url || '/pricing',
+        success_url: data.success_url ?? '/dashboard',
+        cancel_url: data.cancel_url ?? '/pricing',
         disable_redirect: data.disable_redirect || false,
       },
       headers: requestHeaders,

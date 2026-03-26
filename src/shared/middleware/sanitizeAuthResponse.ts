@@ -30,12 +30,12 @@ interface SessionResponse {
 }
 
 const isSessionResponse = (obj: unknown): obj is SessionResponse => {
-  if (!obj || typeof obj !== 'object') return false;
-  if (!('user' in obj) || !('session' in obj)) return false;
+  if (!obj || typeof obj !== 'object') {return false;}
+  if (!('user' in obj) || !('session' in obj)) {return false;}
 
   const { user, session } = obj as Record<string, unknown>;
-  if (!user || typeof user !== 'object') return false;
-  if (!session || typeof session !== 'object') return false;
+  if (!user || typeof user !== 'object') {return false;}
+  if (!session || typeof session !== 'object') {return false;}
 
   // Validate required fields
   const u = user as Record<string, unknown>;
@@ -88,8 +88,7 @@ function buildResponse(body: string, original: Response): Response {
  * 3. Adds `routing` claims to get-session responses only
  * 4. Preserves `set-auth-token` header
  */
-export const sanitizeAuthResponse = (): MiddlewareHandler => {
-  return async (c, next) => {
+export const sanitizeAuthResponse = (): MiddlewareHandler => async (c, next) => {
     await next();
 
     // Only process JSON responses
@@ -103,7 +102,7 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
       const body = await response.text();
       const trimmedBody = body.trim();
 
-      if (!trimmedBody) return;
+      if (!trimmedBody) {return;}
 
       let data: Record<string, unknown>;
       try {
@@ -112,7 +111,7 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
         return;
       }
 
-      if (!data || typeof data !== 'object') return;
+      if (!data || typeof data !== 'object') {return;}
 
       let madeChanges = false;
 
@@ -129,7 +128,7 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
       }
 
       // Add routing claims only for get-session endpoint
-      const path = c.req.path;
+      const {path} = c.req;
       const isGetSession = path === '/api/auth/get-session' || path === '/auth/get-session';
 
       if (isGetSession && isSessionResponse(data)) {
@@ -159,4 +158,3 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => {
       logger.warn('Failed to sanitize response: {error}', { error });
     }
   };
-};

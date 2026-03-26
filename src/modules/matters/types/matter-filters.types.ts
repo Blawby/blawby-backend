@@ -4,7 +4,7 @@
  */
 
 /** Filters for listMattersByOrganization */
-export type MatterListFilters = {
+export interface MatterListFilters {
   status?: string;
   practiceServiceId?: string;
   clientId?: string;
@@ -13,46 +13,46 @@ export type MatterListFilters = {
   search?: string;
   page?: number;
   limit?: number;
-};
+}
 
 /** Filters for listMatterNotes */
-export type MatterNoteListFilters = {
+export interface MatterNoteListFilters {
   noteId?: string;
-};
+}
 
 /** Filters for listMatterTimeEntries */
-export type MatterTimeEntryListFilters = {
+export interface MatterTimeEntryListFilters {
   billable?: boolean;
   startDate?: Date;
   endDate?: Date;
   entryId?: string;
-};
+}
 
 /** Filters for listMatterExpenses */
-export type MatterExpenseListFilters = {
+export interface MatterExpenseListFilters {
   billable?: boolean;
   startDate?: Date;
   endDate?: Date;
   expenseId?: string;
-};
+}
 
 /** Filters for listMatterMilestones */
-export type MatterMilestoneListFilters = {
+export interface MatterMilestoneListFilters {
   milestoneId?: string;
-};
+}
 
 /** Filters for listMatterTasks */
-export type MatterTaskListFilters = {
+export interface MatterTaskListFilters {
   taskId?: string;
   assigneeId?: string;
   status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
   priority?: 'low' | 'normal' | 'high' | 'urgent';
   stage?: string;
-};
+}
 
 /** Filters for getMatterActivity */
-export type MatterActivityListFilters = {
+export interface MatterActivityListFilters {
   limit?: number;
   offset?: number;
   activityId?: string;
-};
+}

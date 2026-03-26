@@ -10,6 +10,7 @@ import {
 } from '@/modules/subscriptions/handlers/index';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
+import { isProductEvent, isPriceEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['subscriptions', 'webhook-service']);
 
@@ -22,27 +23,25 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
 
     switch (event.type) {
       case 'product.created':
-        await handleProductCreated(event.data.object as Stripe.Product);
-        break;
-
       case 'product.updated':
-        await handleProductUpdated(event.data.object as Stripe.Product);
-        break;
-
       case 'product.deleted':
-        await handleProductDeleted(event.data.object as Stripe.Product);
+        if (!isProductEvent(event)) {
+          return internalError('Unexpected payload for product event');
+        }
+        if (event.type === 'product.created') await handleProductCreated(event.data.object);
+        else if (event.type === 'product.updated') await handleProductUpdated(event.data.object);
+        else await handleProductDeleted(event.data.object);
         break;
 
       case 'price.created':
-        await handlePriceCreated(event.data.object as Stripe.Price);
-        break;
-
       case 'price.updated':
-        await handlePriceUpdated(event.data.object as Stripe.Price);
-        break;
-
       case 'price.deleted':
-        await handlePriceDeleted(event.data.object as Stripe.Price);
+        if (!isPriceEvent(event)) {
+          return internalError('Unexpected payload for price event');
+        }
+        if (event.type === 'price.created') await handlePriceCreated(event.data.object);
+        else if (event.type === 'price.updated') await handlePriceUpdated(event.data.object);
+        else await handlePriceDeleted(event.data.object);
         break;
 
       default:
@@ -64,9 +63,7 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
 /**
  * Check if an event type should be processed by subscription webhooks
  */
-const isSubscriptionWebhookEvent = (eventType: string): boolean => {
-  return eventType.startsWith('product.') || eventType.startsWith('price.');
-};
+const isSubscriptionWebhookEvent = (eventType: string): boolean => eventType.startsWith('product.') || eventType.startsWith('price.');
 
 export const subscriptionWebhooksService = {
   processSubscriptionWebhookEvent,

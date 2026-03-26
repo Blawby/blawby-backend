@@ -20,7 +20,7 @@ export const matchesPattern = (origin: string, pattern: string): boolean => {
  * Also validates callbackURLs for OAuth Proxy
  */
 export const getTrustedOrigins = (request?: Request): string[] => {
-  if (!request) return [];
+  if (!request) {return [];}
   const origin = request.headers.get('origin');
   const origins: string[] = [];
 

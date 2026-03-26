@@ -25,7 +25,7 @@ import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['auth', 'listeners']);
-const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
+const APP_URL = process.env.APP_URL?.trim() || 'https://app.blawby.com';
 
 /**
  * Register all auth event listeners

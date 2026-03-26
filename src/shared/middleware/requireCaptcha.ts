@@ -13,15 +13,14 @@ import { response } from '@/shared/utils/responseUtils';
  * For simplicity and performance in middleware, we primarily check the header `x-captcha-token`.
  * Clients should send the token in this header.
  */
-export const requireCaptcha = (validate = defaultValidate): MiddlewareHandler => {
-  return async (c, next) => {
+export const requireCaptcha = (validate = defaultValidate): MiddlewareHandler => async (c, next) => {
     // Skip if in development and configured to skip (optional, but good for DX)
     if (process.env.SKIP_CAPTCHA === 'true') {
       return next();
     }
 
-    const token = c.req.header('x-captcha-token') || c.req.header('x-turnstile-token');
-    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for');
+    const token = c.req.header('x-captcha-token') ?? c.req.header('x-turnstile-token');
+    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
 
     if (!token) {
       return response.forbidden(c, 'Captcha token is missing');
@@ -35,4 +34,3 @@ export const requireCaptcha = (validate = defaultValidate): MiddlewareHandler =>
 
     await next();
   };
-};

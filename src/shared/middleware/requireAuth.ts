@@ -28,10 +28,10 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
       c.set('session', session);
       c.set('user', session.user);
       c.set('userId', session.user.id);
-      c.set(
-        'activeOrganizationId',
-        (session.session as { activeOrganizationId?: string | null }).activeOrganizationId ?? null
-      );
+      const activeOrgId = session.session.activeOrganizationId;
+      const { primaryWorkspace } = session.user;
+      
+      c.set('activeOrganizationId', (activeOrgId ?? primaryWorkspace) ?? null);
     }
 
     // Block request if no user

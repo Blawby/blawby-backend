@@ -45,7 +45,7 @@ export const onboardingService = {
         user.id
       );
 
-      if (!result.success) return result;
+      if (!result.success) {return result;}
       const accountData = result.data;
       const connectedAccount = await onboardingRepo.findByStripeAccountId(accountData.account_id);
       if (!connectedAccount) {
@@ -152,7 +152,7 @@ export const onboardingService = {
         user.id
       );
 
-      if (!result.success) return result;
+      if (!result.success) {return result;}
       const accountData = result.data;
       const connectedAccount = await onboardingRepo.findByStripeAccountId(accountData.account_id);
       if (!connectedAccount) {
@@ -183,6 +183,6 @@ export const onboardingService = {
 export default onboardingService;
 
 // Legacy exports
-export const createOnboardingSession = onboardingService.createOnboardingSession;
-export const getOnboardingStatus = onboardingService.getOnboardingStatus;
-export const createConnectedAccount = onboardingService.createConnectedAccount;
+export const {createOnboardingSession} = onboardingService;
+export const {getOnboardingStatus} = onboardingService;
+export const {createConnectedAccount} = onboardingService;

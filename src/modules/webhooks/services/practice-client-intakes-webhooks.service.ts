@@ -42,7 +42,7 @@ export const practiceClientIntakesWebhooksService = {
       const event = webhookEvent.payload as Stripe.Event;
 
       if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object;
         await handlePracticeClientIntakeCheckoutSessionCompleted(session);
         await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
         logger.info('Successfully processed practice client intake checkout session event: {eventId}', { eventId });
@@ -60,7 +60,7 @@ export const practiceClientIntakesWebhooksService = {
           return ok(undefined);
         }
 
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const paymentIntent = event.data.object;
         const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
 
         if (!practiceClientIntake) {

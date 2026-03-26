@@ -83,7 +83,7 @@ export const practiceManagementService = {
         name: organization.name,
         organization_name: organization.name,
         organization_slug: organization.slug,
-        has_practice_details: !!practiceDetails,
+        has_practice_details: Boolean(practiceDetails),
         practice_details_id: practiceDetails?.id,
         user_email: user.email,
       });
@@ -124,7 +124,7 @@ export const practiceManagementService = {
 
       if (hasOrganizationUpdates) {
         const previousOrgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-        if (!previousOrgResult.success) return previousOrgResult;
+        if (!previousOrgResult.success) {return previousOrgResult;}
         previousOrganization = previousOrgResult.data;
 
         const updateResult = await organizationService.updateOrganization(
@@ -132,11 +132,11 @@ export const practiceManagementService = {
           ctx
         );
 
-        if (!updateResult.success) return updateResult;
+        if (!updateResult.success) {return updateResult;}
         organization = updateResult.data;
       } else {
         const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-        if (!orgResult.success) return orgResult;
+        if (!orgResult.success) {return orgResult;}
         organization = orgResult.data;
       }
 
@@ -183,7 +183,7 @@ export const practiceManagementService = {
         }
       } else {
         const existing = await findPracticeDetailsByOrganization(organizationId);
-        practiceDetails = existing || null;
+        practiceDetails = existing ?? null;
       }
 
       await ctx.emit(PracticeUpdated, {
@@ -191,7 +191,7 @@ export const practiceManagementService = {
         name: organization?.name || 'Unknown',
         organization_name: organization?.name || 'Unknown',
         organization_slug: organization?.slug || 'unknown',
-        has_practice_details: !!practiceDetails,
+        has_practice_details: Boolean(practiceDetails),
         practice_details_id: practiceDetails?.id,
         user_email: user.email,
       });

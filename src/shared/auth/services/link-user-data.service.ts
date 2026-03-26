@@ -1,7 +1,7 @@
 import { getLogger, type Logger } from '@logtape/logtape';
 import { eq, and, sql } from 'drizzle-orm';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { PracticeMemberJoined } from '@/shared/events/definitions';
@@ -27,14 +27,14 @@ export const linkAnonymousUserData = async (params: {
     newId: newUser.id,
   });
 
-  const eventsToDispatch: Array<{
+  const eventsToDispatch: {
     payload: { member_id: string; intake_id: string };
     options: { actorId: string; organizationId: string };
-  }> = [];
+  }[] = [];
 
   const run = async (txContext: DbTx) => {
     // 1. Move organization memberships
-    const anonMemberships: Array<typeof members.$inferSelect> = await txContext
+    const anonMemberships: typeof members.$inferSelect[] = await txContext
       .select()
       .from(members)
       .where(eq(members.userId, anonymousUser.id));
@@ -56,31 +56,31 @@ export const linkAnonymousUserData = async (params: {
       }
     }
 
-    // 2. Move User Details (Clients)
-    const anonDetails: Array<typeof userDetails.$inferSelect> = await txContext
+    // 2. Move Client Details
+    const anonDetails: typeof clients.$inferSelect[] = await txContext
       .select()
-      .from(userDetails)
-      .where(eq(userDetails.user_id, anonymousUser.id));
+      .from(clients)
+      .where(eq(clients.user_id, anonymousUser.id));
 
     for (const detail of anonDetails) {
       // Check if new user already has details in this organization
       const [existing] = await txContext
         .select()
-        .from(userDetails)
-        .where(and(eq(userDetails.organization_id, detail.organization_id), eq(userDetails.user_id, newUser.id)))
+        .from(clients)
+        .where(and(eq(clients.organization_id, detail.organization_id), eq(clients.user_id, newUser.id)))
         .limit(1);
 
       if (existing) {
         // New user already has details, delete the anonymous ones
-        await txContext.delete(userDetails).where(eq(userDetails.id, detail.id));
+        await txContext.delete(clients).where(eq(clients.id, detail.id));
       } else {
         // Move details to new user
-        await txContext.update(userDetails).set({ user_id: newUser.id }).where(eq(userDetails.id, detail.id));
+        await txContext.update(clients).set({ user_id: newUser.id }).where(eq(clients.id, detail.id));
       }
     }
 
     // 3. Check for succeeded intakes and add user to organization as client
-    const userIntakes: Array<typeof practiceClientIntakes.$inferSelect> = await txContext
+    const userIntakes: typeof practiceClientIntakes.$inferSelect[] = await txContext
       .select()
       .from(practiceClientIntakes)
       .where(

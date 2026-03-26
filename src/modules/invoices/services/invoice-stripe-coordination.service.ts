@@ -1,6 +1,7 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -31,7 +32,7 @@ const finalizeAndSendStripeFlow = async (
 ): Promise<Result<InvoiceWithRelations>> => {
   // 1. Create on Stripe
   if (!invWithRel.client?.stripe_customer_id) {
-    return result.badRequest('Client is missing Stripe customer ID');
+    return result.internalError('Client is missing Stripe customer ID (ensureClientSetup should have run first)');
   }
 
   const stripeResult = await stripeInvoicesService.createStripeInvoice(
@@ -145,7 +146,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
-    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+    let invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
       return result.notFound<InvoiceResponse>('Invoice not found');
     }
@@ -163,7 +164,22 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      return result.badRequest<InvoiceResponse>('Client is missing Stripe customer ID');
+      const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
+
+      if (!setupResult.success) {
+        return { success: false, error: setupResult.error };
+      }
+
+      if (!setupResult.data?.stripe_customer_id) {
+        return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
+      }
+
+      // Refetch invoice to get updated client with stripe_customer_id
+      const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+      if (!freshInvoice) {
+        return result.notFound<InvoiceResponse>('Invoice not found after client setup');
+      }
+      invoice = freshInvoice;
     }
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');

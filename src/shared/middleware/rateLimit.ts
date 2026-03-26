@@ -95,8 +95,7 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
   return limiters.get(key)!;
 };
 
-export const rateLimit = (options?: { points?: number; duration?: number; routeKey?: string }): MiddlewareHandler => {
-  return async (c, next) => {
+export const rateLimit = (options?: { points?: number; duration?: number; routeKey?: string }): MiddlewareHandler => async (c, next) => {
     const userId = c.get('userId');
 
     const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -116,7 +115,7 @@ export const rateLimit = (options?: { points?: number; duration?: number; routeK
       return await next();
     } catch (rejRes: unknown) {
       // Only handle rate limit rejections - check for library-specific marker
-      // rate-limiter-flexible rejects with an object containing msBeforeNext
+      // Rate-limiter-flexible rejects with an object containing msBeforeNext
       const isRateLimitRejection =
         rejRes &&
         typeof rejRes === 'object' &&
@@ -125,7 +124,7 @@ export const rateLimit = (options?: { points?: number; duration?: number; routeK
 
       if (isRateLimitRejection) {
         // Rate limit exceeded - extract retry time
-        const msBeforeNext = (rejRes as { msBeforeNext: number }).msBeforeNext;
+        const {msBeforeNext} = (rejRes as { msBeforeNext: number });
         const retryAfter = Math.ceil(msBeforeNext / 1000) || 1;
 
         return response.tooManyRequests(c, `Too many requests. Please try again in ${retryAfter} seconds.`, retryAfter);
@@ -136,4 +135,3 @@ export const rateLimit = (options?: { points?: number; duration?: number; routeK
       throw rejRes;
     }
   };
-};

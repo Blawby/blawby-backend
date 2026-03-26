@@ -18,7 +18,7 @@ import type {
   UnbilledMatterData,
 } from '@/modules/matters/types/matter.types';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
-import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import type { Action, Subject } from '@/shared/auth/abilities';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
@@ -56,7 +56,7 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
 
   // Validate client_id if provided
   if (data.client_id) {
-    const client = await userDetailsRepository.findById(data.client_id);
+    const client = await clientsRepository.findById(data.client_id);
     if (!client || client.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid client_id or client does not belong to this organization');
     }
@@ -176,7 +176,7 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Res
   return result.ok<MatterRecord>({
     ...matter,
     assignees: matter.assignees.map((assignee) => assignee.user),
-    client: matter.client ? { id: matter.client.id, ...matter.client.user } : null,
+    client: matter.client ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' } : null,
   });
 };
 
@@ -257,7 +257,7 @@ const updateMatter = async (
 
   // Validate client_id if provided
   if (data.client_id) {
-    const client = await userDetailsRepository.findById(data.client_id);
+    const client = await clientsRepository.findById(data.client_id);
     if (!client || client.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid client_id or client does not belong to this organization');
     }

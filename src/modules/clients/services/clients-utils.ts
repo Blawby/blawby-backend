@@ -19,7 +19,7 @@ export const resolveUserForIntake = async (params: {
   if (userId) {
     const sessionUser = await usersRepository.findById(userId);
     if (sessionUser) {
-      const isAnonymousUser = sessionUser.isAnonymous === true;
+      const isAnonymousUser = sessionUser.isAnonymous;
       if (isAnonymousUser && existingUserByEmail && existingUserByEmail.id !== userId) {
         return db.transaction(async (tx) => {
           await linkAnonymousUserData({

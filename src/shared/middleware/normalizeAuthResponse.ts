@@ -98,8 +98,7 @@ const normalizeErrorResponse = (error: unknown): { error: string; message: strin
  * 3. Normalizes error responses to { error: string, message: string } format
  * 4. Preserves Better Auth functionality (set-auth-token header, etc.)
  */
-export const normalizeAuthResponse = (): MiddlewareHandler => {
-  return async (c, next) => {
+export const normalizeAuthResponse = (): MiddlewareHandler => async (c, next) => {
     await next();
 
     // Only process JSON responses
@@ -127,7 +126,7 @@ export const normalizeAuthResponse = (): MiddlewareHandler => {
         logger.debug('Failed to parse response body for normalization: {error}', { error });
         return;
       }
-      const status = response.status;
+      const {status} = response;
 
       // Normalize error responses (4xx, 5xx)
       if (status >= 400) {
@@ -187,4 +186,3 @@ export const normalizeAuthResponse = (): MiddlewareHandler => {
       logger.warn('Failed to normalize response: {error}', { error });
     }
   };
-};

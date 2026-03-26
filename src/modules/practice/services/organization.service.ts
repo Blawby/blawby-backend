@@ -1,3 +1,4 @@
+import { getLogger } from '@logtape/logtape';
 import type {
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
@@ -6,10 +7,13 @@ import type {
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
+import usersRepository from '@/shared/repositories/users.repository';
 import type { ActiveOrganization, Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { forbidden, internalError, ok } from '@/shared/utils/result';
+
+const logger = getLogger(['practice', 'organization-service']);
 
 // Lazy initialization - only create when needed (after env vars are loaded)
 const getBetterAuth = (): BetterAuthInstance => createBetterAuthInstance(db);
@@ -47,6 +51,26 @@ export const organizationService = {
 
       if (!result) {
         return internalError<Organization>('Failed to create organization');
+      }
+
+      // Enforce primaryWorkspace for the creator if they don't have one (best-effort)
+      try {
+        const user = await usersRepository.findById(ctx.userId);
+        if (user && !user.primaryWorkspace) {
+          try {
+            await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
+          } catch (updateError) {
+            logger.warn('Failed to set primaryWorkspace to "practice" for user {userId} after org creation', {
+              userId: ctx.userId,
+              error: updateError,
+            });
+          }
+        }
+      } catch (fetchError) {
+        logger.warn('Failed to fetch user to set primaryWorkspace to "practice" after org creation', {
+          userId: ctx.userId,
+          error: fetchError,
+        });
       }
 
       return ok<Organization>(result);
@@ -181,7 +205,7 @@ export const organizationService = {
       const result = await betterAuth.api.checkOrganizationSlug({
         body: { slug },
       });
-      return ok<boolean>(!!result.status);
+      return ok<boolean>(Boolean(result.status));
     } catch {
       return ok<boolean>(false);
     }
