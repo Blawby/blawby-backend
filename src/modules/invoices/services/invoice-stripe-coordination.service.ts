@@ -165,12 +165,18 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
     if (!invoice.client?.stripe_customer_id) {
       const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
-      
-      if (!setupResult.success || !setupResult.data.stripe_customer_id) {
-        return result.badRequest<InvoiceResponse>('Failed to setup Stripe customer for client');
+
+      if (!setupResult.success) {
+        return { success: false, error: setupResult.error };
       }
-      
-      invoice.client.stripe_customer_id = setupResult.data.stripe_customer_id;
+
+      if (!setupResult.data?.stripe_customer_id) {
+        return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
+      }
+
+      if (invoice.client) {
+        invoice.client.stripe_customer_id = setupResult.data.stripe_customer_id;
+      }
     }
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');

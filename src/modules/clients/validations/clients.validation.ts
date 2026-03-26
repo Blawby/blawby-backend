@@ -27,7 +27,22 @@ export const createClientSchema = z
 export const addressSchema = createClientSchema.shape.address.unwrap();
 export type AddressInputSchema = z.infer<typeof addressSchema>;
 
-export const updateClientSchema = createClientSchema.partial().openapi('UpdateClient');
+export const updateClientSchema = createClientSchema
+  .omit({ address: true })
+  .partial()
+  .extend({
+    address: z
+      .object({
+        line1: z.string().optional(),
+        line2: z.string().optional(),
+        city: z.string().max(100).optional(),
+        state: z.string().max(100).optional(),
+        postal_code: z.string().max(20).optional(),
+        country: z.string().length(2).optional(),
+      })
+      .optional(),
+  })
+  .openapi('UpdateClient');
 
 export const listClientsSchema = z
   .object({
@@ -68,6 +83,7 @@ export const clientSchema = z
         email: z.string(),
         phone: z.string().nullable(),
       })
+      .nullable()
       .optional(),
     address_id: z.uuid().nullable(),
     status: z.enum(['lead', 'active', 'inactive', 'archived']),

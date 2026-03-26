@@ -102,7 +102,7 @@ const listClients = async (params: {
   const [totalResult] = await db
     .select({ count: sql<number>`count(*)` })
     .from(clients)
-    .innerJoin(users, eq(clients.user_id, users.id))
+    .leftJoin(users, eq(clients.user_id, users.id))
     .where(whereClause);
 
   // Use select-based query with explicit joins to match count query behavior
@@ -113,7 +113,7 @@ const listClients = async (params: {
       address: addresses,
     })
     .from(clients)
-    .innerJoin(users, eq(clients.user_id, users.id))
+    .leftJoin(users, eq(clients.user_id, users.id))
     .leftJoin(addresses, eq(clients.address_id, addresses.id))
     .where(whereClause)
     .orderBy(desc(clients.created_at))

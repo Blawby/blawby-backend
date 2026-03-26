@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from '@hono/zod-openapi';
 import type { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 // Inferred from Zod schemas

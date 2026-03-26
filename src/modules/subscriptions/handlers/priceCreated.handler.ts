@@ -5,11 +5,12 @@
  * Updates the subscription plan with the new price
  */
 
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import type { MeteredItem } from '@/modules/subscriptions/constants/meteredProducts';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
 
@@ -49,11 +50,11 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     } else if (price.recurring?.usage_type === 'metered') {
       // Handle metered price - add to metered_items array
-      const metered_items = (plan.metered_items as any[]) || [];
+      const metered_items = (plan.metered_items as MeteredItem[]) || [];
       metered_items.push({
         price_id: price.id,
         meter_name: price.nickname ?? 'metered',
-        type: price.metadata?.meter_type || 'usage',
+        type: price.metadata?.meter_type ?? 'usage',
       });
       updates.metered_items = metered_items;
     }

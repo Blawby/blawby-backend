@@ -45,14 +45,30 @@ const isSubscriptionEvent = (event: Stripe.Event): event is StripeEventWithObjec
   return event.type.startsWith(SUBSCRIPTION_PREFIX);
 };
 
+/**
+ * Type Guard: Checks if event is related to Products.
+ * If true, TypeScript knows event.data.object is Stripe.Product | Stripe.DeletedProduct
+ */
+const isProductEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Product | Stripe.DeletedProduct> =>
+  event.type.startsWith('product.');
+
+/**
+ * Type Guard: Checks if event is related to Prices.
+ * If true, TypeScript knows event.data.object is Stripe.Price | Stripe.DeletedPrice
+ */
+const isPriceEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Price | Stripe.DeletedPrice> =>
+  event.type.startsWith('price.');
+
 // Default export with all guards
 const stripeGuards = {
   isPaymentIntentEvent,
   isChargeEvent,
   isSubscriptionEvent,
+  isProductEvent,
+  isPriceEvent,
 };
 
 export default stripeGuards;
 
 // Named exports for backward compatibility
-export { isPaymentIntentEvent, isChargeEvent, isSubscriptionEvent };
+export { isPaymentIntentEvent, isChargeEvent, isSubscriptionEvent, isProductEvent, isPriceEvent };

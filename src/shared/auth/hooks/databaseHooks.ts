@@ -164,7 +164,7 @@ export const createDatabaseHooks = (
     user: {
       create: {
         after: async (userData: UserData): Promise<void> => {
-          AuthUserSignedUp.dispatch(
+          await AuthUserSignedUp.dispatch(
             {
               actor_id: userData.id,
               user_id: userData.id,

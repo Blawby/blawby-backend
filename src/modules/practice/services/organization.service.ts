@@ -50,10 +50,14 @@ export const organizationService = {
         return internalError<Organization>('Failed to create organization');
       }
 
-      // Enforce primaryWorkspace for the creator if they don't have one
+      // Enforce primaryWorkspace for the creator if they don't have one (best-effort)
       const user = await usersRepository.findById(ctx.userId);
       if (user && !user.primaryWorkspace) {
-        await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
+        try {
+          await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
+        } catch {
+          // Do not fail org creation after it has already succeeded
+        }
       }
 
       return ok<Organization>(result);

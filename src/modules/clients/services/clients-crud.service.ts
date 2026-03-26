@@ -138,7 +138,7 @@ const updateClient = async (
       name?: string;
       email?: string;
       phone?: string;
-      address?: AddressInput;
+      address?: Omit<AddressInput, 'country'> & { country?: string };
       status?: string;
       currency?: string;
     };
@@ -206,7 +206,7 @@ const updateClient = async (
             city: data.address.city,
             state: data.address.state,
             postal_code: data.address.postal_code,
-            country: data.address.country,
+            country: data.address.country ?? 'US',
           },
           organizationId: ctx.organizationId,
           addressId: detailWithUser.address_id,

@@ -85,7 +85,7 @@ const updateMemo = async (
     }
 
     const memo = await practiceClientMemosRepository.findById(id);
-    if (!memo) {
+    if (!memo || memo.client_id !== clientId) {
       return notFound('Memo not found');
     }
 
@@ -117,7 +117,7 @@ const deleteMemo = async (params: { id: string; clientId: string }, ctx: Service
     }
 
     const memo = await practiceClientMemosRepository.findById(id);
-    if (!memo) {
+    if (!memo || memo.client_id !== clientId) {
       return notFound('Memo not found');
     }
 

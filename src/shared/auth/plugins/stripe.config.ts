@@ -251,7 +251,7 @@ const syncSubscriptionToOrg = async (
  */
 export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> => stripePlugin({
     stripeClient: createProxiedStripeClient(getStripeInstance()),
-    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
     createCustomerOnSignUp: false,
 
     // Opt: Save customer ID immediately and enrich with metadata

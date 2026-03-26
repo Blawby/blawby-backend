@@ -49,4 +49,11 @@ ALTER TABLE "clients" DROP CONSTRAINT "clients_user_id_users_id_fk";
 ALTER TABLE "clients" ALTER COLUMN "user_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "clients" ADD COLUMN "name" varchar(255);--> statement-breakpoint
 ALTER TABLE "clients" ADD COLUMN "email" varchar(255);--> statement-breakpoint
+UPDATE "clients" AS c
+SET
+  "name" = COALESCE(c."name", u."name"),
+  "email" = COALESCE(c."email", u."email")
+FROM "users" AS u
+WHERE c."user_id" = u."id"
+  AND (c."name" IS NULL OR c."email" IS NULL);--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

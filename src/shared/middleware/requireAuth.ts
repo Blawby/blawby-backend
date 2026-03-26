@@ -28,8 +28,8 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
       c.set('session', session);
       c.set('user', session.user);
       c.set('userId', session.user.id);
-      const activeOrgId = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId;
-      const {primaryWorkspace} = (session.user as { primaryWorkspace?: string | null });
+      const activeOrgId = session.session.activeOrganizationId;
+      const { primaryWorkspace } = session.user;
       
       c.set('activeOrganizationId', (activeOrgId ?? primaryWorkspace) ?? null);
     }

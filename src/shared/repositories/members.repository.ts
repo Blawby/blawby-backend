@@ -52,10 +52,14 @@ const create = async (data: {
     throw new Error('Unexpected addMember response shape');
   }
 
-  // Enforce primaryWorkspace if the user doesn't have one yet
-  const user = await usersRepository.findById(data.userId);
-  if (user && !user.primaryWorkspace) {
-    await usersRepository.update(user.id, { primaryWorkspace: 'practice' });
+  // Enforce primaryWorkspace if the user doesn't have one yet (best-effort, non-fatal)
+  try {
+    const user = await usersRepository.findById(data.userId);
+    if (user && !user.primaryWorkspace) {
+      await usersRepository.update(user.id, { primaryWorkspace: 'practice' });
+    }
+  } catch {
+    // Do not fail member creation after it has already succeeded
   }
 
   return result;
