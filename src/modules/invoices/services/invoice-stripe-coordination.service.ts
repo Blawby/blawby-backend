@@ -146,7 +146,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
-    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+    let invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
       return result.notFound<InvoiceResponse>('Invoice not found');
     }
@@ -174,9 +174,12 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
       }
 
-      if (invoice.client) {
-        invoice.client.stripe_customer_id = setupResult.data.stripe_customer_id;
+      // Refetch invoice to get updated client with stripe_customer_id
+      const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+      if (!freshInvoice) {
+        return result.notFound<InvoiceResponse>('Invoice not found after client setup');
       }
+      invoice = freshInvoice;
     }
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');

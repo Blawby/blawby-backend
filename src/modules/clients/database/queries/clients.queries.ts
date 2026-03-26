@@ -1,4 +1,4 @@
-import { eq, desc, and, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { eq, desc, and, ilike, or, sql, isNull, type SQL } from 'drizzle-orm';
 import { addresses, type Address } from '@/modules/practice/database/schema/addresses.schema';
 import { clientsSchema, type InsertClient, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import { users } from '@/schema/better-auth-schema';
@@ -45,7 +45,7 @@ const update = async (id: string, data: Partial<SelectClient>, tx: DbOrTx = db):
   const [updated] = await tx
     .update(clients)
     .set({ ...data, updated_at: new Date() })
-    .where(eq(clients.id, id))
+    .where(and(eq(clients.id, id), isNull(clients.deleted_at)))
     .returning();
   return updated;
 };
@@ -88,10 +88,11 @@ const listClients = async (params: {
 
   if (search) {
     const searchPattern = `%${search}%`;
+    const phoneCondition = and(sql`${users.phone} IS NOT NULL`, ilike(users.phone, searchPattern));
     const searchCondition: SQL = or(
       ilike(clients.name, searchPattern),
       ilike(clients.email, searchPattern),
-      and(sql`${users.phone} IS NOT NULL`, ilike(users.phone, searchPattern))
+      phoneCondition
     )!;
     conditions.push(searchCondition);
   }

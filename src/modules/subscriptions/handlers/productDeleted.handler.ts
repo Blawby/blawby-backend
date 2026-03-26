@@ -9,7 +9,7 @@ import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { subscriptionRepository } from '../database/queries/subscription.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-deleted']);
 

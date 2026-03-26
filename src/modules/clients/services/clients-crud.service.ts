@@ -1,8 +1,8 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { and, eq, isNull } from 'drizzle-orm';
-import { clientsStripeService } from './clients-stripe.service';
-import { resolveUserForIntake } from './clients-utils';
+import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
+import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -165,8 +165,12 @@ const updateClient = async (
       if (data.name || data.email || data.phone) {
         // Update clients table fields directly
         const updatePayload: Partial<typeof clients.$inferInsert> = {};
-        if (data.name) { updatePayload.name = data.name; }
-        if (data.email) { updatePayload.email = data.email; }
+        if (data.name) {
+          updatePayload.name = data.name;
+        }
+        if (data.email) {
+          updatePayload.email = data.email;
+        }
 
         if (Object.keys(updatePayload).length > 0) {
           await tx.update(clients).set(updatePayload).where(eq(clients.id, id));
@@ -226,7 +230,7 @@ const updateClient = async (
         return internalError('Failed to update client');
       }
 
-      await ClientUpdated.dispatch(
+      void ClientUpdated.dispatch(
         {
           client_id: updated.id,
           changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
@@ -291,17 +295,19 @@ const listClients = async (
     total: number;
   }>
 > => {
+  let effectiveClientId: string | undefined = params.clientId;
+
   if (ctx.ability.can('read', 'Client')) {
     // Admin/Member can list all or filter by clientId
-  } else if (ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))) {
-    // Client can ONLY see their own record
+  } else if (
+    !ctx.ability.can('read', 'Client') &&
+    ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))
+  ) {
+    // Client can ONLY see their own record (restricted to own record)
+    effectiveClientId = ctx.userId;
   } else {
     return forbidden('You do not have permission to view clients');
   }
-
-  const effectiveClientId = ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))
-    ? ctx.userId
-    : params.clientId;
 
   try {
     const data = await clientsRepository.listClients({
@@ -352,10 +358,7 @@ const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promis
     ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Client', detail));
 
     await clientsRepository.softDelete(id, ctx.userId);
-    void ClientDeleted.dispatch(
-      { client_id: id },
-      { actorId: ctx.userId, organizationId: ctx.organizationId }
-    );
+    void ClientDeleted.dispatch({ client_id: id }, { actorId: ctx.userId, organizationId: ctx.organizationId });
 
     return ok(undefined);
   } catch (error) {
@@ -420,7 +423,7 @@ const ensureClientSetup = async (
       );
     }
 
-    const user = detail.user_id ? (await usersRepository.findById(detail.user_id)) ?? null : null;
+    const user = detail.user_id ? ((await usersRepository.findById(detail.user_id)) ?? null) : null;
     return ok({ ...detail, user });
   } catch (error) {
     logger.error('Failed to ensure client setup for {id}: {error}', { id, error });
@@ -475,11 +478,7 @@ const createClientFromIntake = async (
       .select()
       .from(clients)
       .where(
-        and(
-          eq(clients.organization_id, ctx.organizationId),
-          eq(clients.user_id, user.id),
-          isNull(clients.deleted_at)
-        )
+        and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
       )
       .limit(1);
     if (existingDetail) {
@@ -500,8 +499,6 @@ const createClientFromIntake = async (
       }
       return ok(existingDetail);
     }
-
-
 
     // Transaction only for database operations
     const txResult = await db.transaction(async (tx) => {

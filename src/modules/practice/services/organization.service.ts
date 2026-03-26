@@ -57,12 +57,19 @@ export const organizationService = {
       try {
         const user = await usersRepository.findById(ctx.userId);
         if (user && !user.primaryWorkspace) {
-          await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
+          try {
+            await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
+          } catch (updateError) {
+            logger.warn('Failed to set primaryWorkspace to "practice" for user {userId} after org creation', {
+              userId: ctx.userId,
+              error: updateError,
+            });
+          }
         }
-      } catch (err) {
-        logger.warn('Failed to set primaryWorkspace after org creation for user {userId}: {error}', {
+      } catch (fetchError) {
+        logger.warn('Failed to fetch user to set primaryWorkspace to "practice" after org creation', {
           userId: ctx.userId,
-          error: err,
+          error: fetchError,
         });
       }
 
