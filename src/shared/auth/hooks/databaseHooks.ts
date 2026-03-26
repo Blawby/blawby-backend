@@ -160,8 +160,7 @@ export const createDatabaseHooks = (
       after: (session: SessionData) => Promise<void>;
     };
   };
-} => {
-  return {
+} => ({
     user: {
       create: {
         after: async (userData: UserData): Promise<void> => {
@@ -234,5 +233,4 @@ export const createDatabaseHooks = (
         },
       },
     },
-  };
-};
+  });

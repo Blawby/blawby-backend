@@ -14,7 +14,7 @@ const logger = getLogger(['app', 'error-handler']);
  */
 export const errorHandler: ErrorHandler = (error, c) => {
   const requestId = c.get('requestId') || crypto.randomUUID();
-  const startTime = c.get('startTime') || Date.now();
+  const startTime = c.get('startTime') ?? Date.now();
   const responseTime = Date.now() - startTime;
 
   if (error instanceof ForbiddenError) {
@@ -35,9 +35,9 @@ export const errorHandler: ErrorHandler = (error, c) => {
   }
 
   const appError = error as Partial<AppError>;
-  const status = appError.status || 500;
+  const status = appError.status ?? 500;
   const message = error instanceof Error ? error.message : 'Internal Server Error';
-  const code = appError.code || 'INTERNAL_SERVER_ERROR';
+  const code = appError.code ?? 'INTERNAL_SERVER_ERROR';
 
   logger.error('Unexpected error occurred: {message} [{code}] ({status}) {method} {url}', {
     message,

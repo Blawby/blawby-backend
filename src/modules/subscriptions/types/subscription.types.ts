@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { subscriptionValidations } from '@/modules/subscriptions/validations/subscription.validation';
+import type { z } from 'zod';
+import type { subscriptionValidations } from '@/modules/subscriptions/validations/subscription.validation';
 
 // Inferred from Zod schemas
 export type CreateSubscriptionRequest = z.infer<typeof subscriptionValidations.createSubscriptionSchema>;
@@ -27,13 +27,13 @@ export type CancelSubscriptionRequest = z.infer<typeof subscriptionValidations.c
  */
 
 // Query parameter types
-export type ListSubscriptionsQuery = {
+export interface ListSubscriptionsQuery {
   referenceId?: string;
   customerType?: 'user' | 'organization';
-};
+}
 
 // Request body types
-export type UpgradeSubscriptionBody = {
+export interface UpgradeSubscriptionBody {
   plan: string;
   annual?: boolean;
   reference_id?: string;
@@ -46,29 +46,29 @@ export type UpgradeSubscriptionBody = {
   cancel_url: string;
   return_url?: string;
   disable_redirect?: boolean;
-};
+}
 
-export type CancelSubscriptionBody = {
+export interface CancelSubscriptionBody {
   subscriptionId?: string;
   referenceId?: string;
   customerType?: 'organization';
   returnUrl?: string; // Better Auth expects camelCase
   immediately?: boolean;
-};
+}
 
-export type RestoreSubscriptionBody = {
+export interface RestoreSubscriptionBody {
   subscription_id: string;
   reference_id?: string;
   customer_type?: 'user' | 'organization';
-};
+}
 
-export type UpgradeSubscriptionResponse = {
+export interface UpgradeSubscriptionResponse {
   subscriptionId?: string;
   url?: string;
-};
+}
 
 // Better Auth internal subscription object (camelCase)
-export type BetterAuthSubscription = {
+export interface BetterAuthSubscription {
   id: string;
   plan: string;
   referenceId: string | null;
@@ -83,7 +83,7 @@ export type BetterAuthSubscription = {
   trialEnd: Date | null;
   createdAt: Date;
   updatedAt: Date;
-};
+}
 
 // ============================================================================
 // API METHOD TYPES
@@ -92,7 +92,7 @@ export type BetterAuthSubscription = {
 /**
  * Subscription API method signatures for Better Auth Stripe plugin
  */
-export type SubscriptionAPI = {
+export interface SubscriptionAPI {
   listActiveSubscriptions: (args: {
     query: ListSubscriptionsQuery;
     headers: Record<string, string>;
@@ -109,10 +109,10 @@ export type SubscriptionAPI = {
     body: RestoreSubscriptionBody;
     headers: Record<string, string>;
   }) => Promise<BetterAuthSubscription>;
-};
+}
 
 // Response types manually defined to match snake_case DB columns
-export type SubscriptionPlanResponse = {
+export interface SubscriptionPlanResponse {
   id: string;
   name: string;
   display_name: string;
@@ -129,20 +129,20 @@ export type SubscriptionPlanResponse = {
     invoices_per_month: number;
     storage_gb: number;
   };
-  metered_items?: Array<{
+  metered_items?: {
     price_id: string;
     meter_name: string;
     type: string;
-  }> | null;
+  }[] | null;
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
   metadata?: Record<string, string> | null;
   created_at: Date;
   updated_at: Date;
-};
+}
 
-export type SubscriptionResponse = {
+export interface SubscriptionResponse {
   id: string;
   plan: string;
   reference_id: string | null;
@@ -157,9 +157,9 @@ export type SubscriptionResponse = {
   trial_end: Date | null;
   created_at: Date;
   updated_at: Date;
-};
+}
 
-export type LineItemResponse = {
+export interface LineItemResponse {
   id: string;
   subscription_id: string;
   stripe_subscription_item_id: string;
@@ -171,9 +171,9 @@ export type LineItemResponse = {
   metadata?: Record<string, string> | null;
   created_at: Date;
   updated_at: Date;
-};
+}
 
-export type EventResponse = {
+export interface EventResponse {
   id: string;
   subscription_id: string;
   plan_id: string | null;
@@ -187,7 +187,7 @@ export type EventResponse = {
   metadata?: Record<string, unknown> | null;
   error_message: string | null;
   created_at: Date;
-};
+}
 
 export type SubscriptionWithDetailsResponse = Omit<SubscriptionResponse, 'plan'> & {
   plan: SubscriptionPlanResponse | null;
@@ -195,21 +195,21 @@ export type SubscriptionWithDetailsResponse = Omit<SubscriptionResponse, 'plan'>
   events: EventResponse[];
 };
 
-export type ListPlansResponse = {
+export interface ListPlansResponse {
   plans: SubscriptionPlanResponse[];
-};
+}
 
-export type GetCurrentSubscriptionResponse = {
+export interface GetCurrentSubscriptionResponse {
   subscription: SubscriptionWithDetailsResponse | null;
-};
+}
 
-export type CreateSubscriptionResponse = {
+export interface CreateSubscriptionResponse {
   subscription_id?: string;
   checkout_url?: string;
   message: string;
-};
+}
 
-export type CancelSubscriptionResponse = {
+export interface CancelSubscriptionResponse {
   url: string;
   redirect: boolean;
-};
+}

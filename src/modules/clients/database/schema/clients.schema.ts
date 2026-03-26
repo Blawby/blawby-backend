@@ -3,16 +3,18 @@ import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
-export const userDetails = pgTable(
-  'user_details',
+export const clients = pgTable(
+  'clients',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organization_id: uuid('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    user_id: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    user_id: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+
+    // Direct identity fields - client record is self-contained
+    name: varchar('name', { length: 255 }),
+    email: varchar('email', { length: 255 }),
 
     address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
 
@@ -30,20 +32,20 @@ export const userDetails = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
-    index('user_details_org_idx').on(table.organization_id),
-    index('user_details_user_idx').on(table.user_id),
-    index('user_details_status_idx').on(table.status),
-    index('user_details_stripe_id_idx').on(table.stripe_customer_id),
-    index('user_details_address_idx').on(table.address_id),
-    index('user_details_deleted_at_idx').on(table.deleted_at),
-    index('user_details_created_at_idx').on(table.created_at),
-    unique('user_details_org_user_unique').on(table.organization_id, table.user_id),
+    index('clients_org_idx').on(table.organization_id),
+    index('clients_user_idx').on(table.user_id),
+    index('clients_status_idx').on(table.status),
+    index('clients_stripe_id_idx').on(table.stripe_customer_id),
+    index('clients_address_idx').on(table.address_id),
+    index('clients_deleted_at_idx').on(table.deleted_at),
+    index('clients_created_at_idx').on(table.created_at),
+    unique('clients_org_user_unique').on(table.organization_id, table.user_id),
   ]
 );
 
-export const userDetailsSchema = {
-  userDetails,
+export const clientsSchema = {
+  clients,
 };
 
-export type InsertUserDetail = typeof userDetails.$inferInsert;
-export type SelectUserDetail = typeof userDetails.$inferSelect;
+export type InsertClient = typeof clients.$inferInsert;
+export type SelectClient = typeof clients.$inferSelect;

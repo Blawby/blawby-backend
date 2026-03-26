@@ -15,7 +15,7 @@ const logger = getLogger(['subscriptions', 'services', 'sync-plans']);
 
 export interface SyncResult {
   synced: number;
-  errors: Array<{ product_id: string; error: string }>;
+  errors: { product_id: string; error: string }[];
 }
 
 /**

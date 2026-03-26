@@ -1,9 +1,7 @@
 /**
  * Type guard to check if a value is a record (object with string keys)
  */
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-};
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * Helper to extract a user-friendly error message from Better Auth API errors.
@@ -43,7 +41,7 @@ const isBetterAuthForbidden = (error: unknown): boolean => {
  * Safely parses Better Auth metadata, which is often stringified JSON.
  */
 const parseBetterAuthMetadata = <T = unknown>(metadata: unknown): T | null => {
-  if (!metadata) return null;
+  if (!metadata) {return null;}
 
   if (typeof metadata === 'string') {
     try {

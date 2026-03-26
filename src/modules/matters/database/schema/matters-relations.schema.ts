@@ -5,7 +5,7 @@ import { matterAssignees } from '@/modules/matters/database/schema/matter-assign
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 export const mattersRelations = relations(matters, ({ one, many }) => ({
@@ -13,9 +13,9 @@ export const mattersRelations = relations(matters, ({ one, many }) => ({
     fields: [matters.organization_id],
     references: [organizations.id],
   }),
-  client: one(userDetails, {
+  client: one(clients, {
     fields: [matters.client_id],
-    references: [userDetails.id],
+    references: [clients.id],
   }),
   practiceService: one(practiceServices, {
     fields: [matters.practice_service_id],

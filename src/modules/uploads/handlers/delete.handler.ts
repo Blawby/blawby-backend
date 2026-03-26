@@ -1,6 +1,6 @@
-import { deleteUploadRoute } from '@/modules/uploads/routes';
+import type { deleteUploadRoute } from '@/modules/uploads/routes';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { AppRouteHandler } from '@/shared/types/hono';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 
 export const deleteHandler: AppRouteHandler<typeof deleteUploadRoute> = async (c) => {

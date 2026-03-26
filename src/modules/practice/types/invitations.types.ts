@@ -6,7 +6,7 @@ export type InvitationRole = BetterAuthInvitation['role'];
 // Use Better Auth's status type (includes 'pending', 'accepted', 'declined', 'rejected')
 export type InvitationStatus = BetterAuthInvitation['status'];
 
-export type InvitationListItem = {
+export interface InvitationListItem {
   id: string;
   organization_id: string;
   organization_name: string;
@@ -15,4 +15,4 @@ export type InvitationListItem = {
   status: InvitationStatus;
   expires_at: number;
   created_at: number;
-};
+}

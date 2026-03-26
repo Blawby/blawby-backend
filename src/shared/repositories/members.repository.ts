@@ -2,12 +2,10 @@ import { eq, and } from 'drizzle-orm';
 import { members } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import usersRepository from '@/shared/repositories/users.repository';
 
 // Better Auth instance created with the global DB connection
 const auth = createBetterAuthInstance(db);
-
-export type InsertMember = typeof members.$inferInsert;
-export type SelectMember = typeof members.$inferSelect;
 
 const findByOrgAndUser = async (params: {
   organizationId: string;
@@ -54,6 +52,12 @@ const create = async (data: {
     throw new Error('Unexpected addMember response shape');
   }
 
+  // Enforce primaryWorkspace if the user doesn't have one yet
+  const user = await usersRepository.findById(data.userId);
+  if (user && !user.primaryWorkspace) {
+    await usersRepository.update(user.id, { primaryWorkspace: 'practice' });
+  }
+
   return result;
 };
 
@@ -61,3 +65,6 @@ export const membersRepository = {
   findByOrgAndUser,
   create,
 };
+
+export type InsertMember = typeof members.$inferInsert;
+export type SelectMember = typeof members.$inferSelect;

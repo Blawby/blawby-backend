@@ -7,7 +7,7 @@ import { response } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['app', 'public', 'health']);
 
-type HealthStatus = {
+interface HealthStatus {
   status: 'ok' | 'degraded';
   timestamp: string;
   uptime: number;
@@ -15,18 +15,16 @@ type HealthStatus = {
     status: 'connected' | 'disconnected' | 'unknown';
     latency: number | null;
   };
-};
+}
 
 const publicApp = createHonoApp();
 
 // Root route
-publicApp.openapi(routes.rootRoute, async (c) => {
-  return response.ok(c, {
+publicApp.openapi(routes.rootRoute, async (c) => response.ok(c, {
     message: 'Hono server is running!',
     timestamp: new Date().toISOString(),
     routes: ['/api/health', '/api/session', '/docs'],
-  });
-});
+  }));
 
 // Health check
 publicApp.openapi(routes.healthRoute, async (c) => {
@@ -64,13 +62,11 @@ publicApp.openapi(routes.healthRoute, async (c) => {
 // All paths are relative to root.
 
 // API Info
-publicApp.openapi(routes.infoRoute, async (c) => {
-  return response.ok(c, {
+publicApp.openapi(routes.infoRoute, async (c) => response.ok(c, {
     name: 'Blawby API',
     version: '1.0.0',
     description: 'Legal practice management API',
-  });
-});
+  }));
 
 // Contact Form
 publicApp.openapi(routes.contactRoute, async (c) => {

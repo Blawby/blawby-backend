@@ -35,20 +35,18 @@ export const practiceDetailsManagementService = {
     const { user } = ctx;
     try {
       const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-      if (!orgResult.success) return orgResult;
+      if (!orgResult.success) {return orgResult;}
 
       const organization = await organizationRepository.findById(organizationId);
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
-      const result = await db.transaction(async (tx) => {
-        return upsertDetailsTransaction(tx, ctx, {
+      const result = await db.transaction(async (tx) => upsertDetailsTransaction(tx, ctx, {
           organizationId,
           userId: user.id,
           data,
           existingAddressId: existing?.address_id,
           isCreate: !existing,
-        });
-      });
+        }));
 
       const responseData: PracticeDetailsResponse = {
         ...result.details,
@@ -86,7 +84,7 @@ export const practiceDetailsManagementService = {
   ): Promise<Result<{ success: boolean }>> {
     try {
       const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-      if (!orgResult.success) return orgResult;
+      if (!orgResult.success) {return orgResult;}
 
       await findAndDeletePracticeDetails(ctx, organizationId);
 
@@ -107,12 +105,12 @@ export const practiceDetailsManagementService = {
     const { user } = ctx;
     try {
       const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-      if (!orgResult.success) return orgResult;
+      if (!orgResult.success) {return orgResult;}
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
       const deleteResult = await organizationService.deleteOrganization({ organizationId }, ctx);
-      if (!deleteResult.success) return deleteResult;
+      if (!deleteResult.success) {return deleteResult;}
 
       if (existing) {
         await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(existing));
@@ -120,7 +118,7 @@ export const practiceDetailsManagementService = {
 
       await ctx.emit(PracticeDeleted, {
         organization_id: organizationId,
-        had_practice_details: !!existing,
+        had_practice_details: Boolean(existing),
         practice_details_id: existing?.id,
         user_email: user.email,
       });
@@ -142,7 +140,7 @@ export const practiceDetailsManagementService = {
     const { user } = ctx;
     try {
       const activeResult = await organizationService.setActiveOrganization({ organizationId }, ctx);
-      if (!activeResult.success) return activeResult;
+      if (!activeResult.success) {return activeResult;}
 
       await ctx.emit(PracticeSwitched, {
         user_id: user.id,

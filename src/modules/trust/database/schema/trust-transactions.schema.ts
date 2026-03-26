@@ -2,7 +2,7 @@ import { relations, sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, text, timestamp, jsonb, index, check } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 export const trustTransactions = pgTable(
@@ -14,7 +14,7 @@ export const trustTransactions = pgTable(
       .references(() => organizations.id),
     client_id: uuid('client_id')
       .notNull()
-      .references(() => userDetails.id),
+      .references(() => clients.id),
     matter_id: uuid('matter_id').references(() => matters.id),
     transaction_type: varchar('transaction_type', { length: 50 }).notNull(),
     amount: integer('amount').notNull(), // Cents
@@ -45,9 +45,9 @@ export const trustTransactionsRelations = relations(trustTransactions, ({ one })
     fields: [trustTransactions.organization_id],
     references: [organizations.id],
   }),
-  client: one(userDetails, {
+  client: one(clients, {
     fields: [trustTransactions.client_id],
-    references: [userDetails.id],
+    references: [clients.id],
   }),
   matter: one(matters, {
     fields: [trustTransactions.matter_id],

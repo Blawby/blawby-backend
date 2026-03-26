@@ -4,7 +4,7 @@ import { BaseEvent } from '../event';
 // PRACTICE EVENTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type PracticeCreatedPayload = {
+export interface PracticeCreatedPayload {
   organization_id: string;
   name: string;
   organization_name: string;
@@ -12,13 +12,14 @@ export type PracticeCreatedPayload = {
   has_practice_details: boolean;
   practice_details_id?: string;
   user_email?: string;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeCreated extends BaseEvent<PracticeCreatedPayload> {
   static type = 'practice.created' as const;
 }
 
-export type PracticeUpdatedPayload = {
+export interface PracticeUpdatedPayload {
   organization_id: string;
   name?: string;
   organization_name?: string;
@@ -28,24 +29,26 @@ export type PracticeUpdatedPayload = {
   user_email?: string;
   update_type?: string;
   updated_at?: string;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeUpdated extends BaseEvent<PracticeUpdatedPayload> {
   static type = 'practice.updated' as const;
 }
 
-export type PracticeDeletedPayload = {
+export interface PracticeDeletedPayload {
   organization_id: string;
   had_practice_details: boolean;
   practice_details_id?: string;
   user_email?: string;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeDeleted extends BaseEvent<PracticeDeletedPayload> {
   static type = 'practice.deleted' as const;
 }
 
-export type PracticeDetailsUpsertedPayload = {
+export interface PracticeDetailsUpsertedPayload {
   practice_details_id: string;
   business_phone?: string | null;
   business_email?: string | null;
@@ -58,8 +61,8 @@ export type PracticeDetailsUpsertedPayload = {
   accent_color?: string | null;
   is_public?: boolean;
   billing_increment_minutes?: number;
-  services?: Array<{ id?: string; name: string; key: string }>;
-  supported_states?: Array<{ country: string; states?: string[] }>;
+  services?: { id?: string; name: string; key: string }[];
+  supported_states?: { country: string; states?: string[] }[];
   address?: {
     line1?: string | null;
     line2?: string | null;
@@ -68,7 +71,8 @@ export type PracticeDetailsUpsertedPayload = {
     postal_code?: string | null;
     country?: string | null;
   };
-};
+  [key: string]: unknown;
+}
 
 export class PracticeDetailsCreated extends BaseEvent<PracticeDetailsUpsertedPayload> {
   static type = 'practice.details_created' as const;
@@ -78,14 +82,15 @@ export class PracticeDetailsUpdated extends BaseEvent<PracticeDetailsUpsertedPay
   static type = 'practice.details_updated' as const;
 }
 
-export type PracticeDetailsDeletedPayload = {
+export interface PracticeDetailsDeletedPayload {
   practice_details_id: string;
   business_phone: string | null;
   business_email: string | null;
   consultation_fee: number | null;
   payment_url: string | null;
   calendly_url: string | null;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeDetailsDeleted extends BaseEvent<PracticeDetailsDeletedPayload> {
   static type = 'practice.details_deleted' as const;
@@ -99,22 +104,24 @@ export class PracticeContactInfoUpdated extends BaseEvent<Record<string, unknown
   static type = 'practice.contact_info_updated' as const;
 }
 
-export type PracticeMemberInvitedPayload = {
+export interface PracticeMemberInvitedPayload {
   invitation_id: string;
   invited_email: string;
   role: string;
   organization_id: string;
   inviter_id: string;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeMemberInvited extends BaseEvent<PracticeMemberInvitedPayload> {
   static type = 'practice.member_invited' as const;
 }
 
-export type PracticeMemberJoinedPayload = {
+export interface PracticeMemberJoinedPayload {
   member_id: string;
   intake_id: string;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeMemberJoined extends BaseEvent<PracticeMemberJoinedPayload> {
   static type = 'practice.member_joined' as const;
@@ -132,12 +139,13 @@ export class PracticeMemberLeft extends BaseEvent<Record<string, unknown>> {
   static type = 'practice.member_left' as const;
 }
 
-export type PracticeSwitchedPayload = {
+export interface PracticeSwitchedPayload {
   user_id: string;
   to_organization_id: string;
   user_email?: string;
   switched_to_organization?: string;
-};
+  [key: string]: unknown;
+}
 
 export class PracticeSwitched extends BaseEvent<PracticeSwitchedPayload> {
   static type = 'practice.switched' as const;

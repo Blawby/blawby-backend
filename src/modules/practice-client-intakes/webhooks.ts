@@ -112,9 +112,9 @@ export const handlePracticeClientIntakeSucceeded = async ({
             uuid: practiceClientIntake.id,
             amount: practiceClientIntake.amount,
             currency: practiceClientIntake.currency,
-            client_email: practiceClientIntake.metadata?.email as string | undefined,
-            client_name: practiceClientIntake.metadata?.name as string | undefined,
-            user_id: practiceClientIntake.metadata?.user_id as string | undefined,
+            client_email: practiceClientIntake.metadata?.email,
+            client_name: practiceClientIntake.metadata?.name,
+            user_id: practiceClientIntake.metadata?.user_id,
             stripe_charge_id: stripeChargeId,
             succeeded_at: new Date().toISOString(),
           },
@@ -176,7 +176,7 @@ export const handlePracticeClientIntakeFailed = async ({
 }): Promise<void> => {
   try {
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (!practiceClientIntake) return;
+    if (!practiceClientIntake) {return;}
 
     await db.transaction(async (tx) => {
       const updateResult = await tx
@@ -224,7 +224,7 @@ export const handlePracticeClientIntakeCanceled = async ({
 }): Promise<void> => {
   try {
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (!practiceClientIntake) return;
+    if (!practiceClientIntake) {return;}
 
     await db.transaction(async (tx) => {
       const updateResult = await tx

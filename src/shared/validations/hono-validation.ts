@@ -15,9 +15,9 @@ const validateParams = <T extends z.ZodSchema>(context: Context, schema: T): z.i
     return validatedParams;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new Error('Invalid parameters');
+      throw new Error('Invalid parameters', { cause: error });
     }
-    throw new Error('Invalid parameters');
+    throw new Error('Invalid parameters', { cause: error });
   }
 };
 
@@ -35,9 +35,9 @@ const validateQuery = <T extends z.ZodSchema>(context: Context, schema: T): z.in
     return validatedQuery;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new Error('Invalid query parameters');
+      throw new Error('Invalid query parameters', { cause: error });
     }
-    throw new Error('Invalid query parameters');
+    throw new Error('Invalid query parameters', { cause: error });
   }
 };
 
@@ -55,9 +55,9 @@ const validateBody = async <T extends z.ZodSchema>(context: Context, schema: T):
     return validatedBody;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new Error('Invalid request body');
+      throw new Error('Invalid request body', { cause: error });
     }
-    throw new Error('Invalid request body');
+    throw new Error('Invalid request body', { cause: error });
   }
 };
 
@@ -75,9 +75,9 @@ const validateHeaders = <T extends z.ZodSchema>(context: Context, schema: T): z.
     return validatedHeaders;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new Error('Invalid headers');
+      throw new Error('Invalid headers', { cause: error });
     }
-    throw new Error('Invalid headers');
+    throw new Error('Invalid headers', { cause: error });
   }
 };
 

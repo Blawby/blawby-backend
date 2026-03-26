@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { uploadValidations } from '@/modules/uploads/validations/uploads.validation';
+import type { z } from 'zod';
+import type { uploadValidations } from '@/modules/uploads/validations/uploads.validation';
 
 export type UploadContext = z.infer<typeof uploadValidations.uploadContextSchema>;
 export type UploadStatus = 'pending' | 'verified' | 'rejected'; // Keep manual as it's used in and out of zod

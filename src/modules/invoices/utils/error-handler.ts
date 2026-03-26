@@ -16,7 +16,7 @@ export const handleServiceError = (
   let detail = '';
 
   if (error && typeof error === 'object' && 'detail' in error && typeof error.detail === 'string') {
-    detail = error.detail;
+    ({ detail } = error);
   }
 
   logger.error(`${userMessage}: {error} {detail}`, {

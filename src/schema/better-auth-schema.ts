@@ -24,7 +24,6 @@ export const users = pgTable('users', {
   phone: text('phone'),
   phoneCountryCode: text('phone_country_code'), // E.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
-  stripeCustomerId: text('stripe_customer_id'), // Platform customer ID for user billing/preferences (Platform account)
   role: text('role'), // Admin plugin: user role
   banned: boolean('banned'), // Admin plugin: banned status
   banReason: text('ban_reason'), // Admin plugin: reason for ban

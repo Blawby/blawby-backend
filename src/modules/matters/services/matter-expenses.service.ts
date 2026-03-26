@@ -18,7 +18,7 @@ const createMatterExpense = async (
   params: { data: CreateMatterExpenseRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterExpense>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -81,7 +81,7 @@ const listMatterExpenses = async (
   params: { filters?: MatterExpenseListFilters },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterExpense[]>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -100,10 +100,10 @@ const listMatterExpenses = async (
   try {
     // Short-circuit: direct lookup when a specific expense ID is provided.
     // When expenseId is set, other filters (billable, startDate, endDate) are
-    // intentionally ignored — this path is for single-resource retrieval.
+    // Intentionally ignored — this path is for single-resource retrieval.
     if (params.filters?.expenseId) {
       const expense = await matterExpensesQueries.findMatterExpenseById(params.filters.expenseId);
-      if (!expense || expense.matter_id !== matterId) return ok([]);
+      if (!expense || expense.matter_id !== matterId) {return ok([]);}
       return ok([expense]);
     }
 
@@ -126,7 +126,7 @@ const updateMatterExpense = async (
   params: { expenseId: string; data: UpdateMatterExpenseRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterExpense>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -189,7 +189,7 @@ const deleteMatterExpense = async (
   params: { expenseId: string },
   ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -252,7 +252,7 @@ const getExpenseStats = async (
     total: number;
   }>
 > => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }

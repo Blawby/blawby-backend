@@ -52,7 +52,7 @@ export const validateInvoiceNumberUnique = async (
 ): Promise<Result<void>> => {
   const normalizedInvoiceNumber = invoiceNumber?.trim();
   // If no invoice number provided, skip uniqueness check (Stripe will assign one)
-  if (!normalizedInvoiceNumber) return result.ok(undefined);
+  if (!normalizedInvoiceNumber) {return result.ok(undefined);}
 
   const existingInvoice = await db.query.invoices.findFirst({
     where: (invoices, { and, eq }) =>

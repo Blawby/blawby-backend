@@ -1,6 +1,7 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -163,7 +164,13 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      return result.badRequest<InvoiceResponse>('Client is missing Stripe customer ID');
+      const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
+      
+      if (!setupResult.success || !setupResult.data.stripe_customer_id) {
+        return result.badRequest<InvoiceResponse>('Failed to setup Stripe customer for client');
+      }
+      
+      invoice.client.stripe_customer_id = setupResult.data.stripe_customer_id;
     }
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');

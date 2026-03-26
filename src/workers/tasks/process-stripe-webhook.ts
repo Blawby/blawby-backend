@@ -27,20 +27,16 @@ interface ProcessStripeWebhookPayload {
 /**
  * Checks if the event belongs to the onboarding flow
  */
-const isOnboardingEvent = (eventType: string): boolean => {
-  return (
+const isOnboardingEvent = (eventType: string): boolean => (
     eventType.startsWith('account.') ||
     eventType.startsWith('capability.') ||
     eventType.startsWith('account.external_account.')
   );
-};
 
 /**
  * Checks if the event belongs to the invoice flow
  */
-const isInvoiceEvent = (eventType: string): boolean => {
-  return eventType.startsWith('invoice.');
-};
+const isInvoiceEvent = (eventType: string): boolean => eventType.startsWith('invoice.');
 
 // --- MAIN TASK ---
 
@@ -116,7 +112,7 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
           eventId,
           processed: updated.processed,
           retryCount: updated.retryCount,
-          error: updated.error || 'None',
+          error: updated.error ?? 'None',
         });
       }
     } catch (dbLogErr) {

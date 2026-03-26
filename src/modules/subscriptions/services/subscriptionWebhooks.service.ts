@@ -22,27 +22,27 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
 
     switch (event.type) {
       case 'product.created':
-        await handleProductCreated(event.data.object as Stripe.Product);
+        await handleProductCreated(event.data.object);
         break;
 
       case 'product.updated':
-        await handleProductUpdated(event.data.object as Stripe.Product);
+        await handleProductUpdated(event.data.object);
         break;
 
       case 'product.deleted':
-        await handleProductDeleted(event.data.object as Stripe.Product);
+        await handleProductDeleted(event.data.object);
         break;
 
       case 'price.created':
-        await handlePriceCreated(event.data.object as Stripe.Price);
+        await handlePriceCreated(event.data.object);
         break;
 
       case 'price.updated':
-        await handlePriceUpdated(event.data.object as Stripe.Price);
+        await handlePriceUpdated(event.data.object);
         break;
 
       case 'price.deleted':
-        await handlePriceDeleted(event.data.object as Stripe.Price);
+        await handlePriceDeleted(event.data.object);
         break;
 
       default:
@@ -64,9 +64,7 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
 /**
  * Check if an event type should be processed by subscription webhooks
  */
-const isSubscriptionWebhookEvent = (eventType: string): boolean => {
-  return eventType.startsWith('product.') || eventType.startsWith('price.');
-};
+const isSubscriptionWebhookEvent = (eventType: string): boolean => eventType.startsWith('product.') || eventType.startsWith('price.');
 
 export const subscriptionWebhooksService = {
   processSubscriptionWebhookEvent,

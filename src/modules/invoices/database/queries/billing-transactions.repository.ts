@@ -9,7 +9,7 @@ const { billingTransactions } = billingTransactionsSchema;
  * Create a new billing transaction
  */
 const createTransaction = async (data: InsertBillingTransaction, tx?: typeof db): Promise<SelectBillingTransaction> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [transaction] = await client.insert(billingTransactions).values(data).returning();
 
   if (!transaction) {
@@ -41,7 +41,7 @@ const updateTransactionStatus = async (
   extras?: Partial<SelectBillingTransaction>,
   tx?: typeof db
 ): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(billingTransactions)
     .set({
@@ -55,7 +55,7 @@ const updateTransactionStatus = async (
  * List transactions for an invoice
  */
 const listByInvoiceId = async (invoiceId: string, tx?: typeof db): Promise<SelectBillingTransaction[]> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.select().from(billingTransactions).where(eq(billingTransactions.invoice_id, invoiceId));
 };
 

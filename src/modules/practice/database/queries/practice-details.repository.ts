@@ -3,7 +3,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import type { InsertPracticeDetails, PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
-import * as schema from '@/schema';
+import type * as schema from '@/schema';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
@@ -41,7 +41,7 @@ export const findPracticeWithOrganization = async (
 
   const row = result[0];
   return {
-    practice: row?.practice || null,
+    practice: row?.practice ?? null,
     organization: row?.organization || null,
   };
 };

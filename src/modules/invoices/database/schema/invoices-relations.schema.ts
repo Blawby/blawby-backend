@@ -5,7 +5,7 @@ import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { paymentLinks } from '@/modules/invoices/database/schema/payment-links.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
@@ -13,9 +13,9 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
     fields: [invoices.organization_id],
     references: [organizations.id],
   }),
-  client: one(userDetails, {
+  client: one(clients, {
     fields: [invoices.client_id],
-    references: [userDetails.id],
+    references: [clients.id],
   }),
   matter: one(matters, {
     fields: [invoices.matter_id],

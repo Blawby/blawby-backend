@@ -1,7 +1,7 @@
-import { AppRouteHandler } from '@/shared/types/hono';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { getAuditLogRoute } from '@/modules/uploads/routes';
+import type { getAuditLogRoute } from '@/modules/uploads/routes';
 
 export const getAuditLogHandler: AppRouteHandler<typeof getAuditLogRoute> = async (c) => {
   const { id } = c.req.valid('param');

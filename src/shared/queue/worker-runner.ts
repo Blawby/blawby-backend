@@ -99,8 +99,8 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  const schema = graphileWorkerConfig.schema;
-  const workerConcurrency = concurrency || graphileWorkerConfig.concurrency;
+  const {schema} = graphileWorkerConfig;
+  const workerConcurrency = concurrency ?? graphileWorkerConfig.concurrency;
 
   logger.info('Starting worker {name}', { name, schema, concurrency: workerConcurrency });
 

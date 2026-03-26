@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
+import type { z } from 'zod';
+import type { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 
 // Product usage options enum
 export const PRODUCT_USAGE_OPTIONS = [

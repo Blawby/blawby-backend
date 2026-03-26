@@ -14,7 +14,7 @@ import type {
   IntakePostPayStatusResponse,
   IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import { createSystemContext, type ServiceContext } from '@/shared/types/service-context';
@@ -24,14 +24,12 @@ const { practiceClientIntakes } = practiceClientIntakesSchema;
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
-type ClaimIntakeAbort = {
+interface ClaimIntakeAbort {
   __claimIntakeResult: true;
   result: Result<ClaimPracticeClientIntakeResponse>;
-};
+}
 
-const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
-  return Boolean(value && typeof value === 'object' && '__claimIntakeResult' in value && 'result' in value);
-};
+const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => Boolean(value && typeof value === 'object' && '__claimIntakeResult' in value && 'result' in value);
 
 const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
   const baseMetadata = intakeSharedHelpers.parseMetadata(practiceClientIntake.metadata);
@@ -97,7 +95,7 @@ const processClaimIntakeTx = async (
   const sysCtx = createSystemContext(lockedIntake.organization_id);
 
   // Note: No longer passes transaction - Stripe call happens outside this transaction
-  const userDetailsResult = await userDetailsService.createUserDetailsFromIntake(
+  const clientResult = await clientsCrudService.createClientFromIntake(
     {
       data: {
         intakeId: lockedIntake.id,
@@ -110,9 +108,9 @@ const processClaimIntakeTx = async (
     sysCtx
   );
 
-  if (!userDetailsResult.success) {
+  if (!clientResult.success) {
     return rollbackWithResult(
-      result.fail(userDetailsResult.error.message, userDetailsResult.error.status, userDetailsResult.error.code)
+      result.fail(clientResult.error.message, clientResult.error.status, clientResult.error.code)
     );
   }
 
@@ -122,8 +120,8 @@ const processClaimIntakeTx = async (
       .set({
         metadata: {
           ...intakeMetadata,
-          email: intakeMetadata.email as string,
-          name: intakeMetadata.name as string,
+          email: intakeMetadata.email,
+          name: intakeMetadata.name,
           user_id: userId,
         },
         updated_at: new Date(),
@@ -179,7 +177,7 @@ const createCheckoutSession = async (
         const existingSession = resolveResult.success ? resolveResult.data.session : undefined;
 
         const isReusable =
-          existingSession && existingSession.status === 'open' && existingSession.payment_status !== 'paid';
+          existingSession?.status === 'open' && existingSession.payment_status !== 'paid';
 
         if (isReusable && existingSession.url) {
           return result.ok({

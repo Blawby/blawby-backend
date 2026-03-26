@@ -37,7 +37,7 @@ const initialize = (): void => {
 
   // Safe numeric parsing for pool options
   const parseEnvInt = (val: string | undefined, defaultVal: number): number => {
-    if (val === undefined) return defaultVal;
+    if (val === undefined) {return defaultVal;}
     const parsed = Number.parseInt(val, 10);
     return Number.isFinite(parsed) ? parsed : defaultVal;
   };

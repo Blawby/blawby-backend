@@ -31,7 +31,7 @@ const getConnectionString = (): string => {
 export const getWorkerUtils = async (): Promise<WorkerUtils> => {
   if (!workerUtils) {
     const connectionString = getConnectionString();
-    const schema = process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker';
+    const schema = process.env.GRAPHILE_WORKER_SCHEMA ?? 'graphile_worker';
 
     // Extract connection info for logging (mask password)
     const connectionInfo = connectionString.replace(/:[^:@]+@/, ':****@');

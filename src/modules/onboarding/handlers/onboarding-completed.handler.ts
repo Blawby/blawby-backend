@@ -15,7 +15,7 @@ import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 
 const logger = getLogger(['onboarding', 'handler', 'onboarding-completed']);
-const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
+const APP_URL = process.env.APP_URL ?? 'https://app.blawby.com';
 
 /**
  * Handle onboarding completion
@@ -72,9 +72,9 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
     );
 
     // Send Stripe Connect welcome email (fire and forget)
-    const payload = event.payload as Record<string, unknown>;
+    const {payload} = event;
     const email =
-      typeof payload['billing_email'] === 'string' ? payload['billing_email'] : org.billingEmail || undefined;
+      typeof payload['billing_email'] === 'string' ? payload['billing_email'] : org.billingEmail ?? undefined;
     const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
 
     if (email) {

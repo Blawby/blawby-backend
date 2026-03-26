@@ -43,17 +43,17 @@ export type DetailsFieldKeys =
   | 'address'
   | 'accent_color';
 
-export type UpsertDetailsTransactionParams = {
+export interface UpsertDetailsTransactionParams {
   organizationId: string;
   userId: string;
   data: DetailsData;
   existingAddressId?: string | null;
   isCreate: boolean;
-};
+}
 
-export type CreatePracticeParams = {
+export interface CreatePracticeParams {
   data: CreatePracticeRequest;
-};
+}
 
 export type UpdatePracticeParams = OrganizationRequestParams & {
   data: UpdatePracticeRequest;

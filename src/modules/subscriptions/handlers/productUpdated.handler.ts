@@ -39,8 +39,8 @@ const extractLimits = (
 
   // Extract from individual metadata fields
   const parseLimit = (value: string | undefined, defaultValue: number): number => {
-    if (!value) return defaultValue;
-    if (value.toLowerCase() === 'unlimited' || value === '-1') return -1;
+    if (!value) {return defaultValue;}
+    if (value.toLowerCase() === 'unlimited' || value === '-1') {return -1;}
     const parsed = parseInt(value, 10);
     return Number.isNaN(parsed) ? defaultValue : parsed;
   };
@@ -121,17 +121,17 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     const planData = {
       name: planName,
       display_name: product.name,
-      description: product.description || null,
+      description: product.description ?? null,
       stripe_product_id: product.id,
-      stripe_monthly_price_id: monthlyPrice?.id || null,
-      stripe_yearly_price_id: yearlyPrice?.id || null,
+      stripe_monthly_price_id: monthlyPrice?.id ?? null,
+      stripe_yearly_price_id: yearlyPrice?.id ?? null,
       monthly_price: monthlyPrice?.unit_amount ? (monthlyPrice.unit_amount / 100).toString() : null,
       yearly_price: yearlyPrice?.unit_amount ? (yearlyPrice.unit_amount / 100).toString() : null,
-      currency: monthlyPrice?.currency || yearlyPrice?.currency || 'usd',
+      currency: (monthlyPrice?.currency ?? yearlyPrice?.currency) ?? 'usd',
       image: product.images?.[0] || null,
       features,
       limits,
-      metered_items: existingPlan?.metered_items || [], // Preserve existing metered items
+      metered_items: existingPlan?.metered_items ?? [], // Preserve existing metered items
       is_active: product.active,
       is_public: metadata.is_public !== 'false',
       sort_order: parseInt(metadata.sort_order || '0', 10),

@@ -10,16 +10,13 @@ import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 
-const generateSlug = (name: string): string => {
-  return name
+const generateSlug = (name: string): string => name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .substring(0, 50);
-};
 
-export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
-  return async (c, next) => {
+export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, next) => {
     // Only handle subscription upgrade requests
     if (c.req.method !== 'POST' || !c.req.path.includes('/api/auth/subscription/upgrade')) {
       return next();
@@ -120,7 +117,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
           .from(schema.organizations)
           .where(inArray(schema.organizations.id, orgIds));
 
-        organizationId = orgsData.find((org) => !org.activeSubscriptionId)?.id || orgsData[0]?.id || null;
+        organizationId = (orgsData.find((org) => !org.activeSubscriptionId)?.id ?? orgsData[0]?.id) || null;
       }
 
       if (!organizationId) {
@@ -218,4 +215,3 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => {
       return next(); // Continue on error - let Better Auth handle it
     }
   };
-};

@@ -14,13 +14,12 @@ const logger = getLogger(['middleware', 'inject-ability']);
  *
  * Must be run AFTER requireAuth middleware.
  */
-export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => {
-  return async (c, next) => {
+export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
     const userId = c.get('userId');
     const orgId = c.get('activeOrganizationId');
 
     if (!userId) {
-      // should not happen if requireAuth is used, but for safety:
+      // Should not happen if requireAuth is used, but for safety:
       c.set('ability', defineAbilityFor(null));
       return next();
     }
@@ -37,7 +36,7 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
           .limit(1);
 
         if (memberResult[0]) {
-          role = memberResult[0].role;
+          ({ role } = memberResult[0]);
         }
       }
 
@@ -45,7 +44,7 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
       c.set('memberRole', role);
 
       // Inject Ability
-      const ability = defineAbilityFor(role, { userId, organizationId: orgId || undefined });
+      const ability = defineAbilityFor(role, { userId, organizationId: orgId ?? undefined });
       c.set('ability', ability);
 
       return next();
@@ -56,4 +55,3 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
       return next();
     }
   };
-};

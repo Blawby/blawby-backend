@@ -5,15 +5,15 @@ import { z } from 'zod';
 import { users, organizations } from '@/schema/better-auth-schema';
 
 // TypeScript types for JSON fields
-export type EventMetadata = {
+export interface EventMetadata {
   ipAddress?: string;
   userAgent?: string;
   requestId?: string;
   source: string;
   environment: string;
-};
+}
 
-export type BaseEvent = {
+export interface BaseEvent {
   eventId: string; // UUID primary key
   type: string; // Event type (renamed from eventType)
   eventVersion: string;
@@ -26,7 +26,7 @@ export type BaseEvent = {
   processed?: boolean; // Has default(false).notNull() in DB
   retryCount?: number; // Has default(0).notNull() in DB
   lastError?: string | null; // Error message from last failed processing attempt
-};
+}
 
 // Events table
 export const events = pgTable('events', {

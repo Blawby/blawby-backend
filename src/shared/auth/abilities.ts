@@ -17,7 +17,7 @@ export type SubjectName =
   | 'Organization'
   | 'Matter'
   | 'Invoice'
-  | 'UserDetails'
+  | 'Client'
   | 'ClientMemo';
 
 /**
@@ -56,7 +56,7 @@ export const defineAbilityFor = (
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');
-    can('manage', 'UserDetails');
+    can('manage', 'Client');
     can('manage', 'ClientMemo');
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
@@ -65,8 +65,8 @@ export const defineAbilityFor = (
     if (metadata.userId) {
       const canWithConditions = can as unknown as (action: Action, subject: SubjectName, conditions: unknown) => void;
       canWithConditions('manage', 'PracticeClientIntake', { userId: metadata.userId });
-      canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
-      canWithConditions('update', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('read', 'Client', { user_id: metadata.userId });
+      canWithConditions('update', 'Client', { user_id: metadata.userId });
       canWithConditions('read', 'ClientMemo', { client_user_id: metadata.userId });
     }
   }

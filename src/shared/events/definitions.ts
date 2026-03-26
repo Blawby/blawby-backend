@@ -18,7 +18,7 @@ import * as settings from './definitions/settings';
 import * as stripe from './definitions/stripe';
 import * as subscriptions from './definitions/subscriptions';
 import * as system from './definitions/system';
-import * as userDetails from './definitions/user-details';
+import * as client from './definitions/client';
 import * as users from './definitions/users';
 
 // Re-export everything for backward compatibility
@@ -32,7 +32,7 @@ export * from './definitions/settings';
 export * from './definitions/stripe';
 export * from './definitions/subscriptions';
 export * from './definitions/system';
-export * from './definitions/user-details';
+export * from './definitions/client';
 export * from './definitions/users';
 
 /**
@@ -130,11 +130,11 @@ export const EventClasses = {
   'subscription.renewed': subscriptions.SubscriptionRenewed,
   'subscription.payment_failed': subscriptions.SubscriptionPaymentFailed,
 
-  // User Details
-  'user_details.created': userDetails.UserDetailsCreated,
-  'user_details.updated': userDetails.UserDetailsUpdated,
-  'user_details.deleted': userDetails.UserDetailsDeleted,
-  'user_details.status_changed': userDetails.UserDetailsStatusChanged,
+  // Client
+  'client.created': client.ClientCreated,
+  'client.updated': client.ClientUpdated,
+  'client.deleted': client.ClientDeleted,
+  'client.status_changed': client.ClientStatusChanged,
 
   // System
   'system.health_check_performed': system.SystemHealthCheckPerformed,

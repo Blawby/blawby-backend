@@ -1,7 +1,7 @@
-import { AppRouteHandler } from '@/shared/types/hono';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { response } from '@/shared/utils/responseUtils';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { listUploadsRoute } from '@/modules/uploads/routes';
+import type { listUploadsRoute } from '@/modules/uploads/routes';
 
 export const listHandler: AppRouteHandler<typeof listUploadsRoute> = async (c) => {
   const organizationId = c.get('activeOrganizationId');

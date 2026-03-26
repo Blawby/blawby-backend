@@ -22,7 +22,7 @@ const createMatterMilestone = async (
   params: { data: CreateMatterMilestoneRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterMilestone>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -85,7 +85,7 @@ const listMatterMilestones = async (
   params: { filters?: MatterMilestoneListFilters },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterMilestone[]>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -105,7 +105,7 @@ const listMatterMilestones = async (
     // Short-circuit: direct lookup when a specific milestone ID is provided
     if (params.filters?.milestoneId) {
       const milestone = await matterMilestonesQueries.findMatterMilestoneById(params.filters.milestoneId);
-      if (!milestone || milestone.matter_id !== matterId) return ok([]);
+      if (!milestone || milestone.matter_id !== matterId) {return ok([]);}
       return ok([milestone]);
     }
 
@@ -128,7 +128,7 @@ const updateMatterMilestone = async (
   params: { milestoneId: string; data: UpdateMatterMilestoneRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterMilestone>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -237,7 +237,7 @@ const deleteMatterMilestone = async (
   params: { milestoneId: string },
   ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -297,7 +297,7 @@ const reorderMilestones = async (
   params: { data: ReorderMilestonesRequest },
   ctx: ServiceContext
 ): Promise<Result<{ success: true }>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }
@@ -369,7 +369,7 @@ const getMilestoneStats = async (
     completionPercentage: number;
   }>
 > => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }

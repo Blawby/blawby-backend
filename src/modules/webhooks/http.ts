@@ -33,7 +33,7 @@ const handleWebhook = async (
 ): Promise<Response> => {
   const signature = c.req.header('stripe-signature');
   const body = Buffer.from(await c.req.arrayBuffer());
-  const url = c.req.url;
+  const {url} = c.req;
 
   if (!signature) {
     logger.warn('Missing stripe-signature header in webhook request');
@@ -63,7 +63,7 @@ const handleWebhook = async (
     }
 
     // 2. Process asynchronously via Graphile Worker
-    // process-stripe-webhook handles both onboarding events and account events
+    // Process-stripe-webhook handles both onboarding events and account events
     await addWebhookJob(webhookId, event.id, event.type);
 
     logger.info('Webhook received and queued: {eventId} ({eventType})', {
@@ -85,21 +85,17 @@ const handleWebhook = async (
  * POST /api/webhooks/stripe/connected-accounts
  * Dedicated endpoint for Stripe Connect webhooks (using different signing secret)
  */
-webhooksApp.post('/stripe/connected-accounts', async (c) => {
-  return handleWebhook(c, (body, sig, headers, url) =>
+webhooksApp.post('/stripe/connected-accounts', async (c) => handleWebhook(c, (body, sig, headers, url) =>
     onboardingWebhooksService.verifyAndStore(body, sig, headers, url)
-  );
-});
+  ));
 
 /**
  * POST /api/webhooks/stripe/account
  * Dedicated endpoint for main Stripe webhooks (payments, invoices, etc.)
  * Uses STRIPE_WEBHOOK_SECRET for signature verification
  */
-webhooksApp.post('/stripe/account', async (c) => {
-  return handleWebhook(c, (body, sig, headers, url) =>
+webhooksApp.post('/stripe/account', async (c) => handleWebhook(c, (body, sig, headers, url) =>
     onboardingWebhooksService.verifyAndStoreAccount(body, sig, headers, url)
-  );
-});
+  ));
 
 export default webhooksApp;

@@ -6,6 +6,7 @@ import type {
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
+import usersRepository from '@/shared/repositories/users.repository';
 import type { ActiveOrganization, Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -47,6 +48,12 @@ export const organizationService = {
 
       if (!result) {
         return internalError<Organization>('Failed to create organization');
+      }
+
+      // Enforce primaryWorkspace for the creator if they don't have one
+      const user = await usersRepository.findById(ctx.userId);
+      if (user && !user.primaryWorkspace) {
+        await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
       }
 
       return ok<Organization>(result);
@@ -181,7 +188,7 @@ export const organizationService = {
       const result = await betterAuth.api.checkOrganizationSlug({
         body: { slug },
       });
-      return ok<boolean>(!!result.status);
+      return ok<boolean>(Boolean(result.status));
     } catch {
       return ok<boolean>(false);
     }

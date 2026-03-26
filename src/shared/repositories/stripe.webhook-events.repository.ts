@@ -90,12 +90,12 @@ export const stripeWebhookEventsRepository = {
    */
   async markFailed(id: string, error: string, errorStack?: string): Promise<void> {
     const event = await stripeWebhookEventsRepository.findById(id);
-    if (!event) return;
+    if (!event) {return;}
 
     const retryCount = event.retryCount + 1;
     const hasMoreRetries = retryCount < event.maxRetries;
     const nextRetryAt = hasMoreRetries
-      ? new Date(Date.now() + Math.pow(2, retryCount) * 60 * 1000) // Exponential backoff
+      ? new Date(Date.now() + 2 ** retryCount * 60 * 1000) // Exponential backoff
       : null;
 
     await db
@@ -129,7 +129,7 @@ export const stripeWebhookEventsRepository = {
 };
 
 // Legacy exports for partial migration support if needed
-export const existsByStripeEventId = stripeWebhookEventsRepository.existsByStripeEventId;
+export const {existsByStripeEventId} = stripeWebhookEventsRepository;
 export const createWebhookEvent = stripeWebhookEventsRepository.create;
 export const createWebhookEventIfNotExists = stripeWebhookEventsRepository.createIfNotExists;
 export const findWebhookById = stripeWebhookEventsRepository.findById;

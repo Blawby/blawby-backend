@@ -50,7 +50,7 @@ export function registerInvoicesListeners(): void {
       organization_id,
       METERED_TYPES.INVOICE_FEE,
       1,
-      invoice_id // idempotency key — invoice_id is stable and unique per payment
+      invoice_id // Idempotency key — invoice_id is stable and unique per payment
     );
 
     if (!invoiceFeeResult.success) {
@@ -59,13 +59,13 @@ export function registerInvoicesListeners(): void {
         error: invoiceFeeResult.error.message,
       });
       // Throwing here causes the outbox worker to retry the event (up to 5 times)
-      // and move it to events_dead_letter on final failure — no data is dropped.
+      // And move it to events_dead_letter on final failure — no data is dropped.
       throw new Error(`Invoice fee metered usage failed: ${invoiceFeeResult.error.message}`);
     }
 
     // 2. Payout fee — amount_paid carries the gross payout cents; the
-    //    per-event metered fee (Stripe fee + platform variable fee) is
-    //    stored in context.metadata.metered_fee_cents if available.
+    //    Per-event metered fee (Stripe fee + platform variable fee) is
+    //    Stored in context.metadata.metered_fee_cents if available.
     //    Fall back to the variable-only estimate when metadata is absent.
     const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
     const meteredFeeCents: number =
@@ -79,7 +79,7 @@ export function registerInvoicesListeners(): void {
         organization_id,
         METERED_TYPES.PAYOUT_FEE,
         meteredFeeCents,
-        `payout:${invoice_id}` // distinct dedupe key from the invoice-fee key above
+        `payout:${invoice_id}` // Distinct dedupe key from the invoice-fee key above
       );
 
       if (!payoutFeeResult.success) {

@@ -35,6 +35,12 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceRespons
 
   return {
     ...rest,
+    client: rest.client ? {
+      id: rest.client.id,
+      name: rest.client.name ?? '',
+      email: rest.client.email ?? '',
+      status: rest.client.status,
+    } : undefined,
     line_items,
   };
 };
@@ -44,6 +50,12 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceRespons
  */
 const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => ({
   ...invoice,
+  client: invoice.client ? {
+    id: invoice.client.id,
+    name: invoice.client.name ?? '',
+    email: invoice.client.email ?? '',
+    status: invoice.client.status,
+  } : undefined,
 });
 
 /**

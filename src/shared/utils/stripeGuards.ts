@@ -18,32 +18,26 @@ const SUBSCRIPTION_PREFIX = 'customer.subscription.';
  * Type Guard: Checks if event is related to Payment Intents.
  * If true, TypeScript knows event.data.object is Stripe.PaymentIntent
  */
-const isPaymentIntentEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.PaymentIntent> => {
-  return event.type.startsWith(PAYMENT_INTENT_PREFIX);
-};
+const isPaymentIntentEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.PaymentIntent> => event.type.startsWith(PAYMENT_INTENT_PREFIX);
 
 /**
  * Type Guard: Checks if event is related to Charges.
  * If true, TypeScript knows event.data.object is Stripe.Charge
  * Also verifies the object is actually a Charge (not a Dispute)
  */
-const isChargeEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Charge> => {
-  return (
+const isChargeEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Charge> => (
     event.type.startsWith(CHARGE_PREFIX) &&
     event.data?.object &&
     typeof event.data.object === 'object' &&
     'object' in event.data.object &&
     event.data.object.object === 'charge'
   );
-};
 
 /**
  * Type Guard: Checks if event is related to Subscriptions.
  * If true, TypeScript knows event.data.object is Stripe.Subscription
  */
-const isSubscriptionEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Subscription> => {
-  return event.type.startsWith(SUBSCRIPTION_PREFIX);
-};
+const isSubscriptionEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Subscription> => event.type.startsWith(SUBSCRIPTION_PREFIX);
 
 // Default export with all guards
 const stripeGuards = {

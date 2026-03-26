@@ -23,5 +23,5 @@ export const graphileWorkerConfig = {
   // Worker concurrency (how many jobs to process simultaneously)
   concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5,
   // Graphile Worker schema name
-  schema: process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker',
+  schema: process.env.GRAPHILE_WORKER_SCHEMA ?? 'graphile_worker',
 } as const;

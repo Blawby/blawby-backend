@@ -12,7 +12,7 @@ import {
   type SelectMatterActivityLog,
 } from '@/modules/matters/database/schema/matter-activity-log.schema';
 import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
-import * as schema from '@/schema';
+import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -33,7 +33,7 @@ const logMatterActivity = async (
   ctx: ServiceContext,
   tx?: NodePgDatabase<typeof schema>
 ): Promise<Result<SelectMatterActivityLog>> => {
-  const matterId = params.matterId || ctx.matterId;
+  const matterId = params.matterId ?? ctx.matterId;
 
   if (!matterId) {
     logger.error('Failed to log activity: matterId is missing', {
@@ -52,7 +52,7 @@ const logMatterActivity = async (
         user_id: ctx.userId || null,
         action: params.action,
         description: params.description,
-        metadata: params.metadata || null,
+        metadata: params.metadata ?? null,
       })
       .returning();
 
@@ -74,7 +74,7 @@ const getMatterActivity = async (
   options: MatterActivityListFilters | undefined,
   ctx: ServiceContext
 ): Promise<Result<SelectMatterActivityLog[]>> => {
-  const matterId = ctx.matterId;
+  const {matterId} = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }

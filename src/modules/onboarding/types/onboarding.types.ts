@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
+import type { z } from 'zod';
+import type { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 // Inferred from Zod schemas
 export type CreateOnboardingSessionRequest = z.infer<typeof onboardingValidations.createOnboardingSessionSchema>;

@@ -48,9 +48,7 @@ const initR2Client = (): S3Client => {
 /**
  * Get R2 client instance
  */
-const getR2Client = (): S3Client => {
-  return initR2Client();
-};
+const getR2Client = (): S3Client => initR2Client();
 
 /**
  * Generate presigned URL for uploading to R2
@@ -59,7 +57,7 @@ export const generatePresignedUploadUrl = async (params: {
   bucket: string;
   key: string;
   contentType: string;
-  expiresIn?: number; // seconds, default 15 minutes
+  expiresIn?: number; // Seconds, default 15 minutes
 }): Promise<string> => {
   const client = getR2Client();
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default
@@ -79,7 +77,7 @@ export const generatePresignedUploadUrl = async (params: {
 export const generatePresignedDownloadUrl = async (params: {
   bucket: string;
   key: string;
-  expiresIn?: number; // seconds, default 15 minutes
+  expiresIn?: number; // Seconds, default 15 minutes
 }): Promise<string> => {
   const client = getR2Client();
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default

@@ -46,13 +46,11 @@ const createEvent = async (
 const findEventsBySubscriptionId = async (
   db: NodePgDatabase<typeof schema>,
   subscriptionId: string
-): Promise<SubscriptionEvent[]> => {
-  return await db
+): Promise<SubscriptionEvent[]> => await db
     .select()
     .from(schema.subscriptionEvents)
     .where(eq(schema.subscriptionEvents.subscription_id, subscriptionId))
     .orderBy(desc(schema.subscriptionEvents.created_at));
-};
 
 /**
  * Find events by type for a subscription
@@ -61,8 +59,7 @@ const findEventsBySubscriptionIdAndType = async (
   db: NodePgDatabase<typeof schema>,
   subscriptionId: string,
   _eventType: SubscriptionEventType
-): Promise<SubscriptionEvent[]> => {
-  return await db
+): Promise<SubscriptionEvent[]> => await db
     .select()
     .from(schema.subscriptionEvents)
     .where(
@@ -72,7 +69,6 @@ const findEventsBySubscriptionIdAndType = async (
       )
     )
     .orderBy(desc(schema.subscriptionEvents.created_at));
-};
 
 /**
  * Get the most recent event for a subscription
@@ -101,12 +97,10 @@ const findLatestEvent = async (
 const findLineItemsBySubscriptionId = async (
   db: NodePgDatabase<typeof schema>,
   subscriptionId: string
-): Promise<SubscriptionLineItem[]> => {
-  return await db
+): Promise<SubscriptionLineItem[]> => await db
     .select()
     .from(schema.subscriptionLineItems)
     .where(eq(schema.subscriptionLineItems.subscription_id, subscriptionId));
-};
 
 /**
  * Find a line item by Stripe subscription item ID
@@ -180,8 +174,7 @@ const deleteLineItemsBySubscriptionId = async (
 /**
  * Find all active subscription plans sorted by sort order
  */
-const findAllActivePlans = async (db: NodePgDatabase<typeof schema>): Promise<SubscriptionPlan[]> => {
-  return await db
+const findAllActivePlans = async (db: NodePgDatabase<typeof schema>): Promise<SubscriptionPlan[]> => await db
     .select()
     .from(schema.subscriptionPlans)
     .where(
@@ -194,7 +187,6 @@ const findAllActivePlans = async (db: NodePgDatabase<typeof schema>): Promise<Su
       )
     )
     .orderBy(schema.subscriptionPlans.sort_order);
-};
 
 /**
  * Find a subscription plan by ID (UUID)
@@ -323,9 +315,7 @@ const deactivatePlan = async (
 /**
  * Get all plans (including inactive) for admin purposes
  */
-const findAllPlans = async (db: NodePgDatabase<typeof schema>): Promise<SubscriptionPlan[]> => {
-  return await db.select().from(schema.subscriptionPlans).orderBy(desc(schema.subscriptionPlans.created_at));
-};
+const findAllPlans = async (db: NodePgDatabase<typeof schema>): Promise<SubscriptionPlan[]> => await db.select().from(schema.subscriptionPlans).orderBy(desc(schema.subscriptionPlans.created_at));
 
 export const subscriptionRepository = {
   // Events

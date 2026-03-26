@@ -39,7 +39,7 @@ const DEFAULT_FROM_NAME = 'Blawby';
  * Save email to local file for development preview
  */
 const saveEmailToFile = (to: string, subject: string, html: string) => {
-  if (isProduction()) return;
+  if (isProduction()) {return;}
 
   try {
     const storageDir = path.join(process.cwd(), 'storage', 'emails');
@@ -78,7 +78,7 @@ export const sendEmail = async (
   try {
     // Render the template to HTML
     const html = renderTemplate(
-      payload.template as EmailTemplateName,
+      payload.template,
       payload.data as unknown as TemplateDataMap[EmailTemplateName]
     );
 
@@ -128,7 +128,7 @@ export const sendEmail = async (
     ]);
 
     const result = await getResendClient().emails.send({
-      from: options.from || `${fromName || DEFAULT_FROM_NAME} <${fromAddress || DEFAULT_FROM}>`,
+      from: options.from ?? `${fromName ?? DEFAULT_FROM_NAME} <${fromAddress ?? DEFAULT_FROM}>`,
       to: payload.to,
       subject: payload.subject,
       html,
@@ -208,7 +208,7 @@ export const sendEmail = async (
 export const sendBulkEmails = async (
   payloads: EmailJobPayload[],
   options: EmailSendOptions = {}
-): Promise<{ success: boolean; results: Array<{ to: string; success: boolean; error?: string }> }> => {
+): Promise<{ success: boolean; results: { to: string; success: boolean; error?: string }[] }> => {
   const results = await Promise.all(
     payloads.map(async (payload) => {
       const result = await sendEmail(payload, options);

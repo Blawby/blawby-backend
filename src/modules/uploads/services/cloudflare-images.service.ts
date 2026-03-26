@@ -40,8 +40,8 @@ export const generateImagesUploadUrl = async (params: {
 
   const data = await response.json();
   return {
-    uploadUrl: data.result?.uploadURL || '',
-    imageId: data.result?.id || null,
+    uploadUrl: data.result?.uploadURL ?? '',
+    imageId: data.result?.id ?? null,
   };
 };
 
@@ -51,7 +51,7 @@ export const generateImagesUploadUrl = async (params: {
 export const getImageUrl = (params: {
   accountHash?: string;
   imageId: string;
-  variant?: string; // e.g., 'public', 'thumbnail'
+  variant?: string; // E.g., 'public', 'thumbnail'
 }): string => {
   const accountHash = params.accountHash ?? process.env.CLOUDFLARE_IMAGES_ACCOUNT_HASH;
 
@@ -59,7 +59,7 @@ export const getImageUrl = (params: {
     throw new Error('CLOUDFLARE_IMAGES_ACCOUNT_HASH environment variable is required');
   }
 
-  const variant = params.variant || 'public';
+  const variant = params.variant ?? 'public';
   return `https://imagedelivery.net/${accountHash}/${params.imageId}/${variant}`;
 };
 
@@ -96,7 +96,7 @@ export const deleteImage = async (params: {
     // Extract Cloudflare-specific error message
     let errorMessage = 'Failed to delete image';
     if (errorData.success === false && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
-      errorMessage = errorData.errors[0]?.message || errorData.errors[0]?.error || errorMessage;
+      errorMessage = (errorData.errors[0]?.message ?? errorData.errors[0]?.error) ?? errorMessage;
     } else if (errorData.message) {
       errorMessage = errorData.message;
     } else if (errorData.detail) {

@@ -13,13 +13,13 @@ import { db } from '@/shared/database';
 
 const logger = getLogger(['auth', 'routing']);
 
-export interface WorkspaceAccess {
+interface WorkspaceAccess {
   practice: boolean;
   client: boolean;
   public: boolean;
 }
 
-export interface RoutingClaims {
+interface RoutingClaims {
   workspace_access: WorkspaceAccess;
   default_workspace: 'practice' | 'client' | 'public';
   active_membership_role: string | null;
@@ -27,17 +27,18 @@ export interface RoutingClaims {
 }
 
 /** Lightweight input types — only the fields routing actually needs */
-export interface RoutingUserInput {
+interface RoutingUserInput {
   id: string;
   isAnonymous: boolean;
   banned?: boolean | null;
+  primaryWorkspace?: string | null;
 }
 
-export interface RoutingSessionInput {
+interface RoutingSessionInput {
   activeOrganizationId?: string | null;
 }
 
-export interface RoutingContext {
+interface RoutingContext {
   user: RoutingUserInput;
   session: RoutingSessionInput | null;
 }
@@ -46,7 +47,7 @@ export interface RoutingContext {
  * Check if user has practice entitlement based on subscription status
  */
 const hasPracticeEntitlement = async (organizationId: string | null): Promise<boolean> => {
-  if (!organizationId) return false;
+  if (!organizationId) {return false;}
 
   try {
     const [subscription] = await db
@@ -58,7 +59,7 @@ const hasPracticeEntitlement = async (organizationId: string | null): Promise<bo
       .where(eq(organizations.id, organizationId))
       .limit(1);
 
-    if (!subscription) return false;
+    if (!subscription) {return false;}
 
     // Use type-safe check: verify status is one of the entitled statuses
     // Using a type-safe include check by casting the const array to a string array
@@ -80,7 +81,7 @@ interface Membership {
  * Get user's membership role in active organization
  */
 const getActiveMembership = async (userId: string, organizationId: string | null): Promise<Membership | null> => {
-  if (!organizationId) return null;
+  if (!organizationId) {return null;}
 
   try {
     const [membership] = await db
@@ -106,8 +107,8 @@ const getActiveMembership = async (userId: string, organizationId: string | null
  * Compute default workspace based on access flags
  */
 const computeDefaultWorkspace = (access: WorkspaceAccess): 'practice' | 'client' | 'public' => {
-  if (access.practice) return 'practice';
-  if (access.client) return 'client';
+  if (access.practice) {return 'practice';}
+  if (access.client) {return 'client';}
   return 'public';
 };
 
@@ -125,7 +126,7 @@ export const computeRoutingClaims = async (context: RoutingContext): Promise<Rou
   if (user.isAnonymous) {
     // POLICY NOTE: Anonymous users get only public access.
     // If you support authenticated-anonymous client onboarding flows,
-    // you may want to set client=true for anonymous sessions.
+    // You may want to set client=true for anonymous sessions.
     return {
       workspace_access: {
         practice: false,
@@ -138,8 +139,8 @@ export const computeRoutingClaims = async (context: RoutingContext): Promise<Rou
     };
   }
 
-  // Get active organization context
-  const activeOrganizationId = session?.activeOrganizationId || null;
+  // Get active organization context, fallback to primaryWorkspace
+  const activeOrganizationId = (session?.activeOrganizationId ?? user.primaryWorkspace) ?? null;
 
   // Early return: no organization context means no membership or entitlement checks needed
   if (!activeOrganizationId) {
@@ -156,7 +157,7 @@ export const computeRoutingClaims = async (context: RoutingContext): Promise<Rou
   }
 
   const membership = await getActiveMembership(user.id, activeOrganizationId);
-  const membershipRole = membership?.role || null;
+  const membershipRole = membership?.role ?? null;
 
   // Safety check: treat unknown/empty roles as lowest privilege (no workspace access)
   if (membership && (typeof membershipRole !== 'string' || membershipRole.trim() === '')) {
