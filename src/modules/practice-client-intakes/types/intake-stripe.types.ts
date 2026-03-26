@@ -1,4 +1,6 @@
 import type { PracticeClientIntakeMetadata } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import type { Stripe } from 'stripe';
+import type { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 
 export interface CreateIntakePaymentLinkParams {
   organization: {
@@ -41,4 +43,9 @@ export interface CreateIntakeCheckoutSessionParams {
     user_id?: string;
     origin?: string | null;
   };
+}
+
+export interface ResolveCheckoutSessionResult {
+  intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
+  session?: Stripe.Checkout.Session;
 }

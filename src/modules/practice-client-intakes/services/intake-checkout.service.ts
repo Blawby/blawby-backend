@@ -5,12 +5,8 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
-import {
-  formatIntakeStatusResponse,
-  logger,
-  parseMetadata,
-  resolvePracticeClientIntakeByCheckoutSessionId,
-} from '@/modules/practice-client-intakes/services/intake-shared.helpers';
+import { getLogger } from '@logtape/logtape';
+import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { createIntakeCheckoutSession } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
   ClaimPracticeClientIntakeResponse,
@@ -26,6 +22,8 @@ import { result } from '@/shared/utils/result';
 
 const { practiceClientIntakes } = practiceClientIntakesSchema;
 
+const logger = getLogger(['practice-client-intakes', 'service']);
+
 type ClaimIntakeAbort = {
   __claimIntakeResult: true;
   result: Result<ClaimPracticeClientIntakeResponse>;
@@ -36,7 +34,7 @@ const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => {
 };
 
 const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
-  const baseMetadata = parseMetadata(practiceClientIntake.metadata);
+  const baseMetadata = intakeSharedHelpers.parseMetadata(practiceClientIntake.metadata);
   if (ctx.userId) {
     return {
       ...(baseMetadata ?? { email: '', name: '' }),
@@ -50,7 +48,7 @@ const processClaimIntakeTx = async (
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   intake: NonNullable<
     Extract<
-      Awaited<ReturnType<typeof resolvePracticeClientIntakeByCheckoutSessionId>>,
+      Awaited<ReturnType<typeof intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId>>,
       { success: true }
     >['data']['intake']
   >,
@@ -84,7 +82,7 @@ const processClaimIntakeTx = async (
     return rollbackWithResult(result.badRequest('Payment must be completed before claiming intake'));
   }
 
-  const intakeMetadata = parseMetadata(lockedIntake.metadata);
+  const intakeMetadata = intakeSharedHelpers.parseMetadata(lockedIntake.metadata);
   if (!intakeMetadata) {
     return rollbackWithResult(result.badRequest('Intake metadata is invalid or malformed'));
   }
@@ -173,7 +171,7 @@ const createCheckoutSession = async (
 
     if (practiceClientIntake.stripe_checkout_session_id) {
       try {
-        const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(
+        const resolveResult = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(
           practiceClientIntake.stripe_checkout_session_id,
           { requireSession: true }
         );
@@ -200,7 +198,7 @@ const createCheckoutSession = async (
       }
     }
 
-    const metadata = parseMetadata(practiceClientIntake.metadata) ?? { email: '', name: '' };
+    const metadata = intakeSharedHelpers.parseMetadata(practiceClientIntake.metadata) ?? { email: '', name: '' };
 
     const session = await createIntakeCheckoutSession({
       currency: practiceClientIntake.currency,
@@ -260,7 +258,7 @@ const getIntakeStatus = async (
 
     return result.ok({
       success: true,
-      data: formatIntakeStatusResponse(intakeResult.data, {
+      data: intakeSharedHelpers.formatIntakeStatusResponse(intakeResult.data, {
         requestingUserId: ctx.userId,
         isAdmin: Boolean(ctx.memberRole),
       }),
@@ -276,7 +274,7 @@ const getIntakeStatus = async (
 
 const getPostPayStatus = async (params: { sessionId: string }): Promise<Result<IntakePostPayStatusResponse>> => {
   try {
-    const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    const resolveResult = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
     if (!resolveResult.success) {
       return resolveResult;
     }
@@ -316,7 +314,7 @@ const claimIntake = async (
   ctx: ServiceContext
 ): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
   try {
-    const resolveResult = await resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
+    const resolveResult = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
     if (!resolveResult.success) {
       return resolveResult;
     }

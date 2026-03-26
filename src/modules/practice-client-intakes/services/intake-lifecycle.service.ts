@@ -9,14 +9,7 @@ import {
   getStaffAccessibleIntake,
   ensureStaffOrganizationAccess,
 } from '@/modules/practice-client-intakes/services/intake-access.helpers';
-import {
-  formatIntakeListItem,
-  formatIntakeStatusResponse,
-  logger,
-  normalizeTriageStatus,
-  parseMetadata,
-  parseValidDate,
-} from '@/modules/practice-client-intakes/services/intake-shared.helpers';
+import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import type {
   UpdateIntakeTriageStatusRequest,
   UpdateIntakeTriageStatusResponse,
@@ -31,6 +24,9 @@ import type { PaginatedResultWithMeta, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { result } from '@/shared/utils/result';
+import { getLogger } from '@logtape/logtape';
+
+const logger = getLogger(['practice-client-intakes', 'service']);
 
 type ListIntakeItem = NonNullable<
   z.infer<typeof intakeValidations.listIntakesResponseSchema>['data']
@@ -48,11 +44,11 @@ const listIntakes = async (
       return accessResult;
     }
 
-    if (params.query.from && !parseValidDate(params.query.from)) {
+    if (params.query.from && !intakeSharedHelpers.parseValidDate(params.query.from)) {
       return result.badRequest('Invalid date: from');
     }
 
-    if (params.query.to && !parseValidDate(params.query.to)) {
+    if (params.query.to && !intakeSharedHelpers.parseValidDate(params.query.to)) {
       return result.badRequest('Invalid date: to');
     }
 
@@ -64,7 +60,7 @@ const listIntakes = async (
     });
 
     return result.ok({
-      intakes: intakes.map((intake) => formatIntakeListItem(intake, { isAdmin: true })),
+      intakes: intakes.map((intake) => intakeSharedHelpers.formatIntakeListItem(intake, { isAdmin: true })),
       total,
       page: params.query.page,
       limit: params.query.limit,
@@ -91,7 +87,7 @@ const getIntakeById = async (
 
     return result.ok({
       success: true,
-      data: formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
+      data: intakeSharedHelpers.formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
     });
   } catch (error) {
     logger.error('Failed to get intake {id}: {error}', {
@@ -126,7 +122,7 @@ const updateTriageStatus = async (
       data: {
         uuid: updatedIntake.id,
         conversation_id: updatedIntake.conversation_id ?? null,
-        triage_status: normalizeTriageStatus(updatedIntake.triage_status),
+        triage_status: intakeSharedHelpers.normalizeTriageStatus(updatedIntake.triage_status),
         triage_reason: updatedIntake.triage_reason ?? null,
         triage_decided_at: updatedIntake.triage_decided_at ?? null,
       },
@@ -146,7 +142,7 @@ const createMatterFromIntakeTx = async (
     uuid: string;
     data: z.infer<typeof intakeValidations.convertIntakeSchema>;
     intake: Extract<Awaited<ReturnType<typeof getStaffAccessibleIntake>>, { success: true }>['data'];
-    metadata: NonNullable<ReturnType<typeof parseMetadata>>;
+    metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
     userId: string;
   }
 ): Promise<string> => {
@@ -274,7 +270,7 @@ const convertIntake = async (
       return result.badRequest('Intake must be accepted before converting to a matter');
     }
 
-    const metadata = parseMetadata(intake.metadata);
+    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
     if (!metadata) {
       return result.badRequest('Intake metadata is missing');
     }
@@ -318,7 +314,7 @@ const triggerInvitation = async (
     }
 
     const intake = intakeResult.data;
-    const metadata = parseMetadata(intake.metadata);
+    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
     if (!metadata?.email) {
       return result.badRequest('No email address found in intake data');
     }
