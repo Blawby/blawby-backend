@@ -16,7 +16,7 @@ export const userDetails = pgTable(
 
     address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
 
-    stripe_customer_id: varchar('stripe_customer_id', { length: 255 }), // Customer ID on CONNECTED Stripe account (for client payments)
+    stripe_customer_id: varchar('stripe_customer_id', { length: 255 }), // Stripe customer ID on the PLATFORM account — used with on_behalf_of for invoice billing
     status: varchar('status', { length: 20 }).notNull().default('lead'), // 'lead', 'active', 'inactive', 'archived'
     currency: varchar('currency', { length: 3 }).notNull().default('usd'),
     event_name: varchar('event_name', { length: 255 }), // Source tracking
