@@ -25,7 +25,7 @@ export const createClientSchema = z
   .openapi('CreateClient');
 
 export const addressSchema = createClientSchema.shape.address.unwrap();
-export type AddressInputSchema = z.infer<typeof addressSchema>;
+export type AddressInputSchema = z.input<typeof addressSchema>;
 
 export const updateClientSchema = createClientSchema
   .omit({ address: true })

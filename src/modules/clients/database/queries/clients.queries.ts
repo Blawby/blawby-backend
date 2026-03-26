@@ -91,7 +91,7 @@ const listClients = async (params: {
     const searchCondition: SQL = or(
       ilike(clients.name, searchPattern),
       ilike(clients.email, searchPattern),
-      ilike(sql`COALESCE(${users.phone}, '')`, searchPattern)
+      and(sql`${users.phone} IS NOT NULL`, ilike(users.phone, searchPattern))
     )!;
     conditions.push(searchCondition);
   }
@@ -121,14 +121,16 @@ const listClients = async (params: {
     .offset(offset);
 
   // Reshape results to match expected return type
-  const data = rows.map((row) => ({
-    ...row.client,
-    user: row.user,
-    address: row.address,
-  }));
+  const data: (SelectClient & { user: typeof users.$inferSelect | null; address: Address | null })[] = rows.map(
+    (row) => ({
+      ...row.client,
+      user: row.user,
+      address: row.address,
+    })
+  );
 
   return {
-    data: data as (SelectClient & { user: typeof users.$inferSelect | null; address: Address | null })[],
+    data,
     total: Number(totalResult?.count || 0),
   };
 };

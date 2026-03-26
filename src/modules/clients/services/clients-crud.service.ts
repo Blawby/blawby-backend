@@ -62,8 +62,6 @@ const createClient = async (
       });
     }
 
-
-
     const txResult = await db.transaction(async (tx) => {
       try {
         let addressId: string | undefined = undefined;
@@ -112,9 +110,9 @@ const createClient = async (
       void ClientCreated.dispatch(
         {
           client_id: createdDetail.id,
-          user_id: createdDetail.user.id,
-          name: createdDetail.user.name,
-          email: createdDetail.user.email,
+          user_id: user.id,
+          name: user.name,
+          email: user.email,
           stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
         },
         { actorId: ctx.userId, organizationId: ctx.organizationId }
@@ -138,7 +136,7 @@ const updateClient = async (
       name?: string;
       email?: string;
       phone?: string;
-      address?: Omit<AddressInput, 'country'> & { country?: string };
+      address?: AddressInput;
       status?: string;
       currency?: string;
     };
@@ -297,14 +295,18 @@ const listClients = async (
     // Admin/Member can list all or filter by clientId
   } else if (ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))) {
     // Client can ONLY see their own record
-    params.clientId = ctx.userId;
   } else {
     return forbidden('You do not have permission to view clients');
   }
 
+  const effectiveClientId = ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))
+    ? ctx.userId
+    : params.clientId;
+
   try {
     const data = await clientsRepository.listClients({
       ...params,
+      clientId: effectiveClientId,
       organizationId: ctx.organizationId,
     });
     return ok(data);
@@ -418,8 +420,8 @@ const ensureClientSetup = async (
       );
     }
 
-    const user = detail.user_id ? await usersRepository.findById(detail.user_id) : null;
-    return ok({ ...detail, user: user! });
+    const user = detail.user_id ? (await usersRepository.findById(detail.user_id)) ?? null : null;
+    return ok({ ...detail, user });
   } catch (error) {
     logger.error('Failed to ensure client setup for {id}: {error}', { id, error });
     return internalError('Failed to complete client setup');

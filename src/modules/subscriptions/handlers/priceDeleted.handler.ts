@@ -16,7 +16,7 @@ const logger = getLogger(['subscriptions', 'handlers', 'price-deleted']);
 /**
  * Handle price.deleted webhook event
  */
-export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => {
+export const handlePriceDeleted = async (price: Stripe.Price | Stripe.DeletedPrice): Promise<void> => {
   try {
     logger.info('Processing price.deleted: {priceId}', { priceId: price.id });
 

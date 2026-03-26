@@ -1,3 +1,4 @@
+import { getLogger } from '@logtape/logtape';
 import type {
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
@@ -11,6 +12,8 @@ import type { ActiveOrganization, Organization } from '@/shared/types/BetterAuth
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { forbidden, internalError, ok } from '@/shared/utils/result';
+
+const logger = getLogger(['practice', 'organization-service']);
 
 // Lazy initialization - only create when needed (after env vars are loaded)
 const getBetterAuth = (): BetterAuthInstance => createBetterAuthInstance(db);
@@ -51,13 +54,16 @@ export const organizationService = {
       }
 
       // Enforce primaryWorkspace for the creator if they don't have one (best-effort)
-      const user = await usersRepository.findById(ctx.userId);
-      if (user && !user.primaryWorkspace) {
-        try {
+      try {
+        const user = await usersRepository.findById(ctx.userId);
+        if (user && !user.primaryWorkspace) {
           await usersRepository.update(ctx.userId, { primaryWorkspace: 'practice' });
-        } catch {
-          // Do not fail org creation after it has already succeeded
         }
+      } catch (err) {
+        logger.warn('Failed to set primaryWorkspace after org creation for user {userId}: {error}', {
+          userId: ctx.userId,
+          error: err,
+        });
       }
 
       return ok<Organization>(result);

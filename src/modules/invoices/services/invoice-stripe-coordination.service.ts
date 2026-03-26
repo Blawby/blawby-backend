@@ -32,7 +32,7 @@ const finalizeAndSendStripeFlow = async (
 ): Promise<Result<InvoiceWithRelations>> => {
   // 1. Create on Stripe
   if (!invWithRel.client?.stripe_customer_id) {
-    return result.badRequest('Client is missing Stripe customer ID');
+    return result.internalError('Client is missing Stripe customer ID (ensureClientSetup should have run first)');
   }
 
   const stripeResult = await stripeInvoicesService.createStripeInvoice(

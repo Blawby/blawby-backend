@@ -50,13 +50,13 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     } else if (price.recurring?.usage_type === 'metered') {
       // Handle metered price - add to metered_items array
-      const metered_items = (plan.metered_items as MeteredItem[]) || [];
-      metered_items.push({
+      const meteredItems: MeteredItem[] = (plan.metered_items as MeteredItem[] | null) ?? [];
+      meteredItems.push({
         price_id: price.id,
         meter_name: price.nickname ?? 'metered',
         type: price.metadata?.meter_type ?? 'usage',
       });
-      updates.metered_items = metered_items;
+      updates.metered_items = meteredItems;
     }
 
     if (Object.keys(updates).length > 0) {
