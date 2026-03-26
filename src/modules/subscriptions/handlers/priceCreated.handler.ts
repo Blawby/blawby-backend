@@ -10,6 +10,7 @@ import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/meteredProducts';
 import type { MeteredItem } from '@/modules/subscriptions/constants/meteredProducts';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
@@ -50,13 +51,15 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
     } else if (price.recurring?.usage_type === 'metered') {
       // Handle metered price - add to metered_items array
-      const meteredItems: MeteredItem[] = plan.metered_items ?? [];
-      meteredItems.push({
-        price_id: price.id,
-        meter_name: price.nickname ?? 'metered',
-        type: price.metadata?.meter_type ?? 'usage',
-      });
-      updates.metered_items = meteredItems;
+      const existingItems: MeteredItem[] = (plan.metered_items as MeteredItem[] | null) ?? [];
+      updates.metered_items = [
+        ...existingItems,
+        {
+          price_id: price.id,
+          meter_name: price.nickname || 'metered',
+          type: getInternalTypeFromMeterName(price.metadata?.meter_type ?? '') ?? 'usage',
+        },
+      ];
     }
 
     if (Object.keys(updates).length > 0) {

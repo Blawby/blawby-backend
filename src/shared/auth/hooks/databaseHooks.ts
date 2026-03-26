@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import * as schema from '@/schema';
@@ -190,6 +190,7 @@ export const createDatabaseHooks = (
           })
           .from(schema.sessions)
           .where(eq(schema.sessions.userId, sessionData.userId))
+          .orderBy(desc(schema.sessions.createdAt))
           .limit(1);
 
         // Delete all existing sessions for this user (single session per user)
@@ -204,7 +205,7 @@ export const createDatabaseHooks = (
             lastActiveOrgId: lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
           });
         } catch (error) {
-          logger.warn('Failed to set active organization', { error });
+          logger.warn('Failed to set active organization for user {userId}', { userId: sessionData.userId, error });
         }
 
         return {
