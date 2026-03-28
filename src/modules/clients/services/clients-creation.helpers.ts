@@ -5,12 +5,33 @@
  */
 
 import { membersRepository } from '@/shared/repositories/members.repository';
+import { members } from '@/schema/better-auth-schema';
+import { db } from '@/shared/database';
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Ensure user is a member of the organization with client role
  */
-export const ensureClientMember = async (params: { organizationId: string; userId: string }): Promise<void> => {
-  const { organizationId, userId } = params;
+export const ensureClientMember = async (params: {
+  organizationId: string;
+  userId: string;
+  tx?: Tx;
+}): Promise<void> => {
+  const { organizationId, userId, tx } = params;
+
+  if (tx) {
+    await tx
+      .insert(members)
+      .values({
+        organizationId,
+        userId,
+        role: 'client',
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing({ target: [members.organizationId, members.userId] });
+    return;
+  }
 
   const existingMember = await membersRepository.findByOrgAndUser({
     organizationId,

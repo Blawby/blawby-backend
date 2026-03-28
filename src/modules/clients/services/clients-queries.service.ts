@@ -4,13 +4,14 @@
  * Handles read operations for clients (get, list)
  */
 
+import { type SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
-import type { SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import type { Address } from '@/modules/practice/database/schema/addresses.schema';
 import type { users } from '@/schema/better-auth-schema';
 import { toSubject } from '@/shared/auth/subject-helpers';
+import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ForbiddenError } from '@casl/ability';
+import { result } from '@/shared/utils/result';
 
 /**
  * List clients with filtering and pagination
@@ -24,10 +25,12 @@ const listClients = async (
     offset?: number;
   },
   ctx: ServiceContext
-): Promise<{
-  data: (SelectClient & { user: typeof users.$inferSelect | null; address: Address | null })[];
-  total: number;
-}> => {
+): Promise<
+  Result<{
+    data: (SelectClient & { user: typeof users.$inferSelect | null; address: Address | null })[];
+    total: number;
+  }>
+> => {
   let effectiveClientId: string | undefined = params.clientId;
 
   if (ctx.ability.can('read', 'Client')) {
@@ -39,37 +42,39 @@ const listClients = async (
     // Client can ONLY see their own record
     effectiveClientId = ctx.userId;
   } else {
-    const forbiddenError = ForbiddenError.from(ctx.ability);
-    forbiddenError.setMessage('You do not have permission to view clients');
-    throw forbiddenError;
+    return result.forbidden('You do not have permission to view clients');
   }
 
-  const data = await clientsRepository.listClients({
-    ...params,
-    clientId: effectiveClientId,
-    organizationId: ctx.organizationId,
-  });
-  return data;
+  try {
+    const data = await clientsRepository.listClients({
+      ...params,
+      clientId: effectiveClientId,
+      organizationId: ctx.organizationId,
+    });
+    return result.ok(data);
+  } catch {
+    return result.internalError('Failed to list clients');
+  }
 };
 
 /**
  * Get a single client by ID
  */
-const getClient = async (params: { id: string }, ctx: ServiceContext): Promise<SelectClient> => {
+const getClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<SelectClient>> => {
   const { id } = params;
 
   const detail = await clientsRepository.findById(id);
   if (!detail || detail.organization_id !== ctx.organizationId) {
-    throw new Error('Client not found');
+    return result.notFound('Client not found');
   }
 
   if (!ctx.ability.can('read', 'Client')) {
-    const forbiddenError = ForbiddenError.from(ctx.ability);
-    forbiddenError.setMessage('You do not have permission to view this client');
-    forbiddenError.throwUnlessCan('read', toSubject('Client', detail));
+    if (ctx.ability.cannot('read', toSubject('Client', detail))) {
+      return result.forbidden('You do not have permission to view this client');
+    }
   }
 
-  return detail;
+  return result.ok(detail);
 };
 
 export const clientsQueriesService = {

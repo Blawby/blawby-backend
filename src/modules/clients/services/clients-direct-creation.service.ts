@@ -4,7 +4,7 @@
  * Handles staff-initiated client creation
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import type { AddressInput } from '@/modules/clients/types';
@@ -12,7 +12,9 @@ import type { users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { ClientCreated } from '@/shared/events/definitions';
 import usersRepository from '@/shared/repositories/users.repository';
+import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { result } from '@/shared/utils/result';
 import { ensureClientMember } from '@/modules/clients/services/clients-creation.helpers';
 
 /**
@@ -30,22 +32,27 @@ const createClient = async (
     };
   },
   ctx: ServiceContext
-): Promise<SelectClient & { user: typeof users.$inferSelect | null }> => {
+): Promise<Result<SelectClient & { user: typeof users.$inferSelect | null }>> => {
   const { data } = params;
+
+  if (ctx.ability.cannot('create', 'Client')) {
+    return result.forbidden('You do not have permission to create clients');
+  }
 
   const user = data.userId
     ? await usersRepository.findById(data.userId)
     : await usersRepository.findByEmail(data.email);
   if (!user) {
-    throw new Error('User not found. Please invite them using the invitations flow first.');
+    return result.fail('User not found. Please invite them using the invitations flow first.', 400, 'BAD_REQUEST');
   }
 
-  await ensureClientMember({
-    organizationId: ctx.organizationId,
-    userId: user.id,
-  });
-
   const { detail, isCreated } = await db.transaction(async (tx) => {
+    await ensureClientMember({
+      organizationId: ctx.organizationId,
+      userId: user.id,
+      tx,
+    });
+
     let addressId: string | undefined = undefined;
     if (data.address) {
       const address = await upsertAddressTx(tx, {
@@ -63,32 +70,7 @@ const createClient = async (
       addressId = address?.id;
     }
 
-    const [existingClient] = await tx
-      .select()
-      .from(clients)
-      .where(
-        and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
-      )
-      .limit(1);
-
-    if (existingClient) {
-      const [updatedExisting] = await tx
-        .update(clients)
-        .set({
-          name: data.name,
-          email: data.email.toLowerCase(),
-          address_id: addressId ?? existingClient.address_id,
-          status: data.status ?? existingClient.status,
-          currency: data.currency ?? existingClient.currency,
-          updated_at: new Date(),
-        })
-        .where(eq(clients.id, existingClient.id))
-        .returning();
-
-      return { detail: updatedExisting ?? existingClient, isCreated: false };
-    }
-
-    const [createdClient] = await tx
+    const [upsertedClient] = await tx
       .insert(clients)
       .values({
         organization_id: ctx.organizationId,
@@ -100,9 +82,23 @@ const createClient = async (
         status: data.status ?? 'lead',
         currency: data.currency ?? 'usd',
       })
+      .onConflictDoUpdate({
+        target: [clients.organization_id, clients.user_id],
+        set: {
+          name: data.name,
+          email: data.email.toLowerCase(),
+          address_id: sql`COALESCE(EXCLUDED.address_id, ${clients.address_id})`,
+          status: sql`COALESCE(EXCLUDED.status, ${clients.status})`,
+          currency: sql`COALESCE(EXCLUDED.currency, ${clients.currency})`,
+          updated_at: new Date(),
+        },
+      })
       .returning();
 
-    return { detail: createdClient, isCreated: true };
+    return {
+      detail: upsertedClient,
+      isCreated: upsertedClient.created_at.getTime() === upsertedClient.updated_at.getTime(),
+    };
   });
 
   if (isCreated) {
@@ -118,7 +114,7 @@ const createClient = async (
     );
   }
 
-  return { ...detail, user };
+  return result.ok({ ...detail, user });
 };
 
 export const clientsDirectCreationService = {

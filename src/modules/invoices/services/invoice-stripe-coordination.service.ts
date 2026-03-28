@@ -164,16 +164,19 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      try {
-        await clientsSetupService.ensureClientSetup({ id: invoice.client_id }, ctx);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
+      const setupResult = await clientsSetupService.ensureClientSetup({ id: invoice.client_id }, ctx);
+      if (!setupResult.success) {
+        const message = setupResult.error.message;
         logger.error('Failed to setup Stripe customer for invoice client {clientId}: {error}', {
           clientId: invoice.client_id,
           error: message,
         });
-        return result.internalError<InvoiceResponse>(
+        return result.fail<InvoiceResponse>(
           `Failed to setup Stripe customer for client ${invoice.client_id}: ${message}`
+          ,
+          setupResult.error.status,
+          setupResult.error.code,
+          setupResult.error.details
         );
       }
 

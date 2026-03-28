@@ -66,6 +66,15 @@ const resolveClientForInvoice = async (
       // Fire-and-forget background processing for Stripe and events
       void clientsSetupService
         .ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'))
+        .then((setupResult) => {
+          if (!setupResult.success) {
+            logger.error('Failed to auto-setup client after auto-vivification {clientId} {organizationId}: {error}', {
+              clientId: newDetail.id,
+              organizationId,
+              error: setupResult.error,
+            });
+          }
+        })
         .catch((error) => {
           logger.error('Failed to auto-setup client after auto-vivification {clientId} {organizationId}: {error}', {
             clientId: newDetail.id,

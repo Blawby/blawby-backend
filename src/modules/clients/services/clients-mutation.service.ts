@@ -4,7 +4,7 @@
  * Handles write operations for clients (update, delete)
  */
 
-import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
@@ -15,7 +15,11 @@ import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import { ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
 import usersRepository from '@/shared/repositories/users.repository';
+import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { result } from '@/shared/utils/result';
+
+const logger = getLogger(['clients', 'mutation-service']);
 
 /**
  * Update a client
@@ -33,8 +37,18 @@ const updateClient = async (
     };
   },
   ctx: ServiceContext
-): Promise<SelectClient> => {
+): Promise<Result<SelectClient>> => {
   const { id, data } = params;
+
+  const detailWithUser = await clientsRepository.findById(id);
+  if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
+    return result.notFound<SelectClient>('Client not found');
+  }
+
+  if (ctx.ability.cannot('update', toSubject('Client', detailWithUser))) {
+    return result.forbidden<SelectClient>('You do not have permission to update this client');
+  }
+
   let stripeSyncPayload:
     | {
         customerId: string;
@@ -45,13 +59,6 @@ const updateClient = async (
     | undefined = undefined;
 
   const updated = await db.transaction(async (tx) => {
-    const detailWithUser = await clientsRepository.findById(id);
-    if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
-      throw new Error('Client not found');
-    }
-
-    ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('Client', detailWithUser));
-
     if (data.name || data.email || data.phone) {
       const updatePayload: Partial<typeof clients.$inferInsert> = {};
       if (data.name) {
@@ -128,10 +135,10 @@ const updateClient = async (
     const [updatedRecord] = await tx.update(clients).set(finalUpdatePayload).where(eq(clients.id, id)).returning();
 
     if (!updatedRecord) {
-      throw new Error('Failed to update client');
+      return result.internalError<SelectClient>('Failed to update client');
     }
 
-    void ClientUpdated.dispatch(
+    await ClientUpdated.dispatch(
       {
         client_id: updatedRecord.id,
         changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
@@ -143,15 +150,22 @@ const updateClient = async (
       }
     );
 
-    return updatedRecord;
+    return result.ok(updatedRecord);
   });
+
+  if (!updated.success) {
+    return updated;
+  }
 
   if (stripeSyncPayload) {
     try {
       await clientsStripeService.updateCustomer(stripeSyncPayload, ctx);
-    } catch {
-      // Stripe sync failed but DB update succeeded
-      // Return the updated record - caller can check if needed
+    } catch (err) {
+      logger.error('Failed to sync Stripe customer update for client {clientId}: {error}', {
+        clientId: updated.data.id,
+        stripeSyncPayload,
+        error: err,
+      });
     }
   }
 
@@ -161,20 +175,25 @@ const updateClient = async (
 /**
  * Delete a client (soft delete)
  */
-const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<void> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Client');
+const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<void>> => {
+  if (ctx.ability.cannot('delete', 'Client')) {
+    return result.forbidden('You do not have permission to delete clients');
+  }
 
   const { id } = params;
 
   const detail = await clientsRepository.findById(id);
   if (!detail || detail.organization_id !== ctx.organizationId) {
-    throw new Error('Client not found');
+    return result.notFound('Client not found');
   }
 
-  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Client', detail));
+  if (ctx.ability.cannot('delete', toSubject('Client', detail))) {
+    return result.forbidden('You do not have permission to delete this client');
+  }
 
   await clientsRepository.softDelete(id, ctx.userId);
   void ClientDeleted.dispatch({ client_id: id }, { actorId: ctx.userId, organizationId: ctx.organizationId });
+  return result.ok(undefined);
 };
 
 export const clientsMutationService = {
