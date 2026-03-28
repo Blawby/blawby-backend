@@ -98,7 +98,6 @@ export const registerMattersListeners = (): void => {
       ).catch((error) => {
         logError('Failed to queue matter opened email', error, {
           matterId: payload.matter_id,
-          recipientEmail: clientEmail,
         });
       });
     } else if (payload.new_status === 'closed') {
@@ -115,7 +114,6 @@ export const registerMattersListeners = (): void => {
       ).catch((error) => {
         logError('Failed to queue matter closed email', error, {
           matterId: payload.matter_id,
-          recipientEmail: clientEmail,
         });
       });
     }

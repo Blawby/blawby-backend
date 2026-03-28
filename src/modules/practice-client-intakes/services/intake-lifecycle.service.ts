@@ -122,24 +122,31 @@ const updateTriageStatus = async (
     const metadata = intakeSharedHelpers.parseMetadata(intakeResult.data.metadata);
 
     if (metadata?.email) {
-      const organization = await organizationRepository.findById(ctx.organizationId);
+      try {
+        const organization = await organizationRepository.findById(ctx.organizationId);
 
-      if (organization) {
-        void IntakeTriaged.dispatch(
-          {
-            intake_id: params.uuid,
-            organization_id: ctx.organizationId,
-            organization_name: organization.name,
-            triage_status: nextTriageStatus,
-            triage_reason: nextReason,
-            client_email: metadata.email,
-            client_name: metadata.name ?? metadata.email,
-          },
-          {
-            actorId: ctx.userId,
-            organizationId: ctx.organizationId,
-          }
-        );
+        if (organization) {
+          void IntakeTriaged.dispatch(
+            {
+              intake_id: params.uuid,
+              organization_id: ctx.organizationId,
+              organization_name: organization.name,
+              triage_status: nextTriageStatus,
+              triage_reason: nextReason,
+              client_email: metadata.email,
+              client_name: metadata.name ?? metadata.email,
+            },
+            {
+              actorId: ctx.userId,
+              organizationId: ctx.organizationId,
+            }
+          );
+        }
+      } catch (enrichmentError) {
+        logger.warn('Failed to enrich IntakeTriaged event for intake {uuid}: {error}', {
+          uuid: params.uuid,
+          error: enrichmentError,
+        });
       }
     }
 

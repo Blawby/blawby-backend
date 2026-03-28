@@ -56,7 +56,7 @@ const payloadSchema = z
 const responseSchema = z
   .object({
     success: z.boolean(),
-    event_id: z.string(),
+    event_id: z.uuid(),
     status: z.enum(['accepted', 'duplicate']),
   })
   .openapi('WorkerEventResponse');

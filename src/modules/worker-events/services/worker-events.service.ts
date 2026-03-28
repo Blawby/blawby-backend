@@ -5,8 +5,8 @@
  * Supports idempotency via event_id deduplication.
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
-import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { WorkerEventPayload, WorkerEventResponse } from '@/modules/worker-events/types/worker-events.types';
 import { db } from '@/shared/database';
@@ -35,6 +35,7 @@ const resolveActorType = (
 
 /**
  * Validate the worker event secret from the request header.
+ * Uses constant-time comparison to prevent timing side-channel attacks.
  */
 const validateWorkerSecret = (headerValue: string | undefined): void => {
   const { secret } = config.workerEvents;
@@ -43,20 +44,52 @@ const validateWorkerSecret = (headerValue: string | undefined): void => {
     throw new HTTPException(503, { message: 'Worker event ingestion is not configured' });
   }
 
-  if (!headerValue || headerValue !== secret) {
+  if (!headerValue) {
+    throw new HTTPException(401, { message: 'Invalid worker event secret' });
+  }
+
+  const expected = Buffer.from(secret);
+  const received = Buffer.from(headerValue);
+
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) {
     throw new HTTPException(401, { message: 'Invalid worker event secret' });
   }
 };
 
 /**
  * Ingest a worker event into the backend event pipeline.
+ * Uses onConflictDoNothing for atomic idempotency on event_id (primary key).
  * Returns 'duplicate' status if the event_id has already been processed.
  */
 const ingestWorkerEvent = async (payload: WorkerEventPayload): Promise<WorkerEventResponse> => {
-  // Idempotency check: look for existing event with the same event_id
-  const existing = await db.select({ eventId: events.eventId }).from(events).where(eq(events.eventId, payload.event_id)).limit(1);
+  const inserted = await db
+    .insert(events)
+    .values({
+      eventId: payload.event_id,
+      type: payload.event_type,
+      eventVersion: '1.0.0',
+      actorId: payload.actor_id,
+      actorType: resolveActorType(payload.actor_type),
+      organizationId: payload.practice_id,
+      payload: {
+        entity_type: payload.entity_type,
+        entity_id: payload.entity_id,
+        contact_id: payload.contact_id,
+        recipient_email: payload.recipient_email,
+        occurred_at: payload.occurred_at,
+        metadata: payload.metadata ?? {},
+      },
+      metadata: {
+        source: 'worker-event-ingestion',
+        environment: config.env.app,
+      },
+      processed: false,
+      retryCount: 0,
+    })
+    .onConflictDoNothing({ target: events.eventId })
+    .returning({ eventId: events.eventId });
 
-  if (existing.length > 0) {
+  if (inserted.length === 0) {
     logger.info('Duplicate worker event skipped: {eventId}', { eventId: payload.event_id });
     return {
       success: true,
@@ -64,30 +97,6 @@ const ingestWorkerEvent = async (payload: WorkerEventPayload): Promise<WorkerEve
       status: 'duplicate',
     };
   }
-
-  // Insert into the events outbox table for processing by the event worker
-  await db.insert(events).values({
-    eventId: payload.event_id,
-    type: payload.event_type,
-    eventVersion: '1.0.0',
-    actorId: payload.actor_id,
-    actorType: resolveActorType(payload.actor_type),
-    organizationId: payload.practice_id,
-    payload: {
-      entity_type: payload.entity_type,
-      entity_id: payload.entity_id,
-      contact_id: payload.contact_id,
-      recipient_email: payload.recipient_email,
-      occurred_at: payload.occurred_at,
-      ...(payload.metadata ?? {}),
-    },
-    metadata: {
-      source: 'worker-event-ingestion',
-      environment: config.env.app,
-    },
-    processed: false,
-    retryCount: 0,
-  });
 
   logger.info('Worker event ingested: {eventId} ({eventType})', {
     eventId: payload.event_id,

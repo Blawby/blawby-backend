@@ -48,7 +48,6 @@ const sendSubmissionEmails = (payload: {
   ).catch((error) => {
     logError('Failed to queue intake submission received email', error, {
       intakeId: payload.intake_id,
-      recipientEmail: payload.client_email,
     });
   });
 
@@ -71,7 +70,6 @@ const sendSubmissionEmails = (payload: {
     ).catch((error) => {
       logError('Failed to queue intake new notification email', error, {
         intakeId: payload.intake_id,
-        recipientEmail: practiceRecipient,
       });
     });
   }
@@ -158,7 +156,6 @@ export const registerPracticeClientIntakesListeners = (): void => {
       ).catch((error) => {
         logError('Failed to queue intake accepted email', error, {
           intakeId: payload.intake_id,
-          recipientEmail: payload.client_email,
         });
       });
     } else if (payload.triage_status === 'declined') {
@@ -175,7 +172,6 @@ export const registerPracticeClientIntakesListeners = (): void => {
       ).catch((error) => {
         logError('Failed to queue intake declined email', error, {
           intakeId: payload.intake_id,
-          recipientEmail: payload.client_email,
         });
       });
     }
