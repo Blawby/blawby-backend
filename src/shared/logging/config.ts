@@ -23,9 +23,7 @@ export const initializeLogging = async () => {
   await configure({
     sinks: {
       console: getConsoleSink(),
-      file: getFileSink(path.join(logDir, 'app.log'), {
-        fileNameFormat: path.join(logDir, 'app-{yyyy}{mm}{dd}.log'),
-      }),
+      file: getFileSink(path.join(logDir, 'app.log')),
     },
     loggers: [
       {
