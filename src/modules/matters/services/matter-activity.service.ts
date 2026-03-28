@@ -74,7 +74,7 @@ const getMatterActivity = async (
   options: MatterActivityListFilters | undefined,
   ctx: ServiceContext
 ): Promise<Result<SelectMatterActivityLog[]>> => {
-  const {matterId} = ctx;
+  const { matterId } = ctx;
   if (!matterId) {
     return internalError('Matter ID not found in context');
   }

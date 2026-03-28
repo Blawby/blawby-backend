@@ -10,7 +10,8 @@ const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust
  * Type guard that validates a fund destination value at runtime.
  * Prevents silent misrouting of funds from invalid DB values.
  */
-const isValidFundDestination = (value: unknown): value is FundDestination => typeof value === 'string' && VALID_FUND_DESTINATIONS.includes(value as FundDestination);
+const isValidFundDestination = (value: unknown): value is FundDestination =>
+  typeof value === 'string' && VALID_FUND_DESTINATIONS.includes(value as FundDestination);
 
 const validateFundDestination = (value: unknown, invoiceId: string): Result<FundDestination> => {
   if (isValidFundDestination(value)) {

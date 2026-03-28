@@ -13,6 +13,7 @@ import { InvoicePaid, InvoicePaymentFailed, InvoiceVoided, InvoiceDeleted } from
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
+import { isStripeInvoice } from '@/shared/utils/stripeGuards';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['invoices', 'webhooks-service']);
@@ -407,11 +408,6 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<Resu
   }
 };
 
-/**
- * Type guard for Stripe Invoice
- */
-const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice =>
-  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
 /**
  * Process a Stripe invoice event
  */

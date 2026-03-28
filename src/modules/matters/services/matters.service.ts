@@ -176,7 +176,9 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Res
   return result.ok<MatterRecord>({
     ...matter,
     assignees: matter.assignees.map((assignee) => assignee.user),
-    client: matter.client ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' } : null,
+    client: matter.client
+      ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' }
+      : null,
   });
 };
 
@@ -203,7 +205,7 @@ const listMatters = async (
   });
 
   return result.ok({
-    matters: listResult.matters as MatterRecord[],
+    matters: listResult.matters,
     total: listResult.total,
   });
 };

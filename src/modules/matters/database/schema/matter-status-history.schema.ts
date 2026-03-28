@@ -19,7 +19,7 @@ export const matterStatusHistory = pgTable(
       onDelete: 'set null',
     }),
     reason: text('reason'),
-    metadata: jsonb('metadata'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     changed_at: timestamp('changed_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [

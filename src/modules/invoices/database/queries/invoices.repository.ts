@@ -5,8 +5,10 @@ import type {
   SelectInvoice,
   InsertInvoiceLineItem,
   SelectInvoiceLineItem,
+  InvoiceWithRelations,
+  InvoiceSummary,
+  InvoiceListFilters,
 } from '@/modules/invoices/database/schema';
-import type { InvoiceWithRelations, InvoiceSummary, InvoiceListFilters } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
 const { invoices } = invoicesSchema;
