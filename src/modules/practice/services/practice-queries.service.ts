@@ -21,7 +21,9 @@ const logger = getLogger(['practice', 'queries-service']);
 // --- Local Helpers ---
 
 const fetchAddressData = async (addressId: string | null): Promise<Address | null> => {
-  if (!addressId) {return null;}
+  if (!addressId) {
+    return null;
+  }
 
   const [address] = await db.select().from(addressesTable).where(eq(addressesTable.id, addressId));
 
@@ -55,7 +57,9 @@ export const practiceQueriesService = {
     }
 
     const result = await organizationService.listOrganizations(ctx);
-    if (!result.success) {return result;}
+    if (!result.success) {
+      return result;
+    }
     return ok<{ practices: Organization[] }>({ practices: result.data });
   },
 
@@ -71,15 +75,10 @@ export const practiceQueriesService = {
     }
 
     try {
-      // 1. Get organization from Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-
-      if (!orgResult.success) {
-        return orgResult;
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound<{ practice: PracticeWithDetails }>(`Organization not found for '${organizationId}'`);
       }
-
-      const organization = orgResult.data;
-      const storedOrganization = await organizationRepository.findById(organizationId);
 
       // 2. Get optional practice details
       const practiceDetails = await findPracticeDetailsByOrganization(organizationId);
@@ -88,10 +87,10 @@ export const practiceQueriesService = {
       const practice: PracticeWithDetails = {
         ...practiceDetails,
         ...organization,
-        metadata: parseBetterAuthMetadata(orgResult.data.metadata),
-        payment_link_enabled: storedOrganization?.paymentLinkEnabled ?? null,
-        payment_link_prefill_amount: storedOrganization?.paymentLinkPrefillAmount ?? null,
-        created_at: orgResult.data.createdAt,
+        metadata: parseBetterAuthMetadata(organization.metadata),
+        payment_link_enabled: organization.paymentLinkEnabled ?? null,
+        payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? null,
+        created_at: organization.createdAt,
         updated_at: practiceDetails?.updated_at ?? undefined,
       };
 
@@ -114,17 +113,13 @@ export const practiceQueriesService = {
     }
 
     try {
-      // 1. Verify organization exists and user has access via Better Auth
-      const organizationResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-
-      if (!organizationResult.success) {
-        return organizationResult;
+      // 1. Verify organization exists
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound<PracticeDetailsResponse>(`Organization not found for '${organizationId}'`);
       }
 
-      // 2. Get organization with custom fields from repository
-      const organization = await organizationRepository.findById(organizationId);
-
-      // 3. Get practice details and services
+      // 2. Get practice details and services
       const [fetchedDetails, services] = await Promise.all([
         findPracticeDetailsByOrganization(organizationId),
         practiceServicesRepository.findServicesByOrganization(organizationId),
@@ -134,17 +129,17 @@ export const practiceQueriesService = {
         return notFound<PracticeDetailsResponse>(`Practice details not found for organization '${organizationId}'`);
       }
 
-      // 4. Fetch address if linked
+      // 3. Fetch address if linked
       const addressData = await fetchAddressData(fetchedDetails.address_id);
 
-      // 5. Build response
+      // 4. Build response
       const responseData: PracticeDetailsResponse = {
         ...fetchedDetails,
         organization_id: organizationId,
         address: addressData,
         services: services.map((s) => ({ id: s.id, name: s.name, key: s.key })),
-        name: organizationResult.data.name,
-        logo: organizationResult.data.logo ?? null,
+        name: organization.name,
+        logo: organization.logo ?? null,
         payment_link_enabled: organization?.paymentLinkEnabled ?? false,
         payment_link_prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
       };

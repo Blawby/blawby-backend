@@ -11,4 +11,5 @@ export interface MemberListItem {
 /**
  * Type guard to check if a string is a valid MemberRole
  */
-export const isValidMemberRole = (role: unknown): role is MemberRole => typeof role === 'string' && ['owner', 'admin', 'attorney', 'paralegal', 'member', 'client'].includes(role);
+export const isValidMemberRole = (role: unknown): role is MemberRole =>
+  typeof role === 'string' && ['owner', 'admin', 'attorney', 'paralegal', 'member', 'client'].includes(role);
