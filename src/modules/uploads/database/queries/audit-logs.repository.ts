@@ -24,7 +24,7 @@ export const auditLogsRepository = {
   },
 
   countByUploadId: async function countByUploadId(uploadId: string): Promise<number> {
-    const [result] = await db
+    const [result]: { count: number }[] = await db
       .select({ count: count() })
       .from(uploadAuditLogs)
       .where(eq(uploadAuditLogs.upload_id, uploadId));

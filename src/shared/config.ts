@@ -28,9 +28,18 @@ interface AppConfig {
   cloudflare: CloudflareConfig;
 }
 
+const normalizeAppUrl = (value: string | undefined): string => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return 'https://app.blawby.com';
+  }
+
+  return trimmed.replace(/\/+$/, '');
+};
+
 export const config: AppConfig = {
   app: {
-    appUrl: process.env.APP_URL ?? 'https://app.blawby.com',
+    appUrl: normalizeAppUrl(process.env.APP_URL),
   },
   env: {
     isProduction: process.env.NODE_ENV === 'production',

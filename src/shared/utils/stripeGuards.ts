@@ -63,7 +63,11 @@ const isPriceEvent = (event: Stripe.Event): event is StripeEventWithObject<Strip
  * Type Guard: Checks if a payload is a Stripe.Event-like object.
  */
 const isStripeEvent = (value: unknown): value is Stripe.Event =>
-  isRecord(value) && typeof value.id === 'string' && typeof value.type === 'string' && isRecord(value.data);
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.type === 'string' &&
+  isRecord(value.data) &&
+  isRecord(value.data.object);
 
 /**
  * Type Guard: Checks if object is Stripe.Account.
@@ -81,7 +85,7 @@ const isStripeCapability = (value: unknown): value is Stripe.Capability =>
  * Type Guard: Checks if object is a Stripe ExternalAccount-like object.
  */
 const isStripeExternalAccount = (value: unknown): value is Stripe.ExternalAccount =>
-  isRecord(value) && typeof value.id === 'string' && typeof value.account === 'string';
+  isRecord(value) && typeof value.id === 'string' && (value.object === 'bank_account' || value.object === 'card');
 
 /**
  * Type Guard: Checks if object is Stripe.Checkout.Session.

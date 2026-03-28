@@ -88,11 +88,23 @@ export const practiceClientIntakesWebhooksService = {
         }
 
         if (event.type === 'payment_intent.succeeded') {
-          await this.handlePracticeClientIntakeSucceededWebhook(paymentIntent, event.id);
+          const handlerResult = await this.handlePracticeClientIntakeSucceededWebhook(paymentIntent, event.id);
+          if (!handlerResult.success) {
+            await stripeWebhookEventsRepository.markFailed(webhookEvent.id, handlerResult.error.message);
+            return handlerResult;
+          }
         } else if (event.type === 'payment_intent.payment_failed') {
-          await this.handlePracticeClientIntakeFailedWebhook(paymentIntent, event.id);
+          const handlerResult = await this.handlePracticeClientIntakeFailedWebhook(paymentIntent, event.id);
+          if (!handlerResult.success) {
+            await stripeWebhookEventsRepository.markFailed(webhookEvent.id, handlerResult.error.message);
+            return handlerResult;
+          }
         } else if (event.type === 'payment_intent.canceled') {
-          await this.handlePracticeClientIntakeCanceledWebhook(paymentIntent, event.id);
+          const handlerResult = await this.handlePracticeClientIntakeCanceledWebhook(paymentIntent, event.id);
+          if (!handlerResult.success) {
+            await stripeWebhookEventsRepository.markFailed(webhookEvent.id, handlerResult.error.message);
+            return handlerResult;
+          }
         }
 
         await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
@@ -125,29 +137,34 @@ export const practiceClientIntakesWebhooksService = {
   async handlePracticeClientIntakeSucceededWebhook(
     paymentIntent: Stripe.PaymentIntent,
     eventId?: string
-  ): Promise<void> {
+  ): Promise<Result<void>> {
     if (!paymentIntent.id) {
-      throw new Error('Payment Intent ID missing from payment_intent.succeeded event');
+      return internalError('Payment Intent ID missing from payment_intent.succeeded event');
     }
 
     await handlePracticeClientIntakeSucceeded({
       paymentIntent,
       eventId,
     });
+    return ok(undefined);
   },
 
   /**
    * Handle practice client intake payment failure
    */
-  async handlePracticeClientIntakeFailedWebhook(paymentIntent: Stripe.PaymentIntent, eventId?: string): Promise<void> {
+  async handlePracticeClientIntakeFailedWebhook(
+    paymentIntent: Stripe.PaymentIntent,
+    eventId?: string
+  ): Promise<Result<void>> {
     if (!paymentIntent.id) {
-      throw new Error('Payment Intent ID missing from payment_intent.payment_failed event');
+      return internalError('Payment Intent ID missing from payment_intent.payment_failed event');
     }
 
     await handlePracticeClientIntakeFailed({
       paymentIntent,
       eventId,
     });
+    return ok(undefined);
   },
 
   /**
@@ -156,15 +173,16 @@ export const practiceClientIntakesWebhooksService = {
   async handlePracticeClientIntakeCanceledWebhook(
     paymentIntent: Stripe.PaymentIntent,
     eventId?: string
-  ): Promise<void> {
+  ): Promise<Result<void>> {
     if (!paymentIntent.id) {
-      throw new Error('Payment Intent ID missing from payment_intent.canceled event');
+      return internalError('Payment Intent ID missing from payment_intent.canceled event');
     }
 
     await handlePracticeClientIntakeCanceled({
       paymentIntent,
       eventId,
     });
+    return ok(undefined);
   },
 };
 

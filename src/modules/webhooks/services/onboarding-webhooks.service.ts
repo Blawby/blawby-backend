@@ -123,7 +123,7 @@ export const onboardingWebhooksService = {
       webhookId?: string;
     }>
   > {
-    const webhookSecret = config.stripe.webhookSecret;
+    const { webhookSecret } = config.stripe;
 
     if (!webhookSecret) {
       logger.error('STRIPE_WEBHOOK_SECRET environment variable is missing');
@@ -155,34 +155,44 @@ export const onboardingWebhooksService = {
       const event = webhookEvent.payload;
 
       if (!isStripeEvent(event)) {
+        await stripeWebhookEventsRepository.markFailed(
+          webhookEvent.id,
+          'Stored webhook payload is not a valid Stripe event'
+        );
         logger.error('Stored webhook payload is not a valid Stripe event: {eventId}', { eventId: webhookEvent.id });
         return internalError('Stored webhook payload is invalid');
       }
 
       // Process based on event type - onboarding related events only
+      let handlerResult: Result<void> = ok(undefined);
       switch (event.type) {
         case 'account.updated':
-          await this.handleAccountUpdatedWebhook(event);
+          handlerResult = await this.handleAccountUpdatedWebhook(event);
           break;
 
         case 'capability.updated':
-          await this.handleCapabilityUpdatedWebhook(event);
+          handlerResult = await this.handleCapabilityUpdatedWebhook(event);
           break;
 
         case 'account.external_account.created':
-          await this.handleExternalAccountCreatedWebhook(event);
+          handlerResult = await this.handleExternalAccountCreatedWebhook(event);
           break;
 
         case 'account.external_account.updated':
-          await this.handleExternalAccountUpdatedWebhook(event);
+          handlerResult = await this.handleExternalAccountUpdatedWebhook(event);
           break;
 
         case 'account.external_account.deleted':
-          await this.handleExternalAccountDeletedWebhook(event);
+          handlerResult = await this.handleExternalAccountDeletedWebhook(event);
           break;
 
         default:
           logger.info('Unhandled onboarding webhook event type: {eventType}', { eventType: event.type });
+      }
+
+      if (!handlerResult.success) {
+        await stripeWebhookEventsRepository.markFailed(webhookEvent.id, handlerResult.error.message);
+        return handlerResult;
       }
 
       // Mark as processed
@@ -214,102 +224,107 @@ export const onboardingWebhooksService = {
   /**
    * Handle account.updated event
    */
-  async handleAccountUpdatedWebhook(event: Stripe.Event): Promise<void> {
+  async handleAccountUpdatedWebhook(event: Stripe.Event): Promise<Result<void>> {
     const account = event.data.object;
 
     if (!isStripeAccount(account)) {
       logger.error('Invalid account object in account.updated event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Invalid account object in account.updated event');
     }
 
     if (!account.id) {
       logger.error('Account ID missing from account.updated event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Account ID missing from account.updated event');
     }
 
     await handleAccountUpdated(account);
+    return ok(undefined);
   },
 
   /**
    * Handle capability.updated event
    */
-  async handleCapabilityUpdatedWebhook(event: Stripe.Event): Promise<void> {
+  async handleCapabilityUpdatedWebhook(event: Stripe.Event): Promise<Result<void>> {
     const capability = event.data.object;
 
     if (!isStripeCapability(capability)) {
       logger.error('Invalid capability object in capability.updated event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Invalid capability object in capability.updated event');
     }
 
     if (!capability.account) {
       logger.error('Account ID missing from capability.updated event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Account ID missing from capability.updated event');
     }
 
     await handleCapabilityUpdated(capability);
+    return ok(undefined);
   },
 
   /**
    * Handle account.external_account.created event
    */
-  async handleExternalAccountCreatedWebhook(event: Stripe.Event): Promise<void> {
+  async handleExternalAccountCreatedWebhook(event: Stripe.Event): Promise<Result<void>> {
     const externalAccount = event.data.object;
 
     if (!isStripeExternalAccount(externalAccount)) {
       logger.error('Invalid external account object in account.external_account.created event: {eventId}', {
         eventId: event.id,
       });
-      return;
+      return badRequest('Invalid external account object in account.external_account.created event');
     }
 
     if (!externalAccount.account) {
       logger.error('Account ID missing from account.external_account.created event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Account ID missing from account.external_account.created event');
     }
 
     await handleExternalAccountCreated(externalAccount);
+    return ok(undefined);
   },
 
   /**
    * Handle account.external_account.updated event
    */
-  async handleExternalAccountUpdatedWebhook(event: Stripe.Event): Promise<void> {
+  async handleExternalAccountUpdatedWebhook(event: Stripe.Event): Promise<Result<void>> {
     const externalAccount = event.data.object;
 
     if (!isStripeExternalAccount(externalAccount)) {
       logger.error('Invalid external account object in account.external_account.updated event: {eventId}', {
         eventId: event.id,
       });
-      return;
+      return badRequest('Invalid external account object in account.external_account.updated event');
     }
 
     if (!externalAccount.account) {
       logger.error('Account ID missing from account.external_account.updated event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Account ID missing from account.external_account.updated event');
     }
 
     await handleExternalAccountUpdated(externalAccount);
+    return ok(undefined);
   },
 
   /**
    * Handle account.external_account.deleted event
    */
-  async handleExternalAccountDeletedWebhook(event: Stripe.Event): Promise<void> {
+  async handleExternalAccountDeletedWebhook(event: Stripe.Event): Promise<Result<void>> {
     const externalAccount = event.data.object;
 
     if (!isStripeExternalAccount(externalAccount)) {
       logger.error('Invalid external account object in account.external_account.deleted event: {eventId}', {
         eventId: event.id,
       });
-      return;
+      return badRequest('Invalid external account object in account.external_account.deleted event');
     }
 
     if (!externalAccount.account) {
       logger.error('Account ID missing from account.external_account.deleted event: {eventId}', { eventId: event.id });
-      return;
+      return badRequest('Account ID missing from account.external_account.deleted event');
     }
 
     await handleExternalAccountDeleted(externalAccount);
+    return ok(undefined);
   },
 
   /**
@@ -325,7 +340,14 @@ export const onboardingWebhooksService = {
 
     for (const event of retryableEvents) {
       try {
-        await this.processEvent(event.stripeEventId);
+        const result = await this.processEvent(event.stripeEventId);
+        if (!result.success) {
+          logger.error('Failed to retry onboarding webhook event {stripeEventId}: {error}', {
+            stripeEventId: event.stripeEventId,
+            retryCount: event.retryCount,
+            error: result.error.message,
+          });
+        }
       } catch (error) {
         logger.error('Failed to retry onboarding webhook event {stripeEventId}: {error}', {
           stripeEventId: event.stripeEventId,
