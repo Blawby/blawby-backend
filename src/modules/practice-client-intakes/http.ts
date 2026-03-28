@@ -15,15 +15,24 @@ practiceClientIntakesApp.openapi(
   publicRoutes.getPracticeClientIntakePostPayStatusRoute,
   handlers.getPracticeClientIntakePostPayStatusHandler
 );
-practiceClientIntakesApp.openapi(clientRoutes.claimPracticeClientIntakeRoute, handlers.claimPracticeClientIntakeHandler);
-practiceClientIntakesApp.openapi(publicRoutes.createPracticeClientIntakeRoute, handlers.createPracticeClientIntakeHandler);
+practiceClientIntakesApp.openapi(
+  clientRoutes.claimPracticeClientIntakeRoute,
+  handlers.claimPracticeClientIntakeHandler
+);
+practiceClientIntakesApp.openapi(
+  publicRoutes.createPracticeClientIntakeRoute,
+  handlers.createPracticeClientIntakeHandler
+);
 // Dynamic routes with path parameters
 practiceClientIntakesApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
 practiceClientIntakesApp.openapi(
   clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
   handlers.createPracticeClientIntakeCheckoutSessionHandler
 );
-practiceClientIntakesApp.openapi(clientRoutes.updatePracticeClientIntakeRoute, handlers.updatePracticeClientIntakeHandler);
+practiceClientIntakesApp.openapi(
+  clientRoutes.updatePracticeClientIntakeRoute,
+  handlers.updatePracticeClientIntakeHandler
+);
 practiceClientIntakesApp.openapi(
   clientRoutes.getPracticeClientIntakeStatusRoute,
   handlers.getPracticeClientIntakeStatusHandler

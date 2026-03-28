@@ -21,7 +21,9 @@ const getIntakeSettingsHandler: AppRouteHandler<typeof publicRoutes.getIntakeSet
   return sendResult(c, result, 200);
 };
 
-const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.createPracticeClientIntakeRoute> = async (c) => {
+const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.createPracticeClientIntakeRoute> = async (
+  c
+) => {
   const body = c.req.valid('json');
   const result = await intakeCreationService.createIntake({
     data: {
@@ -47,7 +49,9 @@ const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
   return sendResult(c, result, 201);
 };
 
-const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.updatePracticeClientIntakeRoute> = async (c) => {
+const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.updatePracticeClientIntakeRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
@@ -55,9 +59,9 @@ const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.upd
   return sendResult(c, result, 200);
 };
 
-const getPracticeClientIntakeStatusHandler: AppRouteHandler<typeof clientRoutes.getPracticeClientIntakeStatusRoute> = async (
-  c
-) => {
+const getPracticeClientIntakeStatusHandler: AppRouteHandler<
+  typeof clientRoutes.getPracticeClientIntakeStatusRoute
+> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const result = await intakeCheckoutService.getIntakeStatus({ uuid }, ctx);
@@ -72,7 +76,9 @@ const getPracticeClientIntakePostPayStatusHandler: AppRouteHandler<
   return sendResult(c, result, 200);
 };
 
-const claimPracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.claimPracticeClientIntakeRoute> = async (c) => {
+const claimPracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.claimPracticeClientIntakeRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { session_id: sessionId } = c.req.valid('json');
   const result = await intakeCheckoutService.claimIntake({ sessionId }, ctx);
@@ -108,7 +114,9 @@ const convertIntakeHandler: AppRouteHandler<typeof staffRoutes.convertIntakeRout
   return sendResult(c, result, 201);
 };
 
-const updateIntakeTriageStatusHandler: AppRouteHandler<typeof staffRoutes.updateIntakeTriageStatusRoute> = async (c) => {
+const updateIntakeTriageStatusHandler: AppRouteHandler<typeof staffRoutes.updateIntakeTriageStatusRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');

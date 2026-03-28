@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { ForbiddenError } from '@casl/ability';
 import { sql } from 'drizzle-orm';
 import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
 import { result } from '@/shared/utils/result';
@@ -17,6 +18,17 @@ import {
 } from '@/modules/trust/types/trust.types';
 
 const logger = getLogger(['trust', 'service']);
+
+const isServiceContext = (value: unknown): value is ServiceContext =>
+  value !== null && typeof value === 'object' && 'ability' in value && 'emit' in value && 'organizationId' in value;
+
+const assertTrustManageAccess = (ctx: ServiceContext): void => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
+};
+
+const assertTrustReadAccess = (ctx: ServiceContext): void => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+};
 
 /**
  * Shared helper to acquire a trust lock and execute logic with retries for serialization failures.
@@ -172,7 +184,14 @@ const recordWithdrawal = async (
 /**
  * Get trust transaction history filtered by client and/or matter.
  */
-const getTransactions = async (params: GetTransactionsParams): Promise<Result<SelectTrustTransaction[]>> => {
+const getTransactions = async (
+  params: GetTransactionsParams,
+  ctx?: ServiceContext
+): Promise<Result<SelectTrustTransaction[]>> => {
+  if (ctx) {
+    assertTrustReadAccess(ctx);
+  }
+
   try {
     const txs = await trustTransactionsRepository.listByOrg(params);
     return result.ok(txs);
@@ -189,10 +208,22 @@ const getTransactions = async (params: GetTransactionsParams): Promise<Result<Se
  */
 const getBalance = async (
   params: GetBalanceParams,
+  ctxOrTx?: ServiceContext | typeof db,
   tx?: typeof db
 ): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
+  const ctx = isServiceContext(ctxOrTx) ? ctxOrTx : undefined;
+  const actualTx = isServiceContext(ctxOrTx) ? tx : ctxOrTx;
+
+  if (ctx) {
+    assertTrustReadAccess(ctx);
+  }
+
   try {
-    const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId, tx);
+    const rows = await trustTransactionsRepository.getLatestBalanceByClient(
+      params.organizationId,
+      params.clientId,
+      actualTx
+    );
     const total = rows.reduce((sum, r) => sum + r.balance, 0);
     return result.ok({ total, byMatter: rows });
   } catch (error) {
@@ -206,7 +237,11 @@ const getBalance = async (
 /**
  * Get trust report for IOLTA compliance over a date range.
  */
-const getReport = async (params: GetReportParams): Promise<Result<SelectTrustTransaction[]>> => {
+const getReport = async (params: GetReportParams, ctx?: ServiceContext): Promise<Result<SelectTrustTransaction[]>> => {
+  if (ctx) {
+    assertTrustReadAccess(ctx);
+  }
+
   try {
     const txs = await trustTransactionsRepository.listByOrg(params);
     return result.ok(txs);
@@ -270,8 +305,10 @@ const syncBalanceAndCheckThreshold = async (
 const manualDeposit = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction>> =>
-  db.transaction(async (tx) => {
+): Promise<Result<SelectTrustTransaction>> => {
+  assertTrustManageAccess(ctx);
+
+  return db.transaction(async (tx) => {
     const depositResult = await recordDeposit(
       {
         organizationId: ctx.organizationId,
@@ -292,6 +329,7 @@ const manualDeposit = async (
     await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
     return depositResult;
   });
+};
 
 /**
  * Manual trust withdrawal (staff-initiated). Records in ledger, syncs retainer_balance, checks threshold.
@@ -300,8 +338,10 @@ const manualDeposit = async (
 const manualWithdrawal = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction>> =>
-  db.transaction(async (tx) => {
+): Promise<Result<SelectTrustTransaction>> => {
+  assertTrustManageAccess(ctx);
+
+  return db.transaction(async (tx) => {
     const withdrawalResult = await recordWithdrawal(
       {
         organizationId: ctx.organizationId,
@@ -322,6 +362,7 @@ const manualWithdrawal = async (
     await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
     return withdrawalResult;
   });
+};
 
 export const trustService = {
   recordDeposit,

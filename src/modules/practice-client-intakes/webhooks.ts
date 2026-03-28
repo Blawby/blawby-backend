@@ -176,7 +176,9 @@ export const handlePracticeClientIntakeFailed = async ({
 }): Promise<void> => {
   try {
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (!practiceClientIntake) {return;}
+    if (!practiceClientIntake) {
+      return;
+    }
 
     await db.transaction(async (tx) => {
       const updateResult = await tx
@@ -224,7 +226,9 @@ export const handlePracticeClientIntakeCanceled = async ({
 }): Promise<void> => {
   try {
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (!practiceClientIntake) {return;}
+    if (!practiceClientIntake) {
+      return;
+    }
 
     await db.transaction(async (tx) => {
       const updateResult = await tx

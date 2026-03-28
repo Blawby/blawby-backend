@@ -109,7 +109,7 @@ const onboardingPreferencesSchema = z.object({
 
 const profilePreferencesSchema = z.object({
   // Profile fields (phone, phoneCountryCode, dob) are now in users table
-  // via Better Auth additionalFields. Use Better Auth updateUser endpoint.
+  // Via Better Auth additionalFields. Use Better Auth updateUser endpoint.
   // This schema kept for backward compatibility but is empty.
 });
 
@@ -120,7 +120,7 @@ const preferenceCategorySchema = z.enum(PREFERENCE_CATEGORIES);
 // Note: phone and dob should be updated via Better Auth updateUser endpoint
 const updateUserDetailsSchema = z.object({
   phone: z.string().min(10).optional(),
-  phone_country_code: z.string().optional(), // e.g., '+1', '+44'
+  phone_country_code: z.string().optional(), // E.g., '+1', '+44'
   dob: z.iso.date().optional(),
   product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5).optional(),
 });
