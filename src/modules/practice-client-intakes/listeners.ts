@@ -94,6 +94,13 @@ export const registerPracticeClientIntakesListeners = (): void => {
       intakeId: payload.intake_payment_id,
     });
 
+    if (!payload.client_email) {
+      logger.warn('No client email for intake payment succeeded, skipping submission emails', {
+        intakeId: payload.intake_payment_id,
+      });
+      return;
+    }
+
     // Resolve organization for email data
     const organization = await organizationRepository.findById(payload.organization_id);
     if (!organization) {
@@ -107,7 +114,7 @@ export const registerPracticeClientIntakesListeners = (): void => {
       intake_id: payload.uuid,
       organization_name: organization.name,
       billing_email: organization.billingEmail ?? null,
-      client_email: payload.client_email ?? '',
+      client_email: payload.client_email,
       client_name: payload.client_name ?? 'Valued Client',
       amount: payload.amount,
     });

@@ -69,7 +69,8 @@ export const registerMattersListeners = (): void => {
     }
 
     // Send client-facing email for "active" (opened) and "closed" status transitions
-    if (payload.new_status !== 'active' && payload.new_status !== 'closed') {
+    const isEmailableTransition = payload.new_status === 'active' || payload.new_status === 'closed';
+    if (!isEmailableTransition) {
       return;
     }
 
