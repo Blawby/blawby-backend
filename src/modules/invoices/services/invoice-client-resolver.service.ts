@@ -1,14 +1,15 @@
 import { and, or, eq, isNull } from 'drizzle-orm';
-import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
-import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
+import { getLogger } from '@logtape/logtape';
 import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
-import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { clientsSetupService } from '@/modules/clients/services/clients-setup.service';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import { createSystemContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
+
+const logger = getLogger(['invoices', 'client-resolver-service']);
 
 /**
  * Resolves a client for invoice creation
@@ -63,7 +64,15 @@ const resolveClientForInvoice = async (
         .returning();
 
       // Fire-and-forget background processing for Stripe and events
-      void clientsCrudService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
+      void clientsSetupService
+        .ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'))
+        .catch((error) => {
+          logger.error('Failed to auto-setup client after auto-vivification {clientId} {organizationId}: {error}', {
+            clientId: newDetail.id,
+            organizationId,
+            error,
+          });
+        });
 
       // Re-fetch to populate relations for the remainder of the process
       clientDetails = await db.query.clients.findFirst({

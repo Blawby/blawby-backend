@@ -63,11 +63,17 @@ const validateInvoiceCreation = async (
   ctx: ServiceContext
 ): Promise<Result<{ clientId: string }>> => {
   // 1. Resolve and validate client with all required relations
-  const clientResult = await invoiceClientResolver.resolveClientForInvoice(
-    ctx.organizationId,
-    data.client_id,
-    data.connected_account_id
-  );
+  let clientResult: Awaited<ReturnType<typeof invoiceClientResolver.resolveClientForInvoice>>;
+  try {
+    clientResult = await invoiceClientResolver.resolveClientForInvoice(
+      ctx.organizationId,
+      data.client_id,
+      data.connected_account_id
+    );
+  } catch {
+    return result.internalError('Failed to resolve client for invoice creation');
+  }
+
   if (!clientResult.success) {
     return clientResult;
   }
@@ -139,7 +145,7 @@ const validateInvoiceCreation = async (
 const persistInvoiceStructure = async (
   { data, clientId, totals }: { data: CreateInvoiceRequest; clientId: string; totals: InvoiceTotals },
   ctx: ServiceContext
-): Promise<InvoiceWithRelations | undefined> =>
+): Promise<InvoiceWithRelations> =>
   await db.transaction(async (tx) => {
     const { line_items, time_entry_ids, expense_ids, milestone_id, ...invoiceData } = data;
     const matterId = data.matter_id;
@@ -183,24 +189,26 @@ const persistInvoiceStructure = async (
     }
 
     const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, ctx.organizationId, tx);
-    if (invWithRel) {
-      await InvoiceCreated.dispatch(
-        {
-          invoice_id: newInvoice.id,
-          organization_id: ctx.organizationId,
-          client_id: clientId,
-          matter_id: data.matter_id ?? null,
-          invoice_number: newInvoice.invoice_number,
-          total: totals.total,
-        },
-        {
-          actorId: ctx.userId,
-          actorType: 'user',
-          organizationId: ctx.organizationId,
-          tx,
-        }
-      );
+    if (!invWithRel) {
+      throw new Error('Created invoice could not be reloaded for event dispatch');
     }
+
+    await InvoiceCreated.dispatch(
+      {
+        invoice_id: newInvoice.id,
+        organization_id: ctx.organizationId,
+        client_id: clientId,
+        matter_id: data.matter_id ?? null,
+        invoice_number: newInvoice.invoice_number,
+        total: totals.total,
+      },
+      {
+        actorId: ctx.userId,
+        actorType: 'user',
+        organizationId: ctx.organizationId,
+        tx,
+      }
+    );
 
     return invWithRel;
   });
@@ -227,10 +235,6 @@ const createInvoice = async (
   try {
     // 2. Persist
     const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
-    if (!invoice) {
-      return result.internalError<InvoiceResponse>('Failed to retrieve created invoice');
-    }
-
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(invoice));
   } catch (error) {
     return handleServiceError(

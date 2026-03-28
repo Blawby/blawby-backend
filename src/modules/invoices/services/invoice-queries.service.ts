@@ -104,18 +104,21 @@ const listClientInvoices = async (
   { filters }: { filters: { status?: string; page?: number; limit?: number } },
   ctx: ServiceContext
 ): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
+  if (!ctx.userId) {
+    return result.unauthorized('Authentication required');
+  }
+
+  if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
+    return result.forbidden('You do not have permission to view invoices');
+  }
+
   try {
-    if (!ctx.userId) {
-      return result.unauthorized('Authentication required');
-    }
-
-    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-      return result.forbidden('You do not have permission to view invoices');
-    }
-
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) {
       return userDetailResult;
+    }
+    if (!userDetailResult.data) {
+      return result.notFound('User detail not found');
     }
 
     const page = filters.page ?? 1;
@@ -145,11 +148,11 @@ const listClientInvoices = async (
  * Get a single invoice by ID (practice admin/member view)
  */
 const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
-  try {
-    if (ctx.ability.cannot('read', 'Invoice')) {
-      return result.forbidden<InvoiceResponse>('You do not have permission to view this invoice');
-    }
+  if (ctx.ability.cannot('read', 'Invoice')) {
+    return result.forbidden<InvoiceResponse>('You do not have permission to view this invoice');
+  }
 
+  try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
       return result.notFound('Invoice not found');
@@ -173,18 +176,21 @@ const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
   ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
+  if (!ctx.userId) {
+    return result.unauthorized('Authentication required');
+  }
+
+  if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
+    return result.forbidden('You do not have permission to view this invoice');
+  }
+
   try {
-    if (!ctx.userId) {
-      return result.unauthorized('Authentication required');
-    }
-
-    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-      return result.forbidden('You do not have permission to view this invoice');
-    }
-
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) {
       return userDetailResult;
+    }
+    if (!userDetailResult.data) {
+      return result.notFound('User detail not found');
     }
 
     const invoice = await invoicesRepository.findOneByIdAndClientId(
