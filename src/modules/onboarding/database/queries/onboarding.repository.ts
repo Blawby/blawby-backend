@@ -5,8 +5,11 @@
  */
 
 import { eq, and, lte } from 'drizzle-orm';
-import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
-import type { StripeConnectedAccount, NewStripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
+import {
+  stripeConnectedAccounts,
+  type StripeConnectedAccount,
+  type NewStripeConnectedAccount,
+} from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
 import { webhookEvents, type WebhookEvent } from '@/shared/schemas/stripe.webhook-events.schema';
 

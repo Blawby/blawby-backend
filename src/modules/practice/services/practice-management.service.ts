@@ -1,6 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import { omit } from 'es-toolkit/compat';
 
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
@@ -10,15 +11,18 @@ import {
   upsertDetailsTransaction,
 } from '@/modules/practice/services/practice-management.helpers';
 import type { CreatePracticeParams, UpdatePracticeParams } from '@/modules/practice/types/practice-management.types';
-import type { UpdatePracticeRequest, PracticeWithDetails } from '@/modules/practice/types/practice.types';
+import type {
+  UpdatePracticeRequest,
+  PracticeWithDetails,
+  OrganizationApiShape,
+} from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import { PracticeCreated, PracticeUpdated } from '@/shared/events/definitions';
-import type { Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { forbidden, ok, internalError } from '@/shared/utils/result';
+import { forbidden, ok, internalError, notFound } from '@/shared/utils/result';
 
 const { getBetterAuthErrorMessage } = betterAuthUtils;
 
@@ -118,26 +122,32 @@ export const practiceManagementService = {
         Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null)
       ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
-      let organization: Organization;
+      let organization: OrganizationApiShape | undefined = undefined;
       const hasOrganizationUpdates = Object.keys(filteredOrgData).length > 0;
-      let previousOrganization: Organization | null = null;
+      let previousOrganization: OrganizationApiShape | null = null;
 
       if (hasOrganizationUpdates) {
-        const previousOrgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-        if (!previousOrgResult.success) {return previousOrgResult;}
-        previousOrganization = previousOrgResult.data;
+        const previousOrg = await organizationRepository.findById(organizationId);
+        if (!previousOrg) {
+          return notFound<{ practice: PracticeWithDetails }>(`Organization ${organizationId} not found`);
+        }
+        previousOrganization = previousOrg;
 
         const updateResult = await organizationService.updateOrganization(
           { data: { organizationId, data: filteredOrgData } },
           ctx
         );
 
-        if (!updateResult.success) {return updateResult;}
+        if (!updateResult.success) {
+          return updateResult;
+        }
         organization = updateResult.data;
       } else {
-        const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-        if (!orgResult.success) {return orgResult;}
-        organization = orgResult.data;
+        const existingOrganization = await organizationRepository.findById(organizationId);
+        if (!existingOrganization) {
+          return notFound<{ practice: PracticeWithDetails }>(`Organization ${organizationId} not found`);
+        }
+        organization = existingOrganization;
       }
 
       let practiceDetails: PracticeDetails | null = null;

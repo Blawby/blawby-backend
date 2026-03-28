@@ -1,4 +1,4 @@
-import { BaseEvent } from '../event';
+import { BaseEvent } from '@/shared/events/event';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PRACTICE EVENTS
@@ -96,14 +96,6 @@ export class PracticeDetailsDeleted extends BaseEvent<PracticeDetailsDeletedPayl
   static type = 'practice.details_deleted' as const;
 }
 
-export class PracticeSpecialtiesUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.specialties_updated' as const;
-}
-
-export class PracticeContactInfoUpdated extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.contact_info_updated' as const;
-}
-
 export interface PracticeMemberInvitedPayload {
   invitation_id: string;
   invited_email: string;
@@ -125,18 +117,6 @@ export interface PracticeMemberJoinedPayload {
 
 export class PracticeMemberJoined extends BaseEvent<PracticeMemberJoinedPayload> {
   static type = 'practice.member_joined' as const;
-}
-
-export class PracticeMemberRoleChanged extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_role_changed' as const;
-}
-
-export class PracticeMemberRemoved extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_removed' as const;
-}
-
-export class PracticeMemberLeft extends BaseEvent<Record<string, unknown>> {
-  static type = 'practice.member_left' as const;
 }
 
 export interface PracticeSwitchedPayload {

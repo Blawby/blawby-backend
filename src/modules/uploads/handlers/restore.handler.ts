@@ -1,16 +1,16 @@
-import { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { restoreUploadRoute } from '@/modules/uploads/routes';
+import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
+import type { routes } from '@/modules/uploads/routes';
 
-export const restoreHandler: AppRouteHandler<typeof restoreUploadRoute> = async (c) => {
+const restoreHandler: AppRouteHandler<typeof routes.restoreUploadRoute> = async function restoreHandler(c) {
   const { id } = c.req.valid('param');
-  const userId = c.get('userId');
+  const ctx = getServiceContext(c);
+  const result = await uploadsService.restoreUpload({ id }, ctx);
+  return sendResult(c, result);
+};
 
-  if (!userId) {
-    return response.unauthorized(c, 'Authentication required');
-  }
-
-  const result = await uploadsService.restoreUpload(id, userId);
-  return response.fromResult(c, result);
+export const restoreHandlers = {
+  restoreHandler,
 };

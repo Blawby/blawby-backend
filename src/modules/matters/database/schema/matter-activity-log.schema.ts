@@ -17,7 +17,7 @@ export const matterActivityLog = pgTable(
     }),
     action: varchar('action', { length: 50 }).notNull(), // 'created', 'updated', 'note_added', 'time_entry_added', etc.
     description: text('description').notNull(), // Human-readable description
-    metadata: jsonb('metadata'), // Additional context
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(), // Additional context
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [

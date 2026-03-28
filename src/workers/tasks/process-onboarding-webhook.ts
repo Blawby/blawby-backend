@@ -17,13 +17,25 @@ interface ProcessOnboardingWebhookPayload {
   eventType: string;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const isProcessOnboardingWebhookPayload = (payload: unknown): payload is ProcessOnboardingWebhookPayload =>
+  isRecord(payload) &&
+  typeof payload.webhookId === 'string' &&
+  typeof payload.eventId === 'string' &&
+  typeof payload.eventType === 'string';
+
 /**
  * Process onboarding webhook event
  *
  * Task name: process-onboarding-webhook
  */
-export const processOnboardingWebhook: Task = async (payload: unknown, helpers): Promise<void> => {
-  const { webhookId, eventId, eventType } = payload as ProcessOnboardingWebhookPayload;
+export const processOnboardingWebhook: Task = async (payload: unknown, _helpers): Promise<void> => {
+  if (!isProcessOnboardingWebhookPayload(payload)) {
+    throw new Error('Invalid processOnboardingWebhook payload: missing required fields or incorrect types');
+  }
+
+  const { webhookId, eventId, eventType } = payload;
   const startTime = Date.now();
 
   logger.info('🚀 Starting onboarding webhook job: {eventId} ({eventType}) - Job ID: {webhookId}', {
@@ -33,11 +45,7 @@ export const processOnboardingWebhook: Task = async (payload: unknown, helpers):
   });
 
   try {
-    const result = await onboardingWebhooksService.processEvent(eventId);
-
-    if (!result.success) {
-      throw new Error(result.error.message);
-    }
+    await onboardingWebhooksService.processEvent(eventId);
 
     const duration = Date.now() - startTime;
     logger.info('✅ Onboarding webhook job completed successfully: {eventId} - Duration: {duration}ms', {
@@ -55,7 +63,7 @@ export const processOnboardingWebhook: Task = async (payload: unknown, helpers):
           processed: webhookEvent.processed,
           processedAt: webhookEvent.processedAt?.toISOString(),
           retryCount: webhookEvent.retryCount,
-          error: webhookEvent.error || 'None',
+          error: webhookEvent.error ?? 'None',
         });
       } else {
         logger.warn('⚠️  Webhook event not found in database: {eventId}', { eventId });

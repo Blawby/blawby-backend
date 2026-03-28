@@ -1,3 +1,5 @@
+import { config } from '@/shared/config';
+
 /**
  * Graphile Worker Task Names
  *
@@ -19,9 +21,9 @@ export const TASK_NAMES = {
  */
 export const graphileWorkerConfig = {
   // Maximum retry attempts for failed jobs
-  maxAttempts: Number(process.env.WEBHOOK_MAX_RETRIES) || 5,
+  maxAttempts: config.queue.maxAttempts,
   // Worker concurrency (how many jobs to process simultaneously)
-  concurrency: Number(process.env.WEBHOOK_WORKER_CONCURRENCY) || 5,
+  concurrency: config.queue.concurrency,
   // Graphile Worker schema name
-  schema: process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker',
+  schema: config.queue.schema,
 } as const;

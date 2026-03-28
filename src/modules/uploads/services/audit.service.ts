@@ -31,12 +31,9 @@ export const auditService = {
       user_id: params.user_id,
       ip_address: params.ip_address,
       user_agent: params.user_agent,
-      metadata: params.metadata || null,
+      metadata: params.metadata ?? null,
     };
 
     await auditLogsRepository.create(auditLog);
   },
 };
-
-// Legacy export
-export const createAuditLog = auditService.createAuditLog;

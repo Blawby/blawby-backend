@@ -1,4 +1,4 @@
-import { BaseEvent } from '../event';
+import { BaseEvent } from '@/shared/events/event';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STRIPE ACCOUNT EVENTS

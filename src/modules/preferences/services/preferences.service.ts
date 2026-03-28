@@ -6,38 +6,32 @@
  */
 
 import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
-import { preferences } from '@/modules/preferences/schema/preferences.schema';
-import type { Preferences } from '@/modules/preferences/schema/preferences.schema';
-import type {
-  NotificationPreferences,
-  OnboardingPreferences,
-  PreferenceCategory,
-} from '@/modules/preferences/types/preferences.types';
+import { type Preferences, preferences } from '@/modules/preferences/schema/preferences.schema';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
+  type NotificationPreferences,
+  type OnboardingPreferences,
+  type PreferenceCategory,
 } from '@/modules/preferences/types/preferences.types';
+import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { badRequest, ok } from '@/shared/utils/result';
+import { badRequest, internalError, notFound, ok } from '@/shared/utils/result';
 
-const logger = getLogger(['preferences', 'service']);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
-// Profile fields (phone, dob) are now in users table via Better Auth additionalFields
-export interface UpdateProfileData {
-  phone?: string;
-  phoneCountryCode?: string;
-  dob?: string; // Date string in YYYY-MM-DD format
-}
+const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
 /**
  * Apply default values to notification preferences
  */
 const applyNotificationDefaults = (stored: Record<string, unknown> | null | undefined): NotificationPreferences => {
-  const storedPrefs = (stored as unknown as NotificationPreferences) || {};
+  const parsed = preferenceValidations.notificationPreferencesSchema.safeParse(stored ?? {});
+  const storedPrefs = parsed.success ? parsed.data : {};
   return {
     ...DEFAULT_NOTIFICATION_PREFERENCES,
     ...storedPrefs,
@@ -51,7 +45,8 @@ const applyNotificationDefaults = (stored: Record<string, unknown> | null | unde
  * Apply default values to onboarding preferences
  */
 const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefined): OnboardingPreferences => {
-  const storedPrefs = (stored as unknown as OnboardingPreferences) || {};
+  const parsed = preferenceValidations.onboardingPreferencesSchema.safeParse(stored ?? {});
+  const storedPrefs = parsed.success ? parsed.data : {};
   return {
     ...DEFAULT_ONBOARDING_PREFERENCES,
     ...storedPrefs,
@@ -62,11 +57,10 @@ const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefi
  * Get all preferences for a user
  */
 const getPreferences = async (ctx: ServiceContext): Promise<Result<Preferences>> => {
-  const result = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
+  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
-  const prefs = result[0];
   if (!prefs) {
-    throw new Error('Preferences not found');
+    return notFound('Preference not found');
   }
 
   // CASL Check — verify the user can read preferences
@@ -91,7 +85,7 @@ const getPreferencesByCategory = async (
     return ok({});
   }
 
-  const result = await db
+  const [row] = await db
     .select({
       [category]: preferences[category],
       user_id: preferences.user_id,
@@ -100,15 +94,14 @@ const getPreferencesByCategory = async (
     .where(eq(preferences.user_id, ctx.userId))
     .limit(1);
 
-  const row = result[0];
   if (!row) {
-    throw new Error('Preferences not found');
+    return notFound('Preference not found');
   }
 
   // CASL Check — verify the user can read preferences
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
 
-  const categoryData = (row?.[category] as Record<string, unknown>) || {};
+  const categoryData = toRecord(row?.[category]);
 
   // Apply defaults for specific categories
   if (category === 'notifications') {
@@ -134,11 +127,10 @@ const updatePreferencesByCategory = async (
   }
 
   // 1. Fetch current preferences for ownership verification
-  const currentResult = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
+  const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
-  const current = currentResult[0];
   if (!current) {
-    throw new Error('Preferences not found');
+    return notFound('Preference not found');
   }
 
   // 2. CASL Check — verify the user can update preferences
@@ -147,7 +139,7 @@ const updatePreferencesByCategory = async (
   // Handle notifications category with special logic
   let dataToUpdate = data;
   if (category === 'notifications') {
-    const existingData = (current.notifications as Record<string, unknown>) || {};
+    const existingData = toRecord(current.notifications);
     // Merge with incoming data (partial update)
     const merged = { ...existingData, ...data };
     // Force system fields always true
@@ -167,7 +159,11 @@ const updatePreferencesByCategory = async (
       [category]: preferences[category],
     });
 
-  const updatedData = (result[0]?.[category] as Record<string, unknown>) || {};
+  if (!result[0]) {
+    return notFound('Preference not found');
+  }
+
+  const updatedData = toRecord(result[0][category]);
 
   // Apply defaults in response
   if (category === 'notifications') {
@@ -203,7 +199,7 @@ const initializeUserPreferences = async (userId: string): Promise<Result<Prefere
     .returning();
 
   if (!inserted) {
-    throw new Error(`Failed to create preferences for user ${userId}`);
+    return internalError('Failed to create preferences');
   }
 
   return ok(inserted);
@@ -218,5 +214,3 @@ export const preferencesService = {
   updatePreferencesByCategory,
   initializeUserPreferences,
 };
-
-export default preferencesService;

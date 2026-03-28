@@ -7,6 +7,7 @@ import type {
   InvoiceWithRelations,
   InvoiceSummary,
 } from '@/modules/invoices/types/invoices.types';
+import { toSubject } from '@/shared/auth/subject-helpers';
 import type { PaginatedResult, PaginatedData, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
@@ -35,12 +36,14 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceRespons
 
   return {
     ...rest,
-    client: rest.client ? {
-      id: rest.client.id,
-      name: rest.client.name ?? '',
-      email: rest.client.email ?? '',
-      status: rest.client.status,
-    } : undefined,
+    client: rest.client
+      ? {
+          id: rest.client.id,
+          name: rest.client.name ?? '',
+          email: rest.client.email ?? '',
+          status: rest.client.status,
+        }
+      : undefined,
     line_items,
   };
 };
@@ -50,12 +53,14 @@ const transformInvoiceResponse = (invoice: InvoiceWithRelations): InvoiceRespons
  */
 const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => ({
   ...invoice,
-  client: invoice.client ? {
-    id: invoice.client.id,
-    name: invoice.client.name ?? '',
-    email: invoice.client.email ?? '',
-    status: invoice.client.status,
-  } : undefined,
+  client: invoice.client
+    ? {
+        id: invoice.client.id,
+        name: invoice.client.name ?? '',
+        email: invoice.client.email ?? '',
+        status: invoice.client.status,
+      }
+    : undefined,
 });
 
 /**
@@ -100,6 +105,14 @@ const listClientInvoices = async (
   ctx: ServiceContext
 ): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
   try {
+    if (!ctx.userId) {
+      return result.unauthorized('Authentication required');
+    }
+
+    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
+      return result.forbidden('You do not have permission to view invoices');
+    }
+
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) {
       return userDetailResult;
@@ -161,6 +174,14 @@ const getClientInvoiceDetail = async (
   ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
   try {
+    if (!ctx.userId) {
+      return result.unauthorized('Authentication required');
+    }
+
+    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
+      return result.forbidden('You do not have permission to view this invoice');
+    }
+
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) {
       return userDetailResult;

@@ -3,6 +3,7 @@ import closeWithGrace from 'close-with-grace';
 import { getLogger } from '@logtape/logtape';
 import '@/boot/env';
 import app from '@/hono-app';
+import { config } from '@/shared/config';
 import { initializeLogging } from '@/shared/logging/config';
 
 const logger = getLogger(['app', 'server']);
@@ -10,9 +11,9 @@ const logger = getLogger(['app', 'server']);
 // Initialize logging specifically here to ensure it's available as early as possible
 await initializeLogging();
 
-const port = Number(process.env.PORT ?? 3000);
+const { port } = config.server;
 // Use '0.0.0.0' to listen on all network interfaces (required for ngrok/tunneling)
-const host = process.env.SERVER_HOSTNAME ?? process.env.HOST ?? process.env.SERVERNAME ?? '0.0.0.0';
+const { host } = config.server;
 
 const server = serve(
   {

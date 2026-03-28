@@ -1,8 +1,8 @@
-import type { getOnboardingStatusRoute, createConnectedAccountRoute } from '@/modules/onboarding/routes';
+import type { createConnectedAccountRoute, getOnboardingStatusRoute } from '@/modules/onboarding/routes';
 import { onboardingService } from '@/modules/onboarding/services/onboarding.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
-import { response } from '@/shared/utils/responseUtils';
+import { sendResult } from '@/shared/utils/responseUtils';
 
 const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingStatusRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -15,8 +15,9 @@ const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingStatusRout
     ctx
   );
 
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
+
 const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccountRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const validatedBody = c.req.valid('json');
@@ -31,7 +32,10 @@ const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccou
     ctx
   );
 
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 
-export { getOnboardingStatusHandler, createConnectedAccountHandler };
+export const handlers = {
+  createConnectedAccountHandler,
+  getOnboardingStatusHandler,
+};

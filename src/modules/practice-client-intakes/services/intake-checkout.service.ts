@@ -29,7 +29,8 @@ interface ClaimIntakeAbort {
   result: Result<ClaimPracticeClientIntakeResponse>;
 }
 
-const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort => Boolean(value && typeof value === 'object' && '__claimIntakeResult' in value && 'result' in value);
+const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort =>
+  Boolean(value && typeof value === 'object' && '__claimIntakeResult' in value && 'result' in value);
 
 const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
   const baseMetadata = intakeSharedHelpers.parseMetadata(practiceClientIntake.metadata);
@@ -176,8 +177,7 @@ const createCheckoutSession = async (
 
         const existingSession = resolveResult.success ? resolveResult.data.session : undefined;
 
-        const isReusable =
-          existingSession?.status === 'open' && existingSession.payment_status !== 'paid';
+        const isReusable = existingSession?.status === 'open' && existingSession.payment_status !== 'paid';
 
         if (isReusable && existingSession.url) {
           return result.ok({

@@ -1,19 +1,23 @@
 import { getLogger } from '@logtape/logtape';
+import { ForbiddenError } from '@casl/ability';
 import { onboardingRepository as onboardingRepo } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import type { OnboardingStatusResponse } from '@/modules/onboarding/types/onboarding.types';
-import { organizationService } from '@/modules/practice/services/organization.service';
 import { OnboardingStarted } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['onboarding', 'service']);
+const assertOnboardingAccess = (ctx: ServiceContext): void => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Onboarding');
+};
 
 /**
  * Onboarding Service
  */
-export const onboardingService = {
+const onboardingService = {
   /**
    * Create onboarding session for organization
    */
@@ -29,12 +33,12 @@ export const onboardingService = {
     const { organizationEmail, organizationId, refreshUrl, returnUrl } = params;
     const { user } = ctx;
 
-    try {
-      // Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
+    assertOnboardingAccess(ctx);
 
-      if (!orgResult.success) {
-        return orgResult;
+    try {
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound(`Organization not found for ${organizationId}`);
       }
 
       const result = await connectedAccountsService.createOrGetAccount(
@@ -45,7 +49,9 @@ export const onboardingService = {
         user.id
       );
 
-      if (!result.success) {return result;}
+      if (!result.success) {
+        return result;
+      }
       const accountData = result.data;
       const connectedAccount = await onboardingRepo.findByStripeAccountId(accountData.account_id);
       if (!connectedAccount) {
@@ -87,12 +93,12 @@ export const onboardingService = {
     { organizationId }: { organizationId: string },
     ctx: ServiceContext
   ): Promise<Result<OnboardingStatusResponse>> {
-    try {
-      // 1. Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
+    assertOnboardingAccess(ctx);
 
-      if (!orgResult.success) {
-        return orgResult;
+    try {
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound(`Organization not found for ${organizationId}`);
       }
 
       // 2. Fetch the connected account
@@ -136,12 +142,12 @@ export const onboardingService = {
     const { email, organizationId, refreshUrl, returnUrl } = params;
     const { user } = ctx;
 
-    try {
-      // Validate organization and user access using Better Auth
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
+    assertOnboardingAccess(ctx);
 
-      if (!orgResult.success) {
-        return orgResult;
+    try {
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound(`Organization not found for ${organizationId}`);
       }
 
       const result = await connectedAccountsService.createOrGetAccount(
@@ -152,7 +158,9 @@ export const onboardingService = {
         user.id
       );
 
-      if (!result.success) {return result;}
+      if (!result.success) {
+        return result;
+      }
       const accountData = result.data;
       const connectedAccount = await onboardingRepo.findByStripeAccountId(accountData.account_id);
       if (!connectedAccount) {
@@ -180,9 +188,4 @@ export const onboardingService = {
   },
 };
 
-export default onboardingService;
-
-// Legacy exports
-export const {createOnboardingSession} = onboardingService;
-export const {getOnboardingStatus} = onboardingService;
-export const {createConnectedAccount} = onboardingService;
+export { onboardingService };

@@ -49,11 +49,21 @@ const update = async (
   // Prepare update data for Better Auth API
   const updateFields: Record<string, unknown> = {};
 
-  if (data.name !== undefined) {updateFields.name = data.name;}
-  if (data.email !== undefined) {updateFields.email = data.email.toLowerCase();}
-  if (data.phone !== undefined) {updateFields.phone = data.phone;}
-  if (data.primaryWorkspace !== undefined) {updateFields.primaryWorkspace = data.primaryWorkspace;}
-  if (data.isAnonymous !== undefined) {updateFields.isAnonymous = data.isAnonymous;}
+  if (data.name !== undefined) {
+    updateFields.name = data.name;
+  }
+  if (data.email !== undefined) {
+    updateFields.email = data.email.toLowerCase();
+  }
+  if (data.phone !== undefined) {
+    updateFields.phone = data.phone;
+  }
+  if (data.primaryWorkspace !== undefined) {
+    updateFields.primaryWorkspace = data.primaryWorkspace;
+  }
+  if (data.isAnonymous !== undefined) {
+    updateFields.isAnonymous = data.isAnonymous;
+  }
 
   if (Object.keys(updateFields).length > 0) {
     try {

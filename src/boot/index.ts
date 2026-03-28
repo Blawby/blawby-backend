@@ -7,7 +7,7 @@
 import { bootEventHandlers } from '@/boot/event-handlers';
 import { bootServices } from '@/boot/services';
 import { bootWorkers } from '@/boot/workers';
-import { initializeRateLimiter } from '@/shared/middleware/rateLimit';
+import { rateLimiter } from '@/shared/middleware/rateLimit';
 import { initializeLogging } from '@/shared/logging/config';
 
 /**
@@ -21,7 +21,7 @@ export const bootCore = (): void => {
   bootServices();
 
   // 2. Register event handlers
-  bootEventHandlers();
+  void bootEventHandlers();
 };
 
 /**
@@ -39,7 +39,7 @@ export const bootApplication = async (): Promise<void> => {
 
   // 2. Initialize rate limiter (wait for PostgreSQL table to be ready)
   try {
-    await initializeRateLimiter();
+    await rateLimiter.initialize();
   } catch (error) {
     console.error('Failed to initialize rate limiter, continuing without it:', error);
     // Don't fail startup - rate limiting is non-critical

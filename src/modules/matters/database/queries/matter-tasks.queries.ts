@@ -14,7 +14,9 @@ const createMatterTasks = async (
   tx?: NodePgDatabase<typeof schema>
 ): Promise<SelectMatterTask[]> => {
   const items = Array.isArray(data) ? data : [data];
-  if (items.length === 0) {return [];}
+  if (items.length === 0) {
+    return [];
+  }
 
   const client = tx ?? db;
   return await client.insert(matterTasks).values(items).returning();

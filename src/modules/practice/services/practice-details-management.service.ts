@@ -15,7 +15,7 @@ import { db } from '@/shared/database';
 import { PracticeDeleted, PracticeDetailsDeleted, PracticeSwitched } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { internalError, ok } from '@/shared/utils/result';
+import { internalError, notFound, ok } from '@/shared/utils/result';
 
 const logger = getLogger(['practice', 'details-management-service']);
 
@@ -34,19 +34,22 @@ export const practiceDetailsManagementService = {
   ): Promise<Result<PracticeDetailsResponse>> {
     const { user } = ctx;
     try {
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-      if (!orgResult.success) {return orgResult;}
-
       const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound<PracticeDetailsResponse>(`Organization not found for '${organizationId}'`);
+      }
+
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
-      const result = await db.transaction(async (tx) => upsertDetailsTransaction(tx, ctx, {
+      const result = await db.transaction(async (tx) =>
+        upsertDetailsTransaction(tx, ctx, {
           organizationId,
           userId: user.id,
           data,
           existingAddressId: existing?.address_id,
           isCreate: !existing,
-        }));
+        })
+      );
 
       const responseData: PracticeDetailsResponse = {
         ...result.details,
@@ -62,8 +65,8 @@ export const practiceDetailsManagementService = {
             }
           : null,
         services: result.syncedServices.map((s) => ({ id: s.id, name: s.name, key: s.key })),
-        name: orgResult.data.name,
-        logo: orgResult.data.logo ?? null,
+        name: organization.name,
+        logo: organization.logo ?? null,
         payment_link_enabled: organization?.paymentLinkEnabled ?? false,
         payment_link_prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
       };
@@ -83,8 +86,10 @@ export const practiceDetailsManagementService = {
     ctx: ServiceContext
   ): Promise<Result<{ success: boolean }>> {
     try {
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-      if (!orgResult.success) {return orgResult;}
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound<{ success: boolean }>(`Organization not found for '${organizationId}'`);
+      }
 
       await findAndDeletePracticeDetails(ctx, organizationId);
 
@@ -104,13 +109,17 @@ export const practiceDetailsManagementService = {
   ): Promise<Result<{ success: boolean }>> {
     const { user } = ctx;
     try {
-      const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-      if (!orgResult.success) {return orgResult;}
+      const organization = await organizationRepository.findById(organizationId);
+      if (!organization) {
+        return notFound<{ success: boolean }>(`Organization not found for '${organizationId}'`);
+      }
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
       const deleteResult = await organizationService.deleteOrganization({ organizationId }, ctx);
-      if (!deleteResult.success) {return deleteResult;}
+      if (!deleteResult.success) {
+        return deleteResult;
+      }
 
       if (existing) {
         await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(existing));
@@ -140,7 +149,9 @@ export const practiceDetailsManagementService = {
     const { user } = ctx;
     try {
       const activeResult = await organizationService.setActiveOrganization({ organizationId }, ctx);
-      if (!activeResult.success) {return activeResult;}
+      if (!activeResult.success) {
+        return activeResult;
+      }
 
       await ctx.emit(PracticeSwitched, {
         user_id: user.id,

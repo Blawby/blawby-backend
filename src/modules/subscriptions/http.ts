@@ -1,9 +1,11 @@
-import * as handlers from '@/modules/subscriptions/handlers';
-import * as routes from '@/modules/subscriptions/routes';
+import { handlers } from '@/modules/subscriptions/handlers';
+import { routes } from '@/modules/subscriptions/routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const subscriptionsApp = createHonoApp();
+subscriptionsApp.use('*', injectAbility());
 
 /**
  * GET /api/subscriptions/plans

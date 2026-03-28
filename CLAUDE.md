@@ -59,7 +59,23 @@ src/
   workers/                         # Background workers (event, email)
   scripts/                         # One-off scripts
   modules/                         # Feature modules (domain-driven)
-    <module>/
+    auth/                          # Authentication
+    clients/                       # Client management (profiles, memos)
+    dev/                           # Development utilities
+    invoices/                      # Invoice management
+    matters/                       # Legal matter management
+    onboarding/                    # Stripe Connect onboarding
+    practice/                      # Practice/organization management
+    practice-client-intakes/       # Client intake forms
+    preferences/                   # User preferences
+    public/                        # Public routes
+    stripe/                        # Stripe integration
+    subscriptions/                 # Subscription management
+    trust/                         # Trust accounting
+    uploads/                       # File uploads
+    webhooks/                      # Webhook handlers
+
+    <module>/                      # Per-module structure:
       index.ts                     # Entry point — exports http app
       http.ts                      # Route registration (app.openapi)
       handlers.ts                  # Request handlers (thin, delegates to services)

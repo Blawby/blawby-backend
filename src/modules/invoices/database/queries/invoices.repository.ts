@@ -6,7 +6,7 @@ import type {
   InsertInvoiceLineItem,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/database/schema';
-import type { InvoiceWithRelations, InvoiceSummary, InvoiceListFilters } from '@/modules/invoices/types/invoices.types';
+import type { InvoiceListFilters, InvoiceSummary, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
 const { invoices } = invoicesSchema;

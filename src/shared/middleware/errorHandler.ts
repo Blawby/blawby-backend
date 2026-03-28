@@ -41,9 +41,7 @@ export const errorHandler: ErrorHandler = (error, c) => {
   const status: ContentfulStatusCode = isValidHttpStatus(appError.status) ? appError.status : 500;
   const message = error instanceof Error ? error.message : 'Internal Server Error';
   const code =
-    typeof appError.code === 'string' && appError.code.trim().length > 0
-      ? appError.code
-      : 'INTERNAL_SERVER_ERROR';
+    typeof appError.code === 'string' && appError.code.trim().length > 0 ? appError.code : 'INTERNAL_SERVER_ERROR';
 
   logger.error('Unexpected error occurred: {message} [{code}] ({status}) {method} {url}', {
     message,

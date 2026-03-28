@@ -1,60 +1,32 @@
-import { eq } from 'drizzle-orm';
-import type {
-  listPlansRoute,
-  getCurrentSubscriptionRoute,
-  cancelSubscriptionRoute,
-} from '@/modules/subscriptions/routes';
+import type { routes } from '@/modules/subscriptions/routes';
 import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
-import { organizations } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
 import type { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
 
-export const listPlansHandler: AppRouteHandler<typeof listPlansRoute> = async (c) => {
+const listPlansHandler: AppRouteHandler<typeof routes.listPlansRoute> = async (c) => {
   const result = await subscriptionService.listPlans();
-  return response.fromResult(c, result);
+
+  return sendResult(c, result);
 };
 
-export const getCurrentSubscriptionHandler: AppRouteHandler<typeof getCurrentSubscriptionRoute> = async (c) => {
-  const user = c.get('user')!;
-  const organizationId = c.get('activeOrganizationId');
+const getCurrentSubscriptionHandler: AppRouteHandler<typeof routes.getCurrentSubscriptionRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const result = await subscriptionService.getCurrentSubscription({}, ctx);
 
-  if (!organizationId) {
-    return response.badRequest(c, 'No active organization. Please select an organization first.');
-  }
-
-  const result = await subscriptionService.getCurrentSubscription(organizationId, user, c.req.header());
-
-  return response.fromResult(c, result);
+  return sendResult(c, result);
 };
 
-export const cancelSubscriptionHandler: AppRouteHandler<typeof cancelSubscriptionRoute> = async (c) => {
-  const user = c.get('user')!;
-  const organizationId = c.get('activeOrganizationId');
+const cancelSubscriptionHandler: AppRouteHandler<typeof routes.cancelSubscriptionRoute> = async (c) => {
   const validatedBody = c.req.valid('json');
+  const ctx = getServiceContext(c);
+  const result = await subscriptionService.cancelSubscription({ data: validatedBody }, ctx);
 
-  if (!organizationId) {
-    return response.badRequest(c, 'No active organization. Please select an organization first.');
-  }
+  return sendResult(c, result);
+};
 
-  const organization = await db.query.organizations.findFirst({
-    where: eq(organizations.id, organizationId),
-    columns: {
-      id: true,
-      activeSubscriptionId: true,
-    },
-  });
-
-  if (!organization) {
-    return response.notFound(c, 'Organization not found');
-  }
-
-  if (!organization?.activeSubscriptionId) {
-    return response.badRequest(c, 'No active subscription found for this organization');
-  }
-
-  // Optimize: We delegate subscription lookup to the service to avoid extra queries
-  const result = await subscriptionService.cancelSubscription(organizationId, validatedBody, user, c.req.header());
-
-  return response.fromResult(c, result);
+export const handlers = {
+  listPlansHandler,
+  getCurrentSubscriptionHandler,
+  cancelSubscriptionHandler,
 };

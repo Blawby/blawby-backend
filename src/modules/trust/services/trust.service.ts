@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { ForbiddenError } from '@casl/ability';
 import { sql } from 'drizzle-orm';
 import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
 import { result } from '@/shared/utils/result';
@@ -17,6 +18,24 @@ import {
 } from '@/modules/trust/types/trust.types';
 
 const logger = getLogger(['trust', 'service']);
+
+const assertTrustManageAccess = (ctx: ServiceContext): Result<void> => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
+    return result.ok(undefined);
+  } catch {
+    return result.forbidden('Access denied');
+  }
+};
+
+const assertTrustReadAccess = (ctx: ServiceContext): Result<void> => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+    return result.ok(undefined);
+  } catch {
+    return result.forbidden('Access denied');
+  }
+};
 
 /**
  * Shared helper to acquire a trust lock and execute logic with retries for serialization failures.
@@ -172,7 +191,15 @@ const recordWithdrawal = async (
 /**
  * Get trust transaction history filtered by client and/or matter.
  */
-const getTransactions = async (params: GetTransactionsParams): Promise<Result<SelectTrustTransaction[]>> => {
+const getTransactions = async (
+  params: GetTransactionsParams,
+  ctx: ServiceContext
+): Promise<Result<SelectTrustTransaction[]>> => {
+  const accessResult = assertTrustReadAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
+
   try {
     const txs = await trustTransactionsRepository.listByOrg(params);
     return result.ok(txs);
@@ -188,6 +215,18 @@ const getTransactions = async (params: GetTransactionsParams): Promise<Result<Se
  * Get current trust balance per client (sum of all matter balances).
  */
 const getBalance = async (
+  params: GetBalanceParams,
+  ctx: ServiceContext
+): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
+  const accessResult = assertTrustReadAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
+
+  return getBalanceWithTx(params);
+};
+
+const getBalanceWithTx = async (
   params: GetBalanceParams,
   tx?: typeof db
 ): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
@@ -206,7 +245,12 @@ const getBalance = async (
 /**
  * Get trust report for IOLTA compliance over a date range.
  */
-const getReport = async (params: GetReportParams): Promise<Result<SelectTrustTransaction[]>> => {
+const getReport = async (params: GetReportParams, ctx: ServiceContext): Promise<Result<SelectTrustTransaction[]>> => {
+  const accessResult = assertTrustReadAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
+
   try {
     const txs = await trustTransactionsRepository.listByOrg(params);
     return result.ok(txs);
@@ -232,7 +276,7 @@ const syncBalanceAndCheckThreshold = async (
   ctx: ServiceContext,
   tx: typeof db
 ) => {
-  const balanceResult = await getBalance({ organizationId, clientId }, tx);
+  const balanceResult = await getBalanceWithTx({ organizationId, clientId }, tx);
   if (!balanceResult.success) {
     logger.warn('Failed to sync balance for matter {matterId}: {error}', {
       matterId,
@@ -270,8 +314,13 @@ const syncBalanceAndCheckThreshold = async (
 const manualDeposit = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction>> =>
-  db.transaction(async (tx) => {
+): Promise<Result<SelectTrustTransaction>> => {
+  const accessResult = assertTrustManageAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
+
+  return db.transaction(async (tx) => {
     const depositResult = await recordDeposit(
       {
         organizationId: ctx.organizationId,
@@ -292,6 +341,7 @@ const manualDeposit = async (
     await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
     return depositResult;
   });
+};
 
 /**
  * Manual trust withdrawal (staff-initiated). Records in ledger, syncs retainer_balance, checks threshold.
@@ -300,8 +350,13 @@ const manualDeposit = async (
 const manualWithdrawal = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction>> =>
-  db.transaction(async (tx) => {
+): Promise<Result<SelectTrustTransaction>> => {
+  const accessResult = assertTrustManageAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
+
+  return db.transaction(async (tx) => {
     const withdrawalResult = await recordWithdrawal(
       {
         organizationId: ctx.organizationId,
@@ -322,6 +377,7 @@ const manualWithdrawal = async (
     await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
     return withdrawalResult;
   });
+};
 
 export const trustService = {
   recordDeposit,

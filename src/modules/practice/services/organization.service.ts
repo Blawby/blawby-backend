@@ -17,7 +17,7 @@ const logger = getLogger(['practice', 'organization-service']);
 
 // Lazy initialization - only create when needed (after env vars are loaded)
 const getBetterAuth = (): BetterAuthInstance => createBetterAuthInstance(db);
-const { getBetterAuthErrorMessage, isBetterAuthForbidden } = betterAuthUtils;
+const { getBetterAuthErrorMessage } = betterAuthUtils;
 
 /**
  * Organization Service
@@ -92,35 +92,6 @@ export const organizationService = {
       return ok<Organization[]>(Array.isArray(result) ? result : []);
     } catch (error) {
       return internalError<Organization[]>(getBetterAuthErrorMessage(error, 'Failed to list organizations'));
-    }
-  },
-
-  /**
-   * Get full organization details
-   */
-  async getFullOrganization(
-    { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext
-  ): Promise<Result<ActiveOrganization>> {
-    const betterAuth = getBetterAuth();
-    try {
-      const result = await betterAuth.api.getFullOrganization({
-        query: { organizationId },
-        headers: ctx.requestHeaders,
-      });
-
-      if (!result) {
-        return forbidden<ActiveOrganization>('Organization not found or access denied');
-      }
-
-      return ok<ActiveOrganization>(result);
-    } catch (error) {
-      // Explicitly handle forbidden/unauthorized from better-auth
-      if (isBetterAuthForbidden(error)) {
-        return forbidden<ActiveOrganization>(getBetterAuthErrorMessage(error, 'Access denied to organization'));
-      }
-
-      return internalError<ActiveOrganization>(getBetterAuthErrorMessage(error, 'Failed to get organization details'));
     }
   },
 

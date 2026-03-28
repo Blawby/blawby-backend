@@ -40,12 +40,17 @@ export const registerMattersListeners = (): void => {
 
     // Record status change in history table
     try {
+      const metadata =
+        context?.metadata && typeof context.metadata === 'object' && !Array.isArray(context.metadata)
+          ? (context.metadata as unknown as Record<string, unknown>)
+          : null;
+
       await matterStatusHistoryQueries.createMatterStatusHistory({
         matter_id: payload.matter_id,
         from_status: payload.old_status,
         to_status: payload.new_status,
         changed_by: context?.actorId ?? null,
-        metadata: context?.metadata ?? null,
+        metadata,
       });
       logger.debug('Status history recorded', { matterId: payload.matter_id });
     } catch (error) {

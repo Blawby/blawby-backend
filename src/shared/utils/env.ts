@@ -2,80 +2,65 @@
 // oxlint-disable import/no-named-export
 // oxlint-disable no-magic-numbers
 
-/**
- * Environment Utilities
- *
- * Provides utilities for environment variable handling.
- * Separates APP_ENV (application environment) from NODE_ENV (Node.js runtime environment).
- *
- * - NODE_ENV: Used by Node.js for optimizations ('development' | 'production')
- * - APP_ENV: Used by application logic ('development' | 'staging' | 'production')
- */
-
-type AppEnvironment = 'development' | 'staging' | 'production' | 'test';
-type NodeEnvironment = 'development' | 'production';
+import { config, type AppEnvironment, type NodeEnvironment } from '@/shared/config';
 
 /**
  * Get the application environment
- * Falls back to NODE_ENV if APP_ENV is not set
  */
-export const getAppEnv = (): AppEnvironment => {
-  const appEnv = process.env.APP_ENV?.toLowerCase();
-
-  if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production' || appEnv === 'test') {
-    return appEnv;
-  }
-
-  // Default to development
-  return 'development';
-};
+export const getAppEnv = (): AppEnvironment => config.env.app;
 
 /**
  * Get the Node.js environment
  */
-export const getNodeEnv = (): NodeEnvironment => {
-  const nodeEnv = process.env.NODE_ENV?.toLowerCase();
-  return nodeEnv === 'production' ? 'production' : 'development';
-};
+export const getNodeEnv = (): NodeEnvironment => (config.env.node === 'production' ? 'production' : 'development');
 
 /**
  * Check if running in development environment
  */
-export const isDevelopment = (): boolean => getAppEnv() === 'development';
+export const isDevelopment = (): boolean => config.env.isDevelopment;
 
 /**
  * Check if running in test environment
  */
-export const isTest = (): boolean => getAppEnv() === 'test';
+export const isTest = (): boolean => config.env.isTest;
 
 /**
  * Check if running in staging environment
  */
-export const isStaging = (): boolean => getAppEnv() === 'staging';
+export const isStaging = (): boolean => config.env.isStaging;
 
 /**
  * Check if running in production environment
  */
-export const isProduction = (): boolean => getAppEnv() === 'production';
+export const isProduction = (): boolean => config.env.isProduction;
 
 /**
  * Check if running in a non-development environment (staging or production)
  */
-export const isNonDevelopment = (): boolean => !isDevelopment();
+export const isNonDevelopment = (): boolean => !config.env.isDevelopment;
 
 /**
  * Check if running in a production-like environment (staging or production)
  */
-export const isProductionLike = (): boolean => {
-  const env = getAppEnv();
-  return env === 'staging' || env === 'production';
-};
+export const isProductionLike = (): boolean => config.env.isProductionLike;
 
 /**
  * Get an environment variable as an array of strings (comma-separated)
+ *
+ * Special-case keys:
+ * - ALLOWED_ORIGINS: returns config.app.allowedOrigins
+ * - FRONTEND_URL: returns config.app.frontendUrls
  */
 export const getEnvArray = (key: string, defaultValue: string[] = []): string[] => {
-  const value = process.env[key];
+  if (key === 'ALLOWED_ORIGINS') {
+    return config.app.allowedOrigins.length > 0 ? config.app.allowedOrigins : defaultValue;
+  }
+
+  if (key === 'FRONTEND_URL') {
+    return config.app.frontendUrls.length > 0 ? config.app.frontendUrls : defaultValue;
+  }
+
+  const value = config.raw[key];
   if (!value) {
     return defaultValue;
   }
@@ -91,9 +76,9 @@ export const getEnvArray = (key: string, defaultValue: string[] = []): string[] 
  * based on the provided origin. Falls back to the first URL if no match is found.
  */
 export const getMatchingFrontendUrl = (origin?: string | null): string => {
-  const urls = getEnvArray('FRONTEND_URL');
+  const urls = config.app.frontendUrls;
   if (urls.length === 0) {
-    return process.env.BASE_URL || '';
+    return config.app.baseUrl;
   }
   if (urls.length === 1 || !origin) {
     return urls[0] ?? '';
@@ -105,5 +90,5 @@ export const getMatchingFrontendUrl = (origin?: string | null): string => {
     return normalizedUrl === normalizedOrigin;
   });
 
-  return match ?? urls[0];
+  return match ?? urls[0] ?? '';
 };

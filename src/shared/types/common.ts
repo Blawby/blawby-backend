@@ -1,12 +1,12 @@
-// Common API types - use type not interface
+// Common API types
 
-export type PaginationParams = {
+export interface PaginationParams {
   page?: number;
   limit?: number;
   offset?: number;
-};
+}
 
-export type PaginatedResponse<T> = {
+export interface PaginatedResponse<T> {
   data: T[];
   pagination: {
     page: number;
@@ -16,53 +16,53 @@ export type PaginatedResponse<T> = {
     hasNext: boolean;
     hasPrev: boolean;
   };
-};
+}
 
-export type ApiResponse<T> = {
+export interface ApiResponse<T> {
   data: T;
   message?: string;
-};
+}
 
-export type ApiError = {
+export interface ApiError {
   statusCode: number;
   error: string;
   message: string;
-  validation?: Array<{
+  validation?: {
     field: string;
     message: string;
     code: string;
-  }>;
-};
+  }[];
+}
 
 export type SortOrder = 'asc' | 'desc';
 
-export type SortParams<T extends string> = {
+export interface SortParams<T extends string> {
   sortBy?: T;
   sortOrder?: SortOrder;
-};
+}
 
-export type SearchParams = {
+export interface SearchParams {
   search?: string;
   q?: string;
-};
+}
 
-export type DateRange = {
+export interface DateRange {
   startDate?: string;
   endDate?: string;
-};
+}
 
-export type IdParam = {
+export interface IdParam {
   id: string;
-};
+}
 
-export type BulkAction<T> = {
+export interface BulkAction<T> {
   ids: string[];
   action: T;
-};
+}
 
-export type FileUpload = {
+export interface FileUpload {
   filename: string;
   mimetype: string;
   size: number;
   buffer: Buffer;
-};
+}
