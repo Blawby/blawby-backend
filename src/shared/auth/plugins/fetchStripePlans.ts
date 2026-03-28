@@ -12,6 +12,7 @@ interface PlanWithPrice {
   name: string;
   stripe_monthly_price_id: string | null;
   stripe_yearly_price_id: string | null;
+  stripe_metered_price_id: string | null;
   limits: {
     users: number;
     invoices_per_month: number;
@@ -30,6 +31,7 @@ export const fetchStripePlans = async (): Promise<
     name: string;
     priceId: string;
     annualDiscountPriceId?: string;
+    meteredPriceId?: string;
     limits: {
       users: number;
       invoices_per_month: number;
@@ -48,6 +50,7 @@ export const fetchStripePlans = async (): Promise<
         name: plan.name,
         priceId: plan.stripe_monthly_price_id!,
         annualDiscountPriceId: plan.stripe_yearly_price_id ?? undefined,
+        meteredPriceId: plan.stripe_metered_price_id ?? undefined,
         limits: {
           users: plan.limits.users,
           invoices_per_month: plan.limits.invoices_per_month,

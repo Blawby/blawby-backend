@@ -1,7 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { config } from '@/shared/config';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 
 const logger = getLogger(['onboarding', 'handler', 'internal-events']);
@@ -33,18 +33,20 @@ const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void>
   const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : 'there';
 
   if (email) {
-    void addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {
-      recipientEmail: email,
-      recipientName: name,
-      dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
-      tutorialUrl: `${APP_URL}/docs/verification`,
-      supportUrl: 'https://blawby.com/help',
-    }).catch((error: unknown) => {
-      logger.error('Failed to queue Connect status email for {organizationId}: {error}', {
-        organizationId,
-        error,
+    void queueManager
+      .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {
+        recipientEmail: email,
+        recipientName: name,
+        dashboardUrl: `${APP_URL}/dashboard/settings/billing`,
+        tutorialUrl: `${APP_URL}/docs/verification`,
+        supportUrl: 'https://blawby.com/help',
+      })
+      .catch((error: unknown) => {
+        logger.error('Failed to queue Connect status email for {organizationId}: {error}', {
+          organizationId,
+          error,
+        });
       });
-    });
   } else {
     logger.warn('Skipping Connect status email: missing billing_email for {organizationId}', {
       organizationId,

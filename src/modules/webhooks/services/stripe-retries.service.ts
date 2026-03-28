@@ -1,5 +1,5 @@
 import { getLogger } from '@logtape/logtape';
-import { addWebhookJob, addOnboardingWebhookJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 
 const logger = getLogger(['shared', 'webhook-retries']);
@@ -18,7 +18,7 @@ const ONBOARDING_EVENT_PREFIXES = ['account.', 'capability.', 'account.external_
 /**
  * Scan for failed events and re-queue them.
  */
-async function retryFailedWebhooks(): Promise<void> {
+const retryFailedWebhooks = async (): Promise<void> => {
   try {
     const eventsToRetry = await stripeWebhookEventsRepository.getEventsToRetry();
 
@@ -28,34 +28,50 @@ async function retryFailedWebhooks(): Promise<void> {
 
     logger.info('Found {count} webhook events to retry', { count: eventsToRetry.length });
 
-    for (const event of eventsToRetry) {
-      try {
-        // Route back to the appropriate queue
+    const retryResults = await Promise.allSettled(
+      eventsToRetry.map(async (event) => {
         const isOnboarding = ONBOARDING_EVENT_PREFIXES.some((prefix) => event.eventType.startsWith(prefix));
 
         if (isOnboarding) {
-          await addOnboardingWebhookJob(event.id, event.stripeEventId, event.eventType);
+          await queueManager.addOnboardingWebhookJob(event.id, event.stripeEventId, event.eventType);
         } else {
-          await addWebhookJob(event.id, event.stripeEventId, event.eventType);
+          await queueManager.addWebhookJob(event.id, event.stripeEventId, event.eventType);
         }
 
         logger.info('Re-queued webhook event {eventId} ({eventType})', {
           eventId: event.stripeEventId,
           eventType: event.eventType,
         });
-      } catch (error) {
+
+        return { success: true, eventId: event.stripeEventId };
+      })
+    );
+
+    const successCount = retryResults.filter(
+      (r): r is PromiseFulfilledResult<{ success: true; eventId: string }> => r.status === 'fulfilled'
+    ).length;
+    const failureCount = retryResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected').length;
+
+    logger.info('Retry scan completed: {success} succeeded, {failed} failed', {
+      success: successCount,
+      failed: failureCount,
+    });
+
+    retryResults.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const event = eventsToRetry[index];
         logger.error('Failed to re-queue webhook event {eventId}: {error}', {
           eventId: event.stripeEventId,
-          error: error instanceof Error ? error.message : String(error),
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
         });
       }
-    }
+    });
   } catch (error) {
     logger.error('Error during webhook retry scan: {error}', {
       error: error instanceof Error ? error.message : String(error),
     });
   }
-}
+};
 
 export const stripeRetriesService = {
   retryFailedWebhooks,
