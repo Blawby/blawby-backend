@@ -19,9 +19,6 @@ import {
 
 const logger = getLogger(['trust', 'service']);
 
-const isServiceContext = (value: unknown): value is ServiceContext =>
-  value !== null && typeof value === 'object' && 'ability' in value && 'emit' in value && 'organizationId' in value;
-
 const assertTrustManageAccess = (ctx: ServiceContext): Result<void> => {
   try {
     ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');

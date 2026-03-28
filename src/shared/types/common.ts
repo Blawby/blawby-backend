@@ -1,4 +1,4 @@
-// Common API types - use type not interface
+// Common API types
 
 export interface PaginationParams {
   page?: number;

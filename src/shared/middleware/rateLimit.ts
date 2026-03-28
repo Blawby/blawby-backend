@@ -4,7 +4,7 @@
  * Uses rate-limiter-flexible with PostgreSQL storage for distributed rate limiting.
  * Works across multiple server instances and prevents memory leaks.
  *
- * Call `initializeRateLimiter()` during server boot to ensure the table is ready
+ * Call `rateLimiter.initialize()` during server boot to ensure the table is ready
  * before accepting requests.
  */
 

@@ -58,7 +58,7 @@ const syncSubscriptionToOrg = async (
       .where(eq(schema.organizations.stripeCustomerId, customerId))
       .limit(1);
 
-    organizationId = org[0]?.id || null;
+    organizationId = org[0]?.id ?? null;
   }
 
   if (!organizationId) {
@@ -250,10 +250,15 @@ const syncSubscriptionToOrg = async (
 /**
  * Main Plugin Configuration
  */
-export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> =>
-  stripePlugin({
+const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> => {
+  const { webhookSecret } = config.stripe;
+  if (!webhookSecret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET must be configured to use the Stripe plugin');
+  }
+
+  return stripePlugin({
     stripeClient: createProxiedStripeClient(getStripeInstance()),
-    stripeWebhookSecret: config.stripe.webhookSecret ?? '',
+    stripeWebhookSecret: webhookSecret,
     createCustomerOnSignUp: false,
 
     // Opt: Save customer ID immediately and enrich with metadata
@@ -354,7 +359,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         if (action === 'list-subscription') {
           return true;
         }
-        return ['owner', 'admin'].includes(member[0].role || '');
+        return ['owner', 'admin'].includes(member[0].role ?? '');
       },
 
       // Use unified handler for both checkout completion and webhook creation
@@ -518,6 +523,7 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
       },
     },
   });
+};
 
 /**
  * Type guards for Stripe Params
@@ -641,3 +647,5 @@ const injectMeteredItems = async <T extends { price?: string }>(
 
   return [...(items ?? []), ...newEntries];
 };
+
+export { createStripePlugin };

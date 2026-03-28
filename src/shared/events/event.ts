@@ -25,7 +25,6 @@ import {
   API_ACTOR_UUID,
   ORGANIZATION_ACTOR_UUID,
 } from './constants';
-import { config } from '@/shared/config';
 import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import { events, type EventMetadata, type BaseEvent as BaseEventRecord, type NewEvent } from './schemas/events.schema';
 import type * as schema from '@/schema';

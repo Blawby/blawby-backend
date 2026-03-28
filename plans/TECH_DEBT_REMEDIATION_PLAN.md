@@ -237,7 +237,7 @@ Remaining high-priority work from this snapshot:
 
 ---
 
-### PR-4 — User-Details Module
+### ✅ PR-4 — User-Details Module
 
 **Files:** `src/modules/clients/` (migrated scope)
 
@@ -248,6 +248,8 @@ Remaining high-priority work from this snapshot:
 - [x] Add CASL ownership checks
 - [x] Remove `if (!user)` checks
 - [x] Extract `resolveUserForIntake` to `user-details-utils.ts`
+
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
@@ -276,7 +278,7 @@ Remaining high-priority work from this snapshot:
 
 ---
 
-### PR-7 — Onboarding Module
+### ✅ PR-7 — Onboarding Module
 
 **Files:** `src/modules/onboarding/`
 
@@ -284,6 +286,8 @@ Remaining high-priority work from this snapshot:
 - [x] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
 - [x] Add CASL checks (admin-only)
 - [x] Remove `requestHeaders` params
+
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
@@ -306,12 +310,14 @@ Remaining high-priority work from this snapshot:
 
 ---
 
-### PR-10 — Remaining Modules
+### ✅ PR-10 — Remaining Modules
 
 **Files:** `src/modules/webhooks/`, `src/modules/public/`, `src/modules/dev/`
 
 - [x] Review if CASL applies (system-initiated modules may not need it)
 - [x] Ensure consistent structure where applicable
+
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
@@ -321,7 +327,7 @@ Remaining high-priority work from this snapshot:
 
 ---
 
-### PR-11 — CASL Subject Expansion
+### ✅ PR-11 — CASL Subject Expansion
 
 **Dependencies:** All Group A merged
 
@@ -331,6 +337,8 @@ Remaining high-priority work from this snapshot:
 - [x] Add `UserDetails` subject — admin: manage, member: read own, client: read own
 - [x] Add `Onboarding` subject — admin: manage
 - [x] Add `Trust` subject — admin: manage, member: read
+
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
@@ -403,13 +411,15 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 ---
 
-### PR-14 — Env Config Centralization
+### ✅ PR-14 — Env Config Centralization
 
 **Dependencies:** None
 
 - [x] Create `src/shared/config/index.ts` — Zod schema, validate at startup
 - [x] Replace all `process.env` reads across 24 files with typed config imports
 - [x] Harden async event dispatch: replace fire-and-forget `setImmediate`, add dead-letter retry
+
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
