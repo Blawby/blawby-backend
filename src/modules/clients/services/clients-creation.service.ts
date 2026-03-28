@@ -9,7 +9,7 @@ import { clientsDirectCreationService } from '@/modules/clients/services/clients
 import { clientsIntakeCreationService } from '@/modules/clients/services/clients-intake-creation.service';
 
 export const clientsCreationService = {
-	createClient: clientsDirectCreationService.createClient,
-	createClientFromIntake: clientsIntakeCreationService.createClientFromIntake,
-	ensureClientMember,
+  createClient: clientsDirectCreationService.createClient,
+  createClientFromIntake: clientsIntakeCreationService.createClientFromIntake,
+  ensureClientMember,
 };

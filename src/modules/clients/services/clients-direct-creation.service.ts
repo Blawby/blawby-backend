@@ -8,15 +8,12 @@ import { sql } from 'drizzle-orm';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import type { AddressInput } from '@/modules/clients/types';
-import type { users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { ClientCreated } from '@/shared/events/definitions';
-import usersRepository from '@/shared/repositories/users.repository';
-import type { Result } from '@/shared/types/result';
+import { usersRepository, type SelectUser } from '@/shared/repositories/users.repository';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
 import { ensureClientMember } from '@/modules/clients/services/clients-creation.helpers';
-import { type SelectUser } from '@/shared/repositories/users.repository';
+import { HTTPException } from 'hono/http-exception';
 
 /**
  * Create a new client (staff-initiated)
@@ -33,21 +30,21 @@ const createClient = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectClient & { user: SelectUser | null }>> => {
+): Promise<SelectClient & { user: SelectUser | null }> => {
   const { data } = params;
 
   if (ctx.ability.cannot('create', 'Client')) {
-    return result.forbidden('You do not have permission to create clients');
+    throw new HTTPException(403, { message: 'You do not have permission to create clients' });
   }
 
   const user = data.userId
     ? await usersRepository.findById(data.userId)
     : await usersRepository.findByEmail(data.email);
   if (!user) {
-    return result.fail('User not found. Please invite them using the invitations flow first.', 400, 'BAD_REQUEST');
+    throw new HTTPException(400, { message: 'User not found. Please invite them using the invitations flow first.' });
   }
 
-  const { detail, isCreated } = await db.transaction(async (tx) => {
+  const { detail } = await db.transaction(async (tx) => {
     await ensureClientMember({
       organizationId: ctx.organizationId,
       userId: user.id,
@@ -114,7 +111,7 @@ const createClient = async (
     return { detail: upsertedClient, isCreated };
   });
 
-  return result.ok({ ...detail, user: user as SelectUser | null });
+  return { ...detail, user: user as SelectUser | null };
 };
 
 export const clientsDirectCreationService = {

@@ -98,8 +98,8 @@ const listMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listMatterNote
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
-  const result = await matterNotesService.listMatterNotes({ filters: { noteId: query.note_id } }, scopedCtx);
-  return sendResult(c, result);
+  const notes = await matterNotesService.listMatterNotes({ filters: { noteId: query.note_id } }, scopedCtx);
+  return c.json(notes, 200);
 };
 
 const createMatterNoteHandler: AppRouteHandler<typeof matterRoutes.createMatterNoteRoute> = async (c) => {
@@ -107,8 +107,8 @@ const createMatterNoteHandler: AppRouteHandler<typeof matterRoutes.createMatterN
   const { id: matterId } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
-  const result = await matterNotesService.createMatterNote({ data: validatedBody }, scopedCtx);
-  return sendResult(c, result, 201);
+  const note = await matterNotesService.createMatterNote({ data: validatedBody }, scopedCtx);
+  return c.json(note, 201);
 };
 
 const updateMatterNoteHandler: AppRouteHandler<typeof matterRoutes.updateMatterNoteRoute> = async (c) => {
@@ -116,16 +116,16 @@ const updateMatterNoteHandler: AppRouteHandler<typeof matterRoutes.updateMatterN
   const { id: matterId, note_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
   const validatedBody = c.req.valid('json');
-  const result = await matterNotesService.updateMatterNote({ noteId: note_id, data: validatedBody }, scopedCtx);
-  return sendResult(c, result);
+  const note = await matterNotesService.updateMatterNote({ noteId: note_id, data: validatedBody }, scopedCtx);
+  return c.json(note, 200);
 };
 
 const deleteMatterNoteHandler: AppRouteHandler<typeof matterRoutes.deleteMatterNoteRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id: matterId, note_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
-  const result = await matterNotesService.deleteMatterNote({ noteId: note_id }, scopedCtx);
-  return sendResult(c, result);
+  await matterNotesService.deleteMatterNote({ noteId: note_id }, scopedCtx);
+  return c.json({ success: true }, 200);
 };
 
 const listTimeEntriesHandler: AppRouteHandler<typeof matterRoutes.listTimeEntriesRoute> = async (c) => {

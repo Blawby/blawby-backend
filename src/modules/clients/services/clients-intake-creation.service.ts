@@ -11,10 +11,9 @@ import { practiceClientIntakesRepository } from '@/modules/practice-client-intak
 import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import { db } from '@/shared/database';
 import { ClientCreated, ClientUpdated } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
 import { ensureClientMember } from '@/modules/clients/services/clients-creation.helpers';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['clients', 'intake-creation-service']);
 
@@ -35,12 +34,12 @@ const createClientFromIntake = async (
     tx?: Tx;
   },
   ctx: ServiceContext
-): Promise<Result<SelectClient>> => {
+): Promise<SelectClient> => {
   const { intakeId, userId, email, name, phone } = params.data;
 
   const intake = await practiceClientIntakesRepository.findById(intakeId);
   if (!intake) {
-    return result.fail(`Intake record with ID '${intakeId}' not found`, 404, 'NOT_FOUND');
+    throw new HTTPException(404, { message: `Intake record with ID '${intakeId}' not found` });
   }
 
   const runTx = async (tx: Tx) => {
@@ -88,13 +87,6 @@ const createClientFromIntake = async (
       throw new Error('Failed to upsert client from intake');
     }
 
-    // Determine if we created or updated for event dispatching purposes (optional, but good for context)
-    // For now, simpler to just dispatch Created if it's new-ish or just Updated
-    // Given the request asks to reuse the conflict resolution helper/pattern - 
-    // we'll just dispatch based on whether it was a fresh insert or not if we can detect it.
-    // Drizzle doesn't easily return whether it was an update or insert in the same way, 
-    // but the ClientCreated event is what matters most for initial setup.
-
     await ClientCreated.dispatch(
       {
         client_id: detail.id,
@@ -109,12 +101,14 @@ const createClientFromIntake = async (
     return { action: 'processed' as const, detail };
   };
 
-  const outcome = params.tx ? await runTx(params.tx) : await db.transaction(runTx).catch((error) => {
-    logger.error('Failed to process client intake creation transaction: {error}', { error, intakeId });
-    throw error;
-  });
+  const outcome = params.tx
+    ? await runTx(params.tx)
+    : await db.transaction(runTx).catch((error) => {
+        logger.error('Failed to process client intake creation transaction: {error}', { error, intakeId });
+        throw error;
+      });
 
-  return result.ok(outcome.detail);
+  return outcome.detail;
 };
 
 export const clientsIntakeCreationService = {

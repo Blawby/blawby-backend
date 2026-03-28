@@ -143,13 +143,8 @@ const listClients = async (params: {
   };
 };
 
-const findByIdForUpdate = async (
-  id: string,
-  tx: DbOrTx = db
-): Promise<SelectClient | undefined> => {
-  const result = await tx.execute(
-    sql`SELECT * FROM "clients" WHERE "id" = ${id} AND "deleted_at" IS NULL FOR UPDATE`
-  );
+const findByIdForUpdate = async (id: string, tx: DbOrTx = db): Promise<SelectClient | undefined> => {
+  const result = await tx.execute(sql`SELECT * FROM "clients" WHERE "id" = ${id} AND "deleted_at" IS NULL FOR UPDATE`);
   return (result.rows?.[0] as SelectClient) || undefined;
 };
 

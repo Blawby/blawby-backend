@@ -6,9 +6,6 @@ import { db } from '@/shared/database';
 const logger = getLogger(['app', 'repositories', 'users']);
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export type InsertUser = typeof users.$inferInsert;
-export type SelectUser = typeof users.$inferSelect;
-
 /**
  * Users repository for read operations and updates.
  *
@@ -78,10 +75,11 @@ const update = async (
   return await findById(id, tx);
 };
 
-const usersRepository = {
+export type InsertUser = typeof users.$inferInsert;
+export type SelectUser = typeof users.$inferSelect;
+
+export const usersRepository = {
   findById,
   findByEmail,
   update,
 };
-
-export default usersRepository;

@@ -6,6 +6,7 @@ import { practiceClientIntakesRepository } from '@/modules/practice-client-intak
 import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { createIntakeCheckoutSession } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
@@ -95,22 +96,27 @@ const processClaimIntakeTx = async (
 
   const sysCtx = createSystemContext(lockedIntake.organization_id);
 
-  const createClientResult = await clientsIntakeCreationService.createClientFromIntake(
-    {
-      data: {
-        intakeId: lockedIntake.id,
-        userId: userId,
-        email: intakeMetadata.email,
-        name: intakeMetadata.name,
-        phone: intakeMetadata.phone,
+  try {
+    await clientsIntakeCreationService.createClientFromIntake(
+      {
+        data: {
+          intakeId: lockedIntake.id,
+          userId: userId,
+          email: intakeMetadata.email,
+          name: intakeMetadata.name,
+          phone: intakeMetadata.phone,
+        },
+        tx,
       },
-      tx,
-    },
-    sysCtx
-  );
+      sysCtx
+    );
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      return rollbackWithResult(result.fail(error.message, error.status, 'CLIENT_CREATION_FAILED'));
+    }
 
-  if (!createClientResult.success) {
-    return rollbackWithResult(createClientResult);
+    const message = error instanceof Error ? error.message : 'Failed to create client from intake';
+    return rollbackWithResult(result.internalError(message));
   }
 
   if (!intakeMetadata.user_id) {

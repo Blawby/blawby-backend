@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import type {
@@ -113,28 +114,25 @@ const listClientInvoices = async (
   }
 
   try {
-    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
-    if (!userDetailResult.success) {
-      return userDetailResult;
-    }
-    if (!userDetailResult.data) {
-      return result.notFound('User detail not found');
-    }
+    const userDetailId = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
 
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
 
-    const { invoices: list, total } = await invoicesRepository.findManyByClientId(
-      ctx.organizationId,
-      userDetailResult.data,
-      { status: filters.status, page, limit }
-    );
+    const { invoices: list, total } = await invoicesRepository.findManyByClientId(ctx.organizationId, userDetailId, {
+      status: filters.status,
+      page,
+      limit,
+    });
 
     return result.ok({
       invoices: list.map(transformSummaryResponse),
       pagination: { page, limit, total },
     });
   } catch (error) {
+    if (error instanceof HTTPException) {
+      return result.fail(error.message, error.status, 'CLIENT_RESOLUTION_FAILED');
+    }
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to list client invoices {userId}: {error}', {
       userId: ctx.userId,
@@ -185,25 +183,18 @@ const getClientInvoiceDetail = async (
   }
 
   try {
-    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
-    if (!userDetailResult.success) {
-      return userDetailResult;
-    }
-    if (!userDetailResult.data) {
-      return result.notFound('User detail not found');
-    }
+    const userDetailId = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
 
-    const invoice = await invoicesRepository.findOneByIdAndClientId(
-      ctx.organizationId,
-      invoiceId,
-      userDetailResult.data
-    );
+    const invoice = await invoicesRepository.findOneByIdAndClientId(ctx.organizationId, invoiceId, userDetailId);
     if (!invoice) {
       return result.notFound('Invoice not found');
     }
 
     return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
+    if (error instanceof HTTPException) {
+      return result.fail(error.message, error.status, 'CLIENT_RESOLUTION_FAILED');
+    }
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get client invoice {invoiceId}: {error}', {
       invoiceId,

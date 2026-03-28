@@ -1,5 +1,7 @@
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
+
 export interface AppError {
-  status: number;
+  status: ContentfulStatusCode;
   code: string;
   message: string;
   details?: unknown;

@@ -48,7 +48,7 @@ export const registerClientsListeners = (): void => {
     const sysCtx = createSystemContext(organizationId);
 
     try {
-      const clientResult = await clientsCreationService.createClientFromIntake(
+      const client = await clientsCreationService.createClientFromIntake(
         {
           data: {
             intakeId: payload.uuid,
@@ -61,16 +61,8 @@ export const registerClientsListeners = (): void => {
         sysCtx
       );
 
-      if (!clientResult.success) {
-        logger.error('Failed to create client from intake', {
-          intakeId: payload.uuid,
-          error: clientResult.error,
-        });
-        return;
-      }
-
       logger.info('Successfully created client from intake', {
-        clientId: clientResult.data.id,
+        clientId: client.id,
         intakeId: payload.uuid,
       });
     } catch (error) {
@@ -96,7 +88,7 @@ export const registerClientsListeners = (): void => {
     const DEFAULT_CLIENT_NAME = 'New Client';
 
     try {
-      const clientResult = await clientsCreationService.createClient(
+      const client = await clientsCreationService.createClient(
         {
           data: {
             userId: payload.userId,
@@ -108,16 +100,8 @@ export const registerClientsListeners = (): void => {
         sysCtx
       );
 
-      if (!clientResult.success) {
-        logger.error('Failed to create client for invited client', {
-          userId: payload.userId,
-          error: clientResult.error,
-        });
-        return;
-      }
-
       logger.info('Successfully created client for invited client', {
-        clientId: clientResult.data.id,
+        clientId: client.id,
         userId: payload.userId,
       });
     } catch (error) {

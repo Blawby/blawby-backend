@@ -1,5 +1,6 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import type { Stripe } from 'stripe';
 import { clientsSetupService } from '@/modules/clients/services/clients-setup.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
@@ -164,19 +165,25 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      const setupResult = await clientsSetupService.ensureClientSetup({ id: invoice.client_id }, ctx);
-      if (!setupResult.success) {
-        const message = setupResult.error.message;
+      try {
+        await clientsSetupService.ensureClientSetup({ id: invoice.client_id }, ctx);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('Failed to setup Stripe customer for invoice client {clientId}: {error}', {
           clientId: invoice.client_id,
           error: message,
         });
-        return result.fail<InvoiceResponse>(
+
+        if (error instanceof HTTPException) {
+          return result.fail<InvoiceResponse>(
+            `Failed to setup Stripe customer for client ${invoice.client_id}: ${message}`,
+            error.status,
+            'CLIENT_SETUP_FAILED'
+          );
+        }
+
+        return result.internalError<InvoiceResponse>(
           `Failed to setup Stripe customer for client ${invoice.client_id}: ${message}`
-          ,
-          setupResult.error.status,
-          setupResult.error.code,
-          setupResult.error.details
         );
       }
 

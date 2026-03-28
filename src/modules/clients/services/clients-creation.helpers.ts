@@ -6,7 +6,7 @@
 
 import { membersRepository } from '@/shared/repositories/members.repository';
 import { members } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
+import type { db } from '@/shared/database';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

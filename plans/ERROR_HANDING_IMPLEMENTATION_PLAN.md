@@ -5,6 +5,7 @@
 Migrate from the `Result<T>` wrapper pattern to Hono's native throw-based error handling. Services will throw `HTTPException` (or domain-specific exceptions that the global error handler knows how to handle), handlers will be thin and exception-free, and a single global `onError` handler will map all exceptions to HTTP responses.
 
 **Benefits:**
+
 - Handlers: zero error-handling boilerplate (no `if (!result.success)`)
 - Services: return plain data (no wrapping)
 - Stack traces: errors remain traceable via throw stack
@@ -13,23 +14,74 @@ Migrate from the `Result<T>` wrapper pattern to Hono's native throw-based error 
 
 ---
 
+## Progress Update (Current)
+
+### Phase Status
+
+- [x] **Phase 1 — Foundation Complete**
+  - Global error pipeline updated and active.
+  - `HTTPException` and `ForbiddenError` handling verified.
+  - Build check passing after Phase 1 stabilization.
+- [ ] **Phase 2 — Service Layer Migration In Progress**
+  - `clients` mostly migrated.
+  - `invoices` partially migrated.
+  - `matters` partially migrated (notes slice done).
+- [ ] **Phase 3 — Handler Layer Migration In Progress**
+  - `clients` handlers done.
+  - `matters` note handlers done.
+  - Remaining module handlers pending.
+- [ ] **Phase 4 — Webhook/Worker Finalization Pending**
+- [ ] **Phase 5 — Shared Utility Removal Pending**
+
+### Fixed
+
+- [x] Global error pipeline updated to handle `HTTPException` and `ForbiddenError` in `src/shared/middleware/errorHandler.ts`.
+- [x] `clients` service layer largely migrated from `Result<T>` to throw-based flow.
+- [x] `clients` handlers migrated to direct `c.json(...)` / `c.body(...)` responses (no `sendResult` in `clients/handlers.ts`).
+- [x] Cross-module call sites updated where migrated client services are consumed (invoice and intake flows).
+- [x] `matters` note slice migrated:
+  - `src/modules/matters/services/matter-notes.service.ts` now throws directly.
+  - note handlers in `src/modules/matters/handlers.ts` now return direct responses.
+- [x] Plan decision recorded: do not introduce helper conversion functions or type-guard wrappers for HTTP status coercion in services.
+
+### Fixed During Build Stabilization
+
+- [x] Invoice resolver contract migration completed in `src/modules/invoices/services/invoice-client-resolver.service.ts` (returns plain data / throws).
+- [x] Invoice service consumers aligned with resolver throw behavior in:
+  - `src/modules/invoices/services/invoice-creation.service.ts`
+  - `src/modules/invoices/services/invoice-queries.service.ts`
+- [x] Shared `Result` status typing aligned with `ContentfulStatusCode` in `src/shared/types/result.ts` and corresponding utility usage.
+
+### Remaining
+
+- [ ] Finish `invoices` module migration end-to-end (remaining services + handlers still using `Result<T>` patterns).
+- [ ] Finish `matters` module beyond notes (time entries, expenses, milestones, activity, core matters services + handlers).
+- [ ] Migrate remaining Tier 1 modules (`practice`, `preferences`, `trust`, `practice-client-intakes`).
+- [ ] Migrate Tier 2 modules (`subscriptions`, `onboarding`, `uploads`).
+- [ ] Complete webhook/worker service cleanup as per retry semantics.
+- [ ] Final cleanup pass: remove residual `sendResult`/`response.fromResult` usage project-wide.
+- [ ] Remove deprecated shared `result`/`responseUtils` only after zero remaining consumers.
+
+---
+
 ## Scope: Files & Modules
 
-### Phase 1: Foundation (Required before any service migration)
+### Phase 1: Foundation (Required before any service migration) — DONE
 
 **Priority: CRITICAL**
 
-| File | Action | Reason |
-|------|--------|--------|
-| `src/shared/middleware/errorHandler.ts` | Add `HTTPException` handler | Must exist before services throw it |
-| `src/shared/utils/result.ts` | Keep (but mark deprecated) | May be referenced in imports; safe to leave |
-| `src/shared/utils/responseUtils.ts` | Keep (but mark deprecated) | May be referenced in imports; safe to leave |
+| File                                    | Action                      | Reason                                      |
+| --------------------------------------- | --------------------------- | ------------------------------------------- |
+| `src/shared/middleware/errorHandler.ts` | Add `HTTPException` handler | Must exist before services throw it         |
+| `src/shared/utils/result.ts`            | Keep (but mark deprecated)  | May be referenced in imports; safe to leave |
+| `src/shared/utils/responseUtils.ts`     | Keep (but mark deprecated)  | May be referenced in imports; safe to leave |
 
 ### Phase 2: Service Layer Migration (18 modules, 60+ services)
 
 **Order:** Start with leaf dependencies (services with fewest internal dependencies), then work up.
 
 #### Tier 1: Leaf Services (No internal service dependencies)
+
 - `clients/services/` (7 files: clients-mutation, direct-creation, setup, stripe, creation, memos, intake-creation)
 - `invoices/services/` (8 files)
 - `matters/services/` (7 files)
@@ -39,11 +91,13 @@ Migrate from the `Result<T>` wrapper pattern to Hono's native throw-based error 
 - `practice-client-intakes/services/` (5 files)
 
 #### Tier 2: Services That Call Tier 1
+
 - `subscriptions/services/` (3 files)
 - `onboarding/services/` (2 files)
 - `uploads/services/` (7 files)
 
 #### Tier 3: Webhook Services (Job queue workers — special handling)
+
 - `webhooks/services/` (3 files)
 - `invoices/services/invoice-webhooks.service.ts`
 
@@ -51,10 +105,10 @@ Migrate from the `Result<T>` wrapper pattern to Hono's native throw-based error 
 
 **Order:** After all services are migrated
 
-| Module | File | Changes |
-|--------|------|---------|
+| Module      | File                                | Changes                                                  |
+| ----------- | ----------------------------------- | -------------------------------------------------------- |
 | All modules | `handlers.ts`, `routes/*.routes.ts` | Remove `sendResult(c, result)` → use `c.json(data, 200)` |
-| All modules | Remove try/catch blocks | Let exceptions bubble to global handler |
+| All modules | Remove try/catch blocks             | Let exceptions bubble to global handler                  |
 
 ---
 
@@ -139,6 +193,7 @@ export const errorHandler: ErrorHandler = (error, c) => {
 ```
 
 **Rationale:**
+
 - HTTPException is Hono's standard exception for HTTP-aware code
 - ForbiddenError (from CASL) is already being caught
 - Everything else becomes 500 + logged as an unexpected error
@@ -150,6 +205,7 @@ export const errorHandler: ErrorHandler = (error, c) => {
 #### Pattern: Service Migration
 
 **Before (Result<T>):**
+
 ```typescript
 const getMatter = async (id: string, ctx: ServiceContext): Promise<Result<MatterRecord>> => {
   const matter = await mattersRepository.findById(id);
@@ -162,6 +218,7 @@ const getMatter = async (id: string, ctx: ServiceContext): Promise<Result<Matter
 ```
 
 **After (Throw):**
+
 ```typescript
 import { HTTPException } from 'hono/http-exception';
 
@@ -177,16 +234,24 @@ const getMatter = async (id: string, ctx: ServiceContext): Promise<MatterRecord>
 
 **Mapping Table: Result → HTTPException**
 
-| Current | New |
-|---------|-----|
-| `result.notFound(msg)` | `throw new HTTPException(404, { message: msg })` |
-| `result.badRequest(msg)` | `throw new HTTPException(400, { message: msg })` |
-| `result.unauthorized(msg)` | `throw new HTTPException(401, { message: msg })` |
-| `result.forbidden(msg)` | (Already handled by ForbiddenError) |
-| `result.conflict(msg)` | `throw new HTTPException(409, { message: msg })` |
-| `result.internalError(msg)` | `throw new Error(msg)` → caught as 500 |
+| Current                     | New                                              |
+| --------------------------- | ------------------------------------------------ |
+| `result.notFound(msg)`      | `throw new HTTPException(404, { message: msg })` |
+| `result.badRequest(msg)`    | `throw new HTTPException(400, { message: msg })` |
+| `result.unauthorized(msg)`  | `throw new HTTPException(401, { message: msg })` |
+| `result.forbidden(msg)`     | (Already handled by ForbiddenError)              |
+| `result.conflict(msg)`      | `throw new HTTPException(409, { message: msg })` |
+| `result.internalError(msg)` | `throw new Error(msg)` → caught as 500           |
 | `result.unprocessable(msg)` | `throw new HTTPException(422, { message: msg })` |
-| `return result.ok(data)` | `return data` |
+| `return result.ok(data)`    | `return data`                                    |
+
+**TypeScript Rule (Do Not Add Helper Converters):**
+
+- Do **not** introduce helper functions/type guards just to coerce HTTP status values.
+- Do **not** add status-mapping wrappers (for example, `toContentfulStatus(...)`) in services.
+- Throw directly from service code using typed status values from the existing `Result` error contract.
+- Preferred pattern when bridging in-flight code: `throw new HTTPException(matterResult.error.status, { message: matterResult.error.message })`.
+- The long-term goal remains removing `Result` wrappers from services, not adding compatibility helpers around them.
 
 **Special Cases:**
 
@@ -207,6 +272,7 @@ const getMatter = async (id: string, ctx: ServiceContext): Promise<MatterRecord>
 #### Pattern: Handler Migration
 
 **Before (Result<T>):**
+
 ```typescript
 const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -217,6 +283,7 @@ const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = as
 ```
 
 **After (Throw):**
+
 ```typescript
 const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -227,6 +294,7 @@ const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = as
 ```
 
 **Changes in All Handlers:**
+
 1. Remove `const result = await service.xxx()`
 2. Replace with `const data = await service.xxx()`
 3. Remove `return response.fromResult(c, result)`
@@ -238,18 +306,21 @@ const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = as
 ### Step 4: Identify and Fix Webhook Services
 
 **Files:**
+
 - `src/modules/invoices/services/invoice-webhooks.service.ts`
 - `src/modules/webhooks/services/onboarding-webhooks.service.ts`
 - `src/modules/webhooks/services/practice-client-intakes-webhooks.service.ts`
 - `src/modules/webhooks/services/stripe-retries.service.ts`
 
 **Decision:** These are called by Graphile Worker job queue, not HTTP handlers.
+
 - Keep them throwing raw `Error` (job queue will retry on throw)
 - No HTTPException needed
 - No Result<T> wrapper needed
 - They should just log errors clearly and let exceptions bubble
 
 **Pattern for webhook services:**
+
 ```typescript
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   // Do work...
@@ -295,10 +366,12 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
 Once all services are migrated to throw:
 
 **The following files can be deleted:**
+
 - `src/shared/utils/result.ts` — no longer used
 - `src/shared/utils/responseUtils.ts` — no longer used
 
 **Before deletion:**
+
 1. Verify no imports remain in codebase (grep for `from '@/shared/utils/result'` and `from '@/shared/utils/responseUtils'`)
 2. Update CLAUDE.md to remove mention of Result<T> pattern
 3. Create a final commit documenting the removal
@@ -310,6 +383,7 @@ Once all services are migrated to throw:
 ### Unit Tests
 
 **Before migration:**
+
 ```typescript
 it('returns not found result when matter does not exist', async () => {
   const result = await mattersService.getMatter('nonexistent-id', ctx);
@@ -319,6 +393,7 @@ it('returns not found result when matter does not exist', async () => {
 ```
 
 **After migration:**
+
 ```typescript
 it('throws HTTPException with 404 when matter does not exist', async () => {
   await expect(mattersService.getMatter('nonexistent-id', ctx)).rejects.toThrow(HTTPException);
@@ -337,6 +412,7 @@ it('throws HTTPException with 404 when matter does not exist', async () => {
 Tests that call handlers don't need changes — the global error handler will catch exceptions and return HTTP responses as normal.
 
 **Before:**
+
 ```typescript
 const res = await app.request('/api/matters/123');
 expect(res.status).toBe(404);
@@ -371,13 +447,13 @@ expect(res.status).toBe(404);
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|-----------|
-| Handlers don't catch exceptions | Error handler catches everything; handlers become thin |
-| Breaking existing API contracts | HTTP status codes stay the same (HTTPException status arg) |
-| Webhook workers fail silently | Already throwing — no change needed |
-| Tests fail | Unit tests will need `expect().rejects.toThrow()`; integration tests unchanged |
-| Third-party code expects Result<T> | Keep result.ts (unused but present) until sure |
+| Risk                               | Mitigation                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| Handlers don't catch exceptions    | Error handler catches everything; handlers become thin                         |
+| Breaking existing API contracts    | HTTP status codes stay the same (HTTPException status arg)                     |
+| Webhook workers fail silently      | Already throwing — no change needed                                            |
+| Tests fail                         | Unit tests will need `expect().rejects.toThrow()`; integration tests unchanged |
+| Third-party code expects Result<T> | Keep result.ts (unused but present) until sure                                 |
 
 ---
 
@@ -407,7 +483,7 @@ Each module gets one clean commit:
 ```
 
 Final cleanup commit:
+
 ```text
 NNN. refactor(shared): remove deprecated Result<T> pattern (result.ts, responseUtils.ts)
 ```
-

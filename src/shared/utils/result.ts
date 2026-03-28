@@ -1,5 +1,6 @@
 // oxlint-disable import/group-exports
 // oxlint-disable import/no-named-export
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Result } from '@/shared/types/result';
 
 /**
@@ -35,7 +36,7 @@ export function ok<T>(data?: T): Result<T> {
  */
 export const fail = <T = never>(
   message: string,
-  status: number = HttpStatus.INTERNAL_SERVER_ERROR,
+  status: ContentfulStatusCode = HttpStatus.INTERNAL_SERVER_ERROR,
   code = 'INTERNAL_SERVER_ERROR',
   details?: unknown
 ): Result<T> => ({
@@ -99,7 +100,7 @@ export interface ResultUtils {
     (): Result<void>;
     <T>(data: T): Result<T>;
   };
-  fail: <T = never>(message: string, status?: number, code?: string, details?: unknown) => Result<T>;
+  fail: <T = never>(message: string, status?: ContentfulStatusCode, code?: string, details?: unknown) => Result<T>;
   badRequest: <T = never>(message: string, code?: string, details?: unknown) => Result<T>;
   unauthorized: <T = never>(message?: string, code?: string) => Result<T>;
   forbidden: <T = never>(message?: string, code?: string) => Result<T>;

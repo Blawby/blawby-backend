@@ -14,10 +14,9 @@ import type { AddressInput } from '@/modules/clients/types';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import { ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
-import usersRepository from '@/shared/repositories/users.repository';
-import type { Result } from '@/shared/types/result';
+import { usersRepository } from '@/shared/repositories/users.repository';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['clients', 'mutation-service']);
 
@@ -37,23 +36,23 @@ const updateClient = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectClient>> => {
+): Promise<SelectClient> => {
   const { id, data } = params;
 
   // Pre-transaction read for early permission check (prevents logging 403 as 500)
   const preCheckDetail = await clientsRepository.findById(id);
   if (!preCheckDetail || preCheckDetail.organization_id !== ctx.organizationId) {
-    return result.notFound<SelectClient>('Client not found');
+    throw new HTTPException(404, { message: 'Client not found' });
   }
   if (ctx.ability.cannot('update', toSubject('Client', preCheckDetail))) {
-    return result.forbidden<SelectClient>('You do not have permission to update this client');
+    throw new HTTPException(403, { message: 'You do not have permission to update this client' });
   }
 
-  const updated = await db.transaction(async (tx) => {
+  const updatedClient = await db.transaction(async (tx) => {
     // Re-verify and lock inside transaction to prevent race conditions
     const lockedClient = await clientsRepository.findByIdForUpdate(id, tx);
     if (!lockedClient || lockedClient.organization_id !== ctx.organizationId) {
-      return result.notFound<SelectClient>('Client not found');
+      throw new HTTPException(404, { message: 'Client not found' });
     }
 
     if (data.name || data.email || data.phone) {
@@ -124,7 +123,7 @@ const updateClient = async (
     const updatedRecord = await clientsRepository.update(id, finalUpdatePayload, tx);
 
     if (!updatedRecord) {
-      return result.internalError<SelectClient>('Failed to update client');
+      throw new Error('Failed to update client');
     }
 
     await ClientUpdated.dispatch(
@@ -139,17 +138,14 @@ const updateClient = async (
       }
     );
 
-    return result.ok(updatedRecord);
+    return updatedRecord;
   });
 
-  if (!updated.success) {
-    return updated;
-  }
-
   const stripeSyncPayload =
-    updated.data.stripe_customer_id && (data.email !== undefined || data.name !== undefined || data.phone !== undefined)
+    updatedClient.stripe_customer_id &&
+    (data.email !== undefined || data.name !== undefined || data.phone !== undefined)
       ? {
-          customerId: updated.data.stripe_customer_id,
+          customerId: updatedClient.stripe_customer_id,
           email: data.email,
           name: data.name,
           phone: data.phone,
@@ -161,7 +157,7 @@ const updateClient = async (
       await clientsStripeService.updateCustomer(stripeSyncPayload, ctx);
     } catch (err) {
       logger.error('Failed to sync Stripe customer update for client {clientId}: {error}', {
-        clientId: updated.data.id,
+        clientId: updatedClient.id,
         stripeCustomerId: stripeSyncPayload.customerId,
         changedFields: Object.keys(stripeSyncPayload).filter((k) => k !== 'customerId'),
         error: err,
@@ -169,31 +165,30 @@ const updateClient = async (
     }
   }
 
-  return updated;
+  return updatedClient;
 };
 
 /**
  * Delete a client (soft delete)
  */
-const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<void>> => {
+const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<void> => {
   if (ctx.ability.cannot('delete', 'Client')) {
-    return result.forbidden('You do not have permission to delete clients');
+    throw new HTTPException(403, { message: 'You do not have permission to delete clients' });
   }
 
   const { id } = params;
 
   const detail = await clientsRepository.findById(id);
   if (!detail || detail.organization_id !== ctx.organizationId) {
-    return result.notFound('Client not found');
+    throw new HTTPException(404, { message: 'Client not found' });
   }
 
   if (ctx.ability.cannot('delete', toSubject('Client', detail))) {
-    return result.forbidden('You do not have permission to delete this client');
+    throw new HTTPException(403, { message: 'You do not have permission to delete this client' });
   }
 
   await clientsRepository.softDelete(id, ctx.userId);
   void ClientDeleted.dispatch({ client_id: id }, { actorId: ctx.userId, organizationId: ctx.organizationId });
-  return result.ok(undefined);
 };
 
 export const clientsMutationService = {
