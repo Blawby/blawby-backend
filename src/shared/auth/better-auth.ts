@@ -4,8 +4,9 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-// oxlint-disable-next-line import/no-namespace
-import * as schema from '@/schema/better-auth-schema';
+// Schema is used as namespace for drizzle adapter
+// oxlint-disable-next-line no-namespace
+import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { config } from '@/shared/config';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
@@ -14,7 +15,7 @@ import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
-import { queueManager } from '@/shared/queue/queue.manager';
+import { addEmailJob } from '@/shared/queue/queue.manager';
 import type { PrefillData } from '@/shared/types/prefill';
 import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
@@ -74,7 +75,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
 
           const frontendUrl = getMatchingFrontendUrl();
           // Queue the invitation email
-          await queueManager.addEmailJob(
+          await addEmailJob(
             'practice-invitation',
             data.email,
             `You've been invited to join ${practiceName} on Blawby`,
@@ -128,10 +129,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
       admin(),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
-          await queueManager.addEmailJob('magic-link', email, 'Sign in to Blawby', {
-            url,
-            year: new Date().getFullYear(),
-          });
+          await addEmailJob('magic-link', email, 'Sign in to Blawby', { url, year: new Date().getFullYear() });
         },
       }),
       ...(isDevelopment() ? [testUtils()] : []),
