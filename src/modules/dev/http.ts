@@ -27,6 +27,7 @@ import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payme
 import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team/payment-refund-request';
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
+import { config } from '@/shared/config';
 import { HttpStatus } from '@/shared/utils/result';
 
 const http = new Hono<AppContext>();
@@ -37,7 +38,7 @@ const EMAILS_DIR = path.join(process.cwd(), 'storage', 'emails');
  * List all saved emails
  */
 http.get('/emails', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
 
@@ -87,7 +88,7 @@ http.get('/emails', async (c) => {
  * View a specific email
  */
 http.get('/emails/:filename', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
 
@@ -298,7 +299,7 @@ const sampleStripeConnectStatusData: StripeConnectStatusData = {
  * Email template preview page
  */
 http.get('/email-templates', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
 
@@ -535,7 +536,7 @@ http.get('/email-templates', (c) => {
  * Individual email template previews
  */
 http.get('/email-templates/magic-link', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = magicLinkTemplate(sampleMagicLinkData);
@@ -543,7 +544,7 @@ http.get('/email-templates/magic-link', (c) => {
 });
 
 http.get('/email-templates/payment-receipt', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentReceipt(samplePaymentReceiptData);
@@ -551,7 +552,7 @@ http.get('/email-templates/payment-receipt', (c) => {
 });
 
 http.get('/email-templates/welcome', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = welcomeEmail(sampleWelcomeData);
@@ -559,7 +560,7 @@ http.get('/email-templates/welcome', (c) => {
 });
 
 http.get('/email-templates/stripe-connect-welcome', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = stripeConnectWelcome(sampleStripeConnectData);
@@ -567,7 +568,7 @@ http.get('/email-templates/stripe-connect-welcome', (c) => {
 });
 
 http.get('/email-templates/practice-invitation', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = practiceInvitation(samplePracticeInvitationData);
@@ -575,7 +576,7 @@ http.get('/email-templates/practice-invitation', (c) => {
 });
 
 http.get('/email-templates/payment-request', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRequest(samplePaymentRequestData);
@@ -583,7 +584,7 @@ http.get('/email-templates/payment-request', (c) => {
 });
 
 http.get('/email-templates/team-payment-receipt', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = teamPaymentReceipt(sampleTeamPaymentReceiptData);
@@ -592,7 +593,7 @@ http.get('/email-templates/team-payment-receipt', (c) => {
 
 // Customer refund templates
 http.get('/email-templates/customer-refund-request', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRefundRequest(sampleRefundData);
@@ -600,7 +601,7 @@ http.get('/email-templates/customer-refund-request', (c) => {
 });
 
 http.get('/email-templates/customer-refunded', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRefunded(sampleRefundData);
@@ -608,7 +609,7 @@ http.get('/email-templates/customer-refunded', (c) => {
 });
 
 http.get('/email-templates/customer-refund-rejected', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = customerPaymentRefundRejected(sampleRefundData);
@@ -617,7 +618,7 @@ http.get('/email-templates/customer-refund-rejected', (c) => {
 
 // Team refund templates
 http.get('/email-templates/team-refund-request', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = teamPaymentRefundRequest(sampleTeamRefundData);
@@ -625,7 +626,7 @@ http.get('/email-templates/team-refund-request', (c) => {
 });
 
 http.get('/email-templates/team-refunded', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = teamPaymentRefunded(sampleTeamRefundData);
@@ -633,7 +634,7 @@ http.get('/email-templates/team-refunded', (c) => {
 });
 
 http.get('/email-templates/payout-sent', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = payoutSent(samplePayoutSentData);
@@ -641,7 +642,7 @@ http.get('/email-templates/payout-sent', (c) => {
 });
 
 http.get('/email-templates/stripe-connect-status', (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
   }
   const html = stripeConnectStatus(sampleStripeConnectStatusData);

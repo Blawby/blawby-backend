@@ -26,10 +26,10 @@ The module also handles the case where a client started as an anonymous user (e.
 
 The module has three sets of endpoints based on who is calling:
 
-| Who | What they can do |
-|-----|-----------------|
-| **Public** (anyone) | Get intake form settings, create intake, check post-pay status |
-| **Client** (authenticated client) | Update intake, check intake status, create checkout session, claim intake |
+| Who                                    | What they can do                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Public** (anyone)                    | Get intake form settings, create intake, check post-pay status                                  |
+| **Client** (authenticated client)      | Update intake, check intake status, create checkout session, claim intake                       |
 | **Staff** (authenticated lawyer/admin) | List intakes, get intake detail, triage (accept/decline), convert to matter, trigger invitation |
 
 ---
@@ -41,6 +41,7 @@ The module has three sets of endpoints based on who is calling:
 Loads the intake form for a practice. Returns practice branding, settings, and whether payment is required.
 
 **Example response:**
+
 ```json
 {
   "success": true,
@@ -61,6 +62,7 @@ Loads the intake form for a practice. Returns practice branding, settings, and w
 Creates a new intake. If payment is required, also creates a Stripe Payment Link. The frontend should redirect the client to that link.
 
 **Request body:**
+
 ```json
 {
   "slug": "smith-co",
@@ -76,6 +78,7 @@ Creates a new intake. If payment is required, also creates a Stripe Payment Link
 ```
 
 **Response (201):**
+
 ```json
 {
   "success": true,
@@ -121,6 +124,7 @@ Updates intake fields (e.g., amount). Only works if payment hasn't been complete
 Returns the current intake status + all metadata. Frontend polls this while waiting for payment confirmation.
 
 **Status values:**
+
 - `open` — awaiting payment
 - `succeeded` — payment complete (or no payment needed)
 - `expired` — payment link expired
@@ -135,6 +139,7 @@ Returns the current intake status + all metadata. Frontend polls this while wait
 After payment, the client signs up or logs in. This endpoint links the intake to their authenticated user account and adds them as a member of the practice's organization.
 
 **Request body:**
+
 ```json
 { "session_id": "stripe_checkout_session_id" }
 ```
@@ -162,6 +167,7 @@ Gets full detail of a single intake.
 This is the accept/deny button in the practice dashboard.
 
 **Request body:**
+
 ```json
 {
   "status": "accepted",
@@ -170,6 +176,7 @@ This is the accept/deny button in the practice dashboard.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -192,6 +199,7 @@ The `conversation_id` in the response tells the frontend which conversation thre
 Converts an accepted intake into a formal matter (case). Creates the matter record with all the intake data pre-filled.
 
 **Request body:**
+
 ```json
 {
   "title": "Employment Dispute — Jane Doe",
@@ -215,26 +223,26 @@ Manually triggers an invitation email to the client associated with a completed 
 
 ### Table: `practice_client_intakes`
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | uuid | Primary key |
-| `organization_id` | uuid | FK → organizations |
-| `connected_account_id` | uuid | FK → stripe_connected_accounts |
-| `conversation_id` | uuid | FK → conversations (nullable) — links to AI chat |
-| `stripe_payment_link_id` | text | Stripe Payment Link ID |
-| `stripe_payment_intent_id` | text | Populated via webhook |
-| `stripe_charge_id` | text | Populated via webhook |
-| `amount` | integer | In cents |
-| `currency` | text | Default: `usd` |
-| `status` | text | open / succeeded / expired / canceled / failed / converted |
-| `triage_status` | text | pending_review / accepted / declined |
-| `triage_reason` | text | Reason for decline (nullable) |
-| `triage_decided_at` | timestamp | When lawyer made the decision |
-| `metadata` | jsonb | Client info: name, email, phone, description, etc. |
-| `client_ip` | text | For audit/security |
-| `user_agent` | text | For audit/security |
-| `succeeded_at` | timestamp | When payment was confirmed |
-| `created_at` / `updated_at` | timestamp | Standard timestamps |
+| Column                      | Type      | Notes                                                      |
+| --------------------------- | --------- | ---------------------------------------------------------- |
+| `id`                        | uuid      | Primary key                                                |
+| `organization_id`           | uuid      | FK → organizations                                         |
+| `connected_account_id`      | uuid      | FK → stripe_connected_accounts                             |
+| `conversation_id`           | uuid      | FK → conversations (nullable) — links to AI chat           |
+| `stripe_payment_link_id`    | text      | Stripe Payment Link ID                                     |
+| `stripe_payment_intent_id`  | text      | Populated via webhook                                      |
+| `stripe_charge_id`          | text      | Populated via webhook                                      |
+| `amount`                    | integer   | In cents                                                   |
+| `currency`                  | text      | Default: `usd`                                             |
+| `status`                    | text      | open / succeeded / expired / canceled / failed / converted |
+| `triage_status`             | text      | pending_review / accepted / declined                       |
+| `triage_reason`             | text      | Reason for decline (nullable)                              |
+| `triage_decided_at`         | timestamp | When lawyer made the decision                              |
+| `metadata`                  | jsonb     | Client info: name, email, phone, description, etc.         |
+| `client_ip`                 | text      | For audit/security                                         |
+| `user_agent`                | text      | For audit/security                                         |
+| `succeeded_at`              | timestamp | When payment was confirmed                                 |
+| `created_at` / `updated_at` | timestamp | Standard timestamps                                        |
 
 ---
 
@@ -281,25 +289,25 @@ This solves the race condition where a client submits an intake, pays, and then 
 
 ## Events Published
 
-| Event | When |
-|-------|------|
-| `IntakePaymentCreated` | Intake created via POST /create |
-| `IntakePaymentSucceeded` | Stripe payment confirmed |
-| `IntakePaymentFailed` | Stripe payment failed |
-| `IntakePaymentCanceled` | Stripe payment canceled |
+| Event                    | When                            |
+| ------------------------ | ------------------------------- |
+| `IntakePaymentCreated`   | Intake created via POST /create |
+| `IntakePaymentSucceeded` | Stripe payment confirmed        |
+| `IntakePaymentFailed`    | Stripe payment failed           |
+| `IntakePaymentCanceled`  | Stripe payment canceled         |
 
 ---
 
 ## Services
 
-| Service | Responsibility |
-|---------|---------------|
-| `intake-creation.service.ts` | Creating and updating intakes, loading settings |
-| `intake-checkout.service.ts` | Checkout session creation, post-pay status, claiming intake |
-| `intake-lifecycle.service.ts` | Listing, triaging, converting intakes |
-| `intake-access.helpers.ts` | CASL permission checks for staff vs. client access |
-| `intake-shared.helpers.ts` | Formatters, parsers, shared utilities |
-| `intake-stripe.helpers.ts` | Stripe-specific helpers |
+| Service                       | Responsibility                                              |
+| ----------------------------- | ----------------------------------------------------------- |
+| `intake-creation.service.ts`  | Creating and updating intakes, loading settings             |
+| `intake-checkout.service.ts`  | Checkout session creation, post-pay status, claiming intake |
+| `intake-lifecycle.service.ts` | Listing, triaging, converting intakes                       |
+| `intake-access.helpers.ts`    | CASL permission checks for staff vs. client access          |
+| `intake-shared.helpers.ts`    | Formatters, parsers, shared utilities                       |
+| `intake-stripe.helpers.ts`    | Stripe-specific helpers                                     |
 
 ---
 

@@ -30,13 +30,16 @@ const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRo
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const res = await trustService.getTransactions({
-    organizationId: ctx.organizationId,
-    clientId: query.client_id,
-    matterId: query.matter_id,
-    startDate: query.start_date ? new Date(query.start_date) : undefined,
-    endDate: query.end_date ? new Date(query.end_date) : undefined,
-  });
+  const res = await trustService.getTransactions(
+    {
+      organizationId: ctx.organizationId,
+      clientId: query.client_id,
+      matterId: query.matter_id,
+      startDate: query.start_date ? new Date(query.start_date) : undefined,
+      endDate: query.end_date ? new Date(query.end_date) : undefined,
+    },
+    ctx
+  );
 
   return sendResult(c, res);
 };
@@ -45,10 +48,13 @@ const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = asy
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const res = await trustService.getBalance({
-    organizationId: ctx.organizationId,
-    clientId: query.client_id,
-  });
+  const res = await trustService.getBalance(
+    {
+      organizationId: ctx.organizationId,
+      clientId: query.client_id,
+    },
+    ctx
+  );
 
   return sendResult(c, res);
 };
@@ -57,11 +63,14 @@ const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const res = await trustService.getReport({
-    organizationId: ctx.organizationId,
-    startDate: query.start_date ? new Date(query.start_date) : undefined,
-    endDate: query.end_date ? new Date(query.end_date) : undefined,
-  });
+  const res = await trustService.getReport(
+    {
+      organizationId: ctx.organizationId,
+      startDate: query.start_date ? new Date(query.start_date) : undefined,
+      endDate: query.end_date ? new Date(query.end_date) : undefined,
+    },
+    ctx
+  );
 
   return sendResult(c, res);
 };
