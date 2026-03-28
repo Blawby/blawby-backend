@@ -317,26 +317,23 @@ export const onboardingWebhooksService = {
    */
   async retryFailedWebhooks(): Promise<void> {
     const eventsToRetry = await getEventsToRetry();
+    const retryableEvents = eventsToRetry.filter((event) => event.retryCount < event.maxRetries);
 
-    if (eventsToRetry.length > 0) {
-      logger.info('Found {count} webhook events to retry', { count: eventsToRetry.length });
+    if (retryableEvents.length > 0) {
+      logger.info('Found {count} webhook events to retry', { count: retryableEvents.length });
     }
 
-    const retryPromises = eventsToRetry
-      .filter((event) => event.retryCount < event.maxRetries)
-      .map(async (event) => {
-        try {
-          await this.processEvent(event.stripeEventId);
-        } catch (error) {
-          logger.error('Failed to retry onboarding webhook event {stripeEventId}: {error}', {
-            stripeEventId: event.stripeEventId,
-            retryCount: event.retryCount,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      });
-
-    await Promise.all(retryPromises);
+    for (const event of retryableEvents) {
+      try {
+        await this.processEvent(event.stripeEventId);
+      } catch (error) {
+        logger.error('Failed to retry onboarding webhook event {stripeEventId}: {error}', {
+          stripeEventId: event.stripeEventId,
+          retryCount: event.retryCount,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
   },
 
   /**

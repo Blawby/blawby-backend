@@ -43,6 +43,8 @@ export const practiceClientIntakesWebhooksService = {
       const event = webhookEvent.payload;
 
       if (!isStripeEvent(event)) {
+        const reason = 'Stored webhook payload is not a valid Stripe event';
+        await stripeWebhookEventsRepository.markFailed(webhookEvent.id, reason);
         logger.error('Stored webhook payload is not a valid Stripe event: {eventId}', { eventId: webhookEvent.id });
         return internalError('Stored webhook payload is invalid');
       }
@@ -50,6 +52,8 @@ export const practiceClientIntakesWebhooksService = {
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         if (!isStripeCheckoutSession(session)) {
+          const reason = 'Invalid checkout session object in checkout.session.completed event';
+          await stripeWebhookEventsRepository.markFailed(webhookEvent.id, reason);
           logger.error('Invalid checkout session object in checkout.session.completed event: {eventId}', {
             eventId: event.id,
           });
