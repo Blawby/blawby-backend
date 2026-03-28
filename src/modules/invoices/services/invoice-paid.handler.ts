@@ -43,6 +43,14 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
       return;
     }
 
+    // Idempotency: Skip if invoice already marked as paid (webhook retry)
+    if (invoice.status === 'paid') {
+      logger.info('Invoice {invoiceId} already paid, skipping duplicate processing', {
+        invoiceId: invoice.id,
+      });
+      return;
+    }
+
     let pendingBillingTransactionId: string | null = null;
     let transferDestination: string | null = null;
     let transferMetadata: Stripe.MetadataParam | null = null;

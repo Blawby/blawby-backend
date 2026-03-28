@@ -113,20 +113,24 @@ const buildSeatSyncIdentifier = (invoice: Stripe.Invoice, organizationId: string
  * Non-blocking: Catches and logs errors without re-throwing,
  * so metering failures don't block invoice webhook processing.
  *
+ * Returns boolean indicating success/failure for caller visibility.
+ *
  * @param db - Database instance or transaction
  * @param invoice - Stripe Invoice object
  * @param organizationId - Organization UUID
  * @param stripeCustomerId - Stripe Customer ID
+ * @returns true if seat sync succeeded, false if it failed
  */
 const syncSeatCountOnInvoice = async (
   db: DbOrTx,
   invoice: Stripe.Invoice,
   organizationId: string,
   stripeCustomerId: string
-): Promise<void> => {
+): Promise<boolean> => {
   try {
     const idempotencyIdentifier = buildSeatSyncIdentifier(invoice, organizationId, stripeCustomerId);
     await reportAbsoluteSeatCount(db, organizationId, idempotencyIdentifier, stripeCustomerId);
+    return true;
   } catch (error) {
     // Log but don't throw — metering should not block invoice webhook processing
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -134,6 +138,7 @@ const syncSeatCountOnInvoice = async (
       idempotencyIdentifier: buildSeatSyncIdentifier(invoice, organizationId, stripeCustomerId),
       error: message,
     });
+    return false;
   }
 };
 

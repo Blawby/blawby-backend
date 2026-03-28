@@ -23,7 +23,7 @@ import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError } from '@/shared/utils/logging';
+import { logError, hashEmail } from '@/shared/utils/logging';
 
 const logger = getLogger(['auth', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -54,7 +54,7 @@ const registerAuthListeners = (): void => {
       })
       .catch((error) => {
         logError('Failed to queue welcome email', error, {
-          email: payload.email,
+          emailHash: hashEmail(payload.email),
         });
       });
   });
@@ -73,7 +73,7 @@ const registerAuthListeners = (): void => {
 
   // Password reset requested
   Event.listen(AuthPasswordResetRequested, async (payload) => {
-    logger.info('Password reset requested', { email: payload.email });
+    logger.info('Password reset requested', { emailHash: hashEmail(payload.email) });
     // Future: Send reset email, security logging, etc.
   });
 

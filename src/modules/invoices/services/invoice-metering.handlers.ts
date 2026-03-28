@@ -55,12 +55,17 @@ export const handleInvoiceUpcoming = async (stripeInvoice: Stripe.Invoice): Prom
     }
 
     // Report current seat count to Stripe Metering (stateless, absolute total)
-    await seatMeteringService.syncSeatCountOnInvoice(db, stripeInvoice, org.id, customerId);
+    const meteringSynced = await seatMeteringService.syncSeatCountOnInvoice(db, stripeInvoice, org.id, customerId);
 
-    logger.info('✅ Processed invoice.upcoming event: {invoiceId} for organization {organizationId}', {
-      invoiceId: stripeInvoice.id,
-      organizationId: org.id,
-    });
+    logger.info(
+      meteringSynced
+        ? '✅ Processed invoice.upcoming event: {invoiceId} for organization {organizationId}'
+        : '⚠️ Processed invoice.upcoming event: {invoiceId} for organization {organizationId} (metering sync failed)',
+      {
+        invoiceId: stripeInvoice.id,
+        organizationId: org.id,
+      }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to handle invoice.upcoming webhook: {error}', { error: message });
@@ -108,12 +113,17 @@ export const handleInvoiceCreated = async (stripeInvoice: Stripe.Invoice): Promi
     }
 
     // Report current seat count to Stripe Metering (stateless, absolute total)
-    await seatMeteringService.syncSeatCountOnInvoice(db, stripeInvoice, org.id, customerId);
+    const meteringSynced = await seatMeteringService.syncSeatCountOnInvoice(db, stripeInvoice, org.id, customerId);
 
-    logger.info('✅ Processed invoice.created event: {invoiceId} for organization {organizationId}', {
-      invoiceId: stripeInvoice.id,
-      organizationId: org.id,
-    });
+    logger.info(
+      meteringSynced
+        ? '✅ Processed invoice.created event: {invoiceId} for organization {organizationId}'
+        : '⚠️ Processed invoice.created event: {invoiceId} for organization {organizationId} (metering sync failed)',
+      {
+        invoiceId: stripeInvoice.id,
+        organizationId: org.id,
+      }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to handle invoice.created webhook: {error}', { error: message });

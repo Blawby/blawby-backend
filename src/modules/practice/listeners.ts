@@ -20,7 +20,7 @@ import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError } from '@/shared/utils/logging';
+import { logError, hashEmail } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -102,30 +102,32 @@ const registerPracticeListeners = (): void => {
     ];
 
     // 1. Send Customer Receipt
-    void queueManager
-      .addEmailJob(
-        EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT,
-        customer.email,
-        `Your receipt from ${business.name} - ${payment.invoiceNumber}`,
-        {
-          recipientEmail: customer.email,
-          recipientName: customer.name,
-          businessName: business.name,
-          invoiceNumber: payment.invoiceNumber,
-          amountPaid: payment.amount,
-          amountDue: payment.amount,
-          paidAt: payload.succeeded_at,
-          lineItems: items,
-          paymentMethod: payment.method,
-          supportEmail: business.supportEmail,
-        }
-      )
-      .catch((error) => {
-        logError('Failed to queue customer receipt email', error, {
-          invoiceNumber: payment.invoiceNumber,
-          recipientEmail: customer.email,
+    if (customer.email) {
+      void queueManager
+        .addEmailJob(
+          EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT,
+          customer.email,
+          `Your receipt from ${business.name} - ${payment.invoiceNumber}`,
+          {
+            recipientEmail: customer.email,
+            recipientName: customer.name,
+            businessName: business.name,
+            invoiceNumber: payment.invoiceNumber,
+            amountPaid: payment.amount,
+            amountDue: payment.amount,
+            paidAt: payload.succeeded_at,
+            lineItems: items,
+            paymentMethod: payment.method,
+            supportEmail: business.supportEmail,
+          }
+        )
+        .catch((error) => {
+          logError('Failed to queue customer receipt email', error, {
+            invoiceNumber: payment.invoiceNumber,
+            method: payment.method,
+          });
         });
-      });
+    }
 
     // 2. Send Team Notification
     void queueManager

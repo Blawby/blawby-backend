@@ -20,6 +20,9 @@ export const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice):
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
     if (!invoice) {
+      logger.warn('Invoice not found in database for Stripe ID: {stripeInvoiceId}', {
+        stripeInvoiceId: stripeInvoice.id,
+      });
       return;
     }
 
@@ -63,6 +66,9 @@ export const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promis
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
     if (!invoice) {
+      logger.warn('Invoice not found in database for Stripe ID: {stripeInvoiceId}', {
+        stripeInvoiceId: stripeInvoice.id,
+      });
       return;
     }
 
@@ -107,6 +113,9 @@ export const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promi
   try {
     const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
     if (!invoice) {
+      logger.warn('Invoice not found in database for Stripe ID: {stripeInvoiceId}', {
+        stripeInvoiceId: stripeInvoice.id,
+      });
       return;
     }
 
