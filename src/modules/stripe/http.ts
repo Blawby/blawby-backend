@@ -1,9 +1,11 @@
 import { handlers } from '@/modules/stripe/handlers';
 import { createAccountSessionRoute, getConnectedAccountRoute } from '@/modules/stripe/routes/index';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const stripeApp = createHonoApp();
+stripeApp.use('*', injectAbility());
 
 /**
  * POST /api/stripe/connect/account-session

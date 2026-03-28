@@ -1,6 +1,6 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';
@@ -50,18 +50,16 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
     );
 
     // Get current account record
-    const account = await db
+    const [accountRecord] = await db
       .select()
       .from(stripeConnectedAccounts)
       .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
       .limit(1);
 
-    if (account.length === 0) {
+    if (!accountRecord) {
       logger.warn('Account not found for external account creation: {stripeAccountId}', { stripeAccountId });
       return;
     }
-
-    const currentAccount = account[0];
 
     const bankAccount = stripeTypeGuards.isBankAccount(externalAccount) ? externalAccount : undefined;
     const cardAccount = stripeTypeGuards.isCardAccount(externalAccount) ? externalAccount : undefined;
@@ -82,11 +80,11 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
       status: externalAccount.status ?? undefined,
     };
     const currentExternalAccounts = normalizeExternalAccounts({
-      externalAccounts: currentAccount.externalAccounts,
+      externalAccounts: accountRecord.externalAccounts,
     });
     const updatedExternalAccounts: ExternalAccounts = {
       object: 'list',
-      data: [...currentExternalAccounts.data.filter((account) => account.id !== externalAccount.id), normalizedAccount],
+      data: [...currentExternalAccounts.data.filter((acc) => acc.id !== externalAccount.id), normalizedAccount],
     };
 
     // Update the account external accounts in the database within transaction with event publishing
@@ -103,7 +101,7 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
       await OnboardingExternalAccountCreated.dispatch(
         {
           stripe_account_id: stripeAccountId,
-          organization_id: currentAccount.organization_id,
+          organization_id: accountRecord.organization_id,
           external_account_id: externalAccount.id,
           external_account_type: accountType,
           external_account_status: externalAccount.status,
@@ -112,7 +110,7 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
         {
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
-          organizationId: currentAccount.organization_id,
+          organizationId: accountRecord.organization_id,
           tx,
         }
       );

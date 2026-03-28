@@ -6,7 +6,7 @@
 
 import crypto from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
-import onboardingHandlers from '@/modules/onboarding/handlers';
+import onboardingHandlers from '@/modules/onboarding/handlers/index';
 import {
   OnboardingStarted,
   OnboardingCompleted,
@@ -44,7 +44,7 @@ const {
 /**
  * Register all onboarding event listeners
  */
-export function registerOnboardingListeners(): void {
+const registerOnboardingListeners = (): void => {
   logger.info('Registering onboarding event listeners...');
 
   // Onboarding lifecycle events
@@ -211,4 +211,6 @@ export function registerOnboardingListeners(): void {
   });
 
   logger.info('Onboarding event listeners registered');
-}
+};
+
+export { registerOnboardingListeners };
