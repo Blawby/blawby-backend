@@ -359,7 +359,18 @@ const updateMatter = async (
         });
       }
 
-      const organization = await organizationRepository.findById(ctx.organizationId);
+      let organizationName = 'Your Legal Team';
+      try {
+        const organization = await organizationRepository.findById(ctx.organizationId);
+        if (organization) {
+          organizationName = organization.name;
+        }
+      } catch (orgError) {
+        logger.warn('Failed to fetch organization for matter status event enrichment: {error}', {
+          organizationId: ctx.organizationId,
+          error: orgError instanceof Error ? orgError.message : String(orgError),
+        });
+      }
 
       await ctx.emit(
         MatterStatusChanged,
@@ -369,7 +380,7 @@ const updateMatter = async (
           old_status: existing.status,
           new_status: data.status,
           matter_title: existing.title,
-          organization_name: organization?.name ?? 'Your Legal Team',
+          organization_name: organizationName,
           client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
           client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
         },

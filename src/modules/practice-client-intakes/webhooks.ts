@@ -91,7 +91,20 @@ export const handlePracticeClientIntakeSucceeded = async ({
         : paymentIntent.latest_charge.id
       : undefined;
 
-    const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
+    let organizationName = 'Your Legal Team';
+    let billingEmail: string | null = null;
+    try {
+      const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
+      if (organization) {
+        organizationName = organization.name;
+        billingEmail = organization.billingEmail ?? null;
+      }
+    } catch (orgError) {
+      logger.warn('Failed to fetch organization for intake payment event enrichment', {
+        organizationId: practiceClientIntake.organization_id,
+        error: sanitizeError(orgError),
+      });
+    }
 
     await db.transaction(async (tx) => {
       const updateResult = await tx
@@ -110,8 +123,8 @@ export const handlePracticeClientIntakeSucceeded = async ({
           {
             event_id: eventId,
             organization_id: practiceClientIntake.organization_id,
-            organization_name: organization?.name ?? 'Your Legal Team',
-            billing_email: organization?.billingEmail ?? null,
+            organization_name: organizationName,
+            billing_email: billingEmail,
             stripe_payment_intent_id: paymentIntent.id,
             intake_payment_id: practiceClientIntake.id,
             uuid: practiceClientIntake.id,
