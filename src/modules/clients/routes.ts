@@ -1,4 +1,4 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import {
   createMemoSchema,
   updateMemoSchema,
@@ -12,26 +12,11 @@ import {
   practiceParamsSchema,
   clientSchema,
 } from '@/modules/clients/validations/clients.validation';
-
-// Common response schemas
-const errorResponseSchema = z
-  .object({
-    error: z.string(),
-    message: z.string().optional(),
-    details: z.any().optional(),
-  })
-  .openapi('ErrorResponse');
-
-const notFoundResponseSchema = z
-  .object({
-    error: z.string(),
-    message: z.string(),
-  })
-  .openapi('NotFoundResponse');
+import { routeBuilder } from '@/shared/router/route-builder';
 
 // ==================== CLIENTS ====================
 
-export const listClientsRoute = createRoute({
+export const listClientsRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}',
   tags: ['Clients'],
@@ -46,11 +31,10 @@ export const listClientsRoute = createRoute({
       content: { 'application/json': { schema: z.object({ data: z.array(clientSchema), total: z.number() }) } },
       description: 'Clients retrieved successfully',
     },
-    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Invalid request' },
   },
 });
 
-export const getClientRoute = createRoute({
+export const getClientRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/{id}',
   tags: ['Clients'],
@@ -64,13 +48,12 @@ export const getClientRoute = createRoute({
       content: { 'application/json': { schema: z.object({ data: clientSchema }) } },
       description: 'Client retrieved successfully',
     },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Client not found' },
   },
 });
 
 // Note: No POST/create route - clients are created via intake or invitation flows
 
-export const updateClientRoute = createRoute({
+export const updateClientRoute = routeBuilder.build({
   method: 'patch',
   path: '/{practice_id}/{id}',
   tags: ['Clients'],
@@ -85,11 +68,10 @@ export const updateClientRoute = createRoute({
       content: { 'application/json': { schema: z.object({ data: clientSchema }) } },
       description: 'Client updated',
     },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Client not found' },
   },
 });
 
-export const deleteClientRoute = createRoute({
+export const deleteClientRoute = routeBuilder.build({
   method: 'delete',
   path: '/{practice_id}/{id}',
   tags: ['Clients'],
@@ -101,13 +83,12 @@ export const deleteClientRoute = createRoute({
       content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       description: 'Client deleted',
     },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Client not found' },
   },
 });
 
 // ==================== CLIENT MEMOS ====================
 
-export const listClientMemosRoute = createRoute({
+export const listClientMemosRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/{id}/memos',
   tags: ['Clients: Memos'],
@@ -119,11 +100,10 @@ export const listClientMemosRoute = createRoute({
       content: { 'application/json': { schema: z.object({ data: z.array(clientMemoSchema) }) } },
       description: 'Memos retrieved',
     },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Client not found' },
   },
 });
 
-export const createClientMemoRoute = createRoute({
+export const createClientMemoRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/{id}/memos',
   tags: ['Clients: Memos'],
@@ -138,11 +118,10 @@ export const createClientMemoRoute = createRoute({
       content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } },
       description: 'Memo created',
     },
-    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Client not found' },
   },
 });
 
-export const updateClientMemoRoute = createRoute({
+export const updateClientMemoRoute = routeBuilder.build({
   method: 'patch',
   path: '/{practice_id}/{id}/memos/{memo_id}',
   tags: ['Clients: Memos'],
@@ -154,14 +133,10 @@ export const updateClientMemoRoute = createRoute({
       content: { 'application/json': { schema: z.object({ data: clientMemoSchema }) } },
       description: 'Memo updated',
     },
-    404: {
-      content: { 'application/json': { schema: notFoundResponseSchema } },
-      description: 'Memo or Client not found',
-    },
   },
 });
 
-export const deleteClientMemoRoute = createRoute({
+export const deleteClientMemoRoute = routeBuilder.build({
   method: 'delete',
   path: '/{practice_id}/{id}/memos/{memo_id}',
   tags: ['Clients: Memos'],
@@ -172,10 +147,6 @@ export const deleteClientMemoRoute = createRoute({
     200: {
       content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       description: 'Memo deleted',
-    },
-    404: {
-      content: { 'application/json': { schema: notFoundResponseSchema } },
-      description: 'Memo or Client not found',
     },
   },
 });
