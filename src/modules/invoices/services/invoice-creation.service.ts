@@ -70,7 +70,8 @@ const validateInvoiceCreation = async (
       data.client_id,
       data.connected_account_id
     );
-  } catch {
+  } catch (error) {
+    logger.error('Unexpected error while resolving client for invoice: {error}', { error, clientId: data.client_id });
     return result.internalError('Failed to resolve client for invoice creation');
   }
 

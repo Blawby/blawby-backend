@@ -16,6 +16,7 @@ import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 import { ensureClientMember } from '@/modules/clients/services/clients-creation.helpers';
+import { type SelectUser } from '@/shared/repositories/users.repository';
 
 /**
  * Create a new client (staff-initiated)
@@ -32,7 +33,7 @@ const createClient = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectClient & { user: typeof users.$inferSelect | null }>> => {
+): Promise<Result<SelectClient & { user: SelectUser | null }>> => {
   const { data } = params;
 
   if (ctx.ability.cannot('create', 'Client')) {
@@ -79,8 +80,8 @@ const createClient = async (
         email: data.email.toLowerCase(),
         stripe_customer_id: null,
         address_id: addressId,
-        status: data.status ?? 'lead',
-        currency: data.currency ?? 'usd',
+        status: data.status,
+        currency: data.currency,
       })
       .onConflictDoUpdate({
         target: [clients.organization_id, clients.user_id],
@@ -88,33 +89,32 @@ const createClient = async (
           name: data.name,
           email: data.email.toLowerCase(),
           address_id: sql`COALESCE(EXCLUDED.address_id, ${clients.address_id})`,
-          status: sql`COALESCE(EXCLUDED.status, ${clients.status})`,
-          currency: sql`COALESCE(EXCLUDED.currency, ${clients.currency})`,
+          ...(data.status ? { status: data.status } : {}),
+          ...(data.currency ? { currency: data.currency } : {}),
           updated_at: new Date(),
         },
       })
       .returning();
 
-    return {
-      detail: upsertedClient,
-      isCreated: upsertedClient.created_at.getTime() === upsertedClient.updated_at.getTime(),
-    };
+    const isCreated = upsertedClient.created_at.getTime() === upsertedClient.updated_at.getTime();
+
+    if (isCreated) {
+      await ClientCreated.dispatch(
+        {
+          client_id: upsertedClient.id,
+          user_id: user.id,
+          name: upsertedClient.name ?? data.name,
+          email: upsertedClient.email ?? data.email.toLowerCase(),
+          stripe_customer_id: upsertedClient.stripe_customer_id ?? undefined,
+        },
+        { actorId: ctx.userId, organizationId: ctx.organizationId, tx }
+      );
+    }
+
+    return { detail: upsertedClient, isCreated };
   });
 
-  if (isCreated) {
-    void ClientCreated.dispatch(
-      {
-        client_id: detail.id,
-        user_id: user.id,
-        name: detail.name ?? data.name,
-        email: detail.email ?? data.email.toLowerCase(),
-        stripe_customer_id: detail.stripe_customer_id ?? undefined,
-      },
-      { actorId: ctx.userId, organizationId: ctx.organizationId }
-    );
-  }
-
-  return result.ok({ ...detail, user });
+  return result.ok({ ...detail, user: user as SelectUser | null });
 };
 
 export const clientsDirectCreationService = {

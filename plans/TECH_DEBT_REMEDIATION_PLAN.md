@@ -385,7 +385,7 @@ PRs within a group can be developed **in parallel**.
 ```typescript
 // Before: return result.ok({ ...matter, assignees } as MatterRecord);
 // After:  return result.ok<MatterRecord>({ ...matter, assignees });
-```text
+```
 
 - [ ] Audit and fix all `as SomeRecord` casts in services
 
@@ -474,7 +474,7 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 ⚠️ **STALLED:** Group A is ~50-60% done (not 85%). Group B **cannot start** until PR-3 and PR-7 are re-worked.
 
-```
+```text
 ✅ Foundation  →  ✅ PR-0 Matters  →  ✅ PR-1 Invoices
                                               │
          ┌────────────────────────────────────┘
@@ -546,17 +546,17 @@ PR-14 (Env Config) ── ✅ already merged
 
 ## Metrics
 
-| Metric                         | Before   | Now (verified 2026-03-28)                           | Target   |
-| ------------------------------ | -------- | --------------------------------------------------- | -------- |
-| Modules using `ServiceContext` | 2        | **14** (all modules)                                | all ✅   |
-| Modules using CASL             | 2        | **14** (all modules with injectAbility())           | all ✅   |
-| Service files >200 lines       | 9        | **18** (was 20, PR-4 ✅ split)                      | **0** ❌ |
-| Route files >300 lines         | 3        | **2** (`practice.routes.ts`, `uploads.routes.ts` split needed) | **0** ❌ |
+| Metric                         | Before   | Now (verified 2026-03-28)                                          | Target   |
+| ------------------------------ | -------- | ------------------------------------------------------------------ | -------- |
+| Modules using `ServiceContext` | 2        | **14** (all modules)                                               | all ✅   |
+| Modules using CASL             | 2        | **14** (all modules with injectAbility())                          | all ✅   |
+| Service files >200 lines       | 9        | **18** (was 20, PR-4 ✅ split)                                     | **0** ❌ |
+| Route files >300 lines         | 3        | **2** (`practice.routes.ts`, `uploads.routes.ts` split needed)     | **0** ❌ |
 | `if (!user)` checks            | ~50      | **2** (intentional checks remain in intake-driven client creation) | **0** ⚠️ |
-| `computeRoutingClaims` usages  | ~15      | **0**                                               | **0** ✅ |
-| `requestHeaders` params        | ~20      | **7** (verified: 2 in subscriptions, 5 in practice) | **0** ❌ |
-| Direct `process.env` reads     | 70 files | **24 files** (via config centralization)            | **0** ✅ |
-| `any` type usages              | 23 files | **5 files**                                         | **0** ❌ |
-| `as` type assertions           | many     | many (type safety sweep not started)                | **0** ❌ |
+| `computeRoutingClaims` usages  | ~15      | **0**                                                              | **0** ✅ |
+| `requestHeaders` params        | ~20      | **7** (verified: 2 in subscriptions, 5 in practice)                | **0** ❌ |
+| Direct `process.env` reads     | 70 files | **24 files** (via config centralization)                           | **0** ✅ |
+| `any` type usages              | 23 files | **5 files**                                                        | **0** ❌ |
+| `as` type assertions           | many     | many (type safety sweep not started)                               | **0** ❌ |
 
-*Footnote: intentional `if (!user)` checks currently remain in `src/modules/clients/services/clients-intake-creation.service.ts` as guarded lookup validations.*
+_Footnote: intentional `if (!user)` checks currently remain in `src/modules/clients/services/clients-intake-creation.service.ts` as guarded lookup validations._

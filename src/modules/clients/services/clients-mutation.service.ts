@@ -40,25 +40,22 @@ const updateClient = async (
 ): Promise<Result<SelectClient>> => {
   const { id, data } = params;
 
-  const detailWithUser = await clientsRepository.findById(id);
-  if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
+  // Pre-transaction read for early permission check (prevents logging 403 as 500)
+  const preCheckDetail = await clientsRepository.findById(id);
+  if (!preCheckDetail || preCheckDetail.organization_id !== ctx.organizationId) {
     return result.notFound<SelectClient>('Client not found');
   }
-
-  if (ctx.ability.cannot('update', toSubject('Client', detailWithUser))) {
+  if (ctx.ability.cannot('update', toSubject('Client', preCheckDetail))) {
     return result.forbidden<SelectClient>('You do not have permission to update this client');
   }
 
-  let stripeSyncPayload:
-    | {
-        customerId: string;
-        email?: string;
-        name?: string;
-        phone?: string;
-      }
-    | undefined = undefined;
-
   const updated = await db.transaction(async (tx) => {
+    // Re-verify and lock inside transaction to prevent race conditions
+    const lockedClient = await clientsRepository.findById(id, tx);
+    if (!lockedClient || lockedClient.organization_id !== ctx.organizationId) {
+      return result.notFound<SelectClient>('Client not found');
+    }
+
     if (data.name || data.email || data.phone) {
       const updatePayload: Partial<typeof clients.$inferInsert> = {};
       if (data.name) {
@@ -72,7 +69,7 @@ const updateClient = async (
         await tx.update(clients).set(updatePayload).where(eq(clients.id, id));
       }
 
-      if (detailWithUser.user_id && (data.name !== undefined || data.email !== undefined || data.phone !== undefined)) {
+      if (lockedClient.user_id && (data.name !== undefined || data.email !== undefined || data.phone !== undefined)) {
         const userUpdatePayload: {
           name?: string;
           email?: string;
@@ -90,21 +87,12 @@ const updateClient = async (
         }
 
         if (Object.keys(userUpdatePayload).length > 0) {
-          await usersRepository.update(detailWithUser.user_id, userUpdatePayload, tx);
+          await usersRepository.update(lockedClient.user_id, userUpdatePayload, tx);
         }
-      }
-
-      if (detailWithUser.stripe_customer_id) {
-        stripeSyncPayload = {
-          customerId: detailWithUser.stripe_customer_id,
-          email: data.email,
-          name: data.name,
-          phone: data.phone,
-        };
       }
     }
 
-    let addressId = detailWithUser.address_id;
+    let addressId = lockedClient.address_id;
     if (data.address) {
       const address = await upsertAddressTx(tx, {
         addressData: {
@@ -116,15 +104,16 @@ const updateClient = async (
           country: data.address.country ?? 'US',
         },
         organizationId: ctx.organizationId,
-        addressId: detailWithUser.address_id,
+        addressId: lockedClient.address_id,
         type: 'client',
       });
       addressId = address?.id ?? addressId;
     }
 
-    const finalUpdatePayload: Partial<typeof clients.$inferInsert> = {
-      address_id: addressId,
-    };
+    const finalUpdatePayload: Partial<typeof clients.$inferInsert> = {};
+    if (data.address) {
+      finalUpdatePayload.address_id = addressId;
+    }
     if (data.status !== undefined) {
       finalUpdatePayload.status = data.status;
     }
@@ -132,7 +121,7 @@ const updateClient = async (
       finalUpdatePayload.currency = data.currency;
     }
 
-    const [updatedRecord] = await tx.update(clients).set(finalUpdatePayload).where(eq(clients.id, id)).returning();
+    const updatedRecord = await clientsRepository.update(id, finalUpdatePayload, tx);
 
     if (!updatedRecord) {
       return result.internalError<SelectClient>('Failed to update client');
@@ -157,13 +146,24 @@ const updateClient = async (
     return updated;
   }
 
+  const stripeSyncPayload =
+    updated.data.stripe_customer_id && (data.email !== undefined || data.name !== undefined || data.phone !== undefined)
+      ? {
+          customerId: updated.data.stripe_customer_id,
+          email: data.email,
+          name: data.name,
+          phone: data.phone,
+        }
+      : undefined;
+
   if (stripeSyncPayload) {
     try {
       await clientsStripeService.updateCustomer(stripeSyncPayload, ctx);
     } catch (err) {
       logger.error('Failed to sync Stripe customer update for client {clientId}: {error}', {
         clientId: updated.data.id,
-        stripeSyncPayload,
+        stripeCustomerId: stripeSyncPayload.customerId,
+        changedFields: Object.keys(stripeSyncPayload).filter((k) => k !== 'customerId'),
         error: err,
       });
     }

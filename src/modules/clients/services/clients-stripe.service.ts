@@ -5,6 +5,31 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['clients', 'stripe-service']);
 
+const findCustomerByMetadata = async (
+  metadata: Record<string, string>,
+  ctx: ServiceContext
+): Promise<string | undefined> => {
+  try {
+    // Actually, stripe.customers.search is better for metadata.
+    const query = Object.entries(metadata)
+      .map(([k, v]) => `metadata['${k}']:'${v}'`)
+      .join(' AND ');
+    const response = await stripe.customers.search({
+      query,
+      limit: 1,
+    });
+
+    return response.data[0]?.id;
+  } catch (error) {
+    logger.error('Failed to search Stripe customer by metadata {metadata}: {error}', {
+      metadata,
+      error,
+      organizationId: ctx.organizationId,
+    });
+    return undefined;
+  }
+};
+
 const createCustomer = async (
   params: {
     email: string;
@@ -20,10 +45,6 @@ const createCustomer = async (
   }
 
   try {
-    // Customer is created on the PLATFORM account (no stripeAccount header).
-    // Invoices use the on_behalf_of model — platform collects payment, then
-    // Immediately transfers to the connected account with fund routing metadata.
-    // Trust accounting is the lawyer's responsibility per LEGAL_BILLING_FUND_ROUTING_PLAN.md
     const customer = await stripe.customers.create({
       email: params.email,
       name: params.name,
@@ -74,6 +95,7 @@ const updateCustomer = async (
 };
 
 export const clientsStripeService = {
+  findCustomerByMetadata,
   createCustomer,
   updateCustomer,
 };

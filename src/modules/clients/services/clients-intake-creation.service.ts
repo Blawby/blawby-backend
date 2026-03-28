@@ -67,6 +67,7 @@ const createClientFromIntake = async (
         and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
       )
       .limit(1);
+
     if (existingDetail) {
       if (!existingDetail.intake_id) {
         const [updatedDetail] = await tx
@@ -75,9 +76,30 @@ const createClientFromIntake = async (
           .where(eq(clients.id, existingDetail.id))
           .returning();
 
-        if (updatedDetail) {
-          return { action: 'updated' as const, detail: updatedDetail };
+        if (!updatedDetail) {
+          throw new Error('Failed to update client with intake_id');
         }
+
+        Promise.resolve(
+          ClientUpdated.dispatch(
+            {
+              client_id: updatedDetail.id,
+              changes: { intake_id: true, status: true },
+            },
+            { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId, tx }
+          )
+        ).catch((error) => {
+          logger.error(
+            'Failed to dispatch ClientUpdated for intake-created client {clientId} {organizationId}: {error}',
+            {
+              clientId: updatedDetail.id,
+              organizationId: ctx.organizationId,
+              error,
+            }
+          );
+        });
+
+        return { action: 'updated' as const, detail: updatedDetail };
       }
 
       return { action: 'existing' as const, detail: existingDetail };
@@ -99,52 +121,32 @@ const createClientFromIntake = async (
       .returning();
 
     if (!createdDetail) {
-      return { action: 'error' as const, message: 'Failed to create client from intake' };
+      throw new Error('Failed to create client from intake');
     }
+
+    Promise.resolve(
+      ClientCreated.dispatch(
+        {
+          client_id: createdDetail.id,
+          user_id: user.id,
+          name: user.name,
+          email: user.email,
+          stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
+        },
+        { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId, tx }
+      )
+    ).catch((error) => {
+      logger.error('Failed to dispatch ClientCreated for intake-created client {clientId} {organizationId}: {error}', {
+        clientId: createdDetail.id,
+        organizationId: ctx.organizationId,
+        error,
+      });
+    });
 
     return { action: 'created' as const, detail: createdDetail };
   };
 
   const outcome = params.tx ? await runTx(params.tx) : await db.transaction(runTx);
-
-  if (outcome.action === 'error') {
-    return result.internalError(outcome.message);
-  }
-
-  if (outcome.action === 'updated') {
-    void ClientUpdated.dispatch(
-      {
-        client_id: outcome.detail.id,
-        changes: { intake_id: true, status: true },
-      },
-      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
-    ).catch((error) => {
-      logger.error('Failed to dispatch ClientUpdated for intake-created client {clientId} {organizationId}: {error}', {
-        clientId: outcome.detail.id,
-        organizationId: ctx.organizationId,
-        error,
-      });
-    });
-  }
-
-  if (outcome.action === 'created') {
-    void ClientCreated.dispatch(
-      {
-        client_id: outcome.detail.id,
-        user_id: user.id,
-        name: user.name,
-        email: user.email,
-        stripe_customer_id: outcome.detail.stripe_customer_id ?? undefined,
-      },
-      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
-    ).catch((error) => {
-      logger.error('Failed to dispatch ClientCreated for intake-created client {clientId} {organizationId}: {error}', {
-        clientId: outcome.detail.id,
-        organizationId: ctx.organizationId,
-        error,
-      });
-    });
-  }
 
   return result.ok(outcome.detail);
 };

@@ -12,6 +12,27 @@ import { toSubject } from '@/shared/auth/subject-helpers';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
+import type { Action, SubjectName } from '@/shared/auth/abilities';
+
+/**
+ * Type-safe rule for rule inspection
+ */
+interface BaseRule {
+  action: Action;
+  subject: SubjectName;
+  conditions?: Record<string, unknown>;
+  inverted?: boolean;
+}
+
+/**
+ * Helper to check for unconditional 'read' rule on 'Client'
+ */
+const hasUnrestrictedClientRead = (ctx: ServiceContext): boolean => {
+  const rules = ctx.ability.rules as unknown as BaseRule[];
+  return rules.some((rule) => {
+    return rule.action === 'read' && rule.subject === 'Client' && !rule.conditions && !rule.inverted;
+  });
+};
 
 /**
  * List clients with filtering and pagination
@@ -33,12 +54,9 @@ const listClients = async (
 > => {
   let effectiveClientId: string | undefined = params.clientId;
 
-  if (ctx.ability.can('read', 'Client')) {
+  if (hasUnrestrictedClientRead(ctx)) {
     // Admin/Member can list all or filter by clientId
-  } else if (
-    !ctx.ability.can('read', 'Client') &&
-    ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))
-  ) {
+  } else if (ctx.ability.can('read', toSubject('Client', { user_id: ctx.userId }))) {
     // Client can ONLY see their own record
     effectiveClientId = ctx.userId;
   } else {
@@ -68,7 +86,7 @@ const getClient = async (params: { id: string }, ctx: ServiceContext): Promise<R
     return result.notFound('Client not found');
   }
 
-  if (!ctx.ability.can('read', 'Client')) {
+  if (!hasUnrestrictedClientRead(ctx)) {
     if (ctx.ability.cannot('read', toSubject('Client', detail))) {
       return result.forbidden('You do not have permission to view this client');
     }

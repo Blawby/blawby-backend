@@ -59,6 +59,8 @@ const resolveClientForInvoice = async (
         .values({
           organization_id: organizationId,
           user_id: memberMatch.user.id,
+          name: memberMatch.user.name,
+          email: memberMatch.user.email,
           status: 'active',
         })
         .returning();
