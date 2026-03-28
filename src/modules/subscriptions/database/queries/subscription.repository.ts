@@ -8,7 +8,6 @@
  */
 
 import { eq, and, desc, or, isNotNull } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type {
   NewSubscriptionEvent,
   SubscriptionEvent,
@@ -23,6 +22,9 @@ import type {
   SubscriptionPlan,
 } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 import { subscriptionEvents, subscriptionLineItems, subscriptionPlans } from '@/schema';
+import { db } from '@/shared/database';
+
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * --- Subscription Events Operations ---
@@ -31,7 +33,7 @@ import { subscriptionEvents, subscriptionLineItems, subscriptionPlans } from '@/
 /**
  * Create a new subscription event
  */
-const createEvent = async (db: NodePgDatabase, eventData: NewSubscriptionEvent): Promise<SubscriptionEvent> => {
+const createEvent = async (db: DbOrTx, eventData: NewSubscriptionEvent): Promise<SubscriptionEvent> => {
   const [created] = await db.insert(subscriptionEvents).values(eventData).returning();
 
   return created;
@@ -40,7 +42,7 @@ const createEvent = async (db: NodePgDatabase, eventData: NewSubscriptionEvent):
 /**
  * Find all events for a subscription, ordered by most recent first
  */
-const findEventsBySubscriptionId = async (db: NodePgDatabase, subscriptionId: string): Promise<SubscriptionEvent[]> =>
+const findEventsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionEvent[]> =>
   await db
     .select()
     .from(subscriptionEvents)
@@ -51,7 +53,7 @@ const findEventsBySubscriptionId = async (db: NodePgDatabase, subscriptionId: st
  * Find events by type for a subscription
  */
 const findEventsBySubscriptionIdAndType = async (
-  db: NodePgDatabase,
+  db: DbOrTx,
   subscriptionId: string,
   eventType: SubscriptionEventType
 ): Promise<SubscriptionEvent[]> =>
@@ -64,7 +66,7 @@ const findEventsBySubscriptionIdAndType = async (
 /**
  * Get the most recent event for a subscription
  */
-const findLatestEvent = async (db: NodePgDatabase, subscriptionId: string): Promise<SubscriptionEvent | undefined> => {
+const findLatestEvent = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionEvent | undefined> => {
   const [event] = await db
     .select()
     .from(subscriptionEvents)
@@ -82,17 +84,14 @@ const findLatestEvent = async (db: NodePgDatabase, subscriptionId: string): Prom
 /**
  * Find all line items for a subscription
  */
-const findLineItemsBySubscriptionId = async (
-  db: NodePgDatabase,
-  subscriptionId: string
-): Promise<SubscriptionLineItem[]> =>
+const findLineItemsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionLineItem[]> =>
   await db.select().from(subscriptionLineItems).where(eq(subscriptionLineItems.subscription_id, subscriptionId));
 
 /**
  * Find a line item by Stripe subscription item ID
  */
 const findLineItemByStripeItemId = async (
-  db: NodePgDatabase,
+  db: DbOrTx,
   stripeSubscriptionItemId: string
 ): Promise<SubscriptionLineItem | undefined> => {
   const [items] = await db
@@ -107,7 +106,7 @@ const findLineItemByStripeItemId = async (
 /**
  * Create or update a subscription line item
  */
-const upsertLineItem = async (db: NodePgDatabase, itemData: NewSubscriptionLineItem): Promise<SubscriptionLineItem> => {
+const upsertLineItem = async (db: DbOrTx, itemData: NewSubscriptionLineItem): Promise<SubscriptionLineItem> => {
   // Try to find existing item
   const existingItem = await findLineItemByStripeItemId(db, itemData.stripe_subscription_item_id);
 
@@ -134,7 +133,7 @@ const upsertLineItem = async (db: NodePgDatabase, itemData: NewSubscriptionLineI
 /**
  * Delete a subscription line item
  */
-const deleteLineItem = async (db: NodePgDatabase, stripeSubscriptionItemId: string): Promise<void> => {
+const deleteLineItem = async (db: DbOrTx, stripeSubscriptionItemId: string): Promise<void> => {
   await db
     .delete(subscriptionLineItems)
     .where(eq(subscriptionLineItems.stripe_subscription_item_id, stripeSubscriptionItemId));
@@ -143,7 +142,7 @@ const deleteLineItem = async (db: NodePgDatabase, stripeSubscriptionItemId: stri
 /**
  * Delete all line items for a subscription
  */
-const deleteLineItemsBySubscriptionId = async (db: NodePgDatabase, subscriptionId: string): Promise<void> => {
+const deleteLineItemsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): Promise<void> => {
   await db.delete(subscriptionLineItems).where(eq(subscriptionLineItems.subscription_id, subscriptionId));
 };
 
@@ -154,7 +153,7 @@ const deleteLineItemsBySubscriptionId = async (db: NodePgDatabase, subscriptionI
 /**
  * Find all active subscription plans sorted by sort order
  */
-const findAllActivePlans = async (db: NodePgDatabase): Promise<SubscriptionPlan[]> =>
+const findAllActivePlans = async (db: DbOrTx): Promise<SubscriptionPlan[]> =>
   await db
     .select()
     .from(subscriptionPlans)
@@ -169,7 +168,7 @@ const findAllActivePlans = async (db: NodePgDatabase): Promise<SubscriptionPlan[
 /**
  * Find a subscription plan by ID (UUID)
  */
-const findPlanById = async (db: NodePgDatabase, planId: string): Promise<SubscriptionPlan | undefined> => {
+const findPlanById = async (db: DbOrTx, planId: string): Promise<SubscriptionPlan | undefined> => {
   const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId)).limit(1);
 
   return plan;
@@ -178,7 +177,7 @@ const findPlanById = async (db: NodePgDatabase, planId: string): Promise<Subscri
 /**
  * Find a subscription plan by name
  */
-const findPlanByName = async (db: NodePgDatabase, name: string): Promise<SubscriptionPlan | undefined> => {
+const findPlanByName = async (db: DbOrTx, name: string): Promise<SubscriptionPlan | undefined> => {
   const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.name, name)).limit(1);
 
   return plan;
@@ -188,7 +187,7 @@ const findPlanByName = async (db: NodePgDatabase, name: string): Promise<Subscri
  * Find a subscription plan by Stripe product ID
  */
 const findPlanByStripeProductId = async (
-  db: NodePgDatabase,
+  db: DbOrTx,
   stripeProductId: string
 ): Promise<SubscriptionPlan | undefined> => {
   const [plan] = await db
@@ -203,10 +202,7 @@ const findPlanByStripeProductId = async (
 /**
  * Find a subscription plan by Stripe price ID (monthly or yearly)
  */
-const findPlanByStripePriceId = async (
-  db: NodePgDatabase,
-  stripePriceId: string
-): Promise<SubscriptionPlan | undefined> => {
+const findPlanByStripePriceId = async (db: DbOrTx, stripePriceId: string): Promise<SubscriptionPlan | undefined> => {
   const [monthlyPlan] = await db
     .select()
     .from(subscriptionPlans)
@@ -230,7 +226,7 @@ const findPlanByStripePriceId = async (
 /**
  * Create or update a subscription plan
  */
-const upsertPlan = async (db: NodePgDatabase, planData: NewSubscriptionPlan): Promise<SubscriptionPlan> => {
+const upsertPlan = async (db: DbOrTx, planData: NewSubscriptionPlan): Promise<SubscriptionPlan> => {
   // Try to find existing plan by stripe product ID
   const existingPlan = await findPlanByStripeProductId(db, planData.stripe_product_id);
 
@@ -257,7 +253,7 @@ const upsertPlan = async (db: NodePgDatabase, planData: NewSubscriptionPlan): Pr
 /**
  * Deactivate a subscription plan (soft delete)
  */
-const deactivatePlan = async (db: NodePgDatabase, stripeProductId: string): Promise<SubscriptionPlan | undefined> => {
+const deactivatePlan = async (db: DbOrTx, stripeProductId: string): Promise<SubscriptionPlan | undefined> => {
   const [updated] = await db
     .update(subscriptionPlans)
     .set({
@@ -273,7 +269,7 @@ const deactivatePlan = async (db: NodePgDatabase, stripeProductId: string): Prom
 /**
  * Get all plans (including inactive) for admin purposes
  */
-const findAllPlans = async (db: NodePgDatabase): Promise<SubscriptionPlan[]> =>
+const findAllPlans = async (db: DbOrTx): Promise<SubscriptionPlan[]> =>
   await db.select().from(subscriptionPlans).orderBy(desc(subscriptionPlans.created_at));
 
 export const subscriptionRepository = {

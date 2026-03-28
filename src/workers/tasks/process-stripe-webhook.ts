@@ -21,16 +21,28 @@ interface ProcessStripeWebhookPayload {
   eventType: string;
 }
 
+const isProcessStripeWebhookPayload = (payload: unknown): payload is ProcessStripeWebhookPayload => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate.webhookId === 'string' &&
+    typeof candidate.eventId === 'string' &&
+    typeof candidate.eventType === 'string'
+  );
+};
+
 // --- HELPERS ---
 
 /**
  * Checks if the event belongs to the onboarding flow
  */
-const isOnboardingEvent = (eventType: string): boolean => (
-    eventType.startsWith('account.') ||
-    eventType.startsWith('capability.') ||
-    eventType.startsWith('account.external_account.')
-  );
+const isOnboardingEvent = (eventType: string): boolean =>
+  eventType.startsWith('account.') ||
+  eventType.startsWith('capability.') ||
+  eventType.startsWith('account.external_account.');
 
 /**
  * Checks if the event belongs to the invoice flow
@@ -74,31 +86,19 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
 
     // 2. Route & Process
     if (subscriptionWebhooksService.isSubscriptionWebhookEvent(event.type)) {
-      const result = await subscriptionWebhooksService.processSubscriptionWebhookEvent(event);
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
+      await subscriptionWebhooksService.processSubscriptionWebhookEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (isSubscriptionEvent(event)) {
       logger.info('Subscription lifecycle event handled by Better Auth: {eventType}', { eventType: event.type });
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (isOnboardingEvent(event.type)) {
-      const result = await onboardingWebhooksService.processEvent(eventId);
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
+      await onboardingWebhooksService.processEvent(eventId);
       // Service marks as processed internally
     } else if (isInvoiceEvent(event.type)) {
-      const result = await invoiceWebhooksService.processEvent(event);
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
+      await invoiceWebhooksService.processEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded') {
-      const result = await practiceClientIntakesWebhooksService.processEvent(eventId);
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
+      await practiceClientIntakesWebhooksService.processEvent(eventId);
       // Service marks as processed internally
     } else {
       // Fallback

@@ -32,19 +32,6 @@ const parseJsonResponse = async (response: Response, fallback: unknown): Promise
   }
 };
 
-const getErrorMessage = (errorData: unknown, fallback: string): string => {
-  if (!isRecord(errorData)) {
-    return fallback;
-  }
-
-  const { errors } = errorData;
-  if (errorData.success === false && Array.isArray(errors) && errors.length > 0 && isRecord(errors[0])) {
-    return getString(errors[0], 'message') ?? getString(errors[0], 'error') ?? fallback;
-  }
-
-  return getString(errorData, 'message') ?? getString(errorData, 'detail') ?? fallback;
-};
-
 /**
  * Generate direct upload URL for Cloudflare Images
  * Cloudflare Images uses a different API than R2
@@ -55,14 +42,12 @@ const generateImagesUploadUrl = async (params: {
 }): Promise<{
   uploadUrl: string;
   imageId: string | null;
-}> => {
+} | null> => {
   const accountHash = params.accountHash ?? config.cloudflare.imagesAccountHash;
   const apiToken = params.apiToken ?? config.cloudflare.imagesApiToken;
 
   if (!accountHash || !apiToken) {
-    throw new Error(
-      'CLOUDFLARE_IMAGES_ACCOUNT_HASH and CLOUDFLARE_IMAGES_API_TOKEN environment variables are required'
-    );
+    return null;
   }
 
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountHash}/images/v2/direct_upload`, {
@@ -74,8 +59,7 @@ const generateImagesUploadUrl = async (params: {
   });
 
   if (!response.ok) {
-    const error = await parseJsonResponse(response, { error: 'Unknown error' });
-    throw new Error(`Failed to generate upload URL: ${JSON.stringify(error)}`);
+    return null;
   }
 
   const data = await parseJsonResponse(response, {});
@@ -83,7 +67,7 @@ const generateImagesUploadUrl = async (params: {
   const uploadUrl = result ? getString(result, 'uploadURL') : undefined;
 
   if (!uploadUrl) {
-    throw new Error(`Malformed Cloudflare Images response: missing uploadURL (${JSON.stringify(data)})`);
+    return null;
   }
 
   return {
@@ -99,11 +83,11 @@ const getImageUrl = (params: {
   accountHash?: string;
   imageId: string;
   variant?: string; // Example values: 'public', 'thumbnail'
-}): string => {
+}): string | null => {
   const accountHash = params.accountHash ?? config.cloudflare.imagesAccountHash;
 
   if (!accountHash) {
-    throw new Error('CLOUDFLARE_IMAGES_ACCOUNT_HASH environment variable is required');
+    return null;
   }
 
   const variant = params.variant ?? 'public';
@@ -118,9 +102,7 @@ const deleteImage = async (params: { accountHash?: string; apiToken?: string; im
   const apiToken = params.apiToken ?? config.cloudflare.imagesApiToken;
 
   if (!accountHash || !apiToken) {
-    throw new Error(
-      'CLOUDFLARE_IMAGES_ACCOUNT_HASH and CLOUDFLARE_IMAGES_API_TOKEN environment variables are required'
-    );
+    return;
   }
 
   const response = await fetch(
@@ -134,8 +116,7 @@ const deleteImage = async (params: { accountHash?: string; apiToken?: string; im
   );
 
   if (!response.ok) {
-    const errorData = await parseJsonResponse(response, {});
-    throw new Error(getErrorMessage(errorData, 'Failed to delete image'));
+    return;
   }
 };
 

@@ -19,7 +19,7 @@ import { preferenceValidations } from '@/modules/preferences/validations/prefere
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { badRequest, notFound, ok } from '@/shared/utils/result';
+import { badRequest, internalError, notFound, ok } from '@/shared/utils/result';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -199,7 +199,7 @@ const initializeUserPreferences = async (userId: string): Promise<Result<Prefere
     .returning();
 
   if (!inserted) {
-    throw new Error(`Failed to create preferences for user ${userId}`);
+    return internalError('Failed to create preferences');
   }
 
   return ok(inserted);

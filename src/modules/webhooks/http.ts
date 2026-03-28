@@ -1,15 +1,19 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { getLogger } from '@logtape/logtape';
 import type { Context } from 'hono';
-import type Stripe from 'stripe';
-import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
+import {
+  onboardingWebhooksService,
+  WebhookVerificationError,
+  type StoredWebhookVerificationResult,
+} from '@/modules/webhooks/services/onboarding-webhooks.service';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
 import type { AppContext } from '@/shared/types/hono';
-import type { Result } from '@/shared/types/result';
-import { sendError, sendResult } from '@/shared/utils/responseUtils';
+import { sendError } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['webhooks', 'http']);
 const webhooksApp = new OpenAPIHono<AppContext>();
+webhooksApp.use('*', injectAbility());
 
 /**
  * Shared webhook handler to reduce code duplication
@@ -23,13 +27,7 @@ const handleWebhook = async (
     signature: string,
     headers: Record<string, string>,
     url: string
-  ) => Promise<
-    Result<{
-      event: Stripe.Event;
-      alreadyProcessed: boolean;
-      webhookId?: string;
-    }>
-  >
+  ) => Promise<StoredWebhookVerificationResult>
 ): Promise<Response> => {
   const signature = c.req.header('stripe-signature');
   const body = Buffer.from(await c.req.arrayBuffer());
@@ -46,15 +44,7 @@ const handleWebhook = async (
 
   try {
     // 1. Verify signature and store event in database
-    const result = await verifyFn(body, signature, c.req.header(), url);
-
-    if (!result.success) {
-      const { error } = result;
-      logger.error('Webhook verification failed: {error}', { error: error.message });
-      return sendResult(c, result);
-    }
-
-    const { event, alreadyProcessed, webhookId } = result.data;
+    const { event, alreadyProcessed, webhookId } = await verifyFn(body, signature, c.req.header(), url);
 
     if (alreadyProcessed) {
       logger.info('Webhook already processed: {eventId}', { eventId: event.id });
@@ -82,6 +72,15 @@ const handleWebhook = async (
 
     return c.json({ received: true }, 200);
   } catch (err) {
+    if (err instanceof WebhookVerificationError) {
+      logger.error('Webhook verification failed: {error}', { error: err.message });
+      return sendError(c, {
+        code: err.status === 400 ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR',
+        message: err.message,
+        status: err.status,
+      });
+    }
+
     logger.error('Unexpected error processing webhook: {error}', {
       error: err instanceof Error ? err.message : 'Unknown error',
     });

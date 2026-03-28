@@ -1,6 +1,6 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
-import type { Stripe } from '@better-auth/stripe';
+import type { Stripe } from 'stripe';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';

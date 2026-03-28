@@ -10,16 +10,18 @@
 
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
 import { organizations, subscriptionLineItems, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
+import { db as appDb } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
+
+type DbOrTx = typeof appDb | Parameters<Parameters<typeof appDb.transaction>[0]>[0];
 
 const METER_USAGE_REPORTED = 'meter_usage.reported';
 
@@ -36,7 +38,7 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async function reportMeteredUsage(
-  db: NodePgDatabase,
+  db: DbOrTx,
   organizationId: string,
   meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
   quantity = 1,
@@ -122,7 +124,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
 };
 
 const getCurrentUsage = async function getCurrentUsage(
-  db: NodePgDatabase,
+  db: DbOrTx,
   organizationId: string
 ): Promise<Result<{ meter_name: string; quantity: number; description: string | null }[]>> {
   try {

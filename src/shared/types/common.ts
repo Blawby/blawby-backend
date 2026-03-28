@@ -31,7 +31,7 @@ export interface ApiError {
     field: string;
     message: string;
     code: string;
-  }>;
+  }[];
 }
 
 export type SortOrder = 'asc' | 'desc';

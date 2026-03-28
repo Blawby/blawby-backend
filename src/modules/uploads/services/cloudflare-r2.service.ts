@@ -21,16 +21,14 @@ let _r2Client: S3Client | null = null;
 /**
  * Initialize and return R2 client instance
  */
-const initR2Client = (): S3Client => {
+const initR2Client = (): S3Client | null => {
   if (!_r2Client) {
     const { accountId } = config.cloudflare;
     const accessKeyId = config.cloudflare.r2AccessKeyId;
     const secretAccessKey = config.cloudflare.r2SecretAccessKey;
 
     if (!accountId || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, and CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables are required'
-      );
+      return null;
     }
 
     _r2Client = new S3Client({
@@ -49,7 +47,7 @@ const initR2Client = (): S3Client => {
 /**
  * Get R2 client instance
  */
-const getR2Client = (): S3Client => initR2Client();
+const getR2Client = (): S3Client | null => initR2Client();
 
 /**
  * Generate presigned URL for uploading to R2
@@ -59,8 +57,11 @@ const generatePresignedUploadUrl = async (params: {
   key: string;
   contentType: string;
   expiresIn?: number; // Seconds, default 15 minutes
-}): Promise<string> => {
+}): Promise<string | null> => {
   const client = getR2Client();
+  if (!client) {
+    return null;
+  }
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default
 
   const command = new PutObjectCommand({
@@ -79,8 +80,11 @@ const generatePresignedDownloadUrl = async (params: {
   bucket: string;
   key: string;
   expiresIn?: number; // Seconds, default 15 minutes
-}): Promise<string> => {
+}): Promise<string | null> => {
   const client = getR2Client();
+  if (!client) {
+    return null;
+  }
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default
 
   // For download, we use GetObjectCommand
@@ -96,8 +100,12 @@ const generatePresignedDownloadUrl = async (params: {
  * Verify file exists in R2
  */
 const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
+  const client = getR2Client();
+  if (!client) {
+    return false;
+  }
+
   try {
-    const client = getR2Client();
     const command = new HeadObjectCommand({
       Bucket: params.bucket,
       Key: params.key,
@@ -115,6 +123,9 @@ const verifyFileExists = async (params: { bucket: string; key: string }): Promis
  */
 const deleteFile = async (params: { bucket: string; key: string }): Promise<void> => {
   const client = getR2Client();
+  if (!client) {
+    return;
+  }
   const command = new DeleteObjectCommand({
     Bucket: params.bucket,
     Key: params.key,

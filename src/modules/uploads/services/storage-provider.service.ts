@@ -23,13 +23,16 @@ export const storageProviderService = {
         return internalError('Image storage configuration error');
       }
 
-      const { uploadUrl } = await cloudflareImagesService.generateImagesUploadUrl({
+      const uploadTarget = await cloudflareImagesService.generateImagesUploadUrl({
         accountHash,
         apiToken,
       });
+      if (!uploadTarget) {
+        return internalError('Failed to generate image upload URL');
+      }
 
       return ok({
-        presignedUrl: uploadUrl,
+        presignedUrl: uploadTarget.uploadUrl,
         method: 'POST',
       });
     }
@@ -46,6 +49,9 @@ export const storageProviderService = {
       contentType: params.mimeType,
       expiresIn: 15 * 60,
     });
+    if (!presignedUrl) {
+      return internalError('Failed to generate presigned upload URL');
+    }
 
     return ok({
       presignedUrl,
@@ -105,12 +111,15 @@ export const storageProviderService = {
       return internalError('Image storage configuration error');
     }
 
-    return ok(
-      cloudflareImagesService.getImageUrl({
-        accountHash,
-        imageId: upload.storage_key,
-      })
-    );
+    const imageUrl = cloudflareImagesService.getImageUrl({
+      accountHash,
+      imageId: upload.storage_key,
+    });
+    if (!imageUrl) {
+      return internalError('Failed to build image URL');
+    }
+
+    return ok(imageUrl);
   },
 
   async createDownloadUrl(upload: SelectUpload): Promise<Result<{ downloadUrl: string; expiresAt: Date | null }>> {
@@ -141,6 +150,9 @@ export const storageProviderService = {
       key: upload.storage_key,
       expiresIn: 15 * 60,
     });
+    if (!downloadUrl) {
+      return internalError('Failed to generate presigned download URL');
+    }
 
     return ok({
       downloadUrl,

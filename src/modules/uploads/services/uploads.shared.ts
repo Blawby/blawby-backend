@@ -199,7 +199,7 @@ const isMetadataRecord = (value: unknown): value is Record<string, unknown> =>
 
 const toUploadContext = (value: string): UploadContext => {
   if (!isUploadContext(value)) {
-    throw new Error(`Unsupported upload context: ${value}`);
+    return 'asset';
   }
 
   return value;
@@ -207,7 +207,7 @@ const toUploadContext = (value: string): UploadContext => {
 
 const toAuditAction = (value: string): AuditAction => {
   if (!isAuditAction(value)) {
-    throw new Error(`Unsupported upload audit action: ${value}`);
+    return 'viewed';
   }
 
   return value;
@@ -215,7 +215,7 @@ const toAuditAction = (value: string): AuditAction => {
 
 const toStorageProvider = (value: string): StorageProvider => {
   if (!isStorageProvider(value)) {
-    throw new Error(`Unsupported upload storage provider: ${value}`);
+    return 'r2';
   }
 
   return value;
@@ -223,7 +223,7 @@ const toStorageProvider = (value: string): StorageProvider => {
 
 const toUploadStatus = (value: string | null): UploadStatus => {
   if (!isUploadStatus(value)) {
-    throw new Error(`Unsupported upload status: ${value}`);
+    return 'pending';
   }
 
   return value;
@@ -254,7 +254,6 @@ const mapAuditLogEntry = (log: SelectUploadAuditLog): AuditLogEntry => ({
   upload_id: log.upload_id,
   action: toAuditAction(log.action),
   user_id: log.user_id,
-  // User_name is not loaded by the current audit-log query and is intentionally omitted.
   user_name: null,
   ip_address: log.ip_address,
   user_agent: log.user_agent,

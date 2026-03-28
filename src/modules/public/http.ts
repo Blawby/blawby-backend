@@ -2,6 +2,7 @@ import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import * as routes from '@/modules/public/routes';
 import { db } from '@/shared/database';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 
 const logger = getLogger(['app', 'public', 'health']);
@@ -17,6 +18,7 @@ interface HealthStatus {
 }
 
 const publicApp = createHonoApp();
+publicApp.use('*', injectAbility());
 
 // Root route
 publicApp.openapi(routes.rootRoute, async (c) =>

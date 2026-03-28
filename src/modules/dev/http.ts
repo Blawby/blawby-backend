@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Hono } from 'hono';
-import type { Context } from 'hono';
+import { type Context, Hono } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 import type {
   CustomerPaymentReceiptData,
@@ -28,28 +27,22 @@ import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payme
 import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team/payment-refund-request';
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { isProduction } from '@/shared/utils/env';
 import { HttpStatus } from '@/shared/utils/result';
 
 const http = new Hono<AppContext>();
+http.use('*', injectAbility());
 
 const EMAILS_DIR = path.join(process.cwd(), 'storage', 'emails');
 const DEV_ONLY_ERROR = { error: 'Not available in production' } as const;
 
 const guardDevelopmentOnly = (c: Context): Response | null => {
-  if (config.env.isProduction) {
+  if (isProduction()) {
     return c.json(DEV_ONLY_ERROR, HttpStatus.FORBIDDEN);
   }
 
   return null;
-};
-
-const denyInProduction = (c: Context): Response | undefined => {
-  if (isProduction()) {
-    return c.json({ error: 'Not available in production' }, HttpStatus.FORBIDDEN);
-  }
-
-  return undefined;
 };
 
 /**

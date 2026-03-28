@@ -8,8 +8,6 @@ import {
   handlePriceUpdated,
   handlePriceDeleted,
 } from '@/modules/subscriptions/handlers/index';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError } from '@/shared/utils/result';
 import { isProductEvent, isPriceEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['subscriptions', 'webhook-service']);
@@ -17,7 +15,7 @@ const logger = getLogger(['subscriptions', 'webhook-service']);
 /**
  * Process a Stripe webhook event for subscriptions
  */
-const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Result<void>> => {
+const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<void> => {
   try {
     logger.info('Processing subscription webhook event: {eventType}', { eventType: event.type });
 
@@ -26,7 +24,7 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
       case 'product.updated':
       case 'product.deleted':
         if (!isProductEvent(event)) {
-          return internalError('Unexpected payload for product event');
+          throw new Error('Unexpected payload for product event');
         }
         if (event.type === 'product.created') {
           await handleProductCreated(event.data.object);
@@ -41,7 +39,7 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
       case 'price.updated':
       case 'price.deleted':
         if (!isPriceEvent(event)) {
-          return internalError('Unexpected payload for price event');
+          throw new Error('Unexpected payload for price event');
         }
         if (event.type === 'price.created') {
           await handlePriceCreated(event.data.object);
@@ -57,14 +55,13 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
     }
 
     logger.info('Successfully processed subscription webhook event: {eventType}', { eventType: event.type });
-    return ok(undefined);
   } catch (error) {
     logger.error('Failed to process subscription webhook event {eventType}: {error}', {
       eventType: event.type,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });
-    return internalError(error instanceof Error ? error.message : 'Failed to process subscription webhook');
+    throw error instanceof Error ? error : new Error('Failed to process subscription webhook');
   }
 };
 

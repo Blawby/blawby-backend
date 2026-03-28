@@ -18,7 +18,7 @@ const isRecord = (val: unknown): val is Record<string, unknown> => typeof val ==
 const getString = (val: unknown): string | undefined => (typeof val === 'string' ? val : undefined);
 
 const copySetCookieHeaders = (sourceHeaders: Headers, targetHeaders: Headers): void => {
-  // @ts-expect-error getSetCookie is provided by runtime Fetch implementation and not yet typed in TS lib.
+  // oxlint-disable-next-line typescript/unbound-method
   const { getSetCookie } = sourceHeaders;
 
   if (typeof getSetCookie === 'function') {

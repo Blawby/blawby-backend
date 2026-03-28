@@ -1,7 +1,7 @@
 # Tech Debt Remediation Plan
 
 > **Goal:** Make the codebase readable, standardized, and easy for any new developer to understand.
-> **Branch:** `refactor/casl-rbac-clean-architecture`
+> **Branch:** `refactor/tech-debt`
 > Testing infrastructure is tracked on a separate branch — excluded from this plan.
 
 ---
@@ -19,20 +19,23 @@ const createThingHandler: AppRouteHandler<typeof routes.createThingRoute> = asyn
   const body = c.req.valid('json');
 
   const result = await thingService.createThing({ data: body }, ctx);
-  return response.fromResult(c, result, 201);
+  return sendResult(c, result, 201);
 };
 ```
 
 **Rules:**
+
 - Always use `getServiceContext(c)` — never extract `user`, `orgId`, `headers` manually
 - Never write `if (!user) return response.unauthorized(c)` — middleware handles auth
 - Pass params as an object + `ctx` — never positional args
 - Handlers should be 3-8 lines, no business logic
+- Handler response should go through `sendResult(...)` for consistency
 
 ### Service Pattern
 
 ```typescript
 // thing.service.ts — business logic, max ~200 lines per file
+// Returns Result<T> for success/failure
 const createThing = async (
   { data }: { data: CreateThingRequest },
   ctx: ServiceContext,
@@ -50,8 +53,10 @@ const createThing = async (
 ```
 
 **Rules:**
+
 - Max 2 parameters: `(params, ctx)` — params is an object, ctx is ServiceContext
-- Always return `Result<T>` — never throw for expected failures, never try/catch for control flow
+- Return `Result<T>` — do not return raw HTTP responses from services
+- Convert expected failures to `result.*` helpers and map to handler responses via `sendResult`
 - CASL check first, then validate, then execute
 - Max ~50 lines per function — if longer, extract helpers
 - Max ~200 lines per service file — split into sub-services when it grows
@@ -120,6 +125,23 @@ export default app;
 Each phase is a self-contained PR that compiles clean and merges independently.
 PRs within a group can be developed **in parallel**.
 
+### Branch Status Snapshot (2026-03-28)
+
+Verified completed on current branch:
+
+- [x] `injectAbility()` wired in `src/modules/dev/http.ts`, `src/modules/public/http.ts`, and `src/modules/webhooks/http.ts`
+- [x] `src/modules/onboarding/http.handlers.ts` renamed to `src/modules/onboarding/handlers.ts`
+- [x] `src/modules/uploads/routes.ts` split into `upload-read.routes.ts` and `upload-write.routes.ts`
+- [x] No `throw new Error()` remains in `src/modules/uploads/services/*.ts`
+- [x] `pnpm run typecheck` currently passes
+
+Remaining high-priority work from this snapshot:
+
+- [ ] Remove remaining `if (!user)` checks in `src/modules/clients/services/clients-crud.service.ts` (2 occurrences)
+- [ ] Remove remaining `requestHeaders` usage in `src/modules/subscriptions/services/subscription.service.ts` (2 occurrences)
+- [ ] Standardize all handlers on `sendResult(...)` response pattern (still inconsistent)
+- [ ] Remove legacy `src/modules/uploads/services/uploads.service.ts` after fully moving references
+
 ---
 
 ### ✅ Foundation — Merged
@@ -142,6 +164,7 @@ PRs within a group can be developed **in parallel**.
 - [x] `matter-tasks` removed (unused)
 
 **Nice-to-have** (defer — acceptable as-is):
+
 - [ ] `matters.service.ts` (410 lines), `matter-milestones.service.ts` (368), `matter-time-entries.service.ts` (311), `matter-expenses.service.ts` (284) — could split but core CRUD is acceptable
 
 ---
@@ -155,6 +178,7 @@ PRs within a group can be developed **in parallel**.
 - [x] Routes at 149 lines
 
 **Nice-to-have** (defer):
+
 - [ ] `invoice-webhooks.service.ts` (348 lines) — webhook handler, may not need ServiceContext
 - [ ] `invoice-stripe-coordination.service.ts` (247 lines), `stripe-invoices.service.ts` (209 lines) — slightly over 200
 
@@ -215,7 +239,7 @@ PRs within a group can be developed **in parallel**.
 
 ### PR-4 — User-Details Module
 
-**Files:** `src/modules/user-details/`
+**Files:** `src/modules/clients/` (migrated scope)
 
 - [x] Wire `injectAbility()` in `http.ts`
 - [x] Rewrite handlers to use `getServiceContext(c)`
@@ -231,12 +255,12 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/uploads/`
 
-- [ ] Wire `injectAbility()` in `http.ts`, convert to `(params, ctx)`
-- [ ] **Fix error handling**: replace all `throw new Error()` with `return result.badRequest()`/`result.fail()`
-- [ ] Split `uploads.service.ts` (633 lines) → `upload-presign.service.ts`, `upload-confirm.service.ts`, `upload-queries.service.ts`
-- [ ] Extract storage provider logic (R2 vs Images) into `storage-provider.service.ts`
-- [ ] Add CASL per-resource permission checks
-- [ ] Split `uploads.routes.ts` (405 lines) into logical groups
+- [x] Wire `injectAbility()` in `http.ts`
+- [x] **Fix error handling in uploads services**: remove direct `throw new Error()` usage in `src/modules/uploads/services/*.ts`
+- [ ] Finalize migration and delete legacy `uploads.service.ts` (still present)
+- [x] Extract storage provider logic (R2 vs Images) into `storage-provider.service.ts`
+- [x] Add CASL per-resource permission checks
+- [x] Split `uploads.routes.ts` (405 lines) into logical groups
 
 ---
 
@@ -256,10 +280,10 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/onboarding/`
 
-- [ ] Rename `http.handlers.ts` → `handlers.ts`
-- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
-- [ ] Add CASL checks (admin-only)
-- [ ] Remove `requestHeaders` params
+- [x] Rename `http.handlers.ts` → `handlers.ts`
+- [x] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
+- [x] Add CASL checks (admin-only)
+- [x] Remove `requestHeaders` params
 
 ---
 
@@ -267,7 +291,7 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/stripe/`
 
-- [ ] Re-scope this PR based on current repo contents (currently only `listeners.ts` exists under `src/modules/stripe/`)
+- [ ] Re-scope this PR based on current repo contents (module now includes `http.ts`, `handlers.ts`, `routes/`, and `services/`)
 - [ ] If customer logic was moved, update target paths before implementation
 
 ---
@@ -276,9 +300,9 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/trust/`
 
-- [ ] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
+- [x] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
 - [ ] Add CASL checks (admin manage, member read)
-- [ ] Fix stale `@/shared/auth/services/routing.service` import in `handlers.ts`
+- [x] Fix stale `@/shared/auth/services/routing.service` import in `handlers.ts`
 
 ---
 
@@ -286,8 +310,8 @@ PRs within a group can be developed **in parallel**.
 
 **Files:** `src/modules/webhooks/`, `src/modules/public/`, `src/modules/dev/`
 
-- [ ] Review if CASL applies (system-initiated modules may not need it)
-- [ ] Ensure consistent structure where applicable
+- [x] Review if CASL applies (system-initiated modules may not need it)
+- [x] Ensure consistent structure where applicable
 
 ---
 
@@ -301,12 +325,12 @@ PRs within a group can be developed **in parallel**.
 
 **Dependencies:** All Group A merged
 
-- [ ] Add `Invoice` subject — admin: manage, member: read, client: read own
-- [ ] Add `Subscription` subject — admin: manage, member: read
-- [ ] Add `Upload` subject — admin: manage, member: create+read, client: read own
-- [ ] Add `UserDetails` subject — admin: manage, member: read own, client: read own
-- [ ] Add `Onboarding` subject — admin: manage
-- [ ] Add `Trust` subject — admin: manage, member: read
+- [x] Add `Invoice` subject — admin: manage, member: read, client: read own
+- [x] Add `Subscription` subject — admin: manage, member: read
+- [x] Add `Upload` subject — admin: manage, member: create+read, client: read own
+- [x] Add `UserDetails` subject — admin: manage, member: read own, client: read own
+- [x] Add `Onboarding` subject — admin: manage
+- [x] Add `Trust` subject — admin: manage, member: read
 
 ---
 
@@ -315,29 +339,37 @@ PRs within a group can be developed **in parallel**.
 **Dependencies:** All Group A merged
 
 **A. Services: Use `result.ok<T>()`**
+
 ```typescript
 // Before: return result.ok({ ...matter, assignees } as MatterRecord);
 // After:  return result.ok<MatterRecord>({ ...matter, assignees });
 ```
+
 - [ ] Audit and fix all `as SomeRecord` casts in services
 
 **B. Repositories: Add explicit return types**
+
 ```typescript
 const findMatterById = async (id: string): Promise<MatterWithRelations | undefined> => { ... };
 ```
+
 - [ ] Define `WithRelations` types per module, add explicit return types to all relational queries
 
 **C. JSON columns: Use `.$type<T>()`**
+
 ```typescript
 notifications: jsonb('notifications').$type<NotificationPreferences>(),
 ```
+
 - [ ] Preferences schema (`notifications`, `onboarding`, `display`), audit all other JSON columns
 
 **D. Stripe webhooks: Type-narrow instead of cast**
+
 ```typescript
 // Before: const product = event.data.object as Stripe.Product;
 // After: discriminated union narrowing via Stripe SDK
 ```
+
 - [ ] Audit webhook handlers in subscriptions and invoices
 
 ---
@@ -346,22 +378,22 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 **Dependencies:** All Group A merged
 
-- [ ] Delete 5 unused practice events: `PracticeSpecialtiesUpdated`, `PracticeContactInfoUpdated`, `PracticeMemberRoleChanged`, `PracticeMemberRemoved`, `PracticeMemberLeft` — remove from definitions file and barrel export
+- [x] Delete 5 unused practice events: `PracticeSpecialtiesUpdated`, `PracticeContactInfoUpdated`, `PracticeMemberRoleChanged`, `PracticeMemberRemoved`, `PracticeMemberLeft` — remove from definitions file and barrel export
 - [ ] Verify all `if (!user)` checks are gone (should be 0 after Group A)
-- [ ] Fix `requireAdmin` TODO in `src/shared/middleware/requireAuth.ts:82`
-- [ ] Audit `getFullOrganization` calls used only for auth → replace with CASL
+- [x] Fix `requireAdmin` TODO in `src/shared/middleware/requireAuth.ts:82`
+- [x] Audit `getFullOrganization` calls used only for auth → replace with CASL
 - [ ] Delete any remaining dead code from old authorization approach
 
 ---
 
-### PR-16 — Hono Response Typing Cleanup
+### PR-16 — Response Utility Consistency Cleanup
 
 **Dependencies:** All Group A merged
 
-- [ ] Migrate handlers from `response.fromResult(...)`/`response.ok(...)` to direct `c.json(...)`/`c.body(...)` returns
-- [ ] Keep only payload-builder utilities (if needed), avoid response wrappers that return `any`
+- [ ] Standardize on one handler response utility (`sendResult` preferred) and remove mixed usage of `response.fromResult(...)`
+- [ ] Keep payload-builder utilities (if needed), avoid response wrappers that return `any`
 - [ ] Remove temporary Oxlint rule overrides added for `no-unsafe-return`/unsafe assertions after migration
-- [ ] Update handler pattern examples in this plan to reflect direct Hono responses
+- [ ] Update handler pattern examples in this plan to reflect `sendResult(...)` consistently
 
 ---
 
@@ -375,9 +407,9 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 **Dependencies:** None
 
-- [ ] Create `src/shared/config/index.ts` — Zod schema, validate at startup
-- [ ] Replace all `process.env` reads across 24 files with typed config imports
-- [ ] Harden async event dispatch: replace fire-and-forget `setImmediate`, add dead-letter retry
+- [x] Create `src/shared/config/index.ts` — Zod schema, validate at startup
+- [x] Replace all `process.env` reads across 24 files with typed config imports
+- [x] Harden async event dispatch: replace fire-and-forget `setImmediate`, add dead-letter retry
 
 ---
 
@@ -433,43 +465,43 @@ PR-14 (Env Config) ── independent, merge any time
 
 ### God Services (>200 lines)
 
-| File | Lines | Target PR |
-|------|-------|-----------|
-| `uploads.service.ts` | **633** | PR-5 |
-| `user-details.service.ts` | **543** | PR-4 |
-| `practice.service.ts` | **507** | PR-2 |
-| `stripe-customer.service.ts` | **417** | PR-8 |
-| `matters.service.ts` | **410** | Acceptable |
-| `practice-details.service.ts` | **369** | PR-2 |
-| `matter-milestones.service.ts` | **368** | Acceptable |
-| `invoice-webhooks.service.ts` | **348** | Post PR-1 |
-| `subscription.service.ts` | **341** | PR-6 |
-| `matter-time-entries.service.ts` | **311** | Acceptable |
-| `matter-expenses.service.ts` | **284** | Acceptable |
-| `meteredProducts.service.ts` | **259** | PR-6 |
-| `invoice-stripe-coordination.service.ts` | **247** | Post PR-1 |
-| `trust.service.ts` | **240** | PR-9 |
+| File                                     | Lines   | Target PR  |
+| ---------------------------------------- | ------- | ---------- |
+| `uploads.service.ts`                     | **633** | PR-5       |
+| `user-details.service.ts`                | **543** | PR-4       |
+| `practice.service.ts`                    | **507** | PR-2       |
+| `stripe-customer.service.ts`             | **417** | PR-8       |
+| `matters.service.ts`                     | **410** | Acceptable |
+| `practice-details.service.ts`            | **369** | PR-2       |
+| `matter-milestones.service.ts`           | **368** | Acceptable |
+| `invoice-webhooks.service.ts`            | **348** | Post PR-1  |
+| `subscription.service.ts`                | **341** | PR-6       |
+| `matter-time-entries.service.ts`         | **311** | Acceptable |
+| `matter-expenses.service.ts`             | **284** | Acceptable |
+| `meteredProducts.service.ts`             | **259** | PR-6       |
+| `invoice-stripe-coordination.service.ts` | **247** | Post PR-1  |
+| `trust.service.ts`                       | **240** | PR-9       |
 
 ### God Route Files (>300 lines)
 
-| File | Lines | Target PR |
-|------|-------|-----------|
-| `practice.routes.ts` | **869** | PR-2 |
-| `uploads.routes.ts` | **405** | PR-5 |
+| File                 | Lines   | Target PR |
+| -------------------- | ------- | --------- |
+| `practice.routes.ts` | **869** | PR-2      |
+| `uploads.routes.ts`  | **405** | PR-5      |
 
 ---
 
 ## Metrics
 
-| Metric | Before | Now | Target |
-|--------|--------|-----|--------|
-| Modules using `ServiceContext` | 2 | **4** (matters, preferences, invoices, user-details) | all |
-| Modules using CASL | 2 | **4** | all authenticated |
-| Service files >200 lines | 9 | **~13** | **0** |
-| Route files >300 lines | 3 | **3** | **0** |
-| `if (!user)` checks | ~50 | **0** | **0** |
-| `computeRoutingClaims` usages | ~15 | **0** | **0** |
-| `requestHeaders` params | ~20 | **~5** | **0** |
-| Direct `process.env` reads | 70 files | **24 files** | **0** |
-| `any` type usages | 23 files | **5 files** | **0** |
-| `as` type assertions | many | many | **0** |
+| Metric                         | Before   | Now                                                  | Target            |
+| ------------------------------ | -------- | ---------------------------------------------------- | ----------------- |
+| Modules using `ServiceContext` | 2        | **4** (matters, preferences, invoices, user-details) | all               |
+| Modules using CASL             | 2        | **4**                                                | all authenticated |
+| Service files >200 lines       | 9        | **~13**                                              | **0**             |
+| Route files >300 lines         | 3        | **3**                                                | **0**             |
+| `if (!user)` checks            | ~50      | **2**                                                | **0**             |
+| `computeRoutingClaims` usages  | ~15      | **0**                                                | **0**             |
+| `requestHeaders` params        | ~20      | **7**                                                | **0**             |
+| Direct `process.env` reads     | 70 files | **24 files**                                         | **0**             |
+| `any` type usages              | 23 files | **5 files**                                          | **0**             |
+| `as` type assertions           | many     | many                                                 | **0**             |

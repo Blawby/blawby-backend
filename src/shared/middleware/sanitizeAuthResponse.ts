@@ -2,13 +2,11 @@
  * Sanitize Auth Response Middleware
  *
  * Removes sensitive token information from auth response bodies
- * while preserving the set-auth-token header for proper bearer token usage
- * and adds routing computation for get-session responses.
+ * while preserving the set-auth-token header for proper bearer token usage.
  */
 
 import { getLogger } from '@logtape/logtape';
 import type { MiddlewareHandler } from 'hono';
-import { computeRoutingClaims } from '@/shared/auth/services/routing.service';
 
 const logger = getLogger(['shared', 'middleware', 'sanitize-auth-response']);
 
@@ -26,7 +24,6 @@ interface SessionResponse {
     token?: string;
     [key: string]: unknown;
   };
-  routing?: unknown;
 }
 
 const isSessionResponse = (obj: unknown): obj is SessionResponse => {
@@ -59,7 +56,7 @@ const isSessionResponse = (obj: unknown): obj is SessionResponse => {
 /**
  * Build a new Response with properly handled headers (including multi-value Set-Cookie).
  */
-function buildResponse(body: string, original: Response): Response {
+const buildResponse = (body: string, original: Response): Response => {
   const headers = new Headers(original.headers);
   headers.delete('content-length');
   headers.delete('content-encoding');
@@ -84,17 +81,16 @@ function buildResponse(body: string, original: Response): Response {
   }
 
   return newResponse;
-}
+};
 
 /**
  * Sanitize authentication responses to remove token field from body
- * and add routing computation for get-session responses
+ * while keeping response payloads consistent.
  *
  * This middleware:
  * 1. Intercepts all auth JSON responses
  * 2. Removes `token` field from JSON response bodies (all endpoints)
- * 3. Adds `routing` claims to get-session responses only
- * 4. Preserves `set-auth-token` header
+ * 3. Preserves `set-auth-token` header
  */
 export const sanitizeAuthResponse = (): MiddlewareHandler => async (c, next) => {
   await next();
@@ -137,30 +133,6 @@ export const sanitizeAuthResponse = (): MiddlewareHandler => async (c, next) => 
     if (isSessionResponse(data) && data.session.token) {
       delete data.session.token;
       madeChanges = true;
-    }
-
-    // Add routing claims only for get-session endpoint
-    const { path } = c.req;
-    const isGetSession = path === '/api/auth/get-session' || path === '/auth/get-session';
-
-    if (isGetSession && isSessionResponse(data)) {
-      try {
-        const routing = await computeRoutingClaims({
-          user: {
-            id: data.user.id,
-            isAnonymous: data.user.isAnonymous,
-            banned: data.user.banned,
-          },
-          session: {
-            activeOrganizationId: data.session.activeOrganizationId,
-          },
-        });
-        data.routing = routing;
-        madeChanges = true;
-      } catch (error) {
-        logger.error('Failed to compute routing claims: {error}', { error });
-        // Continue without routing rather than failing the request
-      }
     }
 
     if (madeChanges) {

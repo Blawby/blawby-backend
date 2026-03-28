@@ -45,11 +45,7 @@ export const processOnboardingWebhook: Task = async (payload: unknown, _helpers)
   });
 
   try {
-    const result = await onboardingWebhooksService.processEvent(eventId);
-
-    if (!result.success) {
-      throw new Error(result.error.message);
-    }
+    await onboardingWebhooksService.processEvent(eventId);
 
     const duration = Date.now() - startTime;
     logger.info('✅ Onboarding webhook job completed successfully: {eventId} - Duration: {duration}ms', {
