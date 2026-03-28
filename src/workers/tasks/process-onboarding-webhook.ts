@@ -30,7 +30,7 @@ const isProcessOnboardingWebhookPayload = (payload: unknown): payload is Process
  *
  * Task name: process-onboarding-webhook
  */
-export const processOnboardingWebhook: Task = async (payload: unknown): Promise<void> => {
+export const processOnboardingWebhook: Task = async (payload: unknown, _helpers): Promise<void> => {
   if (!isProcessOnboardingWebhookPayload(payload)) {
     throw new Error('Invalid processOnboardingWebhook payload: missing required fields or incorrect types');
   }

@@ -5,6 +5,9 @@
  */
 
 import mjml2html from 'mjml';
+import { getLogger } from '@logtape/logtape';
+
+const logger = getLogger(['shared', 'email', 'template', 'base']);
 
 // Common styles
 const COLORS = {
@@ -70,7 +73,8 @@ export const sanitizeUrl = (url: string | undefined): string => {
  * Wrap content in the base email layout
  */
 export const baseLayout = (content: string, headerImageUrl?: string): string => {
-  const headerImg = headerImageUrl ?? BLAWBY_LOGO_URL;
+  const sanitizedHeaderImage = sanitizeUrl(headerImageUrl);
+  const headerImg = sanitizedHeaderImage === '#' ? BLAWBY_LOGO_URL : sanitizedHeaderImage;
 
   return `
 <mjml>
@@ -126,7 +130,9 @@ export const renderMjml = (mjmlContent: string): string => {
   });
 
   if (result.errors && result.errors.length > 0) {
-    console.warn('MJML rendering warnings:', result.errors);
+    logger.warn('MJML rendering warnings: {warnings}', {
+      warnings: result.errors,
+    });
   }
 
   return result.html;

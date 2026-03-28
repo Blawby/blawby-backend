@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import { z } from 'zod';
+import { HTTPException } from 'hono/http-exception';
+import type { z } from '@hono/zod-openapi';
 
 /**
  * Validates route parameters using Zod schema with @hono/zod-validator
@@ -14,10 +15,7 @@ const validateParams = <T extends z.ZodType>(context: Context, schema: T): z.inf
     const validatedParams = schema.parse(params);
     return validatedParams;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid parameters', { cause: error });
-    }
-    throw new Error('Invalid parameters', { cause: error });
+    throw new HTTPException(400, { message: 'Invalid parameters', cause: error });
   }
 };
 
@@ -34,10 +32,7 @@ const validateQuery = <T extends z.ZodType>(context: Context, schema: T): z.infe
     const validatedQuery = schema.parse(query);
     return validatedQuery;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid query parameters', { cause: error });
-    }
-    throw new Error('Invalid query parameters', { cause: error });
+    throw new HTTPException(400, { message: 'Invalid query parameters', cause: error });
   }
 };
 
@@ -54,10 +49,7 @@ const validateBody = async <T extends z.ZodType>(context: Context, schema: T): P
     const validatedBody = schema.parse(body);
     return validatedBody;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid request body', { cause: error });
-    }
-    throw new Error('Invalid request body', { cause: error });
+    throw new HTTPException(400, { message: 'Invalid request body', cause: error });
   }
 };
 
@@ -74,10 +66,7 @@ const validateHeaders = <T extends z.ZodType>(context: Context, schema: T): z.in
     const validatedHeaders = schema.parse(headers);
     return validatedHeaders;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid headers', { cause: error });
-    }
-    throw new Error('Invalid headers', { cause: error });
+    throw new HTTPException(400, { message: 'Invalid headers', cause: error });
   }
 };
 

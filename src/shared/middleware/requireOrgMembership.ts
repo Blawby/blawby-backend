@@ -9,6 +9,15 @@ import type { Variables } from '@/shared/types/hono';
 const logger = getLogger(['middleware', 'require-org-membership']);
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+
+const authErrorResponder = (
+  c: Parameters<MiddlewareHandler<{ Variables: Variables }>>[0],
+  status: typeof HTTP_UNAUTHORIZED | typeof HTTP_FORBIDDEN,
+  error: 'Unauthorized' | 'Forbidden',
+  message: string
+) => c.json({ error, message, request_id: c.get('requestId') }, status);
 
 /**
  * Extracts the org/practice UUID from the URL path.
@@ -42,7 +51,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
   const userId = c.get('userId');
 
   if (!userId) {
-    return c.json({ error: 'Unauthorized', message: 'Authentication required', request_id: c.get('requestId') }, 401);
+    return authErrorResponder(c, HTTP_UNAUTHORIZED, 'Unauthorized', 'Authentication required');
   }
 
   // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
@@ -57,13 +66,11 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
       sessionOrgId,
       urlOrgId,
     });
-    return c.json(
-      {
-        error: 'Forbidden',
-        message: 'Organization context mismatch: switch your active organization first',
-        request_id: c.get('requestId'),
-      },
-      403
+    return authErrorResponder(
+      c,
+      HTTP_FORBIDDEN,
+      'Forbidden',
+      'Organization context mismatch: switch your active organization first'
     );
   }
 
@@ -71,10 +78,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
 
   if (!orgId) {
     logger.warn('No organization context found for user {userId}', { userId });
-    return c.json(
-      { error: 'Forbidden', message: 'No organization context found', request_id: c.get('requestId') },
-      403
-    );
+    return authErrorResponder(c, HTTP_FORBIDDEN, 'Forbidden', 'No organization context found');
   }
 
   try {
@@ -86,10 +90,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
 
     if (!membership) {
       logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
-      return c.json(
-        { error: 'Forbidden', message: 'You are not a member of this organization', request_id: c.get('requestId') },
-        403
-      );
+      return authErrorResponder(c, HTTP_FORBIDDEN, 'Forbidden', 'You are not a member of this organization');
     }
 
     // CRITICAL: Propagate context to the Hono context

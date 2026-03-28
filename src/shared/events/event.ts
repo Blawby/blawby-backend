@@ -253,7 +253,7 @@ function dispatchAsync(record: NewEvent, eventId: string, eventType: string): vo
           payload: record.payload,
           metadata: record.metadata,
           lastError: errorMessage,
-          retryCount: config.queue.maxAttempts,
+          retryCount: 0,
           originalCreatedAt: new Date(),
         });
       } catch (deadLetterError) {

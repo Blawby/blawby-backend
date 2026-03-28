@@ -13,6 +13,25 @@ import type { MiddlewareHandler } from 'hono';
 
 const logger = getLogger(['shared', 'middleware', 'normalize-auth-response']);
 
+const isRecord = (val: unknown): val is Record<string, unknown> => typeof val === 'object' && val !== null;
+
+const getString = (val: unknown): string | undefined => (typeof val === 'string' ? val : undefined);
+
+const copySetCookieHeaders = (sourceHeaders: Headers, targetHeaders: Headers): void => {
+  // @ts-expect-error getSetCookie is provided by runtime Fetch implementation and not yet typed in TS lib.
+  const { getSetCookie } = sourceHeaders;
+
+  if (typeof getSetCookie === 'function') {
+    const setCookies = getSetCookie.call(sourceHeaders);
+    if (setCookies.length > 0) {
+      targetHeaders.delete('Set-Cookie');
+      setCookies.forEach((cookie) => {
+        targetHeaders.append('Set-Cookie', cookie);
+      });
+    }
+  }
+};
+
 /**
  * Recursively converts object keys from camelCase to snake_case
  * Local implementation to avoid global overhead in other parts of the app
@@ -54,22 +73,22 @@ const normalizeErrorResponse = (error: unknown): { error: string; message: strin
     };
   }
 
-  if (error && typeof error === 'object') {
-    const errorObj = error as Record<string, unknown>;
+  if (isRecord(error)) {
+    const errorObj = error;
 
     // Handle Better Auth error format: { error: { message: string, code: string } }
-    if (errorObj.error && typeof errorObj.error === 'object') {
-      const innerError = errorObj.error as Record<string, unknown>;
+    if (isRecord(errorObj.error)) {
+      const innerError = errorObj.error;
       return {
-        error: (innerError.code as string) || (innerError.name as string) || 'Error',
-        message: (innerError.message as string) || 'An error occurred',
+        error: getString(innerError.code) ?? getString(innerError.name) ?? 'Error',
+        message: getString(innerError.message) ?? 'An error occurred',
       };
     }
 
     // Handle error with message property
     if (errorObj.message) {
       return {
-        error: (errorObj.code as string) || (errorObj.name as string) || 'Error',
+        error: getString(errorObj.code) ?? getString(errorObj.name) ?? 'Error',
         message: String(errorObj.message),
       };
     }
@@ -78,7 +97,7 @@ const normalizeErrorResponse = (error: unknown): { error: string; message: strin
     if (errorObj.code) {
       return {
         error: String(errorObj.code),
-        message: (errorObj.message as string) || 'An error occurred',
+        message: getString(errorObj.message) ?? 'An error occurred',
       };
     }
   }
@@ -141,17 +160,7 @@ export const normalizeAuthResponse = (): MiddlewareHandler => async (c, next) =>
         headers: response.headers,
       });
 
-      // Fix for multiple Set-Cookie headers in Node.js/Fetch
-      // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
-      if (typeof response.headers.getSetCookie === 'function') {
-        const setCookies = response.headers.getSetCookie();
-        if (setCookies.length > 0) {
-          newResponse.headers.delete('Set-Cookie');
-          setCookies.forEach((cookie: string) => {
-            newResponse.headers.append('Set-Cookie', cookie);
-          });
-        }
-      }
+      copySetCookieHeaders(response.headers, newResponse.headers);
 
       c.res = newResponse;
       return;
@@ -168,17 +177,7 @@ export const normalizeAuthResponse = (): MiddlewareHandler => async (c, next) =>
       headers: response.headers,
     });
 
-    // Fix for multiple Set-Cookie headers in Node.js/Fetch
-    // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
-    if (typeof response.headers.getSetCookie === 'function') {
-      const setCookies = response.headers.getSetCookie();
-      if (setCookies.length > 0) {
-        newResponse.headers.delete('Set-Cookie');
-        setCookies.forEach((cookie: string) => {
-          newResponse.headers.append('Set-Cookie', cookie);
-        });
-      }
-    }
+    copySetCookieHeaders(response.headers, newResponse.headers);
 
     c.res = newResponse;
   } catch (error) {

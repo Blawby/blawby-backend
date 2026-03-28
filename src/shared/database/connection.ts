@@ -6,12 +6,14 @@
  */
 
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { getLogger } from '@logtape/logtape';
 import pg from 'pg';
 
 import * as schema from '@/schema';
 import { config } from '@/shared/config';
 
 const { Pool } = pg;
+const logger = getLogger(['app', 'database', 'connection']);
 
 // Connection state
 let _pool: pg.Pool | null = null;
@@ -55,7 +57,9 @@ const initialize = (): void => {
   _db = drizzle(_pool, { schema });
   isInitialized = true;
 
-  console.log(`✅ Database connection initialized: ${connectionString.split('@').pop()}`);
+  logger.info('Database connection initialized', {
+    host: connectionString.split('@').pop(),
+  });
 };
 
 /**
@@ -94,12 +98,19 @@ export const pool = new Proxy({} as pg.Pool, {
 // Graceful shutdown handlers
 const closeConnection = async (): Promise<void> => {
   if (_pool && isInitialized) {
-    console.log('🔄 Closing database connection...');
-    await _pool.end();
-    console.log('✅ Database connection closed');
-    isInitialized = false;
-    _pool = null;
-    _db = null;
+    logger.info('Closing database connection...');
+    try {
+      await _pool.end();
+      logger.debug('Database connection closed');
+    } catch (error) {
+      logger.error('Failed to close database connection: {error}', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      isInitialized = false;
+      _pool = null;
+      _db = null;
+    }
   }
 };
 

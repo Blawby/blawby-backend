@@ -46,6 +46,10 @@ export const isProductionLike = (): boolean => config.env.isProductionLike;
 
 /**
  * Get an environment variable as an array of strings (comma-separated)
+ *
+ * Special-case keys:
+ * - ALLOWED_ORIGINS: returns config.app.allowedOrigins
+ * - FRONTEND_URL: returns config.app.frontendUrls
  */
 export const getEnvArray = (key: string, defaultValue: string[] = []): string[] => {
   if (key === 'ALLOWED_ORIGINS') {
