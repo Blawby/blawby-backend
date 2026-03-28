@@ -72,7 +72,7 @@ export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRou
     },
     ctx
   );
-  return sendResult(c, result);
+  return sendResult(c, result, 201);
 };
 
 export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRoute> = async (c) => {

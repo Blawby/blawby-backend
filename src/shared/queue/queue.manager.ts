@@ -117,7 +117,7 @@ export const getQueueStats = async (
   completed: number;
   failed: number;
 }> => {
-  const { schema } = graphileWorkerConfig;
+  const {schema} = graphileWorkerConfig;
 
   // Query Graphile Worker's jobs table
   // Jobs are stored with their task_identifier matching the task name

@@ -28,9 +28,9 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
         if (!isProductEvent(event)) {
           return internalError('Unexpected payload for product event');
         }
-        if (event.type === 'product.created') await handleProductCreated(event.data.object);
-        else if (event.type === 'product.updated') await handleProductUpdated(event.data.object);
-        else await handleProductDeleted(event.data.object);
+        if (event.type === 'product.created') {await handleProductCreated(event.data.object);}
+        else if (event.type === 'product.updated') {await handleProductUpdated(event.data.object);}
+        else {await handleProductDeleted(event.data.object);}
         break;
 
       case 'price.created':
@@ -39,9 +39,9 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
         if (!isPriceEvent(event)) {
           return internalError('Unexpected payload for price event');
         }
-        if (event.type === 'price.created') await handlePriceCreated(event.data.object);
-        else if (event.type === 'price.updated') await handlePriceUpdated(event.data.object);
-        else await handlePriceDeleted(event.data.object);
+        if (event.type === 'price.created') {await handlePriceCreated(event.data.object);}
+        else if (event.type === 'price.updated') {await handlePriceUpdated(event.data.object);}
+        else {await handlePriceDeleted(event.data.object);}
         break;
 
       default:

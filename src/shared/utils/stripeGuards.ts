@@ -9,7 +9,8 @@ type StripeEventWithObject<T> = Stripe.Event & {
   };
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 // Event type prefixes
 const PAYMENT_INTENT_PREFIX = 'payment_intent.';
@@ -97,20 +98,39 @@ const isProductEvent = (event: Stripe.Event): event is StripeEventWithObject<Str
 const isPriceEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Price | Stripe.DeletedPrice> =>
   event.type.startsWith(PRICE_EVENT_PREFIX);
 
-export const stripeGuards = {
-  isPaymentIntentEvent,
-  isChargeEvent,
-  isSubscriptionEvent,
-  isProductEvent,
-  isPriceEvent,
-  isStripeAccount,
-  isStripeCapability,
-  isStripeExternalAccount,
-  isStripeCheckoutSession,
-  isStripeInvoice,
-  isStripePaymentIntent,
-  isStripeEvent,
-};
+/**
+ * Type Guard: Checks if a payload is a Stripe.Event-like object.
+ */
+const isStripeEvent = (value: unknown): value is Stripe.Event =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.type === 'string' &&
+  isRecord(value.data) &&
+  isRecord(value.data.object);
+
+/**
+ * Type Guard: Checks if object is Stripe.Account.
+ */
+const isStripeAccount = (value: unknown): value is Stripe.Account =>
+  isRecord(value) && value.object === 'account' && typeof value.id === 'string';
+
+/**
+ * Type Guard: Checks if object is Stripe.Capability.
+ */
+const isStripeCapability = (value: unknown): value is Stripe.Capability =>
+  isRecord(value) && value.object === 'capability' && typeof value.id === 'string' && typeof value.account === 'string';
+
+/**
+ * Type Guard: Checks if object is a Stripe ExternalAccount-like object.
+ */
+const isStripeExternalAccount = (value: unknown): value is Stripe.ExternalAccount =>
+  isRecord(value) && typeof value.id === 'string' && (value.object === 'bank_account' || value.object === 'card');
+
+/**
+ * Type Guard: Checks if object is Stripe.Checkout.Session.
+ */
+const isStripeCheckoutSession = (value: unknown): value is Stripe.Checkout.Session =>
+  isRecord(value) && value.object === 'checkout.session' && typeof value.id === 'string';
 
 export {
   isPaymentIntentEvent,
@@ -118,11 +138,9 @@ export {
   isSubscriptionEvent,
   isProductEvent,
   isPriceEvent,
+  isStripeEvent,
   isStripeAccount,
   isStripeCapability,
   isStripeExternalAccount,
   isStripeCheckoutSession,
-  isStripeInvoice,
-  isStripePaymentIntent,
-  isStripeEvent,
 };

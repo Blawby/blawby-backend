@@ -7,6 +7,7 @@ import { mattersQueries } from '@/modules/matters/database/queries/matters.queri
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { trustService } from '@/modules/trust/services/trust.service';
+import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
 import { db } from '@/shared/database';
 import { InvoicePaid, InvoicePaymentFailed, InvoiceVoided, InvoiceDeleted } from '@/shared/events/definitions';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
@@ -133,26 +134,12 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           }
 
           // 4b. Sync denormalized cache from ledger balance
-          const balanceResult = await trustService.getBalance(
-            {
-              organizationId: invoice.organization_id,
-              clientId: matter.client_id,
-            },
+          const balanceRows = await trustTransactionsRepository.getLatestBalanceByClient(
+            invoice.organization_id,
+            matter.client_id,
             tx
           );
-
-          if (!balanceResult.success) {
-            logger.error('Failed to get trust balance for invoice {invoiceId}: {error}', {
-              invoiceId: invoice.id,
-              matterId: invoice.matter_id,
-              organizationId: invoice.organization_id,
-              error: balanceResult.error.message,
-            });
-            return result.internalError('Failed to get trust balance');
-          }
-
-          const matterBalance =
-            balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
+          const matterBalance = balanceRows.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
           await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
 
           // 4c. Check low balance threshold
@@ -214,26 +201,12 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           }
 
           // Sync denormalized cache from ledger balance
-          const balanceResult = await trustService.getBalance(
-            {
-              organizationId: invoice.organization_id,
-              clientId: matter.client_id,
-            },
+          const balanceRows = await trustTransactionsRepository.getLatestBalanceByClient(
+            invoice.organization_id,
+            matter.client_id,
             tx
           );
-
-          if (!balanceResult.success) {
-            logger.error('Failed to get trust balance for invoice {invoiceId}: {error}', {
-              invoiceId: invoice.id,
-              matterId: invoice.matter_id,
-              organizationId: invoice.organization_id,
-              error: balanceResult.error.message,
-            });
-            return result.internalError('Failed to get trust balance');
-          }
-
-          const matterBalance =
-            balanceResult.data.byMatter.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
+          const matterBalance = balanceRows.find((m) => m.matter_id === invoice.matter_id)?.balance ?? 0;
           await mattersQueries.updateRetainerBalance(invoice.matter_id, matterBalance, tx);
 
           // Check low balance threshold

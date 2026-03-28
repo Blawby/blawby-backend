@@ -50,7 +50,7 @@ const presignUploadResponseSchema = z.object({
 
 const confirmUploadResponseSchema = z.object({
   upload_id: z.uuid(),
-  public_url: z.url(),
+  public_url: z.url().nullable(),
   storage_key: z.string(),
   status: z.enum(['pending', 'verified', 'rejected']),
 });
@@ -90,7 +90,7 @@ const listUploadsResponseSchema = z.object({
 const auditLogEntrySchema = z.object({
   id: z.uuid(),
   upload_id: z.uuid(),
-  action: z.enum(['created', 'viewed', 'downloaded', 'deleted', 'restored']),
+  action: z.enum(['created', 'viewed', 'downloaded', 'deleted', 'restored', 'confirmed']),
   user_id: z.uuid().nullable(),
   user_name: z.string().nullable(),
   ip_address: z.string().nullable(),

@@ -14,6 +14,8 @@ export type SubjectName =
   | 'OrganizationPreferences'
   | 'UserDetails'
   | 'PracticeClientIntake'
+  | 'Upload'
+  | 'Trust'
   | 'User'
   | 'Organization'
   | 'Upload'

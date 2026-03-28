@@ -130,9 +130,7 @@ const resolveMiddleware = async (config: MiddlewareConfig): Promise<MiddlewareHa
 /**
  * Create middleware chain executor
  */
-const createMiddlewareChain =
-  (middlewares: MiddlewareHandler[]): MiddlewareHandler =>
-  async (c, next) => {
+const createMiddlewareChain = (middlewares: MiddlewareHandler[]): MiddlewareHandler => async (c, next) => {
     let index = 0;
     let blockedResponse: Response | undefined;
 
@@ -243,11 +241,9 @@ const registerModuleMiddleware = async (app: AppType, mountPath: string, config:
     // Wrap middleware if it could be overridden by later patterns
     if ((path === WILDCARD || path.includes('*')) && laterPatterns.length > 0) {
       try {
-        const wrappedConfig: MiddlewareConfig[] = middlewareConfig.map(
-          (mwConfig) =>
-            (async (c: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]) => {
-              const requestPath = c.req.path;
-              const requestMethod = c.req.method;
+        const wrappedConfig: MiddlewareConfig[] = middlewareConfig.map((mwConfig) => (async (c: Parameters<MiddlewareHandler>[0], next: Parameters<MiddlewareHandler>[1]) => {
+            const requestPath = c.req.path;
+            const requestMethod = c.req.method;
 
               // Remove mount path from request path for comparison
               const relativePath = requestPath.startsWith(mountPath)
@@ -306,11 +302,10 @@ const registerModuleMiddleware = async (app: AppType, mountPath: string, config:
                 throw error; // Let upstream handle - don't allow unauthenticated access
               }
 
-              // Invoke the actual middleware - re-throw errors so upstream can handle them
-              // This ensures security middleware errors (e.g., auth failures) are properly handled
-              return mw(c, next);
-            }) as MiddlewareHandler
-        );
+            // Invoke the actual middleware - re-throw errors so upstream can handle them
+            // This ensures security middleware errors (e.g., auth failures) are properly handled
+            return mw(c, next);
+          }) as MiddlewareHandler);
 
         await registerPattern(app, mountPath, pattern, wrappedConfig, registeredPaths);
         continue;

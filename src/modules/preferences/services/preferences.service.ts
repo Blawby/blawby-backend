@@ -19,7 +19,7 @@ import { preferenceValidations } from '@/modules/preferences/validations/prefere
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { badRequest, ok } from '@/shared/utils/result';
+import { badRequest, notFound, ok } from '@/shared/utils/result';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -60,7 +60,7 @@ const getPreferences = async (ctx: ServiceContext): Promise<Result<Preferences>>
   const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   if (!prefs) {
-    throw new Error('Preferences not found');
+    return notFound('Preference not found');
   }
 
   // CASL Check — verify the user can read preferences
@@ -95,7 +95,7 @@ const getPreferencesByCategory = async (
     .limit(1);
 
   if (!row) {
-    throw new Error('Preferences not found');
+    return notFound('Preference not found');
   }
 
   // CASL Check — verify the user can read preferences
@@ -130,7 +130,7 @@ const updatePreferencesByCategory = async (
   const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   if (!current) {
-    throw new Error('Preferences not found');
+    return notFound('Preference not found');
   }
 
   // 2. CASL Check — verify the user can update preferences
@@ -159,7 +159,11 @@ const updatePreferencesByCategory = async (
       [category]: preferences[category],
     });
 
-  const updatedData = toRecord(result[0]?.[category]);
+  if (!result[0]) {
+    return notFound('Preference not found');
+  }
+
+  const updatedData = toRecord(result[0][category]);
 
   // Apply defaults in response
   if (category === 'notifications') {

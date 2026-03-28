@@ -37,6 +37,15 @@ declare namespace NodeJS {
     CLOUDFLARE_TURNSTILE_SECRET_KEY: string;
     SKIP_CAPTCHA: 'true' | 'false';
 
+    // Cloudflare Uploads Configuration
+    CLOUDFLARE_ACCOUNT_ID?: string;
+    CLOUDFLARE_R2_ACCESS_KEY_ID?: string;
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY?: string;
+    CLOUDFLARE_IMAGES_ACCOUNT_HASH?: string;
+    CLOUDFLARE_IMAGES_API_TOKEN?: string;
+    CLOUDFLARE_R2_BUCKET_NAME?: string;
+    CLOUDFLARE_R2_PUBLIC_URL?: string;
+
     [key: string]: string | undefined;
   }
 }

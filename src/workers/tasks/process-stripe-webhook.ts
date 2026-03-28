@@ -26,23 +26,16 @@ interface ProcessStripeWebhookPayload {
 /**
  * Checks if the event belongs to the onboarding flow
  */
-const isOnboardingEvent = (eventType: string): boolean =>
-  eventType.startsWith('account.') ||
-  eventType.startsWith('capability.') ||
-  eventType.startsWith('account.external_account.');
+const isOnboardingEvent = (eventType: string): boolean => (
+    eventType.startsWith('account.') ||
+    eventType.startsWith('capability.') ||
+    eventType.startsWith('account.external_account.')
+  );
 
 /**
  * Checks if the event belongs to the invoice flow
  */
 const isInvoiceEvent = (eventType: string): boolean => eventType.startsWith('invoice.');
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
-const isProcessStripeWebhookPayload = (payload: unknown): payload is ProcessStripeWebhookPayload =>
-  isRecord(payload) &&
-  typeof payload.webhookId === 'string' &&
-  typeof payload.eventId === 'string' &&
-  typeof payload.eventType === 'string';
 
 // --- MAIN TASK ---
 

@@ -22,12 +22,22 @@ const logger = getLogger(['trust', 'service']);
 const isServiceContext = (value: unknown): value is ServiceContext =>
   value !== null && typeof value === 'object' && 'ability' in value && 'emit' in value && 'organizationId' in value;
 
-const assertTrustManageAccess = (ctx: ServiceContext): void => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
+const assertTrustManageAccess = (ctx: ServiceContext): Result<void> => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
+    return result.ok(undefined);
+  } catch {
+    return result.forbidden('Access denied');
+  }
 };
 
-const assertTrustReadAccess = (ctx: ServiceContext): void => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+const assertTrustReadAccess = (ctx: ServiceContext): Result<void> => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+    return result.ok(undefined);
+  } catch {
+    return result.forbidden('Access denied');
+  }
 };
 
 /**
@@ -186,10 +196,11 @@ const recordWithdrawal = async (
  */
 const getTransactions = async (
   params: GetTransactionsParams,
-  ctx?: ServiceContext
+  ctx: ServiceContext
 ): Promise<Result<SelectTrustTransaction[]>> => {
-  if (ctx) {
-    assertTrustReadAccess(ctx);
+  const accessResult = assertTrustReadAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
   }
 
   try {
@@ -208,22 +219,22 @@ const getTransactions = async (
  */
 const getBalance = async (
   params: GetBalanceParams,
-  ctxOrTx?: ServiceContext | typeof db,
-  tx?: typeof db
+  ctx: ServiceContext
 ): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
-  const ctx = isServiceContext(ctxOrTx) ? ctxOrTx : undefined;
-  const actualTx = isServiceContext(ctxOrTx) ? tx : ctxOrTx;
-
-  if (ctx) {
-    assertTrustReadAccess(ctx);
+  const accessResult = assertTrustReadAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
   }
 
+  return getBalanceWithTx(params);
+};
+
+const getBalanceWithTx = async (
+  params: GetBalanceParams,
+  tx?: typeof db
+): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
   try {
-    const rows = await trustTransactionsRepository.getLatestBalanceByClient(
-      params.organizationId,
-      params.clientId,
-      actualTx
-    );
+    const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId, tx);
     const total = rows.reduce((sum, r) => sum + r.balance, 0);
     return result.ok({ total, byMatter: rows });
   } catch (error) {
@@ -237,9 +248,10 @@ const getBalance = async (
 /**
  * Get trust report for IOLTA compliance over a date range.
  */
-const getReport = async (params: GetReportParams, ctx?: ServiceContext): Promise<Result<SelectTrustTransaction[]>> => {
-  if (ctx) {
-    assertTrustReadAccess(ctx);
+const getReport = async (params: GetReportParams, ctx: ServiceContext): Promise<Result<SelectTrustTransaction[]>> => {
+  const accessResult = assertTrustReadAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
   }
 
   try {
@@ -267,7 +279,7 @@ const syncBalanceAndCheckThreshold = async (
   ctx: ServiceContext,
   tx: typeof db
 ) => {
-  const balanceResult = await getBalance({ organizationId, clientId }, tx);
+  const balanceResult = await getBalanceWithTx({ organizationId, clientId }, tx);
   if (!balanceResult.success) {
     logger.warn('Failed to sync balance for matter {matterId}: {error}', {
       matterId,
@@ -306,7 +318,10 @@ const manualDeposit = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
 ): Promise<Result<SelectTrustTransaction>> => {
-  assertTrustManageAccess(ctx);
+  const accessResult = assertTrustManageAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
 
   return db.transaction(async (tx) => {
     const depositResult = await recordDeposit(
@@ -339,7 +354,10 @@ const manualWithdrawal = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
 ): Promise<Result<SelectTrustTransaction>> => {
-  assertTrustManageAccess(ctx);
+  const accessResult = assertTrustManageAccess(ctx);
+  if (!accessResult.success) {
+    return accessResult;
+  }
 
   return db.transaction(async (tx) => {
     const withdrawalResult = await recordWithdrawal(

@@ -28,8 +28,7 @@ const INVOICE_ILLUSTRATION_URL =
 /**
  * Currency formatter for USD
  */
-export const formatCurrency = (amountInCents: number): string =>
-  new Intl.NumberFormat('en-US', {
+export const formatCurrency = (amountInCents: number): string => new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
   }).format(amountInCents / 100);
@@ -38,9 +37,7 @@ export const formatCurrency = (amountInCents: number): string =>
  * Escape HTML special characters
  */
 export const escapeHtml = (str: string): string => {
-  if (!str) {
-    return '';
-  }
+  if (!str) {return '';}
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -53,9 +50,7 @@ export const escapeHtml = (str: string): string => {
  * Sanitize URLs to prevent protocol-based attacks
  */
 export const sanitizeUrl = (url: string | undefined): string => {
-  if (!url) {
-    return '#';
-  }
+  if (!url) {return '#';}
   try {
     const parsed = new URL(url);
     if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {

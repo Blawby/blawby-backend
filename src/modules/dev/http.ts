@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Hono, type Context } from 'hono';
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 import type {
   CustomerPaymentReceiptData,
@@ -33,6 +34,15 @@ import { HttpStatus } from '@/shared/utils/result';
 const http = new Hono<AppContext>();
 
 const EMAILS_DIR = path.join(process.cwd(), 'storage', 'emails');
+const DEV_ONLY_ERROR = { error: 'Not available in production' } as const;
+
+const guardDevelopmentOnly = (c: Context): Response | null => {
+  if (config.env.isProduction) {
+    return c.json(DEV_ONLY_ERROR, HttpStatus.FORBIDDEN);
+  }
+
+  return null;
+};
 
 const denyInProduction = (c: Context): Response | undefined => {
   if (isProduction()) {
@@ -46,9 +56,9 @@ const denyInProduction = (c: Context): Response | undefined => {
  * List all saved emails
  */
 http.get('/emails', async (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
 
   if (!fs.existsSync(EMAILS_DIR)) {
@@ -97,9 +107,9 @@ http.get('/emails', async (c) => {
  * View a specific email
  */
 http.get('/emails/:filename', async (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
 
   const filename = c.req.param('filename');
@@ -309,9 +319,9 @@ const sampleStripeConnectStatusData: StripeConnectStatusData = {
  * Email template preview page
  */
 http.get('/email-templates', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
 
   return c.html(`
@@ -547,63 +557,63 @@ http.get('/email-templates', (c) => {
  * Individual email template previews
  */
 http.get('/email-templates/magic-link', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = magicLinkTemplate(sampleMagicLinkData);
   return c.html(html);
 });
 
 http.get('/email-templates/payment-receipt', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = customerPaymentReceipt(samplePaymentReceiptData);
   return c.html(html);
 });
 
 http.get('/email-templates/welcome', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = welcomeEmail(sampleWelcomeData);
   return c.html(html);
 });
 
 http.get('/email-templates/stripe-connect-welcome', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = stripeConnectWelcome(sampleStripeConnectData);
   return c.html(html);
 });
 
 http.get('/email-templates/practice-invitation', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = practiceInvitation(samplePracticeInvitationData);
   return c.html(html);
 });
 
 http.get('/email-templates/payment-request', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = customerPaymentRequest(samplePaymentRequestData);
   return c.html(html);
 });
 
 http.get('/email-templates/team-payment-receipt', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = teamPaymentReceipt(sampleTeamPaymentReceiptData);
   return c.html(html);
@@ -611,27 +621,27 @@ http.get('/email-templates/team-payment-receipt', (c) => {
 
 // Customer refund templates
 http.get('/email-templates/customer-refund-request', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = customerPaymentRefundRequest(sampleRefundData);
   return c.html(html);
 });
 
 http.get('/email-templates/customer-refunded', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = customerPaymentRefunded(sampleRefundData);
   return c.html(html);
 });
 
 http.get('/email-templates/customer-refund-rejected', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = customerPaymentRefundRejected(sampleRefundData);
   return c.html(html);
@@ -639,36 +649,36 @@ http.get('/email-templates/customer-refund-rejected', (c) => {
 
 // Team refund templates
 http.get('/email-templates/team-refund-request', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = teamPaymentRefundRequest(sampleTeamRefundData);
   return c.html(html);
 });
 
 http.get('/email-templates/team-refunded', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = teamPaymentRefunded(sampleTeamRefundData);
   return c.html(html);
 });
 
 http.get('/email-templates/payout-sent', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = payoutSent(samplePayoutSentData);
   return c.html(html);
 });
 
 http.get('/email-templates/stripe-connect-status', (c) => {
-  const blocked = denyInProduction(c);
-  if (blocked) {
-    return blocked;
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
   }
   const html = stripeConnectStatus(sampleStripeConnectStatusData);
   return c.html(html);
