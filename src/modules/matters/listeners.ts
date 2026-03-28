@@ -7,14 +7,12 @@
 
 import { getLogger } from '@logtape/logtape';
 import { matterStatusHistoryQueries } from '@/modules/matters/database/queries/matter-status-history.queries';
-import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import { Event } from '@/shared/events/event';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { config } from '@/shared/config';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['matters', 'listeners']);
@@ -74,68 +72,51 @@ export const registerMattersListeners = (): void => {
       return;
     }
 
-    try {
-      const matter = await mattersQueries.findMatterByIdWithRelations(payload.matter_id);
-      if (!matter) {
-        logger.warn('Matter not found for status email', { matterId: payload.matter_id });
-        return;
-      }
-
-      // Resolve client email (from client record or linked user)
-      const clientEmail = matter.client?.email ?? matter.client?.user?.email;
-      const clientName = matter.client?.name ?? matter.client?.user?.name ?? 'Valued Client';
-
-      if (!clientEmail) {
-        logger.info('No client email for matter status email, skipping', {
-          matterId: payload.matter_id,
-        });
-        return;
-      }
-
-      const organization = await organizationRepository.findById(payload.organization_id);
-      const practiceName = organization?.name ?? 'Your Legal Team';
-
-      if (payload.new_status === 'active') {
-        void addEmailJob(
-          EMAIL_TEMPLATES.MATTER_OPENED,
-          clientEmail,
-          `Your matter has been opened — ${practiceName}`,
-          {
-            recipientEmail: clientEmail,
-            recipientName: clientName,
-            matterTitle: matter.title,
-            practiceName,
-            dashboardUrl: `${APP_URL}/dashboard/matters/${matter.id}`,
-          }
-        ).catch((error) => {
-          logError('Failed to queue matter opened email', error, {
-            matterId: payload.matter_id,
-            recipientEmail: clientEmail,
-          });
-        });
-      } else if (payload.new_status === 'closed') {
-        void addEmailJob(
-          EMAIL_TEMPLATES.MATTER_CLOSED,
-          clientEmail,
-          `Your matter has been closed — ${practiceName}`,
-          {
-            recipientEmail: clientEmail,
-            recipientName: clientName,
-            matterTitle: matter.title,
-            practiceName,
-          }
-        ).catch((error) => {
-          logError('Failed to queue matter closed email', error, {
-            matterId: payload.matter_id,
-            recipientEmail: clientEmail,
-          });
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to send matter status email', {
+    const clientEmail = payload.client_email;
+    if (!clientEmail) {
+      logger.info('No client email for matter status email, skipping', {
         matterId: payload.matter_id,
-        newStatus: payload.new_status,
-        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return;
+    }
+
+    const clientName = payload.client_name ?? 'Valued Client';
+    const practiceName = payload.organization_name;
+
+    if (payload.new_status === 'active') {
+      void addEmailJob(
+        EMAIL_TEMPLATES.MATTER_OPENED,
+        clientEmail,
+        `Your matter has been opened — ${practiceName}`,
+        {
+          recipientEmail: clientEmail,
+          recipientName: clientName,
+          matterTitle: payload.matter_title,
+          practiceName,
+          dashboardUrl: `${APP_URL}/dashboard/matters/${payload.matter_id}`,
+        }
+      ).catch((error) => {
+        logError('Failed to queue matter opened email', error, {
+          matterId: payload.matter_id,
+          recipientEmail: clientEmail,
+        });
+      });
+    } else if (payload.new_status === 'closed') {
+      void addEmailJob(
+        EMAIL_TEMPLATES.MATTER_CLOSED,
+        clientEmail,
+        `Your matter has been closed — ${practiceName}`,
+        {
+          recipientEmail: clientEmail,
+          recipientName: clientName,
+          matterTitle: payload.matter_title,
+          practiceName,
+        }
+      ).catch((error) => {
+        logError('Failed to queue matter closed email', error, {
+          matterId: payload.matter_id,
+          recipientEmail: clientEmail,
+        });
       });
     }
   });

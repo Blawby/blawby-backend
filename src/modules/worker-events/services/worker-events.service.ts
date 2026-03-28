@@ -36,7 +36,7 @@ const resolveActorType = (
 /**
  * Validate the worker event secret from the request header.
  */
-export const validateWorkerSecret = (headerValue: string | undefined): void => {
+const validateWorkerSecret = (headerValue: string | undefined): void => {
   const { secret } = config.workerEvents;
 
   if (!secret) {
@@ -52,7 +52,7 @@ export const validateWorkerSecret = (headerValue: string | undefined): void => {
  * Ingest a worker event into the backend event pipeline.
  * Returns 'duplicate' status if the event_id has already been processed.
  */
-export const ingestWorkerEvent = async (payload: WorkerEventPayload): Promise<WorkerEventResponse> => {
+const ingestWorkerEvent = async (payload: WorkerEventPayload): Promise<WorkerEventResponse> => {
   // Idempotency check: look for existing event with the same event_id
   const existing = await db.select({ eventId: events.eventId }).from(events).where(eq(events.eventId, payload.event_id)).limit(1);
 
@@ -99,4 +99,9 @@ export const ingestWorkerEvent = async (payload: WorkerEventPayload): Promise<Wo
     event_id: payload.event_id,
     status: 'accepted',
   };
+};
+
+export const workerEventsService = {
+  validateWorkerSecret,
+  ingestWorkerEvent,
 };

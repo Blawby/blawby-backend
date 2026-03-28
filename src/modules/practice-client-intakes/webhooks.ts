@@ -5,6 +5,7 @@
 import { getLogger } from '@logtape/logtape';
 import { and, eq, not, inArray } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
@@ -90,6 +91,8 @@ export const handlePracticeClientIntakeSucceeded = async ({
         : paymentIntent.latest_charge.id
       : undefined;
 
+    const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
+
     await db.transaction(async (tx) => {
       const updateResult = await tx
         .update(practiceClientIntakes)
@@ -107,6 +110,8 @@ export const handlePracticeClientIntakeSucceeded = async ({
           {
             event_id: eventId,
             organization_id: practiceClientIntake.organization_id,
+            organization_name: organization?.name ?? 'Your Legal Team',
+            billing_email: organization?.billingEmail ?? null,
             stripe_payment_intent_id: paymentIntent.id,
             intake_payment_id: practiceClientIntake.id,
             uuid: practiceClientIntake.id,

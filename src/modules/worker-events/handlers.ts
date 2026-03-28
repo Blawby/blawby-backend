@@ -6,14 +6,14 @@
 
 import type { AppRouteHandler } from '@/shared/types/hono';
 import type { ingestRoute } from '@/modules/worker-events/routes';
-import { validateWorkerSecret, ingestWorkerEvent } from '@/modules/worker-events/services/worker-events.service';
+import { workerEventsService } from '@/modules/worker-events/services/worker-events.service';
 
 export const ingestHandler: AppRouteHandler<typeof ingestRoute> = async (c) => {
   const secret = c.req.header('x-worker-secret');
-  validateWorkerSecret(secret);
+  workerEventsService.validateWorkerSecret(secret);
 
   const payload = c.req.valid('json');
-  const result = await ingestWorkerEvent(payload);
+  const result = await workerEventsService.ingestWorkerEvent(payload);
 
   return c.json(result, 200);
 };

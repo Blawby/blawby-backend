@@ -48,6 +48,8 @@ export class IntakePaymentCreated extends BaseEvent<Record<string, unknown>> {
 export class IntakePaymentSucceeded extends BaseEvent<{
   event_id?: string;
   organization_id: string;
+  organization_name: string;
+  billing_email: string | null;
   stripe_payment_intent_id: string;
   intake_payment_id: string;
   uuid: string;

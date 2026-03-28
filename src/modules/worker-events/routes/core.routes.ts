@@ -1,9 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { routeBuilder } from '@/shared/router/route-builder';
-import {
-  workerEventPayloadSchema,
-  workerEventResponseSchema,
-} from '@/modules/worker-events/types/worker-events.types';
+import { workerEventsValidation } from '@/modules/worker-events/validations/worker-events.validation';
 
 export const ingestRoute = routeBuilder.build({
   method: 'post',
@@ -21,7 +18,7 @@ export const ingestRoute = routeBuilder.build({
     body: {
       content: {
         'application/json': {
-          schema: workerEventPayloadSchema,
+          schema: workerEventsValidation.payloadSchema,
         },
       },
     },
@@ -31,7 +28,7 @@ export const ingestRoute = routeBuilder.build({
       description: 'Event accepted or duplicate',
       content: {
         'application/json': {
-          schema: workerEventResponseSchema,
+          schema: workerEventsValidation.responseSchema,
         },
       },
     },

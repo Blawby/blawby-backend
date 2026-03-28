@@ -120,24 +120,27 @@ const updateTriageStatus = async (
 
     // Emit triage event for email notifications
     const metadata = intakeSharedHelpers.parseMetadata(intakeResult.data.metadata);
-    const organization = await organizationRepository.findById(ctx.organizationId);
 
-    if (metadata?.email && organization) {
-      void IntakeTriaged.dispatch(
-        {
-          intake_id: params.uuid,
-          organization_id: ctx.organizationId,
-          organization_name: organization.name,
-          triage_status: nextTriageStatus,
-          triage_reason: nextReason,
-          client_email: metadata.email,
-          client_name: metadata.name ?? metadata.email,
-        },
-        {
-          actorId: ctx.userId,
-          organizationId: ctx.organizationId,
-        }
-      );
+    if (metadata?.email) {
+      const organization = await organizationRepository.findById(ctx.organizationId);
+
+      if (organization) {
+        void IntakeTriaged.dispatch(
+          {
+            intake_id: params.uuid,
+            organization_id: ctx.organizationId,
+            organization_name: organization.name,
+            triage_status: nextTriageStatus,
+            triage_reason: nextReason,
+            client_email: metadata.email,
+            client_name: metadata.name ?? metadata.email,
+          },
+          {
+            actorId: ctx.userId,
+            organizationId: ctx.organizationId,
+          }
+        );
+      }
     }
 
     return result.ok({

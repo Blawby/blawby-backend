@@ -18,7 +18,6 @@ import { Event } from '@/shared/events/event';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { config } from '@/shared/config';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice-client-intakes', 'listeners']);
@@ -101,19 +100,10 @@ export const registerPracticeClientIntakesListeners = (): void => {
       return;
     }
 
-    // Resolve organization for email data
-    const organization = await organizationRepository.findById(payload.organization_id);
-    if (!organization) {
-      logger.warn('Organization not found for intake payment succeeded email', {
-        organizationId: payload.organization_id,
-      });
-      return;
-    }
-
     sendSubmissionEmails({
       intake_id: payload.uuid,
-      organization_name: organization.name,
-      billing_email: organization.billingEmail ?? null,
+      organization_name: payload.organization_name,
+      billing_email: payload.billing_email,
       client_email: payload.client_email,
       client_name: payload.client_name ?? 'Valued Client',
       amount: payload.amount,
