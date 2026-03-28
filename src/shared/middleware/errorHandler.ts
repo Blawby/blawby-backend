@@ -1,28 +1,50 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import type { ErrorHandler } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { AppError } from '@/shared/types/result';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['app', 'error-handler']);
 
 /**
  * Global Error Handler for Hono Application
  *
- * Handles unexpected exceptions and formats them for the client.
- * Explicit failures should be handled via the Result pattern in route handlers.
+ * Handles native Hono exceptions (HTTPException), CASL authorization errors,
+ * and unexpected exceptions, formatting them for the client.
  */
 export const errorHandler: ErrorHandler = (error, c) => {
   const requestId = c.get('requestId') || crypto.randomUUID();
+  // oxlint-disable-next-line typescript/no-unsafe-assignment
   const startTime = c.get('startTime') ?? Date.now();
   const responseTime = Date.now() - startTime;
 
+  // 1. Hono HTTPException — clean path for middleware/service errors
+  if (error instanceof HTTPException) {
+    logger.info('HTTP Exception: {status} {message}', {
+      status: error.status,
+      message: error.message,
+      requestId,
+      responseTime,
+      method: c.req.method,
+      url: c.req.url,
+    });
+    return c.json(
+      {
+        error: 'HTTP_ERROR',
+        message: error.message,
+        request_id: requestId,
+      },
+      error.status
+    );
+  }
+
+  // 2. CASL authorization errors
   if (error instanceof ForbiddenError) {
     logger.warn('Access forbidden: {message}', {
       message: error.message,
       userId: c.get('userId'),
       organizationId: c.get('activeOrganizationId'),
       requestId,
+      responseTime,
     });
     return c.json(
       {
@@ -34,19 +56,9 @@ export const errorHandler: ErrorHandler = (error, c) => {
     );
   }
 
-  const isValidHttpStatus = (value: unknown): value is ContentfulStatusCode =>
-    typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599;
-
-  const appError = error as Partial<AppError>;
-  const status: ContentfulStatusCode = isValidHttpStatus(appError.status) ? appError.status : 500;
-  const message = error instanceof Error ? error.message : 'Internal Server Error';
-  const code =
-    typeof appError.code === 'string' && appError.code.trim().length > 0 ? appError.code : 'INTERNAL_SERVER_ERROR';
-
-  logger.error('Unexpected error occurred: {message} [{code}] ({status}) {method} {url}', {
-    message,
-    code,
-    status,
+  // 3. Unexpected errors — always 500
+  logger.error('Unhandled exception: {message} [{method} {url}]', {
+    message: error instanceof Error ? error.message : 'Unknown error',
     method: c.req.method,
     url: c.req.url,
     requestId,
@@ -58,11 +70,10 @@ export const errorHandler: ErrorHandler = (error, c) => {
 
   return c.json(
     {
-      error: code,
-      message: status === 500 ? 'An unexpected error occurred' : message,
-      details: appError.details,
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'An unexpected error occurred',
       request_id: requestId,
     },
-    status
+    500
   );
 };
