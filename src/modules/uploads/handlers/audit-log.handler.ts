@@ -1,16 +1,16 @@
-import { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { getAuditLogRoute } from '@/modules/uploads/routes';
+import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
+import type { routes } from '@/modules/uploads/routes';
 
-export const getAuditLogHandler: AppRouteHandler<typeof getAuditLogRoute> = async (c) => {
+const getAuditLogHandler: AppRouteHandler<typeof routes.getAuditLogRoute> = async (c) => {
   const { id } = c.req.valid('param');
-  const organizationId = c.get('activeOrganizationId');
+  const ctx = getServiceContext(c);
+  const result = await uploadsService.getAuditLogs({ uploadId: id }, ctx);
+  return sendResult(c, result);
+};
 
-  if (!organizationId) {
-    return response.badRequest(c, 'Organization context required');
-  }
-
-  const result = await uploadsService.getAuditLogs(id, organizationId);
-  return response.fromResult(c, result);
+export const auditLogHandlers = {
+  getAuditLogHandler,
 };

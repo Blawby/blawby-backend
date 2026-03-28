@@ -13,6 +13,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { config } from '@/shared/config';
 
 // Lazy initialization of R2 client
 let _r2Client: S3Client | null = null;
@@ -22,9 +23,9 @@ let _r2Client: S3Client | null = null;
  */
 const initR2Client = (): S3Client => {
   if (!_r2Client) {
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-    const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    const accountId = config.cloudflare.accountId;
+    const accessKeyId = config.cloudflare.r2AccessKeyId;
+    const secretAccessKey = config.cloudflare.r2SecretAccessKey;
 
     if (!accountId || !accessKeyId || !secretAccessKey) {
       throw new Error(
@@ -48,18 +49,16 @@ const initR2Client = (): S3Client => {
 /**
  * Get R2 client instance
  */
-const getR2Client = (): S3Client => {
-  return initR2Client();
-};
+const getR2Client = (): S3Client => initR2Client();
 
 /**
  * Generate presigned URL for uploading to R2
  */
-export const generatePresignedUploadUrl = async (params: {
+const generatePresignedUploadUrl = async (params: {
   bucket: string;
   key: string;
   contentType: string;
-  expiresIn?: number; // seconds, default 15 minutes
+  expiresIn?: number; // Seconds, default 15 minutes
 }): Promise<string> => {
   const client = getR2Client();
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default
@@ -76,10 +75,10 @@ export const generatePresignedUploadUrl = async (params: {
 /**
  * Generate presigned URL for downloading from R2
  */
-export const generatePresignedDownloadUrl = async (params: {
+const generatePresignedDownloadUrl = async (params: {
   bucket: string;
   key: string;
-  expiresIn?: number; // seconds, default 15 minutes
+  expiresIn?: number; // Seconds, default 15 minutes
 }): Promise<string> => {
   const client = getR2Client();
   const expiresIn = params.expiresIn ?? 15 * 60; // 15 minutes default
@@ -96,7 +95,7 @@ export const generatePresignedDownloadUrl = async (params: {
 /**
  * Verify file exists in R2
  */
-export const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
+const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
   try {
     const client = getR2Client();
     const command = new HeadObjectCommand({
@@ -114,7 +113,7 @@ export const verifyFileExists = async (params: { bucket: string; key: string }):
 /**
  * Delete file from R2
  */
-export const deleteFile = async (params: { bucket: string; key: string }): Promise<void> => {
+const deleteFile = async (params: { bucket: string; key: string }): Promise<void> => {
   const client = getR2Client();
   const command = new DeleteObjectCommand({
     Bucket: params.bucket,
@@ -122,4 +121,11 @@ export const deleteFile = async (params: { bucket: string; key: string }): Promi
   });
 
   await client.send(command);
+};
+
+export const cloudflareR2Service = {
+  generatePresignedUploadUrl,
+  generatePresignedDownloadUrl,
+  verifyFileExists,
+  deleteFile,
 };

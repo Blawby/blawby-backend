@@ -1,17 +1,17 @@
-import { deleteUploadRoute } from '@/modules/uploads/routes';
+import type { routes } from '@/modules/uploads/routes';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+import type { AppRouteHandler } from '@/shared/types/hono';
+import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
 
-export const deleteHandler: AppRouteHandler<typeof deleteUploadRoute> = async (c) => {
+const deleteHandler: AppRouteHandler<typeof routes.deleteUploadRoute> = async (c) => {
   const { id } = c.req.valid('param');
-  const userId = c.get('userId');
   const validatedBody = c.req.valid('json');
+  const ctx = getServiceContext(c);
+  const result = await uploadsService.deleteUpload({ uploadId: id, request: validatedBody }, ctx);
+  return sendResult(c, result);
+};
 
-  if (!userId) {
-    return response.unauthorized(c, 'Authentication required');
-  }
-
-  const result = await uploadsService.deleteUpload(id, userId, validatedBody);
-  return response.fromResult(c, result);
+export const deleteHandlers = {
+  deleteHandler,
 };

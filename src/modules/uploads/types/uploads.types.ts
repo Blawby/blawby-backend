@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { uploadValidations } from '@/modules/uploads/validations/uploads.validation';
+import type { z } from 'zod';
+import type { uploadValidations } from '@/modules/uploads/validations/uploads.validation';
 
 export type UploadContext = z.infer<typeof uploadValidations.uploadContextSchema>;
 export type UploadStatus = 'pending' | 'verified' | 'rejected'; // Keep manual as it's used in and out of zod
@@ -10,9 +10,27 @@ export type SubContext = z.infer<typeof uploadValidations.subContextSchema>;
 
 // Inferred from Zod schemas
 export type PresignUploadRequest = z.infer<typeof uploadValidations.presignUploadSchema>;
+export interface PresignUploadParams {
+  request: PresignUploadRequest;
+}
 export type UploadIdParam = z.infer<typeof uploadValidations.uploadIdParamSchema>;
+export type UploadIdParams = UploadIdParam; // Alias for plural usage if needed
 export type DeleteUploadRequest = z.infer<typeof uploadValidations.deleteUploadSchema>;
+export interface DeleteUploadParams {
+  id: string;
+  request: DeleteUploadRequest;
+}
 export type ListUploadsQuery = z.infer<typeof uploadValidations.listUploadsQuerySchema>;
+export type ListUploadsParams = ListUploadsQuery;
+export interface DownloadUploadParams {
+  id: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+export interface UploadMutationResponse {
+  id: string;
+  status: UploadStatus;
+}
 
 export type PresignUploadResponse = z.infer<typeof uploadValidations.presignUploadResponseSchema>;
 export type ConfirmUploadResponse = z.infer<typeof uploadValidations.confirmUploadResponseSchema>;
@@ -21,3 +39,29 @@ export type ListUploadsResponse = z.infer<typeof uploadValidations.listUploadsRe
 export type DownloadUrlResponse = z.infer<typeof uploadValidations.downloadUrlResponseSchema>;
 export type AuditLogEntry = z.infer<typeof uploadValidations.auditLogEntrySchema>;
 export type AuditLogResponse = z.infer<typeof uploadValidations.auditLogResponseSchema>;
+export interface UploadMutationResponse {
+  message: string;
+}
+
+export interface PresignUploadParams {
+  request: PresignUploadRequest;
+}
+
+export interface UploadIdParams {
+  uploadId: string;
+}
+
+export interface DeleteUploadParams {
+  uploadId: string;
+  request: DeleteUploadRequest;
+}
+
+export interface DownloadUploadParams {
+  uploadId: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface ListUploadsParams {
+  query: ListUploadsQuery;
+}
