@@ -9,7 +9,6 @@ import { preferencesService } from './services/preferences.service';
 import { PREFERENCE_CATEGORIES, type PreferenceCategory } from '@/modules/preferences/types/preferences.types';
 import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 import { getServiceContext } from '@/shared/types/service-context';
-import { sendResult } from '@/shared/utils/responseUtils';
 
 /**
  * Type guard to validate preference category
@@ -49,7 +48,7 @@ const isValidCategoryPayload = (category: PreferenceCategory, payload: unknown):
 const getAllPreferences = async (c: Context) => {
   const ctx = getServiceContext(c);
   const result = await preferencesService.getPreferences(ctx);
-  return sendResult(c, result);
+  return c.json(result);
 };
 
 /**
@@ -65,7 +64,7 @@ const getCategoryPreferences = async (c: Context) => {
   }
 
   const result = await preferencesService.getPreferencesByCategory(categoryParam, ctx);
-  return sendResult(c, result);
+  return c.json(result);
 };
 
 /**
@@ -87,7 +86,7 @@ const updateCategoryPreferences = async (c: Context) => {
 
   const result = await preferencesService.updatePreferencesByCategory(categoryParam, validatedBody, ctx);
 
-  return sendResult(c, result);
+  return c.json(result);
 };
 
 /**

@@ -17,9 +17,8 @@ import {
 } from '@/modules/preferences/types/preferences.types';
 import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 import { db } from '@/shared/database';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { badRequest, internalError, notFound, ok } from '@/shared/utils/result';
+import { HTTPException } from 'hono/http-exception';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -56,22 +55,22 @@ const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefi
 /**
  * Get all preferences for a user
  */
-const getPreferences = async (ctx: ServiceContext): Promise<Result<Preferences>> => {
-  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
-
-  if (!prefs) {
-    return notFound('Preference not found');
-  }
-
+const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   // CASL Check — verify the user can read preferences
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
 
+  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
+
+  if (!prefs) {
+    throw new HTTPException(404, { message: 'Preference not found' });
+  }
+
   // Apply defaults to notifications and onboarding fields
-  return ok({
+  return {
     ...prefs,
     notifications: applyNotificationDefaults(prefs.notifications),
     onboarding: applyOnboardingDefaults(prefs.onboarding),
-  });
+  };
 };
 
 /**
@@ -80,9 +79,12 @@ const getPreferences = async (ctx: ServiceContext): Promise<Result<Preferences>>
 const getPreferencesByCategory = async (
   category: PreferenceCategory,
   ctx: ServiceContext
-): Promise<Result<Record<string, unknown>>> => {
+): Promise<Record<string, unknown>> => {
+  // CASL Check — verify the user can read preferences
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+
   if (category === 'profile') {
-    return ok({});
+    return {};
   }
 
   const [row] = await db
@@ -95,23 +97,20 @@ const getPreferencesByCategory = async (
     .limit(1);
 
   if (!row) {
-    return notFound('Preference not found');
+    throw new HTTPException(404, { message: 'Preference not found' });
   }
-
-  // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
 
   const categoryData = toRecord(row?.[category]);
 
   // Apply defaults for specific categories
   if (category === 'notifications') {
-    return ok(applyNotificationDefaults(categoryData));
+    return applyNotificationDefaults(categoryData);
   }
   if (category === 'onboarding') {
-    return ok(applyOnboardingDefaults(categoryData));
+    return applyOnboardingDefaults(categoryData);
   }
 
-  return ok(categoryData);
+  return categoryData;
 };
 
 /**
@@ -121,16 +120,16 @@ const updatePreferencesByCategory = async (
   category: PreferenceCategory,
   data: Record<string, unknown>,
   ctx: ServiceContext
-): Promise<Result<Record<string, unknown>>> => {
+): Promise<Record<string, unknown>> => {
   if (category === 'profile') {
-    return badRequest('Profile fields should be updated via Better Auth updateUser endpoint');
+    throw new HTTPException(400, { message: 'Profile fields should be updated via Better Auth updateUser endpoint' });
   }
 
   // 1. Fetch current preferences for ownership verification
   const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   if (!current) {
-    return notFound('Preference not found');
+    throw new HTTPException(404, { message: 'Preference not found' });
   }
 
   // 2. CASL Check — verify the user can update preferences
@@ -160,30 +159,30 @@ const updatePreferencesByCategory = async (
     });
 
   if (!result[0]) {
-    return notFound('Preference not found');
+    throw new HTTPException(404, { message: 'Preference not found' });
   }
 
   const updatedData = toRecord(result[0][category]);
 
   // Apply defaults in response
   if (category === 'notifications') {
-    return ok(applyNotificationDefaults(updatedData));
+    return applyNotificationDefaults(updatedData);
   }
   if (category === 'onboarding') {
-    return ok(applyOnboardingDefaults(updatedData));
+    return applyOnboardingDefaults(updatedData);
   }
 
-  return ok(updatedData);
+  return updatedData;
 };
 
 /**
  * Initialize preferences for a new user
  */
-const initializeUserPreferences = async (userId: string): Promise<Result<Preferences>> => {
+const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
   const existing = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
 
   if (existing[0]) {
-    return ok(existing[0]);
+    return existing[0];
   }
 
   const [inserted] = await db
@@ -199,10 +198,10 @@ const initializeUserPreferences = async (userId: string): Promise<Result<Prefere
     .returning();
 
   if (!inserted) {
-    return internalError('Failed to create preferences');
+    throw new HTTPException(500, { message: 'Failed to create preferences' });
   }
 
-  return ok(inserted);
+  return inserted;
 };
 
 /**

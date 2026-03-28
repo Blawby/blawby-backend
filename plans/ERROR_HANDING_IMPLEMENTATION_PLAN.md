@@ -16,51 +16,75 @@ Migrate from the `Result<T>` wrapper pattern to Hono's native throw-based error 
 
 ## Progress Update (Current)
 
-### Phase Status
+### Current Reality Snapshot
 
-- [x] **Phase 1 — Foundation Complete**
-  - Global error pipeline updated and active.
-  - `HTTPException` and `ForbiddenError` handling verified.
-  - Build check passing after Phase 1 stabilization.
-- [ ] **Phase 2 — Service Layer Migration In Progress**
-  - `clients` mostly migrated.
-  - `invoices` partially migrated.
-  - `matters` partially migrated (notes slice done).
-- [ ] **Phase 3 — Handler Layer Migration In Progress**
-  - `clients` handlers done.
-  - `matters` note handlers done.
-  - Remaining module handlers pending.
-- [ ] **Phase 4 — Webhook/Worker Finalization Pending**
-- [ ] **Phase 5 — Shared Utility Removal Pending**
+- Phase 1 is complete and stable.
+- This branch has been intentionally cleaned to keep PR scope focused.
+- Earlier broad migration attempts were partially rolled back to avoid unrelated PR noise.
+- Typecheck is currently passing.
+- `preferences` category read path now enforces CASL authorization before profile-category early return (targeted security/consistency fix).
+- `preferences` handlers/services are now fully on direct-return + throw-based error flow.
+- `stripe` account-session service and stripe handlers are now on direct-return flow, with bridging to throw semantics where dependencies still return `Result<T>`.
+- Shared pagination contracts are now in `src/shared/types/pagination.ts` with a strict union (`CursorPaginatedResponse<T>` | `OffsetPaginatedResponse<T>`).
 
-### Fixed
+### Remaining Workload by Module (Current Scan)
 
-- [x] Global error pipeline updated to handle `HTTPException` and `ForbiddenError` in `src/shared/middleware/errorHandler.ts`.
-- [x] `clients` service layer largely migrated from `Result<T>` to throw-based flow.
-- [x] `clients` handlers migrated to direct `c.json(...)` / `c.body(...)` responses (no `sendResult` in `clients/handlers.ts`).
-- [x] Cross-module call sites updated where migrated client services are consumed (invoice and intake flows).
-- [x] `matters` note slice migrated:
-  - `src/modules/matters/services/matter-notes.service.ts` now throws directly.
-  - note handlers in `src/modules/matters/handlers.ts` now return direct responses.
-- [x] Plan decision recorded: do not introduce helper conversion functions or type-guard wrappers for HTTP status coercion in services.
+Format: `module | service Result refs | handler sendResult refs`
 
-### Fixed During Build Stabilization
+- `preferences | 0 | 0`
+- `stripe | 0 | 0`
+- `subscriptions | 6 | 4`
+- `onboarding | 9 | 3`
+- `uploads | 11 | 0`
+- `practice | 16 | 12`
+- `trust | 30 | 6`
+- `matters | 35 | 22`
+- `practice-client-intakes | 78 | 13`
+- `invoices | 100 | 11`
+- `clients | 8 | 9`
+- `auth/dev/public/webhooks | 0 | 0`
 
-- [x] Invoice resolver contract migration completed in `src/modules/invoices/services/invoice-client-resolver.service.ts` (returns plain data / throws).
-- [x] Invoice service consumers aligned with resolver throw behavior in:
-  - `src/modules/invoices/services/invoice-creation.service.ts`
-  - `src/modules/invoices/services/invoice-queries.service.ts`
-- [x] Shared `Result` status typing aligned with `ContentfulStatusCode` in `src/shared/types/result.ts` and corresponding utility usage.
+### Chronological Phases (Execution Order)
 
-### Remaining
+- [x] **Phase 1 — Foundation (DONE)**
+  - Global error pipeline handles `HTTPException` and `ForbiddenError`.
+  - Core migration policy established: avoid helper conversion/type-guard wrappers for status coercion.
 
-- [ ] Finish `invoices` module migration end-to-end (remaining services + handlers still using `Result<T>` patterns).
-- [ ] Finish `matters` module beyond notes (time entries, expenses, milestones, activity, core matters services + handlers).
-- [ ] Migrate remaining Tier 1 modules (`practice`, `preferences`, `trust`, `practice-client-intakes`).
-- [ ] Migrate Tier 2 modules (`subscriptions`, `onboarding`, `uploads`).
-- [ ] Complete webhook/worker service cleanup as per retry semantics.
-- [ ] Final cleanup pass: remove residual `sendResult`/`response.fromResult` usage project-wide.
-- [ ] Remove deprecated shared `result`/`responseUtils` only after zero remaining consumers.
+- [x] **Phase 2 — Small Module Completion (CURRENT PR TARGET)**
+  - Complete `preferences` end-to-end (services + handlers).
+  - Complete `stripe` end-to-end (services + handlers).
+  - This is the fastest clean win and makes sense for this PR scope.
+
+- [ ] **Phase 3 — Medium Module Completion**
+  - Complete `subscriptions`.
+  - Complete `onboarding`.
+  - Complete `uploads` (service-heavy, minimal handler work).
+
+- [ ] **Phase 4 — Large Module Completion**
+  - Complete `clients`.
+  - Complete `practice`.
+  - Complete `trust`.
+  - Complete `matters`.
+  - Complete `practice-client-intakes`.
+  - Complete `invoices` last (highest dependency and largest surface).
+
+- [ ] **Phase 5 — Webhook/Worker Finalization**
+  - Confirm webhook/worker paths throw correctly for retry semantics.
+  - Keep worker-specific raw `Error` behavior where retries are expected.
+
+- [ ] **Phase 6 — Final Cleanup and Removal**
+  - Remove remaining `sendResult`/`response.fromResult` usage project-wide.
+  - Delete `src/shared/utils/result.ts` and `src/shared/utils/responseUtils.ts` only after zero consumers remain.
+  - Update docs and tests to reflect throw-based behavior as default.
+
+### What Is Marked Done in This Plan
+
+- [x] Foundation and global error handler migration.
+- [x] Phase structure and chronological execution order updated.
+- [x] Next PR scope clearly set: `preferences` and `stripe`.
+- [x] `preferences` module migrated end-to-end (service + handlers).
+- [x] `stripe` module migrated for account session flow and handlers; remaining onboarding dependency is bridged safely at handler boundary.
+- [x] Shared pagination types introduced in `src/shared/types/pagination.ts` with mutually exclusive strategy typing.
 
 ---
 
@@ -252,6 +276,32 @@ const getMatter = async (id: string, ctx: ServiceContext): Promise<MatterRecord>
 - Throw directly from service code using typed status values from the existing `Result` error contract.
 - Preferred pattern when bridging in-flight code: `throw new HTTPException(matterResult.error.status, { message: matterResult.error.message })`.
 - The long-term goal remains removing `Result` wrappers from services, not adding compatibility helpers around them.
+
+### Pagination Standard (Industry-Aligned)
+
+Pagination is a success payload concern and should not be modeled inside `Result` helpers.
+
+- Services should return plain paginated data objects (not `Result<Paginated...>` long-term).
+- Handlers should return direct `c.json(...)` responses for list endpoints.
+- Errors should continue to use thrown `HTTPException` and global error handling.
+
+**Response shape guidance:**
+
+- Prefer cursor-based pagination for high-volume or frequently mutating lists.
+- Use offset-based pagination only where page-number UX is required.
+
+**Type location decision (do not keep in result files):**
+
+- Create and use `src/shared/types/pagination.ts` for shared pagination contracts.
+- Keep `src/shared/types/result.ts` focused on error/success result compatibility only during migration.
+
+**Proposed shared type names:**
+
+- `CursorPageInfo`
+- `OffsetPaginationMeta`
+- `PaginatedResponse<T>`
+
+This keeps pagination reusable, explicit, and independent from the deprecated `Result` wrapper path.
 
 **Special Cases:**
 
