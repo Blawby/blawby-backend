@@ -1,8 +1,7 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import type { Stripe } from 'stripe';
-import { clientsSetupService } from '@/modules/clients/services/clients-setup.service';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -165,26 +164,14 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      try {
-        await clientsSetupService.ensureClientSetup({ id: invoice.client_id }, ctx);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Failed to setup Stripe customer for invoice client {clientId}: {error}', {
-          clientId: invoice.client_id,
-          error: message,
-        });
+      const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
 
-        if (error instanceof HTTPException) {
-          return result.fail<InvoiceResponse>(
-            `Failed to setup Stripe customer for client ${invoice.client_id}: ${message}`,
-            error.status,
-            'CLIENT_SETUP_FAILED'
-          );
-        }
+      if (!setupResult.success) {
+        return { success: false, error: setupResult.error };
+      }
 
-        return result.internalError<InvoiceResponse>(
-          `Failed to setup Stripe customer for client ${invoice.client_id}: ${message}`
-        );
+      if (!setupResult.data?.stripe_customer_id) {
+        return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
       }
 
       // Refetch invoice to get updated client with stripe_customer_id

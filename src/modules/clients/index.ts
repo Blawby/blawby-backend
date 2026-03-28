@@ -9,10 +9,7 @@
 export { default as clientsHttp } from './http';
 
 // Services
-export { clientsCreationService } from './services/clients-creation.service';
-export { clientsQueriesService } from './services/clients-queries.service';
-export { clientsMutationService } from './services/clients-mutation.service';
-export { clientsSetupService } from './services/clients-setup.service';
+export { clientsCrudService, clientsService } from './services/clients-crud.service';
 export { clientsStripeService } from './services/clients-stripe.service';
 export { clientMemosService } from './services/client-memos.service';
 

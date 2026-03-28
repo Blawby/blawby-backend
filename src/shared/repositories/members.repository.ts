@@ -2,7 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { members } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { usersRepository } from '@/shared/repositories/users.repository';
+import usersRepository from '@/shared/repositories/users.repository';
 
 // Better Auth instance created with the global DB connection
 const auth = createBetterAuthInstance(db);

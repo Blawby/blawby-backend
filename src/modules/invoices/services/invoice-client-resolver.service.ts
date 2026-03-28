@@ -1,14 +1,14 @@
 import { and, or, eq, isNull } from 'drizzle-orm';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
+import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
+import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
-import { clientsSetupService } from '@/modules/clients/services/clients-setup.service';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
+import type { Result } from '@/shared/types/result';
 import { createSystemContext } from '@/shared/types/service-context';
-
-const logger = getLogger(['invoices', 'client-resolver-service']);
+import { result } from '@/shared/utils/result';
 
 /**
  * Resolves a client for invoice creation
@@ -18,7 +18,7 @@ const resolveClientForInvoice = async (
   organizationId: string,
   clientId: string,
   connectedAccountId: string
-): Promise<ResolvedClientForInvoice> => {
+): Promise<Result<ResolvedClientForInvoice>> => {
   // 1. Try to find existing user_details by ID or UserID
   let clientDetails = await db.query.clients.findFirst({
     where: and(
@@ -52,27 +52,20 @@ const resolveClientForInvoice = async (
       .limit(1);
 
     if (memberMatch) {
+      // Minimal DB-only insert to get the ID required for Foreign Key
       const [newDetail] = await db
         .insert(clients)
         .values({
           organization_id: organizationId,
           user_id: memberMatch.user.id,
-          name: memberMatch.user.name,
-          email: memberMatch.user.email,
           status: 'active',
         })
         .returning();
 
-      void clientsSetupService
-        .ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'))
-        .catch((error) => {
-          logger.error('Failed to auto-setup client after auto-vivification {clientId} {organizationId}: {error}', {
-            clientId: newDetail.id,
-            organizationId,
-            error,
-          });
-        });
+      // Fire-and-forget background processing for Stripe and events
+      void clientsCrudService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
 
+      // Re-fetch to populate relations for the remainder of the process
       clientDetails = await db.query.clients.findFirst({
         where: eq(clients.id, newDetail.id),
         with: {
@@ -91,12 +84,14 @@ const resolveClientForInvoice = async (
   }
 
   if (!clientDetails) {
-    throw new HTTPException(404, { message: 'Client not found or does not belong to this organization' });
+    return result.notFound('Client not found or does not belong to this organization');
   }
 
+  // Extract connected account
   const connectedAccount = clientDetails.organization?.stripeConnectedAccounts?.[0] ?? null;
 
-  return {
+  // Return normalized result
+  return result.ok({
     id: clientDetails.id,
     user_id: clientDetails.user_id,
     name: clientDetails.user?.name ?? '',
@@ -105,24 +100,22 @@ const resolveClientForInvoice = async (
     organization_id: clientDetails.organization_id,
     connectedAccount,
     matters: clientDetails.matters ?? [],
-  };
+  });
 };
 
 /**
- * Resolves a userId to a client id for the given org.
+ * Resolves a userId to a userDetails.id for the given org.
  * Used by client-facing invoice endpoints so the client never passes their own identifier.
  */
-const resolveUserDetailId = async (organizationId: string, userId: string): Promise<string> => {
+const resolveUserDetailId = async (organizationId: string, userId: string): Promise<Result<string>> => {
   const detail = await db.query.clients.findFirst({
     where: and(eq(clients.organization_id, organizationId), eq(clients.user_id, userId), isNull(clients.deleted_at)),
     columns: { id: true },
   });
-
   if (!detail) {
-    throw new HTTPException(404, { message: 'Client record not found in this organization' });
+    return result.notFound('Client record not found in this organization');
   }
-
-  return detail.id;
+  return result.ok(detail.id);
 };
 
 export const invoiceClientResolver = {

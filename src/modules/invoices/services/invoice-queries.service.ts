@@ -1,5 +1,4 @@
 import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import type {
@@ -105,34 +104,34 @@ const listClientInvoices = async (
   { filters }: { filters: { status?: string; page?: number; limit?: number } },
   ctx: ServiceContext
 ): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
-  if (!ctx.userId) {
-    return result.unauthorized('Authentication required');
-  }
-
-  if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-    return result.forbidden('You do not have permission to view invoices');
-  }
-
   try {
-    const userDetailId = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
+    if (!ctx.userId) {
+      return result.unauthorized('Authentication required');
+    }
+
+    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
+      return result.forbidden('You do not have permission to view invoices');
+    }
+
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
+    if (!userDetailResult.success) {
+      return userDetailResult;
+    }
 
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
 
-    const { invoices: list, total } = await invoicesRepository.findManyByClientId(ctx.organizationId, userDetailId, {
-      status: filters.status,
-      page,
-      limit,
-    });
+    const { invoices: list, total } = await invoicesRepository.findManyByClientId(
+      ctx.organizationId,
+      userDetailResult.data,
+      { status: filters.status, page, limit }
+    );
 
     return result.ok({
       invoices: list.map(transformSummaryResponse),
       pagination: { page, limit, total },
     });
   } catch (error) {
-    if (error instanceof HTTPException) {
-      return result.fail(error.message, error.status, 'CLIENT_RESOLUTION_FAILED');
-    }
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to list client invoices {userId}: {error}', {
       userId: ctx.userId,
@@ -146,11 +145,11 @@ const listClientInvoices = async (
  * Get a single invoice by ID (practice admin/member view)
  */
 const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
-  if (ctx.ability.cannot('read', 'Invoice')) {
-    return result.forbidden<InvoiceResponse>('You do not have permission to view this invoice');
-  }
-
   try {
+    if (ctx.ability.cannot('read', 'Invoice')) {
+      return result.forbidden<InvoiceResponse>('You do not have permission to view this invoice');
+    }
+
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
       return result.notFound('Invoice not found');
@@ -174,27 +173,31 @@ const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
   ctx: ServiceContext
 ): Promise<Result<InvoiceResponse>> => {
-  if (!ctx.userId) {
-    return result.unauthorized('Authentication required');
-  }
-
-  if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-    return result.forbidden('You do not have permission to view this invoice');
-  }
-
   try {
-    const userDetailId = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
+    if (!ctx.userId) {
+      return result.unauthorized('Authentication required');
+    }
 
-    const invoice = await invoicesRepository.findOneByIdAndClientId(ctx.organizationId, invoiceId, userDetailId);
+    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
+      return result.forbidden('You do not have permission to view this invoice');
+    }
+
+    const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
+    if (!userDetailResult.success) {
+      return userDetailResult;
+    }
+
+    const invoice = await invoicesRepository.findOneByIdAndClientId(
+      ctx.organizationId,
+      invoiceId,
+      userDetailResult.data
+    );
     if (!invoice) {
       return result.notFound('Invoice not found');
     }
 
     return result.ok(transformInvoiceResponse(invoice));
   } catch (error) {
-    if (error instanceof HTTPException) {
-      return result.fail(error.message, error.status, 'CLIENT_RESOLUTION_FAILED');
-    }
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get client invoice {invoiceId}: {error}', {
       invoiceId,

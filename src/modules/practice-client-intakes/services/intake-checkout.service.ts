@@ -6,7 +6,6 @@ import { practiceClientIntakesRepository } from '@/modules/practice-client-intak
 import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { createIntakeCheckoutSession } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
@@ -15,7 +14,7 @@ import type {
   IntakePostPayStatusResponse,
   IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { clientsIntakeCreationService } from '@/modules/clients/services/clients-intake-creation.service';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import { createSystemContext, type ServiceContext } from '@/shared/types/service-context';
@@ -96,27 +95,24 @@ const processClaimIntakeTx = async (
 
   const sysCtx = createSystemContext(lockedIntake.organization_id);
 
-  try {
-    await clientsIntakeCreationService.createClientFromIntake(
-      {
-        data: {
-          intakeId: lockedIntake.id,
-          userId: userId,
-          email: intakeMetadata.email,
-          name: intakeMetadata.name,
-          phone: intakeMetadata.phone,
-        },
-        tx,
+  // Note: No longer passes transaction - Stripe call happens outside this transaction
+  const clientResult = await clientsCrudService.createClientFromIntake(
+    {
+      data: {
+        intakeId: lockedIntake.id,
+        userId: userId,
+        email: intakeMetadata.email,
+        name: intakeMetadata.name,
+        phone: intakeMetadata.phone,
       },
-      sysCtx
-    );
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      return rollbackWithResult(result.fail(error.message, error.status, 'CLIENT_CREATION_FAILED'));
-    }
+    },
+    sysCtx
+  );
 
-    const message = error instanceof Error ? error.message : 'Failed to create client from intake';
-    return rollbackWithResult(result.internalError(message));
+  if (!clientResult.success) {
+    return rollbackWithResult(
+      result.fail(clientResult.error.message, clientResult.error.status, clientResult.error.code)
+    );
   }
 
   if (!intakeMetadata.user_id) {

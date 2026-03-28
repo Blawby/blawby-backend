@@ -4,8 +4,6 @@
 > **Branch:** `refactor/tech-debt`
 > Testing infrastructure is tracked on a separate branch — excluded from this plan.
 
-⚠️ **METRICS AUDIT (2026-03-28):** Plan metrics were significantly understated. God services were **initially 20 files >200 lines**, now **18 files >200 lines** after PR-4 split and follow-up review. Several PRs previously marked "closed" still contain unfinished service files, so Group A completion is ~50-60% (not 85%). See [Branch Status Snapshot](#branch-status-snapshot-2026-03-28--metrics-audit-completed) below.
-
 ---
 
 ## The Standard
@@ -127,32 +125,22 @@ export default app;
 Each phase is a self-contained PR that compiles clean and merges independently.
 PRs within a group can be developed **in parallel**.
 
-### Branch Status Snapshot (2026-03-28) — METRICS AUDIT COMPLETED
+### Branch Status Snapshot (2026-03-28)
 
-**Verified completed on current branch (baseline):**
+Verified completed on current branch:
 
-- [x] `injectAbility()` wired in **all 14 modules** (dev, public, webhooks, and 11 others)
+- [x] `injectAbility()` wired in `src/modules/dev/http.ts`, `src/modules/public/http.ts`, and `src/modules/webhooks/http.ts`
 - [x] `src/modules/onboarding/http.handlers.ts` renamed to `src/modules/onboarding/handlers.ts`
-- [x] Most handlers use `getServiceContext(c)` + thin pattern (PR-6 still has open service-contract work)
-- [x] `sendResult(...)` is the default handler utility (PR-16 tracks final normalization)
+- [x] `src/modules/uploads/routes.ts` split into `upload-read.routes.ts` and `upload-write.routes.ts`
+- [x] No `throw new Error()` remains in `src/modules/uploads/services/*.ts`
 - [x] `pnpm run typecheck` currently passes
 
-**CRITICAL ISSUE: Service file sizes are 54% worse than tracked**
+Remaining high-priority work from this snapshot:
 
-- ❌ **Plan claimed ~13 god services, actual: 20 god services**
-- ✅ **PR-4 historical issue resolved:** `clients-crud.service.ts` was 559 lines and was later split; PR-4 is merged with 9 focused services
-- ❌ **PR-7 (Onboarding) marked "closed" but `onboarding-webhooks.service.ts` is 372 lines** (violates 200-line limit)
-- ❌ **PR-3 (Practice-Client-Intakes) marked mostly done but has 3 files >300 lines** (intake-lifecycle: 380, intake-checkout: 343, intake-creation: 296)
-- ⚠️ **PR-2 (Practice) split but `matter-milestones.service.ts` grew to 416 lines** (was 368 estimated)
-
-**Remaining high-priority work:**
-
-- [ ] **Split god services** (18 files >200 lines (14 need re-work, 4 acceptable))
-- [x] `clients-crud.service.ts` split complete; remaining `if (!user)` checks in `clients-intake-creation.service.ts` are intentional and valid
-- [ ] Remove remaining `requestHeaders` usage:
-  - `src/modules/subscriptions/services/subscription.service.ts` (2 occurrences, lines 282, 338)
-  - `src/modules/practice/services/organization.service.ts` (5 occurrences, lines 49, 89, 109, 133, 157)
-- [ ] Remove legacy `src/modules/uploads/services/uploads.service.ts` (actively used by 8 handlers)
+- [ ] Remove remaining `if (!user)` checks in `src/modules/clients/services/clients-crud.service.ts` (2 occurrences)
+- [ ] Remove remaining `requestHeaders` usage in `src/modules/subscriptions/services/subscription.service.ts` (2 occurrences)
+- [ ] Standardize all handlers on `sendResult(...)` response pattern (still inconsistent)
+- [ ] Remove legacy `src/modules/uploads/services/uploads.service.ts` after fully moving references
 
 ---
 
@@ -225,15 +213,9 @@ PRs within a group can be developed **in parallel**.
 
 ---
 
-### ⚠️ PR-3 — Practice-Client-Intakes Module
+### PR-3 — Practice-Client-Intakes Module
 
 **Files:** `src/modules/practice-client-intakes/`
-
-**⚠️ ISSUE:** Services are oversized (violates 200-line limit):
-
-- `intake-lifecycle.service.ts`: **380 lines**
-- `intake-checkout.service.ts`: **343 lines**
-- `intake-creation.service.ts`: **296 lines**
 
 - [x] Fully replace legacy `practice-client-intakes.service.ts`
   - [x] Extract route-facing services: `intake-creation.service.ts`, `intake-checkout.service.ts`, `intake-lifecycle.service.ts`
@@ -241,7 +223,6 @@ PRs within a group can be developed **in parallel**.
   - [x] Move core DB + Stripe orchestration out of the legacy service into the extracted services/helpers
 - [ ] Extract Stripe logic into dedicated helpers (not mixed with DB + validation)
 - [ ] Flatten nested code (4+ levels deep) into early-return + helper functions
-- [ ] **Split oversized services:** intake-lifecycle (380→<200), intake-checkout (343→<200), intake-creation (296→<200)
 - [x] Wire `injectAbility()` in `http.ts`
 - [x] Rewrite handlers to use `getServiceContext(c)` and thin `(params, ctx)` service entrypoints
 - [x] Add CASL ownership/staff access checks
@@ -263,21 +244,12 @@ PRs within a group can be developed **in parallel**.
 - [x] Wire `injectAbility()` in `http.ts`
 - [x] Rewrite handlers to use `getServiceContext(c)`
 - [x] Convert service from `(orgId, data, actorId)` → `({ data }, ctx)`
-- [x] Split `clients-crud.service.ts` (559 lines) → 9 focused services (all <200 lines):
-  - [x] `clients-direct-creation.service.ts` (96 lines) — `createClient`
-  - [x] `clients-intake-creation.service.ts` (119 lines) — `createClientFromIntake`
-  - [x] `clients-mutation.service.ts` (171 lines) — `updateClient`, `deleteClient` ← largest
-  - [x] `clients-queries.service.ts` (72 lines) — `listClients`, `getClient`
-  - [x] `clients-stripe.service.ts` (79 lines) — Stripe operations
-  - [x] `clients-setup.service.ts` (68 lines) — Setup operations
-  - [x] `client-memos.service.ts` (129 lines) — Memo operations
-  - [x] `clients-utils.ts` (68 lines) — Shared utilities
-  - [x] `clients-creation.helpers.ts` (27 lines) — Creation helpers
+- [x] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
 - [x] Add CASL ownership checks
-- [ ] Review `if (!user)` checks in clients-intake-creation.service.ts (lines 21, 48) — _valid DB lookups, can remain_
-- [x] Extract `resolveUserForIntake` to `clients-utils.ts`
+- [x] Remove `if (!user)` checks
+- [x] Extract `resolveUserForIntake` to `user-details-utils.ts`
 
-**Status:** ✅ CLOSED — Proper split into 9 services. All files <200 lines. CASL checks added. Ready for merge.
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
@@ -299,29 +271,23 @@ PRs within a group can be developed **in parallel**.
 **Files:** `src/modules/subscriptions/`
 
 - [ ] Wire `injectAbility()`, adopt `getServiceContext(c)`, convert to `(params, ctx)`
-- [ ] Split `subscription.service.ts` (359 lines), trim `meteredProducts.service.ts` (259 lines)
+- [ ] Split `subscription.service.ts` (341 lines), trim `meteredProducts.service.ts` (259 lines)
 - [ ] Replace try/catch blocks with direct Result returns where possible
 - [ ] Add CASL checks (admin-only for management)
 - [ ] Remove `requestHeaders` params
 
 ---
 
-### ⚠️ PR-7 — Onboarding Module
+### ✅ PR-7 — Onboarding Module
 
 **Files:** `src/modules/onboarding/`
-
-**⚠️ ISSUE:** Services are oversized:
-
-- `onboarding-webhooks.service.ts`: **372 lines**
-- `connected-accounts.service.ts`: **356 lines**
 
 - [x] Rename `http.handlers.ts` → `handlers.ts`
 - [x] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
 - [x] Add CASL checks (admin-only)
 - [x] Remove `requestHeaders` params
-- [ ] **Split oversized services:** onboarding-webhooks (372→<200), connected-accounts (356→<200)
 
-**Status:** ❌ NOT CLOSED — Webhook and account services exceed 200-line limit. Needs re-work before closure.
+**Status:** Closed (no further required items in this PR scope)
 
 ---
 
@@ -472,38 +438,35 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 ## Parallel Work Map
 
-⚠️ **STALLED:** Group A is ~50-60% done (not 85%). Group B **cannot start** until PR-3 and PR-7 are re-worked.
-
-```text
+```
 ✅ Foundation  →  ✅ PR-0 Matters  →  ✅ PR-1 Invoices
                                               │
          ┌────────────────────────────────────┘
          │
-         │  Group A  (INCOMPLETE — needs re-work)
-         ├─ ✅ PR-2   Practice                (mostly done)
-         ├─ ⚠️ PR-3   Practice-Client-Intakes (3 oversized services)
-         ├─ ✅ PR-4   User-Details            (DONE - 9 services <200 lines) ← PR-4 MERGED
-         ├─ ✅ PR-5   Uploads                 (mostly done)
-         ├─ 🚧 PR-6   Subscriptions           (in progress)
-         ├─ ❌ PR-7   Onboarding              (2 oversized services)
-         ├─ ❌ PR-8   Stripe Customers        (not started)
-         ├─ ⚠️ PR-9   Trust                   (trust.service: 390 lines)
-         └─ ✅ PR-10  Remaining               (done)
+         │  Group A  (all parallel, no dependencies between them)
+         ├─ PR-2   Practice
+         ├─ PR-3   Practice-Client-Intakes
+         ├─ PR-4   User-Details
+         ├─ PR-5   Uploads
+         ├─ PR-6   Subscriptions
+         ├─ PR-7   Onboarding
+         ├─ PR-8   Stripe Customers
+         ├─ PR-9   Trust
+         └─ PR-10  Remaining
                    │
-                   │  ⛔ BLOCKED: Group A not finished
-                   │  Need to split 14+ god services first
+                   │  all merged
                    │
          ┌─────────┴──────────────────┐
-         │  Group B  (blocked)        │
+         │  Group B  (parallel)       │
          ├─ PR-11  CASL Expansion     │
          ├─ PR-12  Type Safety Sweep  │
          └─ PR-13  Dead Code Cleanup  │
                    │                  │
                    └────────┬─────────┘
-                            │
+                            │  all merged
                         PR-15 TSConfig
 
-PR-14 (Env Config) ── ✅ already merged
+PR-14 (Env Config) ── independent, merge any time
 ```
 
 ---
@@ -512,28 +475,22 @@ PR-14 (Env Config) ── ✅ already merged
 
 ### God Services (>200 lines)
 
-**✅ UPDATED 2026-03-28: 18 files found (was 20, clients-crud ✅ split).**
-
-| File                                     | Lines   | Target PR   | Status                                 |
-| ---------------------------------------- | ------- | ----------- | -------------------------------------- |
-| `matters.service.ts`                     | **538** | Acceptable  | Over estimate (was 410)                |
-| `invoice-webhooks.service.ts`            | **450** | Post PR-1   | Over estimate (was 348)                |
-| `matter-milestones.service.ts`           | **416** | Acceptable  | Over estimate (was 368)                |
-| `trust.service.ts`                       | **390** | PR-9        | Over estimate (was 240)                |
-| `intake-lifecycle.service.ts`            | **380** | PR-3        | ❌ PR-3 not fully complete             |
-| `onboarding-webhooks.service.ts`         | **372** | PR-7        | ❌ PR-7 marked "closed" but unfinished |
-| `matter-time-entries.service.ts`         | **372** | Acceptable  | Over estimate (was 311)                |
-| `subscription.service.ts`                | **359** | PR-6        | Needs split                            |
-| `connected-accounts.service.ts`          | **356** | PR-7        | Not tracked in original plan           |
-| `intake-checkout.service.ts`             | **343** | PR-3        | Not tracked in original plan           |
-| `invoice-stripe-coordination.service.ts` | **311** | Post PR-1   | Over estimate (was 247)                |
-| `matter-expenses.service.ts`             | **299** | Acceptable  | Over estimate (was 284)                |
-| `intake-creation.service.ts`             | **296** | PR-3        | Not tracked in original plan           |
-| `invoice-creation.service.ts`            | **247** | Not tracked | Not in original plan                   |
-| `matter-notes.service.ts`                | **246** | Not tracked | Not in original plan                   |
-| `stripe-invoices.service.ts`             | **226** | Post PR-1   | Over estimate (was 209)                |
-| `practice-management.service.ts`         | **219** | PR-2        | Over estimate (from 507 split)         |
-| `invoice-queries.service.ts`             | **217** | Not tracked | Not in original plan                   |
+| File                                     | Lines   | Target PR  |
+| ---------------------------------------- | ------- | ---------- |
+| `uploads.service.ts`                     | **633** | PR-5       |
+| `user-details.service.ts`                | **543** | PR-4       |
+| `practice.service.ts`                    | **507** | PR-2       |
+| `stripe-customer.service.ts`             | **417** | PR-8       |
+| `matters.service.ts`                     | **410** | Acceptable |
+| `practice-details.service.ts`            | **369** | PR-2       |
+| `matter-milestones.service.ts`           | **368** | Acceptable |
+| `invoice-webhooks.service.ts`            | **348** | Post PR-1  |
+| `subscription.service.ts`                | **341** | PR-6       |
+| `matter-time-entries.service.ts`         | **311** | Acceptable |
+| `matter-expenses.service.ts`             | **284** | Acceptable |
+| `meteredProducts.service.ts`             | **259** | PR-6       |
+| `invoice-stripe-coordination.service.ts` | **247** | Post PR-1  |
+| `trust.service.ts`                       | **240** | PR-9       |
 
 ### God Route Files (>300 lines)
 
@@ -546,17 +503,15 @@ PR-14 (Env Config) ── ✅ already merged
 
 ## Metrics
 
-| Metric                         | Before   | Now (verified 2026-03-28)                                          | Target   |
-| ------------------------------ | -------- | ------------------------------------------------------------------ | -------- |
-| Modules using `ServiceContext` | 2        | **14** (all modules)                                               | all ✅   |
-| Modules using CASL             | 2        | **14** (all modules with injectAbility())                          | all ✅   |
-| Service files >200 lines       | 9        | **18** (was 20, PR-4 ✅ split)                                     | **0** ❌ |
-| Route files >300 lines         | 3        | **2** (`practice.routes.ts`, `uploads.routes.ts` split needed)     | **0** ❌ |
-| `if (!user)` checks            | ~50      | **2** (intentional checks remain in intake-driven client creation) | **0** ⚠️ |
-| `computeRoutingClaims` usages  | ~15      | **0**                                                              | **0** ✅ |
-| `requestHeaders` params        | ~20      | **7** (verified: 2 in subscriptions, 5 in practice)                | **0** ❌ |
-| Direct `process.env` reads     | 70 files | **24 files** (via config centralization)                           | **0** ✅ |
-| `any` type usages              | 23 files | **5 files**                                                        | **0** ❌ |
-| `as` type assertions           | many     | many (type safety sweep not started)                               | **0** ❌ |
-
-_Footnote: intentional `if (!user)` checks currently remain in `src/modules/clients/services/clients-intake-creation.service.ts` as guarded lookup validations._
+| Metric                         | Before   | Now                                                  | Target            |
+| ------------------------------ | -------- | ---------------------------------------------------- | ----------------- |
+| Modules using `ServiceContext` | 2        | **4** (matters, preferences, invoices, user-details) | all               |
+| Modules using CASL             | 2        | **4**                                                | all authenticated |
+| Service files >200 lines       | 9        | **~13**                                              | **0**             |
+| Route files >300 lines         | 3        | **3**                                                | **0**             |
+| `if (!user)` checks            | ~50      | **2**                                                | **0**             |
+| `computeRoutingClaims` usages  | ~15      | **0**                                                | **0**             |
+| `requestHeaders` params        | ~20      | **7**                                                | **0**             |
+| Direct `process.env` reads     | 70 files | **24 files**                                         | **0**             |
+| `any` type usages              | 23 files | **5 files**                                          | **0**             |
+| `as` type assertions           | many     | many                                                 | **0**             |

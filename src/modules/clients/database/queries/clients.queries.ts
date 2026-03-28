@@ -13,23 +13,16 @@ const create = async (data: InsertClient): Promise<SelectClient> => {
   return client;
 };
 
-const findById = async (
-  id: string,
-  tx: DbOrTx = db
-): Promise<(SelectClient & { user: typeof users.$inferSelect | null }) | undefined> =>
-  await tx.query.clients.findFirst({
+const findById = async (id: string): Promise<(SelectClient & { user: typeof users.$inferSelect | null }) | undefined> =>
+  await db.query.clients.findFirst({
     where: and(eq(clients.id, id), sql`${clients.deleted_at} IS NULL`),
     with: {
       user: true,
     },
   });
 
-const findByOrgAndUser = async (
-  organizationId: string,
-  userId: string,
-  tx: DbOrTx = db
-): Promise<SelectClient | undefined> => {
-  const [result] = await tx
+const findByOrgAndUser = async (organizationId: string, userId: string): Promise<SelectClient | undefined> => {
+  const [result] = await db
     .select()
     .from(clients)
     .where(
@@ -39,8 +32,8 @@ const findByOrgAndUser = async (
   return result;
 };
 
-const findByStripeCustomerId = async (stripeCustomerId: string, tx: DbOrTx = db): Promise<SelectClient | undefined> => {
-  const [result] = await tx
+const findByStripeCustomerId = async (stripeCustomerId: string): Promise<SelectClient | undefined> => {
+  const [result] = await db
     .select()
     .from(clients)
     .where(and(eq(clients.stripe_customer_id, stripeCustomerId), sql`${clients.deleted_at} IS NULL`))
@@ -143,15 +136,9 @@ const listClients = async (params: {
   };
 };
 
-const findByIdForUpdate = async (id: string, tx: DbOrTx = db): Promise<SelectClient | undefined> => {
-  const result = await tx.execute(sql`SELECT * FROM "clients" WHERE "id" = ${id} AND "deleted_at" IS NULL FOR UPDATE`);
-  return (result.rows?.[0] as SelectClient) || undefined;
-};
-
 export const clientsRepository = {
   create,
   findById,
-  findByIdForUpdate,
   findByOrgAndUser,
   findByStripeCustomerId,
   update,

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { users } from '@/schema/better-auth-schema';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { db } from '@/shared/database';
-import { usersRepository } from '@/shared/repositories/users.repository';
+import usersRepository from '@/shared/repositories/users.repository';
 
 /**
  * Resolves a user from intake session or email, handling anonymous linking.

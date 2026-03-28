@@ -7,7 +7,7 @@ import type {
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
-import { usersRepository } from '@/shared/repositories/users.repository';
+import usersRepository from '@/shared/repositories/users.repository';
 import type { ActiveOrganization, Organization } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';

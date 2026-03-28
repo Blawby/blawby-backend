@@ -1,18 +1,14 @@
-/**
- * Client Memos Service
- *
- * Handles client memo operations (CRUD)
- */
-
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
 import { practiceClientMemosRepository } from '@/modules/clients/database/queries/practice-client-memos.queries';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import type { SelectPracticeClientMemo } from '@/modules/clients/database/schema/practice-client-memos.schema';
+import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { HTTPException } from 'hono/http-exception';
+import { ok, internalError, notFound } from '@/shared/utils/result';
 
-/**
- * Create a client memo
- */
+const logger = getLogger(['clients', 'memos-service']);
+
 const createMemo = async (
   params: {
     clientId: string;
@@ -22,48 +18,51 @@ const createMemo = async (
     };
   },
   ctx: ServiceContext
-): Promise<SelectPracticeClientMemo> => {
-  if (ctx.ability.cannot('create', 'ClientMemo')) {
-    throw new HTTPException(403, { message: 'You do not have permission to create client memos' });
-  }
+): Promise<Result<SelectPracticeClientMemo>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'ClientMemo');
 
   const { clientId, data } = params;
 
-  const client = await clientsRepository.findById(clientId);
-  if (!client || client.organization_id !== ctx.organizationId) {
-    throw new HTTPException(404, { message: 'Client not found' });
-  }
+  try {
+    const client = await clientsRepository.findById(clientId);
+    if (!client || client.organization_id !== ctx.organizationId) {
+      return notFound('Client not found');
+    }
 
-  return await practiceClientMemosRepository.create({
-    client_id: clientId,
-    created_by: ctx.userId,
-    content: data.content,
-    event_time: data.event_time,
-  });
+    const memo = await practiceClientMemosRepository.create({
+      client_id: clientId,
+      created_by: ctx.userId,
+      content: data.content,
+      event_time: data.event_time,
+    });
+
+    return ok(memo);
+  } catch (error) {
+    logger.error('Failed to create client memo: {error}', { error, organizationId: ctx.organizationId });
+    return internalError('Failed to create client memo');
+  }
 };
 
-/**
- * List client memos
- */
 const listMemos = async (
   params: { clientId: string; limit?: number; offset?: number },
   ctx: ServiceContext
-): Promise<{ data: SelectPracticeClientMemo[]; total: number }> => {
-  if (ctx.ability.cannot('read', 'ClientMemo')) {
-    throw new HTTPException(403, { message: 'You do not have permission to read client memos' });
-  }
+): Promise<Result<{ data: SelectPracticeClientMemo[]; total: number }>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'ClientMemo');
 
-  const client = await clientsRepository.findById(params.clientId);
-  if (!client || client.organization_id !== ctx.organizationId) {
-    throw new HTTPException(404, { message: 'Client not found' });
-  }
+  try {
+    const client = await clientsRepository.findById(params.clientId);
+    if (!client || client.organization_id !== ctx.organizationId) {
+      return notFound('Client not found');
+    }
 
-  return await practiceClientMemosRepository.listMemos(params);
+    const data = await practiceClientMemosRepository.listMemos(params);
+    return ok(data);
+  } catch (error) {
+    logger.error('Failed to list client memos: {error}', { error, organizationId: ctx.organizationId });
+    return internalError('Failed to list client memos');
+  }
 };
 
-/**
- * Update a client memo
- */
 const updateMemo = async (
   params: {
     id: string;
@@ -74,56 +73,60 @@ const updateMemo = async (
     };
   },
   ctx: ServiceContext
-): Promise<SelectPracticeClientMemo> => {
-  if (ctx.ability.cannot('update', 'ClientMemo')) {
-    throw new HTTPException(403, { message: 'You do not have permission to update client memos' });
-  }
+): Promise<Result<SelectPracticeClientMemo>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'ClientMemo');
 
   const { id, clientId, data } = params;
 
-  const client = await clientsRepository.findById(clientId);
-  if (!client || client.organization_id !== ctx.organizationId) {
-    throw new HTTPException(404, { message: 'Client not found' });
+  try {
+    const client = await clientsRepository.findById(clientId);
+    if (!client || client.organization_id !== ctx.organizationId) {
+      return notFound('Client not found');
+    }
+
+    const memo = await practiceClientMemosRepository.findById(id);
+    if (!memo || memo.client_id !== clientId) {
+      return notFound('Memo not found');
+    }
+
+    const updated = await practiceClientMemosRepository.update(id, {
+      content: data.content,
+      event_time: data.event_time,
+    });
+
+    if (!updated) {
+      return internalError('Failed to update memo');
+    }
+
+    return ok(updated);
+  } catch (error) {
+    logger.error('Failed to update client memo {id}: {error}', { id, error, organizationId: ctx.organizationId });
+    return internalError('Failed to update client memo');
   }
-
-  const memo = await practiceClientMemosRepository.findById(id);
-  if (!memo || memo.client_id !== clientId) {
-    throw new HTTPException(404, { message: 'Memo not found' });
-  }
-
-  const updated = await practiceClientMemosRepository.update(id, {
-    content: data.content,
-    event_time: data.event_time,
-  });
-
-  if (!updated) {
-    throw new Error('Failed to update memo');
-  }
-
-  return updated;
 };
 
-/**
- * Delete a client memo
- */
-const deleteMemo = async (params: { id: string; clientId: string }, ctx: ServiceContext): Promise<void> => {
-  if (ctx.ability.cannot('delete', 'ClientMemo')) {
-    throw new HTTPException(403, { message: 'You do not have permission to delete client memos' });
-  }
+const deleteMemo = async (params: { id: string; clientId: string }, ctx: ServiceContext): Promise<Result<void>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'ClientMemo');
 
   const { id, clientId } = params;
 
-  const client = await clientsRepository.findById(clientId);
-  if (!client || client.organization_id !== ctx.organizationId) {
-    throw new HTTPException(404, { message: 'Client not found' });
-  }
+  try {
+    const client = await clientsRepository.findById(clientId);
+    if (!client || client.organization_id !== ctx.organizationId) {
+      return notFound('Client not found');
+    }
 
-  const memo = await practiceClientMemosRepository.findById(id);
-  if (!memo || memo.client_id !== clientId) {
-    throw new HTTPException(404, { message: 'Memo not found' });
-  }
+    const memo = await practiceClientMemosRepository.findById(id);
+    if (!memo || memo.client_id !== clientId) {
+      return notFound('Memo not found');
+    }
 
-  await practiceClientMemosRepository.deleteMemo(id);
+    await practiceClientMemosRepository.deleteMemo(id);
+    return ok(undefined);
+  } catch (error) {
+    logger.error('Failed to delete client memo {id}: {error}', { id, error, organizationId: ctx.organizationId });
+    return internalError('Failed to delete client memo');
+  }
 };
 
 export const clientMemosService = {

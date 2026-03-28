@@ -9,25 +9,25 @@ import type {
   deleteClientMemoRoute,
 } from '@/modules/clients/routes';
 import { clientMemosService } from '@/modules/clients/services/client-memos.service';
-import { clientsMutationService } from '@/modules/clients/services/clients-mutation.service';
-import { clientsQueriesService } from '@/modules/clients/services/clients-queries.service';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
 
 export const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = async (c) => {
   const query = c.req.valid('query');
   const ctx = getServiceContext(c);
 
-  const clients = await clientsQueriesService.listClients(query, ctx);
-  return c.json(clients, 200);
+  const result = await clientsCrudService.listClients(query, ctx);
+  return sendResult(c, result);
 };
 
 export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
-  const client = await clientsQueriesService.getClient({ id }, ctx);
-  return c.json(client, 200);
+  const result = await clientsCrudService.getClient({ id }, ctx);
+  return sendResult(c, result);
 };
 
 export const updateClientHandler: AppRouteHandler<typeof updateClientRouteType> = async (c) => {
@@ -35,16 +35,16 @@ export const updateClientHandler: AppRouteHandler<typeof updateClientRouteType> 
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
-  const client = await clientsMutationService.updateClient({ id, data: body }, ctx);
-  return c.json(client, 200);
+  const result = await clientsCrudService.updateClient({ id, data: body }, ctx);
+  return sendResult(c, result);
 };
 
 export const deleteClientHandler: AppRouteHandler<typeof deleteClientRouteType> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
-  await clientsMutationService.deleteClient({ id }, ctx);
-  return c.body(null, 204);
+  const result = await clientsCrudService.deleteClient({ id }, ctx);
+  return sendResult(c, result);
 };
 
 // ==================== MEMOS ====================
@@ -53,8 +53,8 @@ export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute
   const { id: clientId } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
-  const memos = await clientMemosService.listMemos({ clientId }, ctx);
-  return c.json(memos, 200);
+  const result = await clientMemosService.listMemos({ clientId }, ctx);
+  return sendResult(c, result);
 };
 
 export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRoute> = async (c) => {
@@ -62,7 +62,7 @@ export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRou
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
-  const memo = await clientMemosService.createMemo(
+  const result = await clientMemosService.createMemo(
     {
       clientId,
       data: {
@@ -72,8 +72,7 @@ export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRou
     },
     ctx
   );
-
-  return c.json(memo, 201);
+  return sendResult(c, result, 201);
 };
 
 export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRoute> = async (c) => {
@@ -81,7 +80,7 @@ export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRou
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
-  const memo = await clientMemosService.updateMemo(
+  const result = await clientMemosService.updateMemo(
     {
       id,
       clientId,
@@ -92,14 +91,13 @@ export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRou
     },
     ctx
   );
-
-  return c.json(memo, 200);
+  return sendResult(c, result);
 };
 
 export const deleteClientMemoHandler: AppRouteHandler<typeof deleteClientMemoRoute> = async (c) => {
   const { id: clientId, memo_id: id } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
-  await clientMemosService.deleteMemo({ id, clientId }, ctx);
-  return c.body(null, 204);
+  const result = await clientMemosService.deleteMemo({ id, clientId }, ctx);
+  return sendResult(c, result);
 };

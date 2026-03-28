@@ -1,6 +1,5 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
@@ -63,86 +62,75 @@ const validateInvoiceCreation = async (
   data: CreateInvoiceRequest,
   ctx: ServiceContext
 ): Promise<Result<{ clientId: string }>> => {
-  try {
-    const client = await invoiceClientResolver.resolveClientForInvoice(
-      ctx.organizationId,
-      data.client_id,
-      data.connected_account_id
-    );
-
-    const { id: clientId, connectedAccount, matters } = client;
-
-    // 2. Validate connected account capabilities
-    const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
-    if (!accountValidation.success) {
-      return accountValidation;
-    }
-
-    // 3. Validate matter belongs to client (if provided)
-    if (data.matter_id) {
-      const matter = matters.find((item) => item.id === data.matter_id);
-      const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
-      if (!matterValidation.success) {
-        return matterValidation;
-      }
-      if (matter?.billing_type === 'pro_bono') {
-        return result.badRequest('Cannot create invoice for a pro bono matter');
-      }
-    }
-
-    // 3.5 Validate invoice-linked IDs are scoped to the same matter
-    if ((data.time_entry_ids?.length || data.expense_ids?.length || data.milestone_id) && !data.matter_id) {
-      return result.badRequest('matter_id is required when linking time entries, expenses, or milestones');
-    }
-
-    if (data.matter_id) {
-      if (data.time_entry_ids?.length) {
-        const matterTimeEntries = await matterTimeEntriesQueries.listMatterTimeEntries(data.matter_id);
-        const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
-        const hasInvalidTimeEntry = data.time_entry_ids.some((id) => !validTimeEntryIds.has(id));
-        if (hasInvalidTimeEntry) {
-          return result.badRequest('One or more time_entry_ids do not belong to the provided matter_id');
-        }
-      }
-
-      if (data.expense_ids?.length) {
-        const matterExpenses = await matterExpensesQueries.listMatterExpenses(data.matter_id);
-        const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
-        const hasInvalidExpense = data.expense_ids.some((id) => !validExpenseIds.has(id));
-        if (hasInvalidExpense) {
-          return result.badRequest('One or more expense_ids do not belong to the provided matter_id');
-        }
-      }
-
-      if (data.milestone_id) {
-        const milestone = await matterMilestonesQueries.findMatterMilestoneById(data.milestone_id);
-        if (!milestone || milestone.matter_id !== data.matter_id) {
-          return result.badRequest('milestone_id does not belong to the provided matter_id');
-        }
-      }
-    }
-
-    // 4. Validate invoice number is unique
-    const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(
-      ctx.organizationId,
-      data.invoice_number
-    );
-    if (!numberValidation.success) {
-      return numberValidation;
-    }
-
-    return result.ok<{ clientId: string }>({ clientId });
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      return result.fail(error.message, error.status, 'CLIENT_RESOLUTION_FAILED');
-    }
-    return handleServiceError(
-      error,
-      logger,
-      { organizationId: ctx.organizationId, userId: ctx.userId, clientId: data.client_id },
-      'Failed to resolve client for invoice creation'
-    );
+  // 1. Resolve and validate client with all required relations
+  const clientResult = await invoiceClientResolver.resolveClientForInvoice(
+    ctx.organizationId,
+    data.client_id,
+    data.connected_account_id
+  );
+  if (!clientResult.success) {
+    return clientResult;
   }
+
+  const { id: clientId, connectedAccount, matters } = clientResult.data;
+
+  // 2. Validate connected account capabilities
+  const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
+  if (!accountValidation.success) {
+    return accountValidation;
+  }
+
+  // 3. Validate matter belongs to client (if provided)
+  if (data.matter_id) {
+    const matter = matters.find((m) => m.id === data.matter_id);
+    const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
+    if (!matterValidation.success) {
+      return matterValidation;
+    }
+    if (matter?.billing_type === 'pro_bono') {
+      return result.badRequest('Cannot create invoice for a pro bono matter');
+    }
+  }
+
+  // 3.5 Validate invoice-linked IDs are scoped to the same matter
+  if ((data.time_entry_ids?.length || data.expense_ids?.length || data.milestone_id) && !data.matter_id) {
+    return result.badRequest('matter_id is required when linking time entries, expenses, or milestones');
+  }
+
+  if (data.matter_id) {
+    if (data.time_entry_ids?.length) {
+      const matterTimeEntries = await matterTimeEntriesQueries.listMatterTimeEntries(data.matter_id);
+      const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
+      const hasInvalidTimeEntry = data.time_entry_ids.some((id) => !validTimeEntryIds.has(id));
+      if (hasInvalidTimeEntry) {
+        return result.badRequest('One or more time_entry_ids do not belong to the provided matter_id');
+      }
+    }
+
+    if (data.expense_ids?.length) {
+      const matterExpenses = await matterExpensesQueries.listMatterExpenses(data.matter_id);
+      const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
+      const hasInvalidExpense = data.expense_ids.some((id) => !validExpenseIds.has(id));
+      if (hasInvalidExpense) {
+        return result.badRequest('One or more expense_ids do not belong to the provided matter_id');
+      }
+    }
+
+    if (data.milestone_id) {
+      const milestone = await matterMilestonesQueries.findMatterMilestoneById(data.milestone_id);
+      if (!milestone || milestone.matter_id !== data.matter_id) {
+        return result.badRequest('milestone_id does not belong to the provided matter_id');
+      }
+    }
+  }
+
+  // 4. Validate invoice number is unique
+  const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
+  if (!numberValidation.success) {
+    return numberValidation;
+  }
+
+  return result.ok<{ clientId: string }>({ clientId });
 };
 
 /**
@@ -151,7 +139,7 @@ const validateInvoiceCreation = async (
 const persistInvoiceStructure = async (
   { data, clientId, totals }: { data: CreateInvoiceRequest; clientId: string; totals: InvoiceTotals },
   ctx: ServiceContext
-): Promise<InvoiceWithRelations> =>
+): Promise<InvoiceWithRelations | undefined> =>
   await db.transaction(async (tx) => {
     const { line_items, time_entry_ids, expense_ids, milestone_id, ...invoiceData } = data;
     const matterId = data.matter_id;
@@ -195,26 +183,24 @@ const persistInvoiceStructure = async (
     }
 
     const invWithRel = await invoicesRepository.findInvoiceById(newInvoice.id, ctx.organizationId, tx);
-    if (!invWithRel) {
-      throw new Error('Created invoice could not be reloaded for event dispatch');
+    if (invWithRel) {
+      await InvoiceCreated.dispatch(
+        {
+          invoice_id: newInvoice.id,
+          organization_id: ctx.organizationId,
+          client_id: clientId,
+          matter_id: data.matter_id ?? null,
+          invoice_number: newInvoice.invoice_number,
+          total: totals.total,
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+          tx,
+        }
+      );
     }
-
-    await InvoiceCreated.dispatch(
-      {
-        invoice_id: invWithRel.id,
-        organization_id: ctx.organizationId,
-        client_id: clientId,
-        matter_id: data.matter_id ?? null,
-        invoice_number: invWithRel.invoice_number,
-        total: invWithRel.total,
-      },
-      {
-        actorId: ctx.userId,
-        actorType: 'user',
-        organizationId: ctx.organizationId,
-        tx,
-      }
-    );
 
     return invWithRel;
   });
@@ -241,6 +227,10 @@ const createInvoice = async (
   try {
     // 2. Persist
     const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
+    if (!invoice) {
+      return result.internalError<InvoiceResponse>('Failed to retrieve created invoice');
+    }
+
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(invoice));
   } catch (error) {
     return handleServiceError(
