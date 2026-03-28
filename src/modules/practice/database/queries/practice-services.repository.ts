@@ -5,7 +5,8 @@ import { db } from '@/shared/database';
 /**
  * Find all services for an organization
  */
-const findServicesByOrganization = async (organizationId: string): Promise<PracticeService[]> => await db.select().from(practiceServices).where(eq(practiceServices.organization_id, organizationId));
+const findServicesByOrganization = async (organizationId: string): Promise<PracticeService[]> =>
+  await db.select().from(practiceServices).where(eq(practiceServices.organization_id, organizationId));
 
 /**
  * Upsert services for an organization within a transaction

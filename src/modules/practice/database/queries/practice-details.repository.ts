@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-
-import type { InsertPracticeDetails, PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
-import { practiceDetails } from '@/modules/practice/database/schema/practice.schema';
-import type * as schema from '@/schema';
+import {
+  practiceDetails,
+  type InsertPracticeDetails,
+  type PracticeDetails,
+} from '@/modules/practice/database/schema/practice.schema';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 
@@ -39,7 +40,7 @@ export const findPracticeWithOrganization = async (
     .where(eq(organizations.id, organizationId))
     .limit(1);
 
-  const row = result[0];
+  const [row] = result;
   return {
     practice: row?.practice ?? null,
     organization: row?.organization || null,
@@ -105,9 +106,6 @@ export const insertOrIgnorePracticeDetails = async (
   return result || null;
 };
 
-export const deletePracticeDetails = async (
-  db: NodePgDatabase<typeof schema>,
-  organizationId: string
-): Promise<void> => {
-  await db.delete(practiceDetails).where(eq(practiceDetails.organization_id, organizationId));
+export const deletePracticeDetails = async (database: NodePgDatabase, organizationId: string): Promise<void> => {
+  await database.delete(practiceDetails).where(eq(practiceDetails.organization_id, organizationId));
 };

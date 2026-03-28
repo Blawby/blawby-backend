@@ -27,10 +27,6 @@ export type CheckOrganizationSlugRequest = z.infer<
   BetterAuthInstance['api']['checkOrganizationSlug']['options']['body']
 >;
 
-export type GetFullOrganizationRequest = z.infer<
-  NonNullable<BetterAuthInstance['api']['getFullOrganization']['options']['query']>
->;
-
 export type DeleteOrganizationRequest = z.infer<BetterAuthInstance['api']['deleteOrganization']['options']['body']>;
 
 // Using Better Auth types directly from the instance

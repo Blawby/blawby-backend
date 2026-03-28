@@ -1,5 +1,6 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
 
 const practiceUuidParamOpenAPISchema = z.object({
   uuid: z.uuid().openapi({
@@ -12,7 +13,7 @@ const practiceUuidParamOpenAPISchema = z.object({
   }),
 });
 
-export const getPracticeDetailsRoute = createRoute({
+export const getPracticeDetailsRoute = routeBuilder.build({
   method: 'get',
   path: '/{uuid}/details',
   tags: ['Practice'],
@@ -30,26 +31,10 @@ export const getPracticeDetailsRoute = createRoute({
       },
       description: 'Practice details retrieved successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Practice not found',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid request parameters',
-    },
   },
 });
 
-export const createPracticeDetailsRoute = createRoute({
+export const createPracticeDetailsRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/details',
   tags: ['Practice'],
@@ -75,34 +60,10 @@ export const createPracticeDetailsRoute = createRoute({
       },
       description: 'Practice details created successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid request data or practice details already exist',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Practice not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Failed to create practice details',
-    },
   },
 });
 
-export const updatePracticeDetailsRoute = createRoute({
+export const updatePracticeDetailsRoute = routeBuilder.build({
   method: 'put',
   path: '/{uuid}/details',
   tags: ['Practice'],
@@ -128,34 +89,10 @@ export const updatePracticeDetailsRoute = createRoute({
       },
       description: 'Practice details updated successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Practice not found',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid request data',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Failed to update practice details',
-    },
   },
 });
 
-export const deletePracticeDetailsRoute = createRoute({
+export const deletePracticeDetailsRoute = routeBuilder.build({
   method: 'delete',
   path: '/{uuid}/details',
   tags: ['Practice'],
@@ -168,34 +105,10 @@ export const deletePracticeDetailsRoute = createRoute({
     204: {
       description: 'Practice details deleted successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Practice not found',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid request parameters',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Failed to delete practice details',
-    },
   },
 });
 
-export const getPracticeDetailsBySlugRoute = createRoute({
+export const getPracticeDetailsBySlugRoute = routeBuilder.build({
   method: 'get',
   path: '/details/{slug}',
   tags: ['Practice'],
@@ -221,22 +134,6 @@ export const getPracticeDetailsBySlugRoute = createRoute({
         },
       },
       description: 'Practice details retrieved successfully',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Practice not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
     },
   },
 });

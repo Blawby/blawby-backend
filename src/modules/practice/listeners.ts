@@ -16,13 +16,14 @@ import {
   PracticeSwitched,
   IntakePaymentSucceeded,
 } from '@/shared/events/definitions';
+import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
 import { addEmailJob } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
-const APP_URL = process.env.APP_URL ?? 'https://app.blawby.com';
+const APP_URL = config.app.appUrl;
 
 /**
  * Register all practice event listeners

@@ -161,7 +161,8 @@ export const buildPracticeDetailsDeletedPayload = (existing: PracticeDetails) =>
 export const findAndDeletePracticeDetails = async (
   ctx: ServiceContext,
   organizationId: string
-): Promise<PracticeDetails | null> => await db.transaction(async (tx) => {
+): Promise<PracticeDetails | null> =>
+  await db.transaction(async (tx) => {
     const [deleted] = await tx
       .delete(practiceDetailsTable)
       .where(eq(practiceDetailsTable.organization_id, organizationId))

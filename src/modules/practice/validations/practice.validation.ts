@@ -85,9 +85,13 @@ const isAnyFieldProvided = (
 ): boolean => {
   const { treatEmptyStringAsProvided = false } = options;
   return Object.keys(schema.shape).some((key) => {
-    if (! Object.hasOwn(data, key)) {return false;}
+    if (!Object.hasOwn(data, key)) {
+      return false;
+    }
     const value = data[key];
-    if (value === undefined || value === null) {return false;}
+    if (value === undefined || value === null) {
+      return false;
+    }
     if (typeof value === 'object' && !Array.isArray(value)) {
       return Object.keys(value).length > 0;
     }
@@ -533,5 +537,6 @@ export const practiceValidations = {
   practiceDetailsCreateResponseSchema,
   practiceDetailsUpdateResponseSchema,
   slugParamSchema,
-  hasPracticeDetails: (data: Partial<z.infer<typeof practiceDetailsValidationSchema>>) => isAnyFieldProvided(data, practiceDetailsValidationSchema),
+  hasPracticeDetails: (data: Partial<z.infer<typeof practiceDetailsValidationSchema>>) =>
+    isAnyFieldProvided(data, practiceDetailsValidationSchema),
 };
