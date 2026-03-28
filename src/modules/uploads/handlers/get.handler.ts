@@ -7,7 +7,7 @@ import type { routes } from '@/modules/uploads/routes';
 const getHandler: AppRouteHandler<typeof routes.getUploadRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.getUploadDetails({ uploadId: id }, ctx);
+  const result = await uploadsService.getUploadDetails({ id }, ctx);
   return sendResult(c, result);
 };
 

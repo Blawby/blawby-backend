@@ -1,4 +1,4 @@
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, count } from 'drizzle-orm';
 
 import {
   uploadAuditLogs,
@@ -21,6 +21,15 @@ export const auditLogsRepository = {
       .where(eq(uploadAuditLogs.upload_id, uploadId))
       .orderBy(desc(uploadAuditLogs.created_at))
       .limit(limit);
+  },
+
+  countByUploadId: async function countByUploadId(uploadId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: count() })
+      .from(uploadAuditLogs)
+      .where(eq(uploadAuditLogs.upload_id, uploadId));
+
+    return result?.count ?? 0;
   },
 
   findByOrganization: async function findByOrganization(

@@ -7,7 +7,7 @@ import type { routes } from '@/modules/uploads/routes';
 const restoreHandler: AppRouteHandler<typeof routes.restoreUploadRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.restoreUpload({ uploadId: id }, ctx);
+  const result = await uploadsService.restoreUpload({ id }, ctx);
   return sendResult(c, result);
 };
 

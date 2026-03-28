@@ -39,29 +39,3 @@ export type ListUploadsResponse = z.infer<typeof uploadValidations.listUploadsRe
 export type DownloadUrlResponse = z.infer<typeof uploadValidations.downloadUrlResponseSchema>;
 export type AuditLogEntry = z.infer<typeof uploadValidations.auditLogEntrySchema>;
 export type AuditLogResponse = z.infer<typeof uploadValidations.auditLogResponseSchema>;
-export interface UploadMutationResponse {
-  message: string;
-}
-
-export interface PresignUploadParams {
-  request: PresignUploadRequest;
-}
-
-export interface UploadIdParams {
-  uploadId: string;
-}
-
-export interface DeleteUploadParams {
-  uploadId: string;
-  request: DeleteUploadRequest;
-}
-
-export interface DownloadUploadParams {
-  uploadId: string;
-  ipAddress?: string;
-  userAgent?: string;
-}
-
-export interface ListUploadsParams {
-  query: ListUploadsQuery;
-}

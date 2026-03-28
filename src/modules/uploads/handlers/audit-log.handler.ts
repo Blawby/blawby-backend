@@ -7,7 +7,7 @@ import type { routes } from '@/modules/uploads/routes';
 const getAuditLogHandler: AppRouteHandler<typeof routes.getAuditLogRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.getAuditLogs({ uploadId: id }, ctx);
+  const result = await uploadsService.getAuditLogs({ id }, ctx);
   return sendResult(c, result);
 };
 

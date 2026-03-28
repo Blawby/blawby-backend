@@ -175,12 +175,15 @@ export const uploadQueriesService = {
         return accessResult;
       }
 
-      const logs = await auditLogsRepository.findByUploadId(uploadId, 100);
+      const [logs, total] = await Promise.all([
+        auditLogsRepository.findByUploadId(uploadId, 100),
+        auditLogsRepository.countByUploadId(uploadId),
+      ]);
       const auditLogs = logs.map(uploadsSharedService.mapAuditLogEntry);
 
       return ok({
         audit_logs: auditLogs,
-        total: auditLogs.length,
+        total,
       });
     } catch (error) {
       logger.error('Failed to get audit logs for {uploadId}: {error}', { uploadId, error });

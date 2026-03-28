@@ -13,7 +13,7 @@ import type {
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { Result } from '@/shared/types/result';
 import { toSubject } from '@/shared/auth/subject-helpers';
-import { badRequest, forbidden, unauthorized } from '@/shared/utils/result';
+import { badRequest, forbidden, ok, unauthorized } from '@/shared/utils/result';
 
 const uploadContexts = ['matter', 'intake', 'trust', 'profile', 'asset'] as const;
 const auditActions = ['created', 'viewed', 'downloaded', 'deleted', 'restored', 'confirmed'] as const;
@@ -75,12 +75,20 @@ const ensureUploadAccess = (
   ctx: ServiceContext,
   action: 'read' | 'update' | 'delete'
 ): Result<never> | null => {
-  if (action === 'read') {
-    assertUploadReadAccess(ctx, upload);
-  } else if (action === 'update') {
-    assertUploadUpdateAccess(ctx, upload);
-  } else {
-    assertUploadDeleteAccess(ctx, upload);
+  try {
+    if (action === 'read') {
+      assertUploadReadAccess(ctx, upload);
+    } else if (action === 'update') {
+      assertUploadUpdateAccess(ctx, upload);
+    } else {
+      assertUploadDeleteAccess(ctx, upload);
+    }
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return forbidden('Access denied');
+    }
+
+    throw error;
   }
 
   if (isOwnProfileUpload(upload, ctx)) {
@@ -110,15 +118,19 @@ const generateStorageKey = (params: {
   matterId?: string;
   entityId?: string;
   subContext?: SubContext;
-}): string => {
+}): Result<string> => {
   const sanitizedFileName = sanitizeFileName(params.fileName);
 
-  if (params.uploadContext === 'profile' && params.userId) {
-    return `users/${params.userId}/profile/${params.uploadId}_${sanitizedFileName}`;
+  if (params.uploadContext === 'profile') {
+    if (!params.userId) {
+      return badRequest('User ID required for profile uploads');
+    }
+
+    return ok(`users/${params.userId}/profile/${params.uploadId}_${sanitizedFileName}`);
   }
 
   if (!params.organizationId) {
-    throw new Error('Organization ID required for non-profile uploads');
+    return badRequest('Organization ID required for non-profile uploads');
   }
 
   const date = new Date();
@@ -128,26 +140,28 @@ const generateStorageKey = (params: {
   switch (params.uploadContext) {
     case 'matter': {
       if (!params.matterId) {
-        throw new Error('Matter ID required for matter uploads');
+        return badRequest('Matter ID required for matter uploads');
       }
 
       const subFolder = params.subContext ?? 'documents';
-      return `orgs/${params.organizationId}/matters/${params.matterId}/${subFolder}/${params.uploadId}_${sanitizedFileName}`;
+      return ok(
+        `orgs/${params.organizationId}/matters/${params.matterId}/${subFolder}/${params.uploadId}_${sanitizedFileName}`
+      );
     }
     case 'intake':
       if (!params.entityId) {
-        throw new Error('Entity ID (intake ID) required for intake uploads');
+        return badRequest('Entity ID (intake ID) required for intake uploads');
       }
 
-      return `orgs/${params.organizationId}/intakes/${params.entityId}/${params.uploadId}_${sanitizedFileName}`;
+      return ok(`orgs/${params.organizationId}/intakes/${params.entityId}/${params.uploadId}_${sanitizedFileName}`);
     case 'trust':
-      return `orgs/${params.organizationId}/trust-accounting/${year}/${month}/${params.uploadId}_${sanitizedFileName}`;
+      return ok(
+        `orgs/${params.organizationId}/trust-accounting/${year}/${month}/${params.uploadId}_${sanitizedFileName}`
+      );
     case 'asset':
-      return `orgs/${params.organizationId}/firm-assets/${params.uploadId}_${sanitizedFileName}`;
-    case 'profile':
-      throw new Error('User ID required for profile uploads');
+      return ok(`orgs/${params.organizationId}/firm-assets/${params.uploadId}_${sanitizedFileName}`);
     default:
-      return `orgs/${params.organizationId}/misc/${params.uploadId}_${sanitizedFileName}`;
+      return ok(`orgs/${params.organizationId}/misc/${params.uploadId}_${sanitizedFileName}`);
   }
 };
 
@@ -240,6 +254,7 @@ const mapAuditLogEntry = (log: SelectUploadAuditLog): AuditLogEntry => ({
   upload_id: log.upload_id,
   action: toAuditAction(log.action),
   user_id: log.user_id,
+  // User_name is not loaded by the current audit-log query and is intentionally omitted.
   user_name: null,
   ip_address: log.ip_address,
   user_agent: log.user_agent,

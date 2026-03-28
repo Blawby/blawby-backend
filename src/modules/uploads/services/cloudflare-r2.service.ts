@@ -23,7 +23,7 @@ let _r2Client: S3Client | null = null;
  */
 const initR2Client = (): S3Client => {
   if (!_r2Client) {
-    const accountId = config.cloudflare.accountId;
+    const { accountId } = config.cloudflare;
     const accessKeyId = config.cloudflare.r2AccessKeyId;
     const secretAccessKey = config.cloudflare.r2SecretAccessKey;
 

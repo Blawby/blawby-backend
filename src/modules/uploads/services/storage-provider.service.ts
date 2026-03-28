@@ -54,8 +54,12 @@ export const storageProviderService = {
   },
 
   async verifyStoredUpload(upload: SelectUpload): Promise<Result<void>> {
-    if (upload.storage_provider !== 'r2' || !upload.storage_key) {
+    if (upload.storage_provider !== 'r2') {
       return ok(undefined);
+    }
+
+    if (!upload.storage_key) {
+      return badRequest('Storage key missing for R2 upload');
     }
 
     const bucket = config.cloudflare.r2BucketName;

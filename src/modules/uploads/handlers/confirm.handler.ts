@@ -7,7 +7,7 @@ import type { routes } from '@/modules/uploads/routes';
 const confirmHandler: AppRouteHandler<typeof routes.confirmUploadRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.confirmUpload({ uploadId: id }, ctx);
+  const result = await uploadsService.confirmUpload({ id }, ctx);
 
   return sendResult(c, result);
 };

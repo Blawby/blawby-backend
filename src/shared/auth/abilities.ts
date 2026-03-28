@@ -13,6 +13,8 @@ export type SubjectName =
   | 'all'
   | 'OrganizationPreferences'
   | 'PracticeClientIntake'
+  | 'Upload'
+  | 'Trust'
   | 'User'
   | 'Organization'
   | 'Matter'

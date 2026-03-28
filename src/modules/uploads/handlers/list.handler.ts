@@ -7,7 +7,7 @@ import type { routes } from '@/modules/uploads/routes';
 const listHandler: AppRouteHandler<typeof routes.listUploadsRoute> = async (c) => {
   const query = c.req.valid('query');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.listUploads({ query }, ctx);
+  const result = await uploadsService.listUploads(query, ctx);
   return sendResult(c, result);
 };
 

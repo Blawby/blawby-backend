@@ -9,7 +9,7 @@ const downloadHandler: AppRouteHandler<typeof routes.getDownloadUrlRoute> = asyn
   const ipAddress = c.req.header('x-forwarded-for') ?? c.req.header('remote-addr');
   const userAgent = c.req.header('user-agent');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.getDownloadUrl({ uploadId: id, ipAddress, userAgent }, ctx);
+  const result = await uploadsService.getDownloadUrl({ id, ipAddress, userAgent }, ctx);
   return sendResult(c, result);
 };
 

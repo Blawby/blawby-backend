@@ -65,7 +65,6 @@ const generateImagesUploadUrl = async (params: {
     );
   }
 
-  // POST to Cloudflare API to get upload URL and image ID
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountHash}/images/v2/direct_upload`, {
     method: 'POST',
     headers: {
@@ -81,9 +80,14 @@ const generateImagesUploadUrl = async (params: {
 
   const data = await parseJsonResponse(response, {});
   const result = isRecord(data) ? getRecord(data, 'result') : null;
+  const uploadUrl = result ? getString(result, 'uploadURL') : undefined;
+
+  if (!uploadUrl) {
+    throw new Error(`Malformed Cloudflare Images response: missing uploadURL (${JSON.stringify(data)})`);
+  }
 
   return {
-    uploadUrl: result ? (getString(result, 'uploadURL') ?? '') : '',
+    uploadUrl,
     imageId: result ? (getString(result, 'id') ?? null) : null,
   };
 };

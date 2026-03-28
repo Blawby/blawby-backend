@@ -7,7 +7,7 @@ import type { InsertUpload } from '@/modules/uploads/database/schema/uploads.sch
 import type { PresignUploadParams, PresignUploadResponse } from '@/modules/uploads/types/uploads.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { badRequest, internalError, ok } from '@/shared/utils/result';
+import { internalError, ok } from '@/shared/utils/result';
 
 const logger = getLogger(['uploads', 'presign-service']);
 
@@ -26,28 +26,17 @@ const createStorageKeyResult = (
   request: PresignUploadParams['request'],
   ctx: ServiceContext,
   uploadId: string
-): { success: true; storageKey: string } | { success: false; errorMessage: string } => {
-  try {
-    return {
-      success: true,
-      storageKey: uploadsSharedService.generateStorageKey({
-        organizationId: ctx.organizationId,
-        userId: request.upload_context === 'profile' ? ctx.userId : undefined,
-        uploadContext: request.upload_context,
-        uploadId,
-        fileName: request.file_name,
-        matterId: request.matter_id,
-        entityId: request.entity_id,
-        subContext: request.sub_context,
-      }),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      errorMessage: error instanceof Error ? error.message : 'Invalid upload context',
-    };
-  }
-};
+): Result<string> =>
+  uploadsSharedService.generateStorageKey({
+    organizationId: ctx.organizationId,
+    userId: request.upload_context === 'profile' ? ctx.userId : undefined,
+    uploadContext: request.upload_context,
+    uploadId,
+    fileName: request.file_name,
+    matterId: request.matter_id,
+    entityId: request.entity_id,
+    subContext: request.sub_context,
+  });
 
 export const uploadPresignService = {
   async presignUpload({ request }: PresignUploadParams, ctx: ServiceContext): Promise<Result<PresignUploadResponse>> {
@@ -70,12 +59,11 @@ export const uploadPresignService = {
       const storageProvider = resolveStorageProvider(request.upload_context, request.mime_type);
 
       const storageKeyResult = createStorageKeyResult(request, ctx, uploadId);
-
       if (!storageKeyResult.success) {
-        return badRequest(storageKeyResult.errorMessage);
+        return storageKeyResult;
       }
 
-      const { storageKey } = storageKeyResult;
+      const storageKey = storageKeyResult.data;
 
       const uploadTarget = await storageProviderService.createUploadTarget({
         storageProvider,
@@ -123,9 +111,8 @@ export const uploadPresignService = {
         user_id: ctx.userId,
       });
 
-      logger.info('Generated presigned URL for upload {uploadId} ({fileName})', {
+      logger.info('Generated presigned URL for upload {uploadId}', {
         uploadId,
-        fileName: request.file_name,
         storageProvider,
       });
 

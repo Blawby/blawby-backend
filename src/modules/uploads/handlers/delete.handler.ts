@@ -8,7 +8,7 @@ const deleteHandler: AppRouteHandler<typeof routes.deleteUploadRoute> = async (c
   const { id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const ctx = getServiceContext(c);
-  const result = await uploadsService.deleteUpload({ uploadId: id, request: validatedBody }, ctx);
+  const result = await uploadsService.deleteUpload({ id, request: validatedBody }, ctx);
   return sendResult(c, result);
 };
 
