@@ -18,8 +18,12 @@ const logger = getLogger(['subscriptions', 'handlers', 'product-created']);
  * Parse limit value from metadata
  */
 const parseLimit = (value: string | undefined, defaultValue: number): number => {
-  if (!value) {return defaultValue;}
-  if (value.toLowerCase() === 'unlimited' || value === '-1') {return -1;}
+  if (!value) {
+    return defaultValue;
+  }
+  if (value.toLowerCase() === 'unlimited' || value === '-1') {
+    return -1;
+  }
   const parsed = parseInt(value, 10);
   return Number.isNaN(parsed) ? defaultValue : parsed;
 };
@@ -116,7 +120,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
         .filter((price) => price.recurring?.usage_type === 'metered' && price.recurring?.meter)
         .map(async (price) => {
           try {
-            const {recurring} = price;
+            const { recurring } = price;
             if (!recurring?.meter) {
               return null;
             }
@@ -124,7 +128,9 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
             const meter = await stripe.billing.meters.retrieve(meterId);
             const meterName = meter.event_name;
             const type = getInternalTypeFromMeterName(meterName);
-            if (!type) {return null;}
+            if (!type) {
+              return null;
+            }
             return { price_id: price.id, meter_name: meterName, type };
           } catch (err) {
             logger.error('Failed to retrieve meter for price {priceId}: {error}', {
@@ -147,7 +153,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
       stripe_yearly_price_id: yearlyPrice?.id ?? null,
       monthly_price: monthlyPrice?.unit_amount ? (monthlyPrice.unit_amount / 100).toString() : null,
       yearly_price: yearlyPrice?.unit_amount ? (yearlyPrice.unit_amount / 100).toString() : null,
-      currency: (monthlyPrice?.currency ?? yearlyPrice?.currency) ?? 'usd',
+      currency: monthlyPrice?.currency ?? yearlyPrice?.currency ?? 'usd',
       image: product.images?.[0] || null,
       features,
       limits,

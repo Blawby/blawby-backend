@@ -129,11 +129,13 @@ export interface SubscriptionPlanResponse {
     invoices_per_month: number;
     storage_gb: number;
   };
-  metered_items?: {
-    price_id: string;
-    meter_name: string;
-    type: string;
-  }[] | null;
+  metered_items?:
+    | {
+        price_id: string;
+        meter_name: string;
+        type: string;
+      }[]
+    | null;
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
