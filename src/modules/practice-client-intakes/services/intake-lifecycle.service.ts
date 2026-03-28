@@ -18,6 +18,7 @@ import type { intakeValidations } from '@/modules/practice-client-intakes/valida
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
 import type { PaginatedResultWithMeta, Result } from '@/shared/types/result';
@@ -116,6 +117,38 @@ const updateTriageStatus = async (
       triage_reason: nextReason,
       triage_decided_at: new Date(),
     });
+
+    // Emit triage event for email notifications
+    const metadata = intakeSharedHelpers.parseMetadata(intakeResult.data.metadata);
+
+    if (metadata?.email) {
+      try {
+        const organization = await organizationRepository.findById(ctx.organizationId);
+
+        if (organization) {
+          void IntakeTriaged.dispatch(
+            {
+              intake_id: params.uuid,
+              organization_id: ctx.organizationId,
+              organization_name: organization.name,
+              triage_status: nextTriageStatus,
+              triage_reason: nextReason,
+              client_email: metadata.email,
+              client_name: metadata.name ?? metadata.email,
+            },
+            {
+              actorId: ctx.userId,
+              organizationId: ctx.organizationId,
+            }
+          );
+        }
+      } catch (enrichmentError) {
+        logger.warn('Failed to enrich IntakeTriaged event for intake {uuid}: {error}', {
+          uuid: params.uuid,
+          error: enrichmentError,
+        });
+      }
+    }
 
     return result.ok({
       success: true,

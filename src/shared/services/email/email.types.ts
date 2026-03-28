@@ -28,6 +28,14 @@ export const EMAIL_TEMPLATES = {
   SCHEDULED_EVENT: 'scheduled-event',
   // Auth
   MAGIC_LINK: 'magic-link',
+  // Intakes
+  INTAKE_SUBMISSION_RECEIVED: 'intake-submission-received',
+  INTAKE_NEW_NOTIFICATION: 'intake-new-notification',
+  INTAKE_ACCEPTED: 'intake-accepted',
+  INTAKE_DECLINED: 'intake-declined',
+  // Matters
+  MATTER_OPENED: 'matter-opened',
+  MATTER_CLOSED: 'matter-closed',
 } as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];
@@ -150,6 +158,45 @@ export interface PracticeInvitationData extends BaseEmailData {
   inviterName: string;
   practiceName: string;
   inviteLink: string;
+}
+
+// Intake submission received data (prospect-facing)
+export interface IntakeSubmissionReceivedData extends BaseEmailData {
+  practiceName: string;
+  submittedAt: string;
+}
+
+// Intake new notification data (practice-facing)
+export interface IntakeNewNotificationData extends BaseEmailData {
+  clientName: string;
+  clientEmail: string;
+  amount: number;
+  intakeUrl: string;
+  practiceName: string;
+}
+
+// Intake accepted data (prospect-facing)
+export interface IntakeAcceptedData extends BaseEmailData {
+  practiceName: string;
+}
+
+// Intake declined data (prospect-facing)
+export interface IntakeDeclinedData extends BaseEmailData {
+  practiceName: string;
+  reason?: string;
+}
+
+// Matter opened data (client-facing)
+export interface MatterOpenedData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
+  dashboardUrl: string;
+}
+
+// Matter closed data (client-facing)
+export interface MatterClosedData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
 }
 
 // Email job payload (what gets queued)

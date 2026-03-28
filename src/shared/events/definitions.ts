@@ -9,6 +9,7 @@
  */
 
 import * as auth from './definitions/auth';
+import * as intakes from './definitions/intakes';
 import * as invoices from './definitions/invoices';
 import * as matters from './definitions/matters';
 import * as onboarding from './definitions/onboarding';
@@ -23,6 +24,7 @@ import * as users from './definitions/users';
 
 // Re-export everything for backward compatibility
 export * from './definitions/auth';
+export * from './definitions/intakes';
 export * from './definitions/invoices';
 export * from './definitions/matters';
 export * from './definitions/onboarding';
@@ -144,6 +146,10 @@ export const EventClasses = {
   'matter.updated': matters.MatterUpdated,
   'matter.deleted': matters.MatterDeleted,
   'matter.status_changed': matters.MatterStatusChanged,
+
+  // Intake
+  'intake.submitted': intakes.IntakeSubmitted,
+  'intake.triaged': intakes.IntakeTriaged,
 
   // Invoice
   'invoice.created': invoices.InvoiceCreated,
