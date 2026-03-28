@@ -18,7 +18,7 @@ import type {
   UpdatePracticeClientIntakeRequest,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { db } from '@/shared/database';
-import { IntakePaymentCreated } from '@/shared/events/definitions';
+import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
@@ -225,6 +225,26 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
         organizationId: organization.id,
       }
     );
+
+    // For bypass-payment intakes (free or payment disabled), the intake is already complete
+    if (shouldBypassPayment) {
+      void IntakeSubmitted.dispatch(
+        {
+          intake_id: intake.id,
+          organization_id: organization.id,
+          organization_name: organization.name,
+          billing_email: organization.billingEmail ?? null,
+          client_email: request.email,
+          client_name: request.name,
+          amount: request.amount,
+          currency: 'usd',
+        },
+        {
+          actorId: 'organization',
+          organizationId: organization.id,
+        }
+      );
+    }
 
     return result.ok({
       success: true,

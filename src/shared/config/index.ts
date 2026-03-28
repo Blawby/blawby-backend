@@ -49,6 +49,7 @@ const envSchema = z
     CLOUDFLARE_IMAGES_API_TOKEN: z.string().optional(),
     CLOUDFLARE_TURNSTILE_SECRET_KEY: z.string().optional(),
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
+    WORKER_EVENT_SECRET: z.string().optional(),
   })
   .loose();
 
@@ -124,6 +125,9 @@ export const config = {
   },
   captcha: {
     skip: raw.SKIP_CAPTCHA === 'true',
+  },
+  workerEvents: {
+    secret: raw.WORKER_EVENT_SECRET,
   },
   database: {
     url: raw.DATABASE_URL,
