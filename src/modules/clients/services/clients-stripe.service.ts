@@ -1,6 +1,8 @@
 import { getLogger } from '@logtape/logtape';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
+import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['clients', 'stripe-service']);
@@ -8,9 +10,8 @@ const logger = getLogger(['clients', 'stripe-service']);
 const findCustomerByMetadata = async (
   metadata: Record<string, string>,
   ctx: ServiceContext
-): Promise<string | undefined> => {
+): Promise<Result<string | undefined>> => {
   try {
-    // Actually, stripe.customers.search is better for metadata.
     const query = Object.entries(metadata)
       .map(([k, v]) => `metadata['${k}']:'${v}'`)
       .join(' AND ');
@@ -19,14 +20,14 @@ const findCustomerByMetadata = async (
       limit: 1,
     });
 
-    return response.data[0]?.id;
+    return result.ok(response.data[0]?.id);
   } catch (error) {
     logger.error('Failed to search Stripe customer by metadata {metadata}: {error}', {
       metadata,
       error,
       organizationId: ctx.organizationId,
     });
-    return undefined;
+    return result.fail('Failed to search Stripe customer', 500, 'STRIPE_SEARCH_FAILED');
   }
 };
 

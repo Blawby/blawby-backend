@@ -24,7 +24,11 @@ const findById = async (
     },
   });
 
-const findByOrgAndUser = async (organizationId: string, userId: string, tx: DbOrTx = db): Promise<SelectClient | undefined> => {
+const findByOrgAndUser = async (
+  organizationId: string,
+  userId: string,
+  tx: DbOrTx = db
+): Promise<SelectClient | undefined> => {
   const [result] = await tx
     .select()
     .from(clients)
@@ -139,9 +143,20 @@ const listClients = async (params: {
   };
 };
 
+const findByIdForUpdate = async (
+  id: string,
+  tx: DbOrTx = db
+): Promise<SelectClient | undefined> => {
+  const result = await tx.execute(
+    sql`SELECT * FROM "clients" WHERE "id" = ${id} AND "deleted_at" IS NULL FOR UPDATE`
+  );
+  return (result.rows?.[0] as SelectClient) || undefined;
+};
+
 export const clientsRepository = {
   create,
   findById,
+  findByIdForUpdate,
   findByOrgAndUser,
   findByStripeCustomerId,
   update,

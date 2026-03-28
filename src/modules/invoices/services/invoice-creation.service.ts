@@ -63,6 +63,7 @@ const validateInvoiceCreation = async (
   ctx: ServiceContext
 ): Promise<Result<{ clientId: string }>> => {
   // 1. Resolve and validate client with all required relations
+  // oxlint-disable-next-line init-declarations
   let clientResult: Awaited<ReturnType<typeof invoiceClientResolver.resolveClientForInvoice>>;
   try {
     clientResult = await invoiceClientResolver.resolveClientForInvoice(
@@ -71,8 +72,12 @@ const validateInvoiceCreation = async (
       data.connected_account_id
     );
   } catch (error) {
-    logger.error('Unexpected error while resolving client for invoice: {error}', { error, clientId: data.client_id });
-    return result.internalError('Failed to resolve client for invoice creation');
+    return handleServiceError(
+      error,
+      logger,
+      { organizationId: ctx.organizationId, userId: ctx.userId, clientId: data.client_id },
+      'Failed to resolve client for invoice creation'
+    );
   }
 
   if (!clientResult.success) {
@@ -196,12 +201,12 @@ const persistInvoiceStructure = async (
 
     await InvoiceCreated.dispatch(
       {
-        invoice_id: newInvoice.id,
+        invoice_id: invWithRel.id,
         organization_id: ctx.organizationId,
         client_id: clientId,
         matter_id: data.matter_id ?? null,
-        invoice_number: newInvoice.invoice_number,
-        total: totals.total,
+        invoice_number: invWithRel.invoice_number,
+        total: invWithRel.total,
       },
       {
         actorId: ctx.userId,

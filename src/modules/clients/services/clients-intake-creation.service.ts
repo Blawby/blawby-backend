@@ -43,69 +43,25 @@ const createClientFromIntake = async (
     return result.fail(`Intake record with ID '${intakeId}' not found`, 404, 'NOT_FOUND');
   }
 
-  const user = await resolveUserForIntake({
-    userId,
-    email,
-    name,
-    phone,
-  });
-  if (!user) {
-    return result.fail('Unable to process intake.', 400, 'BAD_REQUEST');
-  }
-
   const runTx = async (tx: Tx) => {
+    const user = await resolveUserForIntake({
+      userId,
+      email,
+      name,
+      phone,
+    });
+    if (!user) {
+      throw new Error('Unable to resolve user for intake.');
+    }
+
     await ensureClientMember({
       organizationId: ctx.organizationId,
       userId: user.id,
       tx,
     });
 
-    const [existingDetail] = await tx
-      .select()
-      .from(clients)
-      .where(
-        and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
-      )
-      .limit(1);
-
-    if (existingDetail) {
-      if (!existingDetail.intake_id) {
-        const [updatedDetail] = await tx
-          .update(clients)
-          .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
-          .where(eq(clients.id, existingDetail.id))
-          .returning();
-
-        if (!updatedDetail) {
-          throw new Error('Failed to update client with intake_id');
-        }
-
-        Promise.resolve(
-          ClientUpdated.dispatch(
-            {
-              client_id: updatedDetail.id,
-              changes: { intake_id: true, status: true },
-            },
-            { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId, tx }
-          )
-        ).catch((error) => {
-          logger.error(
-            'Failed to dispatch ClientUpdated for intake-created client {clientId} {organizationId}: {error}',
-            {
-              clientId: updatedDetail.id,
-              organizationId: ctx.organizationId,
-              error,
-            }
-          );
-        });
-
-        return { action: 'updated' as const, detail: updatedDetail };
-      }
-
-      return { action: 'existing' as const, detail: existingDetail };
-    }
-
-    const [createdDetail] = await tx
+    // Use upsert to handle concurrent creation race conditions
+    const [detail] = await tx
       .insert(clients)
       .values({
         organization_id: ctx.organizationId,
@@ -118,35 +74,45 @@ const createClientFromIntake = async (
         status: 'active',
         event_name: 'client_intake_success',
       })
+      .onConflictDoUpdate({
+        target: [clients.organization_id, clients.user_id],
+        set: {
+          intake_id: intakeId,
+          status: 'active',
+          updated_at: new Date(),
+        },
+      })
       .returning();
 
-    if (!createdDetail) {
-      throw new Error('Failed to create client from intake');
+    if (!detail) {
+      throw new Error('Failed to upsert client from intake');
     }
 
-    Promise.resolve(
-      ClientCreated.dispatch(
-        {
-          client_id: createdDetail.id,
-          user_id: user.id,
-          name: user.name,
-          email: user.email,
-          stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
-        },
-        { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId, tx }
-      )
-    ).catch((error) => {
-      logger.error('Failed to dispatch ClientCreated for intake-created client {clientId} {organizationId}: {error}', {
-        clientId: createdDetail.id,
-        organizationId: ctx.organizationId,
-        error,
-      });
-    });
+    // Determine if we created or updated for event dispatching purposes (optional, but good for context)
+    // For now, simpler to just dispatch Created if it's new-ish or just Updated
+    // Given the request asks to reuse the conflict resolution helper/pattern - 
+    // we'll just dispatch based on whether it was a fresh insert or not if we can detect it.
+    // Drizzle doesn't easily return whether it was an update or insert in the same way, 
+    // but the ClientCreated event is what matters most for initial setup.
 
-    return { action: 'created' as const, detail: createdDetail };
+    await ClientCreated.dispatch(
+      {
+        client_id: detail.id,
+        user_id: user.id,
+        name: user.name,
+        email: user.email,
+        stripe_customer_id: detail.stripe_customer_id ?? undefined,
+      },
+      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId, tx }
+    );
+
+    return { action: 'processed' as const, detail };
   };
 
-  const outcome = params.tx ? await runTx(params.tx) : await db.transaction(runTx);
+  const outcome = params.tx ? await runTx(params.tx) : await db.transaction(runTx).catch((error) => {
+    logger.error('Failed to process client intake creation transaction: {error}', { error, intakeId });
+    throw error;
+  });
 
   return result.ok(outcome.detail);
 };

@@ -51,7 +51,7 @@ const updateClient = async (
 
   const updated = await db.transaction(async (tx) => {
     // Re-verify and lock inside transaction to prevent race conditions
-    const lockedClient = await clientsRepository.findById(id, tx);
+    const lockedClient = await clientsRepository.findByIdForUpdate(id, tx);
     if (!lockedClient || lockedClient.organization_id !== ctx.organizationId) {
       return result.notFound<SelectClient>('Client not found');
     }

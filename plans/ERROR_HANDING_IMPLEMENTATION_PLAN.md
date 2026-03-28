@@ -254,8 +254,9 @@ const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = as
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   // Do work...
   // If something fails, throw — the job queue will retry
-  if (!result) {
-    throw new Error('Failed to process invoice: required field missing');
+  const hasRequiredFields = stripeInvoice.customer && stripeInvoice.lines?.data?.length > 0;
+  if (!hasRequiredFields) {
+    throw new Error(`Failed to process invoice ${stripeInvoice.id}: missing customer or line items`);
   }
 };
 ```
@@ -266,7 +267,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
 
 ### Migration Sequence
 
-```
+```text
 1. src/shared/middleware/errorHandler.ts                      [Phase 1]
    ↓
 2. src/modules/clients/services/*                              [Phase 2, Tier 1]
@@ -293,7 +294,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
 
 Once all services are migrated to throw:
 
-**Can be deleted:**
+**The following files can be deleted:**
 - `src/shared/utils/result.ts` — no longer used
 - `src/shared/utils/responseUtils.ts` — no longer used
 
@@ -382,13 +383,13 @@ expect(res.status).toBe(404);
 
 ## Success Criteria
 
-- [x] All services return plain data or throw HTTPException
-- [x] No handler has `sendResult(c, result)` remaining
-- [x] No handler has try/catch (except for resource cleanup)
-- [x] Global error handler catches HTTPException natively
-- [x] All tests pass
-- [x] `pnpm run typecheck` passes
-- [x] `pnpm run format:check` passes
+- [ ] All services return plain data or throw HTTPException
+- [ ] No handler has `sendResult(c, result)` remaining
+- [ ] No handler has try/catch (except for resource cleanup)
+- [ ] Global error handler catches HTTPException natively
+- [ ] All tests pass
+- [ ] `pnpm run typecheck` passes
+- [ ] `pnpm run format:check` passes
 
 ---
 
@@ -396,7 +397,7 @@ expect(res.status).toBe(404);
 
 Each module gets one clean commit:
 
-```
+```text
 1. feat(middleware): add HTTPException handling to global error handler
 2. refactor(clients): migrate services to throw HTTPException
 3. refactor(clients): simplify handlers with throw pattern
@@ -406,7 +407,7 @@ Each module gets one clean commit:
 ```
 
 Final cleanup commit:
-```
+```text
 NNN. refactor(shared): remove deprecated Result<T> pattern (result.ts, responseUtils.ts)
 ```
 
