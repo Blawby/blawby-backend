@@ -8,7 +8,7 @@
 
 ## The Standard
 
-Every module should look and feel the same. The **matters**, **preferences**, and **invoices** modules are the gold standard after refactoring. Here's the pattern every module must follow:
+Every module should look and feel the same. The **matters**, **preferences**, and **invoices** modules are the gold standard for **structure** (CASL, ServiceContext, thin handlers), but still require the final **Error Handling** pass to remove `Result<T>`. Here's the target pattern:
 
 ### Handler Pattern
 
@@ -18,8 +18,8 @@ const createThingHandler: AppRouteHandler<typeof routes.createThingRoute> = asyn
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
 
-  const result = await thingService.createThing({ data: body }, ctx);
-  return sendResult(c, result, 201);
+  const thing = await thingService.createThing({ data: body }, ctx); // throws on error
+  return c.json(thing, 201);
 };
 ```
 
@@ -29,37 +29,57 @@ const createThingHandler: AppRouteHandler<typeof routes.createThingRoute> = asyn
 - Never write `if (!user) return response.unauthorized(c)` — middleware handles auth
 - Pass params as an object + `ctx` — never positional args
 - Handlers should be 3-8 lines, no business logic
-- Handler response should go through `sendResult(...)` for consistency
+- Use native Hono `c.json(...)` for all JSON responses
 
 ### Service Pattern
 
 ```typescript
 // thing.service.ts — business logic, max ~200 lines per file
-// Returns Result<T> for success/failure
+// Returns data directly or throws HTTPException for errors
 const createThing = async (
   { data }: { data: CreateThingRequest },
   ctx: ServiceContext,
-): Promise<Result<ThingRecord>> => {
+): Promise<ThingRecord> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Thing');
 
-  const record = await db.transaction(async (tx) => {
+  return await db.transaction(async (tx) => {
     const [newRecord] = await tx.insert(things).values({ ... }).returning();
+    if (!newRecord) {
+      throw new HTTPException(500, { message: 'Failed to create Thing' });
+    }
     await ctx.emit(ThingCreated, { ... }, tx);
     return newRecord;
   });
-
-  return result.ok(record);
 };
 ```
 
 **Rules:**
 
 - Max 2 parameters: `(params, ctx)` — params is an object, ctx is ServiceContext
-- Return `Result<T>` — do not return raw HTTP responses from services
-- Convert expected failures to `result.*` helpers and map to handler responses via `sendResult`
+- Return data directly — do not return Result<T> objects from services
+- Throw `HTTPException` for expected failures (404, 400, etc.) from service layer
 - CASL check first, then validate, then execute
 - Max ~50 lines per function — if longer, extract helpers
 - Max ~200 lines per service file — split into sub-services when it grows
+
+### Paginated Response Pattern
+
+```typescript
+// For offset-based pagination
+const listThingsHandler: AppRouteHandler<typeof routes.listThingsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+
+  const response = await thingService.listThings(query, ctx); // throws on error
+  return c.json(response);
+};
+```
+
+**Rules:**
+
+- Use the standardized `OffsetPaginatedResponse<T>` or `CursorPaginatedResponse<T>` interfaces from `@/shared/types/pagination`
+- Never manually calculate `total_pages` in the handler — the service should return the complete `pagination` or `page_info` metadata
+- JSON responses for lists must always have the primary data array in a `data` field (not module-specific names like `matters` or `invoices`)
 
 ### Route Pattern
 
@@ -84,6 +104,27 @@ export default app;
 
 ---
 
+## Error Handling Transformation (Result → Throw)
+
+**Goal:** Standardize on Hono's native throw-based error handling to eliminate `Result<T>` boilerplate.
+
+### Mapping Table: Result → HTTPException
+
+| Result Helper               | Throw Pattern                                    | Status |
+| --------------------------- | ------------------------------------------------ | ------ |
+| `result.notFound(msg)`      | `throw new HTTPException(404, { message: msg })` | 404    |
+| `result.badRequest(msg)`    | `throw new HTTPException(400, { message: msg })` | 400    |
+| `result.unauthorized(msg)`  | `throw new HTTPException(401, { message: msg })` | 401    |
+| `result.conflict(msg)`      | `throw new HTTPException(409, { message: msg })` | 409    |
+| `result.unprocessable(msg)` | `throw new HTTPException(422, { message: msg })` | 422    |
+| `result.internalError(msg)` | `throw new Error(msg)` (caught as 500)           | 500    |
+
+### Special Cases (Webhooks & Workers)
+
+Webhook services called by job queues (e.g., Graphile Worker) should **not** use `HTTPException`. They should throw raw `Error` objects to trigger standard job retry logic.
+
+---
+
 ## Module Migration Checklist
 
 ```
@@ -98,7 +139,7 @@ export default app;
 **Services:**
 - [ ] Convert all functions to `(params, ctx: ServiceContext)` — max 2 args
 - [ ] Add `ForbiddenError.from(ctx.ability).throwUnlessCan(...)` as first line
-- [ ] Return `Result<T>` from every function — no `throw` for expected failures
+- [ ] Return data directly from every function — throw `HTTPException` for expected failures
 - [ ] Remove all `requestHeaders` parameters
 - [ ] Split any service file >200 lines
 - [ ] Split any function >50 lines
@@ -139,7 +180,7 @@ Remaining high-priority work from this snapshot:
 
 - [ ] Remove remaining `if (!user)` checks in `src/modules/clients/services/clients-crud.service.ts` (2 occurrences)
 - [ ] Remove remaining `requestHeaders` usage in `src/modules/subscriptions/services/subscription.service.ts` (2 occurrences)
-- [ ] Standardize all handlers on `sendResult(...)` response pattern (still inconsistent)
+- [ ] Migrate all modules from `Result<T>` → Hono native throw-based pattern (in progress)
 - [ ] Remove legacy `src/modules/uploads/services/uploads.service.ts` after fully moving references
 
 ---
@@ -150,6 +191,7 @@ Remaining high-priority work from this snapshot:
 - [x] `ServiceContext` type + `getServiceContext` + `ctx.emit()`
 - [x] `routeBuilder.build()` with auto error schemas
 - [x] Global `ForbiddenError` handler, `toSubject()` helper
+- [x] Core Error Handling Part 1: Unified `errorHandler.ts` + `HTTPException` metadata support
 - [x] `matterId` added to `ServiceContext`
 - [x] Delete `routing.service.ts` + all `computeRoutingClaims` usages
 
@@ -206,6 +248,7 @@ Remaining high-priority work from this snapshot:
   - `practice-details.routes.ts`
 - [x] Add CASL checks in practice mutation/query services (admin writes, read-gated queries)
 - [x] Convert service signatures to `(params, ctx)` for practice services
+- [ ] **Migrate handlers/services to throw-based error pattern**
 - [ ] **Event definitions** (`src/shared/events/definitions/practice.ts`):
   - [x] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` — DONE
   - [x] Simplify `PracticeDetailsUpsertedPayload` — DONE
@@ -226,6 +269,7 @@ Remaining high-priority work from this snapshot:
 - [x] Wire `injectAbility()` in `http.ts`
 - [x] Rewrite handlers to use `getServiceContext(c)` and thin `(params, ctx)` service entrypoints
 - [x] Add CASL ownership/staff access checks
+- [ ] **Migrate handlers/services to throw-based error pattern**
 - [x] Split large routes file into logical groups:
   - `routes/public.routes.ts`
   - `routes/client.routes.ts`
@@ -247,6 +291,7 @@ Remaining high-priority work from this snapshot:
 - [x] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
 - [x] Add CASL ownership checks
 - [x] Remove `if (!user)` checks
+- [ ] **Migrate handlers/services to throw-based error pattern**
 - [x] Extract `resolveUserForIntake` to `user-details-utils.ts`
 
 **Status:** Closed (no further required items in this PR scope)
@@ -262,6 +307,7 @@ Remaining high-priority work from this snapshot:
 - [ ] Finalize migration and delete legacy `uploads.service.ts` (still present)
 - [x] Extract storage provider logic (R2 vs Images) into `storage-provider.service.ts`
 - [x] Add CASL per-resource permission checks
+- [ ] **Migrate handlers/services to throw-based error pattern**
 - [x] Split `uploads.routes.ts` (405 lines) into logical groups
 
 ---
@@ -285,6 +331,7 @@ Remaining high-priority work from this snapshot:
 - [x] Rename `http.handlers.ts` → `handlers.ts`
 - [x] Wire `injectAbility()`, adopt `getServiceContext(c)` + `(params, ctx)`
 - [x] Add CASL checks (admin-only)
+- [ ] **Migrate handlers/services to throw-based error pattern**
 - [x] Remove `requestHeaders` params
 
 **Status:** Closed (no further required items in this PR scope)
@@ -503,15 +550,16 @@ PR-14 (Env Config) ── independent, merge any time
 
 ## Metrics
 
-| Metric                         | Before   | Now                                                  | Target            |
-| ------------------------------ | -------- | ---------------------------------------------------- | ----------------- |
-| Modules using `ServiceContext` | 2        | **4** (matters, preferences, invoices, user-details) | all               |
-| Modules using CASL             | 2        | **4**                                                | all authenticated |
-| Service files >200 lines       | 9        | **~13**                                              | **0**             |
-| Route files >300 lines         | 3        | **3**                                                | **0**             |
-| `if (!user)` checks            | ~50      | **2**                                                | **0**             |
-| `computeRoutingClaims` usages  | ~15      | **0**                                                | **0**             |
-| `requestHeaders` params        | ~20      | **7**                                                | **0**             |
-| Direct `process.env` reads     | 70 files | **24 files**                                         | **0**             |
-| `any` type usages              | 23 files | **5 files**                                          | **0**             |
-| `as` type assertions           | many     | many                                                 | **0**             |
+| Metric                          | Before   | Now                                                  | Target            |
+| ------------------------------- | -------- | ---------------------------------------------------- | ----------------- |
+| Modules using `ServiceContext`  | 2        | **4** (matters, preferences, invoices, user-details) | all               |
+| Modules using CASL              | 2        | **4**                                                | all authenticated |
+| Modules using Throw-based Error | 0        | **1** (stripe)                                       | all               |
+| Service files >200 lines        | 9        | **~13**                                              | **0**             |
+| Route files >300 lines          | 3        | **3**                                                | **0**             |
+| `if (!user)` checks             | ~50      | **2**                                                | **0**             |
+| `computeRoutingClaims` usages   | ~15      | **0**                                                | **0**             |
+| `requestHeaders` params         | ~20      | **7**                                                | **0**             |
+| Direct `process.env` reads      | 70 files | **24 files**                                         | **0**             |
+| `any` type usages               | 23 files | **5 files**                                          | **0**             |
+| `as` type assertions            | many     | many                                                 | **0**             |
