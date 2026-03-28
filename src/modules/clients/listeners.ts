@@ -6,7 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { clientsService } from '@/modules/clients/services/clients-crud.service';
+import { clientsCreationService } from '@/modules/clients/services/clients-creation.service';
 import {
   IntakePaymentSucceeded,
   ClientCreated,
@@ -37,7 +37,6 @@ export const registerClientsListeners = (): void => {
       return;
     }
 
-    // User_id is optional - if present, it's the anonymous user ID from the session
     const userId = payload.user_id;
     const organizationId = context?.organizationId ?? payload.organization_id;
 
@@ -48,28 +47,28 @@ export const registerClientsListeners = (): void => {
 
     const sysCtx = createSystemContext(organizationId);
 
-    const result = await clientsService.createClientFromIntake(
-      {
-        data: {
-          intakeId: payload.uuid,
-          userId, // Optional - will use email lookup if not provided
-          email: payload.client_email,
-          name: payload.client_name ?? '',
-          phone: undefined,
+    try {
+      const client = await clientsCreationService.createClientFromIntake(
+        {
+          data: {
+            intakeId: payload.uuid,
+            userId,
+            email: payload.client_email,
+            name: payload.client_name ?? '',
+            phone: undefined,
+          },
         },
-      },
-      sysCtx
-    );
+        sysCtx
+      );
 
-    if (result.success) {
       logger.info('Successfully created client from intake', {
-        clientId: result.data.id,
+        clientId: client.id,
         intakeId: payload.uuid,
       });
-    } else {
+    } catch (error) {
       logger.error('Failed to create client from intake', {
         intakeId: payload.uuid,
-        error: result.error,
+        error,
       });
     }
   });
@@ -86,36 +85,29 @@ export const registerClientsListeners = (): void => {
     });
 
     const sysCtx = createSystemContext(payload.organizationId);
-
     const DEFAULT_CLIENT_NAME = 'New Client';
 
-    const result = await clientsService.createClient(
-      {
-        data: {
-          name: DEFAULT_CLIENT_NAME, // Name might be updated later
-          email: payload.email,
-          status: 'active',
+    try {
+      const client = await clientsCreationService.createClient(
+        {
+          data: {
+            userId: payload.userId,
+            name: DEFAULT_CLIENT_NAME,
+            email: payload.email,
+            status: 'active',
+          },
         },
-      },
-      sysCtx
-    );
+        sysCtx
+      );
 
-    if (result.success) {
-      if ('id' in result.data) {
-        logger.info('Successfully created client for invited client', {
-          clientId: result.data.id,
-          userId: payload.userId,
-        });
-      } else {
-        logger.info('Client creation accepted (pending)', {
-          userId: payload.userId,
-          message: result.data.message,
-        });
-      }
-    } else {
+      logger.info('Successfully created client for invited client', {
+        clientId: client.id,
+        userId: payload.userId,
+      });
+    } catch (error) {
       logger.error('Failed to create client for invited client', {
         userId: payload.userId,
-        error: result.error,
+        error,
       });
     }
   });

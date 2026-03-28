@@ -1,7 +1,7 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
-import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { clientsSetupService } from '@/modules/clients/services/clients-setup.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -164,14 +164,17 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
-
-      if (!setupResult.success) {
-        return { success: false, error: setupResult.error };
-      }
-
-      if (!setupResult.data?.stripe_customer_id) {
-        return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
+      try {
+        await clientsSetupService.ensureClientSetup({ id: invoice.client_id }, ctx);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        logger.error('Failed to setup Stripe customer for invoice client {clientId}: {error}', {
+          clientId: invoice.client_id,
+          error: message,
+        });
+        return result.internalError<InvoiceResponse>(
+          `Failed to setup Stripe customer for client ${invoice.client_id}: ${message}`
+        );
       }
 
       // Refetch invoice to get updated client with stripe_customer_id

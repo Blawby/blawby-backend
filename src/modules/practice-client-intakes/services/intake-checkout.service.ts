@@ -14,7 +14,7 @@ import type {
   IntakePostPayStatusResponse,
   IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { clientsIntakeCreationService } from '@/modules/clients/services/clients-intake-creation.service';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
 import { createSystemContext, type ServiceContext } from '@/shared/types/service-context';
@@ -96,7 +96,8 @@ const processClaimIntakeTx = async (
   const sysCtx = createSystemContext(lockedIntake.organization_id);
 
   // Note: No longer passes transaction - Stripe call happens outside this transaction
-  const clientResult = await clientsCrudService.createClientFromIntake(
+  // CreateClientFromIntake returns SelectClient or throws error (caught by try-catch in createCheckoutSession)
+  await clientsIntakeCreationService.createClientFromIntake(
     {
       data: {
         intakeId: lockedIntake.id,
@@ -108,12 +109,6 @@ const processClaimIntakeTx = async (
     },
     sysCtx
   );
-
-  if (!clientResult.success) {
-    return rollbackWithResult(
-      result.fail(clientResult.error.message, clientResult.error.status, clientResult.error.code)
-    );
-  }
 
   if (!intakeMetadata.user_id) {
     await tx
