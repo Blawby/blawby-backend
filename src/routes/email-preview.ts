@@ -10,6 +10,7 @@ import type {
   WelcomeEmailData,
 } from '@/shared/services/email/email.types';
 import { Hono } from 'hono';
+import { config } from '@/shared/config';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
 import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
@@ -20,7 +21,7 @@ const app = new Hono();
 
 // Production guard - disable all routes in production
 app.use('*', async (c, next) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env.isProduction) {
     return c.json({ error: 'Not available in production' }, 403);
   }
   return await next();

@@ -76,13 +76,8 @@ export const EventClasses = {
   'practice.details_created': practice.PracticeDetailsCreated,
   'practice.details_updated': practice.PracticeDetailsUpdated,
   'practice.details_deleted': practice.PracticeDetailsDeleted,
-  'practice.specialties_updated': practice.PracticeSpecialtiesUpdated,
-  'practice.contact_info_updated': practice.PracticeContactInfoUpdated,
   'practice.member_invited': practice.PracticeMemberInvited,
   'practice.member_joined': practice.PracticeMemberJoined,
-  'practice.member_role_changed': practice.PracticeMemberRoleChanged,
-  'practice.member_removed': practice.PracticeMemberRemoved,
-  'practice.member_left': practice.PracticeMemberLeft,
   'practice.switched': practice.PracticeSwitched,
   'practice.access_denied': practice.PracticeAccessDenied,
 

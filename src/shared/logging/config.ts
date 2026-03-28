@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getFileSink } from '@logtape/file';
 import { configure, getConsoleSink } from '@logtape/logtape';
+import { config } from '@/shared/config';
 
 const LOGS_DIR_NAME = 'logs';
 let isInitialized = false;
@@ -30,7 +31,7 @@ export const initializeLogging = async () => {
       {
         category: [], // Root logger catch-all for the entire application
         sinks: ['console', 'file'],
-        lowestLevel: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+        lowestLevel: config.env.isProduction ? 'info' : 'debug',
       },
     ],
   });

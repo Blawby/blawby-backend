@@ -25,6 +25,8 @@ import {
   API_ACTOR_UUID,
   ORGANIZATION_ACTOR_UUID,
 } from './constants';
+import { config } from '@/shared/config';
+import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import { events, type EventMetadata, type BaseEvent as BaseEventRecord, type NewEvent } from './schemas/events.schema';
 import type * as schema from '@/schema';
 import { db } from '@/shared/database';
@@ -221,26 +223,48 @@ async function dispatchCritical(record: NewEvent, eventId: string, eventType: st
 }
 
 /**
- * Async dispatch: Non-blocking DB write using setImmediate
+ * Async dispatch: Non-blocking DB write with dead-letter fallback
  * Used for fire-and-forget events (practice, client, user activity)
- * Events are still persisted to outbox (durable), just doesn't block the response
+ * Events are still persisted to outbox (durable), just doesn't block the response.
  */
 function dispatchAsync(record: NewEvent, eventId: string, eventType: string): void {
-  // Use setImmediate to defer to next event loop tick - truly non-blocking
-  setImmediate(async () => {
+  void (async () => {
     try {
       await db.insert(events).values(record);
       // Use NOTIFY for instant worker pickup
       await db.execute(sql`NOTIFY new_events`);
     } catch (error) {
-      // Log but don't throw - this is fire-and-forget
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       logger.error('Failed to persist fire-and-forget event {eventType}: {error}', {
         eventType,
         eventId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
+
+      try {
+        await db.insert(eventsDeadLetter).values({
+          eventId,
+          type: record.type,
+          eventVersion: record.eventVersion,
+          actorId: record.actorId,
+          actorType: record.actorType,
+          organizationId: record.organizationId,
+          payload: record.payload,
+          metadata: record.metadata,
+          lastError: errorMessage,
+          retryCount: 0,
+          originalCreatedAt: new Date(),
+        });
+      } catch (deadLetterError) {
+        logger.error('Failed to write fire-and-forget event {eventType} to dead letter queue: {error}', {
+          eventType,
+          eventId,
+          error: deadLetterError instanceof Error ? deadLetterError.message : String(deadLetterError),
+        });
+      }
     }
-  });
+  })();
 }
 
 /**
@@ -276,7 +300,7 @@ export const Event = {
       return;
     }
 
-    const {payload} = record;
+    const { payload } = record;
 
     for (const handler of list) {
       try {

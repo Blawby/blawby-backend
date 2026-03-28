@@ -13,7 +13,9 @@ interface EmailJobInput {
 }
 
 const isEmailJobInput = (input: unknown): input is EmailJobInput => {
-  if (typeof input !== 'object' || input === null) return false;
+  if (typeof input !== 'object' || input === null) {
+    return false;
+  }
   const i = input as Record<string, unknown>;
   return typeof i.payload === 'object' && i.payload !== null;
 };

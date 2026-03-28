@@ -117,7 +117,7 @@ export const getQueueStats = async (
   completed: number;
   failed: number;
 }> => {
-  const schema = graphileWorkerConfig.schema;
+  const { schema } = graphileWorkerConfig;
 
   // Query Graphile Worker's jobs table
   // Jobs are stored with their task_identifier matching the task name
@@ -161,9 +161,7 @@ export const getWebhookQueueStats = async (): Promise<{
   active: number;
   completed: number;
   failed: number;
-}> => {
-  return getQueueStats(TASK_NAMES.PROCESS_STRIPE_WEBHOOK);
-};
+}> => getQueueStats(TASK_NAMES.PROCESS_STRIPE_WEBHOOK);
 
 /**
  * Clean up Graphile Worker connection

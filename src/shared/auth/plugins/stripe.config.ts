@@ -5,6 +5,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import * as schema from '@/schema';
+import { config } from '@/shared/config';
 import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { addWebhookJob } from '@/shared/queue/queue.manager';
@@ -249,9 +250,10 @@ const syncSubscriptionToOrg = async (
 /**
  * Main Plugin Configuration
  */
-export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> => stripePlugin({
+export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeof stripePlugin> =>
+  stripePlugin({
     stripeClient: createProxiedStripeClient(getStripeInstance()),
-    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
+    stripeWebhookSecret: config.stripe.webhookSecret ?? '',
     createCustomerOnSignUp: false,
 
     // Opt: Save customer ID immediately and enrich with metadata
@@ -336,7 +338,9 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 
       authorizeReference: async ({ user, referenceId, action }) => {
         // If listing without ID, allow it (returns empty array anyway)
-        if (!referenceId) {return action === 'list-subscription';}
+        if (!referenceId) {
+          return action === 'list-subscription';
+        }
 
         const member = await db
           .select({ role: schema.members.role })
@@ -344,8 +348,12 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
           .where(and(eq(schema.members.userId, user.id), eq(schema.members.organizationId, referenceId)))
           .limit(1);
 
-        if (!member.length) {return false;}
-        if (action === 'list-subscription') {return true;}
+        if (!member.length) {
+          return false;
+        }
+        if (action === 'list-subscription') {
+          return true;
+        }
         return ['owner', 'admin'].includes(member[0].role || '');
       },
 
@@ -412,7 +420,9 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
         };
         stripeSubscription?: Stripe.Subscription;
       }) => {
-        if (!subscription.referenceId) {return;}
+        if (!subscription.referenceId) {
+          return;
+        }
 
         await db.transaction(async (tx) => {
           // Update active subscription pointer
@@ -469,7 +479,9 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
       },
 
       onSubscriptionCancel: async ({ subscription }) => {
-        if (!subscription.referenceId) {return;}
+        if (!subscription.referenceId) {
+          return;
+        }
 
         // Do NOT null activeSubscriptionId — subscription is still active until period end.
         await subscriptionRepository.createEvent(db, {
@@ -483,7 +495,9 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
       },
 
       onSubscriptionDeleted: async ({ subscription }) => {
-        if (!subscription.referenceId) {return;}
+        if (!subscription.referenceId) {
+          return;
+        }
 
         await db.transaction(async (tx) => {
           // Now we clear the active subscription pointer
@@ -508,19 +522,24 @@ export const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnTyp
 /**
  * Type guards for Stripe Params
  */
-const isCheckoutSessionCreateParams = (params: unknown): params is Stripe.Checkout.SessionCreateParams => typeof params === 'object' && params !== null && 'line_items' in params;
+const isCheckoutSessionCreateParams = (params: unknown): params is Stripe.Checkout.SessionCreateParams =>
+  typeof params === 'object' && params !== null && 'line_items' in params;
 
-const isBillingPortalSessionCreateParams = (params: unknown): params is Stripe.BillingPortal.SessionCreateParams => typeof params === 'object' && params !== null && 'flow_data' in params;
+const isBillingPortalSessionCreateParams = (params: unknown): params is Stripe.BillingPortal.SessionCreateParams =>
+  typeof params === 'object' && params !== null && 'flow_data' in params;
 
 /**
  * Creates a proxied Stripe client that recursively wraps the SDK
  * and intercepts session creation to inject metered items.
  */
 const createProxiedStripeClient = (stripe: Stripe): Stripe => {
-  const wrap = (obj: object, path: string): unknown => new Proxy(obj, {
+  const wrap = (obj: object, path: string): unknown =>
+    new Proxy(obj, {
       get(target, prop, receiver) {
         const val = Reflect.get(target, prop, receiver);
-        if (val === null || val === undefined) {return val;}
+        if (val === null || val === undefined) {
+          return val;
+        }
 
         const propName = String(prop);
         const currentPath = path ? `${path}.${propName}` : propName;
@@ -605,13 +624,17 @@ const injectMeteredItems = async <T extends { price?: string }>(
   items: T[] | undefined
 ): Promise<(T | { price: string })[] | undefined> => {
   const meteredIds = (await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY)) ?? [];
-  if (meteredIds.length === 0) {return undefined;}
+  if (meteredIds.length === 0) {
+    return undefined;
+  }
 
   const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
 
   const newEntries = meteredIds.filter((id) => !existingPrices.has(id)).map((id) => ({ price: id }));
 
-  if (newEntries.length === 0) {return undefined;}
+  if (newEntries.length === 0) {
+    return undefined;
+  }
 
   const addedCount = newEntries.length;
   logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });

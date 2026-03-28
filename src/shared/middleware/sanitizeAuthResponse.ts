@@ -30,12 +30,20 @@ interface SessionResponse {
 }
 
 const isSessionResponse = (obj: unknown): obj is SessionResponse => {
-  if (!obj || typeof obj !== 'object') {return false;}
-  if (!('user' in obj) || !('session' in obj)) {return false;}
+  if (!obj || typeof obj !== 'object') {
+    return false;
+  }
+  if (!('user' in obj) || !('session' in obj)) {
+    return false;
+  }
 
   const { user, session } = obj as Record<string, unknown>;
-  if (!user || typeof user !== 'object') {return false;}
-  if (!session || typeof session !== 'object') {return false;}
+  if (!user || typeof user !== 'object') {
+    return false;
+  }
+  if (!session || typeof session !== 'object') {
+    return false;
+  }
 
   // Validate required fields
   const u = user as Record<string, unknown>;
@@ -89,72 +97,76 @@ function buildResponse(body: string, original: Response): Response {
  * 4. Preserves `set-auth-token` header
  */
 export const sanitizeAuthResponse = (): MiddlewareHandler => async (c, next) => {
-    await next();
+  await next();
 
-    // Only process JSON responses
-    const contentType = c.res.headers.get('content-type');
-    if (!contentType?.includes('application/json')) {
+  // Only process JSON responses
+  const contentType = c.res.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    return;
+  }
+
+  try {
+    const response = c.res.clone();
+    const body = await response.text();
+    const trimmedBody = body.trim();
+
+    if (!trimmedBody) {
       return;
     }
 
+    let data: Record<string, unknown>;
     try {
-      const response = c.res.clone();
-      const body = await response.text();
-      const trimmedBody = body.trim();
-
-      if (!trimmedBody) {return;}
-
-      let data: Record<string, unknown>;
-      try {
-        data = JSON.parse(trimmedBody);
-      } catch {
-        return;
-      }
-
-      if (!data || typeof data !== 'object') {return;}
-
-      let madeChanges = false;
-
-      // Strip top-level `token` from ALL auth responses (security: don't leak session tokens)
-      if ('token' in data) {
-        delete data.token;
-        madeChanges = true;
-      }
-
-      // For session responses, also strip nested session.token
-      if (isSessionResponse(data) && data.session.token) {
-        delete data.session.token;
-        madeChanges = true;
-      }
-
-      // Add routing claims only for get-session endpoint
-      const {path} = c.req;
-      const isGetSession = path === '/api/auth/get-session' || path === '/auth/get-session';
-
-      if (isGetSession && isSessionResponse(data)) {
-        try {
-          const routing = await computeRoutingClaims({
-            user: {
-              id: data.user.id,
-              isAnonymous: data.user.isAnonymous,
-              banned: data.user.banned,
-            },
-            session: {
-              activeOrganizationId: data.session.activeOrganizationId,
-            },
-          });
-          data.routing = routing;
-          madeChanges = true;
-        } catch (error) {
-          logger.error('Failed to compute routing claims: {error}', { error });
-          // Continue without routing rather than failing the request
-        }
-      }
-
-      if (madeChanges) {
-        c.res = buildResponse(JSON.stringify(data), response);
-      }
-    } catch (error) {
-      logger.warn('Failed to sanitize response: {error}', { error });
+      data = JSON.parse(trimmedBody);
+    } catch {
+      return;
     }
-  };
+
+    if (!data || typeof data !== 'object') {
+      return;
+    }
+
+    let madeChanges = false;
+
+    // Strip top-level `token` from ALL auth responses (security: don't leak session tokens)
+    if ('token' in data) {
+      delete data.token;
+      madeChanges = true;
+    }
+
+    // For session responses, also strip nested session.token
+    if (isSessionResponse(data) && data.session.token) {
+      delete data.session.token;
+      madeChanges = true;
+    }
+
+    // Add routing claims only for get-session endpoint
+    const { path } = c.req;
+    const isGetSession = path === '/api/auth/get-session' || path === '/auth/get-session';
+
+    if (isGetSession && isSessionResponse(data)) {
+      try {
+        const routing = await computeRoutingClaims({
+          user: {
+            id: data.user.id,
+            isAnonymous: data.user.isAnonymous,
+            banned: data.user.banned,
+          },
+          session: {
+            activeOrganizationId: data.session.activeOrganizationId,
+          },
+        });
+        data.routing = routing;
+        madeChanges = true;
+      } catch (error) {
+        logger.error('Failed to compute routing claims: {error}', { error });
+        // Continue without routing rather than failing the request
+      }
+    }
+
+    if (madeChanges) {
+      c.res = buildResponse(JSON.stringify(data), response);
+    }
+  } catch (error) {
+    logger.warn('Failed to sanitize response: {error}', { error });
+  }
+};

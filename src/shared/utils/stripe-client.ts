@@ -5,6 +5,7 @@
  */
 
 import { Stripe } from 'stripe';
+import { config } from '@/shared/config';
 
 // Lazy initialization of Stripe client
 let _stripeInstance: Stripe | null = null;
@@ -14,7 +15,7 @@ let _stripeInstance: Stripe | null = null;
  */
 const initStripe = (): Stripe => {
   if (!_stripeInstance) {
-    const apiKey = process.env.STRIPE_SECRET_KEY;
+    const apiKey = config.stripe.secretKey;
     if (!apiKey) {
       throw new Error('STRIPE_SECRET_KEY environment variable is required');
     }
@@ -33,8 +34,7 @@ const initStripe = (): Stripe => {
  *        stripe.customers.list(...)
  */
 export const stripe = new Proxy({} as Stripe, {
-  // oxlint-disable-next-line explicit-function-return-type
-  get(_, prop) {
+  get(_, prop): unknown {
     const client = initStripe();
     const value = client[prop as keyof Stripe];
 

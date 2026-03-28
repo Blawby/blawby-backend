@@ -6,13 +6,12 @@
 
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
-import type Stripe from 'stripe';
 import { invoiceWebhooksService } from '@/modules/invoices/services/invoice-webhooks.service';
-import subscriptionWebhooksService from '@/modules/subscriptions/services/subscriptionWebhooks.service';
+import { subscriptionWebhooksService } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
-import { isPaymentIntentEvent, isSubscriptionEvent } from '@/shared/utils/stripeGuards';
+import { isPaymentIntentEvent, isStripeEvent, isSubscriptionEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['app', 'worker', 'stripe-webhook']);
 
@@ -27,25 +26,32 @@ interface ProcessStripeWebhookPayload {
 /**
  * Checks if the event belongs to the onboarding flow
  */
-const isOnboardingEvent = (eventType: string): boolean => {
-  return (
-    eventType.startsWith('account.') ||
-    eventType.startsWith('capability.') ||
-    eventType.startsWith('account.external_account.')
-  );
-};
+const isOnboardingEvent = (eventType: string): boolean =>
+  eventType.startsWith('account.') ||
+  eventType.startsWith('capability.') ||
+  eventType.startsWith('account.external_account.');
 
 /**
  * Checks if the event belongs to the invoice flow
  */
-const isInvoiceEvent = (eventType: string): boolean => {
-  return eventType.startsWith('invoice.');
-};
+const isInvoiceEvent = (eventType: string): boolean => eventType.startsWith('invoice.');
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const isProcessStripeWebhookPayload = (payload: unknown): payload is ProcessStripeWebhookPayload =>
+  isRecord(payload) &&
+  typeof payload.webhookId === 'string' &&
+  typeof payload.eventId === 'string' &&
+  typeof payload.eventType === 'string';
 
 // --- MAIN TASK ---
 
 export const processStripeWebhook: Task = async (payload, _helpers) => {
-  const { webhookId, eventId, eventType } = payload as ProcessStripeWebhookPayload;
+  if (!isProcessStripeWebhookPayload(payload)) {
+    throw new Error('Invalid processStripeWebhook payload: missing required fields or incorrect types');
+  }
+
+  const { webhookId, eventId, eventType } = payload;
   const startTime = Date.now();
 
   logger.info('🚀 Starting Stripe webhook job: {eventId} ({eventType}) - Job ID: {webhookId}', {
@@ -59,8 +65,7 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
     const webhookEvent = await stripeWebhookEventsRepository.findById(webhookId);
 
     if (!webhookEvent) {
-      logger.error('Webhook event not found: {webhookId}', { webhookId });
-      return;
+      throw new Error(`Webhook event not found in database: ${webhookId}`);
     }
 
     if (webhookEvent.processed) {
@@ -68,7 +73,11 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
       return;
     }
 
-    const event = webhookEvent.payload as Stripe.Event;
+    const event = webhookEvent.payload;
+
+    if (!isStripeEvent(event)) {
+      throw new Error(`Stored webhook payload is not a valid Stripe event: ${webhookId}`);
+    }
 
     // 2. Route & Process
     if (subscriptionWebhooksService.isSubscriptionWebhookEvent(event.type)) {
@@ -116,7 +125,7 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
           eventId,
           processed: updated.processed,
           retryCount: updated.retryCount,
-          error: updated.error || 'None',
+          error: updated.error ?? 'None',
         });
       }
     } catch (dbLogErr) {
