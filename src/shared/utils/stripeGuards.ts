@@ -9,6 +9,8 @@ type StripeEventWithObject<T> = Stripe.Event & {
   };
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
 // Event type prefixes
 const PAYMENT_INTENT_PREFIX = 'payment_intent.';
 const CHARGE_PREFIX = 'charge.';
@@ -36,6 +38,45 @@ const isChargeEvent = (event: Stripe.Event): event is StripeEventWithObject<Stri
   event.data.object.object === 'charge';
 
 /**
+ * Type Guard: Checks if a value is a Stripe Account object.
+ */
+const isStripeAccount = (obj: unknown): obj is Stripe.Account => isRecord(obj) && obj.object === 'account';
+
+/**
+ * Type Guard: Checks if a value is a Stripe Capability object.
+ */
+const isStripeCapability = (obj: unknown): obj is Stripe.Capability => isRecord(obj) && obj.object === 'capability';
+
+/**
+ * Type Guard: Checks if a value is a Stripe External Account object.
+ */
+const isStripeExternalAccount = (obj: unknown): obj is Stripe.ExternalAccount =>
+  isRecord(obj) && (obj.object === 'bank_account' || obj.object === 'card');
+
+/**
+ * Type Guard: Checks if a value is a Stripe Checkout Session object.
+ */
+const isStripeCheckoutSession = (obj: unknown): obj is Stripe.Checkout.Session =>
+  isRecord(obj) && obj.object === 'checkout.session';
+
+/**
+ * Type Guard: Checks if a value is a Stripe Invoice object.
+ */
+const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice => isRecord(obj) && obj.object === 'invoice';
+
+/**
+ * Type Guard: Checks if a value is a Stripe Payment Intent object.
+ */
+const isStripePaymentIntent = (obj: unknown): obj is Stripe.PaymentIntent =>
+  isRecord(obj) && obj.object === 'payment_intent';
+
+/**
+ * Type Guard: Checks if a value is a Stripe Event object.
+ */
+const isStripeEvent = (obj: unknown): obj is Stripe.Event =>
+  isRecord(obj) && typeof obj.type === 'string' && typeof obj.id === 'string' && 'data' in obj;
+
+/**
  * Type Guard: Checks if event is related to Subscriptions.
  * If true, TypeScript knows event.data.object is Stripe.Subscription
  */
@@ -56,4 +97,32 @@ const isProductEvent = (event: Stripe.Event): event is StripeEventWithObject<Str
 const isPriceEvent = (event: Stripe.Event): event is StripeEventWithObject<Stripe.Price | Stripe.DeletedPrice> =>
   event.type.startsWith(PRICE_EVENT_PREFIX);
 
-export { isPaymentIntentEvent, isChargeEvent, isSubscriptionEvent, isProductEvent, isPriceEvent };
+export const stripeGuards = {
+  isPaymentIntentEvent,
+  isChargeEvent,
+  isSubscriptionEvent,
+  isProductEvent,
+  isPriceEvent,
+  isStripeAccount,
+  isStripeCapability,
+  isStripeExternalAccount,
+  isStripeCheckoutSession,
+  isStripeInvoice,
+  isStripePaymentIntent,
+  isStripeEvent,
+};
+
+export {
+  isPaymentIntentEvent,
+  isChargeEvent,
+  isSubscriptionEvent,
+  isProductEvent,
+  isPriceEvent,
+  isStripeAccount,
+  isStripeCapability,
+  isStripeExternalAccount,
+  isStripeCheckoutSession,
+  isStripeInvoice,
+  isStripePaymentIntent,
+  isStripeEvent,
+};

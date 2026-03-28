@@ -8,6 +8,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // oxlint-disable-next-line no-namespace
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
+import { config } from '@/shared/config';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
@@ -30,7 +31,7 @@ const authSessionAdditionalFields =
  */
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
   betterAuth({
-    secret: process.env.BETTER_AUTH_SECRET,
+    secret: config.auth.betterAuthSecret,
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
@@ -133,7 +134,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
       }),
       ...(isDevelopment() ? [testUtils()] : []),
     ],
-    baseURL: process.env.BASE_URL,
+    baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',
     rateLimit: {
       enabled: true,
@@ -222,9 +223,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
     },
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        redirectURI: process.env.GOOGLE_REDIRECT_URI,
+        clientId: config.auth.googleClientId!,
+        clientSecret: config.auth.googleClientSecret,
+        redirectURI: config.auth.googleRedirectUri,
       },
     },
     logger: {

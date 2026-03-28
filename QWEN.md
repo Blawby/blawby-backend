@@ -75,20 +75,19 @@ src/
 ├── scripts/                 # One-off scripts
 ├── modules/                 # Feature modules (domain-driven)
 │   ├── auth/                # Authentication
-│   ├── billing/             # Payment processing
+│   ├── clients/             # Client management (profiles, memos)
 │   ├── dev/                 # Development utilities
 │   ├── invoices/            # Invoice management
 │   ├── matters/             # Legal matter management
-│   ├── onboarding/          # User onboarding
+│   ├── onboarding/          # Stripe Connect onboarding
 │   ├── practice/            # Practice/organization management
-│   ├── practice-client-intakes/  # Client intake
+│   ├── practice-client-intakes/  # Client intake forms
 │   ├── preferences/         # User preferences
 │   ├── public/              # Public routes
 │   ├── stripe/              # Stripe integration
 │   ├── subscriptions/       # Subscription management
 │   ├── trust/               # Trust accounting
 │   ├── uploads/             # File uploads
-│   ├── user-details/        # User profiles
 │   └── webhooks/            # Webhook handlers
 └── shared/
     ├── auth/                # CASL abilities, Better Auth

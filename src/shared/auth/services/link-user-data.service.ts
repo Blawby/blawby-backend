@@ -34,7 +34,7 @@ export const linkAnonymousUserData = async (params: {
 
   const run = async (txContext: DbTx) => {
     // 1. Move organization memberships
-    const anonMemberships: typeof members.$inferSelect[] = await txContext
+    const anonMemberships: (typeof members.$inferSelect)[] = await txContext
       .select()
       .from(members)
       .where(eq(members.userId, anonymousUser.id));
@@ -57,7 +57,7 @@ export const linkAnonymousUserData = async (params: {
     }
 
     // 2. Move Client Details
-    const anonDetails: typeof clients.$inferSelect[] = await txContext
+    const anonDetails: (typeof clients.$inferSelect)[] = await txContext
       .select()
       .from(clients)
       .where(eq(clients.user_id, anonymousUser.id));
@@ -80,7 +80,7 @@ export const linkAnonymousUserData = async (params: {
     }
 
     // 3. Check for succeeded intakes and add user to organization as client
-    const userIntakes: typeof practiceClientIntakes.$inferSelect[] = await txContext
+    const userIntakes: (typeof practiceClientIntakes.$inferSelect)[] = await txContext
       .select()
       .from(practiceClientIntakes)
       .where(

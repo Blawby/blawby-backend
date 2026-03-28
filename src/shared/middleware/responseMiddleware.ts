@@ -33,135 +33,135 @@ type ValidationError = Error & {
  * - Development request logging
  */
 export const responseMiddleware = (): MiddlewareHandler => async (c: Context, next: Next) => {
-    const startTime = Date.now();
-    const requestId = c.get('requestId');
+  const startTime = Date.now();
+  const requestId = c.get('requestId');
 
-    // Set request context data
-    c.set('startTime', startTime);
+  // Set request context data
+  c.set('startTime', startTime);
 
-    try {
-      await next();
+  try {
+    await next();
 
-      // Calculate and log response time
-      const responseTime = Date.now() - startTime;
-      c.set('responseTime', responseTime);
+    // Calculate and log response time
+    const responseTime = Date.now() - startTime;
+    c.set('responseTime', responseTime);
 
-      // Request logging (disabled in production for performance)
-      if (!isProduction()) {
-        console.log(`✅ ${c.req.method} ${c.req.url} - ${responseTime}ms`);
-      }
+    // Request logging (disabled in production for performance)
+    if (!isProduction()) {
+      console.log(`✅ ${c.req.method} ${c.req.url} - ${responseTime}ms`);
+    }
 
-      return;
-    } catch (error) {
-      const responseTime = Date.now() - startTime;
+    return;
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
 
-      // Handle custom validation errors
-      if (error instanceof Error && 'status' in error && 'details' in error) {
-        const validationError = error as ValidationError;
-        const { status, details } = validationError;
+    // Handle custom validation errors
+    if (error instanceof Error && 'status' in error && 'details' in error) {
+      const validationError = error as ValidationError;
+      const { status, details } = validationError;
 
-        logError(error, {
-          method: c.req.method,
-          url: c.req.url,
-          statusCode: status,
-          userId: c.get('userId'),
-          organizationId: c.get('activeOrganizationId'),
-          requestId,
-          responseTime,
-          errorType: 'ValidationError',
-          errorMessage: error.message,
-        });
-
-        return c.json(details, status as ContentfulStatusCode);
-      }
-
-      // Handle custom errors with status codes
-      if (
-        error instanceof Error &&
-        'status' in error &&
-        typeof (error as unknown as { status: unknown }).status === 'number'
-      ) {
-        const status = Number(error.status);
-
-        logError(error, {
-          method: c.req.method,
-          url: c.req.url,
-          statusCode: status,
-          userId: c.get('userId'),
-          organizationId: c.get('activeOrganizationId'),
-          requestId,
-          responseTime,
-          errorType: 'CustomError',
-          errorMessage: error.message,
-        });
-
-        return c.json(
-          {
-            error: error.message,
-            message: error.message,
-            request_id: requestId,
-          },
-          status as ContentfulStatusCode
-        );
-      }
-
-      // Handle HTTP exceptions (Hono's built-in handling might not return JSON)
-      if (error instanceof HTTPException) {
-        logError(error, {
-          method: c.req.method,
-          url: c.req.url,
-          statusCode: error.status,
-          userId: c.get('userId'),
-          organizationId: c.get('activeOrganizationId'),
-          requestId,
-          responseTime,
-          errorType: 'HTTPException',
-          errorMessage: error.message,
-        });
-
-        return c.json(
-          {
-            error: error.message,
-            message: error.message,
-            request_id: requestId,
-          },
-          error.status
-        );
-      }
-
-      // Handle Better Auth unauthorized errors
-      if (error && typeof error === 'object' && 'status' in error && error.status === 'UNAUTHORIZED') {
-        return c.json(
-          {
-            error: 'Unauthorized',
-            message: 'Authentication required',
-            request_id: requestId,
-          },
-          401
-        );
-      }
-
-      // Handle unexpected errors
       logError(error, {
         method: c.req.method,
         url: c.req.url,
-        statusCode: 500,
+        statusCode: status,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
         requestId,
         responseTime,
-        errorType: error?.constructor?.name,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
+        errorType: 'ValidationError',
+        errorMessage: error.message,
+      });
+
+      return c.json(details, status as ContentfulStatusCode);
+    }
+
+    // Handle custom errors with status codes
+    if (
+      error instanceof Error &&
+      'status' in error &&
+      typeof (error as unknown as { status: unknown }).status === 'number'
+    ) {
+      const status = Number(error.status);
+
+      logError(error, {
+        method: c.req.method,
+        url: c.req.url,
+        statusCode: status,
+        userId: c.get('userId'),
+        organizationId: c.get('activeOrganizationId'),
+        requestId,
+        responseTime,
+        errorType: 'CustomError',
+        errorMessage: error.message,
       });
 
       return c.json(
         {
-          error: 'Internal Server Error',
-          message: 'An unexpected error occurred',
+          error: error.message,
+          message: error.message,
           request_id: requestId,
         },
-        500
+        status as ContentfulStatusCode
       );
     }
-  };
+
+    // Handle HTTP exceptions (Hono's built-in handling might not return JSON)
+    if (error instanceof HTTPException) {
+      logError(error, {
+        method: c.req.method,
+        url: c.req.url,
+        statusCode: error.status,
+        userId: c.get('userId'),
+        organizationId: c.get('activeOrganizationId'),
+        requestId,
+        responseTime,
+        errorType: 'HTTPException',
+        errorMessage: error.message,
+      });
+
+      return c.json(
+        {
+          error: error.message,
+          message: error.message,
+          request_id: requestId,
+        },
+        error.status
+      );
+    }
+
+    // Handle Better Auth unauthorized errors
+    if (error && typeof error === 'object' && 'status' in error && error.status === 'UNAUTHORIZED') {
+      return c.json(
+        {
+          error: 'Unauthorized',
+          message: 'Authentication required',
+          request_id: requestId,
+        },
+        401
+      );
+    }
+
+    // Handle unexpected errors
+    logError(error, {
+      method: c.req.method,
+      url: c.req.url,
+      statusCode: 500,
+      userId: c.get('userId'),
+      organizationId: c.get('activeOrganizationId'),
+      requestId,
+      responseTime,
+      errorType: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    return c.json(
+      {
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred',
+        request_id: requestId,
+      },
+      500
+    );
+  }
+};

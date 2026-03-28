@@ -9,6 +9,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
 import * as schema from '@/schema';
+import { config } from '@/shared/config';
 
 const { Pool } = pg;
 
@@ -30,26 +31,18 @@ const initialize = (): void => {
     return;
   }
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = config.database.url;
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is required');
   }
-
-  // Safe numeric parsing for pool options
-  const parseEnvInt = (val: string | undefined, defaultVal: number): number => {
-    if (val === undefined) {return defaultVal;}
-    const parsed = Number.parseInt(val, 10);
-    return Number.isFinite(parsed) ? parsed : defaultVal;
-  };
-
-  const max = parseEnvInt(process.env.PG_MAX_CLIENTS, DEFAULT_PG_MAX);
-  let min = parseEnvInt(process.env.PG_MIN_CLIENTS, DEFAULT_PG_MIN);
+  const max = config.database.pool.maxClients ?? DEFAULT_PG_MAX;
+  let min = config.database.pool.minClients ?? DEFAULT_PG_MIN;
 
   // Clamp min to max
   min = Math.min(min, max);
 
-  const idleTimeoutMillis = parseEnvInt(process.env.PG_IDLE_TIMEOUT, DEFAULT_PG_IDLE_MS);
-  const connectionTimeoutMillis = parseEnvInt(process.env.PG_CONNECTION_TIMEOUT, DEFAULT_PG_CONN_TIMEOUT_MS);
+  const idleTimeoutMillis = config.database.pool.idleTimeoutMs ?? DEFAULT_PG_IDLE_MS;
+  const connectionTimeoutMillis = config.database.pool.connectionTimeoutMs ?? DEFAULT_PG_CONN_TIMEOUT_MS;
 
   _pool = new Pool({
     connectionString,

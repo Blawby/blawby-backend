@@ -8,7 +8,7 @@ import { z } from 'zod';
  * @returns Validated parameters
  * @throws HTTPException if validation fails
  */
-const validateParams = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
+const validateParams = <T extends z.ZodType>(context: Context, schema: T): z.infer<T> => {
   try {
     const params = context.req.param();
     const validatedParams = schema.parse(params);
@@ -28,7 +28,7 @@ const validateParams = <T extends z.ZodSchema>(context: Context, schema: T): z.i
  * @returns Validated query parameters
  * @throws HTTPException if validation fails
  */
-const validateQuery = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
+const validateQuery = <T extends z.ZodType>(context: Context, schema: T): z.infer<T> => {
   try {
     const query = context.req.query();
     const validatedQuery = schema.parse(query);
@@ -48,7 +48,7 @@ const validateQuery = <T extends z.ZodSchema>(context: Context, schema: T): z.in
  * @returns Validated body data
  * @throws HTTPException if validation fails
  */
-const validateBody = async <T extends z.ZodSchema>(context: Context, schema: T): Promise<z.infer<T>> => {
+const validateBody = async <T extends z.ZodType>(context: Context, schema: T): Promise<z.infer<T>> => {
   try {
     const body = await context.req.json();
     const validatedBody = schema.parse(body);
@@ -68,7 +68,7 @@ const validateBody = async <T extends z.ZodSchema>(context: Context, schema: T):
  * @returns Validated headers
  * @throws HTTPException if validation fails
  */
-const validateHeaders = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
+const validateHeaders = <T extends z.ZodType>(context: Context, schema: T): z.infer<T> => {
   try {
     const headers = context.req.header();
     const validatedHeaders = schema.parse(headers);
@@ -90,19 +90,19 @@ const validateHeaders = <T extends z.ZodSchema>(context: Context, schema: T): z.
  */
 const validateRequest = async <
   T extends {
-    params?: z.ZodSchema;
-    query?: z.ZodSchema;
-    body?: z.ZodSchema;
-    headers?: z.ZodSchema;
+    params?: z.ZodType;
+    query?: z.ZodType;
+    body?: z.ZodType;
+    headers?: z.ZodType;
   },
 >(
   context: Context,
   schemas: T
 ): Promise<{
-  params?: T['params'] extends z.ZodSchema ? z.infer<T['params']> : never;
-  query?: T['query'] extends z.ZodSchema ? z.infer<T['query']> : never;
-  body?: T['body'] extends z.ZodSchema ? z.infer<T['body']> : never;
-  headers?: T['headers'] extends z.ZodSchema ? z.infer<T['headers']> : never;
+  params?: T['params'] extends z.ZodType ? z.infer<T['params']> : never;
+  query?: T['query'] extends z.ZodType ? z.infer<T['query']> : never;
+  body?: T['body'] extends z.ZodType ? z.infer<T['body']> : never;
+  headers?: T['headers'] extends z.ZodType ? z.infer<T['headers']> : never;
 }> => {
   const result: Record<string, unknown> = {};
 

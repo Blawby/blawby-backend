@@ -1,33 +1,6 @@
 import type { Context } from 'hono';
-import type { StatusCode, ContentfulStatusCode } from 'hono/utils/http-status';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppError, Result } from '@/shared/types/result';
-
-export const toContentfulStatusCode = (status: number): ContentfulStatusCode => {
-  switch (status) {
-    case 200:
-      return 200;
-    case 201:
-      return 201;
-    case 400:
-      return 400;
-    case 401:
-      return 401;
-    case 403:
-      return 403;
-    case 404:
-      return 404;
-    case 409:
-      return 409;
-    case 422:
-      return 422;
-    case 429:
-      return 429;
-    case 500:
-      return 500;
-    default:
-      return 500;
-  }
-};
 
 export const sendError = (c: Context, error: AppError) =>
   c.json(
@@ -36,7 +9,7 @@ export const sendError = (c: Context, error: AppError) =>
       message: error.message,
       details: error.details,
     },
-    toContentfulStatusCode(error.status)
+    error.status as unknown as ContentfulStatusCode
   );
 
 export const sendResult = <T, M = undefined>(c: Context, result: Result<T, M>, successCode: 200 | 201 | 204 = 200) => {
@@ -52,176 +25,34 @@ export const sendResult = <T, M = undefined>(c: Context, result: Result<T, M>, s
 };
 
 /**
- * Response utilities for consistent API responses
- *
- * Note: Return types use 'any' intentionally for Hono OpenAPI compatibility.
- * Hono's typed routes require flexible return types that work with its
- * RouteConfigToTypedResponse inference.
+ * Unified response helper for standardizing API responses
  */
 export const response = {
-  /**
-   * Automatically convert a Result<T> to a Hono response
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  fromResult: <T, M = undefined>(c: Context, result: Result<T, M>, successCode: StatusCode = 200): any => {
-    if (result.success) {
-      if ((successCode as number) === 204) {
-        return c.body(null, 204);
-      }
-      return c.json(result.data, toContentfulStatusCode(successCode));
-    }
+  fromResult: <T, M = undefined>(c: Context<any, any, any>, result: Result<T, M>, successCode: 200 | 201 | 204 = 200) =>
+    sendResult(c, result, successCode) as any,
 
-    return sendError(c, result.error);
-  },
+  ok: <T>(c: Context<any, any, any>, data: T, successCode: 200 | 201 = 200) =>
+    c.json(data, successCode as ContentfulStatusCode) as any,
 
-  /**
-   * 200 OK - Success response
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ok: (c: Context, data: unknown): any => c.json(data, 200),
+  badRequest: (c: Context<any, any, any>, message: string, code = 'BAD_REQUEST', details?: unknown) =>
+    sendError(c, { status: 400, code, message, details }) as any,
 
-  /**
-   * 201 Created - Resource created successfully
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  created: (c: Context, data: unknown): any => c.json(data, 201),
+  unauthorized: (c: Context<any, any, any>, message = 'Unauthorized', code = 'UNAUTHORIZED') =>
+    sendError(c, { status: 401, code, message }) as any,
 
-  /**
-   * 204 No Content - Success with no response body
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  noContent: (c: Context): any => c.body(null, 204),
+  forbidden: (c: Context<any, any, any>, message = 'Forbidden', code = 'FORBIDDEN') =>
+    sendError(c, { status: 403, code, message }) as any,
 
-  /**
-   * 400 Bad Request - Client error
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  badRequest: (c: Context, message: string, details?: unknown): any =>
-    c.json(
-      {
-        error: 'Bad Request',
-        message,
-        details,
-        request_id: c.get('requestId'),
-      },
-      400
-    ),
+  notFound: (c: Context<any, any, any>, message = 'Not Found', code = 'NOT_FOUND') =>
+    sendError(c, { status: 404, code, message }) as any,
 
-  /**
-   * 401 Unauthorized - Authentication required
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  unauthorized: (c: Context, message = 'Authentication required'): any =>
-    c.json(
-      {
-        error: 'Unauthorized',
-        message,
-        request_id: c.get('requestId'),
-      },
-      401
-    ),
+  internalError: (c: Context<any, any, any>, message = 'Internal Server Error', code = 'INTERNAL_SERVER_ERROR') =>
+    sendError(c, { status: 500, code, message }) as any,
 
-  /**
-   * 403 Forbidden - Access denied
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  forbidden: (c: Context, message = 'Access denied'): any =>
-    c.json(
-      {
-        error: 'Forbidden',
-        message,
-        request_id: c.get('requestId'),
-      },
-      403
-    ),
+  internalServerError: (c: Context<any, any, any>, message = 'Internal Server Error', code = 'INTERNAL_SERVER_ERROR') =>
+    sendError(c, { status: 500, code, message }) as any,
 
-  /**
-   * 404 Not Found - Resource not found
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  notFound: (c: Context, message = 'Resource not found'): any =>
-    c.json(
-      {
-        error: 'Not Found',
-        message,
-        request_id: c.get('requestId'),
-      },
-      404
-    ),
+  noContent: (c: Context<any, any, any>) => c.body(null, 204) as any,
 
-  /**
-   * 409 Conflict - Resource conflict
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  conflict: (c: Context, message: string, details?: unknown): any =>
-    c.json(
-      {
-        error: 'Conflict',
-        message,
-        details,
-        request_id: c.get('requestId'),
-      },
-      409
-    ),
-
-  /**
-   * 429 Too Many Requests - Rate limit exceeded
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tooManyRequests: (c: Context, message = 'Too many requests', retryAfter?: number): any => {
-    if (retryAfter !== undefined) {
-      c.res.headers.set('Retry-After', String(retryAfter));
-    }
-    return c.json(
-      {
-        error: 'Too Many Requests',
-        message,
-        ...(retryAfter !== undefined && { retry_after: retryAfter }),
-      },
-      429
-    );
-  },
-
-  /**
-   * 422 Unprocessable Entity - Validation error
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  unprocessableEntity: (c: Context, message: string, details?: unknown): any =>
-    c.json(
-      {
-        error: 'Unprocessable Entity',
-        message,
-        details,
-      },
-      422
-    ),
-
-  /**
-   * 500 Internal Server Error - Server error
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  internalServerError: (c: Context, message = 'Internal server error'): any =>
-    c.json(
-      {
-        error: 'Internal Server Error',
-        message,
-        request_id: c.get('requestId'),
-      },
-      500
-    ),
-
-  /**
-   * Paginated response
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  paginated: (c: Context, data: unknown[], total: number, page: number, limit: number): any =>
-    c.json({
-      data,
-      pagination: {
-        total,
-        page,
-        limit,
-        total_pages: Math.ceil(total / limit),
-      },
-    }),
+  created: <T>(c: Context<any, any, any>, data: T) => c.json(data, 201) as any,
 };

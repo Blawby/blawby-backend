@@ -5,7 +5,6 @@ import type { MiddlewareHandler } from 'hono';
 import { members } from '@/schema';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['middleware', 'require-org-membership']);
 
@@ -43,8 +42,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
   const userId = c.get('userId');
 
   if (!userId) {
-    // oxlint-disable-next-line no-unsafe-return
-    return response.unauthorized(c, 'Authentication required');
+    return c.json({ error: 'Unauthorized', message: 'Authentication required', request_id: c.get('requestId') }, 401);
   }
 
   // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
@@ -59,16 +57,24 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
       sessionOrgId,
       urlOrgId,
     });
-    // oxlint-disable-next-line no-unsafe-return
-    return response.forbidden(c, 'Organization context mismatch: switch your active organization first');
+    return c.json(
+      {
+        error: 'Forbidden',
+        message: 'Organization context mismatch: switch your active organization first',
+        request_id: c.get('requestId'),
+      },
+      403
+    );
   }
 
   const orgId = urlOrgId ?? sessionOrgId;
 
   if (!orgId) {
     logger.warn('No organization context found for user {userId}', { userId });
-    // oxlint-disable-next-line no-unsafe-return
-    return response.forbidden(c, 'No organization context found');
+    return c.json(
+      { error: 'Forbidden', message: 'No organization context found', request_id: c.get('requestId') },
+      403
+    );
   }
 
   try {
@@ -80,11 +86,13 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
 
     if (!membership) {
       logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
-      // oxlint-disable-next-line no-unsafe-return
-      return response.forbidden(c, 'You are not a member of this organization');
+      return c.json(
+        { error: 'Forbidden', message: 'You are not a member of this organization', request_id: c.get('requestId') },
+        403
+      );
     }
 
-    // 🚨 CRITICAL: Propagate context to the Hono context
+    // CRITICAL: Propagate context to the Hono context
     // This ensures downstream injectAbility and Services use the CORRECT targeted organization
     c.set('activeOrganizationId', orgId);
     c.set('memberRole', membership.role);

@@ -9,6 +9,7 @@ import path from 'node:path';
 import { getLogger } from '@logtape/logtape';
 import { Resend } from 'resend';
 import type { EmailJobPayload, EmailSendOptions, EmailTemplateName } from './email.types';
+import { config } from '@/shared/config';
 import { db } from '@/shared/database/connection';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
@@ -22,7 +23,7 @@ let _resend: Resend | null = null;
 
 const getResendClient = (): Resend => {
   if (!_resend) {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = config.email.resendApiKey;
     if (!apiKey) {
       throw new Error('Missing RESEND_API_KEY environment variable');
     }
@@ -39,7 +40,9 @@ const DEFAULT_FROM_NAME = 'Blawby';
  * Save email to local file for development preview
  */
 const saveEmailToFile = (to: string, subject: string, html: string) => {
-  if (isProduction()) {return;}
+  if (isProduction()) {
+    return;
+  }
 
   try {
     const storageDir = path.join(process.cwd(), 'storage', 'emails');
@@ -77,10 +80,7 @@ export const sendEmail = async (
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
   try {
     // Render the template to HTML
-    const html = renderTemplate(
-      payload.template,
-      payload.data as unknown as TemplateDataMap[EmailTemplateName]
-    );
+    const html = renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
 
     // Development/Test: Save to file for instant preview
     if (!isProduction()) {
@@ -88,7 +88,7 @@ export const sendEmail = async (
     }
 
     // Send via Resend
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = config.email.resendApiKey;
     const isProdLike = isProductionLike();
     const isTestMode = isTest();
 

@@ -47,7 +47,9 @@ interface RoutingContext {
  * Check if user has practice entitlement based on subscription status
  */
 const hasPracticeEntitlement = async (organizationId: string | null): Promise<boolean> => {
-  if (!organizationId) {return false;}
+  if (!organizationId) {
+    return false;
+  }
 
   try {
     const [subscription] = await db
@@ -59,7 +61,9 @@ const hasPracticeEntitlement = async (organizationId: string | null): Promise<bo
       .where(eq(organizations.id, organizationId))
       .limit(1);
 
-    if (!subscription) {return false;}
+    if (!subscription) {
+      return false;
+    }
 
     // Use type-safe check: verify status is one of the entitled statuses
     // Using a type-safe include check by casting the const array to a string array
@@ -81,7 +85,9 @@ interface Membership {
  * Get user's membership role in active organization
  */
 const getActiveMembership = async (userId: string, organizationId: string | null): Promise<Membership | null> => {
-  if (!organizationId) {return null;}
+  if (!organizationId) {
+    return null;
+  }
 
   try {
     const [membership] = await db
@@ -107,8 +113,12 @@ const getActiveMembership = async (userId: string, organizationId: string | null
  * Compute default workspace based on access flags
  */
 const computeDefaultWorkspace = (access: WorkspaceAccess): 'practice' | 'client' | 'public' => {
-  if (access.practice) {return 'practice';}
-  if (access.client) {return 'client';}
+  if (access.practice) {
+    return 'practice';
+  }
+  if (access.client) {
+    return 'client';
+  }
   return 'public';
 };
 
@@ -140,7 +150,7 @@ export const computeRoutingClaims = async (context: RoutingContext): Promise<Rou
   }
 
   // Get active organization context, fallback to primaryWorkspace
-  const activeOrganizationId = (session?.activeOrganizationId ?? user.primaryWorkspace) ?? null;
+  const activeOrganizationId = session?.activeOrganizationId ?? user.primaryWorkspace ?? null;
 
   // Early return: no organization context means no membership or entitlement checks needed
   if (!activeOrganizationId) {

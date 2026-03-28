@@ -1,13 +1,14 @@
 /**
  * Type guard to check if a value is a record (object with string keys)
  */
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * Helper to extract a user-friendly error message from Better Auth API errors.
  * Better Auth API errors typically return an object with a 'body' containing the message.
  */
-const getBetterAuthErrorMessage = (error: unknown, defaultMessage: string = 'Operation failed'): string => {
+const getBetterAuthErrorMessage = (error: unknown, defaultMessage = 'Operation failed'): string => {
   if (!isRecord(error)) {
     return defaultMessage;
   }
@@ -26,22 +27,12 @@ const getBetterAuthErrorMessage = (error: unknown, defaultMessage: string = 'Ope
 };
 
 /**
- * Checks if a Better Auth error is a Forbidden/Unauthorized error.
- */
-const isBetterAuthForbidden = (error: unknown): boolean => {
-  if (!isRecord(error)) {
-    return false;
-  }
-
-  const status = error.status ?? error.statusCode;
-  return status === 403 || status === 'FORBIDDEN' || status === 401 || status === 'UNAUTHORIZED';
-};
-
-/**
  * Safely parses Better Auth metadata, which is often stringified JSON.
  */
 const parseBetterAuthMetadata = <T = unknown>(metadata: unknown): T | null => {
-  if (!metadata) {return null;}
+  if (!metadata) {
+    return null;
+  }
 
   if (typeof metadata === 'string') {
     try {
@@ -54,10 +45,36 @@ const parseBetterAuthMetadata = <T = unknown>(metadata: unknown): T | null => {
   return metadata as T;
 };
 
+/**
+ * Checks if an error is a "Forbidden" error from Better Auth.
+ */
+const isBetterAuthForbidden = (error: unknown): boolean => {
+  if (!isRecord(error)) {
+    return false;
+  }
+
+  // Better Auth often returns 403 for forbidden
+  if (error.status === 403) {
+    return true;
+  }
+
+  // Also check body for forbidden message or code
+  if (isRecord(error.body)) {
+    if (typeof error.body.code === 'string' && error.body.code.includes('FORBIDDEN')) {
+      return true;
+    }
+    if (typeof error.body.message === 'string' && error.body.message.toLowerCase().includes('forbidden')) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const betterAuthUtils = {
   getBetterAuthErrorMessage,
-  isBetterAuthForbidden,
   parseBetterAuthMetadata,
+  isBetterAuthForbidden,
 };
 
 export default betterAuthUtils;

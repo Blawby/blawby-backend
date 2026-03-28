@@ -99,69 +99,42 @@ const normalizeErrorResponse = (error: unknown): { error: string; message: strin
  * 4. Preserves Better Auth functionality (set-auth-token header, etc.)
  */
 export const normalizeAuthResponse = (): MiddlewareHandler => async (c, next) => {
-    await next();
+  await next();
 
-    // Only process JSON responses
-    const contentType = c.res.headers.get('content-type');
+  // Only process JSON responses
+  const contentType = c.res.headers.get('content-type');
 
-    if (!contentType?.includes('application/json')) {
+  if (!contentType?.includes('application/json')) {
+    return;
+  }
+
+  try {
+    // Clone the response to avoid modifying the original
+    const response = c.res.clone();
+    const body = await response.text();
+    const trimmedBody = body.trim();
+
+    if (!trimmedBody) {
       return;
     }
 
+    let data: unknown;
     try {
-      // Clone the response to avoid modifying the original
-      const response = c.res.clone();
-      const body = await response.text();
-      const trimmedBody = body.trim();
+      data = JSON.parse(trimmedBody);
+    } catch (error) {
+      // If parsing fails despite content-type, it's likely an empty-ish or invalid response
+      logger.debug('Failed to parse response body for normalization: {error}', { error });
+      return;
+    }
+    const { status } = response;
 
-      if (!trimmedBody) {
-        return;
-      }
+    // Normalize error responses (4xx, 5xx)
+    if (status >= 400) {
+      const normalizedError = normalizeErrorResponse(data);
+      const normalizedData = toSnakeCase(normalizedError);
 
-      let data: unknown;
-      try {
-        data = JSON.parse(trimmedBody);
-      } catch (error) {
-        // If parsing fails despite content-type, it's likely an empty-ish or invalid response
-        logger.debug('Failed to parse response body for normalization: {error}', { error });
-        return;
-      }
-      const {status} = response;
-
-      // Normalize error responses (4xx, 5xx)
-      if (status >= 400) {
-        const normalizedError = normalizeErrorResponse(data);
-        const normalizedData = toSnakeCase(normalizedError);
-
-        // Create new response with normalized error
-        const normalizedBody = JSON.stringify(normalizedData);
-        const newResponse = new Response(normalizedBody, {
-          status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
-
-        // Fix for multiple Set-Cookie headers in Node.js/Fetch
-        // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
-        if (typeof response.headers.getSetCookie === 'function') {
-          const setCookies = response.headers.getSetCookie();
-          if (setCookies.length > 0) {
-            newResponse.headers.delete('Set-Cookie');
-            setCookies.forEach((cookie: string) => {
-              newResponse.headers.append('Set-Cookie', cookie);
-            });
-          }
-        }
-
-        c.res = newResponse;
-        return;
-      }
-
-      // Normalize success responses (convert to snake_case)
-      const normalizedData = toSnakeCase(data);
+      // Create new response with normalized error
       const normalizedBody = JSON.stringify(normalizedData);
-
-      // Create new response with normalized data
       const newResponse = new Response(normalizedBody, {
         status,
         statusText: response.statusText,
@@ -181,8 +154,35 @@ export const normalizeAuthResponse = (): MiddlewareHandler => async (c, next) =>
       }
 
       c.res = newResponse;
-    } catch (error) {
-      // If parsing fails, leave response unchanged
-      logger.warn('Failed to normalize response: {error}', { error });
+      return;
     }
-  };
+
+    // Normalize success responses (convert to snake_case)
+    const normalizedData = toSnakeCase(data);
+    const normalizedBody = JSON.stringify(normalizedData);
+
+    // Create new response with normalized data
+    const newResponse = new Response(normalizedBody, {
+      status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+
+    // Fix for multiple Set-Cookie headers in Node.js/Fetch
+    // @ts-ignore - getSetCookie is available in modern Node.js/Browsers
+    if (typeof response.headers.getSetCookie === 'function') {
+      const setCookies = response.headers.getSetCookie();
+      if (setCookies.length > 0) {
+        newResponse.headers.delete('Set-Cookie');
+        setCookies.forEach((cookie: string) => {
+          newResponse.headers.append('Set-Cookie', cookie);
+        });
+      }
+    }
+
+    c.res = newResponse;
+  } catch (error) {
+    // If parsing fails, leave response unchanged
+    logger.warn('Failed to normalize response: {error}', { error });
+  }
+};
