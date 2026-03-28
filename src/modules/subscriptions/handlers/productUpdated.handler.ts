@@ -39,8 +39,12 @@ const extractLimits = (
 
   // Extract from individual metadata fields
   const parseLimit = (value: string | undefined, defaultValue: number): number => {
-    if (!value) {return defaultValue;}
-    if (value.toLowerCase() === 'unlimited' || value === '-1') {return -1;}
+    if (!value) {
+      return defaultValue;
+    }
+    if (value.toLowerCase() === 'unlimited' || value === '-1') {
+      return -1;
+    }
     const parsed = parseInt(value, 10);
     return Number.isNaN(parsed) ? defaultValue : parsed;
   };
@@ -127,7 +131,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
       stripe_yearly_price_id: yearlyPrice?.id ?? null,
       monthly_price: monthlyPrice?.unit_amount ? (monthlyPrice.unit_amount / 100).toString() : null,
       yearly_price: yearlyPrice?.unit_amount ? (yearlyPrice.unit_amount / 100).toString() : null,
-      currency: (monthlyPrice?.currency ?? yearlyPrice?.currency) ?? 'usd',
+      currency: monthlyPrice?.currency ?? yearlyPrice?.currency ?? 'usd',
       image: product.images?.[0] || null,
       features,
       limits,

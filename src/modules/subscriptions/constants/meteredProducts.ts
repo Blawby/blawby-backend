@@ -120,7 +120,8 @@ export const getMeteredItemsForOrganization = async (
  * @param type - Metered item type (e.g., 'metered_invoice_fee')
  * @returns Metered item or undefined
  */
-export const getMeteredItemByType = (meteredItems: MeteredItem[], type: string): MeteredItem | undefined => meteredItems.find((item) => item.type === type);
+export const getMeteredItemByType = (meteredItems: MeteredItem[], type: string): MeteredItem | undefined =>
+  meteredItems.find((item) => item.type === type);
 
 /**
  * Check if organization has any metered items configured

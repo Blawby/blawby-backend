@@ -1,11 +1,11 @@
-import { createRoute } from '@hono/zod-openapi';
 import { subscriptionValidations } from './validations/subscription.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
 
 /**
  * GET /api/subscriptions/plans
  * List all available subscription plans
  */
-export const listPlansRoute = createRoute({
+const listPlansRoute = routeBuilder.build({
   method: 'get',
   path: '/plans',
   tags: ['Subscriptions'],
@@ -20,14 +20,6 @@ export const listPlansRoute = createRoute({
       },
       description: 'Plans retrieved successfully',
     },
-    500: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
 
@@ -35,7 +27,7 @@ export const listPlansRoute = createRoute({
  * GET /api/subscriptions/current
  * Get current organization's subscription
  */
-export const getCurrentSubscriptionRoute = createRoute({
+const getCurrentSubscriptionRoute = routeBuilder.build({
   method: 'get',
   path: '/current',
   tags: ['Subscriptions'],
@@ -51,22 +43,6 @@ export const getCurrentSubscriptionRoute = createRoute({
       },
       description: 'Subscription retrieved successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
 
@@ -74,7 +50,7 @@ export const getCurrentSubscriptionRoute = createRoute({
  * POST /api/subscriptions/cancel
  * Cancel subscription
  */
-export const cancelSubscriptionRoute = createRoute({
+const cancelSubscriptionRoute = routeBuilder.build({
   method: 'post',
   path: '/cancel',
   tags: ['Subscriptions'],
@@ -100,29 +76,11 @@ export const cancelSubscriptionRoute = createRoute({
       },
       description: 'Cancellation portal URL returned successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Subscription not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: subscriptionValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
   },
 });
+
+export const routes = {
+  listPlansRoute,
+  getCurrentSubscriptionRoute,
+  cancelSubscriptionRoute,
+};
