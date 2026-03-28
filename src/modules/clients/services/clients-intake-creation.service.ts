@@ -12,6 +12,10 @@ import { db } from '@/shared/database';
 import { ClientCreated, ClientUpdated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ensureClientMember } from '@/modules/clients/services/clients-creation.helpers';
+import { getLogger } from '@logtape/logtape';
+
+const logger = getLogger(['clients', 'intake-creation-service']);
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Create a client from an intake submission
@@ -25,6 +29,7 @@ const createClientFromIntake = async (
       name: string;
       phone?: string;
     };
+    tx?: DbOrTx;
   },
   ctx: ServiceContext
 ): Promise<SelectClient> => {
@@ -35,47 +40,26 @@ const createClientFromIntake = async (
     throw new Error(`Intake record with ID '${intakeId}' not found`);
   }
 
-  const user = await resolveUserForIntake({
-    userId,
-    email,
-    name,
-    phone,
-  });
-  if (!user) {
-    throw new Error('Unable to process intake.');
-  }
-
-  await ensureClientMember({
-    organizationId: ctx.organizationId,
-    userId: user.id,
-  });
-
-  const outcome = await db.transaction(async (tx) => {
-    const [existingDetail] = await tx
-      .select()
-      .from(clients)
-      .where(
-        and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
-      )
-      .limit(1);
-
-    if (existingDetail) {
-      if (!existingDetail.intake_id) {
-        const [updatedDetail] = await tx
-          .update(clients)
-          .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
-          .where(eq(clients.id, existingDetail.id))
-          .returning();
-
-        if (updatedDetail) {
-          return { action: 'updated' as const, detail: updatedDetail };
-        }
-      }
-
-      return { action: 'existing' as const, detail: existingDetail };
+  const runTx = async (tx: DbOrTx) => {
+    const user = await resolveUserForIntake({
+      userId,
+      email,
+      name,
+      phone,
+    });
+    if (!user) {
+      throw new Error('Unable to resolve user for intake.');
     }
 
-    const [createdDetail] = await tx
+    await ensureClientMember({
+      organizationId: ctx.organizationId,
+      userId: user.id,
+      tx,
+    });
+
+    // Use upsert to handle concurrent creation race conditions
+    // and provide atomic updates if they already exist without an intake link
+    const [detail] = await tx
       .insert(clients)
       .values({
         organization_id: ctx.organizationId,
@@ -88,35 +72,42 @@ const createClientFromIntake = async (
         status: 'active',
         event_name: 'client_intake_success',
       })
+      .onConflictDoUpdate({
+        target: [clients.organization_id, clients.user_id],
+        set: {
+          intake_id: intakeId,
+          status: 'active',
+          updated_at: new Date(),
+        },
+      })
       .returning();
 
-    return { action: 'created' as const, detail: createdDetail };
-  });
+    if (!detail) {
+      throw new Error('Failed to upsert client from intake');
+    }
 
-  if (outcome.action === 'updated') {
-    void ClientUpdated.dispatch(
+    // Always dispatch ClientCreated for new/updated sync from intake
+    // Logic for avoiding duplicate setup is handled in downstream event listeners/services
+    await ClientCreated.dispatch(
       {
-        client_id: outcome.detail.id,
-        changes: { intake_id: true, status: true },
-      },
-      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
-    );
-  }
-
-  if (outcome.action === 'created') {
-    void ClientCreated.dispatch(
-      {
-        client_id: outcome.detail.id,
+        client_id: detail.id,
         user_id: user.id,
         name: user.name,
         email: user.email,
-        stripe_customer_id: outcome.detail.stripe_customer_id ?? undefined,
+        stripe_customer_id: detail.stripe_customer_id ?? undefined,
       },
-      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
+      { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId, tx }
     );
-  }
 
-  return outcome.detail;
+    return detail;
+  };
+
+  const outcome = params.tx ? await runTx(params.tx) : await db.transaction(runTx).catch((error) => {
+    logger.error('Failed to process client intake creation transaction: {error}', { error, intakeId });
+    throw error;
+  });
+
+  return outcome;
 };
 
 export const clientsIntakeCreationService = {

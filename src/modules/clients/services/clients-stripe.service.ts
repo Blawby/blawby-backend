@@ -5,6 +5,29 @@ import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['clients', 'stripe-service']);
 
+const findCustomerByMetadata = async (
+  metadata: Record<string, string>,
+  ctx: ServiceContext
+): Promise<string | undefined> => {
+  try {
+    const query = Object.entries(metadata)
+      .map(([k, v]) => `metadata['${k}']:'${v}'`)
+      .join(' AND ');
+    const response = await stripe.customers.search({
+      query,
+      limit: 1,
+    });
+
+    return response.data[0]?.id;
+  } catch (error) {
+    logger.error('Failed to search Stripe customer by metadata {metadata}: {error}', {
+      metadata,
+      error,
+      organizationId: ctx.organizationId,
+    });
+    return undefined;
+  }
+};
 const createCustomer = async (
   params: {
     email: string;
@@ -74,6 +97,7 @@ const updateCustomer = async (
 };
 
 export const clientsStripeService = {
+  findCustomerByMetadata,
   createCustomer,
   updateCustomer,
 };

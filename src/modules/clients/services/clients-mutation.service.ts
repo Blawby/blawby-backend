@@ -45,7 +45,8 @@ const updateClient = async (
     | undefined = undefined;
 
   const updated = await db.transaction(async (tx) => {
-    const detailWithUser = await clientsRepository.findById(id);
+    // Re-verify and lock inside transaction to prevent race conditions
+    const detailWithUser = await clientsRepository.findByIdForUpdate(id, tx);
     if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
       throw new Error('Client not found');
     }
