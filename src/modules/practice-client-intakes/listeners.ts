@@ -30,26 +30,31 @@ const sendSubmissionEmails = (payload: {
   intake_id: string;
   organization_name: string;
   billing_email: string | null;
-  client_email: string;
+  client_email: string | null;
   client_name: string;
   amount: number;
 }): void => {
+  // Determine recipient for client-facing email (prefer client_email, fallback to billing_email)
+  const clientRecipient = payload.client_email ?? payload.billing_email;
+
   // 1. Prospect-facing: "Your submission has been received"
-  void addEmailJob(
-    EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED,
-    payload.client_email,
-    `Submission received — ${payload.organization_name}`,
-    {
-      recipientEmail: payload.client_email,
-      recipientName: payload.client_name,
-      practiceName: payload.organization_name,
-      submittedAt: new Date().toISOString(),
-    }
-  ).catch((error) => {
-    logError('Failed to queue intake submission received email', error, {
-      intakeId: payload.intake_id,
+  if (clientRecipient) {
+    void addEmailJob(
+      EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED,
+      clientRecipient,
+      `Submission received — ${payload.organization_name}`,
+      {
+        recipientEmail: clientRecipient,
+        recipientName: payload.client_name,
+        practiceName: payload.organization_name,
+        submittedAt: new Date().toISOString(),
+      }
+    ).catch((error) => {
+      logError('Failed to queue intake submission received email', error, {
+        intakeId: payload.intake_id,
+      });
     });
-  });
+  }
 
   // 2. Practice-facing: "You've received a new intake submission"
   const practiceRecipient = payload.billing_email;
@@ -62,7 +67,7 @@ const sendSubmissionEmails = (payload: {
         recipientEmail: practiceRecipient,
         recipientName: payload.organization_name,
         clientName: payload.client_name,
-        clientEmail: payload.client_email,
+        clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
         amount: payload.amount,
         intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
         practiceName: payload.organization_name,
@@ -92,17 +97,17 @@ export const registerPracticeClientIntakesListeners = (): void => {
     });
 
     if (!payload.client_email) {
-      logger.warn('No client email for intake payment succeeded, skipping submission emails', {
+      logger.warn('No client_email for intake payment succeeded, will use billing_email as fallback if available', {
         intakeId: payload.intake_payment_id,
+        hasBillingEmail: !!payload.billing_email,
       });
-      return;
     }
 
     sendSubmissionEmails({
       intake_id: payload.uuid,
       organization_name: payload.organization_name,
       billing_email: payload.billing_email,
-      client_email: payload.client_email,
+      client_email: payload.client_email ?? null,
       client_name: payload.client_name ?? 'Valued Client',
       amount: payload.amount,
     });
