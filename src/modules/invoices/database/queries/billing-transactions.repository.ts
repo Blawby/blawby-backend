@@ -1,7 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { billingTransactionsSchema } from '@/modules/invoices/database/schema';
-import type { InsertBillingTransaction, SelectBillingTransaction } from '@/modules/invoices/database/schema';
 import { db } from '@/shared/database';
+import {
+  billingTransactionsSchema,
+  type InsertBillingTransaction,
+  type SelectBillingTransaction,
+} from '@/modules/invoices/database/schema';
 
 const { billingTransactions } = billingTransactionsSchema;
 

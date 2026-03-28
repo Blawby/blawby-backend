@@ -109,11 +109,7 @@ const resolveClientForInvoice = async (
  */
 const resolveUserDetailId = async (organizationId: string, userId: string): Promise<Result<string>> => {
   const detail = await db.query.clients.findFirst({
-    where: and(
-      eq(clients.organization_id, organizationId),
-      eq(clients.user_id, userId),
-      isNull(clients.deleted_at)
-    ),
+    where: and(eq(clients.organization_id, organizationId), eq(clients.user_id, userId), isNull(clients.deleted_at)),
     columns: { id: true },
   });
   if (!detail) {
