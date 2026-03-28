@@ -1,12 +1,11 @@
-import { createRoute } from '@hono/zod-openapi';
-
+import { routeBuilder } from '@/shared/router/route-builder';
 import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 /**
  * GET /api/onboarding/organization/:practice_id/status
  * Get onboarding status for organization
  */
-export const getOnboardingStatusRoute = createRoute({
+export const getOnboardingStatusRoute = routeBuilder.build({
   method: 'get',
   path: '/organization/{practice_id}/status',
   tags: ['Onboarding'],
@@ -47,7 +46,7 @@ export const getOnboardingStatusRoute = createRoute({
  * POST /api/onboarding/connected-accounts
  * Create connected account for organization (includes session creation)
  */
-export const createConnectedAccountRoute = createRoute({
+export const createConnectedAccountRoute = routeBuilder.build({
   method: 'post',
   path: '/connected-accounts',
   tags: ['Onboarding'],
@@ -91,3 +90,8 @@ export const createConnectedAccountRoute = createRoute({
     },
   },
 });
+
+export const routes = {
+  getOnboardingStatusRoute,
+  createConnectedAccountRoute,
+};

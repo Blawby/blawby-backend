@@ -1,6 +1,6 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
-import type Stripe from 'stripe';
+import type { Stripe } from '@better-auth/stripe';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';
@@ -50,21 +50,19 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
     );
 
     // Get current account record
-    const account = await db
+    const [accountRecord] = await db
       .select()
       .from(stripeConnectedAccounts)
       .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
       .limit(1);
 
-    if (account.length === 0) {
+    if (!accountRecord) {
       logger.warn('Account not found for external account deletion: {stripeAccountId}', { stripeAccountId });
       return;
     }
 
-    const currentAccount = account[0];
-
     const currentExternalAccounts = normalizeExternalAccounts({
-      externalAccounts: currentAccount.externalAccounts,
+      externalAccounts: accountRecord.externalAccounts,
     });
 
     const updatedExternalAccounts: ExternalAccounts = {
@@ -86,7 +84,7 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
       await OnboardingExternalAccountDeleted.dispatch(
         {
           stripe_account_id: stripeAccountId,
-          organization_id: currentAccount.organization_id,
+          organization_id: accountRecord.organization_id,
           external_account_id: externalAccount.id,
           external_account_type: accountType,
           deleted_at: new Date().toISOString(),
@@ -94,7 +92,7 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
         {
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
-          organizationId: currentAccount.organization_id,
+          organizationId: accountRecord.organization_id,
           tx,
         }
       );

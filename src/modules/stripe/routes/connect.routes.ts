@@ -1,14 +1,13 @@
-import { createRoute } from '@hono/zod-openapi';
-
 import { connectValidations } from '@/modules/stripe/validations/connect.validation';
 import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 import { practiceIdParamSchema } from '@/shared/validations/common';
+import { routeBuilder } from '@/shared/router/route-builder';
 
 /**
  * POST /api/stripe/connect/account-session
  * Create a Stripe Account Session for embedded components
  */
-const createAccountSessionRoute = createRoute({
+const createAccountSessionRoute = routeBuilder.build({
   method: 'post',
   path: '/connect/account-session',
   tags: ['Stripe Connect'],
@@ -33,30 +32,6 @@ const createAccountSessionRoute = createRoute({
       },
       description: 'Account session created successfully',
     },
-    400: {
-      content: {
-        'application/json': {
-          schema: onboardingValidations.errorResponseSchema,
-        },
-      },
-      description: 'Invalid request data',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: onboardingValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Connected account not found for this practice',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: onboardingValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Failed to create account session',
-    },
   },
 });
 
@@ -64,7 +39,7 @@ const createAccountSessionRoute = createRoute({
  * GET /api/stripe/connect/account/{practice_id}
  * Get connected account metadata and readiness status
  */
-const getConnectedAccountRoute = createRoute({
+const getConnectedAccountRoute = routeBuilder.build({
   method: 'get',
   path: '/connect/account/{practice_id}',
   tags: ['Stripe Connect'],
@@ -81,22 +56,6 @@ const getConnectedAccountRoute = createRoute({
         },
       },
       description: 'Connected account details retrieved successfully',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: onboardingValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Connected account not found for this practice',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: onboardingValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Failed to retrieve connected account',
     },
   },
 });
