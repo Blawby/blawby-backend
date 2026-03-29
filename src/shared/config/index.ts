@@ -15,6 +15,7 @@ const envSchema = z
     SERVERNAME: z.string().optional(),
 
     DATABASE_URL: z.string().optional(),
+    DATABASE_SSL_CA: z.string().optional(),
     PG_MAX_CLIENTS: z.string().optional(),
     PG_MIN_CLIENTS: z.string().optional(),
     PG_IDLE_TIMEOUT: z.string().optional(),
@@ -131,6 +132,9 @@ export const config = {
   },
   database: {
     url: raw.DATABASE_URL,
+    ssl: {
+      ca: raw.DATABASE_SSL_CA,
+    },
     pool: {
       maxClients: parseIntWithDefault(raw.PG_MAX_CLIENTS, 10),
       minClients: parseIntWithDefault(raw.PG_MIN_CLIENTS, 2),

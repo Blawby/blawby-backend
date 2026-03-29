@@ -7,7 +7,7 @@ import {
   type StoredWebhookVerificationResult,
 } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { injectAbility } from '@/shared/middleware/inject-ability';
-import { addWebhookJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import type { AppContext } from '@/shared/types/hono';
 import { sendError } from '@/shared/utils/responseUtils';
 
@@ -62,7 +62,7 @@ const handleWebhook = async (
 
     // 2. Process asynchronously via Graphile Worker
     // Process-stripe-webhook handles both onboarding events and account events
-    await addWebhookJob(webhookId, event.id, event.type);
+    await queueManager.addWebhookJob(webhookId, event.id, event.type);
 
     logger.info('Webhook received and queued: {eventId} ({eventType})', {
       eventId: event.id,

@@ -8,7 +8,7 @@ import * as schema from '@/schema';
 import { config } from '@/shared/config';
 import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
-import { addWebhookJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { createWebhookEventIfNotExists } from '@/shared/repositories/stripe.webhook-events.repository';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
@@ -323,7 +323,7 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
 
         if (needsProcessing) {
           try {
-            await addWebhookJob(webhookEvent.id, event.id, event.type);
+            await queueManager.addWebhookJob(webhookEvent.id, event.id, event.type);
           } catch (err) {
             logger.error('Failed to add webhook job: {error}', { error: err });
           }

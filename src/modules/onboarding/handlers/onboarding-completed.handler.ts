@@ -12,7 +12,7 @@ import { db } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import { OnboardingCompletedProcessed, PracticeUpdated } from '@/shared/events/definitions';
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 
 const logger = getLogger(['onboarding', 'handler', 'onboarding-completed']);
@@ -78,18 +78,20 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
     const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
 
     if (email) {
-      void addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
-        recipientEmail: email,
-        recipientName: name,
-        dashboardUrl: `${APP_URL}/dashboard`,
-        tutorialUrl: `${APP_URL}/docs/payments`,
-        supportUrl: 'https://blawby.com/help',
-      }).catch((error: unknown) => {
-        logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {
-          organizationId,
-          error,
+      void queueManager
+        .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
+          recipientEmail: email,
+          recipientName: name,
+          dashboardUrl: `${APP_URL}/dashboard`,
+          tutorialUrl: `${APP_URL}/docs/payments`,
+          supportUrl: 'https://blawby.com/help',
+        })
+        .catch((error: unknown) => {
+          logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {
+            organizationId,
+            error,
+          });
         });
-      });
     } else {
       logger.warn('Skipping Connect welcome email: missing billing_email for {organizationId}', {
         organizationId,

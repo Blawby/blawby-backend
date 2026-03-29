@@ -19,7 +19,7 @@ import { getEventsToRetry } from '@/modules/onboarding/database/queries/onboardi
 import { config } from '@/shared/config';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import { stripe } from '@/shared/utils/stripe-client';
-import { addOnboardingWebhookJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 
 const logger = getLogger(['onboarding', 'webhook-service']);
 
@@ -353,7 +353,7 @@ export const onboardingWebhooksService = {
       }
 
       if (wId && type) {
-        await addOnboardingWebhookJob(wId, eventId, type);
+        await queueManager.addOnboardingWebhookJob(wId, eventId, type);
       } else {
         logger.error('Cannot queue onboarding webhook job due to missing metadata for {eventId}', {
           eventId,

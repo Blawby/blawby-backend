@@ -194,13 +194,34 @@ export const formatResponseTime = (milliseconds: number): string => {
  */
 export const isStripeError = (
   error: unknown
-): error is { type?: string; code?: string; decline_code?: string; message?: string } => error !== null && typeof error === 'object' && 'type' in error && 'code' in error;
+): error is { type: string; code: string; decline_code?: string; message?: string } => {
+  if (error === null || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+
+  if (typeof candidate.type !== 'string' || typeof candidate.code !== 'string') {
+    return false;
+  }
+
+  if (candidate.decline_code !== undefined && typeof candidate.decline_code !== 'string') {
+    return false;
+  }
+
+  if (candidate.message !== undefined && typeof candidate.message !== 'string') {
+    return false;
+  }
+
+  return true;
+};
 
 /**
  * Hash an email address for logging purposes (non-identifying)
  * Uses SHA-256 to create a deterministic hash
  */
-export const hashEmail = (email: string): string => createHash('sha256').update(email.toLowerCase().trim()).digest('hex').substring(0, 16);
+export const hashEmail = (email: string): string =>
+  createHash('sha256').update(email.toLowerCase().trim()).digest('hex').substring(0, 16);
 
 /**
  * Log error with appropriate prefix based on error type

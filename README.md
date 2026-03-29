@@ -1,4 +1,4 @@
-# Blawby Backend 
+# Blawby Backend
 
 ## Project Overview
 
@@ -843,7 +843,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl:
     process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
+      ? {
+          rejectUnauthorized: true,
+          ca: process.env.DATABASE_SSL_CA,
+        }
       : false,
 });
 
@@ -1070,6 +1073,7 @@ export * from '../modules/settings/schemas/settings.schema';
 The project uses **Graphile Worker** for reliable background job processing. Graphile Worker is a PostgreSQL-based job queue that eliminates the need for Redis, simplifying infrastructure while maintaining high reliability.
 
 **Key Benefits:**
+
 - ✅ **No Redis dependency** - Uses PostgreSQL for job storage
 - ✅ **Automatic schema creation** - Schema auto-creates on first worker start
 - ✅ **Built-in retries** - Automatic retry with exponential backoff
@@ -1087,21 +1091,25 @@ Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graph
 ### Components
 
 **1. Queue Manager** (`src/shared/queue/queue.manager.ts`)
+
 - Enqueues jobs using Graphile Worker's `makeWorkerUtils`
-- Provides `addWebhookJob()` and `addOnboardingWebhookJob()` functions
+- Provides `queueManager.addWebhookJob()` and `addOnboardingWebhookJob()` functions
 - Handles job deduplication via `jobKey` parameter
 
 **2. Graphile Worker Client** (`src/shared/queue/graphile-worker.client.ts`)
+
 - Singleton pattern for `makeWorkerUtils`
 - Manages connection lifecycle
 - Auto-initializes on first use
 
 **3. Worker Process** (`src/workers/webhook.worker.ts`)
+
 - Separate Node.js process that consumes jobs from PostgreSQL
 - Runs independently from API server
 - Processes webhooks and event handlers asynchronously
 
 **4. Task Definitions** (`src/workers/tasks/`)
+
 - `process-stripe-webhook.ts` - Processes Stripe webhook events
 - `process-onboarding-webhook.ts` - Processes Stripe Connect onboarding events
 - `process-event-handler.ts` - Processes queued event handlers
@@ -1118,6 +1126,7 @@ Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graph
 ### Configuration
 
 **Environment Variables:**
+
 ```env
 DATABASE_URL="postgresql://..."  # Required - PostgreSQL connection
 GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Optional - defaults to 'graphile_worker'
@@ -1126,6 +1135,7 @@ WEBHOOK_MAX_RETRIES=5  # Optional - max retry attempts (default: 5)
 ```
 
 **Package.json Scripts:**
+
 ```bash
 pnpm run worker        # Start worker (production)
 pnpm run worker:dev    # Start worker with watch mode (development)
@@ -1136,11 +1146,13 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 **No Setup Required**: Graphile Worker automatically creates the `graphile_worker` schema on first run.
 
 **Deployment Steps:**
+
 1. Run database migrations: `pnpm run db:migrate`
 2. Start worker process: `pnpm run worker`
 3. Schema auto-creates on first worker start
 
 **Railway/Production:**
+
 - Run worker as separate service/container
 - Worker auto-creates schema on first start
 - No manual schema setup needed
@@ -1148,11 +1160,13 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 ### Monitoring
 
 **Queue Statistics:**
+
 - Query `graphile_worker.jobs` table directly for job status
 - Use `getQueueStats()` function for programmatic access
 - Monitor waiting, active, completed, and failed jobs
 
 **Logging:**
+
 - Connection status logged on worker start
 - Job start/success/error events logged
 - Detailed error messages for failed jobs

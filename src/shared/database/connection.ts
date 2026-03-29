@@ -45,9 +45,17 @@ const initialize = (): void => {
 
   const idleTimeoutMillis = config.database.pool.idleTimeoutMs ?? DEFAULT_PG_IDLE_MS;
   const connectionTimeoutMillis = config.database.pool.connectionTimeoutMs ?? DEFAULT_PG_CONN_TIMEOUT_MS;
+  const ssl =
+    process.env.NODE_ENV === 'production'
+      ? {
+          rejectUnauthorized: true,
+          ...(config.database.ssl?.ca ? { ca: config.database.ssl.ca } : {}),
+        }
+      : false;
 
   _pool = new Pool({
     connectionString,
+    ssl,
     max,
     min,
     idleTimeoutMillis,

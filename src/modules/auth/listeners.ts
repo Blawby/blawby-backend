@@ -21,9 +21,9 @@ import {
 } from '@/shared/events/definitions';
 import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError } from '@/shared/utils/logging';
+import { logError, hashEmail } from '@/shared/utils/logging';
 
 const logger = getLogger(['auth', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -31,7 +31,7 @@ const APP_URL = config.app.appUrl;
 /**
  * Register all auth event listeners
  */
-export function registerAuthListeners(): void {
+const registerAuthListeners = (): void => {
   logger.info('Registering auth event listeners...');
 
   // User signed up - send welcome email
@@ -44,17 +44,19 @@ export function registerAuthListeners(): void {
 
     logger.info('User signed up, sending welcome email');
 
-    void addEmailJob(EMAIL_TEMPLATES.WELCOME, payload.email, 'Welcome to Blawby!', {
-      recipientEmail: payload.email,
-      recipientName: payload.name ?? 'User',
-      dashboardUrl: `${APP_URL}/dashboard`,
-      tutorialUrl: `${APP_URL}/docs/getting-started`,
-      supportUrl: 'https://blawby.com/help',
-    }).catch((error) => {
-      logError('Failed to queue welcome email', error, {
-        email: payload.email,
+    void queueManager
+      .addEmailJob(EMAIL_TEMPLATES.WELCOME, payload.email, 'Welcome to Blawby!', {
+        recipientEmail: payload.email,
+        recipientName: payload.name ?? 'User',
+        dashboardUrl: `${APP_URL}/dashboard`,
+        tutorialUrl: `${APP_URL}/docs/getting-started`,
+        supportUrl: 'https://blawby.com/help',
+      })
+      .catch((error) => {
+        logError('Failed to queue welcome email', error, {
+          emailHash: hashEmail(payload.email),
+        });
       });
-    });
   });
 
   // User logged out
@@ -71,7 +73,7 @@ export function registerAuthListeners(): void {
 
   // Password reset requested
   Event.listen(AuthPasswordResetRequested, async (payload) => {
-    logger.info('Password reset requested', { email: payload.email });
+    logger.info('Password reset requested', { emailHash: hashEmail(payload.email) });
     // Future: Send reset email, security logging, etc.
   });
 
@@ -119,4 +121,6 @@ export function registerAuthListeners(): void {
   });
 
   logger.info('Auth event listeners registered');
-}
+};
+
+export { registerAuthListeners };
