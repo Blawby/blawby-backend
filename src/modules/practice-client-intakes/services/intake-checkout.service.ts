@@ -1,4 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
@@ -110,6 +111,27 @@ const processClaimIntakeTx = async (
       sysCtx
     );
   } catch (error) {
+    // Preserve HTTPException types for proper error mapping
+    if (error instanceof HTTPException) {
+      const { status } = error;
+      const { message } = error;
+      if (status === 404) {
+        return rollbackWithResult(result.notFound(message));
+      } else if (status === 409) {
+        return rollbackWithResult(result.conflict(message));
+      } else if (status === 400) {
+        return rollbackWithResult(result.badRequest(message));
+      } else if (status === 401) {
+        return rollbackWithResult(result.unauthorized(message));
+      } else if (status === 403) {
+        return rollbackWithResult(result.forbidden(message));
+      } else if (status === 422) {
+        return rollbackWithResult(result.unprocessable(message));
+      }
+      // For other HTTP errors, use internalError
+      return rollbackWithResult(result.internalError(message));
+    }
+    // Non-HTTP errors
     return rollbackWithResult(
       result.internalError(error instanceof Error ? error.message : 'Failed to create client from intake')
     );

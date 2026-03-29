@@ -5,6 +5,7 @@ import type {
   UpdateOrganizationRequest,
   OrganizationRequestParams,
 } from '@/modules/practice/types/practice.types';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
@@ -100,13 +101,22 @@ export const organizationService = {
   async updateOrganization({ data }: { data: UpdateOrganizationRequest }, ctx: ServiceContext): Promise<Organization> {
     const betterAuth = getBetterAuth();
     try {
+      // First check if organization exists (404) vs access denied (403)
+      if (!data.organizationId) {
+        throw new HTTPException(400, { message: 'Organization ID is required' });
+      }
+      const existingOrg = await organizationRepository.findById(data.organizationId);
+      if (!existingOrg) {
+        throw new HTTPException(404, { message: 'Organization not found' });
+      }
+
       const result = await betterAuth.api.updateOrganization({
         body: data,
         headers: ctx.requestHeaders,
       });
 
       if (!result) {
-        throw new HTTPException(403, { message: 'Organization not found or access denied' });
+        throw new HTTPException(403, { message: 'Access denied' });
       }
 
       return result;
@@ -179,7 +189,11 @@ export const organizationService = {
         body: { slug },
       });
       return Boolean(result.status);
-    } catch {
+    } catch (error) {
+      logger.error('Failed to check organization slug {slug}: {error}', {
+        slug,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       return false;
     }
   },

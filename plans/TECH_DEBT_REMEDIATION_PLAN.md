@@ -551,7 +551,7 @@ PR-14 (Env Config) ── independent, merge any time
 | ------------------------------- | -------- | ----------------------------------------------------------------------- | ----------------- |
 | Modules using `ServiceContext`  | 2        | **6** (matters, preferences, invoices, user-details, practice, clients) | all               |
 | Modules using CASL              | 2        | **6**                                                                   | all authenticated |
-| Modules using Throw-based Error | 0        | **3** (stripe, practice, clients)                                       | all               |
+| Modules using Throw-based Error | 1        | **3** (stripe, practice, clients)                                       | all               |
 | Service files >200 lines        | 9        | **~11** (uploads, subscription, meteredProducts, trust, matters\*)      | **0**             |
 | Route files >300 lines          | 3        | **1** (uploads.routes.ts)                                               | **0**             |
 | `if (!user)` checks             | ~50      | **0**                                                                   | **0**             |

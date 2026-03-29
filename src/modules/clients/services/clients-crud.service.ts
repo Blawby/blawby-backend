@@ -142,9 +142,8 @@ const updateClient = async (
   const { id, data } = params;
 
   let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
-  let updated: SelectClient | undefined;
 
-  await db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx): Promise<SelectClient> => {
     try {
       const detailWithUser = await clientsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
@@ -220,11 +219,10 @@ const updateClient = async (
       if (!updatedResult) {
         throw new HTTPException(500, { message: 'Failed to update client' });
       }
-      updated = updatedResult;
 
       void ClientUpdated.dispatch(
         {
-          client_id: updated.id,
+          client_id: updatedResult.id,
           changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
         },
         {
@@ -233,6 +231,8 @@ const updateClient = async (
           tx,
         }
       );
+
+      return updatedResult;
     } catch (error) {
       if (error instanceof HTTPException) {
         throw error;
@@ -257,8 +257,7 @@ const updateClient = async (
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  return updated!;
+  return updated;
 };
 
 const listClients = async (
@@ -384,10 +383,12 @@ const ensureClientSetup = async (
       );
 
       if (stripeCustomerId) {
-        await clientsRepository.update(id, {
+        const updatedDetail = await clientsRepository.update(id, {
           stripe_customer_id: stripeCustomerId,
         });
-        detail.stripe_customer_id = stripeCustomerId;
+        if (updatedDetail) {
+          detail.stripe_customer_id = updatedDetail.stripe_customer_id;
+        }
         didBackfillStripeCustomerId = true;
       }
     }

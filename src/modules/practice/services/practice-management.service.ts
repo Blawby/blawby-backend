@@ -90,6 +90,9 @@ export const practiceManagementService = {
         practice: buildPracticeWithDetails(organization, practiceDetails),
       };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
       throw new HTTPException(500, {
         message: getBetterAuthErrorMessage(error, 'Failed to create practice'),
@@ -197,6 +200,9 @@ export const practiceManagementService = {
         practice: buildPracticeWithDetails(organization, practiceDetails),
       };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to update practice {organizationId}: {error}', { organizationId, error });
       throw new HTTPException(500, {
         message: getBetterAuthErrorMessage(error, 'Failed to update practice'),
