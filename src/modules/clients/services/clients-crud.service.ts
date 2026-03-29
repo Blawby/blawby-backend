@@ -1,6 +1,7 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { and, eq, isNull } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
 import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
@@ -15,11 +16,16 @@ import { db } from '@/shared/database';
 import { ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound, forbidden, type AcceptedResponse } from '@/shared/utils/result';
 
 const logger = getLogger(['clients', 'crud-service']);
+
+interface StripeSyncPayload {
+  customerId: string;
+  email?: string;
+  name?: string;
+  phone?: string;
+}
 
 const createClient = async (
   params: {
@@ -34,12 +40,9 @@ const createClient = async (
   },
   ctx: ServiceContext
 ): Promise<
-  Result<
-    | (SelectClient & {
-        user: typeof users.$inferSelect | null;
-      })
-    | AcceptedResponse
-  >
+  SelectClient & {
+    user: typeof users.$inferSelect | null;
+  }
 > => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Client');
 
@@ -47,7 +50,7 @@ const createClient = async (
   try {
     const user = await usersRepository.findByEmail(data.email);
     if (!user) {
-      return notFound('User not found. Please invite them using the invitations flow first.');
+      throw new HTTPException(404, { message: 'User not found. Please invite them using the invitations flow first.' });
     }
 
     const existingMember = await membersRepository.findByOrgAndUser({
@@ -62,70 +65,62 @@ const createClient = async (
       });
     }
 
-    const txResult = await db.transaction(async (tx) => {
-      try {
-        let addressId: string | undefined = undefined;
-        if (data.address) {
-          const address = await upsertAddressTx(tx, {
-            addressData: {
-              line1: data.address.line1,
-              line2: data.address.line2,
-              city: data.address.city,
-              state: data.address.state,
-              postal_code: data.address.postal_code,
-              country: data.address.country,
-            },
-            organizationId: ctx.organizationId,
-            type: 'client',
-          });
-          addressId = address?.id;
-        }
-
-        const [detail] = await tx
-          .insert(clients)
-          .values({
-            organization_id: ctx.organizationId,
-            user_id: user.id,
-            name: data.name,
-            email: data.email,
-            stripe_customer_id: null,
-            address_id: addressId,
-            status: data.status ?? 'lead',
-            currency: data.currency ?? 'usd',
-          })
-          .returning();
-
-        return ok({ ...detail, user });
-      } catch (error) {
-        logger.error('Failed to create client: {error}', {
-          error,
+    const createdDetail = await db.transaction(async (tx) => {
+      let addressId: string | undefined = undefined;
+      if (data.address) {
+        const address = await upsertAddressTx(tx, {
+          addressData: {
+            line1: data.address.line1,
+            line2: data.address.line2,
+            city: data.address.city,
+            state: data.address.state,
+            postal_code: data.address.postal_code,
+            country: data.address.country,
+          },
           organizationId: ctx.organizationId,
+          type: 'client',
         });
-        return internalError('Failed to create client');
+        addressId = address?.id;
       }
+
+      const [detail] = await tx
+        .insert(clients)
+        .values({
+          organization_id: ctx.organizationId,
+          user_id: user.id,
+          name: data.name,
+          email: data.email,
+          stripe_customer_id: null,
+          address_id: addressId,
+          status: data.status ?? 'lead',
+          currency: data.currency ?? 'usd',
+        })
+        .returning();
+
+      return { ...detail, user };
     });
 
-    if (txResult.success) {
-      const createdDetail = txResult.data;
-      void ClientCreated.dispatch(
-        {
-          client_id: createdDetail.id,
-          user_id: user.id,
-          name: user.name,
-          email: user.email,
-          stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
-        },
-        { actorId: ctx.userId, organizationId: ctx.organizationId }
-      );
-    }
+    void ClientCreated.dispatch(
+      {
+        client_id: createdDetail.id,
+        user_id: user.id,
+        name: user.name,
+        email: user.email,
+        stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
+      },
+      { actorId: ctx.userId, organizationId: ctx.organizationId }
+    );
 
-    return txResult;
+    return createdDetail;
   } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
     logger.error('Failed to create client: {error}', {
       error,
       organizationId: ctx.organizationId,
     });
-    return internalError('Failed to create client');
+    throw new HTTPException(500, { message: 'Failed to create client' });
   }
 };
 
@@ -142,22 +137,17 @@ const updateClient = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectClient, { stripeSyncFailed?: boolean }>> => {
+): Promise<SelectClient> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Client');
   const { id, data } = params;
-  interface StripeSyncPayload {
-    customerId: string;
-    email?: string;
-    name?: string;
-    phone?: string;
-  }
 
-  const txResult = await db.transaction(async (tx) => {
+  let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
+
+  const updated = await db.transaction(async (tx): Promise<SelectClient> => {
     try {
-      let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
       const detailWithUser = await clientsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
-        return notFound('Client not found');
+        throw new HTTPException(404, { message: 'Client not found' });
       }
 
       ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('Client', detailWithUser));
@@ -217,7 +207,7 @@ const updateClient = async (
         addressId = address?.id ?? addressId;
       }
 
-      const updated = await clientsRepository.update(
+      const updatedResult = await clientsRepository.update(
         id,
         {
           address_id: addressId,
@@ -226,13 +216,13 @@ const updateClient = async (
         },
         tx
       );
-      if (!updated) {
-        return internalError('Failed to update client');
+      if (!updatedResult) {
+        throw new HTTPException(500, { message: 'Failed to update client' });
       }
 
       void ClientUpdated.dispatch(
         {
-          client_id: updated.id,
+          client_id: updatedResult.id,
           changes: Object.fromEntries(Object.keys(data).map((k) => [k, true])),
         },
         {
@@ -242,39 +232,32 @@ const updateClient = async (
         }
       );
 
-      return ok({ updated, stripeSyncPayload });
+      return updatedResult;
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to update client {id}: {error}', { id, error });
-      return internalError('Failed to update client');
+      throw new HTTPException(500, { message: 'Failed to update client' });
     }
   });
 
-  if (!txResult.success) {
-    return txResult;
-  }
-
-  const { updated, stripeSyncPayload } = txResult.data;
-
+  // Stripe sync happens AFTER transaction commits (best-effort)
   if (stripeSyncPayload) {
+    const { customerId } = stripeSyncPayload;
     try {
       await clientsStripeService.updateCustomer(stripeSyncPayload, ctx);
     } catch (error) {
       logger.error('Failed to sync client to Stripe for client {client_id}: {error}', {
         client_id: id,
-        customer_id: stripeSyncPayload.customerId,
+        customer_id: customerId,
         error,
       });
-      // Return success with metadata indicating Stripe sync failed
-      // The DB transaction succeeded, so we don't want to roll that back
-      return {
-        success: true,
-        data: updated,
-        metadata: { stripeSyncFailed: true },
-      };
+      // Don't throw - DB transaction succeeded, just log the Stripe sync failure
     }
   }
 
-  return ok(updated);
+  return updated;
 };
 
 const listClients = async (
@@ -286,15 +269,13 @@ const listClients = async (
     offset?: number;
   },
   ctx: ServiceContext
-): Promise<
-  Result<{
-    data: (SelectClient & {
-      user: typeof users.$inferSelect | null;
-      address: Address | null;
-    })[];
-    total: number;
-  }>
-> => {
+): Promise<{
+  data: (SelectClient & {
+    user: typeof users.$inferSelect | null;
+    address: Address | null;
+  })[];
+  total: number;
+}> => {
   let effectiveClientId: string | undefined = params.clientId;
 
   if (ctx.ability.can('read', 'Client')) {
@@ -306,7 +287,7 @@ const listClients = async (
     // Client can ONLY see their own record (restricted to own record)
     effectiveClientId = ctx.userId;
   } else {
-    return forbidden('You do not have permission to view clients');
+    throw new HTTPException(403, { message: 'You do not have permission to view clients' });
   }
 
   try {
@@ -315,73 +296,74 @@ const listClients = async (
       clientId: effectiveClientId,
       organizationId: ctx.organizationId,
     });
-    return ok(data);
+    return data;
   } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
     logger.error('Failed to list clients: {error}', {
       error,
       organizationId: ctx.organizationId,
     });
-    return internalError('Failed to list clients');
+    throw new HTTPException(500, { message: 'Failed to list clients' });
   }
 };
 
-const getClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<SelectClient>> => {
+const getClient = async (params: { id: string }, ctx: ServiceContext): Promise<SelectClient> => {
   const { id } = params;
   try {
     const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
-      return notFound('Client not found');
+      throw new HTTPException(404, { message: 'Client not found' });
     }
 
     ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Client', detail));
 
-    return ok(detail);
+    return detail;
   } catch (error) {
-    if (error instanceof ForbiddenError) {
-      return forbidden('You do not have permission to view client');
+    if (error instanceof HTTPException) {
+      throw error;
     }
-
     logger.error('Failed to get client {id}: {error}', { id, error });
-    return internalError('Failed to get client');
+    throw new HTTPException(500, { message: 'Failed to get client' });
   }
 };
 
-const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<Result<void>> => {
+const deleteClient = async (params: { id: string }, ctx: ServiceContext): Promise<void> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Client');
   const { id } = params;
   try {
     const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
-      return notFound('Client not found');
+      throw new HTTPException(404, { message: 'Client not found' });
     }
 
     ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Client', detail));
 
     await clientsRepository.softDelete(id, ctx.userId);
     void ClientDeleted.dispatch({ client_id: id }, { actorId: ctx.userId, organizationId: ctx.organizationId });
-
-    return ok(undefined);
   } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
     logger.error('Failed to delete client {id}: {error}', { id, error });
-    return internalError('Failed to delete client');
+    throw new HTTPException(500, { message: 'Failed to delete client' });
   }
 };
 
 const ensureClientSetup = async (
   params: { id: string },
   ctx: ServiceContext
-): Promise<
-  Result<
-    SelectClient & {
-      user: typeof users.$inferSelect | null;
-    }
-  >
-> => {
+): Promise<SelectClient & { user: typeof users.$inferSelect | null }> => {
   const { id } = params;
+
+  // Enforce CASL permission check before any client updates
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Client');
+
   try {
     const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
-      return notFound('Client details not found');
+      throw new HTTPException(404, { message: 'Client details not found' });
     }
 
     let didBackfillStripeCustomerId = false;
@@ -389,7 +371,7 @@ const ensureClientSetup = async (
     if (!detail.stripe_customer_id) {
       // For lazy customer creation, we use the client's stored email/name
       if (!detail.email || !detail.name) {
-        return notFound('Client is missing email or name for Stripe customer creation');
+        throw new HTTPException(400, { message: 'Client is missing email or name for Stripe customer creation' });
       }
 
       const stripeCustomerId = await clientsStripeService.createCustomer(
@@ -405,10 +387,12 @@ const ensureClientSetup = async (
       );
 
       if (stripeCustomerId) {
-        await clientsRepository.update(id, {
+        const updatedDetail = await clientsRepository.update(id, {
           stripe_customer_id: stripeCustomerId,
         });
-        detail.stripe_customer_id = stripeCustomerId;
+        if (updatedDetail) {
+          detail.stripe_customer_id = updatedDetail.stripe_customer_id;
+        }
         didBackfillStripeCustomerId = true;
       }
     }
@@ -424,10 +408,13 @@ const ensureClientSetup = async (
     }
 
     const user = detail.user_id ? ((await usersRepository.findById(detail.user_id)) ?? null) : null;
-    return ok({ ...detail, user });
+    return { ...detail, user };
   } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
     logger.error('Failed to ensure client setup for {id}: {error}', { id, error });
-    return internalError('Failed to complete client setup');
+    throw new HTTPException(500, { message: 'Failed to complete client setup' });
   }
 };
 
@@ -443,12 +430,12 @@ const createClientFromIntake = async (
     };
   },
   ctx: ServiceContext
-): Promise<Result<SelectClient>> => {
+): Promise<SelectClient> => {
   const { intakeId, userId, email, name, phone } = params.data;
   try {
     const intake = await practiceClientIntakesRepository.findById(intakeId);
     if (!intake) {
-      return notFound(`Intake record with ID '${intakeId}' not found`);
+      throw new HTTPException(404, { message: `Intake record with ID '${intakeId}' not found` });
     }
 
     const user = await resolveUserForIntake({
@@ -458,7 +445,7 @@ const createClientFromIntake = async (
       phone,
     });
     if (!user) {
-      return internalError('Unable to process intake.');
+      throw new HTTPException(500, { message: 'Unable to process intake.' });
     }
 
     const existingMember = await membersRepository.findByOrgAndUser({
@@ -495,14 +482,14 @@ const createClientFromIntake = async (
           },
           { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
         );
-        return ok(updatedDetail);
+        return updatedDetail;
       }
-      return ok(existingDetail);
+      return existingDetail;
     }
 
     // Transaction only for database operations
-    const txResult = await db.transaction(async (tx) => {
-      const [detail] = await tx
+    const detail = await db.transaction(async (tx) => {
+      const [createdDetail] = await tx
         .insert(clients)
         .values({
           organization_id: ctx.organizationId,
@@ -517,14 +504,8 @@ const createClientFromIntake = async (
         })
         .returning();
 
-      return ok(detail);
+      return createdDetail;
     });
-
-    if (!txResult.success) {
-      return internalError('Failed to create client from intake');
-    }
-
-    const detail = txResult.data;
 
     // Event dispatch happens AFTER transaction completes
     void ClientCreated.dispatch(
@@ -538,10 +519,13 @@ const createClientFromIntake = async (
       { actorId: 'system', actorType: 'system', organizationId: ctx.organizationId }
     );
 
-    return ok(detail);
+    return detail;
   } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
     logger.error('Failed to create client from intake {intakeId}: {error}', { intakeId, error });
-    return internalError('Failed to create client from intake');
+    throw new HTTPException(500, { message: 'Failed to create client from intake' });
   }
 };
 

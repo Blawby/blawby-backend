@@ -1,17 +1,17 @@
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import type {
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
   OrganizationRequestParams,
 } from '@/modules/practice/types/practice.types';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { createBetterAuthInstance, type BetterAuthInstance } from '@/shared/auth/better-auth';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import usersRepository from '@/shared/repositories/users.repository';
 import type { ActiveOrganization, Organization } from '@/shared/types/BetterAuth';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { forbidden, internalError, ok } from '@/shared/utils/result';
 
 const logger = getLogger(['practice', 'organization-service']);
 
@@ -28,10 +28,7 @@ export const organizationService = {
   /**
    * Create a new organization
    */
-  async createOrganization(
-    { data }: { data: CreateOrganizationRequest },
-    ctx: ServiceContext
-  ): Promise<Result<Organization>> {
+  async createOrganization({ data }: { data: CreateOrganizationRequest }, ctx: ServiceContext): Promise<Organization> {
     try {
       const betterAuth = getBetterAuth();
 
@@ -41,7 +38,7 @@ export const organizationService = {
       });
 
       if (!slugCheck.status) {
-        return forbidden<Organization>(`Organization slug '${data.slug}' is already taken`);
+        throw new HTTPException(409, { message: `Organization slug '${data.slug}' is already taken` });
       }
 
       const result = await betterAuth.api.createOrganization({
@@ -50,7 +47,7 @@ export const organizationService = {
       });
 
       if (!result) {
-        return internalError<Organization>('Failed to create organization');
+        throw new HTTPException(500, { message: 'Failed to create organization' });
       }
 
       // Enforce primaryWorkspace for the creator if they don't have one (best-effort)
@@ -73,59 +70,68 @@ export const organizationService = {
         });
       }
 
-      return ok<Organization>(result);
+      return result;
     } catch (error) {
-      return internalError<Organization>(getBetterAuthErrorMessage(error, 'Failed to create organization'));
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+      throw new HTTPException(500, { message: getBetterAuthErrorMessage(error, 'Failed to create organization') });
     }
   },
 
   /**
    * List organizations for a user
    */
-  async listOrganizations(ctx: ServiceContext): Promise<Result<Organization[]>> {
+  async listOrganizations(ctx: ServiceContext): Promise<Organization[]> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.listOrganizations({
         headers: ctx.requestHeaders,
       });
 
-      return ok<Organization[]>(Array.isArray(result) ? result : []);
+      return Array.isArray(result) ? result : [];
     } catch (error) {
-      return internalError<Organization[]>(getBetterAuthErrorMessage(error, 'Failed to list organizations'));
+      throw new HTTPException(500, { message: getBetterAuthErrorMessage(error, 'Failed to list organizations') });
     }
   },
 
   /**
    * Update organization details
    */
-  async updateOrganization(
-    { data }: { data: UpdateOrganizationRequest },
-    ctx: ServiceContext
-  ): Promise<Result<Organization>> {
+  async updateOrganization({ data }: { data: UpdateOrganizationRequest }, ctx: ServiceContext): Promise<Organization> {
     const betterAuth = getBetterAuth();
     try {
+      // First check if organization exists (404) vs access denied (403)
+      if (!data.organizationId) {
+        throw new HTTPException(400, { message: 'Organization ID is required' });
+      }
+      const existingOrg = await organizationRepository.findById(data.organizationId);
+      if (!existingOrg) {
+        throw new HTTPException(404, { message: 'Organization not found' });
+      }
+
       const result = await betterAuth.api.updateOrganization({
         body: data,
         headers: ctx.requestHeaders,
       });
 
       if (!result) {
-        return forbidden<Organization>('Organization not found or access denied');
+        throw new HTTPException(403, { message: 'Access denied' });
       }
 
-      return ok<Organization>(result);
+      return result;
     } catch (error) {
-      return internalError<Organization>(getBetterAuthErrorMessage(error, 'Failed to update organization'));
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+      throw new HTTPException(500, { message: getBetterAuthErrorMessage(error, 'Failed to update organization') });
     }
   },
 
   /**
    * Delete an organization
    */
-  async deleteOrganization(
-    { organizationId }: OrganizationRequestParams,
-    ctx: ServiceContext
-  ): Promise<Result<Organization>> {
+  async deleteOrganization({ organizationId }: OrganizationRequestParams, ctx: ServiceContext): Promise<Organization> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.deleteOrganization({
@@ -134,12 +140,15 @@ export const organizationService = {
       });
 
       if (!result) {
-        return forbidden<Organization>('Organization not found or access denied');
+        throw new HTTPException(403, { message: 'Organization not found or access denied' });
       }
 
-      return ok<Organization>(result);
+      return result;
     } catch (error) {
-      return internalError<Organization>(getBetterAuthErrorMessage(error, 'Failed to delete organization'));
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+      throw new HTTPException(500, { message: getBetterAuthErrorMessage(error, 'Failed to delete organization') });
     }
   },
 
@@ -149,7 +158,7 @@ export const organizationService = {
   async setActiveOrganization(
     { organizationId }: OrganizationRequestParams,
     ctx: ServiceContext
-  ): Promise<Result<ActiveOrganization>> {
+  ): Promise<ActiveOrganization> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.setActiveOrganization({
@@ -158,27 +167,34 @@ export const organizationService = {
       });
 
       if (!result) {
-        return forbidden<ActiveOrganization>('Organization not found or access denied');
+        throw new HTTPException(403, { message: 'Organization not found or access denied' });
       }
 
-      return ok<ActiveOrganization>(result);
+      return result;
     } catch (error) {
-      return internalError<ActiveOrganization>(getBetterAuthErrorMessage(error, 'Failed to set active organization'));
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+      throw new HTTPException(500, { message: getBetterAuthErrorMessage(error, 'Failed to set active organization') });
     }
   },
 
   /**
    * Check if an organization slug is available
    */
-  async checkOrganizationSlug(slug: string): Promise<Result<boolean>> {
+  async checkOrganizationSlug(slug: string): Promise<boolean> {
     try {
       const betterAuth = getBetterAuth();
       const result = await betterAuth.api.checkOrganizationSlug({
         body: { slug },
       });
-      return ok<boolean>(Boolean(result.status));
-    } catch {
-      return ok<boolean>(false);
+      return Boolean(result.status);
+    } catch (error) {
+      logger.error('Failed to check organization slug {slug}: {error}', {
+        slug,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return false;
     }
   },
 };

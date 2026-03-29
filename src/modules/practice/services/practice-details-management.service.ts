@@ -1,4 +1,6 @@
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
+import { ForbiddenError } from '@casl/ability';
 
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
@@ -13,9 +15,7 @@ import type { UpsertPracticeDetailsParams } from '@/modules/practice/types/pract
 import type { OrganizationRequestParams } from '@/modules/practice/types/practice.types';
 import { db } from '@/shared/database';
 import { PracticeDeleted, PracticeDetailsDeleted, PracticeSwitched } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { internalError, notFound, ok } from '@/shared/utils/result';
 
 const logger = getLogger(['practice', 'details-management-service']);
 
@@ -31,12 +31,14 @@ export const practiceDetailsManagementService = {
   async upsertPracticeDetails(
     { organizationId, data }: UpsertPracticeDetailsParams,
     ctx: ServiceContext
-  ): Promise<Result<PracticeDetailsResponse>> {
+  ): Promise<PracticeDetailsResponse> {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
+
     const { user } = ctx;
     try {
       const organization = await organizationRepository.findById(organizationId);
       if (!organization) {
-        return notFound<PracticeDetailsResponse>(`Organization not found for '${organizationId}'`);
+        throw new HTTPException(404, { message: `Organization not found for '${organizationId}'` });
       }
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
@@ -71,10 +73,13 @@ export const practiceDetailsManagementService = {
         payment_link_prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
       };
 
-      return ok<PracticeDetailsResponse>(responseData);
+      return responseData;
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to upsert practice details for {organizationId}: {error}', { organizationId, error });
-      return internalError<PracticeDetailsResponse>('Failed to save practice details');
+      throw new HTTPException(500, { message: 'Failed to save practice details' });
     }
   },
 
@@ -84,19 +89,24 @@ export const practiceDetailsManagementService = {
   async deletePracticeDetails(
     { organizationId }: OrganizationRequestParams,
     ctx: ServiceContext
-  ): Promise<Result<{ success: boolean }>> {
+  ): Promise<{ success: boolean }> {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Organization');
+
     try {
       const organization = await organizationRepository.findById(organizationId);
       if (!organization) {
-        return notFound<{ success: boolean }>(`Organization not found for '${organizationId}'`);
+        throw new HTTPException(404, { message: `Organization not found for '${organizationId}'` });
       }
 
       await findAndDeletePracticeDetails(ctx, organizationId);
 
-      return ok<{ success: boolean }>({ success: true });
+      return { success: true };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to delete practice details for {organizationId}: {error}', { organizationId, error });
-      return internalError<{ success: boolean }>('Failed to delete practice details');
+      throw new HTTPException(500, { message: 'Failed to delete practice details' });
     }
   },
 
@@ -106,20 +116,19 @@ export const practiceDetailsManagementService = {
   async deletePractice(
     { organizationId }: OrganizationRequestParams,
     ctx: ServiceContext
-  ): Promise<Result<{ success: boolean }>> {
+  ): Promise<{ success: boolean }> {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Organization');
+
     const { user } = ctx;
     try {
       const organization = await organizationRepository.findById(organizationId);
       if (!organization) {
-        return notFound<{ success: boolean }>(`Organization not found for '${organizationId}'`);
+        throw new HTTPException(404, { message: `Organization not found for '${organizationId}'` });
       }
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
-      const deleteResult = await organizationService.deleteOrganization({ organizationId }, ctx);
-      if (!deleteResult.success) {
-        return deleteResult;
-      }
+      await organizationService.deleteOrganization({ organizationId }, ctx);
 
       if (existing) {
         await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(existing));
@@ -132,10 +141,13 @@ export const practiceDetailsManagementService = {
         user_email: user.email,
       });
 
-      return ok<{ success: boolean }>({ success: true });
+      return { success: true };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to delete practice {organizationId}: {error}', { organizationId, error });
-      return internalError<{ success: boolean }>('Failed to delete practice');
+      throw new HTTPException(500, { message: 'Failed to delete practice' });
     }
   },
 
@@ -145,13 +157,12 @@ export const practiceDetailsManagementService = {
   async setActivePractice(
     { organizationId }: OrganizationRequestParams,
     ctx: ServiceContext
-  ): Promise<Result<{ success: boolean }>> {
+  ): Promise<{ success: boolean }> {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
+
     const { user } = ctx;
     try {
-      const activeResult = await organizationService.setActiveOrganization({ organizationId }, ctx);
-      if (!activeResult.success) {
-        return activeResult;
-      }
+      await organizationService.setActiveOrganization({ organizationId }, ctx);
 
       await ctx.emit(PracticeSwitched, {
         user_id: user.id,
@@ -160,10 +171,13 @@ export const practiceDetailsManagementService = {
         switched_to_organization: organizationId,
       });
 
-      return ok<{ success: boolean }>({ success: true });
+      return { success: true };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to set active practice {organizationId}: {error}', { organizationId, error });
-      return internalError<{ success: boolean }>('Failed to set active practice');
+      throw new HTTPException(500, { message: 'Failed to set active practice' });
     }
   },
 };
