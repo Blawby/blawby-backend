@@ -248,11 +248,13 @@ Remaining high-priority work from this snapshot:
   - `practice-details.routes.ts`
 - [x] Add CASL checks in practice mutation/query services (admin writes, read-gated queries)
 - [x] Convert service signatures to `(params, ctx)` for practice services
-- [ ] **Migrate handlers/services to throw-based error pattern**
-- [ ] **Event definitions** (`src/shared/events/definitions/practice.ts`):
+- [x] **Migrate handlers/services to throw-based error pattern**
+- [x] **Event definitions** (`src/shared/events/definitions/practice.ts`):
   - [x] Add typed payloads to `PracticeMemberInvited` and `PracticeMemberJoined` — DONE
   - [x] Simplify `PracticeDetailsUpsertedPayload` — DONE
 - [x] **Note:** Better Auth wrapper calls keep `requestHeaders` param (required by `betterAuth.api.*`) as an explicit exception in practice types/services
+
+**Status:** ✅ **COMPLETE** — Migrated to throw-based error handling
 
 ---
 
@@ -291,10 +293,10 @@ Remaining high-priority work from this snapshot:
 - [x] Split `user-details.service.ts` (543 lines) → `user-details-crud.service.ts`, `user-details-stripe.service.ts`
 - [x] Add CASL ownership checks
 - [x] Remove `if (!user)` checks
-- [ ] **Migrate handlers/services to throw-based error pattern**
+- [x] **Migrate handlers/services to throw-based error pattern**
 - [x] Extract `resolveUserForIntake` to `user-details-utils.ts`
 
-**Status:** Closed (no further required items in this PR scope)
+**Status:** ✅ **COMPLETE** — Migrated to throw-based error handling
 
 ---
 
@@ -393,12 +395,7 @@ Remaining high-priority work from this snapshot:
 
 **Dependencies:** All Group A merged
 
-**A. Services: Use `result.ok<T>()`**
-
-```typescript
-// Before: return result.ok({ ...matter, assignees } as MatterRecord);
-// After:  return result.ok<MatterRecord>({ ...matter, assignees });
-```
+**A. Services: Remove all `result.ok<T>()`**
 
 - [ ] Audit and fix all `as SomeRecord` casts in services
 
@@ -550,16 +547,18 @@ PR-14 (Env Config) ── independent, merge any time
 
 ## Metrics
 
-| Metric                          | Before   | Now                                                  | Target            |
-| ------------------------------- | -------- | ---------------------------------------------------- | ----------------- |
-| Modules using `ServiceContext`  | 2        | **4** (matters, preferences, invoices, user-details) | all               |
-| Modules using CASL              | 2        | **4**                                                | all authenticated |
-| Modules using Throw-based Error | 0        | **1** (stripe)                                       | all               |
-| Service files >200 lines        | 9        | **~13**                                              | **0**             |
-| Route files >300 lines          | 3        | **3**                                                | **0**             |
-| `if (!user)` checks             | ~50      | **2**                                                | **0**             |
-| `computeRoutingClaims` usages   | ~15      | **0**                                                | **0**             |
-| `requestHeaders` params         | ~20      | **7**                                                | **0**             |
-| Direct `process.env` reads      | 70 files | **24 files**                                         | **0**             |
-| `any` type usages               | 23 files | **5 files**                                          | **0**             |
-| `as` type assertions            | many     | many                                                 | **0**             |
+| Metric                          | Before   | Now                                                                     | Target            |
+| ------------------------------- | -------- | ----------------------------------------------------------------------- | ----------------- |
+| Modules using `ServiceContext`  | 2        | **6** (matters, preferences, invoices, user-details, practice, clients) | all               |
+| Modules using CASL              | 2        | **6**                                                                   | all authenticated |
+| Modules using Throw-based Error | 0        | **3** (stripe, practice, clients)                                       | all               |
+| Service files >200 lines        | 9        | **~11** (uploads, subscription, meteredProducts, trust, matters\*)      | **0**             |
+| Route files >300 lines          | 3        | **1** (uploads.routes.ts)                                               | **0**             |
+| `if (!user)` checks             | ~50      | **0**                                                                   | **0**             |
+| `computeRoutingClaims` usages   | ~15      | **0**                                                                   | **0**             |
+| `requestHeaders` params         | ~20      | **~5** (better-auth exceptions, subscriptions)                          | **0**             |
+| Direct `process.env` reads      | 70 files | **24 files**                                                            | **0**             |
+| `any` type usages               | 23 files | **5 files**                                                             | **0**             |
+| `as` type assertions            | many     | many                                                                    | **0**             |
+
+\*Note: matters module services >200 lines are acceptable as noted in PR-0

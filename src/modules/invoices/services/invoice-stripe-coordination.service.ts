@@ -164,22 +164,24 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     if (!invoice.client?.stripe_customer_id) {
-      const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
+      try {
+        const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
 
-      if (!setupResult.success) {
-        return { success: false, error: setupResult.error };
-      }
+        if (!setupResult.stripe_customer_id) {
+          return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
+        }
 
-      if (!setupResult.data?.stripe_customer_id) {
-        return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
+        // Refetch invoice to get updated client with stripe_customer_id
+        const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+        if (!freshInvoice) {
+          return result.notFound<InvoiceResponse>('Invoice not found after client setup');
+        }
+        invoice = freshInvoice;
+      } catch (error) {
+        return result.internalError<InvoiceResponse>(
+          error instanceof Error ? error.message : 'Failed to setup Stripe customer for client'
+        );
       }
-
-      // Refetch invoice to get updated client with stripe_customer_id
-      const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-      if (!freshInvoice) {
-        return result.notFound<InvoiceResponse>('Invoice not found after client setup');
-      }
-      invoice = freshInvoice;
     }
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');
