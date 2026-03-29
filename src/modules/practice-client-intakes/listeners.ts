@@ -15,7 +15,7 @@ import {
   IntakeTriaged,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { config } from '@/shared/config';
 import { logError } from '@/shared/utils/logging';
@@ -39,44 +39,48 @@ const sendSubmissionEmails = (payload: {
 
   // 1. Prospect-facing: "Your submission has been received"
   if (clientRecipient) {
-    void addEmailJob(
-      EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED,
-      clientRecipient,
-      `Submission received — ${payload.organization_name}`,
-      {
-        recipientEmail: clientRecipient,
-        recipientName: payload.client_name,
-        practiceName: payload.organization_name,
-        submittedAt: new Date().toISOString(),
-      }
-    ).catch((error) => {
-      logError('Failed to queue intake submission received email', error, {
-        intakeId: payload.intake_id,
+    void queueManager
+      .addEmailJob(
+        EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED,
+        clientRecipient,
+        `Submission received — ${payload.organization_name}`,
+        {
+          recipientEmail: clientRecipient,
+          recipientName: payload.client_name,
+          practiceName: payload.organization_name,
+          submittedAt: new Date().toISOString(),
+        }
+      )
+      .catch((error: unknown) => {
+        logError('Failed to queue intake submission received email', error, {
+          intakeId: payload.intake_id,
+        });
       });
-    });
   }
 
   // 2. Practice-facing: "You've received a new intake submission"
   const practiceRecipient = payload.billing_email;
   if (practiceRecipient) {
-    void addEmailJob(
-      EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION,
-      practiceRecipient,
-      `New intake submission from ${payload.client_name}`,
-      {
-        recipientEmail: practiceRecipient,
-        recipientName: payload.organization_name,
-        clientName: payload.client_name,
-        clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
-        amount: payload.amount,
-        intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
-        practiceName: payload.organization_name,
-      }
-    ).catch((error) => {
-      logError('Failed to queue intake new notification email', error, {
-        intakeId: payload.intake_id,
+    void queueManager
+      .addEmailJob(
+        EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION,
+        practiceRecipient,
+        `New intake submission from ${payload.client_name}`,
+        {
+          recipientEmail: practiceRecipient,
+          recipientName: payload.organization_name,
+          clientName: payload.client_name,
+          clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
+          amount: payload.amount,
+          intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
+          practiceName: payload.organization_name,
+        }
+      )
+      .catch((error: unknown) => {
+        logError('Failed to queue intake new notification email', error, {
+          intakeId: payload.intake_id,
+        });
       });
-    });
   }
 };
 
@@ -99,7 +103,7 @@ export const registerPracticeClientIntakesListeners = (): void => {
     if (!payload.client_email) {
       logger.warn('No client_email for intake payment succeeded, will use billing_email as fallback if available', {
         intakeId: payload.intake_payment_id,
-        hasBillingEmail: !!payload.billing_email,
+        hasBillingEmail: Boolean(payload.billing_email),
       });
     }
 
@@ -149,36 +153,40 @@ export const registerPracticeClientIntakesListeners = (): void => {
     });
 
     if (payload.triage_status === 'accepted') {
-      void addEmailJob(
-        EMAIL_TEMPLATES.INTAKE_ACCEPTED,
-        payload.client_email,
-        `Your case has been accepted — ${payload.organization_name}`,
-        {
-          recipientEmail: payload.client_email,
-          recipientName: payload.client_name,
-          practiceName: payload.organization_name,
-        }
-      ).catch((error) => {
-        logError('Failed to queue intake accepted email', error, {
-          intakeId: payload.intake_id,
+      void queueManager
+        .addEmailJob(
+          EMAIL_TEMPLATES.INTAKE_ACCEPTED,
+          payload.client_email,
+          `Your case has been accepted — ${payload.organization_name}`,
+          {
+            recipientEmail: payload.client_email,
+            recipientName: payload.client_name,
+            practiceName: payload.organization_name,
+          }
+        )
+        .catch((error: unknown) => {
+          logError('Failed to queue intake accepted email', error, {
+            intakeId: payload.intake_id,
+          });
         });
-      });
     } else if (payload.triage_status === 'declined') {
-      void addEmailJob(
-        EMAIL_TEMPLATES.INTAKE_DECLINED,
-        payload.client_email,
-        `Update on your submission — ${payload.organization_name}`,
-        {
-          recipientEmail: payload.client_email,
-          recipientName: payload.client_name,
-          practiceName: payload.organization_name,
-          reason: payload.triage_reason ?? undefined,
-        }
-      ).catch((error) => {
-        logError('Failed to queue intake declined email', error, {
-          intakeId: payload.intake_id,
+      void queueManager
+        .addEmailJob(
+          EMAIL_TEMPLATES.INTAKE_DECLINED,
+          payload.client_email,
+          `Update on your submission — ${payload.organization_name}`,
+          {
+            recipientEmail: payload.client_email,
+            recipientName: payload.client_name,
+            practiceName: payload.organization_name,
+            reason: payload.triage_reason ?? undefined,
+          }
+        )
+        .catch((error: unknown) => {
+          logError('Failed to queue intake declined email', error, {
+            intakeId: payload.intake_id,
+          });
         });
-      });
     }
   });
 

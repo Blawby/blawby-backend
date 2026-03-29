@@ -10,7 +10,7 @@ import { matterStatusHistoryQueries } from '@/modules/matters/database/queries/m
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import { Event } from '@/shared/events/event';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { config } from '@/shared/config';
 import { logError } from '@/shared/utils/logging';
@@ -84,7 +84,7 @@ export const registerMattersListeners = (): void => {
     const practiceName = payload.organization_name;
 
     if (payload.new_status === 'active') {
-      void addEmailJob(
+      void queueManager.addEmailJob(
         EMAIL_TEMPLATES.MATTER_OPENED,
         clientEmail,
         `Your matter has been opened — ${practiceName}`,
@@ -95,13 +95,13 @@ export const registerMattersListeners = (): void => {
           practiceName,
           dashboardUrl: `${APP_URL}/dashboard/matters/${payload.matter_id}`,
         }
-      ).catch((error) => {
+      ).catch((error: unknown) => {
         logError('Failed to queue matter opened email', error, {
           matterId: payload.matter_id,
         });
       });
     } else if (payload.new_status === 'closed') {
-      void addEmailJob(
+      void queueManager.addEmailJob(
         EMAIL_TEMPLATES.MATTER_CLOSED,
         clientEmail,
         `Your matter has been closed — ${practiceName}`,
@@ -111,7 +111,7 @@ export const registerMattersListeners = (): void => {
           matterTitle: payload.matter_title,
           practiceName,
         }
-      ).catch((error) => {
+      ).catch((error: unknown) => {
         logError('Failed to queue matter closed email', error, {
           matterId: payload.matter_id,
         });
