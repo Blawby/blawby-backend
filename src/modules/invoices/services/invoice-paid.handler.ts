@@ -62,7 +62,7 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
         {
           status: 'paid',
           amount_paid: stripeInvoice.amount_paid,
-          amount_due: stripeInvoice.amount_remaining,
+          amount_due: stripeInvoice.total,
           paid_at: stripeInvoice.status_transitions.paid_at
             ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
             : null,
@@ -70,9 +70,9 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
         tx
       );
 
-      let charge_id: string | null = null;
+      let chargeId: string | null = null;
       if ('charge' in stripeInvoice && typeof stripeInvoice.charge === 'string') {
-        charge_id = stripeInvoice.charge;
+        chargeId = stripeInvoice.charge;
       }
 
       let destinationAccountId = invoice.connected_account_id;
@@ -94,46 +94,57 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
 
       const routingInstruction = routingResult.data;
 
-      // 2. Persist billing transaction first (pending), then execute external transfer after commit
-      const pendingTransaction = await billingTransactionsRepository.createTransaction(
-        {
-          organization_id: invoice.organization_id,
-          invoice_id: invoice.id,
-          matter_id: invoice.matter_id,
-          amount: stripeInvoice.amount_paid,
-          type: 'payout',
-          status: 'pending',
-          destination_account_id: routingInstruction.destination,
-          stripe_transfer_id: null,
-          completed_at: null,
-          metadata: {
-            stripe_invoice_id: stripeInvoice.id,
-            stripe_charge_id: charge_id,
-            invoice_type: invoice.invoice_type,
-            fund_destination: routingInstruction.metadata.fund_destination,
-            hold_for_approval: routingInstruction.holdForApproval,
+      // 2. Persist billing transaction and prepare transfer (skip for retainer-funded invoices)
+      // Retainer payments don't involve external transfers - funds come from trust ledger
+      if (!invoice.payment_from_retainer) {
+        const pendingTransaction = await billingTransactionsRepository.createTransaction(
+          {
+            organization_id: invoice.organization_id,
+            invoice_id: invoice.id,
+            matter_id: invoice.matter_id,
+            amount: stripeInvoice.amount_paid,
+            type: 'payout',
+            status: 'pending',
+            destination_account_id: routingInstruction.destination,
+            stripe_transfer_id: null,
+            completed_at: null,
+            metadata: {
+              stripe_invoice_id: stripeInvoice.id,
+              stripe_charge_id: chargeId,
+              invoice_type: invoice.invoice_type,
+              fund_destination: routingInstruction.metadata.fund_destination,
+              hold_for_approval: routingInstruction.holdForApproval,
+            },
           },
-        },
-        tx
-      );
+          tx
+        );
 
-      pendingBillingTransactionId = pendingTransaction.id;
+        pendingBillingTransactionId = pendingTransaction.id;
 
-      if (routingInstruction.holdForApproval) {
-        logger.info('Transfer held for approval for invoice {invoiceId}; pending billing transaction {transactionId}', {
-          invoiceId: invoice.id,
-          transactionId: pendingTransaction.id,
-        });
-      } else {
-        transferDestination = routingInstruction.destination;
-        transferMetadata = routingInstruction.metadata;
+        if (routingInstruction.holdForApproval) {
+          logger.info(
+            'Transfer held for approval for invoice {invoiceId}; pending billing transaction {transactionId}',
+            {
+              invoiceId: invoice.id,
+              transactionId: pendingTransaction.id,
+            }
+          );
+        } else {
+          transferDestination = routingInstruction.destination;
+          transferMetadata = routingInstruction.metadata;
+        }
       }
 
       // 4. Handle retainer transactions (if applicable)
       if (invoice.matter_id && routingInstruction.updateRetainerBalance) {
         // Get matter to access client_id for trust ledger
         const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-        if (matter?.client_id) {
+        if (!matter) {
+          throw new Error(
+            `Matter ${invoice.matter_id} not found: cannot process retainer updateRetainerBalance without matter record`
+          );
+        }
+        if (matter.client_id) {
           // 4a. Record in trust ledger (source of truth)
           const depositResult = await trustService.recordDeposit(
             {
@@ -190,7 +201,7 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
               }
             );
           }
-        } else if (matter) {
+        } else {
           throw new Error(
             `Missing client_id for matter ${matter.id}: cannot process retainer updateRetainerBalance without trust ledger entry`
           );
@@ -198,7 +209,12 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
       } else if (invoice.matter_id && invoice.payment_from_retainer) {
         // Handle payment from retainer (decrement balance)
         const matter = await mattersQueries.findMatterById(invoice.matter_id, tx);
-        if (matter?.client_id) {
+        if (!matter) {
+          throw new Error(
+            `Matter ${invoice.matter_id} not found: cannot process retainer withdrawal without matter record`
+          );
+        }
+        if (matter.client_id) {
           // Record withdrawal in trust ledger
           const withdrawalResult = await trustService.recordWithdrawal(
             {
@@ -255,7 +271,7 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
               }
             );
           }
-        } else if (matter) {
+        } else {
           throw new Error(
             `Missing client_id for matter ${matter.id}: cannot process retainer withdrawal without trust ledger entry`
           );
