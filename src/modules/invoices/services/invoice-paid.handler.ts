@@ -187,7 +187,6 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
                 actorType: 'webhook',
                 organizationId: invoice.organization_id,
                 tx,
-                critical: true,
               }
             );
           }
@@ -253,7 +252,6 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
                 actorType: 'webhook',
                 organizationId: invoice.organization_id,
                 tx,
-                critical: true,
               }
             );
           }

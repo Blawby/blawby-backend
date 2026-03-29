@@ -26,7 +26,7 @@ type DbOrTx = typeof appDb | Parameters<Parameters<typeof appDb.transaction>[0]>
  *
  * @param db - Database instance or transaction
  * @param organizationId - Organization UUID
- * @returns Current total count of active members
+ * @returns Current total count of members (billable seats)
  */
 const getMemberCountForOrganization = async (db: DbOrTx, organizationId: string): Promise<number> => {
   const result = await db
@@ -127,15 +127,16 @@ const syncSeatCountOnInvoice = async (
   organizationId: string,
   stripeCustomerId: string
 ): Promise<boolean> => {
+  const idempotencyIdentifier = buildSeatSyncIdentifier(invoice, organizationId, stripeCustomerId);
+
   try {
-    const idempotencyIdentifier = buildSeatSyncIdentifier(invoice, organizationId, stripeCustomerId);
     await reportAbsoluteSeatCount(db, organizationId, idempotencyIdentifier, stripeCustomerId);
     return true;
   } catch (error) {
     // Log but don't throw — metering should not block invoice webhook processing
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.warn('Seat metering failed for identifier {idempotencyIdentifier}: {error}', {
-      idempotencyIdentifier: buildSeatSyncIdentifier(invoice, organizationId, stripeCustomerId),
+      idempotencyIdentifier,
       error: message,
     });
     return false;

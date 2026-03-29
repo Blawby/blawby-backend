@@ -13,12 +13,7 @@ const logger = getLogger(['shared', 'webhook-retries']);
 /**
  * Max concurrent webhook job enqueueing to avoid overwhelming the queue
  */
-const MAX_CONCURRENT_JOBS = 10;
-
-/**
- * Scan for failed events and re-queue them.
- */
-const ONBOARDING_EVENT_PREFIXES = ['account.', 'capability.', 'account.external_account.'] as const;
+const maxConcurrentJobs = 10;
 
 /**
  * Scan for failed events and re-queue them.
@@ -34,32 +29,29 @@ const retryFailedWebhooks = async (): Promise<void> => {
     logger.info('Found {count} webhook events to retry', { count: eventsToRetry.length });
 
     // Process events with bounded concurrency to avoid overwhelming the queue
-    const allRetryResults: PromiseSettledResult<{ success: true; eventId: string }>[] = [];
+    const batchPromises: Promise<PromiseSettledResult<{ success: true; eventId: string }>[]>[] = [];
 
-    for (let i = 0; i < eventsToRetry.length; i += MAX_CONCURRENT_JOBS) {
-      const batch = eventsToRetry.slice(i, i + MAX_CONCURRENT_JOBS);
+    for (let i = 0; i < eventsToRetry.length; i += maxConcurrentJobs) {
+      const batch = eventsToRetry.slice(i, i + maxConcurrentJobs);
 
-      const batchResults = await Promise.allSettled(
+      const batchPromise = Promise.allSettled(
         batch.map(async (event) => {
-          const isOnboarding = ONBOARDING_EVENT_PREFIXES.some((prefix) => event.eventType.startsWith(prefix));
-
-          if (isOnboarding) {
-            await queueManager.addOnboardingWebhookJob(event.id, event.stripeEventId, event.eventType);
-          } else {
-            await queueManager.addWebhookJob(event.id, event.stripeEventId, event.eventType);
-          }
+          await queueManager.addWebhookJob(event.id, event.stripeEventId, event.eventType);
 
           logger.info('Re-queued webhook event {eventId} ({eventType})', {
             eventId: event.stripeEventId,
             eventType: event.eventType,
           });
 
-          return { success: true, eventId: event.stripeEventId };
+          return { success: true as const, eventId: event.stripeEventId };
         })
       );
 
-      allRetryResults.push(...(batchResults as PromiseSettledResult<{ success: true; eventId: string }>[]));
+      batchPromises.push(batchPromise);
     }
+
+    const batchResults = await Promise.all(batchPromises);
+    const allRetryResults = batchResults.flat();
 
     const successCount = allRetryResults.filter(
       (r): r is PromiseFulfilledResult<{ success: true; eventId: string }> => r.status === 'fulfilled'
