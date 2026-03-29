@@ -16,6 +16,11 @@ const logger = getLogger(['shared', 'webhook-retries']);
 const maxConcurrentJobs = 10;
 
 /**
+ * Event types that should be routed to the onboarding queue
+ */
+const ONBOARDING_EVENT_PREFIXES = ['account.', 'capability.', 'account.external_account.'] as const;
+
+/**
  * Scan for failed events and re-queue them.
  */
 const retryFailedWebhooks = async (): Promise<void> => {
@@ -28,49 +33,61 @@ const retryFailedWebhooks = async (): Promise<void> => {
 
     logger.info('Found {count} webhook events to retry', { count: eventsToRetry.length });
 
-    // Process events with bounded concurrency to avoid overwhelming the queue
+    // Build all batch promises first (no await in loop)
     const batchPromises: Promise<PromiseSettledResult<{ success: true; eventId: string }>[]>[] = [];
 
     for (let i = 0; i < eventsToRetry.length; i += maxConcurrentJobs) {
       const batch = eventsToRetry.slice(i, i + maxConcurrentJobs);
 
       const batchPromise = Promise.allSettled(
-        batch.map(async (event) => {
-          await queueManager.addWebhookJob(event.id, event.stripeEventId, event.eventType);
+        batch.map((event) => {
+          const isOnboarding = ONBOARDING_EVENT_PREFIXES.some((prefix) => event.eventType.startsWith(prefix));
 
-          logger.info('Re-queued webhook event {eventId} ({eventType})', {
-            eventId: event.stripeEventId,
-            eventType: event.eventType,
+          const jobPromise = isOnboarding
+            ? queueManager.addOnboardingWebhookJob(event.id, event.stripeEventId, event.eventType)
+            : queueManager.addWebhookJob(event.id, event.stripeEventId, event.eventType);
+
+          return jobPromise.then(() => {
+            logger.info('Re-queued webhook event {eventId} ({eventType})', {
+              eventId: event.stripeEventId,
+              eventType: event.eventType,
+            });
+
+            return { success: true as const, eventId: event.stripeEventId };
           });
-
-          return { success: true as const, eventId: event.stripeEventId };
         })
       );
 
       batchPromises.push(batchPromise);
     }
 
-    const batchResults = await Promise.all(batchPromises);
-    const allRetryResults = batchResults.flat();
+    // Now await all batches outside the loop
+    const allBatchResults = await Promise.all(batchPromises);
 
-    const successCount = allRetryResults.filter(
-      (r): r is PromiseFulfilledResult<{ success: true; eventId: string }> => r.status === 'fulfilled'
-    ).length;
-    const failureCount = allRetryResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected').length;
+    // Track results
+    let successCount = 0;
+    let failureCount = 0;
+
+    allBatchResults.forEach((batchResults, batchIndex) => {
+      const batch = eventsToRetry.slice(batchIndex * maxConcurrentJobs, (batchIndex + 1) * maxConcurrentJobs);
+
+      batchResults.forEach((result, resultIndex) => {
+        if (result.status === 'fulfilled') {
+          successCount++;
+        } else {
+          failureCount++;
+          const event = batch[resultIndex];
+          logger.error('Failed to re-queue webhook event {eventId}: {error}', {
+            eventId: event.stripeEventId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          });
+        }
+      });
+    });
 
     logger.info('Retry scan completed: {success} succeeded, {failed} failed', {
       success: successCount,
       failed: failureCount,
-    });
-
-    allRetryResults.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        const event = eventsToRetry[index];
-        logger.error('Failed to re-queue webhook event {eventId}: {error}', {
-          eventId: event.stripeEventId,
-          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        });
-      }
     });
   } catch (error) {
     logger.error('Error during webhook retry scan: {error}', {

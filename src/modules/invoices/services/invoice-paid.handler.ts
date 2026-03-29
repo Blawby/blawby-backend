@@ -262,14 +262,6 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
         }
       }
 
-      // 5. Record metered usage for platform fee
-      await meteredProductsService.reportMeteredUsage(
-        tx,
-        invoice.organization_id,
-        METERED_TYPES.INVOICE_FEE,
-        1 // 1 invoice processed
-      );
-
       await InvoicePaid.dispatch(
         {
           invoice_id: invoice.id,
@@ -289,6 +281,14 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
         }
       );
     });
+
+    // 5. Record metered usage for platform fee (after transaction commits to avoid over-reporting)
+    await meteredProductsService.reportMeteredUsage(
+      db,
+      invoice.organization_id,
+      METERED_TYPES.INVOICE_FEE,
+      1 // 1 invoice processed
+    );
 
     if (pendingBillingTransactionId && transferDestination && transferMetadata) {
       try {
