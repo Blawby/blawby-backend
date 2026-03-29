@@ -41,12 +41,9 @@ const payloadSchema = z
     recipient_email: z.email().optional().openapi({
       description: 'Explicit recipient email when backend cannot resolve from entity',
     }),
-    metadata: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .openapi({
-        description: 'Additional template-variable data for email rendering',
-      }),
+    metadata: z.record(z.string(), z.unknown()).optional().openapi({
+      description: 'Additional template-variable data for email rendering',
+    }),
   })
   .openapi('WorkerEventPayload');
 

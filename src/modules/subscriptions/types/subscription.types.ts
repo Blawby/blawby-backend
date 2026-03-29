@@ -118,28 +118,17 @@ export interface SubscriptionPlanResponse {
   display_name: string;
   description: string | null;
   stripe_product_id: string;
-  stripe_monthly_price_id: string | null;
-  stripe_yearly_price_id: string | null;
-  monthly_price: string | null;
-  yearly_price: string | null;
-  currency: string;
   features: string[];
   limits: {
     users: number;
     invoices_per_month: number;
     storage_gb: number;
   };
-  metered_items?:
-    | {
-        price_id: string;
-        meter_name: string;
-        type: string;
-      }[]
-    | null;
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
   metadata?: Record<string, string> | null;
+  image: string | null;
   created_at: Date;
   updated_at: Date;
 }

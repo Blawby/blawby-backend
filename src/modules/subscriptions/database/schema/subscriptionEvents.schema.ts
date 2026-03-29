@@ -4,9 +4,7 @@
  * Audit trail for subscription lifecycle events
  */
 
-import { relations } from 'drizzle-orm';
 import { pgTable, text, timestamp, uuid, jsonb, index } from 'drizzle-orm/pg-core';
-import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
 import { subscriptions } from '@/schema/better-auth-schema';
 
 // Event type enum
@@ -40,14 +38,14 @@ export const subscriptionEvents = pgTable(
       .references(() => subscriptions.id, { onDelete: 'cascade' }),
 
     // Link to plan (optional, for plan changes)
-    plan_id: uuid('plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
+    plan_id: uuid('plan_id'),
 
     // Event details
     event_type: text('event_type').$type<SubscriptionEventType>().notNull(),
     from_status: text('from_status'),
     to_status: text('to_status'),
-    from_plan_id: uuid('from_plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
-    to_plan_id: uuid('to_plan_id').references(() => subscriptionPlans.id, { onDelete: 'set null' }),
+    from_plan_id: uuid('from_plan_id'),
+    to_plan_id: uuid('to_plan_id'),
 
     // Audit fields
     triggered_by: text('triggered_by'), // User ID
@@ -68,20 +66,7 @@ export const subscriptionEvents = pgTable(
   ]
 );
 
-export const subscriptionEventsRelations = relations(subscriptionEvents, ({ one }) => ({
-  plan: one(subscriptionPlans, {
-    fields: [subscriptionEvents.plan_id],
-    references: [subscriptionPlans.id],
-  }),
-  fromPlan: one(subscriptionPlans, {
-    fields: [subscriptionEvents.from_plan_id],
-    references: [subscriptionPlans.id],
-  }),
-  toPlan: one(subscriptionPlans, {
-    fields: [subscriptionEvents.to_plan_id],
-    references: [subscriptionPlans.id],
-  }),
-}));
+// No relations to subscription_plans (table removed)
 
 // Type exports
 export type SubscriptionEvent = typeof subscriptionEvents.$inferSelect;

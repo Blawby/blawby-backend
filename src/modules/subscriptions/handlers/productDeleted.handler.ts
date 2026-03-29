@@ -23,14 +23,9 @@ export const handleProductDeleted = async (product: Stripe.Product | Stripe.Dele
       productName: 'name' in product ? product.name : undefined,
     });
 
-    // Deactivate the plan instead of hard delete
-    const deactivated = await subscriptionRepository.deactivatePlan(db, product.id);
-
-    if (deactivated) {
-      logger.info('Successfully deactivated plan: {productId}', { productId: product.id });
-    } else {
-      logger.warn('Plan not found for deactivation: {productId}', { productId: product.id });
-    }
+    // Deactivate all prices for this product
+    await subscriptionRepository.deactivatePricesByProductId(db, product.id);
+    logger.info('Deactivated prices for product: {productId}', { productId: product.id });
   } catch (error) {
     logger.error('Failed to process product.deleted: {productId}. Error: {error}', {
       productId: product.id,

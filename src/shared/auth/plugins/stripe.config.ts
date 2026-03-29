@@ -4,8 +4,10 @@ import { eq, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { subscriptionPrices } from '@/modules/subscriptions/database/schema/subscriptionPrices.schema';
 import * as schema from '@/schema';
 import { config } from '@/shared/config';
+import { db } from '@/shared/database';
 import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
@@ -15,8 +17,6 @@ import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
 const logger = getLogger(['shared', 'auth', 'plugins', 'stripe']);
-
-const METERED_PRICE_IDS_KEY = 'metered_price_ids';
 
 /**
  * SHARED HELPER: Synchronize subscription state to local DB.
@@ -582,8 +582,14 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                     if (subscriptionId) {
                       const stripeClient = getStripeInstance();
                       const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
-                      const meteredIds = (await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY)) ?? [];
 
+                      // Fetch active metered price IDs from subscription_prices table
+                      const meteredPrices = await db
+                        .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+                        .from(subscriptionPrices)
+                        .where(and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true)));
+
+                      const meteredIds = meteredPrices.map((p) => p.stripe_price_id);
                       const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
                       const injectedItems = meteredIds
@@ -623,29 +629,43 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
 };
 
 /**
- * Injects metered price IDs from app_config into a list of Stripe items.
+ * Injects active metered price IDs from subscription_prices table into a list of Stripe items.
+ * Fetches all prices where usage_type = 'metered' and is_active = true.
  * returns a new array with metered items injected.
  */
 const injectMeteredItems = async <T extends { price?: string }>(
   items: T[] | undefined
 ): Promise<(T | { price: string })[] | undefined> => {
-  const meteredIds = (await appConfigService.get<string[]>(METERED_PRICE_IDS_KEY)) ?? [];
-  if (meteredIds.length === 0) {
+  try {
+    // Query subscription_prices for all active metered prices
+    const meteredPrices = await db
+      .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+      .from(subscriptionPrices)
+      .where(and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true)));
+
+    const meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+
+    if (meteredIds.length === 0) {
+      return undefined;
+    }
+
+    const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
+
+    const newEntries = meteredIds.filter((id) => !existingPrices.has(id)).map((id) => ({ price: id }));
+
+    if (newEntries.length === 0) {
+      return undefined;
+    }
+
+    const addedCount = newEntries.length;
+    logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
+
+    return [...(items ?? []), ...newEntries];
+  } catch (error) {
+    logger.error('[Stripe Proxy] Failed to fetch metered prices from database: {error}', { error });
+    // Return undefined on error to avoid breaking checkout
     return undefined;
   }
-
-  const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
-
-  const newEntries = meteredIds.filter((id) => !existingPrices.has(id)).map((id) => ({ price: id }));
-
-  if (newEntries.length === 0) {
-    return undefined;
-  }
-
-  const addedCount = newEntries.length;
-  logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
-
-  return [...(items ?? []), ...newEntries];
 };
 
 export { createStripePlugin };

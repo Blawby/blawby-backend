@@ -2,12 +2,12 @@
  * Price Updated Webhook Handler
  *
  * Handles Stripe price.updated webhook events
- * Updates the subscription plan with the modified price
+ * Updates the price record in the database
+ * Does NOT modify is_active — that's our own control flag
  */
 
 import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
-
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 
@@ -20,52 +20,33 @@ export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => 
   try {
     logger.info('Processing price.updated: {priceId}', { priceId: price.id });
 
-    // Find the plan that uses this price
-    const plan = await subscriptionRepository.findPlanByStripePriceId(db, price.id);
+    // Find the price
+    const existingPrice = await subscriptionRepository.findPriceByStripeId(db, price.id);
 
-    if (!plan) {
-      logger.warn('Plan not found for price.updated: {priceId}', { priceId: price.id });
+    if (!existingPrice) {
+      logger.warn('Price not found for price.updated: {priceId}', { priceId: price.id });
       return;
     }
 
-    // Update the plan with the new price amount
-    const updates: Record<string, unknown> = {};
+    // Update price fields (but NOT is_active — that's ours to control)
+    const updates = {
+      ...existingPrice,
+      currency: price.currency,
+      unit_amount: price.unit_amount ?? 0,
+      interval: price.recurring?.interval ?? null,
+      interval_count: price.recurring?.interval_count ?? null,
+      billing_scheme: price.billing_scheme ?? null,
+      metadata: price.metadata ?? {},
+      updated_at: new Date(),
+    };
 
-    if (plan.stripe_monthly_price_id === price.id) {
-      updates.monthly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
-    }
-
-    if (plan.stripe_yearly_price_id === price.id) {
-      updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
-    }
-
-    // Update currency if changed
-    if (price.currency && price.currency !== plan.currency) {
-      updates.currency = price.currency;
-    }
-
-    // Update active status
-    if (price.active !== undefined) {
-      // If this is the only price and it's deactivated, deactivate the plan
-      if (!price.active && plan.stripe_monthly_price_id === price.id && !plan.stripe_yearly_price_id) {
-        updates.is_active = false;
-      } else if (!price.active && plan.stripe_yearly_price_id === price.id && !plan.stripe_monthly_price_id) {
-        updates.is_active = false;
-      }
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await subscriptionRepository.upsertPlan(db, {
-        ...plan,
-        ...updates,
-      });
-
-      logger.info('Successfully updated plan with modified price: {priceId}', { priceId: price.id });
-    } else {
-      logger.debug('No updates needed for price: {priceId}', { priceId: price.id });
-    }
+    await subscriptionRepository.upsertPrice(db, updates);
+    logger.info('Successfully updated price: {priceId}', { priceId: price.id });
   } catch (error) {
-    logger.error('Failed to process price.updated: {priceId}. Error: {error}', { priceId: price.id, error });
+    logger.error('Failed to process price.updated: {priceId}. Error: {error}', {
+      priceId: price.id,
+      error,
+    });
     throw error;
   }
 };

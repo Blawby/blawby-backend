@@ -12,7 +12,9 @@ const logger = getLogger(['app', 'shared', 'openapi']);
  */
 export const createMarkdownFromOpenApi = async (openApiDocument: unknown): Promise<string> => {
   try {
-    return await scalarCreateMarkdownFromOpenApi(openApiDocument as Parameters<typeof scalarCreateMarkdownFromOpenApi>[0]);
+    return await scalarCreateMarkdownFromOpenApi(
+      openApiDocument as Parameters<typeof scalarCreateMarkdownFromOpenApi>[0]
+    );
   } catch (error) {
     logger.error('Error generating Markdown from OpenAPI: {error}', { error });
     return '# API Documentation\n\nError generating documentation.';

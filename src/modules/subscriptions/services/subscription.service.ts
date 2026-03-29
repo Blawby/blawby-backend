@@ -11,6 +11,8 @@ import { eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
 import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
+import type { SubscriptionLineItem } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
+import type { SubscriptionEvent } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
 import type {
   CancelSubscriptionRequest,
   SubscriptionAPI,
@@ -85,10 +87,26 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
   try {
     const plans = await subscriptionRepository.findAllActivePlans(db);
 
-    // The repository returns plans which are already snake_case in the schema
-    // So we can return them directly.
+    // Repository returns SubscriptionPlan[], which matches SubscriptionPlanResponse
+    const response: SubscriptionPlanResponse[] = plans.map((plan) => ({
+      id: plan.id,
+      name: plan.name,
+      display_name: plan.display_name,
+      description: plan.description,
+      stripe_product_id: plan.stripe_product_id,
+      features: plan.features,
+      limits: plan.limits,
+      is_active: plan.is_active,
+      is_public: plan.is_public,
+      sort_order: plan.sort_order,
+      metadata: plan.metadata,
+      image: plan.image,
+      created_at: plan.created_at,
+      updated_at: plan.updated_at,
+    }));
+
     return ok({
-      plans: plans as SubscriptionPlanResponse[],
+      plans: response,
     });
   } catch (error) {
     logger.error('Failed to list plans: {error}', { error });
@@ -168,7 +186,7 @@ const getCurrentSubscription = async (
     const { plan: _plan, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
 
     // Map DB rows to response types to avoid unsafe casts
-    const mappedLineItems: LineItemResponse[] = lineItems.map((item) => ({
+    const mappedLineItems: LineItemResponse[] = lineItems.map((item: SubscriptionLineItem) => ({
       id: item.id,
       subscription_id: item.subscription_id,
       stripe_subscription_item_id: item.stripe_subscription_item_id,
@@ -182,7 +200,7 @@ const getCurrentSubscription = async (
       updated_at: item.updated_at,
     }));
 
-    const mappedEvents: EventResponse[] = events.map((event) => ({
+    const mappedEvents: EventResponse[] = events.map((event: SubscriptionEvent) => ({
       id: event.id,
       subscription_id: event.subscription_id,
       plan_id: event.plan_id,
@@ -198,21 +216,33 @@ const getCurrentSubscription = async (
       created_at: event.created_at,
     }));
 
-    // Construct the response by spreading the raw DB record (which contains snake_case keys from the aliased select)
-    // And adding the details. The 'plan' from the DB record is just a string name,
-    // We override it here with the full plan object.
+    // Map plan to response format
+    const planResponse: SubscriptionPlanResponse | null = planResult
+      ? {
+          id: planResult.id,
+          name: planResult.name,
+          display_name: planResult.display_name,
+          description: planResult.description,
+          stripe_product_id: planResult.stripe_product_id,
+          features: planResult.features,
+          limits: planResult.limits,
+          is_active: planResult.is_active,
+          is_public: planResult.is_public,
+          sort_order: planResult.sort_order,
+          metadata: planResult.metadata ?? null,
+          image: planResult.image,
+          created_at: planResult.created_at,
+          updated_at: planResult.updated_at,
+        }
+      : null;
+
+    // Construct the response
     return ok({
       subscription: {
         ...subscriptionRecordWithoutPlanName,
         line_items: mappedLineItems,
         events: mappedEvents,
-        plan: planResult
-          ? {
-              ...planResult,
-              metadata: planResult.metadata ?? null,
-              metered_items: planResult.metered_items ?? null,
-            }
-          : null,
+        plan: planResponse,
       },
     });
   } catch (error) {
