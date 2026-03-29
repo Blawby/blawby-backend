@@ -356,6 +356,10 @@ const ensureClientSetup = async (
   ctx: ServiceContext
 ): Promise<SelectClient & { user: typeof users.$inferSelect | null }> => {
   const { id } = params;
+
+  // Enforce CASL permission check before any client updates
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Client');
+
   try {
     const detail = await clientsRepository.findById(id);
     if (!detail || detail.organization_id !== ctx.organizationId) {
