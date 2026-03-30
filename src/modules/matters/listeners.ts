@@ -84,38 +84,32 @@ export const registerMattersListeners = (): void => {
     const practiceName = payload.organization_name;
 
     if (payload.new_status === 'active') {
-      void queueManager.addEmailJob(
-        EMAIL_TEMPLATES.MATTER_OPENED,
-        clientEmail,
-        `Your matter has been opened — ${practiceName}`,
-        {
+      void queueManager
+        .addEmailJob(EMAIL_TEMPLATES.MATTER_OPENED, clientEmail, `Your matter has been opened — ${practiceName}`, {
           recipientEmail: clientEmail,
           recipientName: clientName,
           matterTitle: payload.matter_title,
           practiceName,
           dashboardUrl: `${APP_URL}/dashboard/matters/${payload.matter_id}`,
-        }
-      ).catch((error: unknown) => {
-        logError('Failed to queue matter opened email', error, {
-          matterId: payload.matter_id,
+        })
+        .catch((error: unknown) => {
+          logError('Failed to queue matter opened email', error, {
+            matterId: payload.matter_id,
+          });
         });
-      });
     } else if (payload.new_status === 'closed') {
-      void queueManager.addEmailJob(
-        EMAIL_TEMPLATES.MATTER_CLOSED,
-        clientEmail,
-        `Your matter has been closed — ${practiceName}`,
-        {
+      void queueManager
+        .addEmailJob(EMAIL_TEMPLATES.MATTER_CLOSED, clientEmail, `Your matter has been closed — ${practiceName}`, {
           recipientEmail: clientEmail,
           recipientName: clientName,
           matterTitle: payload.matter_title,
           practiceName,
-        }
-      ).catch((error: unknown) => {
-        logError('Failed to queue matter closed email', error, {
-          matterId: payload.matter_id,
+        })
+        .catch((error: unknown) => {
+          logError('Failed to queue matter closed email', error, {
+            matterId: payload.matter_id,
+          });
         });
-      });
     }
   });
 
