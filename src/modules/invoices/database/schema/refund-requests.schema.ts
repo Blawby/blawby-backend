@@ -10,7 +10,7 @@ import {
   check,
 } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema';
 
 export const refundRequests = pgTable(
@@ -25,10 +25,10 @@ export const refundRequests = pgTable(
       .references(() => invoices.id),
     client_user_details_id: uuid('client_user_details_id')
       .notNull()
-      .references(() => userDetails.id),
+      .references(() => clients.id),
     created_by_user_details_id: uuid('created_by_user_details_id')
       .notNull()
-      .references(() => userDetails.id),
+      .references(() => clients.id),
     requested_amount: integer('requested_amount').notNull(),
     currency: varchar('currency', { length: 10 }).notNull().default('usd'),
     reason: text('reason').notNull(),
@@ -76,14 +76,14 @@ export const refundRequestsRelations = relations(refundRequests, ({ one }) => ({
     references: [users.id],
     relationName: 'reviewedByUser',
   }),
-  clientUserDetails: one(userDetails, {
+  clientUserDetails: one(clients, {
     fields: [refundRequests.client_user_details_id],
-    references: [userDetails.id],
+    references: [clients.id],
     relationName: 'clientUserDetails',
   }),
-  createdByUserDetails: one(userDetails, {
+  createdByUserDetails: one(clients, {
     fields: [refundRequests.created_by_user_details_id],
-    references: [userDetails.id],
+    references: [clients.id],
     relationName: 'createdByUserDetails',
   }),
 }));
