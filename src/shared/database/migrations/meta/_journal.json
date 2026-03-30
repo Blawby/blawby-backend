@@ -295,41 +295,6 @@
       "when": 1774518200033,
       "tag": "0041_crazy_proemial_gods",
       "breakpoints": true
-    },
-    {
-      "idx": 42,
-      "version": "7",
-      "when": 1774808729017,
-      "tag": "0042_elite_photon",
-      "breakpoints": true
-    },
-    {
-      "idx": 43,
-      "version": "7",
-      "when": 1774809000000,
-      "tag": "0043_youthful_deathbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 44,
-      "version": "7",
-      "when": 1774930000000,
-      "tag": "0044_remove_invoice_application_fee_amount",
-      "breakpoints": true
-    },
-    {
-      "idx": 45,
-      "version": "7",
-      "when": 1774933600000,
-      "tag": "0045_rename_billing_transaction_fee_column",
-      "breakpoints": true
-    },
-    {
-      "idx": 46,
-      "version": "7",
-      "when": 1774937200000,
-      "tag": "0046_relax_refund_request_executed_constraint",
-      "breakpoints": true
     }
   ]
 }
