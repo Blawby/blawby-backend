@@ -253,5 +253,10 @@ export const routes = {
   voidInvoiceRoute,
   getClientInvoicesRoute,
   getClientInvoiceDetailRoute,
-  ...refundRoutes,
+  createRefundRequestRoute: refundRoutes.createRefundRequestRoute,
+  listClientRefundRequestsRoute: refundRoutes.listClientRefundRequestsRoute,
+  cancelRefundRequestRoute: refundRoutes.cancelRefundRequestRoute,
+  listPracticeRefundRequestsRoute: refundRoutes.listPracticeRefundRequestsRoute,
+  reviewRefundRequestRoute: refundRoutes.reviewRefundRequestRoute,
+  executeRefundRoute: refundRoutes.executeRefundRoute,
 };

@@ -72,7 +72,6 @@ export const defineAbilityFor = (
     can('read', 'RefundRequest');
     can('update', 'RefundRequest');
     can('manage', 'Client');
-    can('manage', 'UserDetails');
     can('manage', 'ClientMemo');
     cannot('read', 'UserDetails');
     if (metadata.userId) {

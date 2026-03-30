@@ -299,22 +299,29 @@
     {
       "idx": 42,
       "version": "7",
-      "when": 1774930000000,
-      "tag": "0042_remove_invoice_application_fee_amount",
+      "when": 1774808729017,
+      "tag": "0042_elite_photon",
       "breakpoints": true
     },
     {
       "idx": 43,
       "version": "7",
-      "when": 1774933600000,
-      "tag": "0043_rename_billing_transaction_fee_column",
+      "when": 1774930000000,
+      "tag": "0043_remove_invoice_application_fee_amount",
       "breakpoints": true
     },
     {
       "idx": 44,
       "version": "7",
+      "when": 1774933600000,
+      "tag": "0044_rename_billing_transaction_fee_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
       "when": 1774937200000,
-      "tag": "0044_relax_refund_request_executed_constraint",
+      "tag": "0045_relax_refund_request_executed_constraint",
       "breakpoints": true
     }
   ]
