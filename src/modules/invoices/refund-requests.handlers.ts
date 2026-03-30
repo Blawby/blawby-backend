@@ -7,11 +7,10 @@ import {
   executeRefundRoute,
 } from '@/modules/invoices/refund-requests.routes';
 import { refundRequestsService } from '@/modules/invoices/services/refund-requests.service';
-import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { response } from '@/shared/utils/responseUtils';
 
-export const createRefundRequestHandler: AppRouteHandler<typeof createRefundRequestRoute> = async (c) => {
+export const createRefundRequestHandler = async (c: any) => {
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const body = c.req.valid('json');
@@ -25,7 +24,7 @@ export const createRefundRequestHandler: AppRouteHandler<typeof createRefundRequ
   return response.created(c, { refundRequest: result.data });
 };
 
-export const listClientRefundRequestsHandler: AppRouteHandler<typeof listClientRefundRequestsRoute> = async (c) => {
+export const listClientRefundRequestsHandler = async (c: any) => {
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const result = await refundRequestsService.listClientRequests(ctx);
@@ -33,7 +32,7 @@ export const listClientRefundRequestsHandler: AppRouteHandler<typeof listClientR
   return response.ok(c, { refundRequests: result.data });
 };
 
-export const cancelRefundRequestHandler: AppRouteHandler<typeof cancelRefundRequestRoute> = async (c) => {
+export const cancelRefundRequestHandler = async (c: any) => {
   const { practice_id: organizationId, id } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const result = await refundRequestsService.cancelRequest({
@@ -43,7 +42,7 @@ export const cancelRefundRequestHandler: AppRouteHandler<typeof cancelRefundRequ
   return response.ok(c, { refundRequest: result.data });
 };
 
-export const listPracticeRefundRequestsHandler: AppRouteHandler<typeof listPracticeRefundRequestsRoute> = async (c) => {
+export const listPracticeRefundRequestsHandler = async (c: any) => {
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const query = c.req.valid('query');
@@ -56,7 +55,7 @@ export const listPracticeRefundRequestsHandler: AppRouteHandler<typeof listPract
   return response.ok(c, { refundRequests: result.data });
 };
 
-export const reviewRefundRequestHandler: AppRouteHandler<typeof reviewRefundRequestRoute> = async (c) => {
+export const reviewRefundRequestHandler = async (c: any) => {
   const { practice_id: organizationId, id } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const body = c.req.valid('json');
@@ -69,7 +68,7 @@ export const reviewRefundRequestHandler: AppRouteHandler<typeof reviewRefundRequ
   return response.ok(c, { refundRequest: result.data });
 };
 
-export const executeRefundHandler: AppRouteHandler<typeof executeRefundRoute> = async (c) => {
+export const executeRefundHandler = async (c: any) => {
   const { practice_id: organizationId, id } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const result = await refundRequestsService.executeRefund({
