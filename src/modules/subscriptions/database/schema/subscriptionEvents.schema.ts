@@ -6,26 +6,10 @@
 
 import { pgTable, text, timestamp, uuid, jsonb, index } from 'drizzle-orm/pg-core';
 import { subscriptions } from '@/schema/better-auth-schema';
-
-// Event type enum
-export const SUBSCRIPTION_EVENT_TYPES = [
-  'created',
-  'plan_changed',
-  'status_changed',
-  'canceled',
-  'resumed',
-  'payment_succeeded',
-  'payment_failed',
-  'trial_ending',
-  'trial_ended',
-] as const;
-
-export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
-
-// Triggered by type enum
-export const SUBSCRIPTION_TRIGGERED_BY_TYPES = ['user', 'system', 'webhook'] as const;
-
-export type SubscriptionTriggeredByType = (typeof SUBSCRIPTION_TRIGGERED_BY_TYPES)[number];
+import type {
+  SubscriptionEventType,
+  SubscriptionTriggeredByType,
+} from '@/modules/subscriptions/types/SubscriptionEvents';
 
 export const subscriptionEvents = pgTable(
   'subscription_events',
@@ -65,9 +49,3 @@ export const subscriptionEvents = pgTable(
     index('subscription_events_plan_idx').on(table.plan_id),
   ]
 );
-
-// No relations to subscription_plans (table removed)
-
-// Type exports
-export type SubscriptionEvent = typeof subscriptionEvents.$inferSelect;
-export type NewSubscriptionEvent = typeof subscriptionEvents.$inferInsert;

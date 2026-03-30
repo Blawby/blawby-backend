@@ -10,9 +10,11 @@ import { ForbiddenError } from '@casl/ability';
 import { eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
-import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
-import type { SubscriptionLineItem } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
-import type { SubscriptionEvent } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
+import {
+  subscriptionLineItems,
+  type SubscriptionLineItem,
+} from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
+import type { SubscriptionEvent } from '@/modules/subscriptions/types/SubscriptionEvents.ts';
 import type {
   CancelSubscriptionRequest,
   SubscriptionAPI,

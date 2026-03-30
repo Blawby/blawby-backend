@@ -12,7 +12,6 @@ import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { createWebhookEventIfNotExists } from '@/shared/repositories/stripe.webhook-events.repository';
-import { appConfigService } from '@/shared/services/app-config.service';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
@@ -587,7 +586,9 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                       const meteredPrices = await db
                         .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
                         .from(subscriptionPrices)
-                        .where(and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true)));
+                        .where(
+                          and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true))
+                        );
 
                       const meteredIds = meteredPrices.map((p) => p.stripe_price_id);
                       const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));

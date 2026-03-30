@@ -8,11 +8,12 @@
  * - Subscription Events (audit trail)
  */
 
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 import type {
   NewSubscriptionEvent,
   SubscriptionEvent,
-} from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
+  SubscriptionEventType,
+} from '@/modules/subscriptions/types/SubscriptionEvents';
 import type {
   NewSubscriptionLineItem,
   SubscriptionLineItem,
@@ -155,12 +156,10 @@ const deactivatePricesByProductId = async (db: DbOrTx, stripeProductId: string):
 
 const countActivePricesForPlan = async (db: DbOrTx, planId: string): Promise<number> => {
   const [row] = await db
-    .select({ count: subscriptionPrices.id.count() })
+    .select({ count: count() })
     .from(subscriptionPrices)
     .where(and(eq(subscriptionPrices.plan_id, planId), eq(subscriptionPrices.is_active, true)));
 
-  // Drizzle may return bigint-like counts depending on driver; normalize to number
-  // @ts-expect-error driver typing
   return Number(row?.count ?? 0);
 };
 
@@ -228,14 +227,12 @@ const findEventsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): P
 const findEventsBySubscriptionIdAndType = async (
   db: DbOrTx,
   subscriptionId: string,
-  eventType: string
+  eventType: SubscriptionEventType
 ): Promise<SubscriptionEvent[]> =>
   await db
     .select()
     .from(subscriptionEvents)
-    .where(
-      and(eq(subscriptionEvents.subscription_id, subscriptionId), eq(subscriptionEvents.event_type, eventType as any))
-    )
+    .where(and(eq(subscriptionEvents.subscription_id, subscriptionId), eq(subscriptionEvents.event_type, eventType)))
     .orderBy(desc(subscriptionEvents.created_at));
 
 const findLatestEvent = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionEvent | undefined> => {
