@@ -608,14 +608,12 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
 
                         meteredIds = meteredPrices.map((p) => p.stripe_price_id);
                       } else {
-                        const meteredPrices = await db
-                          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-                          .from(subscriptionPrices)
-                          .where(
-                            and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true))
-                          );
-
-                        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+                        // No product context could be resolved from the subscription items.
+                        // Avoid a global query that would pull unrelated metered prices.
+                        logger.warn(
+                          '[Stripe Proxy] No product context found for subscription items; skipping metered item injection to avoid unrelated global matches.'
+                        );
+                        meteredIds = [];
                       }
                       const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
@@ -692,17 +690,10 @@ const injectMeteredItems = async <T extends { price?: string }>(
       }
     }
 
-    // Fallback to global active metered prices when no product context could be resolved
+    // If we couldn't resolve any metered prices scoped to the provided context, do not fall back to a global query.
+    // Returning undefined avoids injecting unrelated metered prices into the session.
     if (meteredIds.length === 0) {
-      const meteredPrices = await db
-        .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-        .from(subscriptionPrices)
-        .where(and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true)));
-
-      meteredIds = meteredPrices.map((p) => p.stripe_price_id);
-    }
-
-    if (meteredIds.length === 0) {
+      logger.debug('[Stripe Proxy] No scoped metered prices found; skipping metered injection for session.');
       return undefined;
     }
 

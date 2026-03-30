@@ -101,8 +101,7 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
       return planPriceMap;
     }, {});
 
-    const formatAmount = (amount: number | null | undefined, _currency?: string): string | null =>
-      amount == null ? null : (amount / 100).toFixed(2);
+    // Prices are returned in integer cents to avoid precision/formatting issues
 
     const response: SubscriptionPlanResponse[] = plans.map((plan) => {
       const planPrices = pricesByPlan[plan.id] ?? [];
@@ -119,8 +118,8 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
         stripe_product_id: plan.stripe_product_id,
         stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
         stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
-        monthly_price: monthlyPrice ? formatAmount(monthlyPrice.unit_amount, monthlyPrice.currency) : null,
-        yearly_price: yearlyPrice ? formatAmount(yearlyPrice.unit_amount, yearlyPrice.currency) : null,
+        monthly_price: monthlyPrice ? monthlyPrice.unit_amount : null,
+        yearly_price: yearlyPrice ? yearlyPrice.unit_amount : null,
         currency,
         features: plan.features,
         limits: plan.limits,
@@ -269,8 +268,8 @@ const getCurrentSubscription = async (
         stripe_product_id: planResult.stripe_product_id,
         stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
         stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
-        monthly_price: monthlyPrice ? formatAmount(monthlyPrice.unit_amount) : null,
-        yearly_price: yearlyPrice ? formatAmount(yearlyPrice.unit_amount) : null,
+        monthly_price: monthlyPrice ? monthlyPrice.unit_amount : null,
+        yearly_price: yearlyPrice ? yearlyPrice.unit_amount : null,
         currency,
         features: planResult.features,
         limits: planResult.limits,

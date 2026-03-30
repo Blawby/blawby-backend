@@ -70,8 +70,8 @@ const subscriptionPlanResponseSchema = z.object({
   stripe_product_id: z.string(),
   stripe_monthly_price_id: z.string().nullable(),
   stripe_yearly_price_id: z.string().nullable(),
-  monthly_price: z.string().nullable(),
-  yearly_price: z.string().nullable(),
+  monthly_price: z.number().nullable(),
+  yearly_price: z.number().nullable(),
   currency: z.string(),
   features: z.array(z.string()),
   limits: z.object({

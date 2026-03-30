@@ -120,8 +120,8 @@ export interface SubscriptionPlanResponse {
   stripe_product_id: string;
   stripe_monthly_price_id?: string | null;
   stripe_yearly_price_id?: string | null;
-  monthly_price?: string | null;
-  yearly_price?: string | null;
+  monthly_price?: number | null;
+  yearly_price?: number | null;
   currency?: string;
   metered_items?: { price_id: string; meter_name: string | null; type: string | null }[] | null;
   features: string[];
