@@ -151,7 +151,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
         meter_id: price.recurring?.meter ?? null,
         meter_name,
         internal_type,
-        is_active: true,
+        is_active: price.active,
         metadata: price.metadata ?? {},
       };
 

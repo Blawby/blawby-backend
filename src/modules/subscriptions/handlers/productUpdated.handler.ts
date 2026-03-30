@@ -18,8 +18,12 @@ const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
  * Parse limit value from metadata
  */
 const parseLimit = (value: string | undefined, defaultValue: number): number => {
-  if (!value) return defaultValue;
-  if (value.toLowerCase() === 'unlimited' || value === '-1') return -1;
+  if (!value) {
+    return defaultValue;
+  }
+  if (value.toLowerCase() === 'unlimited' || value === '-1') {
+    return -1;
+  }
   const parsed = parseInt(value, 10);
   return Number.isNaN(parsed) ? defaultValue : parsed;
 };
@@ -89,12 +93,12 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
       productName: product.name,
     });
 
-    // Fetch existing plan
+    // Fetch existing plan (if any) — if missing, we'll upsert from payload
     const existingPlan = await subscriptionRepository.findPlanByStripeProductId(db, product.id);
-
     if (!existingPlan) {
-      logger.warn('Plan not found for product.updated: {productId}', { productId: product.id });
-      return;
+      logger.warn('Plan not found for product.updated: {productId}, will upsert from Stripe payload', {
+        productId: product.id,
+      });
     }
 
     // Fetch all prices for this product
@@ -158,11 +162,27 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
         meter_id: price.recurring?.meter ?? null,
         meter_name,
         internal_type,
-        is_active: true,
+        is_active: price.active,
         metadata: price.metadata ?? {},
       };
 
       await subscriptionRepository.upsertPrice(db, priceData);
+    }
+
+    // Reconcile: deactivate any DB prices for this product that are not present in Stripe
+    try {
+      const currentPriceIds = new Set(prices.data.map((p) => p.id));
+      const dbPrices = await subscriptionRepository.findPricesByProductId(db, product.id);
+      for (const dbPrice of dbPrices) {
+        if (!currentPriceIds.has(dbPrice.stripe_price_id) && dbPrice.is_active) {
+          await subscriptionRepository.upsertPrice(db, { ...dbPrice, is_active: false });
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to reconcile prices for product {productId}: {error}', {
+        productId: product.id,
+        error: err,
+      });
     }
 
     logger.info('Successfully processed product.updated: {productId} with {priceCount} prices', {

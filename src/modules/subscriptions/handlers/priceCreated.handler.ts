@@ -37,31 +37,20 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
     }
 
     let internal_type: string | undefined = undefined;
+    let meter_name: string | null = null;
 
-    // For metered prices, fetch meter and get internal type
+    // For metered prices, fetch meter once and derive both fields
     if (price.recurring?.usage_type === 'metered' && price.recurring?.meter) {
       try {
         const stripe = getStripeInstance();
         const meter = await stripe.billing.meters.retrieve(price.recurring.meter);
         internal_type = getInternalTypeFromMeterName(meter.event_name) ?? undefined;
+        meter_name = meter.event_name;
       } catch (err) {
         logger.error('Failed to retrieve meter for price {priceId}: {error}', {
           priceId: price.id,
           error: err instanceof Error ? err.message : 'Unknown error',
         });
-      }
-    }
-
-    let meter_name: string | null = null;
-
-    // Fetch meter_name if metered
-    if (price.recurring?.usage_type === 'metered' && price.recurring?.meter) {
-      try {
-        const stripe = getStripeInstance();
-        const meter = await stripe.billing.meters.retrieve(price.recurring.meter);
-        meter_name = meter.event_name;
-      } catch {
-        // Already logged
       }
     }
 
@@ -78,11 +67,21 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       meter_id: price.recurring?.meter ?? null,
       meter_name,
       internal_type,
-      is_active: true,
+      is_active: price.active,
       metadata: price.metadata ?? {},
     };
 
     await subscriptionRepository.upsertPrice(db, priceData);
+    // Ensure the plan is active when a new price is added (reversible deactivation)
+    try {
+      await subscriptionRepository.activatePlan(db, productId);
+    } catch (err) {
+      logger.error('Failed to activate plan after price.created: {priceId}: {error}', {
+        priceId: price.id,
+        error: err,
+      });
+    }
+
     logger.info('Successfully created price: {priceId}', { priceId: price.id });
   } catch (error) {
     logger.error('Failed to process price.created: {priceId}. Error: {error}', {

@@ -93,6 +93,15 @@ const deactivatePlan = async (db: DbOrTx, stripeProductId: string): Promise<Subs
   return updated;
 };
 
+const activatePlan = async (db: DbOrTx, stripeProductId: string): Promise<SubscriptionPlan | undefined> => {
+  const [updated] = await db
+    .update(subscriptionPlans)
+    .set({ is_active: true, updated_at: new Date() })
+    .where(eq(subscriptionPlans.stripe_product_id, stripeProductId))
+    .returning();
+  return updated;
+};
+
 /**
  * --- Subscription Prices Operations ---
  */
@@ -145,11 +154,14 @@ const deactivatePricesByProductId = async (db: DbOrTx, stripeProductId: string):
 };
 
 const countActivePricesForPlan = async (db: DbOrTx, planId: string): Promise<number> => {
-  const rows = await db
-    .select()
+  const [row] = await db
+    .select({ count: subscriptionPrices.id.count() })
     .from(subscriptionPrices)
     .where(and(eq(subscriptionPrices.plan_id, planId), eq(subscriptionPrices.is_active, true)));
-  return rows.length;
+
+  // Drizzle may return bigint-like counts depending on driver; normalize to number
+  // @ts-expect-error driver typing
+  return Number(row?.count ?? 0);
 };
 
 /**
@@ -244,6 +256,7 @@ export const subscriptionRepository = {
   findAllActivePlans,
   upsertPlan,
   deactivatePlan,
+  activatePlan,
   // Prices
   findPriceById,
   findPriceByStripeId,

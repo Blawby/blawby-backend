@@ -5,7 +5,7 @@
  * Deactivates the subscription plan (soft delete)
  */
 
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
@@ -26,6 +26,14 @@ export const handleProductDeleted = async (product: Stripe.Product | Stripe.Dele
     // Deactivate all prices for this product
     await subscriptionRepository.deactivatePricesByProductId(db, product.id);
     logger.info('Deactivated prices for product: {productId}', { productId: product.id });
+
+    // Also deactivate the plan (soft) so product is not visible
+    const deactivatedPlan = await subscriptionRepository.deactivatePlan(db, product.id);
+    if (deactivatedPlan) {
+      logger.info('Deactivated plan for product: {productId}', { productId: product.id });
+    } else {
+      logger.warn('No plan found to deactivate for product: {productId}', { productId: product.id });
+    }
   } catch (error) {
     logger.error('Failed to process product.deleted: {productId}. Error: {error}', {
       productId: product.id,
