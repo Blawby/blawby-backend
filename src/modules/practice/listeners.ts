@@ -16,18 +16,19 @@ import {
   PracticeSwitched,
   IntakePaymentSucceeded,
 } from '@/shared/events/definitions';
+import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError } from '@/shared/utils/logging';
+import { logError, hashEmail } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
-const APP_URL = process.env.APP_URL || 'https://app.blawby.com';
+const APP_URL = config.app.appUrl;
 
 /**
  * Register all practice event listeners
  */
-export function registerPracticeListeners(): void {
+const registerPracticeListeners = (): void => {
   logger.info('Registering practice event listeners...');
 
   // Practice created
@@ -76,8 +77,8 @@ export function registerPracticeListeners(): void {
   Event.listen(IntakePaymentSucceeded, async (payload) => {
     // Map intake payload fields to local variables for templates
     const customer = {
-      email: payload.client_email || '',
-      name: payload.client_name || 'Valued Client',
+      email: payload.client_email ?? '',
+      name: payload.client_name ?? 'Valued Client',
     };
 
     const payment = {
@@ -101,56 +102,64 @@ export function registerPracticeListeners(): void {
     ];
 
     // 1. Send Customer Receipt
-    void addEmailJob(
-      EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT,
-      customer.email,
-      `Your receipt from ${business.name} - ${payment.invoiceNumber}`,
-      {
-        recipientEmail: customer.email,
-        recipientName: customer.name,
-        businessName: business.name,
-        invoiceNumber: payment.invoiceNumber,
-        amountPaid: payment.amount,
-        amountDue: payment.amount,
-        paidAt: payload.succeeded_at,
-        lineItems: items,
-        paymentMethod: payment.method,
-        supportEmail: business.supportEmail,
-      }
-    ).catch((error) => {
-      logError('Failed to queue customer receipt email', error, {
-        invoiceNumber: payment.invoiceNumber,
-        recipientEmail: customer.email,
-      });
-    });
+    if (customer.email) {
+      void queueManager
+        .addEmailJob(
+          EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT,
+          customer.email,
+          `Your receipt from ${business.name} - ${payment.invoiceNumber}`,
+          {
+            recipientEmail: customer.email,
+            recipientName: customer.name,
+            businessName: business.name,
+            invoiceNumber: payment.invoiceNumber,
+            amountPaid: payment.amount,
+            amountDue: payment.amount,
+            paidAt: payload.succeeded_at,
+            lineItems: items,
+            paymentMethod: payment.method,
+            supportEmail: business.supportEmail,
+          }
+        )
+        .catch((error) => {
+          logError('Failed to queue customer receipt email', error, {
+            invoiceNumber: payment.invoiceNumber,
+            method: payment.method,
+          });
+        });
+    }
 
     // 2. Send Team Notification
-    void addEmailJob(
-      EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT,
-      'support@blawby.com', // Default support/owner email
-      `Payment of ${new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      }).format(payment.amount / 100)} received from ${
-        customer.name === 'Valued Client' ? customer.email : customer.name
-      }`,
-      {
-        recipientEmail: 'support@blawby.com',
-        recipientName: 'Team',
-        businessName: business.name,
-        invoiceNumber: payment.invoiceNumber,
-        amountPaid: payment.amount,
-        lineItems: items,
-        paymentMethod: payment.method,
-        invoiceUrl: `${APP_URL}/dashboard/intakes/${payload.uuid}`,
-        supportEmail: 'support@blawby.com',
-      }
-    ).catch((error) => {
-      logError('Failed to queue team receipt email', error, {
-        invoiceNumber: payment.invoiceNumber,
+    void queueManager
+      .addEmailJob(
+        EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT,
+        'support@blawby.com', // Default support/owner email
+        `Payment of ${new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+        }).format(payment.amount / 100)} received from ${
+          customer.name === 'Valued Client' ? customer.email : customer.name
+        }`,
+        {
+          recipientEmail: 'support@blawby.com',
+          recipientName: 'Team',
+          businessName: business.name,
+          invoiceNumber: payment.invoiceNumber,
+          amountPaid: payment.amount,
+          lineItems: items,
+          paymentMethod: payment.method,
+          invoiceUrl: `${APP_URL}/dashboard/intakes/${payload.uuid}`,
+          supportEmail: 'support@blawby.com',
+        }
+      )
+      .catch((error) => {
+        logError('Failed to queue team receipt email', error, {
+          invoiceNumber: payment.invoiceNumber,
+        });
       });
-    });
   });
 
   logger.info('Practice event listeners registered');
-}
+};
+
+export { registerPracticeListeners };

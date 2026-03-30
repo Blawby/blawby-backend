@@ -5,6 +5,7 @@
  */
 
 import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
 import { isEqual } from 'es-toolkit';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
@@ -17,8 +18,9 @@ import type {
   MatterRecord,
   UnbilledMatterData,
 } from '@/modules/matters/types/matter.types';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
-import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import type { Action, Subject } from '@/shared/auth/abilities';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
@@ -29,6 +31,8 @@ import { result } from '@/shared/utils/result';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
+
+const logger = getLogger(['matters', 'services', 'matters']);
 
 const getForbiddenResult = (ctx: ServiceContext, action: Action, subject: Subject): Result<never> | undefined => {
   try {
@@ -56,7 +60,7 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
 
   // Validate client_id if provided
   if (data.client_id) {
-    const client = await userDetailsRepository.findById(data.client_id);
+    const client = await clientsRepository.findById(data.client_id);
     if (!client || client.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid client_id or client does not belong to this organization');
     }
@@ -118,7 +122,10 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
       tx
     );
     if (!creationActivityResult.success) {
-      throw new Error(creationActivityResult.error.message);
+      logger.error('Failed to log matter create activity {matterId}: {error}', {
+        matterId: newMatter.id,
+        error: creationActivityResult.error.message,
+      });
     }
 
     // Dispatch event using ctx.emit
@@ -175,8 +182,13 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Res
 
   return result.ok<MatterRecord>({
     ...matter,
-    assignees: matter.assignees.map((assignee) => assignee.user),
-    client: matter.client ? { id: matter.client.id, ...matter.client.user } : null,
+    assignees: matter.assignees.map((assignee) => ({
+      ...assignee.user,
+      name: assignee.user.name ?? '',
+    })),
+    client: matter.client
+      ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' }
+      : null,
   });
 };
 
@@ -203,7 +215,7 @@ const listMatters = async (
   });
 
   return result.ok({
-    matters: listResult.matters as MatterRecord[],
+    matters: listResult.matters,
     total: listResult.total,
   });
 };
@@ -257,7 +269,7 @@ const updateMatter = async (
 
   // Validate client_id if provided
   if (data.client_id) {
-    const client = await userDetailsRepository.findById(data.client_id);
+    const client = await clientsRepository.findById(data.client_id);
     if (!client || client.organization_id !== ctx.organizationId) {
       return result.badRequest('Invalid client_id or client does not belong to this organization');
     }
@@ -306,7 +318,10 @@ const updateMatter = async (
         tx
       );
       if (!updateActivityResult.success) {
-        throw new Error(updateActivityResult.error.message);
+        logger.error('Failed to log matter update activity {matterId}: {error}', {
+          matterId,
+          error: updateActivityResult.error.message,
+        });
       }
     } else {
       const noChangeActivityResult = await matterActivityService.logMatterActivity(
@@ -319,7 +334,10 @@ const updateMatter = async (
         tx
       );
       if (!noChangeActivityResult.success) {
-        throw new Error(noChangeActivityResult.error.message);
+        logger.error('Failed to log no-change update activity {matterId}: {error}', {
+          matterId,
+          error: noChangeActivityResult.error.message,
+        });
       }
     }
 
@@ -335,7 +353,23 @@ const updateMatter = async (
         tx
       );
       if (!statusActivityResult.success) {
-        throw new Error(statusActivityResult.error.message);
+        logger.error('Failed to log status-change activity {matterId}: {error}', {
+          matterId,
+          error: statusActivityResult.error.message,
+        });
+      }
+
+      let organizationName = 'Your Legal Team';
+      try {
+        const organization = await organizationRepository.findById(ctx.organizationId);
+        if (organization) {
+          organizationName = organization.name;
+        }
+      } catch (orgError) {
+        logger.warn('Failed to fetch organization for matter status event enrichment: {error}', {
+          organizationId: ctx.organizationId,
+          error: orgError instanceof Error ? orgError.message : String(orgError),
+        });
       }
 
       await ctx.emit(
@@ -345,6 +379,10 @@ const updateMatter = async (
           organization_id: ctx.organizationId,
           old_status: existing.status,
           new_status: data.status,
+          matter_title: existing.title,
+          organization_name: organizationName,
+          client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
+          client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
         },
         tx
       );
@@ -404,7 +442,10 @@ const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<Resu
       tx
     );
     if (!deleteActivityResult.success) {
-      throw new Error(deleteActivityResult.error.message);
+      logger.error('Failed to log matter delete activity {matterId}: {error}', {
+        matterId,
+        error: deleteActivityResult.error.message,
+      });
     }
 
     // Dispatch event

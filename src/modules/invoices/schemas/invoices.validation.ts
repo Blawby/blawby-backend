@@ -10,7 +10,7 @@ const invoiceLineItemRequestSchema = z
     type: invoiceLineItemTypeSchema,
     description: z.string().min(1, 'Description is required'),
     quantity: z.number().int().min(1).default(1),
-    unit_price: z.number().int().min(0), // in cents
+    unit_price: z.number().int().min(0), // In cents
     time_entry_id: uuidValidator.optional(),
     expense_id: uuidValidator.optional(),
     sort_order: z.number().int().min(0).optional(),
@@ -25,7 +25,7 @@ const createInvoiceSchema = z
     connected_account_id: uuidValidator,
     invoice_number: z.string().trim().min(1, 'Invoice number cannot be empty').max(50).optional(),
     invoice_type: z.enum(['flat_fee', 'phase_fee', 'retainer_deposit']).default('flat_fee'),
-    due_date: z.iso.datetime({ offset: true }).optional(),
+    due_date: z.iso.date().optional(),
     notes: z.string().optional(),
     memo: z.string().optional(),
     line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required'),
@@ -39,7 +39,7 @@ const createInvoiceSchema = z
 // Update invoice schema (only for draft invoices)
 const updateInvoiceSchema = z
   .object({
-    due_date: z.iso.datetime({ offset: true }).optional(),
+    due_date: z.iso.date().optional(),
     notes: z.string().optional(),
     memo: z.string().optional(),
     line_items: z.array(invoiceLineItemRequestSchema).optional(),
@@ -112,12 +112,8 @@ const invoiceSchema = z
       .object({
         id: z.uuid(),
         status: z.string(),
-        user: z.object({
-          id: z.uuid(),
-          name: z.string(),
-          email: z.string(),
-          image: z.string().nullable(),
-        }),
+        name: z.string(),
+        email: z.string(),
       })
       .optional(),
     matter: z.any().optional(),

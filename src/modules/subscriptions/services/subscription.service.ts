@@ -6,6 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
+import { ForbiddenError } from '@casl/ability';
 import { eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
@@ -22,8 +23,8 @@ import type {
 import { organizations, subscriptions } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import type { User } from '@/shared/types/BetterAuth';
 import type { Result } from '@/shared/types/result';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ok, badRequest, notFound, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['subscriptions', 'services', 'subscription']);
@@ -31,30 +32,39 @@ const logger = getLogger(['subscriptions', 'services', 'subscription']);
 /**
  * Helper to safely cast authed API to SubscriptionAPI
  */
-const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInstance>): SubscriptionAPI => {
-  return authInstance.api as unknown as SubscriptionAPI;
-};
+const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInstance>): SubscriptionAPI =>
+  authInstance.api as unknown as SubscriptionAPI;
 
 /**
  * Type guard for Record<string, string>
  */
 const isRecordStringString = (obj: unknown): obj is Record<string, string> => {
-  if (typeof obj !== 'object' || obj === null) return false;
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
   return Object.values(obj).every((val) => typeof val === 'string');
 };
 
 /**
  * Type guard for Record<string, unknown>
  */
-const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => {
-  return typeof obj === 'object' && obj !== null;
+const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => typeof obj === 'object' && obj !== null;
+
+const assertSubscriptionReadAccess = (ctx: ServiceContext): void => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Subscription');
+};
+
+const assertSubscriptionManageAccess = (ctx: ServiceContext): void => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Subscription');
 };
 
 /**
  * Helper to safely parse and validate metadata
  */
 const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T | null => {
-  if (data === null || data === undefined) return null;
+  if (data === null || data === undefined) {
+    return null;
+  }
 
   let parsed = data;
   if (typeof data === 'string') {
@@ -76,7 +86,7 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
     const plans = await subscriptionRepository.findAllActivePlans(db);
 
     // The repository returns plans which are already snake_case in the schema
-    // so we can return them directly.
+    // So we can return them directly.
     return ok({
       plans: plans as SubscriptionPlanResponse[],
     });
@@ -90,11 +100,17 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
  * Get current subscription for an organization
  */
 const getCurrentSubscription = async (
-  organizationId: string,
-  _user: User,
-  _requestHeaders: Record<string, string>
+  _params: Record<string, never>,
+  ctx: ServiceContext
 ): Promise<Result<GetCurrentSubscriptionResponse>> => {
+  assertSubscriptionReadAccess(ctx);
+  const { organizationId } = ctx;
+
   try {
+    if (!organizationId) {
+      return badRequest('No active organization. Please select an organization first.');
+    }
+
     // Manual query to handle text vs uuid type mismatch in database
     // We fetch the organization and join with subscription using explicit casting
     // Select all fields with explicit snake_case aliases to match our custom types
@@ -123,7 +139,7 @@ const getCurrentSubscription = async (
       .where(eq(organizations.id, organizationId))
       .limit(1);
 
-    const organizationData = result[0];
+    const [organizationData] = result;
 
     if (!organizationData) {
       return notFound('Organization not found');
@@ -149,7 +165,7 @@ const getCurrentSubscription = async (
       subscriptionRepository.findPlanByName(db, subscriptionRecord.plan),
     ]);
 
-    const { plan: _, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
+    const { plan: _plan, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
 
     // Map DB rows to response types to avoid unsafe casts
     const mappedLineItems: LineItemResponse[] = lineItems.map((item) => ({
@@ -183,8 +199,8 @@ const getCurrentSubscription = async (
     }));
 
     // Construct the response by spreading the raw DB record (which contains snake_case keys from the aliased select)
-    // and adding the details. The 'plan' from the DB record is just a string name,
-    // we override it here with the full plan object.
+    // And adding the details. The 'plan' from the DB record is just a string name,
+    // We override it here with the full plan object.
     return ok({
       subscription: {
         ...subscriptionRecordWithoutPlanName,
@@ -212,10 +228,8 @@ const getCurrentSubscription = async (
  * Create a new subscription for an organization
  */
 const createSubscription = async (
-  organizationId: string,
-  data: CreateSubscriptionRequest,
-  user: User,
-  requestHeaders: Record<string, string>
+  { organizationId, data }: { organizationId: string; data: CreateSubscriptionRequest },
+  ctx: ServiceContext
 ): Promise<
   Result<{
     subscription_id?: string;
@@ -223,6 +237,8 @@ const createSubscription = async (
     message: string;
   }>
 > => {
+  assertSubscriptionManageAccess(ctx);
+
   try {
     const authInstance = createBetterAuthInstance(db);
 
@@ -259,11 +275,11 @@ const createSubscription = async (
         plan: planName,
         reference_id: organizationId,
         customer_type: 'organization',
-        success_url: data.success_url || '/dashboard',
-        cancel_url: data.cancel_url || '/pricing',
+        success_url: data.success_url ?? '/dashboard',
+        cancel_url: data.cancel_url ?? '/pricing',
         disable_redirect: data.disable_redirect || false,
       },
-      headers: requestHeaders,
+      headers: ctx.requestHeaders,
     });
 
     return ok({
@@ -286,13 +302,29 @@ const createSubscription = async (
  * If subscriptionId is not provided, it cancels the organization's active subscription.
  */
 const cancelSubscription = async (
-  organizationId: string,
-  data: CancelSubscriptionRequest,
-  _user: User,
-  requestHeaders: Record<string, string>
+  { data }: { data: CancelSubscriptionRequest },
+  ctx: ServiceContext
 ): Promise<Result<{ url: string; redirect: boolean }>> => {
+  assertSubscriptionManageAccess(ctx);
+  const { organizationId } = ctx;
+
   try {
+    if (!organizationId) {
+      return badRequest('No active organization. Please select an organization first.');
+    }
+
     const authInstance = createBetterAuthInstance(db);
+
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+
+    if (!organization) {
+      return notFound('Organization not found');
+    }
+
+    if (!organization.activeSubscriptionId) {
+      return badRequest('No active subscription found for this organization');
+    }
+
     // Cancel subscription via Better Auth
     const subscriptionAPI = getSubscriptionApi(authInstance);
     // Better Auth expects camelCase body parameters
@@ -303,7 +335,7 @@ const cancelSubscription = async (
         returnUrl: data.return_url || '/dashboard',
         immediately: data.immediately ?? false,
       },
-      headers: requestHeaders,
+      headers: ctx.requestHeaders,
     });
 
     return ok({
@@ -325,5 +357,3 @@ export const subscriptionService = {
   createSubscription,
   cancelSubscription,
 };
-
-export default subscriptionService;

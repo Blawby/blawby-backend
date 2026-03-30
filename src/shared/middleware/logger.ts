@@ -19,12 +19,11 @@ const loggerInstance = getLogger(['app', 'api']);
  * Provides request/response logging using Hono's built-in logger.
  * Uses Hono's logger middleware with custom formatting.
  */
-export const logger = (): MiddlewareHandler => {
-  return honoLogger((message, ...rest) => {
+export const logger = (): MiddlewareHandler =>
+  honoLogger((message, ...rest) => {
     // Log basic request info
     loggerInstance.info(message, { details: rest });
   });
-};
 
 /**
  * Enhanced Error Logger

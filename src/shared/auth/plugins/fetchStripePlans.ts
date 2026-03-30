@@ -26,7 +26,7 @@ interface PlanWithPrice {
  * Returns active plans sorted by sort_order
  */
 export const fetchStripePlans = async (): Promise<
-  Array<{
+  {
     name: string;
     priceId: string;
     annualDiscountPriceId?: string;
@@ -35,7 +35,7 @@ export const fetchStripePlans = async (): Promise<
       invoices_per_month: number;
       storage_gb: number;
     };
-  }>
+  }[]
 > => {
   try {
     // Fetch all active plans from database
@@ -47,7 +47,7 @@ export const fetchStripePlans = async (): Promise<
       .map((plan: PlanWithPrice) => ({
         name: plan.name,
         priceId: plan.stripe_monthly_price_id!,
-        annualDiscountPriceId: plan.stripe_yearly_price_id || undefined,
+        annualDiscountPriceId: plan.stripe_yearly_price_id ?? undefined,
         limits: {
           users: plan.limits.users,
           invoices_per_month: plan.limits.invoices_per_month,

@@ -1,4 +1,4 @@
-import { BaseEvent } from '../event';
+import { BaseEvent } from '@/shared/events/event';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MATTER EVENTS
@@ -33,6 +33,10 @@ export class MatterStatusChanged extends BaseEvent<{
   organization_id: string;
   old_status: string;
   new_status: string;
+  matter_title: string;
+  organization_name: string;
+  client_email: string | null;
+  client_name: string | null;
 }> {
   static type = 'matter.status_changed' as const;
 }

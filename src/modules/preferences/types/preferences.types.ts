@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
+import type { z } from 'zod';
+import type { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 
 // Product usage options enum
 export const PRODUCT_USAGE_OPTIONS = [
@@ -97,6 +97,12 @@ export const PREFERENCE_CATEGORIES = [
   'onboarding',
   'profile',
 ] as const;
+
+export interface UpdateProfileData {
+  phone?: string;
+  phoneCountryCode?: string;
+  dob?: string; // Date string in YYYY-MM-DD format
+}
 
 /**
  * Preference category type

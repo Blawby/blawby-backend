@@ -11,9 +11,8 @@ const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust
  * Type guard that validates a fund destination value at runtime.
  * Prevents silent misrouting of funds from invalid DB values.
  */
-const isValidFundDestination = (value: unknown): value is FundDestination => {
-  return typeof value === 'string' && VALID_FUND_DESTINATIONS.includes(value as FundDestination);
-};
+const isValidFundDestination = (value: unknown): value is FundDestination =>
+  typeof value === 'string' && VALID_FUND_DESTINATIONS.includes(value as FundDestination);
 
 const validateFundDestination = (value: unknown, invoiceId: string): Result<FundDestination> => {
   if (isValidFundDestination(value)) {
@@ -124,7 +123,7 @@ const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): 
           fund_destination: 'trust',
         },
         holdForApproval: false,
-        // escrowStatus stays 'none' on Platform side because
+        // EscrowStatus stays 'none' on Platform side because
         // Platform is NOT managing trust — Practice is.
         // The metadata flag tells Practice this is a trust deposit.
         escrowStatus: 'none',
@@ -142,11 +141,7 @@ const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): 
  *
  * @returns Whether to hold funds
  */
-const shouldHoldForApproval = (): boolean => {
-  // Legal billing doesn't use escrow by default
-  // Flat fees and retainer deposits transfer immediately
-  return false;
-};
+const shouldHoldForApproval = (): boolean => false;
 
 /**
  * Determines if retainer balance should be updated

@@ -9,14 +9,14 @@ import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { subscriptionRepository } from '../database/queries/subscription.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-deleted']);
 
 /**
  * Handle price.deleted webhook event
  */
-export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => {
+export const handlePriceDeleted = async (price: Stripe.Price | Stripe.DeletedPrice): Promise<void> => {
   try {
     logger.info('Processing price.deleted: {priceId}', { priceId: price.id });
 

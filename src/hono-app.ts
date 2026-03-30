@@ -69,12 +69,8 @@ const buildOpenApiDocument = () => {
   });
 
   // Add security schemes to the document
-  if (!doc.components) {
-    doc.components = {};
-  }
-  if (!doc.components.securitySchemes) {
-    doc.components.securitySchemes = {};
-  }
+  doc.components ??= {};
+  doc.components.securitySchemes ??= {};
   doc.components.securitySchemes['cookieAuth'] = {
     type: 'apiKey',
     in: 'cookie',
@@ -100,9 +96,7 @@ const buildOpenApiDocument = () => {
 
 // Serve OpenAPI spec at /doc endpoint (required by Scalar)
 // Scalar needs a URL to fetch the OpenAPI JSON specification
-app.get('/doc', (c) => {
-  return c.json(buildOpenApiDocument());
-});
+app.get('/doc', (c) => c.json(buildOpenApiDocument()));
 
 // Serve LLM-friendly Markdown
 app.get('/llms.txt', async (c) => {

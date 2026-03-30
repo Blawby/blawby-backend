@@ -25,10 +25,18 @@ const deriveReadinessStatus = (params: {
 }): 'active' | 'requirements_due' | 'verification_pending' | 'disabled' | 'inactive' => {
   const { disabledReason, pendingVerification, missingRequirements, isActive } = params;
 
-  if (disabledReason) return 'disabled';
-  if (pendingVerification.length > 0) return 'verification_pending';
-  if (missingRequirements.length > 0) return 'requirements_due';
-  if (!isActive) return 'inactive';
+  if (disabledReason) {
+    return 'disabled';
+  }
+  if (pendingVerification.length > 0) {
+    return 'verification_pending';
+  }
+  if (missingRequirements.length > 0) {
+    return 'requirements_due';
+  }
+  if (!isActive) {
+    return 'inactive';
+  }
   return 'active';
 };
 
@@ -45,14 +53,14 @@ const getAccountReadiness = (input: {
   currentDeadline: number | null;
 } => {
   const { account } = input;
-  const requirements = account.requirements;
+  const { requirements } = account;
   const currentDue = requirements?.currently_due ?? [];
   const pastDue = requirements?.past_due ?? [];
   const pendingVerification = requirements?.pending_verification ?? [];
   const disabledReason = requirements?.disabled_reason ?? null;
   const currentDeadline = requirements?.current_deadline ?? null;
 
-  const capabilities = account.capabilities || {};
+  const capabilities = account.capabilities ?? {};
   const hasCardPayments = capabilities['card_payments'] === 'active';
   const hasTransfers = capabilities['transfers'] === 'active';
 
@@ -211,13 +219,17 @@ export const connectedAccountsService = {
     if (!account) {
       // Create new account
       const result = await connectedAccountsService.createStripeAccount(organizationId, email, userId);
-      if (!result.success) return result;
+      if (!result.success) {
+        return result;
+      }
       account = result.data;
     }
 
     // Create account link for the account
     const linkResult = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
-    if (!linkResult.success) return linkResult;
+    if (!linkResult.success) {
+      return linkResult;
+    }
 
     const accountLink = linkResult.data;
 
@@ -317,7 +329,9 @@ export const connectedAccountsService = {
    */
   async createPaymentsSessionForOrganization(organizationId: string): Promise<Result<CreateSessionResponse>> {
     const result = await connectedAccountsService.getAccount(organizationId);
-    if (!result.success) return result;
+    if (!result.success) {
+      return result;
+    }
 
     const account = result.data;
 
@@ -332,11 +346,11 @@ export const connectedAccountsService = {
 export default connectedAccountsService;
 
 // Legacy exports
-export const findAccountByOrganization = connectedAccountsService.findAccountByOrganization;
-export const createStripeAccount = connectedAccountsService.createStripeAccount;
-export const createAccountLinkForAccount = connectedAccountsService.createAccountLinkForAccount;
-export const createOrGetAccount = connectedAccountsService.createOrGetAccount;
-export const createPaymentsSession = connectedAccountsService.createPaymentsSession;
-export const getAccount = connectedAccountsService.getAccount;
-export const isAccountActive = connectedAccountsService.isAccountActive;
-export const createPaymentsSessionForOrganization = connectedAccountsService.createPaymentsSessionForOrganization;
+export const { findAccountByOrganization } = connectedAccountsService;
+export const { createStripeAccount } = connectedAccountsService;
+export const { createAccountLinkForAccount } = connectedAccountsService;
+export const { createOrGetAccount } = connectedAccountsService;
+export const { createPaymentsSession } = connectedAccountsService;
+export const { getAccount } = connectedAccountsService;
+export const { isAccountActive } = connectedAccountsService;
+export const { createPaymentsSessionForOrganization } = connectedAccountsService;

@@ -32,7 +32,7 @@ export const handleCapabilityUpdated = async (capability: Stripe.Capability): Pr
     // Update capabilities using SQL jsonb merge and return organization_id
     // This assumes PG 9.5+ for || operator on jsonb, or we can use returning() after a find
     // Since we need the current capabilities to merge in JS (to be safe with Drizzle's type system),
-    // we'll still do a SELECT but we'll consolidate the transaction.
+    // We'll still do a SELECT but we'll consolidate the transaction.
 
     // Actually, let's see if we can do it effectively without a redundant SELECT.
     // If we want to be truly efficient, we use jsonb_set or || in SQL.

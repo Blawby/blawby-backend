@@ -13,7 +13,7 @@ Blawby is a **modular monolith API backend** for a legal practice management and
 | Runtime | Node.js | 18.17+ |
 | Language | TypeScript (strict mode) | 5.9 |
 | HTTP Framework | Hono | 4.10 |
-| ORM | Drizzle ORM | 0.36 |
+| ORM | Drizzle ORM | 0.45 |
 | Database | PostgreSQL | - |
 | Authentication | Better Auth | 1.4 |
 | Validation | Zod | 4.1 |
@@ -51,7 +51,7 @@ graph LR
             UPLOADS[Uploads]
             INTAKES[Intakes]
             PREFS[Preferences]
-            USERDET[User Details]
+            CLIENTS[Clients]
         end
 
         subgraph INTEGRATION[" Integration "]
@@ -96,10 +96,9 @@ graph LR
     UPLOADS --> DB
     INTAKES --> DB
     PREFS --> DB
-    USERDET --> DB
+    CLIENTS --> DB
     ONBOARD --> DB
 
-    MATTERS --> EVENTS
     INTAKES --> EVENTS
     ONBOARD --> EVENTS
     SUBS --> EVENTS
@@ -160,7 +159,7 @@ graph LR
         AUTH[Authentication<br/>Better Auth]
         UPLOADS[File Uploads<br/>R2 Storage]
         PREFS[Preferences<br/>Settings]
-        USERDET[User Details<br/>Profiles]
+        CLIENTS[Clients<br/>Profiles & Memos]
     end
 
     subgraph "Integration Modules"
@@ -191,15 +190,17 @@ graph LR
 | Module | Responsibility | Key Entities |
 |--------|---------------|--------------|
 | **auth** | Authentication & RBAC | users, sessions, organizations |
+| **clients** | Client management | clients, practice_client_memos |
 | **practice** | Law firm management | practice, practice_services, addresses |
 | **matters** | Case/matter tracking | matters, assignees, notes, time_entries, expenses, milestones |
+| **invoices** | Invoice management | invoices, invoice_line_items, billing_transactions |
 | **subscriptions** | Billing management | subscription_plans, subscription_events |
+| **trust** | Trust accounting | trust_transactions |
 | **uploads** | File management | uploads, upload_audit_logs |
-| **practice-client-intakes** | Client forms | practice_client_intakes |
-| **preferences** | User settings | preferences |
-| **user-details** | User profiles | user_details, practice_client_memos |
+| **practice-client-intakes** | Client intake forms | practice_client_intakes |
+| **preferences** | User preferences | preferences |
 | **stripe** | Payment integration | Connected accounts |
-| **onboarding** | Stripe Connect flow | onboarding |
+| **onboarding** | Stripe Connect flow | connected_accounts, onboarding sessions |
 | **webhooks** | External webhooks | Stripe/onboarding events |
 | **public** | Public endpoints | Health checks |
 
@@ -602,16 +603,18 @@ src/
 │   └── event-handlers.ts          # Event listener registration
 ├── modules/
 │   ├── auth/                      # Authentication
+│   ├── clients/                   # Client management
 │   ├── practice/                  # Practice management
 │   ├── matters/                   # Matter/case management
+│   ├── invoices/                  # Invoice management
 │   ├── subscriptions/             # Billing
+│   ├── trust/                     # Trust accounting
 │   ├── uploads/                   # File uploads
 │   ├── practice-client-intakes/   # Intake forms
-│   ├── preferences/               # User settings
-│   ├── user-details/              # User profiles
+│   ├── preferences/               # User preferences
 │   ├── webhooks/                  # Webhook handling
 │   ├── stripe/                    # Stripe integration
-│   ├── onboarding/                # Stripe onboarding
+│   ├── onboarding/                # Stripe Connect onboarding
 │   └── public/                    # Public endpoints
 ├── shared/
 │   ├── auth/                      # Better Auth setup
@@ -628,4 +631,4 @@ src/
 
 ---
 
-**Last Updated**: January 28, 2026
+**Last Updated**: March 27, 2026

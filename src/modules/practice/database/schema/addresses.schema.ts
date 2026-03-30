@@ -12,7 +12,7 @@ export const addresses = pgTable(
       onDelete: 'cascade',
     }),
     user_id: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    type: text('type').notNull().default('practice_location'), // e.g., 'practice_location', 'billing', 'home'
+    type: text('type').notNull().default('practice_location'), // E.g., 'practice_location', 'billing', 'home'
     line1: text('line1'),
     line2: text('line2'),
     city: text('city'),

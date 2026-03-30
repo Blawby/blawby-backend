@@ -1,4 +1,4 @@
-# Blawby Backend 
+# Blawby Backend
 
 ## Project Overview
 
@@ -74,7 +74,8 @@ src/
 ├── shared/                # Shared utilities and middleware
 │   ├── auth/              # Authentication system
 │   │   ├── better-auth.ts # Better Auth configuration
-│   │   └── verify-auth.ts # Auth verification middleware
+│   │   ├── abilities.ts   # CASL ability definitions
+│   │   └── hooks/         # Database hooks
 │   ├── database/          # Database utilities
 │   │   └── index.ts       # Database client setup
 │   ├── queue/             # Job queue system (Graphile Worker)
@@ -82,13 +83,21 @@ src/
 │   │   ├── queue.manager.ts # Job queue management
 │   │   └── queue.config.ts # Queue configuration
 │   ├── middleware/        # Hono middleware functions
-│   │   ├── index.ts       # Core middleware (CORS, error handling, logging)
-│   │   ├── autoCreateOrgForSubscription.ts
-│   │   ├── normalizeAuthResponse.ts
-│   │   └── sanitizeAuthResponse.ts
+│   │   ├── requireAuth.ts # Authentication middleware
+│   │   ├── inject-ability.ts # CASL ability injection
+│   │   ├── errorHandler.ts # Global error handling
+│   │   └── cors.ts        # CORS configuration
 │   ├── router/            # Module-based routing system
 │   │   ├── module-router.ts # Module route registration
+│   │   ├── route-builder.ts # OpenAPI route builder
 │   │   └── openapi-router.ts # OpenAPI route collection
+│   ├── enums/             # Shared enumerations
+│   ├── events/            # Event system (BaseEvent, outbox)
+│   ├── logging/           # LogTape configuration
+│   ├── config/            # Environment config (Zod-validated)
+│   ├── services/          # Shared services (email, fees)
+│   ├── repositories/      # Shared repository helpers
+│   ├── schemas/           # Shared Zod schemas
 │   ├── types/             # Global TypeScript definitions
 │   │   └── hono.ts        # Hono app context and types
 │   └── utils/             # Utility functions
@@ -108,16 +117,19 @@ src/
 ├── types/                  # Global TypeScript type definitions
 └── modules/                # Feature-based modules
     ├── auth/               # Authentication features
-    ├── billing/            # Payment and billing features
-    ├── practice/           # Practice/organization management
-    ├── matters/            # Legal matter management
+    ├── clients/            # Client management (profiles, memos)
     ├── invoices/           # Invoice and billing management
+    ├── matters/            # Legal matter management
+    ├── onboarding/         # Stripe Connect onboarding
+    ├── practice/           # Practice/organization management
     ├── practice-client-intakes/ # Client intake management
-    ├── user-details/       # User profile management
-    ├── onboarding/         # User onboarding flows
-    ├── uploads/            # File upload handling
-    ├── trust/              # Trust accounting features
+    ├── preferences/        # User preference management
+    ├── public/             # Public endpoints (health checks)
+    ├── stripe/             # Stripe integration
     ├── subscriptions/      # Subscription management
+    ├── trust/              # Trust accounting features
+    ├── uploads/            # File upload handling
+    ├── webhooks/           # Webhook handlers
     └── dev/                # Development utilities
 ```
 
@@ -198,11 +210,11 @@ graph TD
 
 **Route Registration Process**:
 
-1. **Scan**: `src/modules/*/routes.ts` or `src/modules/*/http.ts` files
+1. **Scan**: `src/modules/*/http.ts` files
 2. **Load**: Import route modules
 3. **Register**: Mount routes to main Hono app
 4. **Document**: Collect OpenAPI routes for documentation
-5. **Authenticate**: Apply auth based on configuration
+5. **Authenticate**: Apply auth middleware based on route configuration
 
 ## Request Flow Architecture
 
@@ -636,168 +648,26 @@ erDiagram
     }
 ```
 
-### 3. Billing Module
+### 3. Onboarding & Stripe Module
 
-**Location**: `src/modules/billing/`
+**Location**: `src/modules/onboarding/` and `src/modules/stripe/`
 
-#### Billing Service (`billing.service.ts`)
+These modules handle Stripe Connect onboarding (creating connected accounts for law firms) and Stripe payments/sessions. Billing webhooks are processed via `src/modules/webhooks/` and background workers.
 
-**Stripe Hosted Onboarding Flow**:
+#### Key Features
 
-```mermaid
-graph TD
-    A[createConnectedAccount Called] --> B[Validate Organization (Better Auth)]
-    B --> C{Organization Exists?}
-    
-    C -->|No| D[Throw Error]
-    C -->|Yes| E[Check Existing Stripe Account]
-
-    E --> F{Account Found?}
-    F -->|No| G[Create New Stripe Account]
-    F -->|Yes| H[Use Existing Account]
-
-    G --> I[Create Account Link (Hosted Onboarding)]
-    H --> I
-
-    I --> J[Return Onboarding URL]
-    J --> K[Frontend Redirects to Stripe]
-```
-
-**Payment Session Creation Flow**:
-
-```mermaid
-graph TD
-    A[createPaymentsSession Called] --> B[Find Connected Account]
-    B --> C{Account Found?}
-
-    C -->|No| D[Throw Not Found Error]
-    C -->|Yes| E[Create Stripe Payment Session]
-
-    E --> F[Return Client Secret]
-    F --> G[Return Session ID]
-```
-
-**Stripe Integration Flow**:
-
-```mermaid
-graph TD
-    A[Stripe Service] --> B{Service Type?}
-
-    B -->|Account Creation| C[Create Stripe Account]
-    B -->|Session Creation| D[Create Account Session]
-    B -->|Payment Session| E[Create Payment Session]
-    B -->|Login Link| F[Create Login Link]
-
-    C --> G[Return Account Details]
-    D --> H[Return Session Details]
-    E --> I[Return Payment Details]
-    F --> J[Return Login URL]
-```
-
-#### Database Schema (`billing.schema.ts`)
-
-**Billing Database Schema**:
-
-```mermaid
-erDiagram
-    ORGANIZATION ||--o| STRIPE_CONNECTED_ACCOUNTS : has
-    STRIPE_CONNECTED_ACCOUNTS ||--o{ STRIPE_ONBOARDING_SESSIONS : has
-    STRIPE_WEBHOOK_EVENTS {
-        uuid id PK
-        text event_id UK
-        text event_type
-        text account_id
-        boolean processed
-        json data
-        timestamp created_at
-    }
-
-    STRIPE_CONNECTED_ACCOUNTS {
-        uuid id PK
-        text organization_id UK
-        text account_id UK
-        text status
-        text onboarding_status
-        json requirements
-        json capabilities
-        boolean charges_enabled
-        boolean payouts_enabled
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    STRIPE_ONBOARDING_SESSIONS {
-        uuid id PK
-        uuid connected_account_id FK
-        text session_id UK
-        text status
-        timestamp expires_at
-        timestamp completed_at
-        timestamp created_at
-        timestamp updated_at
-    }
-```
+- **Stripe Connect Onboarding**: Creates Stripe connected accounts for law firms, manages hosted onboarding flows
+- **Payment Sessions**: Creates Stripe payment sessions tied to connected accounts
+- **Webhook Processing**: Validates and queues incoming Stripe events via Graphile Worker
+- **Connected Account Status**: Tracks `charges_enabled`, `payouts_enabled`, and `requirements`
 
 #### API Routes
 
-**Billing API Routes Flow**:
-
-```mermaid
-graph TD
-    A[Billing API Routes] --> B{Route Type?}
-
-    B -->|Onboarding| C[POST /api/onboarding/connected-accounts]
-    B -->|Webhook| D[POST /api/webhooks/stripe/connected-accounts]
-    B -->|Login Link| E[POST /api/onboarding/organization/:id/login-link]
-    B -->|Status Check| F[GET /api/onboarding/organization/:id/status]
-
-    C --> G[Create Connected Account & Link]
-    D --> H[Process Connect Webhook]
-    E --> I[Create Login Link]
-    F --> J[Get Onboarding Status]
-
-    G --> K[Return Onboarding URL]
-    D --> L[Enqueued to Graphile Worker]
-    I --> M[Return Login URL]
-    J --> N[Return Status Info]
-```
-
-**Route Configuration Flow**:
-
-```mermaid
-graph TD
-    A[Route Configuration] --> B{Route Type?}
-
-    B -->|Protected| C[Require Authentication]
-    B -->|Public| D[No Authentication]
-    B -->|Admin Only| E[Require Admin Role]
-
-    C --> F[Apply Auth Middleware]
-    D --> G[Skip Auth Middleware]
-    E --> H[Apply Role Check]
-
-    F --> I[Route Active]
-    G --> I
-    H --> I
-```
-
-### 4. Settings Module
-
-**Location**: `src/modules/settings/`
-
-#### Features
-
-- User and organization settings management
-- Settings history tracking
-- Category-based settings organization
-
-### 5. Health Module
-
-**Location**: `src/modules/health/`
-
-#### Features
-
-- Health check endpoint
+- `POST /api/onboarding/connected-accounts` — Create connected account & onboarding link
+- `GET /api/onboarding/organization/:id/status` — Get onboarding status
+- `POST /api/onboarding/organization/:id/login-link` — Create Stripe Express dashboard login link
+- `POST /api/webhooks/stripe/connected-accounts` — Receive & queue Connect webhook events
+- `POST /api/stripe/connect/*` — Stripe Connect component sessions
 - System status monitoring
 
 ## Database Schema & Architecture
@@ -973,7 +843,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl:
     process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
+      ? {
+          rejectUnauthorized: true,
+          ca: process.env.DATABASE_SSL_CA,
+        }
       : false,
 });
 
@@ -1200,6 +1073,7 @@ export * from '../modules/settings/schemas/settings.schema';
 The project uses **Graphile Worker** for reliable background job processing. Graphile Worker is a PostgreSQL-based job queue that eliminates the need for Redis, simplifying infrastructure while maintaining high reliability.
 
 **Key Benefits:**
+
 - ✅ **No Redis dependency** - Uses PostgreSQL for job storage
 - ✅ **Automatic schema creation** - Schema auto-creates on first worker start
 - ✅ **Built-in retries** - Automatic retry with exponential backoff
@@ -1217,21 +1091,25 @@ Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graph
 ### Components
 
 **1. Queue Manager** (`src/shared/queue/queue.manager.ts`)
+
 - Enqueues jobs using Graphile Worker's `makeWorkerUtils`
-- Provides `addWebhookJob()` and `addOnboardingWebhookJob()` functions
+- Provides `queueManager.addWebhookJob()` and `addOnboardingWebhookJob()` functions
 - Handles job deduplication via `jobKey` parameter
 
 **2. Graphile Worker Client** (`src/shared/queue/graphile-worker.client.ts`)
+
 - Singleton pattern for `makeWorkerUtils`
 - Manages connection lifecycle
 - Auto-initializes on first use
 
 **3. Worker Process** (`src/workers/webhook.worker.ts`)
+
 - Separate Node.js process that consumes jobs from PostgreSQL
 - Runs independently from API server
 - Processes webhooks and event handlers asynchronously
 
 **4. Task Definitions** (`src/workers/tasks/`)
+
 - `process-stripe-webhook.ts` - Processes Stripe webhook events
 - `process-onboarding-webhook.ts` - Processes Stripe Connect onboarding events
 - `process-event-handler.ts` - Processes queued event handlers
@@ -1248,6 +1126,7 @@ Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graph
 ### Configuration
 
 **Environment Variables:**
+
 ```env
 DATABASE_URL="postgresql://..."  # Required - PostgreSQL connection
 GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Optional - defaults to 'graphile_worker'
@@ -1256,6 +1135,7 @@ WEBHOOK_MAX_RETRIES=5  # Optional - max retry attempts (default: 5)
 ```
 
 **Package.json Scripts:**
+
 ```bash
 pnpm run worker        # Start worker (production)
 pnpm run worker:dev    # Start worker with watch mode (development)
@@ -1266,11 +1146,13 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 **No Setup Required**: Graphile Worker automatically creates the `graphile_worker` schema on first run.
 
 **Deployment Steps:**
+
 1. Run database migrations: `pnpm run db:migrate`
 2. Start worker process: `pnpm run worker`
 3. Schema auto-creates on first worker start
 
 **Railway/Production:**
+
 - Run worker as separate service/container
 - Worker auto-creates schema on first start
 - No manual schema setup needed
@@ -1278,11 +1160,13 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 ### Monitoring
 
 **Queue Statistics:**
+
 - Query `graphile_worker.jobs` table directly for job status
 - Use `getQueueStats()` function for programmatic access
 - Monitor waiting, active, completed, and failed jobs
 
 **Logging:**
+
 - Connection status logged on worker start
 - Job start/success/error events logged
 - Detailed error messages for failed jobs

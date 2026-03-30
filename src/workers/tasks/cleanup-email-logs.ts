@@ -17,12 +17,7 @@ export const cleanupEmailLogs: Task = async (_input, helpers) => {
       deletedAt: now,
       isAnonymized: true,
     })
-    .where(
-      and(
-        lte(emailLogs.expiresAt, now),
-        eq(emailLogs.isAnonymized, false),
-      ),
-    )
+    .where(and(lte(emailLogs.expiresAt, now), eq(emailLogs.isAnonymized, false)))
     .returning({ id: emailLogs.id });
 
   helpers.logger.info('Anonymized expired email logs', {

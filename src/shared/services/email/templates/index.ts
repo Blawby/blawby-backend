@@ -17,6 +17,12 @@ import {
   type ScheduledEventData,
   type MagicLinkData,
   type PracticeInvitationData,
+  type IntakeSubmissionReceivedData,
+  type IntakeNewNotificationData,
+  type IntakeAcceptedData,
+  type IntakeDeclinedData,
+  type MatterOpenedData,
+  type MatterClosedData,
 } from '@/shared/services/email/email.types';
 
 // Auth templates
@@ -44,6 +50,16 @@ import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
 
+// Intake templates
+import { intakeSubmissionReceived } from '@/shared/services/email/templates/intake/submission-received';
+import { intakeNewNotification } from '@/shared/services/email/templates/intake/new-intake-notification';
+import { intakeAccepted } from '@/shared/services/email/templates/intake/intake-accepted';
+import { intakeDeclined } from '@/shared/services/email/templates/intake/intake-declined';
+
+// Matter templates
+import { matterOpened } from '@/shared/services/email/templates/matter/matter-opened';
+import { matterClosed } from '@/shared/services/email/templates/matter/matter-closed';
+
 /**
  * Mapping of email templates to their specific data types
  */
@@ -65,6 +81,12 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
   [EMAIL_TEMPLATES.SCHEDULED_EVENT]: ScheduledEventData;
   [EMAIL_TEMPLATES.MAGIC_LINK]: MagicLinkData;
+  [EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED]: IntakeSubmissionReceivedData;
+  [EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION]: IntakeNewNotificationData;
+  [EMAIL_TEMPLATES.INTAKE_ACCEPTED]: IntakeAcceptedData;
+  [EMAIL_TEMPLATES.INTAKE_DECLINED]: IntakeDeclinedData;
+  [EMAIL_TEMPLATES.MATTER_OPENED]: MatterOpenedData;
+  [EMAIL_TEMPLATES.MATTER_CLOSED]: MatterClosedData;
 }
 
 // Template registry with explicit mapping
@@ -93,6 +115,16 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent,
   [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate,
   [EMAIL_TEMPLATES.MAGIC_LINK]: magicLinkTemplate,
+
+  // Intake templates
+  [EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED]: intakeSubmissionReceived,
+  [EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION]: intakeNewNotification,
+  [EMAIL_TEMPLATES.INTAKE_ACCEPTED]: intakeAccepted,
+  [EMAIL_TEMPLATES.INTAKE_DECLINED]: intakeDeclined,
+
+  // Matter templates
+  [EMAIL_TEMPLATES.MATTER_OPENED]: matterOpened,
+  [EMAIL_TEMPLATES.MATTER_CLOSED]: matterClosed,
 } as const;
 
 /**
@@ -120,4 +152,10 @@ export {
   payoutSent,
   scheduledEventTemplate,
   magicLinkTemplate,
+  intakeSubmissionReceived,
+  intakeNewNotification,
+  intakeAccepted,
+  intakeDeclined,
+  matterOpened,
+  matterClosed,
 };

@@ -7,6 +7,7 @@
 
 import { makeWorkerUtils, type WorkerUtils } from 'graphile-worker';
 import { config } from '@dotenvx/dotenvx';
+import { config as appConfig } from '@/shared/config';
 
 // Load environment variables
 config();
@@ -17,7 +18,7 @@ let workerUtils: WorkerUtils | null = null;
  * Get database connection string from environment
  */
 const getConnectionString = (): string => {
-  const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = appConfig.database.url;
   if (!dbUrl) {
     throw new Error('DATABASE_URL environment variable is required for Graphile Worker');
   }
@@ -31,7 +32,7 @@ const getConnectionString = (): string => {
 export const getWorkerUtils = async (): Promise<WorkerUtils> => {
   if (!workerUtils) {
     const connectionString = getConnectionString();
-    const schema = process.env.GRAPHILE_WORKER_SCHEMA || 'graphile_worker';
+    const { schema } = appConfig.queue;
 
     // Extract connection info for logging (mask password)
     const connectionInfo = connectionString.replace(/:[^:@]+@/, ':****@');

@@ -8,7 +8,7 @@ import type { ModuleConfig } from '@/shared/router/module-router';
  */
 export const config: Partial<ModuleConfig> = {
   middleware: {
-    '*': ['requireAuth', 'requireOrgMembership'], // rateLimit added automatically by default
+    '*': ['requireAuth', 'requireOrgMembership'], // RateLimit added automatically by default
   },
   prefix: undefined, // Mount at /api/subscriptions
 };

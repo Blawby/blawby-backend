@@ -28,6 +28,14 @@ export const EMAIL_TEMPLATES = {
   SCHEDULED_EVENT: 'scheduled-event',
   // Auth
   MAGIC_LINK: 'magic-link',
+  // Intakes
+  INTAKE_SUBMISSION_RECEIVED: 'intake-submission-received',
+  INTAKE_NEW_NOTIFICATION: 'intake-new-notification',
+  INTAKE_ACCEPTED: 'intake-accepted',
+  INTAKE_DECLINED: 'intake-declined',
+  // Matters
+  MATTER_OPENED: 'matter-opened',
+  MATTER_CLOSED: 'matter-closed',
 } as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];
@@ -54,8 +62,8 @@ export interface MagicLinkData {
 export interface LineItem {
   description: string;
   quantity: number;
-  unitPrice: number; // in cents
-  amount: number; // in cents (quantity * unitPrice)
+  unitPrice: number; // In cents
+  amount: number; // In cents (quantity * unitPrice)
 }
 
 // Base email data
@@ -69,8 +77,8 @@ export interface CustomerPaymentReceiptData extends BaseEmailData {
   businessName: string;
   teamPhotoUrl: string;
   invoiceNumber: string;
-  amountPaid: number; // in cents
-  amountDue: number; // in cents
+  amountPaid: number; // In cents
+  amountDue: number; // In cents
   paidAt: string;
   lineItems: LineItem[];
   paymentMethod?: string;
@@ -84,9 +92,9 @@ export interface CustomerPaymentRequestData extends BaseEmailData {
   businessName: string;
   teamPhotoUrl: string;
   invoiceNumber: string;
-  amountDue: number; // in cents
-  amountPaid: number; // in cents
-  amountRemaining: number; // in cents
+  amountDue: number; // In cents
+  amountPaid: number; // In cents
+  amountRemaining: number; // In cents
   dueDate: string;
   lineItems: LineItem[];
   paymentLink: string;
@@ -98,7 +106,7 @@ export interface CustomerPaymentRequestData extends BaseEmailData {
 export interface TeamPaymentReceiptData extends BaseEmailData {
   businessName: string;
   invoiceNumber: string;
-  amountPaid: number; // in cents
+  amountPaid: number; // In cents
   lineItems: LineItem[];
   paymentMethod?: string;
   payingOnBehalfOf?: string;
@@ -138,7 +146,7 @@ export interface PayoutSentData extends BaseEmailData {
 export interface RefundData extends BaseEmailData {
   businessName: string;
   invoiceNumber: string;
-  amountRefunded: number; // in cents
+  amountRefunded: number; // In cents
   lineItems: LineItem[];
   invoiceUrl?: string;
   supportEmail: string;
@@ -150,6 +158,45 @@ export interface PracticeInvitationData extends BaseEmailData {
   inviterName: string;
   practiceName: string;
   inviteLink: string;
+}
+
+// Intake submission received data (prospect-facing)
+export interface IntakeSubmissionReceivedData extends BaseEmailData {
+  practiceName: string;
+  submittedAt: string;
+}
+
+// Intake new notification data (practice-facing)
+export interface IntakeNewNotificationData extends BaseEmailData {
+  clientName: string;
+  clientEmail: string;
+  amount: number;
+  intakeUrl: string;
+  practiceName: string;
+}
+
+// Intake accepted data (prospect-facing)
+export interface IntakeAcceptedData extends BaseEmailData {
+  practiceName: string;
+}
+
+// Intake declined data (prospect-facing)
+export interface IntakeDeclinedData extends BaseEmailData {
+  practiceName: string;
+  reason?: string;
+}
+
+// Matter opened data (client-facing)
+export interface MatterOpenedData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
+  dashboardUrl: string;
+}
+
+// Matter closed data (client-facing)
+export interface MatterClosedData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
 }
 
 // Email job payload (what gets queued)

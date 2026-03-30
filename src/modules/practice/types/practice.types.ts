@@ -1,6 +1,6 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
-import { practiceValidations } from '@/modules/practice/validations/practice.validation';
+import type { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import type { Organization, User } from '@/shared/types/BetterAuth';
 
@@ -27,10 +27,6 @@ export type CheckOrganizationSlugRequest = z.infer<
   BetterAuthInstance['api']['checkOrganizationSlug']['options']['body']
 >;
 
-export type GetFullOrganizationRequest = z.infer<
-  NonNullable<BetterAuthInstance['api']['getFullOrganization']['options']['query']>
->;
-
 export type DeleteOrganizationRequest = z.infer<BetterAuthInstance['api']['deleteOrganization']['options']['body']>;
 
 // Using Better Auth types directly from the instance
@@ -55,18 +51,18 @@ export type NormalizedOrganization = OrganizationWithoutCamelCase & {
 
 export type PracticeWithDetails = NormalizedOrganization & Partial<PracticeDetails>;
 
-export type PracticeWithUser = {
+export interface PracticeWithUser {
   practice: NormalizedOrganization;
   user: User;
   practice_details: Partial<PracticeDetails> | null;
-};
+}
 
-export type PracticeStats = {
+export interface PracticeStats {
   totalClients: number;
   totalRevenue: number;
   totalInvoices: number;
   activeSubscriptions: number;
-};
+}
 
 // Inferred from Zod schemas
 export type CreatePracticeRequest = z.infer<typeof practiceValidations.createPracticeSchema>;

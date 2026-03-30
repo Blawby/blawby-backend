@@ -1,5 +1,6 @@
 import { eq, and, like, isNull, inArray, sql, desc } from 'drizzle-orm';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
+import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
@@ -25,7 +26,7 @@ const findMatterById = async (id: string, tx?: typeof db): Promise<SelectMatter 
 /**
  * Find matter by ID with relations (optimized)
  */
-const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => {
+const findMatterByIdWithRelations = async (id: string, tx?: typeof db): Promise<MatterWithRelations | undefined> => {
   const client = tx ?? db;
   return await client.query.matters.findFirst({
     where: and(eq(matters.id, id), isNull(matters.deleted_at)),
@@ -46,7 +47,7 @@ const findMatterByIdWithRelations = async (id: string, tx?: typeof db) => {
         orderBy: (milestones, { asc }) => [asc(milestones.order)],
       },
       client: {
-        columns: { id: true },
+        columns: { id: true, name: true, email: true },
         with: {
           user: {
             columns: { name: true, email: true },
@@ -315,4 +316,24 @@ export const mattersQueries = {
   clearMatterAssignees,
   updateRetainerBalance,
   findByIntakeUuid,
+};
+export type MatterWithRelations = SelectMatter & {
+  assignees: Array<{
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+      image: string | null;
+    };
+  }>;
+  milestones: SelectMatterMilestone[];
+  client: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    user: {
+      name: string | null;
+      email: string;
+    } | null;
+  } | null;
 };

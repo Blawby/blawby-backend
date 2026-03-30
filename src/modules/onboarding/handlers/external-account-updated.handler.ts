@@ -1,6 +1,6 @@
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';
@@ -50,18 +50,16 @@ export const handleExternalAccountUpdated = async (externalAccount: Stripe.Exter
     );
 
     // Get current account record
-    const account = await db
+    const [accountRecord] = await db
       .select()
       .from(stripeConnectedAccounts)
       .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
       .limit(1);
 
-    if (account.length === 0) {
+    if (!accountRecord) {
       logger.warn('Account not found for external account update: {stripeAccountId}', { stripeAccountId });
       return;
     }
-
-    const currentAccount = account[0];
 
     const bankAccount = stripeTypeGuards.isBankAccount(externalAccount) ? externalAccount : undefined;
     const cardAccount = stripeTypeGuards.isCardAccount(externalAccount) ? externalAccount : undefined;
@@ -69,24 +67,24 @@ export const handleExternalAccountUpdated = async (externalAccount: Stripe.Exter
       id: externalAccount.id,
       object: externalAccount.object,
       account: stripeAccountId,
-      account_holder_name: bankAccount?.account_holder_name || undefined,
-      account_holder_type: bankAccount?.account_holder_type || undefined,
+      account_holder_name: bankAccount?.account_holder_name ?? undefined,
+      account_holder_type: bankAccount?.account_holder_type ?? undefined,
       bank_name: bankAccount?.bank_name ?? undefined,
       country: externalAccount.country ?? undefined,
       currency: externalAccount.currency ?? undefined,
       default_for_currency: externalAccount.default_for_currency ?? undefined,
       fingerprint: externalAccount.fingerprint ?? undefined,
-      last_4: bankAccount?.last4 || cardAccount?.last4,
+      last_4: bankAccount?.last4 ?? cardAccount?.last4,
       metadata: externalAccount.metadata ?? undefined,
       routing_number: bankAccount?.routing_number ?? undefined,
       status: externalAccount.status ?? undefined,
     };
     const currentExternalAccounts = normalizeExternalAccounts({
-      externalAccounts: currentAccount.externalAccounts,
+      externalAccounts: accountRecord.externalAccounts,
     });
     const updatedExternalAccounts: ExternalAccounts = {
       object: 'list',
-      data: [...currentExternalAccounts.data.filter((account) => account.id !== externalAccount.id), normalizedAccount],
+      data: [...currentExternalAccounts.data.filter((acc) => acc.id !== externalAccount.id), normalizedAccount],
     };
 
     // Update the account external accounts in the database within transaction with event publishing
@@ -103,7 +101,7 @@ export const handleExternalAccountUpdated = async (externalAccount: Stripe.Exter
       await OnboardingExternalAccountUpdated.dispatch(
         {
           stripe_account_id: stripeAccountId,
-          organization_id: currentAccount.organization_id,
+          organization_id: accountRecord.organization_id,
           external_account_id: externalAccount.id,
           external_account_type: accountType,
           external_account_status: externalAccount.status,
@@ -112,7 +110,7 @@ export const handleExternalAccountUpdated = async (externalAccount: Stripe.Exter
         {
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
-          organizationId: currentAccount.organization_id,
+          organizationId: accountRecord.organization_id,
           tx,
         }
       );

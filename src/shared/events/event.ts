@@ -25,8 +25,9 @@ import {
   API_ACTOR_UUID,
   ORGANIZATION_ACTOR_UUID,
 } from './constants';
+import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import { events, type EventMetadata, type BaseEvent as BaseEventRecord, type NewEvent } from './schemas/events.schema';
-import * as schema from '@/schema';
+import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { getAppEnv } from '@/shared/utils/env';
@@ -37,21 +38,21 @@ const logger = getLogger(['events', 'system']);
 type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | boolean>;
 
 // Dispatch options type
-export type DispatchOptions = {
+export interface DispatchOptions {
   actorId?: string;
   actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
   organizationId?: string;
   tx?: NodePgDatabase<typeof schema>;
   /** For critical events (Stripe/payments): immediate DB write, guaranteed before response */
   critical?: boolean;
-};
+}
 
 // Event class type - infers payload type T from constructor parameter
-export type EventClass<T extends Record<string, unknown> = Record<string, unknown>> = {
+export interface EventClass<T extends Record<string, unknown> = Record<string, unknown>> {
   type: string;
   new (payload: T, actorId?: string, organizationId?: string): BaseEvent<T>;
   dispatch(payload: T, options?: DispatchOptions): string | Promise<string>;
-};
+}
 
 // Global handler registry - populated by Event.listen()
 const handlers = new Map<string, Handler<Record<string, unknown>>[]>();
@@ -221,26 +222,48 @@ async function dispatchCritical(record: NewEvent, eventId: string, eventType: st
 }
 
 /**
- * Async dispatch: Non-blocking DB write using setImmediate
+ * Async dispatch: Non-blocking DB write with dead-letter fallback
  * Used for fire-and-forget events (practice, client, user activity)
- * Events are still persisted to outbox (durable), just doesn't block the response
+ * Events are still persisted to outbox (durable), just doesn't block the response.
  */
 function dispatchAsync(record: NewEvent, eventId: string, eventType: string): void {
-  // Use setImmediate to defer to next event loop tick - truly non-blocking
-  setImmediate(async () => {
+  void (async () => {
     try {
       await db.insert(events).values(record);
       // Use NOTIFY for instant worker pickup
       await db.execute(sql`NOTIFY new_events`);
     } catch (error) {
-      // Log but don't throw - this is fire-and-forget
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       logger.error('Failed to persist fire-and-forget event {eventType}: {error}', {
         eventType,
         eventId,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
+
+      try {
+        await db.insert(eventsDeadLetter).values({
+          eventId,
+          type: record.type,
+          eventVersion: record.eventVersion,
+          actorId: record.actorId,
+          actorType: record.actorType,
+          organizationId: record.organizationId,
+          payload: record.payload,
+          metadata: record.metadata,
+          lastError: errorMessage,
+          retryCount: 0,
+          originalCreatedAt: new Date(),
+        });
+      } catch (deadLetterError) {
+        logger.error('Failed to write fire-and-forget event {eventType} to dead letter queue: {error}', {
+          eventType,
+          eventId,
+          error: deadLetterError instanceof Error ? deadLetterError.message : String(deadLetterError),
+        });
+      }
     }
-  });
+  })();
 }
 
 /**
@@ -276,7 +299,7 @@ export const Event = {
       return;
     }
 
-    const payload = record.payload as Record<string, unknown>;
+    const { payload } = record;
 
     for (const handler of list) {
       try {

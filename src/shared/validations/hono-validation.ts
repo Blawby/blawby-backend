@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import { z } from 'zod';
+import { HTTPException } from 'hono/http-exception';
+import type { z } from '@hono/zod-openapi';
 
 /**
  * Validates route parameters using Zod schema with @hono/zod-validator
@@ -8,16 +9,13 @@ import { z } from 'zod';
  * @returns Validated parameters
  * @throws HTTPException if validation fails
  */
-const validateParams = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
+const validateParams = <T extends z.ZodType>(context: Context, schema: T): z.infer<T> => {
   try {
     const params = context.req.param();
     const validatedParams = schema.parse(params);
     return validatedParams;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid parameters');
-    }
-    throw new Error('Invalid parameters');
+    throw new HTTPException(400, { message: 'Invalid parameters', cause: error });
   }
 };
 
@@ -28,16 +26,13 @@ const validateParams = <T extends z.ZodSchema>(context: Context, schema: T): z.i
  * @returns Validated query parameters
  * @throws HTTPException if validation fails
  */
-const validateQuery = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
+const validateQuery = <T extends z.ZodType>(context: Context, schema: T): z.infer<T> => {
   try {
     const query = context.req.query();
     const validatedQuery = schema.parse(query);
     return validatedQuery;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid query parameters');
-    }
-    throw new Error('Invalid query parameters');
+    throw new HTTPException(400, { message: 'Invalid query parameters', cause: error });
   }
 };
 
@@ -48,16 +43,13 @@ const validateQuery = <T extends z.ZodSchema>(context: Context, schema: T): z.in
  * @returns Validated body data
  * @throws HTTPException if validation fails
  */
-const validateBody = async <T extends z.ZodSchema>(context: Context, schema: T): Promise<z.infer<T>> => {
+const validateBody = async <T extends z.ZodType>(context: Context, schema: T): Promise<z.infer<T>> => {
   try {
     const body = await context.req.json();
     const validatedBody = schema.parse(body);
     return validatedBody;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid request body');
-    }
-    throw new Error('Invalid request body');
+    throw new HTTPException(400, { message: 'Invalid request body', cause: error });
   }
 };
 
@@ -68,16 +60,13 @@ const validateBody = async <T extends z.ZodSchema>(context: Context, schema: T):
  * @returns Validated headers
  * @throws HTTPException if validation fails
  */
-const validateHeaders = <T extends z.ZodSchema>(context: Context, schema: T): z.infer<T> => {
+const validateHeaders = <T extends z.ZodType>(context: Context, schema: T): z.infer<T> => {
   try {
     const headers = context.req.header();
     const validatedHeaders = schema.parse(headers);
     return validatedHeaders;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new Error('Invalid headers');
-    }
-    throw new Error('Invalid headers');
+    throw new HTTPException(400, { message: 'Invalid headers', cause: error });
   }
 };
 
@@ -90,19 +79,19 @@ const validateHeaders = <T extends z.ZodSchema>(context: Context, schema: T): z.
  */
 const validateRequest = async <
   T extends {
-    params?: z.ZodSchema;
-    query?: z.ZodSchema;
-    body?: z.ZodSchema;
-    headers?: z.ZodSchema;
+    params?: z.ZodType;
+    query?: z.ZodType;
+    body?: z.ZodType;
+    headers?: z.ZodType;
   },
 >(
   context: Context,
   schemas: T
 ): Promise<{
-  params?: T['params'] extends z.ZodSchema ? z.infer<T['params']> : never;
-  query?: T['query'] extends z.ZodSchema ? z.infer<T['query']> : never;
-  body?: T['body'] extends z.ZodSchema ? z.infer<T['body']> : never;
-  headers?: T['headers'] extends z.ZodSchema ? z.infer<T['headers']> : never;
+  params?: T['params'] extends z.ZodType ? z.infer<T['params']> : never;
+  query?: T['query'] extends z.ZodType ? z.infer<T['query']> : never;
+  body?: T['body'] extends z.ZodType ? z.infer<T['body']> : never;
+  headers?: T['headers'] extends z.ZodType ? z.infer<T['headers']> : never;
 }> => {
   const result: Record<string, unknown> = {};
 

@@ -9,28 +9,25 @@ import {
   getStaffAccessibleIntake,
   ensureStaffOrganizationAccess,
 } from '@/modules/practice-client-intakes/services/intake-access.helpers';
-import {
-  formatIntakeListItem,
-  formatIntakeStatusResponse,
-  logger,
-  normalizeTriageStatus,
-  parseMetadata,
-  parseValidDate,
-} from '@/modules/practice-client-intakes/services/intake-shared.helpers';
+import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import type {
   UpdateIntakeTriageStatusRequest,
   UpdateIntakeTriageStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
-import { userDetailsRepository } from '@/modules/user-details/database/queries/user-details.queries';
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
 import type { PaginatedResultWithMeta, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { result } from '@/shared/utils/result';
+import { getLogger } from '@logtape/logtape';
+
+const logger = getLogger(['practice-client-intakes', 'service']);
 
 type ListIntakeItem = NonNullable<
   z.infer<typeof intakeValidations.listIntakesResponseSchema>['data']
@@ -48,11 +45,11 @@ const listIntakes = async (
       return accessResult;
     }
 
-    if (params.query.from && !parseValidDate(params.query.from)) {
+    if (params.query.from && !intakeSharedHelpers.parseValidDate(params.query.from)) {
       return result.badRequest('Invalid date: from');
     }
 
-    if (params.query.to && !parseValidDate(params.query.to)) {
+    if (params.query.to && !intakeSharedHelpers.parseValidDate(params.query.to)) {
       return result.badRequest('Invalid date: to');
     }
 
@@ -64,7 +61,7 @@ const listIntakes = async (
     });
 
     return result.ok({
-      intakes: intakes.map((intake) => formatIntakeListItem(intake, { isAdmin: true })),
+      intakes: intakes.map((intake) => intakeSharedHelpers.formatIntakeListItem(intake, { isAdmin: true })),
       total,
       page: params.query.page,
       limit: params.query.limit,
@@ -91,7 +88,7 @@ const getIntakeById = async (
 
     return result.ok({
       success: true,
-      data: formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
+      data: intakeSharedHelpers.formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
     });
   } catch (error) {
     logger.error('Failed to get intake {id}: {error}', {
@@ -121,12 +118,44 @@ const updateTriageStatus = async (
       triage_decided_at: new Date(),
     });
 
+    // Emit triage event for email notifications
+    const metadata = intakeSharedHelpers.parseMetadata(intakeResult.data.metadata);
+
+    if (metadata?.email) {
+      try {
+        const organization = await organizationRepository.findById(ctx.organizationId);
+
+        if (organization) {
+          void IntakeTriaged.dispatch(
+            {
+              intake_id: params.uuid,
+              organization_id: ctx.organizationId,
+              organization_name: organization.name,
+              triage_status: nextTriageStatus,
+              triage_reason: nextReason,
+              client_email: metadata.email,
+              client_name: metadata.name ?? metadata.email,
+            },
+            {
+              actorId: ctx.userId,
+              organizationId: ctx.organizationId,
+            }
+          );
+        }
+      } catch (enrichmentError) {
+        logger.warn('Failed to enrich IntakeTriaged event for intake {uuid}: {error}', {
+          uuid: params.uuid,
+          error: enrichmentError,
+        });
+      }
+    }
+
     return result.ok({
       success: true,
       data: {
         uuid: updatedIntake.id,
         conversation_id: updatedIntake.conversation_id ?? null,
-        triage_status: normalizeTriageStatus(updatedIntake.triage_status),
+        triage_status: intakeSharedHelpers.normalizeTriageStatus(updatedIntake.triage_status),
         triage_reason: updatedIntake.triage_reason ?? null,
         triage_decided_at: updatedIntake.triage_decided_at ?? null,
       },
@@ -146,20 +175,20 @@ const createMatterFromIntakeTx = async (
     uuid: string;
     data: z.infer<typeof intakeValidations.convertIntakeSchema>;
     intake: Extract<Awaited<ReturnType<typeof getStaffAccessibleIntake>>, { success: true }>['data'];
-    metadata: NonNullable<ReturnType<typeof parseMetadata>>;
+    metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
     userId: string;
   }
 ): Promise<string> => {
   let clientId: string | undefined = undefined;
   if (params.metadata.user_id) {
-    const userDetailsRecord = await userDetailsRepository.findByOrgAndUser(
+    const clientRecord = await clientsRepository.findByOrgAndUser(
       params.intake.organization_id,
       params.metadata.user_id
     );
-    if (userDetailsRecord) {
-      clientId = userDetailsRecord.id;
+    if (clientRecord) {
+      clientId = clientRecord.id;
     } else {
-      logger.warn('User ID {userId} from intake metadata not found in user_details for organization {organizationId}', {
+      logger.warn('User ID {userId} from intake metadata not found in clients for organization {organizationId}', {
         userId: params.metadata.user_id,
         organizationId: params.intake.organization_id,
         intakeUuid: params.uuid,
@@ -274,7 +303,7 @@ const convertIntake = async (
       return result.badRequest('Intake must be accepted before converting to a matter');
     }
 
-    const metadata = parseMetadata(intake.metadata);
+    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
     if (!metadata) {
       return result.badRequest('Intake metadata is missing');
     }
@@ -318,7 +347,7 @@ const triggerInvitation = async (
     }
 
     const intake = intakeResult.data;
-    const metadata = parseMetadata(intake.metadata);
+    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
     if (!metadata?.email) {
       return result.badRequest('No email address found in intake data');
     }

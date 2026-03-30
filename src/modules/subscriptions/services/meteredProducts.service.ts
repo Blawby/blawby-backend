@@ -10,15 +10,18 @@
 
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
-import * as schema from '@/schema';
+import { organizations, subscriptionLineItems, subscriptions, events } from '@/schema';
+import { config } from '@/shared/config';
+import { db as appDb } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import type { Result } from '@/shared/types/result';
 import { ok, internalError } from '@/shared/utils/result';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
+
+type DbOrTx = typeof appDb | Parameters<Parameters<typeof appDb.transaction>[0]>[0];
 
 const METER_USAGE_REPORTED = 'meter_usage.reported';
 
@@ -35,20 +38,20 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async function reportMeteredUsage(
-  db: NodePgDatabase<typeof schema>,
+  db: DbOrTx,
   organizationId: string,
   meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
-  quantity: number = 1,
+  quantity = 1,
   deduplicationId?: string
 ): Promise<Result<void>> {
   try {
     // 1. Get organization's Stripe Customer ID
     const [org] = await db
       .select({
-        stripeCustomerId: schema.organizations.stripeCustomerId,
+        stripeCustomerId: organizations.stripeCustomerId,
       })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, organizationId))
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
       .limit(1);
 
     if (!org?.stripeCustomerId) {
@@ -69,7 +72,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
 
     // 3. Report usage to Stripe Billing Meters API
     const stripe = getStripeInstance();
-    const dedupeSuffix = deduplicationId || Date.now().toString();
+    const dedupeSuffix = deduplicationId ?? Date.now().toString();
 
     // Use Stripe v2 Billing Meters API for synchronous validation and deduplication
     await stripe.v2.billing.meterEvents.create({
@@ -84,7 +87,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
     // 4. Log event to global events table for audit trail
     // We wrap this in its own try/catch to avoid failing the report if DB insert fails
     try {
-      await db.insert(schema.events).values({
+      await db.insert(events).values({
         type: METER_USAGE_REPORTED,
         eventVersion: '1.0.0',
         actorId: SYSTEM_ACTOR_UUID, // Always use SYSTEM_ACTOR_UUID for system items
@@ -98,7 +101,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
         },
         metadata: {
           source: 'metered-products-service',
-          environment: process.env.NODE_ENV || 'development',
+          environment: config.env.node,
         },
       });
     } catch (dbError) {
@@ -121,46 +124,46 @@ const reportMeteredUsage = async function reportMeteredUsage(
 };
 
 const getCurrentUsage = async function getCurrentUsage(
-  db: NodePgDatabase<typeof schema>,
+  db: DbOrTx,
   organizationId: string
-): Promise<Result<Array<{ meter_name: string; quantity: number; description: string | null }>>> {
+): Promise<Result<{ meter_name: string; quantity: number; description: string | null }[]>> {
   try {
     // 1. Get organization's active subscription to find current period start
     const [org] = await db
       .select({
-        activeSubscriptionId: schema.organizations.activeSubscriptionId,
+        activeSubscriptionId: organizations.activeSubscriptionId,
       })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, organizationId))
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
       .limit(1);
 
     let periodStart: Date | null = null;
     if (org?.activeSubscriptionId) {
       const [sub] = await db
         .select({
-          periodStart: schema.subscriptions.periodStart,
+          periodStart: subscriptions.periodStart,
         })
-        .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.id, org.activeSubscriptionId))
+        .from(subscriptions)
+        .where(eq(subscriptions.id, org.activeSubscriptionId))
         .limit(1);
-      periodStart = sub?.periodStart || null;
+      periodStart = sub?.periodStart ?? null;
     }
 
     // 2. Aggregate usage within the current period
     const usage = await db
       .select({
-        meter_name: sql<string>`${schema.events.payload}->>'meter_event_name'`,
-        quantity: sql<number>`CAST(SUM(CAST(${schema.events.payload}->>'quantity' AS NUMERIC)) AS INTEGER)`,
+        meter_name: sql<string>`${events.payload}->>'meter_event_name'`,
+        quantity: sql<number>`CAST(SUM(CAST(${events.payload}->>'quantity' AS INTEGER)) AS INTEGER)`,
       })
-      .from(schema.events)
+      .from(events)
       .where(
         and(
-          eq(schema.events.organizationId, organizationId),
-          eq(schema.events.type, METER_USAGE_REPORTED),
-          periodStart ? sql`${schema.events.createdAt} >= ${periodStart}` : undefined
+          eq(events.organizationId, organizationId),
+          eq(events.type, METER_USAGE_REPORTED),
+          periodStart ? sql`${events.createdAt} >= ${periodStart}` : undefined
         )
       )
-      .groupBy(sql`${schema.events.payload}->>'meter_event_name'`);
+      .groupBy(sql`${events.payload}->>'meter_event_name'`);
 
     return ok(usage.map((u) => ({ ...u, description: null })));
   } catch (error) {

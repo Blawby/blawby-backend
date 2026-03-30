@@ -5,6 +5,7 @@
 import { getLogger } from '@logtape/logtape';
 import { and, eq, not, inArray } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
@@ -90,6 +91,21 @@ export const handlePracticeClientIntakeSucceeded = async ({
         : paymentIntent.latest_charge.id
       : undefined;
 
+    let organizationName = 'Your Legal Team';
+    let billingEmail: string | null = null;
+    try {
+      const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
+      if (organization) {
+        organizationName = organization.name;
+        billingEmail = organization.billingEmail ?? null;
+      }
+    } catch (orgError) {
+      logger.warn('Failed to fetch organization for intake payment event enrichment', {
+        organizationId: practiceClientIntake.organization_id,
+        error: sanitizeError(orgError),
+      });
+    }
+
     await db.transaction(async (tx) => {
       const updateResult = await tx
         .update(practiceClientIntakes)
@@ -107,14 +123,16 @@ export const handlePracticeClientIntakeSucceeded = async ({
           {
             event_id: eventId,
             organization_id: practiceClientIntake.organization_id,
+            organization_name: organizationName,
+            billing_email: billingEmail,
             stripe_payment_intent_id: paymentIntent.id,
             intake_payment_id: practiceClientIntake.id,
             uuid: practiceClientIntake.id,
             amount: practiceClientIntake.amount,
             currency: practiceClientIntake.currency,
-            client_email: practiceClientIntake.metadata?.email as string | undefined,
-            client_name: practiceClientIntake.metadata?.name as string | undefined,
-            user_id: practiceClientIntake.metadata?.user_id as string | undefined,
+            client_email: practiceClientIntake.metadata?.email,
+            client_name: practiceClientIntake.metadata?.name,
+            user_id: practiceClientIntake.metadata?.user_id,
             stripe_charge_id: stripeChargeId,
             succeeded_at: new Date().toISOString(),
           },
@@ -176,7 +194,9 @@ export const handlePracticeClientIntakeFailed = async ({
 }): Promise<void> => {
   try {
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (!practiceClientIntake) return;
+    if (!practiceClientIntake) {
+      return;
+    }
 
     await db.transaction(async (tx) => {
       const updateResult = await tx
@@ -224,7 +244,9 @@ export const handlePracticeClientIntakeCanceled = async ({
 }): Promise<void> => {
   try {
     const practiceClientIntake = await findPracticeClientIntakeByPaymentIntent(paymentIntent);
-    if (!practiceClientIntake) return;
+    if (!practiceClientIntake) {
+      return;
+    }
 
     await db.transaction(async (tx) => {
       const updateResult = await tx

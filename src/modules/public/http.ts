@@ -2,12 +2,12 @@ import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import * as routes from '@/modules/public/routes';
 import { db } from '@/shared/database';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
-import { response } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['app', 'public', 'health']);
 
-type HealthStatus = {
+interface HealthStatus {
   status: 'ok' | 'degraded';
   timestamp: string;
   uptime: number;
@@ -15,18 +15,22 @@ type HealthStatus = {
     status: 'connected' | 'disconnected' | 'unknown';
     latency: number | null;
   };
-};
+}
 
 const publicApp = createHonoApp();
+publicApp.use('*', injectAbility());
 
 // Root route
-publicApp.openapi(routes.rootRoute, async (c) => {
-  return response.ok(c, {
-    message: 'Hono server is running!',
-    timestamp: new Date().toISOString(),
-    routes: ['/api/health', '/api/session', '/docs'],
-  });
-});
+publicApp.openapi(routes.rootRoute, async (c) =>
+  c.json(
+    {
+      message: 'Hono server is running!',
+      timestamp: new Date().toISOString(),
+      routes: ['/api/health', '/api/session', '/docs'],
+    },
+    200
+  )
+);
 
 // Health check
 publicApp.openapi(routes.healthRoute, async (c) => {
@@ -64,13 +68,16 @@ publicApp.openapi(routes.healthRoute, async (c) => {
 // All paths are relative to root.
 
 // API Info
-publicApp.openapi(routes.infoRoute, async (c) => {
-  return response.ok(c, {
-    name: 'Blawby API',
-    version: '1.0.0',
-    description: 'Legal practice management API',
-  });
-});
+publicApp.openapi(routes.infoRoute, async (c) =>
+  c.json(
+    {
+      name: 'Blawby API',
+      version: '1.0.0',
+      description: 'Legal practice management API',
+    },
+    200
+  )
+);
 
 // Contact Form
 publicApp.openapi(routes.contactRoute, async (c) => {
@@ -80,15 +87,18 @@ publicApp.openapi(routes.contactRoute, async (c) => {
   // Tracker: [ISSUE-123] - Hook up contact form to email/service layer
   // For now, this is a stub that returns success with sanitized data.
 
-  return response.created(c, {
-    status: 'success',
-    timestamp: new Date().toISOString(),
-    message: 'Contact form submitted',
-    data: {
-      name: body.name,
-      subject: body.subject,
+  return c.json(
+    {
+      status: 'success',
+      timestamp: new Date().toISOString(),
+      message: 'Contact form submitted',
+      data: {
+        name: body.name,
+        subject: body.subject,
+      },
     },
-  });
+    201
+  );
 });
 
 export default publicApp;

@@ -5,11 +5,12 @@
  * Updates the subscription plan with the new price
  */
 
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { getInternalTypeFromMeterName, type MeteredItem } from '@/modules/subscriptions/constants/meteredProducts';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
 
@@ -47,15 +48,20 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
     } else if (interval === 'year' && !plan.stripe_yearly_price_id) {
       updates.stripe_yearly_price_id = price.id;
       updates.yearly_price = price.unit_amount ? (price.unit_amount / 100).toString() : null;
-    } else if (price.recurring && price.recurring.usage_type === 'metered') {
-      // Handle metered price - add to metered_items array
-      const metered_items = (plan.metered_items as any[]) || [];
-      metered_items.push({
-        price_id: price.id,
-        meter_name: price.nickname || 'metered',
-        type: price.metadata?.meter_type || 'usage',
-      });
-      updates.metered_items = metered_items;
+    } else if (price.recurring?.usage_type === 'metered') {
+      // Handle metered price - add to metered_items array (idempotent: skip if price_id already exists)
+      const existingItems: MeteredItem[] = Array.isArray(plan.metered_items) ? plan.metered_items : [];
+      const alreadyExists = existingItems.some((item) => item.price_id === price.id);
+      if (!alreadyExists) {
+        updates.metered_items = [
+          ...existingItems,
+          {
+            price_id: price.id,
+            meter_name: price.nickname ?? 'metered',
+            type: getInternalTypeFromMeterName(price.metadata?.meter_type ?? '') ?? 'usage',
+          },
+        ];
+      }
     }
 
     if (Object.keys(updates).length > 0) {

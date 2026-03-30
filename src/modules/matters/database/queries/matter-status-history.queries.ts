@@ -5,12 +5,11 @@ import {
   type InsertMatterStatusHistory,
   type SelectMatterStatusHistory,
 } from '@/modules/matters/database/schema/matter-status-history.schema';
-import * as schema from '@/schema';
 import { db } from '@/shared/database';
 
 const createMatterStatusHistory = async (
   data: InsertMatterStatusHistory,
-  tx?: NodePgDatabase<typeof schema>
+  tx?: NodePgDatabase
 ): Promise<SelectMatterStatusHistory> => {
   const client = tx ?? db;
   const [entry] = await client.insert(matterStatusHistory).values(data).returning();
@@ -20,13 +19,12 @@ const createMatterStatusHistory = async (
   return entry;
 };
 
-const listMatterStatusHistory = async (matterId: string): Promise<SelectMatterStatusHistory[]> => {
-  return await db
+const listMatterStatusHistory = async (matterId: string): Promise<SelectMatterStatusHistory[]> =>
+  await db
     .select()
     .from(matterStatusHistory)
     .where(eq(matterStatusHistory.matter_id, matterId))
     .orderBy(desc(matterStatusHistory.changed_at));
-};
 
 export const matterStatusHistoryQueries = {
   createMatterStatusHistory,

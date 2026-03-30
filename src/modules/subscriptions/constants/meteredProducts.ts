@@ -16,11 +16,11 @@ const logger = getLogger(['subscriptions', 'constants', 'metered-products']);
 /**
  * Metered item from database
  */
-export type MeteredItem = {
+export interface MeteredItem {
   price_id: string;
   meter_name: string;
   type: string;
-};
+}
 
 /**
  * Stripe Meter Event Names
@@ -109,7 +109,7 @@ export const getMeteredItemsForOrganization = async (
   }
 
   // 4. Return metered items from plan (default to empty array if not set)
-  const meteredItems = (plan.metered_items || []) as MeteredItem[];
+  const meteredItems = (plan.metered_items ?? []) as MeteredItem[];
   return meteredItems;
 };
 
@@ -120,9 +120,8 @@ export const getMeteredItemsForOrganization = async (
  * @param type - Metered item type (e.g., 'metered_invoice_fee')
  * @returns Metered item or undefined
  */
-export const getMeteredItemByType = (meteredItems: MeteredItem[], type: string): MeteredItem | undefined => {
-  return meteredItems.find((item) => item.type === type);
-};
+export const getMeteredItemByType = (meteredItems: MeteredItem[], type: string): MeteredItem | undefined =>
+  meteredItems.find((item) => item.type === type);
 
 /**
  * Check if organization has any metered items configured

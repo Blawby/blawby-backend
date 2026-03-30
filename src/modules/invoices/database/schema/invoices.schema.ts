@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, text, timestamp, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 
 export const invoiceTypeEnum = pgEnum('invoice_type', [
@@ -20,7 +20,7 @@ export const invoices = pgTable(
       .references(() => organizations.id, { onDelete: 'cascade' }),
     client_id: uuid('client_id')
       .notNull()
-      .references(() => userDetails.id, { onDelete: 'cascade' }),
+      .references(() => clients.id, { onDelete: 'cascade' }),
     matter_id: uuid('matter_id').references(() => matters.id, {
       onDelete: 'set null',
     }),

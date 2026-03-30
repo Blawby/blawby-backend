@@ -8,13 +8,14 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // oxlint-disable-next-line no-namespace
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
+import { config } from '@/shared/config';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import type { PrefillData } from '@/shared/types/prefill';
 import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
@@ -30,7 +31,7 @@ const authSessionAdditionalFields =
  */
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
   betterAuth({
-    secret: process.env.BETTER_AUTH_SECRET,
+    secret: config.auth.betterAuthSecret,
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
@@ -74,7 +75,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
 
           const frontendUrl = getMatchingFrontendUrl();
           // Queue the invitation email
-          await addEmailJob(
+          await queueManager.addEmailJob(
             'practice-invitation',
             data.email,
             `You've been invited to join ${practiceName} on Blawby`,
@@ -128,12 +129,15 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
       admin(),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
-          await addEmailJob('magic-link', email, 'Sign in to Blawby', { url, year: new Date().getFullYear() });
+          await queueManager.addEmailJob('magic-link', email, 'Sign in to Blawby', {
+            url,
+            year: new Date().getFullYear(),
+          });
         },
       }),
       ...(isDevelopment() ? [testUtils()] : []),
     ],
-    baseURL: process.env.BASE_URL,
+    baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',
     rateLimit: {
       enabled: true,
@@ -222,9 +226,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
     },
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        redirectURI: process.env.GOOGLE_REDIRECT_URI,
+        clientId: config.auth.googleClientId!,
+        clientSecret: config.auth.googleClientSecret,
+        redirectURI: config.auth.googleRedirectUri,
       },
     },
     logger: {

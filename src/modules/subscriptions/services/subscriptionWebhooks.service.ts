@@ -8,41 +8,46 @@ import {
   handlePriceUpdated,
   handlePriceDeleted,
 } from '@/modules/subscriptions/handlers/index';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError } from '@/shared/utils/result';
+import { isProductEvent, isPriceEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['subscriptions', 'webhook-service']);
 
 /**
  * Process a Stripe webhook event for subscriptions
  */
-const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Result<void>> => {
+const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<void> => {
   try {
     logger.info('Processing subscription webhook event: {eventType}', { eventType: event.type });
 
     switch (event.type) {
       case 'product.created':
-        await handleProductCreated(event.data.object as Stripe.Product);
-        break;
-
       case 'product.updated':
-        await handleProductUpdated(event.data.object as Stripe.Product);
-        break;
-
       case 'product.deleted':
-        await handleProductDeleted(event.data.object as Stripe.Product);
+        if (!isProductEvent(event)) {
+          throw new Error('Unexpected payload for product event');
+        }
+        if (event.type === 'product.created') {
+          await handleProductCreated(event.data.object);
+        } else if (event.type === 'product.updated') {
+          await handleProductUpdated(event.data.object);
+        } else {
+          await handleProductDeleted(event.data.object);
+        }
         break;
 
       case 'price.created':
-        await handlePriceCreated(event.data.object as Stripe.Price);
-        break;
-
       case 'price.updated':
-        await handlePriceUpdated(event.data.object as Stripe.Price);
-        break;
-
       case 'price.deleted':
-        await handlePriceDeleted(event.data.object as Stripe.Price);
+        if (!isPriceEvent(event)) {
+          throw new Error('Unexpected payload for price event');
+        }
+        if (event.type === 'price.created') {
+          await handlePriceCreated(event.data.object);
+        } else if (event.type === 'price.updated') {
+          await handlePriceUpdated(event.data.object);
+        } else {
+          await handlePriceDeleted(event.data.object);
+        }
         break;
 
       default:
@@ -50,23 +55,21 @@ const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<Res
     }
 
     logger.info('Successfully processed subscription webhook event: {eventType}', { eventType: event.type });
-    return ok(undefined);
   } catch (error) {
     logger.error('Failed to process subscription webhook event {eventType}: {error}', {
       eventType: event.type,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });
-    return internalError(error instanceof Error ? error.message : 'Failed to process subscription webhook');
+    throw error instanceof Error ? error : new Error('Failed to process subscription webhook');
   }
 };
 
 /**
  * Check if an event type should be processed by subscription webhooks
  */
-const isSubscriptionWebhookEvent = (eventType: string): boolean => {
-  return eventType.startsWith('product.') || eventType.startsWith('price.');
-};
+const isSubscriptionWebhookEvent = (eventType: string): boolean =>
+  eventType.startsWith('product.') || eventType.startsWith('price.');
 
 export const subscriptionWebhooksService = {
   processSubscriptionWebhookEvent,

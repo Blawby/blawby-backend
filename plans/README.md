@@ -2,7 +2,7 @@
 
 Implementation plans, architecture docs, and coding standards for the Blawby backend.
 
-**Last Updated:** February 21, 2026
+**Last Updated:** March 27, 2026
 
 ---
 
@@ -13,6 +13,8 @@ Implementation plans, architecture docs, and coding standards for the Blawby bac
 | [CODING_STANDARDS.md](./CODING_STANDARDS.md) | **Active** | Timestamp handling, Zod conventions, service patterns |
 | [MASTER_IMPLEMENTATION_PLAN.md](./MASTER_IMPLEMENTATION_PLAN.md) | **Active** | Stripe integration master plan and phase status |
 | [build-architecture.md](./build-architecture.md) | **Reference** | Build system, module auto-discovery, project structure |
+| [TECH_DEBT_REMEDIATION_PLAN.md](./TECH_DEBT_REMEDIATION_PLAN.md) | **Active** | Type safety, dead code cleanup, infrastructure hardening |
+| [fix-test-db-integration.md](./fix-test-db-integration.md) | **Active** | Test harness refactor for real DB integration tests |
 
 ---
 

@@ -5,11 +5,19 @@ import type { MiddlewareHandler } from 'hono';
 import { members } from '@/schema';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
 
 const logger = getLogger(['middleware', 'require-org-membership']);
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+
+const authErrorResponder = (
+  c: Parameters<MiddlewareHandler<{ Variables: Variables }>>[0],
+  status: typeof HTTP_UNAUTHORIZED | typeof HTTP_FORBIDDEN,
+  error: 'Unauthorized' | 'Forbidden',
+  message: string
+) => c.json({ error, message, request_id: c.get('requestId') }, status);
 
 /**
  * Extracts the org/practice UUID from the URL path.
@@ -43,17 +51,34 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
   const userId = c.get('userId');
 
   if (!userId) {
-    // oxlint-disable-next-line no-unsafe-return
-    return response.unauthorized(c, 'Authentication required');
+    return authErrorResponder(c, HTTP_UNAUTHORIZED, 'Unauthorized', 'Authentication required');
   }
 
   // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
-  const orgId = extractOrgIdFromPath(c.req.path) ?? c.get('activeOrganizationId');
+  const urlOrgId = extractOrgIdFromPath(c.req.path);
+  const sessionOrgId = c.get('activeOrganizationId');
+
+  // If the URL explicitly targets an org, it must match the session's active org.
+  // Acting on a non-active org requires calling setActiveOrganization first.
+  if (urlOrgId && sessionOrgId && urlOrgId !== sessionOrgId) {
+    logger.warn('User {userId} attempted cross-org access: session={sessionOrgId} requested={urlOrgId}', {
+      userId,
+      sessionOrgId,
+      urlOrgId,
+    });
+    return authErrorResponder(
+      c,
+      HTTP_FORBIDDEN,
+      'Forbidden',
+      'Organization context mismatch: switch your active organization first'
+    );
+  }
+
+  const orgId = urlOrgId ?? sessionOrgId;
 
   if (!orgId) {
     logger.warn('No organization context found for user {userId}', { userId });
-    // oxlint-disable-next-line no-unsafe-return
-    return response.forbidden(c, 'No organization context found');
+    return authErrorResponder(c, HTTP_FORBIDDEN, 'Forbidden', 'No organization context found');
   }
 
   try {
@@ -65,11 +90,10 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
 
     if (!membership) {
       logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
-      // oxlint-disable-next-line no-unsafe-return
-      return response.forbidden(c, 'You are not a member of this organization');
+      return authErrorResponder(c, HTTP_FORBIDDEN, 'Forbidden', 'You are not a member of this organization');
     }
 
-    // 🚨 CRITICAL: Propagate context to the Hono context
+    // CRITICAL: Propagate context to the Hono context
     // This ensures downstream injectAbility and Services use the CORRECT targeted organization
     c.set('activeOrganizationId', orgId);
     c.set('memberRole', membership.role);

@@ -4,11 +4,11 @@
  */
 
 /** Filters for listInvoicesByOrganization */
-export type InvoiceListFilters = {
+export interface InvoiceListFilters {
   invoiceId?: string;
   clientId?: string;
   matterId?: string;
   status?: string;
   page?: number;
   limit?: number;
-};
+}

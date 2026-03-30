@@ -6,7 +6,7 @@ import type {
   InsertInvoiceLineItem,
   SelectInvoiceLineItem,
 } from '@/modules/invoices/database/schema';
-import type { InvoiceWithRelations, InvoiceSummary, InvoiceListFilters } from '@/modules/invoices/types/invoices.types';
+import type { InvoiceListFilters, InvoiceSummary, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
 
 const { invoices } = invoicesSchema;
@@ -71,6 +71,27 @@ const findInvoiceByStripeId = async (
       connectedAccount: true,
     },
   });
+};
+
+/**
+ * Find invoice by Stripe Invoice ID with row locking (FOR UPDATE)
+ * Use this inside transactions to prevent race conditions
+ */
+const findInvoiceByStripeIdWithLock = async (
+  stripeInvoiceId: string,
+  tx: typeof db
+): Promise<{ id: string; status: string; organization_id: string } | undefined> => {
+  const [row] = await tx
+    .select({
+      id: invoices.id,
+      status: invoices.status,
+      organization_id: invoices.organization_id,
+    })
+    .from(invoices)
+    .where(and(eq(invoices.stripe_invoice_id, stripeInvoiceId), isNull(invoices.deleted_at)))
+    .for('update');
+
+  return row;
 };
 
 /**
@@ -287,6 +308,7 @@ export const invoicesRepository = {
   createInvoice,
   findInvoiceById,
   findInvoiceByStripeId,
+  findInvoiceByStripeIdWithLock,
   listInvoicesByOrganization,
   findManyByClientId,
   findOneByIdAndClientId,

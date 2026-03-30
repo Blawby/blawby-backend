@@ -1,6 +1,8 @@
 import { getLogger } from '@logtape/logtape';
 import { omit } from 'es-toolkit/compat';
+import { HTTPException } from 'hono/http-exception';
 
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
@@ -10,15 +12,17 @@ import {
   upsertDetailsTransaction,
 } from '@/modules/practice/services/practice-management.helpers';
 import type { CreatePracticeParams, UpdatePracticeParams } from '@/modules/practice/types/practice-management.types';
-import type { UpdatePracticeRequest, PracticeWithDetails } from '@/modules/practice/types/practice.types';
+import type {
+  UpdatePracticeRequest,
+  PracticeWithDetails,
+  OrganizationApiShape,
+} from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
+import { ForbiddenError } from '@casl/ability';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import { PracticeCreated, PracticeUpdated } from '@/shared/events/definitions';
-import type { Organization } from '@/shared/types/BetterAuth';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { forbidden, ok, internalError } from '@/shared/utils/result';
 
 const { getBetterAuthErrorMessage } = betterAuthUtils;
 
@@ -37,21 +41,14 @@ export const practiceManagementService = {
   async createPractice(
     { data }: CreatePracticeParams,
     ctx: ServiceContext
-  ): Promise<Result<{ practice: PracticeWithDetails }>> {
-    if (ctx.ability.cannot('update', 'Organization')) {
-      return forbidden('You do not have permission to create practices');
-    }
+  ): Promise<{ practice: PracticeWithDetails }> {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
 
     const { user } = ctx;
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
 
-      const createResult = await organizationService.createOrganization({ data: organizationData }, ctx);
-
-      if (!createResult.success) {
-        return createResult;
-      }
-      const organization = createResult.data;
+      const organization = await organizationService.createOrganization({ data: organizationData }, ctx);
 
       let practiceDetails: PracticeDetails | null = null;
 
@@ -67,11 +64,12 @@ export const practiceManagementService = {
             return details;
           });
         } catch (detailsError) {
-          const rollbackResult = await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
-          if (!rollbackResult.success) {
+          try {
+            await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
+          } catch (rollbackError) {
             logger.error('Create practice compensation failed for organization {organizationId}: {error}', {
               organizationId: organization.id,
-              error: rollbackResult.error.message,
+              error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
             });
           }
           throw detailsError;
@@ -83,19 +81,22 @@ export const practiceManagementService = {
         name: organization.name,
         organization_name: organization.name,
         organization_slug: organization.slug,
-        has_practice_details: !!practiceDetails,
+        has_practice_details: Boolean(practiceDetails),
         practice_details_id: practiceDetails?.id,
         user_email: user.email,
       });
 
-      return ok<{ practice: PracticeWithDetails }>({
+      return {
         practice: buildPracticeWithDetails(organization, practiceDetails),
-      });
+      };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
-      return internalError<{ practice: PracticeWithDetails }>(
-        getBetterAuthErrorMessage(error, 'Failed to create practice')
-      );
+      throw new HTTPException(500, {
+        message: getBetterAuthErrorMessage(error, 'Failed to create practice'),
+      });
     }
   },
 
@@ -105,10 +106,8 @@ export const practiceManagementService = {
   async updatePractice(
     { organizationId, data }: UpdatePracticeParams,
     ctx: ServiceContext
-  ): Promise<Result<{ practice: PracticeWithDetails }>> {
-    if (ctx.ability.cannot('update', 'Organization')) {
-      return forbidden('You do not have permission to update practices');
-    }
+  ): Promise<{ practice: PracticeWithDetails }> {
+    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
 
     const { user } = ctx;
     try {
@@ -118,26 +117,27 @@ export const practiceManagementService = {
         Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null)
       ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
-      let organization: Organization;
+      let organization: OrganizationApiShape | undefined = undefined;
       const hasOrganizationUpdates = Object.keys(filteredOrgData).length > 0;
-      let previousOrganization: Organization | null = null;
+      let previousOrganization: OrganizationApiShape | null = null;
 
       if (hasOrganizationUpdates) {
-        const previousOrgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-        if (!previousOrgResult.success) return previousOrgResult;
-        previousOrganization = previousOrgResult.data;
+        const previousOrg = await organizationRepository.findById(organizationId);
+        if (!previousOrg) {
+          throw new HTTPException(404, { message: `Organization ${organizationId} not found` });
+        }
+        previousOrganization = previousOrg;
 
-        const updateResult = await organizationService.updateOrganization(
+        organization = await organizationService.updateOrganization(
           { data: { organizationId, data: filteredOrgData } },
           ctx
         );
-
-        if (!updateResult.success) return updateResult;
-        organization = updateResult.data;
       } else {
-        const orgResult = await organizationService.getFullOrganization({ organizationId }, ctx);
-        if (!orgResult.success) return orgResult;
-        organization = orgResult.data;
+        const existingOrganization = await organizationRepository.findById(organizationId);
+        if (!existingOrganization) {
+          throw new HTTPException(404, { message: `Organization ${organizationId} not found` });
+        }
+        organization = existingOrganization;
       }
 
       let practiceDetails: PracticeDetails | null = null;
@@ -157,25 +157,25 @@ export const practiceManagementService = {
           });
         } catch (detailsError) {
           if (hasOrganizationUpdates && previousOrganization) {
-            const rollbackResult = await organizationService.updateOrganization(
-              {
-                data: {
-                  organizationId,
+            try {
+              await organizationService.updateOrganization(
+                {
                   data: {
-                    name: previousOrganization.name,
-                    slug: previousOrganization.slug,
-                    logo: previousOrganization.logo ?? undefined,
-                    metadata: previousOrganization.metadata ?? undefined,
+                    organizationId,
+                    data: {
+                      name: previousOrganization.name,
+                      slug: previousOrganization.slug,
+                      logo: previousOrganization.logo ?? undefined,
+                      metadata: previousOrganization.metadata ?? undefined,
+                    },
                   },
                 },
-              },
-              ctx
-            );
-
-            if (!rollbackResult.success) {
+                ctx
+              );
+            } catch (rollbackError) {
               logger.error('Update practice compensation failed for organization {organizationId}: {error}', {
                 organizationId,
-                error: rollbackResult.error.message,
+                error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
               });
             }
           }
@@ -183,27 +183,30 @@ export const practiceManagementService = {
         }
       } else {
         const existing = await findPracticeDetailsByOrganization(organizationId);
-        practiceDetails = existing || null;
+        practiceDetails = existing ?? null;
       }
 
       await ctx.emit(PracticeUpdated, {
         organization_id: organizationId,
-        name: organization?.name || 'Unknown',
-        organization_name: organization?.name || 'Unknown',
-        organization_slug: organization?.slug || 'unknown',
-        has_practice_details: !!practiceDetails,
+        name: organization.name ?? 'Unknown',
+        organization_name: organization.name ?? 'Unknown',
+        organization_slug: organization.slug ?? 'unknown',
+        has_practice_details: Boolean(practiceDetails),
         practice_details_id: practiceDetails?.id,
         user_email: user.email,
       });
 
-      return ok<{ practice: PracticeWithDetails }>({
+      return {
         practice: buildPracticeWithDetails(organization, practiceDetails),
-      });
+      };
     } catch (error) {
+      if (error instanceof HTTPException) {
+        throw error;
+      }
       logger.error('Failed to update practice {organizationId}: {error}', { organizationId, error });
-      return internalError<{ practice: PracticeWithDetails }>(
-        getBetterAuthErrorMessage(error, 'Failed to update practice')
-      );
+      throw new HTTPException(500, {
+        message: getBetterAuthErrorMessage(error, 'Failed to update practice'),
+      });
     }
   },
 };

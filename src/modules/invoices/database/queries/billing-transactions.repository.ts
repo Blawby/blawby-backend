@@ -1,7 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { billingTransactionsSchema } from '@/modules/invoices/database/schema';
-import type { InsertBillingTransaction, SelectBillingTransaction } from '@/modules/invoices/database/schema';
 import { db } from '@/shared/database';
+import {
+  billingTransactionsSchema,
+  type InsertBillingTransaction,
+  type SelectBillingTransaction,
+} from '@/modules/invoices/database/schema';
 
 const { billingTransactions } = billingTransactionsSchema;
 
@@ -9,7 +12,7 @@ const { billingTransactions } = billingTransactionsSchema;
  * Create a new billing transaction
  */
 const createTransaction = async (data: InsertBillingTransaction, tx?: typeof db): Promise<SelectBillingTransaction> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [transaction] = await client.insert(billingTransactions).values(data).returning();
 
   if (!transaction) {
@@ -41,7 +44,7 @@ const updateTransactionStatus = async (
   extras?: Partial<SelectBillingTransaction>,
   tx?: typeof db
 ): Promise<void> => {
-  const client = tx || db;
+  const client = tx ?? db;
   await client
     .update(billingTransactions)
     .set({
@@ -55,7 +58,7 @@ const updateTransactionStatus = async (
  * List transactions for an invoice
  */
 const listByInvoiceId = async (invoiceId: string, tx?: typeof db): Promise<SelectBillingTransaction[]> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return await client.select().from(billingTransactions).where(eq(billingTransactions.invoice_id, invoiceId));
 };
 

@@ -1,5 +1,4 @@
 import { getLogger } from '@logtape/logtape';
-import type { Stripe } from 'stripe';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   practiceClientIntakesSchema,
@@ -10,12 +9,12 @@ import type { TriageStatus } from '@/modules/practice-client-intakes/types/pract
 import type { Result } from '@/shared/types/result';
 import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
+import type { ResolveCheckoutSessionResult } from '@/modules/practice-client-intakes/types/intake-stripe.types';
 
 const { practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
+const logger = getLogger(['practice-client-intakes', 'service']);
 
-export const logger = getLogger(['practice-client-intakes', 'service']);
-
-export const normalizeTriageStatus = (value: string | null | undefined): TriageStatus => {
+const normalizeTriageStatus = (value: string | null | undefined): TriageStatus => {
   if (value === 'accepted' || value === 'declined') {
     return value;
   }
@@ -23,7 +22,7 @@ export const normalizeTriageStatus = (value: string | null | undefined): TriageS
   return 'pending_review';
 };
 
-export const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadata | null => {
+const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadata | null => {
   if (!rawMetadata) {
     return null;
   }
@@ -56,7 +55,7 @@ const isAuthorizedIntakeView = (
 const isUrgency = (value: string | null | undefined): value is 'routine' | 'time_sensitive' | 'emergency' =>
   value === 'routine' || value === 'time_sensitive' || value === 'emergency';
 
-export const formatIntakeListItem = (
+const formatIntakeListItem = (
   intake: SelectPracticeClientIntake,
   options?: { requestingUserId?: string; isAdmin?: boolean }
 ) => {
@@ -88,7 +87,7 @@ export const formatIntakeListItem = (
   };
 };
 
-export const formatIntakeStatusResponse = (
+const formatIntakeStatusResponse = (
   intake: SelectPracticeClientIntake,
   options?: { requestingUserId?: string; isAdmin?: boolean }
 ) => {
@@ -108,12 +107,7 @@ export const formatIntakeStatusResponse = (
   };
 };
 
-export interface ResolveCheckoutSessionResult {
-  intake?: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
-  session?: Stripe.Checkout.Session;
-}
-
-export const resolvePracticeClientIntakeByCheckoutSessionId = async (
+const resolvePracticeClientIntakeByCheckoutSessionId = async (
   sessionId: string,
   options?: { requireSession?: boolean }
 ): Promise<Result<ResolveCheckoutSessionResult>> => {
@@ -123,6 +117,10 @@ export const resolvePracticeClientIntakeByCheckoutSessionId = async (
 
   if (intake && !requireSession) {
     return result.ok({ intake });
+  }
+
+  if (!sessionId.startsWith('cs_')) {
+    return result.notFound('Checkout session not found');
   }
 
   try {
@@ -157,7 +155,16 @@ export const resolvePracticeClientIntakeByCheckoutSessionId = async (
   }
 };
 
-export const parseValidDate = (value: string): Date | null => {
+const parseValidDate = (value: string): Date | null => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const intakeSharedHelpers = {
+  normalizeTriageStatus,
+  parseMetadata,
+  resolvePracticeClientIntakeByCheckoutSessionId,
+  parseValidDate,
+  formatIntakeStatusResponse,
+  formatIntakeListItem,
 };

@@ -4,14 +4,13 @@
  * Uses rate-limiter-flexible with PostgreSQL storage for distributed rate limiting.
  * Works across multiple server instances and prevents memory leaks.
  *
- * Call `initializeRateLimiter()` during server boot to ensure the table is ready
+ * Call `rateLimiter.initialize()` during server boot to ensure the table is ready
  * before accepting requests.
  */
 
 import { RateLimiterPostgres } from 'rate-limiter-flexible';
 import type { MiddlewareHandler } from 'hono';
 import { getPool } from '@/shared/database/connection';
-import { response } from '@/shared/utils/responseUtils';
 
 const DEFAULT_RATE_LIMIT_POINTS = 60;
 const DEFAULT_RATE_LIMIT_DURATION_SECONDS = 60;
@@ -30,7 +29,7 @@ let initializationPromise: Promise<void> | null = null;
  *
  * This function is idempotent - multiple concurrent calls will return the same promise.
  */
-export const initializeRateLimiter = (): Promise<void> => {
+const initializeRateLimiter = (): Promise<void> => {
   // Already initialized - return immediately
   if (initialized) {
     return Promise.resolve();
@@ -95,8 +94,9 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
   return limiters.get(key)!;
 };
 
-export const rateLimit = (options?: { points?: number; duration?: number; routeKey?: string }): MiddlewareHandler => {
-  return async (c, next) => {
+export const rateLimit =
+  (options?: { points?: number; duration?: number; routeKey?: string }): MiddlewareHandler =>
+  async (c, next) => {
     const userId = c.get('userId');
 
     const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -116,7 +116,7 @@ export const rateLimit = (options?: { points?: number; duration?: number; routeK
       return await next();
     } catch (rejRes: unknown) {
       // Only handle rate limit rejections - check for library-specific marker
-      // rate-limiter-flexible rejects with an object containing msBeforeNext
+      // Rate-limiter-flexible rejects with an object containing msBeforeNext
       const isRateLimitRejection =
         rejRes &&
         typeof rejRes === 'object' &&
@@ -125,10 +125,18 @@ export const rateLimit = (options?: { points?: number; duration?: number; routeK
 
       if (isRateLimitRejection) {
         // Rate limit exceeded - extract retry time
-        const msBeforeNext = (rejRes as { msBeforeNext: number }).msBeforeNext;
+        const { msBeforeNext } = rejRes as { msBeforeNext: number };
         const retryAfter = Math.ceil(msBeforeNext / 1000) || 1;
 
-        return response.tooManyRequests(c, `Too many requests. Please try again in ${retryAfter} seconds.`, retryAfter);
+        c.res.headers.set('Retry-After', String(retryAfter));
+        return c.json(
+          {
+            error: 'Too Many Requests',
+            message: `Too many requests. Please try again in ${retryAfter} seconds.`,
+            retry_after: retryAfter,
+          },
+          429
+        );
       }
 
       // Not a rate limit rejection - likely a DB/connection error
@@ -136,4 +144,7 @@ export const rateLimit = (options?: { points?: number; duration?: number; routeK
       throw rejRes;
     }
   };
+
+export const rateLimiter = {
+  initialize: initializeRateLimiter,
 };

@@ -1,18 +1,17 @@
-import { AppRouteHandler } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+import type { AppRouteHandler } from '@/shared/types/hono';
 import { uploadsService } from '@/modules/uploads/services/uploads.service';
-import { presignUploadRoute } from '@/modules/uploads/routes';
+import { getServiceContext } from '@/shared/types/service-context';
+import { sendResult } from '@/shared/utils/responseUtils';
+import type { routes } from '@/modules/uploads/routes';
 
-export const presignHandler: AppRouteHandler<typeof presignUploadRoute> = async (c) => {
-  const userId = c.get('userId');
-  const organizationId = c.get('activeOrganizationId');
+const presignHandler: AppRouteHandler<typeof routes.presignUploadRoute> = async (c) => {
   const validatedBody = c.req.valid('json');
+  const ctx = getServiceContext(c);
+  const result = await uploadsService.presignUpload({ request: validatedBody }, ctx);
 
-  if (!userId) {
-    return response.unauthorized(c, 'Authentication required');
-  }
+  return sendResult(c, result, 201);
+};
 
-  const result = await uploadsService.presignUpload(validatedBody, userId, organizationId ?? null);
-
-  return response.fromResult(c, result, 201);
+export const presignHandlers = {
+  presignHandler,
 };

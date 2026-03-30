@@ -1,3 +1,4 @@
+import { config } from '@/shared/config';
 import { getEnvArray } from '@/shared/utils/env';
 
 /**
@@ -20,7 +21,9 @@ export const matchesPattern = (origin: string, pattern: string): boolean => {
  * Also validates callbackURLs for OAuth Proxy
  */
 export const getTrustedOrigins = (request?: Request): string[] => {
-  if (!request) return [];
+  if (!request) {
+    return [];
+  }
   const origin = request.headers.get('origin');
   const origins: string[] = [];
 
@@ -32,8 +35,8 @@ export const getTrustedOrigins = (request?: Request): string[] => {
     origins.push(origin);
   }
 
-  if (process.env.BASE_URL) {
-    origins.push(process.env.BASE_URL);
+  if (config.app.baseUrl) {
+    origins.push(config.app.baseUrl);
   }
 
   // 3. Add Custom Origins from Environment

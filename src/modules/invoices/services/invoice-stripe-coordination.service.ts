@@ -1,6 +1,7 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { stripeInvoicesService } from '@/modules/invoices/services/stripe-invoices.service';
@@ -31,22 +32,26 @@ const finalizeAndSendStripeFlow = async (
 ): Promise<Result<InvoiceWithRelations>> => {
   // 1. Create on Stripe
   if (!invWithRel.client?.stripe_customer_id) {
-    return result.badRequest('Client is missing Stripe customer ID');
+    return result.internalError('Client is missing Stripe customer ID (ensureClientSetup should have run first)');
   }
 
   const stripeResult = await stripeInvoicesService.createStripeInvoice(
     invWithRel,
     invWithRel.client.stripe_customer_id,
-    invWithRel.connected_account_id,
+    invWithRel.connectedAccount.stripe_account_id,
     idempotencyKeyPrefix
   );
-  if (!stripeResult.success) return { success: false, error: stripeResult.error };
+  if (!stripeResult.success) {
+    return { success: false, error: stripeResult.error };
+  }
 
   const stripeInvoice = stripeResult.data;
 
   // 2. Finalize and send
   const sendResult = await stripeInvoicesService.finalizeAndSendInvoice(stripeInvoice.id, idempotencyKeyPrefix);
-  if (!sendResult.success) return { success: false, error: sendResult.error };
+  if (!sendResult.success) {
+    return { success: false, error: sendResult.error };
+  }
 
   const finalInvoice = sendResult.data;
 
@@ -85,7 +90,9 @@ const finalizeAndSendStripeFlow = async (
       return await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId, tx);
     });
 
-    if (!updated) return result.notFound<InvoiceWithRelations>('Invoice not found after update');
+    if (!updated) {
+      return result.notFound<InvoiceWithRelations>('Invoice not found after update');
+    }
     return result.ok<InvoiceWithRelations>(updated);
   } catch (error) {
     logger.error('Failed to finalize and send Stripe flow: {error}', {
@@ -120,7 +127,7 @@ const syncStripeState = async (
   };
 
   await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
-    status: statusMap[stripeInvoice.status || ''] || currentInvoice.status,
+    status: statusMap[stripeInvoice.status ?? ''] || currentInvoice.status,
     amount_paid: stripeInvoice.amount_paid,
     amount_due: stripeInvoice.amount_remaining,
     paid_at: stripeInvoice.status_transitions?.paid_at
@@ -139,15 +146,42 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
-    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!invoice) return result.notFound<InvoiceResponse>('Invoice not found');
+    let invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+    if (!invoice) {
+      return result.notFound<InvoiceResponse>('Invoice not found');
+    }
 
     if (invoice.status !== 'draft') {
       return result.badRequest<InvoiceResponse>('Only draft invoices can be sent');
     }
 
+    if (!invoice.lineItems?.length) {
+      return result.badRequest<InvoiceResponse>('Cannot send an invoice with no line items');
+    }
+
+    if (invoice.total <= 0) {
+      return result.badRequest<InvoiceResponse>('Cannot send an invoice with zero or negative total');
+    }
+
     if (!invoice.client?.stripe_customer_id) {
-      return result.badRequest<InvoiceResponse>('Client is missing Stripe customer ID');
+      try {
+        const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
+
+        if (!setupResult.stripe_customer_id) {
+          return result.internalError<InvoiceResponse>('Failed to setup Stripe customer for client');
+        }
+
+        // Refetch invoice to get updated client with stripe_customer_id
+        const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+        if (!freshInvoice) {
+          return result.notFound<InvoiceResponse>('Invoice not found after client setup');
+        }
+        invoice = freshInvoice;
+      } catch (error) {
+        return result.internalError<InvoiceResponse>(
+          error instanceof Error ? error.message : 'Failed to setup Stripe customer for client'
+        );
+      }
     }
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');
@@ -164,7 +198,9 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     }
 
     const updatedInvoice = updated.data;
-    if (!updatedInvoice) return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
+    if (!updatedInvoice) {
+      return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
+    }
 
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(updatedInvoice));
   } catch (error) {
@@ -181,14 +217,18 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
   try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!invoice) return result.notFound<InvoiceResponse>('Invoice not found');
+    if (!invoice) {
+      return result.notFound<InvoiceResponse>('Invoice not found');
+    }
     if (!invoice.stripe_invoice_id) {
       return result.badRequest<InvoiceResponse>('Invoice has not been synced with Stripe');
     }
 
     // 1. Fetch from Stripe
     const stripeResult = await stripeInvoicesService.getStripeInvoice(invoice.stripe_invoice_id);
-    if (!stripeResult.success) return { success: false, error: stripeResult.error };
+    if (!stripeResult.success) {
+      return { success: false, error: stripeResult.error };
+    }
 
     // 2. Sync State
     const updated = await syncStripeState(
@@ -200,7 +240,9 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       ctx
     );
 
-    if (!updated) return result.notFound<InvoiceResponse>('Invoice not found');
+    if (!updated) {
+      return result.notFound<InvoiceResponse>('Invoice not found');
+    }
 
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(updated));
   } catch (error) {
@@ -217,7 +259,9 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
   try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!invoice) return result.notFound<InvoiceResponse>('Invoice not found');
+    if (!invoice) {
+      return result.notFound<InvoiceResponse>('Invoice not found');
+    }
 
     if (invoice.status !== 'sent') {
       return result.badRequest<InvoiceResponse>('Only sent invoices can be voided');
@@ -229,7 +273,9 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
     // Void on Stripe
     const voidResult = await stripeInvoicesService.voidInvoice(invoice.stripe_invoice_id);
-    if (!voidResult.success) return { success: false, error: voidResult.error };
+    if (!voidResult.success) {
+      return { success: false, error: voidResult.error };
+    }
 
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(id, ctx.organizationId, { status: 'cancelled' }, tx);
@@ -250,7 +296,9 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     });
 
     const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!updated) return result.notFound<InvoiceResponse>('Invoice not found');
+    if (!updated) {
+      return result.notFound<InvoiceResponse>('Invoice not found');
+    }
 
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(updated));
   } catch (error) {

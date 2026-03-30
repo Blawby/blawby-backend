@@ -82,13 +82,10 @@ const remove = async (key: string): Promise<void> => {
 const getAll = async (): Promise<Record<string, ConfigValue>> => {
   const allConfigs = await getAllStmt.execute();
 
-  return allConfigs.reduce(
-    (acc, config) => {
-      acc[config.key] = config.value as ConfigValue;
-      return acc;
-    },
-    {} as Record<string, ConfigValue>
-  );
+  return allConfigs.reduce<Record<string, ConfigValue>>((acc, config) => {
+    acc[config.key] = config.value as ConfigValue;
+    return acc;
+  }, {});
 };
 
 export const appConfigService = {

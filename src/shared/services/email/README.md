@@ -64,13 +64,13 @@ You can view all locally captured emails in a browser dashboard:
 
 ### Enqueueing an Email
 
-Always use `addEmailJob` from any module to ensure the process remains non-blocking:
+Always use `queueManager.addEmailJob` from any module to ensure the process remains non-blocking:
 
 ```typescript
-import { addEmailJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 
-void addEmailJob(EMAIL_TEMPLATES.WELCOME, 'user@example.com', 'Welcome to Blawby!', {
+void queueManager.addEmailJob(EMAIL_TEMPLATES.WELCOME, 'user@example.com', 'Welcome to Blawby!', {
   recipientName: 'Kaze',
   dashboardUrl: 'https://...',
   // ... other template data

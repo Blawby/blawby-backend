@@ -36,11 +36,15 @@ export const paymentLinksService = {
         ),
       });
 
-      if (existing) return result.ok(existing);
+      if (existing) {
+        return result.ok(existing);
+      }
 
       // 2. Fetch invoice to get amount
       const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
-      if (!invoice) return result.notFound('Invoice not found');
+      if (!invoice) {
+        return result.notFound('Invoice not found');
+      }
 
       // 3. Generate secure token
       const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)))
@@ -94,7 +98,9 @@ export const paymentLinksService = {
         },
       });
 
-      if (!link || !link.invoice) return result.notFound('Payment link invalid or expired');
+      if (!link?.invoice) {
+        return result.notFound('Payment link invalid or expired');
+      }
 
       // Check expiration
       if (link.expires_at && link.expires_at < new Date()) {

@@ -72,7 +72,9 @@ const updateInvoice = async (
 
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!existing) return result.notFound('Invoice not found');
+    if (!existing) {
+      return result.notFound('Invoice not found');
+    }
 
     // Only allow updating non-draft invoices if updating status ONLY
     if (existing.status !== 'draft') {
@@ -124,7 +126,9 @@ const updateInvoice = async (
       return updated;
     });
 
-    if (!updatedInvoice) return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
+    if (!updatedInvoice) {
+      return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
+    }
 
     return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(updatedInvoice));
   } catch (error) {
@@ -146,7 +150,9 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
 
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!existing) return result.notFound<{ success: true }>('Invoice not found');
+    if (!existing) {
+      return result.notFound<{ success: true }>('Invoice not found');
+    }
 
     if (existing.status !== 'draft') {
       return result.badRequest<{ success: true }>('Only draft invoices can be deleted');

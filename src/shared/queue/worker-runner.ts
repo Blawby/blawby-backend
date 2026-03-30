@@ -9,11 +9,10 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { run } from 'graphile-worker';
-import type { TaskList } from 'graphile-worker';
-import pg from 'pg';
-import type { Client as PgClient } from 'pg';
+import { run, type TaskList } from 'graphile-worker';
+import pg, { type Client as PgClient } from 'pg';
 import { bootCore } from '@/boot';
+import { config } from '@/shared/config';
 import { initializeLogging } from '@/shared/logging/config';
 import { getWorkerUtils } from '@/shared/queue/graphile-worker.client';
 import { graphileWorkerConfig, TASK_NAMES } from '@/shared/queue/queue.config';
@@ -94,13 +93,13 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
   // This is the "Everything should be ready" part
   bootCore();
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = config.database.url;
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  const schema = graphileWorkerConfig.schema;
-  const workerConcurrency = concurrency || graphileWorkerConfig.concurrency;
+  const { schema } = graphileWorkerConfig;
+  const workerConcurrency = concurrency ?? graphileWorkerConfig.concurrency;
 
   logger.info('Starting worker {name}', { name, schema, concurrency: workerConcurrency });
 

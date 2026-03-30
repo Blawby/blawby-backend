@@ -2,8 +2,8 @@ import { and, or, eq, isNull } from 'drizzle-orm';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
-import { userDetails } from '@/modules/user-details/database/schema/user-details.schema';
-import { userDetailsService } from '@/modules/user-details/services/user-details-crud.service';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
@@ -20,11 +20,11 @@ const resolveClientForInvoice = async (
   connectedAccountId: string
 ): Promise<Result<ResolvedClientForInvoice>> => {
   // 1. Try to find existing user_details by ID or UserID
-  let clientDetails = await db.query.userDetails.findFirst({
+  let clientDetails = await db.query.clients.findFirst({
     where: and(
-      or(eq(userDetails.id, clientId), eq(userDetails.user_id, clientId)),
-      eq(userDetails.organization_id, organizationId),
-      isNull(userDetails.deleted_at)
+      or(eq(clients.id, clientId), eq(clients.user_id, clientId)),
+      eq(clients.organization_id, organizationId),
+      isNull(clients.deleted_at)
     ),
     with: {
       user: true,
@@ -54,7 +54,7 @@ const resolveClientForInvoice = async (
     if (memberMatch) {
       // Minimal DB-only insert to get the ID required for Foreign Key
       const [newDetail] = await db
-        .insert(userDetails)
+        .insert(clients)
         .values({
           organization_id: organizationId,
           user_id: memberMatch.user.id,
@@ -63,11 +63,11 @@ const resolveClientForInvoice = async (
         .returning();
 
       // Fire-and-forget background processing for Stripe and events
-      void userDetailsService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
+      void clientsCrudService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
 
       // Re-fetch to populate relations for the remainder of the process
-      clientDetails = await db.query.userDetails.findFirst({
-        where: eq(userDetails.id, newDetail.id),
+      clientDetails = await db.query.clients.findFirst({
+        where: eq(clients.id, newDetail.id),
         with: {
           user: true,
           organization: {
@@ -108,12 +108,8 @@ const resolveClientForInvoice = async (
  * Used by client-facing invoice endpoints so the client never passes their own identifier.
  */
 const resolveUserDetailId = async (organizationId: string, userId: string): Promise<Result<string>> => {
-  const detail = await db.query.userDetails.findFirst({
-    where: and(
-      eq(userDetails.organization_id, organizationId),
-      eq(userDetails.user_id, userId),
-      isNull(userDetails.deleted_at)
-    ),
+  const detail = await db.query.clients.findFirst({
+    where: and(eq(clients.organization_id, organizationId), eq(clients.user_id, userId), isNull(clients.deleted_at)),
     columns: { id: true },
   });
   if (!detail) {

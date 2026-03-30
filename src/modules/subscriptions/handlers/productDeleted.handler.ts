@@ -9,18 +9,18 @@ import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { subscriptionRepository } from '../database/queries/subscription.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-deleted']);
 
 /**
  * Handle product.deleted webhook event
  */
-export const handleProductDeleted = async (product: Stripe.Product): Promise<void> => {
+export const handleProductDeleted = async (product: Stripe.Product | Stripe.DeletedProduct): Promise<void> => {
   try {
     logger.info('Processing product.deleted: {productId} - {productName}', {
       productId: product.id,
-      productName: product.name,
+      productName: 'name' in product ? product.name : undefined,
     });
 
     // Deactivate the plan instead of hard delete

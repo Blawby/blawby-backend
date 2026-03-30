@@ -9,7 +9,7 @@ import { findPracticeDetailsByOrganization } from '@/modules/practice/database/q
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { InsertPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
-import { logger } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
+import { getLogger } from '@logtape/logtape';
 import { createIntakePaymentLink } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
   CreateIntakeResponse,
@@ -18,10 +18,12 @@ import type {
   UpdatePracticeClientIntakeRequest,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { db } from '@/shared/database';
-import { IntakePaymentCreated } from '@/shared/events/definitions';
+import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
+
+const logger = getLogger(['practice-client-intakes', 'service']);
 
 type IntakeCreationRequest = CreatePracticeClientIntakeRequest & {
   clientIp?: string;
@@ -93,7 +95,7 @@ const insertIntakeRecordTx = async (
     validatedUserId?: string;
   }
 ): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
-  let addressId: string | undefined;
+  let addressId: string | undefined = undefined;
   if (params.request.address) {
     const addressRecord = await upsertAddressTx(tx, {
       addressData: params.request.address,
@@ -195,8 +197,8 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
       });
     }
 
-    const intake = await db.transaction(async (tx) => {
-      return insertIntakeRecordTx(tx, {
+    const intake = await db.transaction(async (tx) =>
+      insertIntakeRecordTx(tx, {
         request,
         organizationId: organization.id,
         intakeId,
@@ -204,8 +206,8 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
         stripePaymentLinkId: stripePaymentLink?.id ?? null,
         shouldBypassPayment,
         validatedUserId,
-      });
-    });
+      })
+    );
 
     void IntakePaymentCreated.dispatch(
       {
@@ -223,6 +225,26 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
         organizationId: organization.id,
       }
     );
+
+    // For bypass-payment intakes (free or payment disabled), the intake is already complete
+    if (shouldBypassPayment) {
+      void IntakeSubmitted.dispatch(
+        {
+          intake_id: intake.id,
+          organization_id: organization.id,
+          organization_name: organization.name,
+          billing_email: organization.billingEmail ?? null,
+          client_email: request.email,
+          client_name: request.name,
+          amount: request.amount,
+          currency: 'usd',
+        },
+        {
+          actorId: 'organization',
+          organizationId: organization.id,
+        }
+      );
+    }
 
     return result.ok({
       success: true,

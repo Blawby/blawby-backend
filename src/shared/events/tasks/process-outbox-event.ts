@@ -75,7 +75,7 @@ export const processOutboxEvent: Task = async (payload: unknown, helpers): Promi
 
     helpers.logger.info(`Found ${unprocessedEvents.length} unprocessed events`);
 
-    const errors: Array<{ eventId: string; error: unknown }> = [];
+    const errors: { eventId: string; error: unknown }[] = [];
 
     // Process each event
     for (const event of unprocessedEvents) {

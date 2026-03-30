@@ -1,22 +1,24 @@
-import * as handlers from '@/modules/onboarding/http.handlers';
-import * as routes from '@/modules/onboarding/routes';
+import { handlers } from '@/modules/onboarding/handlers';
+import { createConnectedAccountRoute, getOnboardingStatusRoute } from '@/modules/onboarding/routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const onboardingApp = createHonoApp();
+onboardingApp.use('*', injectAbility());
 
 /**
  * GET /api/onboarding/organization/:organizationId/status
  * Get onboarding status for organization
  */
-onboardingApp.openapi(routes.getOnboardingStatusRoute, handlers.getOnboardingStatusHandler);
+onboardingApp.openapi(getOnboardingStatusRoute, handlers.getOnboardingStatusHandler);
 
 /**
  * POST /api/onboarding/connected-accounts
  * Create connected account for organization (includes session creation)
  */
-onboardingApp.openapi(routes.createConnectedAccountRoute, handlers.createConnectedAccountHandler);
+onboardingApp.openapi(createConnectedAccountRoute, handlers.createConnectedAccountHandler);
 
-registerOpenApiRoutes(onboardingApp, [routes.getOnboardingStatusRoute, routes.createConnectedAccountRoute]);
+registerOpenApiRoutes(onboardingApp, [getOnboardingStatusRoute, createConnectedAccountRoute]);
 
 export default onboardingApp;

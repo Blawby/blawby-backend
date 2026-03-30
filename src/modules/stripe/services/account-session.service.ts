@@ -2,9 +2,8 @@ import { getLogger } from '@logtape/logtape';
 
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
 import type { AllowedComponent } from '@/modules/stripe/validations/connect.validation';
-import type { Result } from '@/shared/types/result';
-import { notFound, ok, internalError } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['stripe', 'account-session']);
 
@@ -49,16 +48,16 @@ const COMPONENT_CONFIGS = {
 const createAccountSession = async (
   organizationId: string,
   components: AllowedComponent[]
-): Promise<Result<AccountSessionResponse>> => {
+): Promise<AccountSessionResponse> => {
   const account = await connectedAccountsService.findAccountByOrganization(organizationId);
 
   if (!account) {
-    return notFound('No connected Stripe account found for this practice');
+    throw new HTTPException(404, { message: 'Stripe connected account not found for organization' });
   }
 
-  const builtComponents = components.reduce(
+  const builtComponents = components.reduce<NonNullable<ComponentsParam>>(
     (acc, name) => ({ ...acc, [name]: COMPONENT_CONFIGS[name] }),
-    {} as NonNullable<ComponentsParam>
+    {}
   );
 
   try {
@@ -67,17 +66,17 @@ const createAccountSession = async (
       components: builtComponents,
     });
 
-    return ok({
+    return {
       client_secret: session.client_secret,
       expires_at: session.expires_at,
       account_id: account.stripe_account_id,
-    });
+    };
   } catch (error) {
     logger.error('Failed to create Stripe account session for {organizationId}: {error}', {
       error,
       organizationId,
     });
-    return internalError('Failed to create Stripe account session');
+    throw new HTTPException(500, { message: 'Failed to create Stripe account session' });
   }
 };
 
