@@ -8,7 +8,7 @@
  * - Subscription Events (audit trail)
  */
 
-import { eq, and, desc, count } from 'drizzle-orm';
+import { eq, and, desc, count, inArray } from 'drizzle-orm';
 import type {
   NewSubscriptionEvent,
   SubscriptionEvent,
@@ -70,19 +70,17 @@ const findAllActivePlans = async (db: DbOrTx): Promise<SubscriptionPlan[]> =>
     .orderBy(subscriptionPlans.sort_order);
 
 const upsertPlan = async (db: DbOrTx, planData: NewSubscriptionPlan): Promise<SubscriptionPlan> => {
-  const existingPlan = await findPlanByStripeProductId(db, planData.stripe_product_id);
+  // Perform an atomic upsert based on stripe_product_id to avoid race conditions
+  const [row] = await db
+    .insert(subscriptionPlans)
+    .values(planData)
+    .onConflictDoUpdate({
+      target: subscriptionPlans.stripe_product_id,
+      set: { ...planData, updated_at: new Date() },
+    })
+    .returning();
 
-  if (existingPlan) {
-    const [updated] = await db
-      .update(subscriptionPlans)
-      .set({ ...planData, updated_at: new Date() })
-      .where(eq(subscriptionPlans.id, existingPlan.id))
-      .returning();
-    return updated;
-  }
-
-  const [created] = await db.insert(subscriptionPlans).values(planData).returning();
-  return created;
+  return row;
 };
 
 const deactivatePlan = async (db: DbOrTx, stripeProductId: string): Promise<SubscriptionPlan | undefined> => {
@@ -107,11 +105,6 @@ const activatePlan = async (db: DbOrTx, stripeProductId: string): Promise<Subscr
  * --- Subscription Prices Operations ---
  */
 
-const findPriceById = async (db: DbOrTx, priceId: string): Promise<SubscriptionPrice | undefined> => {
-  const [price] = await db.select().from(subscriptionPrices).where(eq(subscriptionPrices.id, priceId)).limit(1);
-  return price;
-};
-
 const findPriceByStripeId = async (db: DbOrTx, stripePriceId: string): Promise<SubscriptionPrice | undefined> => {
   const [price] = await db
     .select()
@@ -128,20 +121,21 @@ const findPricesByProductId = async (db: DbOrTx, stripeProductId: string): Promi
   await db.select().from(subscriptionPrices).where(eq(subscriptionPrices.stripe_product_id, stripeProductId));
 
 const upsertPrice = async (db: DbOrTx, priceData: NewSubscriptionPrice): Promise<SubscriptionPrice> => {
-  const existing = await findPriceByStripeId(db, priceData.stripe_price_id);
+  // Atomic upsert on stripe_price_id to avoid races
+  const [row] = await db
+    .insert(subscriptionPrices)
+    .values(priceData)
+    .onConflictDoUpdate({
+      target: subscriptionPrices.stripe_price_id,
+      set: { ...priceData, updated_at: new Date() },
+    })
+    .returning();
 
-  if (existing) {
-    const [updated] = await db
-      .update(subscriptionPrices)
-      .set({ ...priceData, updated_at: new Date() })
-      .where(eq(subscriptionPrices.id, existing.id))
-      .returning();
-    return updated;
-  }
-
-  const [created] = await db.insert(subscriptionPrices).values(priceData).returning();
-  return created;
+  return row;
 };
+
+const findPricesByPlanIds = async (db: DbOrTx, planIds: string[]): Promise<SubscriptionPrice[]> =>
+  await db.select().from(subscriptionPrices).where(inArray(subscriptionPrices.plan_id, planIds));
 
 const deletePrice = async (db: DbOrTx, stripePriceId: string): Promise<void> => {
   await db.delete(subscriptionPrices).where(eq(subscriptionPrices.stripe_price_id, stripePriceId));
@@ -167,45 +161,24 @@ const countActivePricesForPlan = async (db: DbOrTx, planId: string): Promise<num
  * --- Subscription Line Items Operations ---
  */
 
-const findLineItemsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionLineItem[]> =>
-  await db.select().from(subscriptionLineItems).where(eq(subscriptionLineItems.subscription_id, subscriptionId));
-
-const findLineItemByStripeItemId = async (
-  db: DbOrTx,
-  stripeSubscriptionItemId: string
-): Promise<SubscriptionLineItem | undefined> => {
-  const [item] = await db
+const upsertLineItem = async (db: DbOrTx, itemData: NewSubscriptionLineItem): Promise<SubscriptionLineItem> => {
+  const [existing] = await db
     .select()
     .from(subscriptionLineItems)
-    .where(eq(subscriptionLineItems.stripe_subscription_item_id, stripeSubscriptionItemId))
+    .where(eq(subscriptionLineItems.stripe_subscription_item_id, itemData.stripe_subscription_item_id))
     .limit(1);
-  return item;
-};
 
-const upsertLineItem = async (db: DbOrTx, itemData: NewSubscriptionLineItem): Promise<SubscriptionLineItem> => {
-  const existingItem = await findLineItemByStripeItemId(db, itemData.stripe_subscription_item_id);
-
-  if (existingItem) {
+  if (existing) {
     const [updated] = await db
       .update(subscriptionLineItems)
       .set({ ...itemData, updated_at: new Date() })
-      .where(eq(subscriptionLineItems.id, existingItem.id))
+      .where(eq(subscriptionLineItems.id, existing.id))
       .returning();
     return updated;
   }
 
   const [created] = await db.insert(subscriptionLineItems).values(itemData).returning();
   return created;
-};
-
-const deleteLineItem = async (db: DbOrTx, stripeSubscriptionItemId: string): Promise<void> => {
-  await db
-    .delete(subscriptionLineItems)
-    .where(eq(subscriptionLineItems.stripe_subscription_item_id, stripeSubscriptionItemId));
-};
-
-const deleteLineItemsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): Promise<void> => {
-  await db.delete(subscriptionLineItems).where(eq(subscriptionLineItems.subscription_id, subscriptionId));
 };
 
 /**
@@ -216,13 +189,6 @@ const createEvent = async (db: DbOrTx, eventData: NewSubscriptionEvent): Promise
   const [created] = await db.insert(subscriptionEvents).values(eventData).returning();
   return created;
 };
-
-const findEventsBySubscriptionId = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionEvent[]> =>
-  await db
-    .select()
-    .from(subscriptionEvents)
-    .where(eq(subscriptionEvents.subscription_id, subscriptionId))
-    .orderBy(desc(subscriptionEvents.created_at));
 
 const findEventsBySubscriptionIdAndType = async (
   db: DbOrTx,
@@ -235,16 +201,6 @@ const findEventsBySubscriptionIdAndType = async (
     .where(and(eq(subscriptionEvents.subscription_id, subscriptionId), eq(subscriptionEvents.event_type, eventType)))
     .orderBy(desc(subscriptionEvents.created_at));
 
-const findLatestEvent = async (db: DbOrTx, subscriptionId: string): Promise<SubscriptionEvent | undefined> => {
-  const [event] = await db
-    .select()
-    .from(subscriptionEvents)
-    .where(eq(subscriptionEvents.subscription_id, subscriptionId))
-    .orderBy(desc(subscriptionEvents.created_at))
-    .limit(1);
-  return event;
-};
-
 export const subscriptionRepository = {
   // Plans
   findPlanById,
@@ -255,25 +211,19 @@ export const subscriptionRepository = {
   deactivatePlan,
   activatePlan,
   // Prices
-  findPriceById,
   findPriceByStripeId,
   findPricesByPlanId,
+  findPricesByPlanIds,
   findPricesByProductId,
   upsertPrice,
   deletePrice,
   deactivatePricesByProductId,
   countActivePricesForPlan,
   // Line Items
-  findLineItemsBySubscriptionId,
-  findLineItemByStripeItemId,
   upsertLineItem,
-  deleteLineItem,
-  deleteLineItemsBySubscriptionId,
   // Events
   createEvent,
-  findEventsBySubscriptionId,
   findEventsBySubscriptionIdAndType,
-  findLatestEvent,
 };
 
 export default subscriptionRepository;

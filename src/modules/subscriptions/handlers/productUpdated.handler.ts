@@ -11,77 +11,11 @@ import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/productHelpers';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
 
-/**
- * Parse limit value from metadata
- */
-const parseLimit = (value: string | undefined, defaultValue: number): number => {
-  if (!value) {
-    return defaultValue;
-  }
-  if (value.toLowerCase() === 'unlimited' || value === '-1') {
-    return -1;
-  }
-  const parsed = parseInt(value, 10);
-  return Number.isNaN(parsed) ? defaultValue : parsed;
-};
-
-/**
- * Extract plan limits from product metadata
- */
-const extractLimits = (
-  metadata: Record<string, string>
-): {
-  users: number;
-  invoices_per_month: number;
-  storage_gb: number;
-} => {
-  if (metadata.limits) {
-    try {
-      const parsed = JSON.parse(metadata.limits);
-      return {
-        users: parsed.users ?? -1,
-        invoices_per_month: parsed.invoices_per_month ?? -1,
-        storage_gb: parsed.storage_gb ?? 10,
-      };
-    } catch {
-      // Fall through
-    }
-  }
-
-  return {
-    users: parseLimit(metadata.users_limit, -1),
-    invoices_per_month: parseLimit(metadata.invoices_limit, -1),
-    storage_gb: parseLimit(metadata.storage_gb, 10),
-  };
-};
-
-/**
- * Extract features from product metadata
- */
-const extractFeatures = (product: Stripe.Product): string[] => {
-  if (product.marketing_features && product.marketing_features.length > 0) {
-    return product.marketing_features.map((f) => f.name).filter((name): name is string => name !== undefined);
-  }
-
-  const metadata = product.metadata || {};
-
-  if (metadata.features) {
-    try {
-      return JSON.parse(metadata.features);
-    } catch {
-      // Fall through
-    }
-  }
-
-  if (metadata.features_list) {
-    return metadata.features_list.split(',').map((f) => f.trim());
-  }
-
-  return [];
-};
+// Helper functions: extracted to '@/modules/subscriptions/utils/productHelpers'
 
 /**
  * Handle product.updated webhook event
@@ -131,16 +65,16 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
 
     const plan = await subscriptionRepository.upsertPlan(db, planData);
 
-    // Upsert each price
-    for (const price of prices.data) {
-      let internal_type: string | undefined = undefined;
-      let meter_name: string | null = null;
+    // Upsert each price in parallel to avoid awaiting inside a loop
+    const upsertPricePromises = prices.data.map(async (price) => {
+      let internalType: string | undefined = undefined;
+      let meterName: string | null = null;
 
       if (price.recurring?.usage_type === 'metered' && price.recurring?.meter) {
         try {
           const meter = await stripe.billing.meters.retrieve(price.recurring.meter);
-          internal_type = getInternalTypeFromMeterName(meter.event_name) ?? undefined;
-          meter_name = meter.event_name;
+          internalType = getInternalTypeFromMeterName(meter.event_name) ?? undefined;
+          meterName = meter.event_name;
         } catch (err) {
           logger.error('Failed to retrieve meter for price {priceId}: {error}', {
             priceId: price.id,
@@ -160,24 +94,29 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
         usage_type: price.recurring?.usage_type ?? null,
         billing_scheme: price.billing_scheme ?? null,
         meter_id: price.recurring?.meter ?? null,
-        meter_name,
-        internal_type,
+        meter_name: meterName,
+        internal_type: internalType,
         is_active: price.active,
         metadata: price.metadata ?? {},
       };
 
-      await subscriptionRepository.upsertPrice(db, priceData);
-    }
+      return subscriptionRepository.upsertPrice(db, priceData);
+    });
+
+    await Promise.allSettled(upsertPricePromises);
 
     // Reconcile: deactivate any DB prices for this product that are not present in Stripe
     try {
       const currentPriceIds = new Set(prices.data.map((p) => p.id));
       const dbPrices = await subscriptionRepository.findPricesByProductId(db, product.id);
+      const deactivatePromises: Promise<unknown>[] = [];
       for (const dbPrice of dbPrices) {
         if (!currentPriceIds.has(dbPrice.stripe_price_id) && dbPrice.is_active) {
-          await subscriptionRepository.upsertPrice(db, { ...dbPrice, is_active: false });
+          deactivatePromises.push(subscriptionRepository.upsertPrice(db, { ...dbPrice, is_active: false }));
         }
       }
+
+      await Promise.allSettled(deactivatePromises);
     } catch (err) {
       logger.error('Failed to reconcile prices for product {productId}: {error}', {
         productId: product.id,

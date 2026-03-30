@@ -1,6 +1,6 @@
 import { stripe as stripePlugin } from '@better-auth/stripe';
 import { getLogger } from '@logtape/logtape';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
@@ -582,15 +582,41 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                       const stripeClient = getStripeInstance();
                       const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
 
-                      // Fetch active metered price IDs from subscription_prices table
-                      const meteredPrices = await db
-                        .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-                        .from(subscriptionPrices)
-                        .where(
-                          and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true))
-                        );
+                      // Resolve product IDs from subscription items and fetch only metered prices for those products
+                      const productIds = Array.from(
+                        new Set(
+                          subscription.items.data
+                            .map((i) =>
+                              typeof i.price === 'object' ? (i.price.product as string | undefined) : undefined
+                            )
+                            .filter(Boolean)
+                        )
+                      ) as string[];
 
-                      const meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+                      let meteredIds: string[] = [];
+                      if (productIds.length > 0) {
+                        const meteredPrices = await db
+                          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+                          .from(subscriptionPrices)
+                          .where(
+                            and(
+                              eq(subscriptionPrices.usage_type, 'metered'),
+                              eq(subscriptionPrices.is_active, true),
+                              inArray(subscriptionPrices.stripe_product_id, productIds)
+                            )
+                          );
+
+                        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+                      } else {
+                        const meteredPrices = await db
+                          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+                          .from(subscriptionPrices)
+                          .where(
+                            and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true))
+                          );
+
+                        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+                      }
                       const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
                       const injectedItems = meteredIds
@@ -638,13 +664,43 @@ const injectMeteredItems = async <T extends { price?: string }>(
   items: T[] | undefined
 ): Promise<(T | { price: string })[] | undefined> => {
   try {
-    // Query subscription_prices for all active metered prices
-    const meteredPrices = await db
-      .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-      .from(subscriptionPrices)
-      .where(and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true)));
+    // Try to resolve the product context from provided items and only fetch metered prices for those products when possible
+    const providedPriceIds = (items?.map((it) => it.price).filter(Boolean) ?? []) as string[];
+    let meteredIds: string[] = [];
 
-    const meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+    if (providedPriceIds.length > 0) {
+      const productRows = await db
+        .select({ stripe_product_id: subscriptionPrices.stripe_product_id })
+        .from(subscriptionPrices)
+        .where(inArray(subscriptionPrices.stripe_price_id, providedPriceIds));
+
+      const productIds = Array.from(new Set(productRows.map((r) => r.stripe_product_id).filter(Boolean)));
+
+      if (productIds.length > 0) {
+        const meteredPrices = await db
+          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+          .from(subscriptionPrices)
+          .where(
+            and(
+              eq(subscriptionPrices.usage_type, 'metered'),
+              eq(subscriptionPrices.is_active, true),
+              inArray(subscriptionPrices.stripe_product_id, productIds)
+            )
+          );
+
+        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+      }
+    }
+
+    // Fallback to global active metered prices when no product context could be resolved
+    if (meteredIds.length === 0) {
+      const meteredPrices = await db
+        .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+        .from(subscriptionPrices)
+        .where(and(eq(subscriptionPrices.usage_type, 'metered'), eq(subscriptionPrices.is_active, true)));
+
+      meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+    }
 
     if (meteredIds.length === 0) {
       return undefined;
