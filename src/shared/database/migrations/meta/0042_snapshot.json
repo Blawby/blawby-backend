@@ -1,5 +1,5 @@
 {
-  "id": "8d633f9b-a410-4ef2-be8d-4be1d7527147",
+  "id": "3468c91a-176a-454d-8b18-f2aa7569ff25",
   "prevId": "48d76d93-042c-4e58-8cec-2f2efa1afd24",
   "version": "7",
   "dialect": "postgresql",
@@ -1417,8 +1417,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "metered_fee_cents": {
-          "name": "metered_fee_cents",
+        "application_fee_amount": {
+          "name": "application_fee_amount",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -1880,6 +1880,13 @@
         },
         "amount_due": {
           "name": "amount_due",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "application_fee_amount": {
+          "name": "application_fee_amount",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -2383,318 +2390,6 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.refund_requests": {
-      "name": "refund_requests",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invoice_id": {
-          "name": "invoice_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "client_user_details_id": {
-          "name": "client_user_details_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_user_details_id": {
-          "name": "created_by_user_details_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "requested_amount": {
-          "name": "requested_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "currency": {
-          "name": "currency",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'usd'"
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'requested'"
-        },
-        "stripe_refund_id": {
-          "name": "stripe_refund_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stripe_payment_intent_id": {
-          "name": "stripe_payment_intent_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "executed_amount": {
-          "name": "executed_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "executed_at": {
-          "name": "executed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "executed_by_user_id": {
-          "name": "executed_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewed_at": {
-          "name": "reviewed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewed_by_user_id": {
-          "name": "reviewed_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "review_notes": {
-          "name": "review_notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_refund_requests_org": {
-          "name": "idx_refund_requests_org",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_refund_requests_invoice": {
-          "name": "idx_refund_requests_invoice",
-          "columns": [
-            {
-              "expression": "invoice_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_refund_requests_client": {
-          "name": "idx_refund_requests_client",
-          "columns": [
-            {
-              "expression": "client_user_details_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_refund_requests_status": {
-          "name": "idx_refund_requests_status",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_refund_requests_org_status": {
-          "name": "idx_refund_requests_org_status",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "refund_requests_organization_id_organizations_id_fk": {
-          "name": "refund_requests_organization_id_organizations_id_fk",
-          "tableFrom": "refund_requests",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "refund_requests_invoice_id_invoices_id_fk": {
-          "name": "refund_requests_invoice_id_invoices_id_fk",
-          "tableFrom": "refund_requests",
-          "tableTo": "invoices",
-          "columnsFrom": [
-            "invoice_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "refund_requests_client_user_details_id_clients_id_fk": {
-          "name": "refund_requests_client_user_details_id_clients_id_fk",
-          "tableFrom": "refund_requests",
-          "tableTo": "clients",
-          "columnsFrom": [
-            "client_user_details_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "refund_requests_created_by_user_details_id_clients_id_fk": {
-          "name": "refund_requests_created_by_user_details_id_clients_id_fk",
-          "tableFrom": "refund_requests",
-          "tableTo": "clients",
-          "columnsFrom": [
-            "created_by_user_details_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "refund_requests_executed_by_user_id_users_id_fk": {
-          "name": "refund_requests_executed_by_user_id_users_id_fk",
-          "tableFrom": "refund_requests",
-          "tableTo": "users",
-          "columnsFrom": [
-            "executed_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "refund_requests_reviewed_by_user_id_users_id_fk": {
-          "name": "refund_requests_reviewed_by_user_id_users_id_fk",
-          "tableFrom": "refund_requests",
-          "tableTo": "users",
-          "columnsFrom": [
-            "reviewed_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "refund_status_check": {
-          "name": "refund_status_check",
-          "value": "status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')"
-        },
-        "refund_requested_amount_check": {
-          "name": "refund_requested_amount_check",
-          "value": "requested_amount > 0"
-        },
-        "refund_executed_amount_check": {
-          "name": "refund_executed_amount_check",
-          "value": "executed_amount IS NULL OR executed_amount >= 0"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.matter_activity_log": {
@@ -5619,45 +5314,6 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "subscription_events_plan_id_subscription_plans_id_fk": {
-          "name": "subscription_events_plan_id_subscription_plans_id_fk",
-          "tableFrom": "subscription_events",
-          "tableTo": "subscription_plans",
-          "columnsFrom": [
-            "plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "subscription_events_from_plan_id_subscription_plans_id_fk": {
-          "name": "subscription_events_from_plan_id_subscription_plans_id_fk",
-          "tableFrom": "subscription_events",
-          "tableTo": "subscription_plans",
-          "columnsFrom": [
-            "from_plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "subscription_events_to_plan_id_subscription_plans_id_fk": {
-          "name": "subscription_events_to_plan_id_subscription_plans_id_fk",
-          "tableFrom": "subscription_events",
-          "tableTo": "subscription_plans",
-          "columnsFrom": [
-            "to_plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -5803,8 +5459,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.subscription_plans": {
-      "name": "subscription_plans",
+    "public.subscription_prices": {
+      "name": "subscription_prices",
       "schema": "",
       "columns": {
         "id": {
@@ -5814,23 +5470,17 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "stripe_price_id": {
+          "name": "stripe_price_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "stripe_product_id": {
           "name": "stripe_product_id",
@@ -5838,63 +5488,61 @@
           "primaryKey": false,
           "notNull": true
         },
-        "stripe_monthly_price_id": {
-          "name": "stripe_monthly_price_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stripe_yearly_price_id": {
-          "name": "stripe_yearly_price_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "monthly_price": {
-          "name": "monthly_price",
-          "type": "numeric(10, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "yearly_price": {
-          "name": "yearly_price",
-          "type": "numeric(10, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "currency": {
           "name": "currency",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'usd'"
+          "notNull": true
         },
-        "image": {
-          "name": "image",
+        "unit_amount": {
+          "name": "unit_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "interval": {
+          "name": "interval",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "features": {
-          "name": "features",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "limits": {
-          "name": "limits",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{\"users\":-1,\"invoices_per_month\":-1,\"storage_gb\":10}'::jsonb"
-        },
-        "metered_items": {
-          "name": "metered_items",
-          "type": "jsonb",
+        "interval_count": {
+          "name": "interval_count",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "default": "'[]'::jsonb"
+          "default": 1
+        },
+        "usage_type": {
+          "name": "usage_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billing_scheme": {
+          "name": "billing_scheme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meter_id": {
+          "name": "meter_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meter_name": {
+          "name": "meter_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "internal_type": {
+          "name": "internal_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "is_active": {
           "name": "is_active",
@@ -5902,20 +5550,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "is_public": {
-          "name": "is_public",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "metadata": {
           "name": "metadata",
@@ -5940,11 +5574,11 @@
         }
       },
       "indexes": {
-        "subscription_plans_name_idx": {
-          "name": "subscription_plans_name_idx",
+        "subscription_prices_plan_idx": {
+          "name": "subscription_prices_plan_idx",
           "columns": [
             {
-              "expression": "name",
+              "expression": "plan_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5955,17 +5589,11 @@
           "method": "btree",
           "with": {}
         },
-        "subscription_plans_active_sort_idx": {
-          "name": "subscription_plans_active_sort_idx",
+        "subscription_prices_stripe_price_idx": {
+          "name": "subscription_prices_stripe_price_idx",
           "columns": [
             {
-              "expression": "is_active",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sort_order",
+              "expression": "stripe_price_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5976,8 +5604,8 @@
           "method": "btree",
           "with": {}
         },
-        "subscription_plans_stripe_product_idx": {
-          "name": "subscription_plans_stripe_product_idx",
+        "subscription_prices_product_idx": {
+          "name": "subscription_prices_product_idx",
           "columns": [
             {
               "expression": "stripe_product_id",
@@ -5990,53 +5618,16 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "subscription_plans_stripe_monthly_price_idx": {
-          "name": "subscription_plans_stripe_monthly_price_idx",
-          "columns": [
-            {
-              "expression": "stripe_monthly_price_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscription_plans_stripe_yearly_price_idx": {
-          "name": "subscription_plans_stripe_yearly_price_idx",
-          "columns": [
-            {
-              "expression": "stripe_yearly_price_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "subscription_plans_name_unique": {
-          "name": "subscription_plans_name_unique",
+        "subscription_prices_stripe_price_id_unique": {
+          "name": "subscription_prices_stripe_price_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "name"
-          ]
-        },
-        "subscription_plans_stripe_product_id_unique": {
-          "name": "subscription_plans_stripe_product_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "stripe_product_id"
+            "stripe_price_id"
           ]
         }
       },
@@ -7394,6 +6985,179 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.subscription_plans": {
+      "name": "subscription_plans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_product_id": {
+          "name": "stripe_product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "features": {
+          "name": "features",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "limits": {
+          "name": "limits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"users\":-1,\"invoices_per_month\":-1,\"storage_gb\":10}'::jsonb"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "is_public": {
+          "name": "is_public",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'::jsonb"
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "subscription_plans_name_idx": {
+          "name": "subscription_plans_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "subscription_plans_active_sort_idx": {
+          "name": "subscription_plans_active_sort_idx",
+          "columns": [
+            {
+              "expression": "is_active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "subscription_plans_stripe_product_idx": {
+          "name": "subscription_plans_stripe_product_idx",
+          "columns": [
+            {
+              "expression": "stripe_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "subscription_plans_name_unique": {
+          "name": "subscription_plans_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        },
+        "subscription_plans_stripe_product_id_unique": {
+          "name": "subscription_plans_stripe_product_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "stripe_product_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

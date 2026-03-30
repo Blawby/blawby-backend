@@ -386,5 +386,6 @@ export const trustService = {
   manualWithdrawal,
   getTransactions,
   getBalance,
+  getBalanceWithTx,
   getReport,
 };

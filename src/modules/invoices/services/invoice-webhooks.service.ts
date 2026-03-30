@@ -217,7 +217,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           }
 
           // 4b. Sync denormalized cache from ledger balance
-          const balanceResult = await trustService.getBalance(
+          const balanceResult = await trustService.getBalanceWithTx(
             {
               organizationId: invoice.organization_id,
               clientId: matter.client_id,
@@ -298,7 +298,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
           }
 
           // Sync denormalized cache from ledger balance
-          const balanceResult = await trustService.getBalance(
+          const balanceResult = await trustService.getBalanceWithTx(
             {
               organizationId: invoice.organization_id,
               clientId: matter.client_id,
