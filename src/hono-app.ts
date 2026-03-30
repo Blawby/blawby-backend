@@ -41,6 +41,9 @@ app.use(
 app.use('*', cors());
 app.use('*', responseMiddleware());
 
+// Health check endpoint – no auth required, responds before any other route logic
+app.get('/api/health', (c) => c.json({ status: 'ok' }));
+
 // Apply auth-specific middlewares only to auth routes
 app.use('/api/auth/*', normalizeAuthResponse()); // Normalize Better Auth responses first
 app.use('/api/auth/*', sanitizeAuthResponse()); // Then sanitize (remove token field)
