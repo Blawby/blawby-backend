@@ -1,6 +1,6 @@
 {
-  "id": "48d76d93-042c-4e58-8cec-2f2efa1afd24",
-  "prevId": "a9935a21-6484-4fe2-965f-052649fea47a",
+  "id": "8d633f9b-a410-4ef2-be8d-4be1d7527147",
+  "prevId": "48d76d93-042c-4e58-8cec-2f2efa1afd24",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1417,8 +1417,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "application_fee_amount": {
-          "name": "application_fee_amount",
+        "metered_fee_cents": {
+          "name": "metered_fee_cents",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -1880,13 +1880,6 @@
         },
         "amount_due": {
           "name": "amount_due",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "application_fee_amount": {
-          "name": "application_fee_amount",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -2390,6 +2383,318 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.refund_requests": {
+      "name": "refund_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invoice_id": {
+          "name": "invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_user_details_id": {
+          "name": "client_user_details_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_details_id": {
+          "name": "created_by_user_details_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_amount": {
+          "name": "requested_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'usd'"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requested'"
+        },
+        "stripe_refund_id": {
+          "name": "stripe_refund_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_payment_intent_id": {
+          "name": "stripe_payment_intent_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "executed_amount": {
+          "name": "executed_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "executed_at": {
+          "name": "executed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "executed_by_user_id": {
+          "name": "executed_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_by_user_id": {
+          "name": "reviewed_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_notes": {
+          "name": "review_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_refund_requests_org": {
+          "name": "idx_refund_requests_org",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_refund_requests_invoice": {
+          "name": "idx_refund_requests_invoice",
+          "columns": [
+            {
+              "expression": "invoice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_refund_requests_client": {
+          "name": "idx_refund_requests_client",
+          "columns": [
+            {
+              "expression": "client_user_details_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_refund_requests_status": {
+          "name": "idx_refund_requests_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_refund_requests_org_status": {
+          "name": "idx_refund_requests_org_status",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "refund_requests_organization_id_organizations_id_fk": {
+          "name": "refund_requests_organization_id_organizations_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refund_requests_invoice_id_invoices_id_fk": {
+          "name": "refund_requests_invoice_id_invoices_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "invoices",
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refund_requests_client_user_details_id_clients_id_fk": {
+          "name": "refund_requests_client_user_details_id_clients_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_user_details_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refund_requests_created_by_user_details_id_clients_id_fk": {
+          "name": "refund_requests_created_by_user_details_id_clients_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "created_by_user_details_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refund_requests_executed_by_user_id_users_id_fk": {
+          "name": "refund_requests_executed_by_user_id_users_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "executed_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refund_requests_reviewed_by_user_id_users_id_fk": {
+          "name": "refund_requests_reviewed_by_user_id_users_id_fk",
+          "tableFrom": "refund_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reviewed_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "refund_status_check": {
+          "name": "refund_status_check",
+          "value": "status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')"
+        },
+        "refund_requested_amount_check": {
+          "name": "refund_requested_amount_check",
+          "value": "requested_amount > 0"
+        },
+        "refund_executed_amount_check": {
+          "name": "refund_executed_amount_check",
+          "value": "executed_amount IS NULL OR executed_amount >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.matter_activity_log": {

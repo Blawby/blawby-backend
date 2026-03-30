@@ -1,0 +1,1 @@
+export const PLATFORM_VARIABLE_FEE_RATE = 0.01337;

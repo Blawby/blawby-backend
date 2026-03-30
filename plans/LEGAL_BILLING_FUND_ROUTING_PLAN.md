@@ -19,6 +19,11 @@ The existing system is **simple and already correct** for most legal billing:
 
 **No escrow. No client approval. No holding funds.**
 
+Refunds follow the same split-ledger model:
+- client money is refunded from the Platform account
+- connected-account transfer is reversed when applicable
+- Platform fees are corrected through metered billing credits, not Stripe application-fee refunds
+
 ---
 
 ## What Issue #74 Actually Needs
@@ -154,28 +159,160 @@ The `feature/invoices-and-retainer` branch should already have retainer draw log
 
 ---
 
-### Phase 4: Metered Billing (Match PHP)
+### Phase 4: Metered Billing
 
 #### 4.1 Record Invoice Fee on Payment
 
 **File**: `src/modules/invoices/services/invoice-webhooks.service.ts`
 
 ```typescript
-// After successful transfer:
-await this.meteredService.recordMeterEvent({
-  eventName: 'invoice_fee',
-  customerId: organization.stripe_customer_id,
-  value: applicationFee,  // Calculated from Stripe processing fee
+// The webhook computes payoutMeteredFeeCents and dispatches InvoicePaid.
+await InvoicePaid.dispatch({
+  invoice_id: invoice.id,
+  organization_id: invoice.organization_id,
+  amount_paid: stripeInvoice.amount_paid,
+  metered_fee_cents: payoutMeteredFeeCents,
+}, { tx, critical: true });
+
+// invoices/listeners.ts consumes InvoicePaid and reports two Stripe meter events:
+await stripe.v2.billing.meterEvents.create({
+  event_name: 'invoice_fee',
+  identifier: `${organizationId}-invoice_fee-${invoice.id}`,
+  payload: {
+    stripe_customer_id: organizationStripeCustomerId,
+    value: '1',
+  },
+});
+
+await stripe.v2.billing.meterEvents.create({
+  event_name: 'payout_fee',
+  identifier: `${organizationId}-payout_fee-payout:${invoice.id}`,
+  payload: {
+    stripe_customer_id: organizationStripeCustomerId,
+    value: payoutMeteredFeeCents.toString(),
+  },
+});
+
+// These can be simple sequential awaits. If a future MeteringClient adds bulk
+// create support, the two events could be batched, but the current code sends
+// them individually through meteredProductsService.reportMeteredUsage(...).
+```
+
+#### 4.2 Fee Calculation
+
+```typescript
+// Current backend model lives in invoice-webhooks.service.ts:calculateMeteredFeeCents
+const chargeId = getChargeIdFromInvoice(stripeInvoice);
+const variablePlatformFee = Math.round(stripeInvoice.amount_paid * 0.01337);
+
+let stripeFee = 0;
+if (chargeId) {
+  try {
+    const charge = await stripe.charges.retrieve(chargeId, {
+      expand: ['balance_transaction'],
+    });
+    stripeFee = typeof charge.balance_transaction === 'string'
+      ? 0
+      : (charge.balance_transaction?.fee ?? 0);
+  } catch (error) {
+    logger.error('Failed to fetch Stripe balance transaction fee', { chargeId, error });
+    stripeFee = 0;
+  }
+}
+
+const payoutMeteredFeeCents = stripeFee + variablePlatformFee;
+```
+
+Notes:
+- `stripeFee` comes from Stripe's balance transaction on the captured charge
+- `variablePlatformFee` is a percentage of `stripeInvoice.amount_paid` and is rounded with `Math.round(...)`
+- if `balance_transaction` is unavailable or Stripe retrieval fails, the system falls back to the variable-only estimate
+
+#### 4.3 Refund Credits
+
+Partial refunds are allowed.
+
+Current implementation lives in `src/modules/invoices/services/refund-requests.service.ts` and `src/modules/invoices/listeners.ts`.
+
+Execution flow:
+
+1. Practice executes a refund request
+2. Backend first claims the refund request by transitioning it to `executing`; because new refund requests are blocked while any request is `requested`, `approved`, or `executing`, only one in-flight refund can exist per invoice at a time
+3. Backend re-checks remaining refundable balance under an invoice row lock in a DB transaction before calling Stripe
+4. For a same-day full refund, backend first attempts to cancel the Stripe `PaymentIntent` if it is still in `requires_capture`
+5. Otherwise backend calls `stripe.refunds.create({ payment_intent, amount, reverse_transfer: true })` with an idempotency key derived from `refundRequest.id`
+6. Service records a `billing_transactions` refund audit row
+7. For `retainer_deposit` invoices, the same DB transaction decrements `matters.retainer_balance`
+8. After that transaction commits, service dispatches `InvoiceRefunded`
+9. `invoices/listeners.ts` reports negative metered usage credits and queues a Graphile Worker retry job if Stripe meter reporting fails
+10. If Stripe refund succeeded but local persistence failed, backend queues a refund-reconciliation worker job to repair the refund request / audit state and then re-dispatch `InvoiceRefunded`
+
+Implementation sketch:
+
+```typescript
+const canceledPaymentIntent = await maybeCancelCancelablePaymentIntent(...);
+
+const refund = canceledPaymentIntent ?? await stripe.refunds.create({
+  payment_intent: stripePaymentIntentId,
+  amount: requestedAmount,
+  reverse_transfer: true,
+}, {
+  idempotencyKey: `refund_request_${refundRequest.id}`,
+});
+
+const isFullRefund = refund.amount === amountPaidCents;
+const payoutFeeCreditCents = amountPaidCents > 0
+  ? Math.round((refund.amount / amountPaidCents) * originalPayoutFeeCents)
+  : 0;
+
+await InvoiceRefunded.dispatch({
+  invoice_id: invoice.id,
+  organization_id: invoice.organization_id,
+  refund_request_id: refundRequest.id,
+  refunded_amount: refund.amount,
+  payout_fee_credit_cents: payoutFeeCreditCents,
+  credit_invoice_fee: isFullRefund,
 });
 ```
 
-#### 4.2 Fee Calculation (Match PHP)
+Listener-side metered credits:
 
 ```typescript
-// PHP uses: stripe_fee × 1.3336 (configurable multiplier)
-const stripeFee = await this.getStripeProcessingFee(chargeId);
-const applicationFee = Math.round(stripeFee * 1.3336);
+await reportMeteredUsageWithRetry({
+  organizationId,
+  meteredType: METERED_TYPES.INVOICE_FEE,
+  quantity: -1,
+  deduplicationId: `refund:${refundRequestId}:invoice_fee`,
+  invoiceId,
+  failureLabel: 'invoice fee credit',
+});
+
+await reportMeteredUsageWithRetry({
+  organizationId,
+  meteredType: METERED_TYPES.PAYOUT_FEE,
+  quantity: -payoutFeeCreditCents,
+  deduplicationId: `refund:${refundRequestId}:payout_fee`,
+  invoiceId,
+  failureLabel: 'payout fee credit',
+});
 ```
+
+Refund policy under the metered model:
+
+- **Full refund**
+  - refund payment
+  - reverse transfer
+  - credit `invoice_fee`
+  - credit `payout_fee`
+- **Partial refund**
+  - refund payment
+  - reverse transfer proportionally
+  - credit `payout_fee` proportionally
+  - do not credit `invoice_fee`
+
+Important: this model does **not** use Stripe `application_fee_amount` or `refund_application_fee`.
+For `retainer_deposit` invoices, the current implementation decrements `matters.retainer_balance` inside the same DB transaction that marks the refund request executed and writes the refund audit row.
+Best practice followed here: emit `InvoiceRefunded` only after the refund transaction commits, so listener failures cannot roll back local refund state. Any mismatch after a successful Stripe refund is handled by the refund-reconciliation job rather than by retrying the DB transaction from inside the request.
 
 ---
 

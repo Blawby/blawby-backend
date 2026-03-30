@@ -18,8 +18,8 @@ export const billingTransactions = pgTable(
     }),
     stripe_transfer_id: text('stripe_transfer_id').unique(),
     destination_account_id: text('destination_account_id').notNull(),
-    amount: integer('amount').notNull(), // In cents
-    application_fee_amount: integer('application_fee_amount').notNull().default(0),
+    amount: integer('amount').notNull(), // in cents
+    metered_fee_cents: integer('metered_fee_cents').notNull().default(0),
     type: text('type', { enum: ['payout', 'retainer_draw', 'refund'] }).notNull(),
     status: text('status', {
       enum: ['pending', 'queued', 'completed', 'failed'],

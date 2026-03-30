@@ -20,6 +20,12 @@ app.openapi(routes.voidInvoiceRoute, handlers.voidInvoiceHandler);
 // ==================== CLIENT-SIDE INVOICES (read-only) ====================
 app.openapi(routes.getClientInvoicesRoute, handlers.getClientInvoicesHandler);
 app.openapi(routes.getClientInvoiceDetailRoute, handlers.getClientInvoiceDetailHandler);
+app.openapi(routes.createRefundRequestRoute, handlers.createRefundRequestHandler as any);
+app.openapi(routes.listClientRefundRequestsRoute, handlers.listClientRefundRequestsHandler as any);
+app.openapi(routes.cancelRefundRequestRoute, handlers.cancelRefundRequestHandler as any);
+app.openapi(routes.listPracticeRefundRequestsRoute, handlers.listPracticeRefundRequestsHandler as any);
+app.openapi(routes.reviewRefundRequestRoute, handlers.reviewRefundRequestHandler as any);
+app.openapi(routes.executeRefundRoute, handlers.executeRefundHandler as any);
 
 registerOpenApiRoutes(app, routes);
 

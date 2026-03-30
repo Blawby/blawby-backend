@@ -3,6 +3,8 @@ import { invoiceCreationService } from '@/modules/invoices/services/invoice-crea
 import { invoiceLifecycleService } from '@/modules/invoices/services/invoice-lifecycle.service';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import { invoiceStripeCoordinationService } from '@/modules/invoices/services/invoice-stripe-coordination.service';
+export * from '@/modules/invoices/refund-requests.handlers';
+import * as refundRequestHandlers from '@/modules/invoices/refund-requests.handlers';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
@@ -102,6 +104,7 @@ const getClientInvoiceDetailHandler: AppRouteHandler<typeof routes.getClientInvo
 };
 
 export const handlers = {
+  ...refundRequestHandlers,
   createInvoiceHandler,
   listInvoicesHandler,
   getInvoiceHandler,

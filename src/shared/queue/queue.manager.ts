@@ -105,6 +105,75 @@ const addEmailJob = async (
   }
 };
 
+export const addMeteredUsageJob = async (payload: {
+  organizationId: string;
+  meteredType: string;
+  quantity: number;
+  deduplicationId: string;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(
+      TASK_NAMES.PROCESS_METERED_USAGE,
+      payload,
+      {
+        jobKey: `metered:${payload.organizationId}:${payload.meteredType}:${payload.deduplicationId}`,
+        maxAttempts: graphileWorkerConfig.maxAttempts,
+      },
+    );
+
+    logger.info('Metered usage retry job queued: {meteredType} ({deduplicationId})', {
+      meteredType: payload.meteredType,
+      deduplicationId: payload.deduplicationId,
+      organizationId: payload.organizationId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue metered usage retry job {deduplicationId}', {
+      error,
+      deduplicationId: payload.deduplicationId,
+      meteredType: payload.meteredType,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
+
+export const addRefundReconciliationJob = async (payload: {
+  organizationId: string;
+  requestId: string;
+  executorUserId: string;
+  stripePaymentIntentId: string;
+  stripeTransferId: string | null;
+  stripeRefundId: string | null;
+  refundedAmount: number;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(
+      TASK_NAMES.PROCESS_REFUND_RECONCILIATION,
+      payload,
+      {
+        jobKey: `refund-reconcile:${payload.organizationId}:${payload.requestId}`,
+        maxAttempts: graphileWorkerConfig.maxAttempts,
+      },
+    );
+
+    logger.info('Refund reconciliation job queued: {requestId}', {
+      requestId: payload.requestId,
+      organizationId: payload.organizationId,
+      stripeRefundId: payload.stripeRefundId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue refund reconciliation job {requestId}', {
+      error,
+      requestId: payload.requestId,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
 /**
  * Get queue statistics for monitoring
  * Queries Graphile Worker's job tables directly

@@ -22,6 +22,7 @@ export type SubjectName =
   | 'Subscription'
   | 'Matter'
   | 'Invoice'
+  | 'RefundRequest'
   | 'Client'
   | 'ClientMemo';
 
@@ -65,9 +66,11 @@ export const defineAbilityFor = (
     can('update', 'Matter');
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
-    cannot('update', 'Invoice');
+    can('update', 'Invoice');
     can('read', 'Subscription');
     can('read', 'Trust');
+    can('read', 'RefundRequest');
+    can('update', 'RefundRequest');
     can('manage', 'Client');
     can('manage', 'ClientMemo');
     cannot('read', 'UserDetails');
@@ -83,6 +86,9 @@ export const defineAbilityFor = (
       canWithConditions('read', 'Client', { user_id: metadata.userId });
       canWithConditions('update', 'Client', { user_id: metadata.userId });
       canWithConditions('read', 'ClientMemo', { client_user_id: metadata.userId });
+      can('create', 'RefundRequest');
+      can('read', 'RefundRequest');
+      can('update', 'RefundRequest');
       canWithConditions('read', 'Invoice', { client_user_id: metadata.userId });
       canWithConditions('read', 'Upload', { user_id: metadata.userId });
       canWithConditions('read', 'UserDetails', { user_id: metadata.userId });

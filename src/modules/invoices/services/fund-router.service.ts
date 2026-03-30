@@ -3,6 +3,7 @@ import type { Result } from '@/shared/types/result';
 import { ok, badRequest } from '@/shared/utils/result';
 
 export type FundDestination = 'operating' | 'trust';
+type FundRoutingInvoice = Pick<SelectInvoice, 'id' | 'fund_destination' | 'matter_id' | 'invoice_number' | 'invoice_type'>;
 
 const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust'] as const;
 
@@ -43,8 +44,6 @@ export interface TransferInstruction {
   escrowStatus: 'none' | 'held';
   /** Whether to update matter retainer balance */
   updateRetainerBalance: boolean;
-  /** Amount to keep as platform application fee (in cents) */
-  applicationFeeAmount: number;
 }
 
 /**
@@ -78,7 +77,7 @@ const calculateApplicationFee = (amount: number): number => {
  * @param connectedAccountId - Practice's Stripe connected account ID
  * @returns Result with transfer instruction or failure
  */
-const routePayment = (invoice: SelectInvoice, connectedAccountId: string): Result<TransferInstruction> => {
+const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): Result<TransferInstruction> => {
   const destinationResult = validateFundDestination(invoice.fund_destination, invoice.id);
   if (!destinationResult.success) {
     return destinationResult;
@@ -90,8 +89,6 @@ const routePayment = (invoice: SelectInvoice, connectedAccountId: string): Resul
       'MISSING_MATTER_ID'
     );
   }
-
-  const applicationFeeAmount = calculateApplicationFee(invoice.total);
 
   const baseMetadata = {
     invoice_id: invoice.id,
@@ -114,7 +111,6 @@ const routePayment = (invoice: SelectInvoice, connectedAccountId: string): Resul
         holdForApproval: false,
         escrowStatus: 'none',
         updateRetainerBalance: false,
-        applicationFeeAmount,
       });
 
     case 'retainer_deposit':
@@ -132,7 +128,6 @@ const routePayment = (invoice: SelectInvoice, connectedAccountId: string): Resul
         // The metadata flag tells Practice this is a trust deposit.
         escrowStatus: 'none',
         updateRetainerBalance: true,
-        applicationFeeAmount,
       });
 
     default:
@@ -154,7 +149,9 @@ const shouldHoldForApproval = (): boolean => false;
  * @param invoice - The invoice
  * @returns Whether to update retainer balance
  */
-const shouldUpdateRetainerBalance = (invoice: SelectInvoice): boolean => invoice.invoice_type === 'retainer_deposit';
+const shouldUpdateRetainerBalance = (invoice: FundRoutingInvoice): boolean => {
+  return invoice.invoice_type === 'retainer_deposit';
+};
 
 /**
  * Fund Router Service

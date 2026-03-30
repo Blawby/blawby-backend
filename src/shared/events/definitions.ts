@@ -156,6 +156,7 @@ export const EventClasses = {
   'invoice.updated': invoices.InvoiceUpdated,
   'invoice.sent': invoices.InvoiceSent,
   'invoice.paid': invoices.InvoicePaid,
+  'invoice.refunded': invoices.InvoiceRefunded,
   'invoice.payment_failed': invoices.InvoicePaymentFailed,
   'invoice.voided': invoices.InvoiceVoided,
   'invoice.deleted': invoices.InvoiceDeleted,

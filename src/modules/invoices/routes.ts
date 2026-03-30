@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import * as refundRoutes from '@/modules/invoices/refund-requests.routes';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
@@ -252,4 +253,10 @@ export const routes = {
   voidInvoiceRoute,
   getClientInvoicesRoute,
   getClientInvoiceDetailRoute,
+  createRefundRequestRoute: refundRoutes.createRefundRequestRoute,
+  listClientRefundRequestsRoute: refundRoutes.listClientRefundRequestsRoute,
+  cancelRefundRequestRoute: refundRoutes.cancelRefundRequestRoute,
+  listPracticeRefundRequestsRoute: refundRoutes.listPracticeRefundRequestsRoute,
+  reviewRefundRequestRoute: refundRoutes.reviewRefundRequestRoute,
+  executeRefundRoute: refundRoutes.executeRefundRoute,
 };

@@ -245,14 +245,55 @@ const refund = await stripe.refunds.create({
   payment_intent: invoice.stripe_payment_intent_id,
   amount: refundAmount,
   reverse_transfer: true,
-  // Include only when an application fee was actually charged
-  ...(invoice.application_fee_amount > 0 ? { refund_application_fee: true } : {}),
   metadata: {
     invoice_id: invoice.id,
     reason: 'client_request',
   },
 });
 ```
+
+### Refund Policy
+
+- **Partial refunds are allowed.**
+- The Platform does **not** use Stripe `application_fee_amount` on invoice/payment flow.
+- The Platform does **not** use Stripe `refund_application_fee`.
+- Practice/client refund requests create a Platform-side refund workflow; execution is still performed from the Platform Stripe account.
+- If payout already happened, refunds use `reverse_transfer: true` so the connected-account transfer is reversed with the refund.
+- Same-day void/cancel is preferred when Stripe still allows the underlying `PaymentIntent` to be canceled before capture.
+- Otherwise the backend falls back to the normal refund flow with `reverse_transfer: true` when applicable.
+
+### Metered Billing and Refunds
+
+Platform revenue is not captured during the client payment itself. Instead:
+
+1. Client pays invoice
+2. Full amount is transferred to the Practice connected account
+3. Platform fees are billed later through Stripe metered billing
+
+That means refunds affect two ledgers:
+
+1. **Client funds ledger**
+   - refund the payment
+   - reverse the transfer when applicable
+2. **Platform billing ledger**
+   - credit back metered usage instead of refunding any invoice-time application fee
+
+Current policy:
+
+- **Full refund**:
+  - reverse transfer if one exists
+  - credit back `invoice_fee`
+  - credit back `payout_fee`
+- **Partial refund**:
+  - reverse transfer proportionally
+  - credit back `payout_fee` proportionally
+  - do **not** credit back `invoice_fee`
+
+### Source of Truth
+
+- `invoices` should not store an invoice-time `application_fee_amount`
+- payout fee snapshots belong in billing/audit records as metered fee cents
+- metered billing events are the source of truth for Platform fee charging and refund credits
 
 ---
 
@@ -275,19 +316,59 @@ const refund = await stripe.refunds.create({
 
 ```typescript
 // From invoice-webhooks.service.ts:129-134
-await meteredProductsService.reportMeteredUsage(
-  tx,
-  invoice.organization_id,
-  METERED_TYPES.INVOICE_FEE, // Metered event type
-  1, // 1 invoice processed
-);
+await reportMeteredUsageWithRetry({
+  organizationId: invoice.organization_id,
+  meteredType: METERED_TYPES.INVOICE_FEE,
+  quantity: 1,
+  deduplicationId: invoice.id,
+  invoiceId: invoice.id,
+  failureLabel: 'invoice fee usage',
+});
 ```
+
+`reportMeteredUsageWithRetry(...)` is a best-effort helper:
+
+- It makes one immediate call to the old `reportMeteredUsage(...)` path for the given `METERED_TYPES` value.
+- It returns `Promise<void>`.
+- If the Stripe meter call fails, it logs the failure and queues a Graphile Worker `process-metered-usage` job keyed by the deduplication ID.
+- Retry count/backoff are delegated to Graphile Worker. In this repo that means up to `graphileWorkerConfig.maxAttempts` attempts (default `5`); scheduling/backoff come from the worker, not from inline sleeps in `reportMeteredUsageWithRetry(...)`.
+- If queueing the retry job also fails, the helper emits `SystemErrorOccurred`, logs the context, and rethrows so the outbox event remains unprocessed and will retry.
+
+If Stripe refund creation succeeds but local refund persistence fails, the backend now queues a dedicated refund-reconciliation worker job to repair the DB state and re-dispatch the metered credit event.
 
 ### Billing Cycle
 
 - **Metered Events**: Recorded in real-time on invoice payment
 - **Aggregation**: Monthly (Stripe aggregates events per subscription period)
 - **Billing**: Practice charged monthly subscription invoice with metered line items
+
+### Resilience Job Monitoring
+
+The new resilience jobs are:
+
+- `process-metered-usage`
+- `process-refund-reconciliation`
+
+What to monitor:
+
+- Graphile Worker queue depth and oldest job age for `process-metered-usage`
+- success/failure count for `process-refund-reconciliation`
+- repeated `SystemErrorOccurred` events tied to metering or refund repair
+
+Recommended thresholds:
+
+- `process-metered-usage`: alert if queue depth exceeds `100` or oldest job age exceeds `24 hours`
+- `process-refund-reconciliation`: page immediately on any repeated failure, because Stripe has already accepted the refund
+
+Runbook:
+
+1. For `process-metered-usage`, inspect logs for the meter event name, deduplication ID, and Stripe meter API errors.
+2. Confirm the Graphile Worker job is retrying and that the deduplication ID is stable.
+3. For `process-refund-reconciliation`, inspect the refund request row, billing transaction refund row, and Stripe refund id.
+4. Verify successful reconciliation by checking both:
+   - the worker job completed successfully
+   - local refund state and audit rows now match the known Stripe refund outcome
+5. If reconciliation keeps failing, manually inspect Stripe refund status and then repair the local DB state before re-running the job.
 
 ---
 
