@@ -96,21 +96,11 @@ export const getMeteredItemsForOrganization = async (
     return [];
   }
 
-  // 3. Get plan's metered items configuration
-  const [plan] = await db
-    .select()
-    .from(schema.subscriptionPlans)
-    .where(eq(schema.subscriptionPlans.name, betterAuthSub.plan))
-    .limit(1);
-
-  if (!plan) {
-    logger.warn('Plan not found: {planName}', { planName: betterAuthSub.plan });
-    return [];
-  }
-
-  // 4. Return metered items from plan (default to empty array if not set)
-  const meteredItems = (plan.metered_items ?? []) as MeteredItem[];
-  return meteredItems;
+  // 3. subscription_plans table removed; metered items lookup is not implemented.
+  // Return empty array to avoid relying on legacy schema. Implement lookup by
+  // Product/price metadata or a dedicated metered_items table if needed.
+  logger.warn('subscription_plans table removed; metered items lookup not implemented');
+  return [];
 };
 
 /**

@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
 import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
+import type { SubscriptionPrice } from '@/modules/subscriptions/database/schema/subscriptionPrices.schema';
 import type {
   CancelSubscriptionRequest,
   SubscriptionAPI,
@@ -85,10 +86,62 @@ const listPlans = async (): Promise<Result<{ plans: SubscriptionPlanResponse[] }
   try {
     const plans = await subscriptionRepository.findAllActivePlans(db);
 
-    // The repository returns plans which are already snake_case in the schema
-    // So we can return them directly.
+    // Fetch prices for all plans in a single query to derive legacy pricing fields
+    const planIds = plans.map((plan) => plan.id);
+    const prices: SubscriptionPrice[] =
+      planIds.length > 0 ? await subscriptionRepository.findPricesByPlanIds(db, planIds) : [];
+
+    const pricesByPlan = prices.reduce<Record<string, SubscriptionPrice[]>>((planPriceMap, price) => {
+      const planId = price.plan_id;
+      if (!planId) {
+        return planPriceMap;
+      }
+      planPriceMap[planId] ??= [];
+      planPriceMap[planId].push(price);
+      return planPriceMap;
+    }, {});
+
+    // Prices are returned in integer cents to avoid precision/formatting issues
+
+    const response: SubscriptionPlanResponse[] = plans.map((plan) => {
+      const planPrices = pricesByPlan[plan.id] ?? [];
+      const currency = planPrices[0]?.currency ?? '';
+      const monthlyPrice = planPrices.find((price) => price.interval === 'month');
+      const yearlyPrice = planPrices.find((price) => price.interval === 'year');
+      const meteredPrices = planPrices.filter((price) => price.usage_type === 'metered');
+
+      return {
+        id: plan.id,
+        name: plan.name,
+        display_name: plan.display_name,
+        description: plan.description,
+        stripe_product_id: plan.stripe_product_id,
+        stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
+        stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
+        monthly_price: monthlyPrice ? monthlyPrice.unit_amount : null,
+        yearly_price: yearlyPrice ? yearlyPrice.unit_amount : null,
+        currency,
+        features: plan.features,
+        limits: plan.limits,
+        metered_items: meteredPrices.length
+          ? meteredPrices.map((meteredPrice) => ({
+              price_id: meteredPrice.stripe_price_id,
+              meter_name: meteredPrice.meter_name,
+              type: meteredPrice.internal_type,
+            }))
+          : null,
+        is_active: plan.is_active,
+        is_public: plan.is_public,
+        sort_order: plan.sort_order,
+        metadata: plan.metadata,
+        image: plan.image,
+        created_at: plan.created_at,
+        updated_at: plan.updated_at,
+      };
+    });
+
     return ok({
-      plans: plans as SubscriptionPlanResponse[],
+      plans: response,
     });
   } catch (error) {
     logger.error('Failed to list plans: {error}', { error });
@@ -168,51 +221,82 @@ const getCurrentSubscription = async (
     const { plan: _plan, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
 
     // Map DB rows to response types to avoid unsafe casts
-    const mappedLineItems: LineItemResponse[] = lineItems.map((item) => ({
-      id: item.id,
-      subscription_id: item.subscription_id,
-      stripe_subscription_item_id: item.stripe_subscription_item_id,
-      stripe_price_id: item.stripe_price_id,
-      item_type: item.item_type,
-      description: item.description,
-      quantity: item.quantity,
-      unit_amount: item.unit_amount,
-      metadata: parseMetadata(item.metadata, isRecordStringString),
-      created_at: item.created_at,
-      updated_at: item.updated_at,
+    const mappedLineItems: LineItemResponse[] = lineItems.map((lineItem) => ({
+      id: lineItem.id,
+      subscription_id: lineItem.subscription_id,
+      stripe_subscription_item_id: lineItem.stripe_subscription_item_id,
+      stripe_price_id: lineItem.stripe_price_id,
+      item_type: lineItem.item_type,
+      description: lineItem.description,
+      quantity: lineItem.quantity,
+      unit_amount: lineItem.unit_amount,
+      metadata: parseMetadata(lineItem.metadata, isRecordStringString),
+      created_at: lineItem.created_at,
+      updated_at: lineItem.updated_at,
     }));
 
-    const mappedEvents: EventResponse[] = events.map((event) => ({
-      id: event.id,
-      subscription_id: event.subscription_id,
-      plan_id: event.plan_id,
-      event_type: event.event_type,
-      from_status: event.from_status,
-      to_status: event.to_status,
-      from_plan_id: event.from_plan_id,
-      to_plan_id: event.to_plan_id,
-      triggered_by: event.triggered_by,
-      triggered_by_type: event.triggered_by_type,
-      metadata: parseMetadata(event.metadata, isRecordStringUnknown),
-      error_message: event.error_message,
-      created_at: event.created_at,
+    const mappedEvents: EventResponse[] = events.map((subscriptionEvent) => ({
+      id: subscriptionEvent.id,
+      subscription_id: subscriptionEvent.subscription_id,
+      plan_id: subscriptionEvent.plan_id,
+      event_type: subscriptionEvent.event_type,
+      from_status: subscriptionEvent.from_status,
+      to_status: subscriptionEvent.to_status,
+      from_plan_id: subscriptionEvent.from_plan_id,
+      to_plan_id: subscriptionEvent.to_plan_id,
+      triggered_by: subscriptionEvent.triggered_by,
+      triggered_by_type: subscriptionEvent.triggered_by_type,
+      metadata: parseMetadata(subscriptionEvent.metadata, isRecordStringUnknown),
+      error_message: subscriptionEvent.error_message,
+      created_at: subscriptionEvent.created_at,
     }));
 
-    // Construct the response by spreading the raw DB record (which contains snake_case keys from the aliased select)
-    // And adding the details. The 'plan' from the DB record is just a string name,
-    // We override it here with the full plan object.
+    // Map plan to response format
+    let planResponse: SubscriptionPlanResponse | null = null;
+    if (planResult) {
+      const planPrices = await subscriptionRepository.findPricesByPlanId(db, planResult.id);
+      const currency = planPrices[0]?.currency ?? '';
+      const monthlyPrice = planPrices.find((price) => price.interval === 'month');
+      const yearlyPrice = planPrices.find((price) => price.interval === 'year');
+      const meteredPrices = planPrices.filter((price) => price.usage_type === 'metered');
+
+      planResponse = {
+        id: planResult.id,
+        name: planResult.name,
+        display_name: planResult.display_name,
+        description: planResult.description,
+        stripe_product_id: planResult.stripe_product_id,
+        stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
+        stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
+        monthly_price: monthlyPrice ? monthlyPrice.unit_amount : null,
+        yearly_price: yearlyPrice ? yearlyPrice.unit_amount : null,
+        currency,
+        features: planResult.features,
+        limits: planResult.limits,
+        metered_items: meteredPrices.length
+          ? meteredPrices.map((meteredPrice) => ({
+              price_id: meteredPrice.stripe_price_id,
+              meter_name: meteredPrice.meter_name,
+              type: meteredPrice.internal_type,
+            }))
+          : null,
+        is_active: planResult.is_active,
+        is_public: planResult.is_public,
+        sort_order: planResult.sort_order,
+        metadata: planResult.metadata ?? null,
+        image: planResult.image,
+        created_at: planResult.created_at,
+        updated_at: planResult.updated_at,
+      };
+    }
+
+    // Construct the response
     return ok({
       subscription: {
         ...subscriptionRecordWithoutPlanName,
         line_items: mappedLineItems,
         events: mappedEvents,
-        plan: planResult
-          ? {
-              ...planResult,
-              metadata: planResult.metadata ?? null,
-              metered_items: planResult.metered_items ?? null,
-            }
-          : null,
+        plan: planResponse,
       },
     });
   } catch (error) {

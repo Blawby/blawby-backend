@@ -7,7 +7,7 @@
 
 import { relations } from 'drizzle-orm';
 import { pgTable, text, timestamp, integer, uuid, decimal, jsonb, index } from 'drizzle-orm/pg-core';
-import { subscriptionPlans } from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
+import { subscriptionPrices } from '@/modules/subscriptions/database/schema/subscriptionPrices.schema';
 import { subscriptions } from '@/schema/better-auth-schema';
 
 // Item type enum
@@ -58,9 +58,9 @@ export const subscriptionLineItems = pgTable(
 );
 
 export const subscriptionLineItemsRelations = relations(subscriptionLineItems, ({ one }) => ({
-  plan: one(subscriptionPlans, {
+  price: one(subscriptionPrices, {
     fields: [subscriptionLineItems.stripe_price_id],
-    references: [subscriptionPlans.stripe_monthly_price_id],
+    references: [subscriptionPrices.stripe_price_id],
   }),
 }));
 

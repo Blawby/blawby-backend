@@ -2,12 +2,11 @@
  * Price Deleted Webhook Handler
  *
  * Handles Stripe price.deleted webhook events
- * Removes the price from the subscription plan
+ * Removes the price from the database and deactivates plan if no prices remain
  */
 
 import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
-
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 
@@ -20,55 +19,32 @@ export const handlePriceDeleted = async (price: Stripe.Price | Stripe.DeletedPri
   try {
     logger.info('Processing price.deleted: {priceId}', { priceId: price.id });
 
-    // Find the plan that uses this price
-    const plan = await subscriptionRepository.findPlanByStripePriceId(db, price.id);
+    // Find the price
+    const existingPrice = await subscriptionRepository.findPriceByStripeId(db, price.id);
 
-    if (!plan) {
-      logger.warn('Plan not found for price.deleted: {priceId}', { priceId: price.id });
+    if (!existingPrice) {
+      logger.warn('Price not found for price.deleted: {priceId}', { priceId: price.id });
       return;
     }
 
-    // Remove the price from the plan
-    const updates: Record<string, unknown> = {};
+    // Delete the price
+    await subscriptionRepository.deletePrice(db, price.id);
 
-    if (plan.stripe_monthly_price_id === price.id) {
-      updates.stripe_monthly_price_id = null;
-      updates.monthly_price = null;
+    // If the price had a plan, check if there are any active prices left
+    if (existingPrice.plan_id) {
+      const remainingActiveCount = await subscriptionRepository.countActivePricesForPlan(db, existingPrice.plan_id);
 
-      // If this was the only price, deactivate the plan
-      if (!plan.stripe_yearly_price_id) {
-        updates.is_active = false;
+      if (remainingActiveCount === 0) {
+        // No active prices left, deactivate the plan
+        logger.info('No active prices remain for plan {planId}, deactivating plan', { planId: existingPrice.plan_id });
+        const plan = await subscriptionRepository.findPlanById(db, existingPrice.plan_id);
+        if (plan) {
+          await subscriptionRepository.deactivatePlan(db, plan.stripe_product_id);
+        }
       }
     }
 
-    if (plan.stripe_yearly_price_id === price.id) {
-      updates.stripe_yearly_price_id = null;
-      updates.yearly_price = null;
-
-      // If this was the only price, deactivate the plan
-      if (!plan.stripe_monthly_price_id) {
-        updates.is_active = false;
-      }
-    }
-
-    // Handle metered items
-    if (plan.metered_items && Array.isArray(plan.metered_items)) {
-      const metered_items = (plan.metered_items as any[]).filter((item) => item.price_id !== price.id);
-      if (metered_items.length !== (plan.metered_items as any[]).length) {
-        updates.metered_items = metered_items;
-      }
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await subscriptionRepository.upsertPlan(db, {
-        ...plan,
-        ...updates,
-      });
-
-      logger.info('Successfully removed price from plan: {priceId}', { priceId: price.id });
-    } else {
-      logger.debug('No updates needed for price deletion: {priceId}', { priceId: price.id });
-    }
+    logger.info('Successfully deleted price: {priceId}', { priceId: price.id });
   } catch (error) {
     logger.error('Failed to process price.deleted: {priceId}. Error: {error}', {
       priceId: price.id,
