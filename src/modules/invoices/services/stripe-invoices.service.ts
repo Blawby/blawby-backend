@@ -223,4 +223,4 @@ export const stripeInvoicesService = {
   voidInvoice,
   deleteDraftInvoice,
   getStripeInvoice,
-};
+} as const;

@@ -40,8 +40,8 @@ PR 1 (done)  →  PR 2 (done), PR 3, PR 4  →  PR 5 (depends on PR 2)
 
 These decisions override the original issue spec where they conflict.
 
-### No try/catch in service functions
-The global `errorHandler` (`src/shared/middleware/errorHandler.ts`) catches all uncaught exceptions, logs them with full request context, and returns a structured 500. **Do not add try/catch in service functions** — it duplicates logging with less context and contradicts `TECH_DEBT_REMEDIATION_PLAN.md`. Drizzle rolls back transactions automatically on throw.
+### Throw-based error handling in services
+Per `TECH_DEBT_REMEDIATION_PLAN.md`, services should throw `HTTPException` for expected failures instead of try/catch wrapping. The global `errorHandler` (`src/shared/middleware/errorHandler.ts`) catches all uncaught exceptions, logs them with full request context, and returns a structured 500. Drizzle rolls back transactions automatically on throw. Never add try/catch in service functions — let handlers and the global error middleware manage exceptions.
 
 ### Access control via `requireMatterAccess` middleware, not inside services
 `src/shared/middleware/requireMatterAccess.ts` already exists and is applied to `matterSubResources.use('/:id/*', ...)` in `http.ts`. All matter sub-resource routes (including `/unbilled`) get `verifyMatterAccess` automatically — do not duplicate the check inside the service or handler.
@@ -211,14 +211,19 @@ Export in `src/modules/matters/routes/index.ts`.
 
 Open `src/modules/matters/handlers.ts`. Add `settleMatterHandler`:
 
-1. Extract `ctx`, `matterId`, `settlement_amount`
-2. Call `mattersService.getMatterById(matterId, ctx)` — return early on failure
-3. Guard: if `matter.billing_type !== 'contingency'` → `result.badRequest('Matter is not a contingency matter')`
-4. Update `matters.settlement_amount` via existing matter update query
-5. Log activity: action `matter_settled`, metadata `{ settlement_amount, contingency_percentage: matter.contingency_percentage }`
-6. Return updated matter — **do not auto-create an invoice**
+1. Extract `ctx`, `matterId`, `settlement_amount` from params and body
+2. Call `mattersService.settleMatter({ matterId, settlement_amount }, ctx)` — handler returns response (service throws on error)
+3. Return `c.json(updatedMatter, 200)`
 
-Register in `src/modules/matters/http.ts`.
+Add `settleMatter` to `src/modules/matters/services/matter-management.service.ts` (or appropriate sub-service):
+
+1. Call `getMatterById(matterId, ctx)` to fetch matter
+2. Guard: if `matter.billing_type !== 'contingency'` → `throw new HTTPException(400, { message: 'Matter is not a contingency matter' })`
+3. Update `matters.settlement_amount` via transaction in existing matter update query
+4. Log activity: action `matter_settled`, metadata `{ settlement_amount, contingency_percentage: matter.contingency_percentage }`
+5. Return updated matter — **do not auto-create an invoice**
+
+Register route and handler in `src/modules/matters/http.ts`.
 
 ### Step 3 — Contingency validation in invoice creation
 
@@ -226,7 +231,7 @@ Open `src/modules/invoices/services/invoice-creation.service.ts`, find `validate
 
 When `matter.billing_type === 'contingency'`:
 
-1. If `matter.settlement_amount` is null or 0 → `result.badRequest('Settlement amount must be recorded before invoicing a contingency matter')`
+1. If `matter.settlement_amount` is null or 0 → `throw new HTTPException(400, { message: 'Settlement amount must be recorded before invoicing a contingency matter' })`
 2. If `data.line_items` is empty → auto-generate:
    ```
    type: 'flat_fee'

@@ -14,17 +14,24 @@ export const processRefundReconciliation: Task = async (payload): Promise<void> 
     stripeTransferId,
     stripeRefundId,
     refundedAmount,
-  } = (payload as {
-    organizationId?: string;
-    requestId?: string;
-    executorUserId?: string;
-    stripePaymentIntentId?: string;
-    stripeTransferId?: string | null;
-    stripeRefundId?: string | null;
-    refundedAmount?: number;
-  }) || {};
+  } =
+    (payload as {
+      organizationId?: string;
+      requestId?: string;
+      executorUserId?: string;
+      stripePaymentIntentId?: string;
+      stripeTransferId?: string | null;
+      stripeRefundId?: string | null;
+      refundedAmount?: number;
+    }) || {};
 
-  if (!organizationId || !requestId || !executorUserId || !stripePaymentIntentId || typeof refundedAmount !== 'number') {
+  if (
+    !organizationId ||
+    !requestId ||
+    !executorUserId ||
+    !stripePaymentIntentId ||
+    typeof refundedAmount !== 'number'
+  ) {
     logger.error('Invalid refund reconciliation payload', { payload });
     throw new Error('Invalid refund reconciliation payload');
   }
@@ -40,8 +47,8 @@ export const processRefundReconciliation: Task = async (payload): Promise<void> 
   });
 
   if (!res.success) {
-    const message = res.error?.message
-      ?? (typeof res === 'object' ? JSON.stringify(res) : 'Refund reconciliation failed');
+    const message =
+      res.error?.message ?? (typeof res === 'object' ? JSON.stringify(res) : 'Refund reconciliation failed');
     throw new Error(message);
   }
 

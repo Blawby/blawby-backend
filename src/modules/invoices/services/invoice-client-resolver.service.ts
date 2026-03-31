@@ -1,6 +1,4 @@
 import { and, or, eq, isNull } from 'drizzle-orm';
-import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
-import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
@@ -10,6 +8,8 @@ import type { Result } from '@/shared/types/result';
 import { createSystemContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
+type Executor = typeof db;
+
 /**
  * Resolves a client for invoice creation
  * Validates client exists and pre-loads connected account and matters
@@ -17,10 +17,11 @@ import { result } from '@/shared/utils/result';
 const resolveClientForInvoice = async (
   organizationId: string,
   clientId: string,
-  connectedAccountId: string
+  connectedAccountId: string,
+  executor: Executor = db
 ): Promise<Result<ResolvedClientForInvoice>> => {
   // 1. Try to find existing user_details by ID or UserID
-  let clientDetails = await db.query.clients.findFirst({
+  let clientDetails = await executor.query.clients.findFirst({
     where: and(
       or(eq(clients.id, clientId), eq(clients.user_id, clientId)),
       eq(clients.organization_id, organizationId),
@@ -41,7 +42,7 @@ const resolveClientForInvoice = async (
 
   // 2. Auto-vivify if missing but user is a member
   if (!clientDetails) {
-    const [memberMatch] = await db
+    const [memberMatch] = await executor
       .select({
         user: users,
         organizationId: members.organizationId,
@@ -53,7 +54,7 @@ const resolveClientForInvoice = async (
 
     if (memberMatch) {
       // Minimal DB-only insert to get the ID required for Foreign Key
-      const [newDetail] = await db
+      const [newDetail] = await executor
         .insert(clients)
         .values({
           organization_id: organizationId,
@@ -66,7 +67,7 @@ const resolveClientForInvoice = async (
       void clientsCrudService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
 
       // Re-fetch to populate relations for the remainder of the process
-      clientDetails = await db.query.clients.findFirst({
+      clientDetails = await executor.query.clients.findFirst({
         where: eq(clients.id, newDetail.id),
         with: {
           user: true,
@@ -107,8 +108,12 @@ const resolveClientForInvoice = async (
  * Resolves a userId to a userDetails.id for the given org.
  * Used by client-facing invoice endpoints so the client never passes their own identifier.
  */
-const resolveUserDetailId = async (organizationId: string, userId: string): Promise<Result<string>> => {
-  const detail = await db.query.clients.findFirst({
+const resolveUserDetailId = async (
+  organizationId: string,
+  userId: string,
+  executor: Executor = db
+): Promise<Result<string>> => {
+  const detail = await executor.query.clients.findFirst({
     where: and(eq(clients.organization_id, organizationId), eq(clients.user_id, userId), isNull(clients.deleted_at)),
     columns: { id: true },
   });
@@ -121,4 +126,4 @@ const resolveUserDetailId = async (organizationId: string, userId: string): Prom
 export const invoiceClientResolver = {
   resolveClientForInvoice,
   resolveUserDetailId,
-};
+} as const;

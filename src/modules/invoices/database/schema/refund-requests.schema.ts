@@ -1,14 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import {
-  pgTable,
-  uuid,
-  varchar,
-  integer,
-  text,
-  timestamp,
-  index,
-  check,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, text, timestamp, index, check } from 'drizzle-orm/pg-core';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema';
@@ -51,10 +42,13 @@ export const refundRequests = pgTable(
     index('idx_refund_requests_client').on(table.client_user_details_id),
     index('idx_refund_requests_status').on(table.status),
     index('idx_refund_requests_org_status').on(table.organization_id, table.status),
-    check('refund_status_check', sql`status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')`),
+    check(
+      'refund_status_check',
+      sql`status IN ('requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing')`
+    ),
     check('refund_requested_amount_check', sql`requested_amount > 0`),
     check('refund_executed_amount_check', sql`executed_amount IS NULL OR executed_amount >= 0`),
-  ],
+  ]
 );
 
 export const refundRequestsRelations = relations(refundRequests, ({ one }) => ({

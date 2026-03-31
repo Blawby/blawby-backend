@@ -2,6 +2,8 @@ import { billingTransactionsRepository } from '@/modules/invoices/database/queri
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import { db } from '@/shared/database';
 
+type Executor = typeof db;
+
 const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): number | null => {
   const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout');
   if (!payoutTx) {
@@ -16,10 +18,7 @@ const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): n
   return typeof metadataFee === 'number' && metadataFee > 0 ? metadataFee : null;
 };
 
-export const requirePayoutMeteredFeeCents = (
-  invoiceTxs: SelectBillingTransaction[],
-  invoiceId: string,
-): number => {
+export const requirePayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[], invoiceId: string): number => {
   const meteredFeeCents = extractPayoutMeteredFeeCents(invoiceTxs);
   if (typeof meteredFeeCents === 'number') {
     return meteredFeeCents;
@@ -30,8 +29,14 @@ export const requirePayoutMeteredFeeCents = (
 
 export const loadRequiredPayoutMeteredFeeCents = async (
   invoiceId: string,
-  tx?: typeof db,
+  executor: Executor = db
 ): Promise<number> => {
-  const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoiceId, tx);
+  const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoiceId, executor);
   return requirePayoutMeteredFeeCents(invoiceTxs, invoiceId);
 };
+
+export const payoutMeteredFeeService = {
+  extractPayoutMeteredFeeCents,
+  requirePayoutMeteredFeeCents,
+  loadRequiredPayoutMeteredFeeCents,
+} as const;

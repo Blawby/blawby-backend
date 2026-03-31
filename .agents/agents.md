@@ -98,7 +98,7 @@ Touch only what you're asked to touch. Do NOT:
 - Internal TypeScript logic: `camelCase`
 - Use `practice_id` in API paths (maps to `organization_id` in DB)
 - Route paths start with `/{practice_id}/` for org-scoped resources
-- Use `response.fromResult(c, result)` to convert `Result<T>` to HTTP responses
+- Use `c.json(data)` for success responses (services throw for errors)
 
 ### 4. Database (Drizzle)
 - All columns: `snake_case`
@@ -108,11 +108,12 @@ Touch only what you're asked to touch. Do NOT:
 - Type exports: `type InsertX = typeof table.$inferInsert` and `type SelectX = typeof table.$inferSelect`
 
 ### 5. Functions & Error Handling
-- Use `Result<T>` pattern from `@/shared/utils/result` — never throw for expected failures
-- `result.ok(data)`, `result.notFound()`, `result.badRequest()`, `result.forbidden()`, etc.
+- Services throw `HTTPException` for expected failures (404, 400, 401, 409, 422) instead of returning `Result<T>`
+- Services throw raw `Error` for unexpected failures (500)
+- Special case: webhook/worker services throw raw `Error` to trigger job retry logic
 - Functions as const arrow expressions: `const getUser = async (...) => { ... }`
 - Export as single object: `export const myService = { getUser, createUser }`
-- Single-purpose, <20 statements, early returns, guard clauses
+- Single-purpose, <50 lines per function, <200 lines per file, early returns, guard clauses
 
 ### 6. Logging (LogTape)
 - **MANDATORY**: Use LogTape everywhere. NEVER `console.log` or `console.error`
@@ -126,15 +127,16 @@ Touch only what you're asked to touch. Do NOT:
 - Handler type: `AppRouteHandler<typeof route>`
 
 ### 8. Handler Pattern
-- Thin handlers — extract validated data, call service, return response
+- Thin handlers (3-8 lines) — extract validated data, call service, return response
 - Extract context: `const ctx = getServiceContext(c)`
 - Validate: `c.req.valid('json')`, `c.req.valid('param')`, `c.req.valid('query')`
-- Respond: `response.fromResult(c, result)` or `response.fromResult(c, result, 201)`
+- Respond: `c.json(data)` or `c.json(data, 201)` (services throw for errors)
 
 ### 9. Service Pattern
-- Accept typed request data + `ServiceContext` as parameters
-- Return `Promise<Result<T>>` or `Promise<PaginatedResult<T, 'key'>>`
-- CASL authorization: `ForbiddenError.from(ctx.ability).throwUnlessCan('action', 'Subject')`
+- Max 2 parameters: `({ data }, ctx: ServiceContext)` — params as object, ctx as ServiceContext
+- Return data directly (`Promise<T>`) or throw `HTTPException` for expected failures
+- Throw raw `Error` for unexpected failures (500)
+- CASL authorization: `ForbiddenError.from(ctx.ability).throwUnlessCan('action', 'Subject')` as first line
 - Dispatch events: `await ctx.emit(EventClass, payload, tx)`
 - Use `db.transaction(async (tx) => { ... })` for multi-step operations
 
@@ -146,9 +148,15 @@ Touch only what you're asked to touch. Do NOT:
 
 ## After Every Task
 
-1. Run `pnpm run typecheck`
-2. Run `pnpm run format:check`
-3. Document changes:
+1. Run `pnpm run typecheck` to verify types compile
+2. Run `pnpm run format:check` to verify formatting
+3. Run `pnpm run db:generate` if you created new schemas
+4. Verify architectural patterns:
+   - Handlers are 3-8 lines with `getServiceContext(c)`
+   - Services max ~200 lines with max 2 parameters: `(params, ctx)`
+   - Services throw `HTTPException` for expected failures, raw `Error` for 500s
+   - Files follow max constraints (50 lines/function, 200 lines/service, 300 lines/routes)
+5. Document changes:
 ```
 CHANGES MADE:
 - [file]: [what changed and why]

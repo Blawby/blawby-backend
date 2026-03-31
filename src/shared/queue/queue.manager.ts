@@ -114,14 +114,10 @@ export const addMeteredUsageJob = async (payload: {
   const workerUtils = await getWorkerUtils();
 
   try {
-    await workerUtils.addJob(
-      TASK_NAMES.PROCESS_METERED_USAGE,
-      payload,
-      {
-        jobKey: `metered:${payload.organizationId}:${payload.meteredType}:${payload.deduplicationId}`,
-        maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
-    );
+    await workerUtils.addJob(TASK_NAMES.PROCESS_METERED_USAGE, payload, {
+      jobKey: `metered:${payload.organizationId}:${payload.meteredType}:${payload.deduplicationId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
 
     logger.info('Metered usage retry job queued: {meteredType} ({deduplicationId})', {
       meteredType: payload.meteredType,
@@ -151,14 +147,10 @@ export const addRefundReconciliationJob = async (payload: {
   const workerUtils = await getWorkerUtils();
 
   try {
-    await workerUtils.addJob(
-      TASK_NAMES.PROCESS_REFUND_RECONCILIATION,
-      payload,
-      {
-        jobKey: `refund-reconcile:${payload.organizationId}:${payload.requestId}`,
-        maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
-    );
+    await workerUtils.addJob(TASK_NAMES.PROCESS_REFUND_RECONCILIATION, payload, {
+      jobKey: `refund-reconcile:${payload.organizationId}:${payload.requestId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
 
     logger.info('Refund reconciliation job queued: {requestId}', {
       requestId: payload.requestId,

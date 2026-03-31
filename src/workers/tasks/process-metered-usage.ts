@@ -6,32 +6,24 @@ import { db } from '@/shared/database';
 
 const logger = getLogger(['workers', 'process-metered-usage']);
 
-const isKnownMeteredType = (
-  value: string,
-): value is keyof typeof METERED_TYPE_TO_STRIPE_EVENT => Object.prototype.hasOwnProperty.call(
-  METERED_TYPE_TO_STRIPE_EVENT,
-  value,
-);
+const isKnownMeteredType = (value: string): value is keyof typeof METERED_TYPE_TO_STRIPE_EVENT =>
+  Object.prototype.hasOwnProperty.call(METERED_TYPE_TO_STRIPE_EVENT, value);
 
 export const processMeteredUsage: Task = async (payload): Promise<void> => {
-  const {
-    organizationId,
-    meteredType,
-    quantity,
-    deduplicationId,
-  } = (payload as {
-    organizationId?: string;
-    meteredType?: string;
-    quantity?: number;
-    deduplicationId?: string;
-  }) || {};
+  const { organizationId, meteredType, quantity, deduplicationId } =
+    (payload as {
+      organizationId?: string;
+      meteredType?: string;
+      quantity?: number;
+      deduplicationId?: string;
+    }) || {};
 
   if (
-    !organizationId
-    || typeof meteredType !== 'string'
-    || !isKnownMeteredType(meteredType)
-    || typeof quantity !== 'number'
-    || !deduplicationId
+    !organizationId ||
+    typeof meteredType !== 'string' ||
+    !isKnownMeteredType(meteredType) ||
+    typeof quantity !== 'number' ||
+    !deduplicationId
   ) {
     logger.error('Invalid metered usage retry payload', { payload });
     throw new Error('Invalid metered usage retry payload');
@@ -42,7 +34,7 @@ export const processMeteredUsage: Task = async (payload): Promise<void> => {
     organizationId,
     meteredType,
     quantity,
-    deduplicationId,
+    deduplicationId
   );
 
   if (!res.success) {

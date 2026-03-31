@@ -18,12 +18,8 @@ const INVOICE_TRANSFER_IDEMPOTENCY_PREFIX = 'invoice-paid-transfer';
 
 const getChargeIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
   const rawStripeInvoice = stripeInvoice as unknown as Record<string, unknown>;
-  const latestChargeId = typeof rawStripeInvoice.latest_charge === 'string'
-    ? rawStripeInvoice.latest_charge
-    : null;
-  const legacyChargeId = typeof rawStripeInvoice.charge === 'string'
-    ? rawStripeInvoice.charge
-    : null;
+  const latestChargeId = typeof rawStripeInvoice.latest_charge === 'string' ? rawStripeInvoice.latest_charge : null;
+  const legacyChargeId = typeof rawStripeInvoice.charge === 'string' ? rawStripeInvoice.charge : null;
   return latestChargeId ?? legacyChargeId;
 };
 
@@ -50,9 +46,7 @@ const calculateMeteredFeeCents = async (stripeInvoice: Stripe.Invoice): Promise<
     const charge = await stripe.charges.retrieve(chargeId, {
       expand: ['balance_transaction'],
     });
-    const stripeFee = typeof charge.balance_transaction === 'string'
-      ? 0
-      : (charge.balance_transaction?.fee ?? 0);
+    const stripeFee = typeof charge.balance_transaction === 'string' ? 0 : (charge.balance_transaction?.fee ?? 0);
     return stripeFee + variablePlatformFee;
   } catch (error) {
     logger.error('Failed to fetch Stripe balance transaction fee for charge {chargeId}: {error}', {
@@ -83,13 +77,16 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
         typeof stripeInvoice.on_behalf_of === 'string' ? stripeInvoice.on_behalf_of : stripeInvoice.on_behalf_of.id;
     }
 
-    const routingResult = fundRouterService.routePayment({
-      id: invoice.id,
-      fund_destination: invoice.fund_destination,
-      matter_id: invoice.matter_id,
-      invoice_number: invoice.invoice_number,
-      invoice_type: invoice.invoice_type,
-    }, destinationAccountId);
+    const routingResult = fundRouterService.routePayment(
+      {
+        id: invoice.id,
+        fund_destination: invoice.fund_destination,
+        matter_id: invoice.matter_id,
+        invoice_number: invoice.invoice_number,
+        invoice_type: invoice.invoice_type,
+      },
+      destinationAccountId
+    );
     if (!routingResult.success) {
       logger.error('Fund routing failed for invoice {invoiceId}: {error}', {
         invoiceId: invoice.id,
@@ -101,24 +98,27 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
     const routingInstruction = routingResult.data;
     const transfer = !routingInstruction.holdForApproval
       ? await stripe.transfers.create(
-        {
-          amount: stripeInvoice.amount_paid,
-          currency: 'usd',
-          destination: routingInstruction.destination,
-          metadata: routingInstruction.metadata,
-        },
-        {
-          idempotencyKey: `${INVOICE_TRANSFER_IDEMPOTENCY_PREFIX}:${stripeInvoice.id}`,
-        },
-      )
+          {
+            amount: stripeInvoice.amount_paid,
+            currency: 'usd',
+            destination: routingInstruction.destination,
+            metadata: routingInstruction.metadata,
+          },
+          {
+            idempotencyKey: `${INVOICE_TRANSFER_IDEMPOTENCY_PREFIX}:${stripeInvoice.id}`,
+          }
+        )
       : null;
 
     if (transfer) {
-      logger.info('Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}', {
-        transferId: transfer.id,
-        invoiceId: invoice.id,
-        fundDestination: routingInstruction.metadata.fund_destination,
-      });
+      logger.info(
+        'Created Stripe transfer {transferId} for invoice {invoiceId} with fund_destination: {fundDestination}',
+        {
+          transferId: transfer.id,
+          invoiceId: invoice.id,
+          fundDestination: routingInstruction.metadata.fund_destination,
+        }
+      );
     }
 
     await db.transaction(async (tx) => {
@@ -145,7 +145,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
             stripe_payment_intent_id: paymentIntentId,
             stripe_transfer_id: transfer.id,
           },
-          tx,
+          tx
         );
 
         // 3. Create billing_transaction record with transfer ID
@@ -181,7 +181,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
             stripe_charge_id: chargeId,
             stripe_payment_intent_id: paymentIntentId,
           },
-          tx,
+          tx
         );
       }
 
@@ -350,22 +350,25 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<Result<
         }
       }
 
-      await InvoicePaid.dispatch({
-        invoice_id: invoice.id,
-        organization_id: invoice.organization_id,
-        matter_id: invoice.matter_id,
-        stripe_invoice_id: stripeInvoice.id,
-        amount_paid: stripeInvoice.amount_paid,
-        retainer_deducted: !!invoice.payment_from_retainer,
-        retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
-        metered_fee_cents: meteredFeeCents,
-      }, {
-        actorId: 'webhook',
-        actorType: 'webhook',
-        organizationId: invoice.organization_id,
-        tx,
-        critical: true,
-      });
+      await InvoicePaid.dispatch(
+        {
+          invoice_id: invoice.id,
+          organization_id: invoice.organization_id,
+          matter_id: invoice.matter_id,
+          stripe_invoice_id: stripeInvoice.id,
+          amount_paid: stripeInvoice.amount_paid,
+          retainer_deducted: !!invoice.payment_from_retainer,
+          retainer_amount_deducted: invoice.payment_from_retainer ? stripeInvoice.amount_paid : undefined,
+          metered_fee_cents: meteredFeeCents,
+        },
+        {
+          actorId: 'webhook',
+          actorType: 'webhook',
+          organizationId: invoice.organization_id,
+          tx,
+          critical: true,
+        }
+      );
     });
 
     logger.info('✅ Invoice {invoiceId} marked as paid', { invoiceId: invoice.id });

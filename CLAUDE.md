@@ -25,7 +25,7 @@
 2. **NEVER use `console.log`** — Use LogTape: `getLogger(['module', 'context'])`
 3. **NEVER use `z` from `zod` directly** — Import from `@hono/zod-openapi`
 4. **NEVER use `z.string().uuid()`** — Use `z.uuid()` (Zod v4)
-5. **NEVER throw for expected failures** — Use the `Result<T>` pattern from `@/shared/utils/result`
+5. **Use throw-based error handling** — Services throw `HTTPException` for expected failures (404, 400, 401, 409, 422) and raw `Error` for 500s. Never return `Result<T>` from services.
 6. **NEVER use `any`** — ESLint enforces `@typescript-eslint/no-explicit-any: error`
 7. **API interfaces are `snake_case`** — Database columns, request/response fields are all `snake_case`
 8. **Internal TypeScript is `camelCase`** — Variable names, function names, local logic
@@ -83,7 +83,7 @@ src/
         index.ts                   # Re-exports all routes as single `routes` object
         core.routes.ts             # Main CRUD routes
         <sub>.routes.ts            # Sub-resource routes
-      services/                    # Business logic (Result<T> pattern)
+      services/                    # Business logic (throw-based, max ~200 lines per file)
         <name>.service.ts
       database/
         schema/                    # Drizzle table definitions + relations
@@ -108,7 +108,7 @@ src/
     router/                        # Hono app factory, module router, route builder
     schemas/                       # Shared Zod schemas
     services/                      # Shared services
-    types/                         # Result<T>, AppContext, ServiceContext, etc.
+    types/                         # AppContext, ServiceContext, pagination, etc.
     utils/                         # Response utils, result helpers, env
     validations/                   # OpenAPI error schemas, common validators
 ```
@@ -121,19 +121,98 @@ Modules are auto-discovered at build time via generated registries:
 - `src/shared/router/configs.generated.ts` — Module middleware configs
 - Mounted at `/api/<module-name>` automatically by `registerModuleRoutes()`
 
-### Handler → Service → Repository Flow
-```
-Handler (thin)  →  Service (business logic, Result<T>)  →  Repository (Drizzle queries)
-     ↓                        ↓                                    ↓
-  c.req.valid()     ServiceContext (userId, orgId, ability, emit)   db / tx
-  response.fromResult()   result.ok() / result.notFound()         .returning()
+### Handler Pattern (Thin)
+
+Handlers are 3-8 lines with no business logic:
+
+```typescript
+// handlers.ts
+const createThingHandler: AppRouteHandler<typeof routes.createThingRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+
+  const thing = await thingService.createThing({ data: body }, ctx); // throws on error
+  return c.json(thing, 201);
+};
 ```
 
+**Rules:**
+- Always use `getServiceContext(c)` — never extract `user`, `orgId`, `headers` manually
+- Never write `if (!user) return ...` — middleware handles auth checks
+- Use Hono `c.json(...)` for all JSON responses
+- Pass all service inputs as a single object `{ data, ... }` + `ctx`
+
+### Service Pattern (Business Logic with Throws)
+
+Services return data directly and throw for errors (max ~200 lines per file, ~50 lines per function):
+
+```typescript
+// thing.service.ts
+const createThing = async (
+  { data }: { data: CreateThingRequest },
+  ctx: ServiceContext,
+): Promise<ThingRecord> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Thing');
+
+  return await db.transaction(async (tx) => {
+    const [newRecord] = await tx.insert(things).values({ ... }).returning();
+    if (!newRecord) {
+      throw new HTTPException(500, { message: 'Failed to create Thing' });
+    }
+    await ctx.emit(ThingCreated, { ... }, tx);
+    return newRecord;
+  });
+};
+```
+
+**Rules:**
+- Max 2 parameters: `(params, ctx)` — params is an object, ctx is ServiceContext
+- Return data directly — do **not** return `Result<T>` objects
+- Throw `HTTPException` for expected failures (404, 400, 401, 409, 422)
+- Throw raw `Error` for unexpected failures (500)
+- CASL check first via `ForbiddenError.from(ctx.ability).throwUnlessCan(...)`
+- Special case: webhook/worker services throw raw `Error` to trigger retry logic
+
+### Error Handling Mapping
+
+Services use throw-based error handling instead of `Result<T>`:
+
+| Situation              | Pattern                                    | Status |
+| ---------------------- | ------------------------------------------ | ------ |
+| Not found              | `throw new HTTPException(404, { message })` | 404    |
+| Bad input              | `throw new HTTPException(400, { message })` | 400    |
+| Unauthorized           | `throw new HTTPException(401, { message })` | 401    |
+| Access denied (CASL)   | `ForbiddenError.from(ctx.ability).throwUnlessCan(...)` | 403 |
+| Conflict               | `throw new HTTPException(409, { message })` | 409    |
+| Unprocessable          | `throw new HTTPException(422, { message })` | 422    |
+| Server error           | `throw new Error(msg)` (caught as 500)    | 500    |
+
+### Paginated Response Pattern
+
+For list endpoints with offset-based pagination:
+
+```typescript
+// handlers.ts
+const listThingsHandler: AppRouteHandler<typeof routes.listThingsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+
+  const response = await thingService.listThings(query, ctx);
+  return c.json(response);
+};
+```
+
+**Rules:**
+- Use `OffsetPaginatedResponse<T>` or `CursorPaginatedResponse<T>` from `@/shared/types/pagination`
+- Response must have `data` array at the root (not module-specific names)
+- Service returns complete pagination metadata via `pagination` or `page_info`
+
 ### ServiceContext
+
 Every handler extracts context via `getServiceContext(c)`:
 ```typescript
 const ctx = getServiceContext(c);
-// ctx.userId, ctx.organizationId, ctx.ability, ctx.memberRole, ctx.emit()
+// ctx.userId, ctx.organizationId, ctx.ability, ctx.memberRole, ctx.matterId, ctx.emit()
 ```
 
 ### Event System
