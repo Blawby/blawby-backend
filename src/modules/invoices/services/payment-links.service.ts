@@ -16,6 +16,8 @@ const logger = getLogger(['invoices', 'payment-links']);
 
 const PAYMENT_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+type Executor = typeof db;
+
 /**
  * Payment Links Service
  *
@@ -25,10 +27,14 @@ export const paymentLinksService = {
   /**
    * Create or retrieve an active payment link for an invoice
    */
-  async createPaymentLink(invoiceId: string, organizationId: string): Promise<Result<SelectPaymentLink>> {
+  async createPaymentLink(
+    invoiceId: string,
+    organizationId: string,
+    executor: Executor = db
+  ): Promise<Result<SelectPaymentLink>> {
     try {
       // 1. Check for existing active link
-      const existing = await db.query.paymentLinks.findFirst({
+      const existing = await executor.query.paymentLinks.findFirst({
         where: and(
           eq(paymentLinks.invoice_id, invoiceId),
           eq(paymentLinks.status, 'active'),
@@ -41,7 +47,7 @@ export const paymentLinksService = {
       }
 
       // 2. Fetch invoice to get amount
-      const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId);
+      const invoice = await invoicesRepository.findInvoiceById(invoiceId, organizationId, executor);
       if (!invoice) {
         return result.notFound('Invoice not found');
       }
@@ -62,7 +68,7 @@ export const paymentLinksService = {
         expires_at: new Date(Date.now() + PAYMENT_LINK_TTL_MS),
       };
 
-      const [link] = await db.insert(paymentLinks).values(insertData).returning();
+      const [link] = await executor.insert(paymentLinks).values(insertData).returning();
 
       return result.ok(link);
     } catch (error) {
@@ -78,9 +84,9 @@ export const paymentLinksService = {
   /**
    * Find invoice by payment token (Public)
    */
-  async getInvoiceByToken(token: string): Promise<Result<unknown>> {
+  async getInvoiceByToken(token: string, executor: Executor = db): Promise<Result<unknown>> {
     try {
-      const link = await db.query.paymentLinks.findFirst({
+      const link = await executor.query.paymentLinks.findFirst({
         where: and(eq(paymentLinks.token, token), eq(paymentLinks.status, 'active')),
         with: {
           invoice: {
@@ -104,12 +110,12 @@ export const paymentLinksService = {
 
       // Check expiration
       if (link.expires_at && link.expires_at < new Date()) {
-        await db.update(paymentLinks).set({ status: 'expired' }).where(eq(paymentLinks.id, link.id));
+        await executor.update(paymentLinks).set({ status: 'expired' }).where(eq(paymentLinks.id, link.id));
         return result.notFound('Payment link expired');
       }
 
       // Update accessed_at
-      await db.update(paymentLinks).set({ accessed_at: new Date() }).where(eq(paymentLinks.id, link.id));
+      await executor.update(paymentLinks).set({ accessed_at: new Date() }).where(eq(paymentLinks.id, link.id));
 
       return result.ok(link.invoice);
     } catch (error) {
@@ -118,4 +124,4 @@ export const paymentLinksService = {
       return result.internalError('Failed to retrieve invoice');
     }
   },
-};
+} as const;

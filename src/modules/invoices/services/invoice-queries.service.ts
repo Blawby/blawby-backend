@@ -8,9 +8,9 @@ import type {
   InvoiceSummary,
 } from '@/modules/invoices/types/invoices.types';
 import { toSubject } from '@/shared/auth/subject-helpers';
-import type { PaginatedResult, PaginatedData, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
+import type { PaginatedResponse } from '@/shared/types/pagination';
+import { createAppError } from '@/shared/types/errors';
 
 const logger = getLogger(['invoices', 'queries-service']);
 
@@ -69,9 +69,9 @@ const transformSummaryResponse = (invoice: InvoiceSummary): InvoiceResponse => (
 const listInvoices = async (
   { filters }: { filters: ListInvoicesQuery },
   ctx: ServiceContext
-): Promise<PaginatedResult<InvoiceResponse, 'invoices'>> => {
+): Promise<PaginatedResponse<InvoiceResponse>> => {
   if (ctx.ability.cannot('read', 'Invoice')) {
-    return result.forbidden<PaginatedData<InvoiceResponse, 'invoices'>>('You do not have permission to view invoices');
+    throw createAppError('INVOICE_LISTING_FORBIDDEN', 403, 'You do not have permission to view invoices');
   }
 
   try {
@@ -83,17 +83,22 @@ const listInvoices = async (
       limit: filters.limit,
     });
 
-    return result.ok<PaginatedData<InvoiceResponse, 'invoices'>>({
-      invoices: list.map(transformSummaryResponse),
-      total,
-    });
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+
+    return {
+      data: list.map(transformSummaryResponse),
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to list invoices {organizationId}: {error}', {
+    throw createAppError('INVOICE_LISTING_FAILED', 500, 'Failed to list invoices', {
       organizationId: ctx.organizationId,
-      error: message,
+      cause: error instanceof Error ? error.message : 'Unknown error',
     });
-    return result.internalError<PaginatedData<InvoiceResponse, 'invoices'>>('Failed to list invoices');
   }
 };
 
@@ -103,19 +108,19 @@ const listInvoices = async (
 const listClientInvoices = async (
   { filters }: { filters: { status?: string; page?: number; limit?: number } },
   ctx: ServiceContext
-): Promise<Result<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }>> => {
+): Promise<{ invoices: InvoiceResponse[]; pagination: { page: number; limit: number; total: number } }> => {
   try {
     if (!ctx.userId) {
-      return result.unauthorized('Authentication required');
+      throw createAppError('AUTHENTICATION_REQUIRED', 401, 'Authentication required');
     }
 
     if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-      return result.forbidden('You do not have permission to view invoices');
+      throw createAppError('INVOICE_LISTING_FORBIDDEN', 403, 'You do not have permission to view invoices');
     }
 
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) {
-      return userDetailResult;
+      throw createAppError('USER_DETAIL_NOT_FOUND', 404, 'User detail not found');
     }
 
     const page = filters.page ?? 1;
@@ -127,42 +132,46 @@ const listClientInvoices = async (
       { status: filters.status, page, limit }
     );
 
-    return result.ok({
+    return {
       invoices: list.map(transformSummaryResponse),
       pagination: { page, limit, total },
-    });
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to list client invoices {userId}: {error}', {
+    throw createAppError('INVOICE_LISTING_FAILED', 500, 'Failed to list client invoices', {
       userId: ctx.userId,
-      error: message,
+      cause: error instanceof Error ? error.message : 'Unknown error',
     });
-    return result.internalError('Failed to list client invoices');
   }
 };
 
 /**
  * Get a single invoice by ID (practice admin/member view)
  */
-const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<InvoiceResponse>> => {
+const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Promise<InvoiceResponse> => {
   try {
     if (ctx.ability.cannot('read', 'Invoice')) {
-      return result.forbidden<InvoiceResponse>('You do not have permission to view this invoice');
+      throw createAppError('INVOICE_VIEW_FORBIDDEN', 403, 'You do not have permission to view this invoice');
     }
 
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
-      return result.notFound('Invoice not found');
+      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+      });
     }
 
-    return result.ok(transformInvoiceResponse(invoice));
+    return transformInvoiceResponse(invoice);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    return result.internalError('Failed to get invoice');
+    throw createAppError('INVOICE_RETRIEVAL_FAILED', 500, 'Failed to get invoice', {
+      invoiceId: id,
+      cause: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 
@@ -172,19 +181,19 @@ const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Prom
 const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
   ctx: ServiceContext
-): Promise<Result<InvoiceResponse>> => {
+): Promise<InvoiceResponse> => {
   try {
     if (!ctx.userId) {
-      return result.unauthorized('Authentication required');
+      throw createAppError('AUTHENTICATION_REQUIRED', 401, 'Authentication required');
     }
 
     if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-      return result.forbidden('You do not have permission to view this invoice');
+      throw createAppError('INVOICE_VIEW_FORBIDDEN', 403, 'You do not have permission to view this invoice');
     }
 
     const userDetailResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     if (!userDetailResult.success) {
-      return userDetailResult;
+      throw createAppError('USER_DETAIL_NOT_FOUND', 404, 'User detail not found');
     }
 
     const invoice = await invoicesRepository.findOneByIdAndClientId(
@@ -193,17 +202,23 @@ const getClientInvoiceDetail = async (
       userDetailResult.data
     );
     if (!invoice) {
-      return result.notFound('Invoice not found');
+      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+        invoiceId,
+        organizationId: ctx.organizationId,
+      });
     }
 
-    return result.ok(transformInvoiceResponse(invoice));
+    return transformInvoiceResponse(invoice);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get client invoice {invoiceId}: {error}', {
       invoiceId,
       error: message,
     });
-    return result.internalError('Failed to get client invoice');
+    throw createAppError('INVOICE_RETRIEVAL_FAILED', 500, 'Failed to get client invoice', {
+      invoiceId,
+      cause: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 };
 

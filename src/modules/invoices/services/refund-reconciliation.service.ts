@@ -15,7 +15,7 @@ const logger = getLogger(['invoices', 'refund-reconciliation']);
 const getStoredRefundEventPayload = (
   claimedReq: Awaited<ReturnType<typeof refundRequestsQueries.findById>>,
   invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>,
-  organizationId: string,
+  organizationId: string
 ): RefundEventPayload | null => {
   if (!claimedReq) return null;
 
@@ -27,20 +27,21 @@ const getStoredRefundEventPayload = (
       return true;
     }
 
-    return typeof claimedReq.stripe_refund_id === 'string'
-      && typeof metadata?.stripe_refund_id === 'string'
-      && metadata.stripe_refund_id === claimedReq.stripe_refund_id;
+    return (
+      typeof claimedReq.stripe_refund_id === 'string' &&
+      typeof metadata?.stripe_refund_id === 'string' &&
+      metadata.stripe_refund_id === claimedReq.stripe_refund_id
+    );
   });
 
   if (!matchingRefundTx) return null;
 
   const metadata = matchingRefundTx.metadata as Record<string, unknown> | null | undefined;
-  const payoutFeeCreditCents = typeof metadata?.payout_fee_credit_cents === 'number'
-    ? metadata.payout_fee_credit_cents
-    : matchingRefundTx.metered_fee_cents;
-  const creditInvoiceFee = typeof metadata?.credit_invoice_fee === 'boolean'
-    ? metadata.credit_invoice_fee
-    : false;
+  const payoutFeeCreditCents =
+    typeof metadata?.payout_fee_credit_cents === 'number'
+      ? metadata.payout_fee_credit_cents
+      : matchingRefundTx.metered_fee_cents;
+  const creditInvoiceFee = typeof metadata?.credit_invoice_fee === 'boolean' ? metadata.credit_invoice_fee : false;
 
   return {
     invoice_id: claimedReq.invoice_id,
@@ -52,34 +53,40 @@ const getStoredRefundEventPayload = (
   };
 };
 
-export const reconcileRefundExecution = async (opts: {
-  organizationId: string;
-  requestId: string;
-  executorUserId: string;
-  stripePaymentIntentId: string;
-  stripeTransferId: string | null;
-  stripeRefundId: string | null;
-  refundedAmount: number;
-}, deps: {
-  findRefundRequestById: typeof refundRequestsQueries.findById;
-  findInvoiceById: typeof invoicesRepository.findInvoiceById;
-  listBillingTransactionsByInvoiceId: typeof billingTransactionsRepository.listByInvoiceId;
-  persistExecutedRefund: typeof refundExecutionPersistenceService.persistExecutedRefund;
-  buildRefundEventPayload: typeof refundExecutionPersistenceService.buildRefundEventPayload;
-  dispatchInvoiceRefunded: (payload: RefundEventPayload, options: {
-    actorId: string;
-    actorType: 'user';
+export const reconcileRefundExecution = async (
+  opts: {
     organizationId: string;
-    critical: true;
-  }) => string | Promise<string>;
-} = {
-  findRefundRequestById: refundRequestsQueries.findById,
-  findInvoiceById: invoicesRepository.findInvoiceById,
-  listBillingTransactionsByInvoiceId: billingTransactionsRepository.listByInvoiceId,
-  persistExecutedRefund: refundExecutionPersistenceService.persistExecutedRefund,
-  buildRefundEventPayload: refundExecutionPersistenceService.buildRefundEventPayload,
-  dispatchInvoiceRefunded: (payload, options) => InvoiceRefunded.dispatch(payload, options),
-}): Promise<Result<{ repaired: boolean; dispatched: boolean }>> => {
+    requestId: string;
+    executorUserId: string;
+    stripePaymentIntentId: string;
+    stripeTransferId: string | null;
+    stripeRefundId: string | null;
+    refundedAmount: number;
+  },
+  deps: {
+    findRefundRequestById: typeof refundRequestsQueries.findById;
+    findInvoiceById: typeof invoicesRepository.findInvoiceById;
+    listBillingTransactionsByInvoiceId: typeof billingTransactionsRepository.listByInvoiceId;
+    persistExecutedRefund: typeof refundExecutionPersistenceService.persistExecutedRefund;
+    buildRefundEventPayload: typeof refundExecutionPersistenceService.buildRefundEventPayload;
+    dispatchInvoiceRefunded: (
+      payload: RefundEventPayload,
+      options: {
+        actorId: string;
+        actorType: 'user';
+        organizationId: string;
+        critical: true;
+      }
+    ) => string | Promise<string>;
+  } = {
+    findRefundRequestById: refundRequestsQueries.findById,
+    findInvoiceById: invoicesRepository.findInvoiceById,
+    listBillingTransactionsByInvoiceId: billingTransactionsRepository.listByInvoiceId,
+    persistExecutedRefund: refundExecutionPersistenceService.persistExecutedRefund,
+    buildRefundEventPayload: refundExecutionPersistenceService.buildRefundEventPayload,
+    dispatchInvoiceRefunded: (payload, options) => InvoiceRefunded.dispatch(payload, options),
+  }
+): Promise<Result<{ repaired: boolean; dispatched: boolean }>> => {
   const claimedReq = await deps.findRefundRequestById(opts.requestId, opts.organizationId);
   if (!claimedReq) {
     return result.notFound('Refund request not found for reconciliation');
@@ -96,14 +103,15 @@ export const reconcileRefundExecution = async (opts: {
   let refundEventPayload;
 
   if (claimedReq.status === 'executed') {
-    refundEventPayload = getStoredRefundEventPayload(claimedReq, invoiceTxs, opts.organizationId)
-      ?? await deps.buildRefundEventPayload({
+    refundEventPayload =
+      getStoredRefundEventPayload(claimedReq, invoiceTxs, opts.organizationId) ??
+      (await deps.buildRefundEventPayload({
         organizationId: opts.organizationId,
         claimedReq,
         invoice,
         invoiceTxs,
         refundedAmount: claimedReq.executed_amount ?? opts.refundedAmount,
-      });
+      }));
   } else if (claimedReq.status === 'executing') {
     const persisted = await deps.persistExecutedRefund({
       organizationId: opts.organizationId,
@@ -126,7 +134,9 @@ export const reconcileRefundExecution = async (opts: {
     refundEventPayload = persisted.refundEventPayload;
     repaired = true;
   } else {
-    return result.badRequest(`Refund request ${opts.requestId} is in unsupported status ${claimedReq.status} for reconciliation`);
+    return result.badRequest(
+      `Refund request ${opts.requestId} is in unsupported status ${claimedReq.status} for reconciliation`
+    );
   }
 
   try {

@@ -8,11 +8,10 @@ import type {
   InvoiceTotals,
   InvoiceLineItemInput,
 } from '@/modules/invoices/types/invoices.types';
-import { db } from '@/shared/database';
+// Db executor is provided via ServiceContext (ctx.db)
 import { InvoiceUpdated, InvoiceDeleted } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
+import { createAppError, createValidationError, createTransactionError } from '@/shared/types/errors';
 
 const logger = getLogger(['invoices', 'lifecycle-service']);
 
@@ -27,9 +26,9 @@ const syncLineItems = async (
     invoiceId: string;
     lineItems: InvoiceLineItemInput[];
   },
-  tx: typeof db
+  executor: ServiceContext['db']
 ): Promise<void> => {
-  await invoicesRepository.deleteInvoiceLineItems(invoiceId, tx);
+  await invoicesRepository.deleteInvoiceLineItems(invoiceId, executor);
   await invoicesRepository.createInvoiceLineItems(
     lineItems.map((item, index) => ({
       ...item,
@@ -38,7 +37,7 @@ const syncLineItems = async (
       line_total: item.quantity * item.unit_price,
       sort_order: item.sort_order ?? index,
     })),
-    tx
+    executor
   );
 };
 
@@ -66,14 +65,17 @@ const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotal
 const updateInvoice = async (
   { id, data }: { id: string; data: UpdateInvoiceRequest },
   ctx: ServiceContext
-): Promise<Result<InvoiceResponse>> => {
+): Promise<InvoiceResponse> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      return result.notFound('Invoice not found');
+      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+      });
     }
 
     // Only allow updating non-draft invoices if updating status ONLY
@@ -82,106 +84,144 @@ const updateInvoice = async (
       const isStatusOnlyUpdate = updateKeys.length === 1 && updateKeys[0] === 'status';
 
       if (!isStatusOnlyUpdate) {
-        return result.badRequest<InvoiceResponse>('Only draft invoices can be modified (except status updates)');
+        throw createValidationError(
+          'INVOICE_NOT_DRAFT',
+          'Only draft invoices can be modified (except status updates)',
+          {
+            invoiceId: id,
+            currentStatus: existing.status,
+          }
+        );
       }
     }
 
     const { line_items, ...invoiceData } = data;
 
-    const updatedInvoice = await db.transaction(async (tx) => {
-      let totals = {};
-      if (line_items) {
-        totals = calculateInvoiceTotals(line_items);
-        await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
-      }
-
-      await invoicesRepository.updateInvoice(
-        id,
-        ctx.organizationId,
-        {
-          ...invoiceData,
-          ...totals,
-          due_date: data.due_date ? new Date(data.due_date) : undefined,
-        },
-        tx
-      );
-
-      const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
-      if (updated) {
-        await InvoiceUpdated.dispatch(
-          {
-            invoice_id: id,
-            organization_id: ctx.organizationId,
-            changes: data,
-          },
-          {
-            actorId: ctx.userId,
-            actorType: 'user',
-            organizationId: ctx.organizationId,
-            tx,
-          }
-        );
-      }
-
-      return updated;
-    });
-
-    if (!updatedInvoice) {
-      return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
+    const executor = ctx.db;
+    let totals = {};
+    if (line_items) {
+      totals = calculateInvoiceTotals(line_items);
+      await syncLineItems({ invoiceId: id, lineItems: line_items }, executor);
     }
 
-    return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(updatedInvoice));
+    await invoicesRepository.updateInvoice(
+      id,
+      ctx.organizationId,
+      {
+        ...invoiceData,
+        ...totals,
+        due_date: data.due_date ? new Date(data.due_date) : undefined,
+      },
+      executor
+    );
+
+    const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId, executor);
+    if (updated) {
+      await InvoiceUpdated.dispatch(
+        {
+          invoice_id: id,
+          organization_id: ctx.organizationId,
+          changes: data,
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+          tx: executor,
+        }
+      );
+    }
+
+    if (!updated) {
+      throw createAppError('INVOICE_RETRIEVAL_FAILED', 500, 'Failed to retrieve updated invoice', {
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+      });
+    }
+
+    return invoiceQueriesService.transformInvoiceResponse(updated);
   } catch (error) {
+    // Re-throw AppErrors as-is
+    if (error && typeof error === 'object' && 'kind' in error) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    return result.internalError<InvoiceResponse>('Failed to update invoice');
+    throw createTransactionError(
+      'INVOICE_UPDATE_FAILED',
+      'Failed to update invoice',
+      {
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+      },
+      error instanceof Error ? error : new Error(String(error))
+    );
   }
 };
 
 /**
  * Soft delete an invoice
  */
-const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<{ success: true }>> => {
+const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<{ success: true }> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Invoice');
 
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      return result.notFound<{ success: true }>('Invoice not found');
+      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+      });
     }
 
     if (existing.status !== 'draft') {
-      return result.badRequest<{ success: true }>('Only draft invoices can be deleted');
+      throw createValidationError('INVOICE_NOT_DRAFT', 'Only draft invoices can be deleted', {
+        invoiceId: id,
+        currentStatus: existing.status,
+      });
     }
 
-    await db.transaction(async (tx) => {
-      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, tx);
-      await InvoiceDeleted.dispatch(
-        {
-          invoice_id: id,
-          organization_id: ctx.organizationId,
-          deleted_by: 'user',
-        },
-        {
-          actorId: ctx.userId,
-          actorType: 'user',
-          organizationId: ctx.organizationId,
-          tx,
-        }
-      );
-    });
-    return result.ok<{ success: true }>({ success: true });
+    const executor = ctx.db;
+    await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, executor);
+    await InvoiceDeleted.dispatch(
+      {
+        invoice_id: id,
+        organization_id: ctx.organizationId,
+        deleted_by: 'user',
+      },
+      {
+        actorId: ctx.userId,
+        actorType: 'user',
+        organizationId: ctx.organizationId,
+        tx: executor,
+      }
+    );
+    return { success: true };
   } catch (error) {
+    // Re-throw AppErrors as-is
+    if (error && typeof error === 'object' && 'kind' in error) {
+      throw error;
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    return result.internalError<{ success: true }>('Failed to delete invoice');
+    throw createTransactionError(
+      'INVOICE_DELETE_FAILED',
+      'Failed to delete invoice',
+      {
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+      },
+      error instanceof Error ? error : new Error(String(error))
+    );
   }
 };
 

@@ -3,7 +3,10 @@ import type { Result } from '@/shared/types/result';
 import { ok, badRequest } from '@/shared/utils/result';
 
 export type FundDestination = 'operating' | 'trust';
-type FundRoutingInvoice = Pick<SelectInvoice, 'id' | 'fund_destination' | 'matter_id' | 'invoice_number' | 'invoice_type'>;
+type FundRoutingInvoice = Pick<
+  SelectInvoice,
+  'id' | 'fund_destination' | 'matter_id' | 'invoice_number' | 'invoice_type'
+>;
 
 const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust'] as const;
 

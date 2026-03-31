@@ -20,36 +20,42 @@ import { addMeteredUsageJob } from '@/shared/queue/queue.manager';
 
 const logger = getLogger(['invoices', 'listeners']);
 
-export const reportMeteredUsageWithRetry = async (opts: {
-  organizationId: string;
-  meteredType: typeof METERED_TYPES[keyof typeof METERED_TYPES];
-  quantity: number;
-  deduplicationId: string;
-  invoiceId: string;
-  failureLabel: string;
-}, deps: {
-  reportMeteredUsage: typeof meteredProductsService.reportMeteredUsage;
-  queueMeteredUsageJob: typeof addMeteredUsageJob;
-  dispatchSystemError: (payload: {
-    error: string;
-    context: Record<string, unknown>;
-  }, options: {
-      actorId: 'system';
-      actorType: 'system';
-      organizationId: string;
-      critical: true;
-    }) => string | Promise<string>;
-} = {
-  reportMeteredUsage: meteredProductsService.reportMeteredUsage.bind(meteredProductsService),
-  queueMeteredUsageJob: addMeteredUsageJob,
-  dispatchSystemError: (payload, options) => SystemErrorOccurred.dispatch(payload, options),
-}): Promise<void> => {
+export const reportMeteredUsageWithRetry = async (
+  opts: {
+    organizationId: string;
+    meteredType: (typeof METERED_TYPES)[keyof typeof METERED_TYPES];
+    quantity: number;
+    deduplicationId: string;
+    invoiceId: string;
+    failureLabel: string;
+  },
+  deps: {
+    reportMeteredUsage: typeof meteredProductsService.reportMeteredUsage;
+    queueMeteredUsageJob: typeof addMeteredUsageJob;
+    dispatchSystemError: (
+      payload: {
+        error: string;
+        context: Record<string, unknown>;
+      },
+      options: {
+        actorId: 'system';
+        actorType: 'system';
+        organizationId: string;
+        critical: true;
+      }
+    ) => string | Promise<string>;
+  } = {
+    reportMeteredUsage: meteredProductsService.reportMeteredUsage.bind(meteredProductsService),
+    queueMeteredUsageJob: addMeteredUsageJob,
+    dispatchSystemError: (payload, options) => SystemErrorOccurred.dispatch(payload, options),
+  }
+): Promise<void> => {
   const usageResult = await deps.reportMeteredUsage(
     db,
     opts.organizationId,
     opts.meteredType,
     opts.quantity,
-    opts.deduplicationId,
+    opts.deduplicationId
   );
 
   if (usageResult.success) {
@@ -85,24 +91,27 @@ export const reportMeteredUsageWithRetry = async (opts: {
     });
 
     try {
-      await deps.dispatchSystemError({
-        error: 'Failed to report metered usage and failed to queue retry',
-        context: {
-          organizationId: opts.organizationId,
-          invoiceId: opts.invoiceId,
-          meteredType: opts.meteredType,
-          quantity: opts.quantity,
-          deduplicationId: opts.deduplicationId,
-          failureLabel: opts.failureLabel,
-          meteredError: usageResult.error.message,
-          queueError: queueError instanceof Error ? queueError.message : 'Unknown error',
+      await deps.dispatchSystemError(
+        {
+          error: 'Failed to report metered usage and failed to queue retry',
+          context: {
+            organizationId: opts.organizationId,
+            invoiceId: opts.invoiceId,
+            meteredType: opts.meteredType,
+            quantity: opts.quantity,
+            deduplicationId: opts.deduplicationId,
+            failureLabel: opts.failureLabel,
+            meteredError: usageResult.error.message,
+            queueError: queueError instanceof Error ? queueError.message : 'Unknown error',
+          },
         },
-      }, {
-        actorId: 'system',
-        actorType: 'system',
-        organizationId: opts.organizationId,
-        critical: true,
-      });
+        {
+          actorId: 'system',
+          actorType: 'system',
+          organizationId: opts.organizationId,
+          critical: true,
+        }
+      );
     } catch (dispatchError) {
       dispatchErrorMessage = dispatchError instanceof Error ? dispatchError.message : 'Unknown error';
       logger.error('Failed to dispatch SystemErrorOccurred for invoice {invoiceId}: {error}', {
@@ -113,12 +122,13 @@ export const reportMeteredUsageWithRetry = async (opts: {
 
     if (dispatchErrorMessage) {
       throw new Error(
-        `Failed to queue metered usage retry (${queueError instanceof Error ? queueError.message : 'Unknown error'}); `
-        + `failed to dispatch SystemErrorOccurred (${dispatchErrorMessage})`,
+        `Failed to queue metered usage retry (${queueError instanceof Error ? queueError.message : 'Unknown error'}); ` +
+          `failed to dispatch SystemErrorOccurred (${dispatchErrorMessage})`,
+        { cause: queueError }
       );
     }
 
-    throw (queueError instanceof Error ? queueError : new Error('Failed to queue metered usage retry'));
+    throw queueError instanceof Error ? queueError : new Error('Failed to queue metered usage retry');
   }
 };
 
@@ -158,7 +168,7 @@ export function registerInvoicesListeners(): void {
     });
 
     // 2. Payout fee — use the persisted payout transaction as the single
-    //    source of truth so listener retries and refund credits stay aligned.
+    //    Source of truth so listener retries and refund credits stay aligned.
     const meteredFeeCents = await loadRequiredPayoutMeteredFeeCents(invoice_id);
 
     if (meteredFeeCents > 0) {
@@ -178,13 +188,7 @@ export function registerInvoicesListeners(): void {
   });
 
   Event.listen(InvoiceRefunded, async (payload) => {
-    const {
-      invoice_id,
-      organization_id,
-      payout_fee_credit_cents,
-      credit_invoice_fee,
-      refund_request_id,
-    } = payload;
+    const { invoice_id, organization_id, payout_fee_credit_cents, credit_invoice_fee, refund_request_id } = payload;
 
     if (credit_invoice_fee) {
       await reportMeteredUsageWithRetry({

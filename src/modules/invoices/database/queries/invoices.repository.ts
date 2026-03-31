@@ -1,10 +1,11 @@
 import { eq, and, isNull, sql, desc } from 'drizzle-orm';
-import { invoicesSchema, invoiceLineItemsSchema } from '@/modules/invoices/database/schema';
-import type {
-  InsertInvoice,
-  SelectInvoice,
-  InsertInvoiceLineItem,
-  SelectInvoiceLineItem,
+import {
+  invoicesSchema,
+  invoiceLineItemsSchema,
+  type InsertInvoice,
+  type InsertInvoiceLineItem,
+  type SelectInvoice,
+  type SelectInvoiceLineItem,
 } from '@/modules/invoices/database/schema';
 import type { InvoiceListFilters, InvoiceSummary, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';

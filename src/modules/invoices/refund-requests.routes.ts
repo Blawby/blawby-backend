@@ -1,34 +1,40 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import {
-  errorResponseSchema,
-  notFoundResponseSchema,
-  practiceIdParamSchema,
-} from '@/shared/validations/openapi';
+import { errorResponseSchema, notFoundResponseSchema, practiceIdParamSchema } from '@/shared/validations/openapi';
 
-export const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing']);
+export const refundStatusEnum = z.enum([
+  'requested',
+  'approved',
+  'rejected',
+  'executed',
+  'failed',
+  'cancelled',
+  'executing',
+]);
 
-export const refundRequestSchema = z.object({
-  id: z.uuid(),
-  organization_id: z.uuid(),
-  invoice_id: z.uuid(),
-  client_user_details_id: z.uuid(),
-  created_by_user_details_id: z.uuid(),
-  requested_amount: z.number(),
-  currency: z.string(),
-  reason: z.string(),
-  notes: z.string().nullable(),
-  status: refundStatusEnum,
-  stripe_refund_id: z.string().nullable(),
-  stripe_payment_intent_id: z.string().nullable(),
-  executed_amount: z.number().nullable(),
-  executed_at: z.string().datetime().nullable(),
-  executed_by_user_id: z.uuid().nullable(),
-  reviewed_at: z.string().datetime().nullable(),
-  reviewed_by_user_id: z.uuid().nullable(),
-  review_notes: z.string().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-}).openapi('RefundRequest', { description: 'A client refund request' });
+export const refundRequestSchema = z
+  .object({
+    id: z.uuid(),
+    organization_id: z.uuid(),
+    invoice_id: z.uuid(),
+    client_user_details_id: z.uuid(),
+    created_by_user_details_id: z.uuid(),
+    requested_amount: z.number(),
+    currency: z.string(),
+    reason: z.string(),
+    notes: z.string().nullable(),
+    status: refundStatusEnum,
+    stripe_refund_id: z.string().nullable(),
+    stripe_payment_intent_id: z.string().nullable(),
+    executed_amount: z.number().nullable(),
+    executed_at: z.string().datetime().nullable(),
+    executed_by_user_id: z.uuid().nullable(),
+    reviewed_at: z.string().datetime().nullable(),
+    reviewed_by_user_id: z.uuid().nullable(),
+    review_notes: z.string().nullable(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+  })
+  .openapi('RefundRequest', { description: 'A client refund request' });
 
 const refundRequestIdParam = practiceIdParamSchema.extend({
   id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, description: 'Refund request ID' }),
