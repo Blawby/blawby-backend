@@ -1,3 +1,5 @@
+import { config } from '@/shared/config';
+
 /**
  * Type guard to check if a value is a record (object with string keys)
  */
@@ -71,10 +73,29 @@ const isBetterAuthForbidden = (error: unknown): boolean => {
   return false;
 };
 
+/**
+ * Determine the appropriate Google redirect URI based on the request host.
+ * Supports separate configuration for local development, defaults to production/staging.
+ */
+const getGoogleRedirectUriForHost = (host?: string): string | undefined => {
+  if (!host) {
+    return config.auth.googleRedirectUri;
+  }
+
+  // Check if this is a local request
+  if (host.includes('local') || host.startsWith('localhost')) {
+    return config.auth.googleRedirectUriLocal;
+  }
+
+  // Default to production/staging URI
+  return config.auth.googleRedirectUri;
+};
+
 const betterAuthUtils = {
   getBetterAuthErrorMessage,
   parseBetterAuthMetadata,
   isBetterAuthForbidden,
+  getGoogleRedirectUriForHost,
 };
 
 export default betterAuthUtils;
