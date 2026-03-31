@@ -29,7 +29,7 @@ const authSessionAdditionalFields =
  * Internal factory to define the Better Auth configuration.
  * Used for type inference without executing betterAuth() at import time.
  */
-const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
+const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
   betterAuth({
     secret: config.auth.betterAuthSecret,
     database: drizzleAdapter(db, {
@@ -228,7 +228,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
       google: {
         clientId: config.auth.googleClientId!,
         clientSecret: config.auth.googleClientSecret,
-        redirectURI: config.auth.googleRedirectUri,
+        // Allow overriding the redirect URI per-instance (runtime selection).
+        redirectURI: googleRedirectUri ?? config.auth.googleRedirectUri,
       },
     },
     logger: {
@@ -267,16 +268,26 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>) =>
  */
 
 /**
- * Singleton instance of Better Auth
+ * Map of Better Auth instances keyed by redirect URI (use 'default' for none).
+ * This allows creating per-redirectURI instances while still reusing instances
+ * when the same redirectURI is requested repeatedly.
  */
-let authInstance: ReturnType<typeof betterAuthConfig> | null = null;
+const authInstances = new Map<string, ReturnType<typeof betterAuthConfig>>();
 
 /**
- * Singleton factory function to create or retrieve the Better Auth instance.
+ * Factory function to create or retrieve a Better Auth instance for a given
+ * optional Google redirect URI.
  */
-export const createBetterAuthInstance = (db: NodePgDatabase<typeof schema>): ReturnType<typeof betterAuthConfig> => {
-  authInstance ??= betterAuthConfig(db);
-  return authInstance;
+export const createBetterAuthInstance = (
+  db: NodePgDatabase<typeof schema>,
+  googleRedirectUri?: string
+): ReturnType<typeof betterAuthConfig> => {
+  const key = googleRedirectUri ?? 'default';
+  if (!authInstances.has(key)) {
+    authInstances.set(key, betterAuthConfig(db, googleRedirectUri));
+  }
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return authInstances.get(key)!;
 };
 
 export const auth = createBetterAuthInstance;
