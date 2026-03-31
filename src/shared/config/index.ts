@@ -34,6 +34,7 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
+    GOOGLE_REDIRECT_URI_LOCAL: z.string().optional(),
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
@@ -104,11 +105,8 @@ export const config = {
     betterAuthSecret: raw.BETTER_AUTH_SECRET,
     googleClientId: raw.GOOGLE_CLIENT_ID,
     googleClientSecret: raw.GOOGLE_CLIENT_SECRET,
-    // Support comma-separated redirect URIs in the env var.
-    // `googleRedirectUris` is the parsed list; `googleRedirectUri` is the
-    // Canonical single URI (first in the list) kept for backward compatibility.
-    googleRedirectUris: csvToArray(raw.GOOGLE_REDIRECT_URI),
-    googleRedirectUri: csvToArray(raw.GOOGLE_REDIRECT_URI)[0] ?? undefined,
+    googleRedirectUri: raw.GOOGLE_REDIRECT_URI,
+    googleRedirectUriLocal: raw.GOOGLE_REDIRECT_URI_LOCAL,
   },
   stripe: {
     secretKey: raw.STRIPE_SECRET_KEY,
