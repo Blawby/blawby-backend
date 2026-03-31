@@ -7,6 +7,7 @@ import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { config } from '@/shared/config';
 import type { BetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
@@ -28,7 +29,9 @@ const app = new Hono<AppContext>({
 });
 
 // Lazy initialization - only create when needed (after env vars are loaded)
-const getAuthInstance = (): BetterAuthInstance => createBetterAuthInstance(db);
+// Note: we may create per-redirectURI Better Auth instances when handling auth
+// requests so that the underlying library uses the correct Google redirect URI
+// for the token exchange.
 
 // Middlewares – order is important!
 app.use('*', requestId());
@@ -48,7 +51,39 @@ app.use('/api/auth/*', autoCreateOrgForSubscription()); // Auto-create org for s
 
 // Mount Better Auth handler
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
-  const authInstance = getAuthInstance();
+  // Determine request origin to pick appropriate redirect URI from
+  // `config.auth.googleRedirectUris` when available. Fall back to the
+  // canonical `config.auth.googleRedirectUri`.
+  const headerOrigin = c.req.header('origin');
+  const referer = c.req.header('referer');
+  const host = c.req.header('host');
+
+  let requestOrigin: string | undefined;
+  try {
+    if (headerOrigin) requestOrigin = headerOrigin;
+    else if (referer) requestOrigin = new URL(referer).origin;
+    else if (host) requestOrigin = `https://${host}`;
+  } catch {
+    requestOrigin = undefined;
+  }
+
+  const uris: string[] = (config.auth.googleRedirectUris ?? []).length > 0 ? config.auth.googleRedirectUris : (config.auth.googleRedirectUri ? [config.auth.googleRedirectUri] : []);
+
+  let chosenRedirect: string | undefined;
+  if (requestOrigin && uris.length > 0) {
+    chosenRedirect = uris.find((u) => {
+      try {
+        return new URL(u).origin === new URL(requestOrigin as string).origin;
+      } catch {
+        return u.includes(requestOrigin as string);
+      }
+    });
+  }
+
+  // Fallback to first configured redirect URI if no match found
+  chosenRedirect ||= uris[0];
+
+  const authInstance = createBetterAuthInstance(db, chosenRedirect);
   return authInstance.handler(c.req.raw);
 });
 
