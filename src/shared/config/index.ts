@@ -104,7 +104,11 @@ export const config = {
     betterAuthSecret: raw.BETTER_AUTH_SECRET,
     googleClientId: raw.GOOGLE_CLIENT_ID,
     googleClientSecret: raw.GOOGLE_CLIENT_SECRET,
-    googleRedirectUri: raw.GOOGLE_REDIRECT_URI,
+    // Support comma-separated redirect URIs in the env var.
+    // `googleRedirectUris` is the parsed list; `googleRedirectUri` is the
+    // Canonical single URI (first in the list) kept for backward compatibility.
+    googleRedirectUris: csvToArray(raw.GOOGLE_REDIRECT_URI),
+    googleRedirectUri: csvToArray(raw.GOOGLE_REDIRECT_URI)[0] ?? undefined,
   },
   stripe: {
     secretKey: raw.STRIPE_SECRET_KEY,
