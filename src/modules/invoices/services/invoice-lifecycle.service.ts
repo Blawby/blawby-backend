@@ -151,15 +151,11 @@ const updateInvoice = async (
       invoiceId: id,
       error: message,
     });
-    throw createTransactionError(
-      'INVOICE_UPDATE_FAILED',
-      'Failed to update invoice',
-      {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        cause: error instanceof Error ? error.message : String(error),
-      }
-    );
+    throw createTransactionError('INVOICE_UPDATE_FAILED', 'Failed to update invoice', {
+      invoiceId: id,
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
@@ -213,15 +209,11 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
       invoiceId: id,
       error: message,
     });
-    throw createTransactionError(
-      'INVOICE_DELETE_FAILED',
-      'Failed to delete invoice',
-      {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        cause: error instanceof Error ? error.message : String(error),
-      }
-    );
+    throw createTransactionError('INVOICE_DELETE_FAILED', 'Failed to delete invoice', {
+      invoiceId: id,
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 

@@ -123,15 +123,11 @@ const finalizeAndSendStripeFlow = async (
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId,
     });
-    throw createTransactionError(
-      'STRIPE_FLOW_FAILED',
-      'Failed to update invoice status after sending',
-      {
-        invoiceId,
-        organizationId: ctx.organizationId,
-        cause: error instanceof Error ? error.message : String(error),
-      }
-    );
+    throw createTransactionError('STRIPE_FLOW_FAILED', 'Failed to update invoice status after sending', {
+      invoiceId,
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
@@ -272,15 +268,11 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
     });
-    throw createTransactionError(
-      'INVOICE_SEND_FAILED',
-      'Failed to finalize and send invoice',
-      {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        cause: error instanceof Error ? error.message : String(error),
-      }
-    );
+    throw createTransactionError('INVOICE_SEND_FAILED', 'Failed to finalize and send invoice', {
+      invoiceId: id,
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
@@ -348,15 +340,11 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
     });
-    throw createTransactionError(
-      'INVOICE_SYNC_FAILED',
-      'Failed to sync invoice with Stripe',
-      {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        cause: error instanceof Error ? error.message : String(error),
-      }
-    );
+    throw createTransactionError('INVOICE_SYNC_FAILED', 'Failed to sync invoice with Stripe', {
+      invoiceId: id,
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
@@ -435,15 +423,11 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
     });
-    throw createTransactionError(
-      'INVOICE_VOID_FAILED',
-      'Failed to void invoice',
-      {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        cause: error instanceof Error ? error.message : String(error),
-      }
-    );
+    throw createTransactionError('INVOICE_VOID_FAILED', 'Failed to void invoice', {
+      invoiceId: id,
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 

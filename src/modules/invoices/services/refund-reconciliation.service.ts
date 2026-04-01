@@ -139,10 +139,15 @@ export const reconcileRefundExecution = async (
     });
 
     if (!persisted.updated || !persisted.refundEventPayload) {
-      throw createAppError('REFUND_PERSISTENCE_FAILED', 'Refund reconciliation could not persist executed refund', 500, {
-        requestId: opts.requestId,
-        organizationId: opts.organizationId,
-      });
+      throw createAppError(
+        'REFUND_PERSISTENCE_FAILED',
+        'Refund reconciliation could not persist executed refund',
+        500,
+        {
+          requestId: opts.requestId,
+          organizationId: opts.organizationId,
+        }
+      );
     }
 
     ({ refundEventPayload } = persisted);
