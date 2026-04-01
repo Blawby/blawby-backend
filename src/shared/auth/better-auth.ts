@@ -196,6 +196,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
     },
     emailAndPassword: AUTH_CONFIG.emailAndPassword,
     user: {
+      deleteUser: {
+        enabled: true,
+      },
       additionalFields: {
         primaryWorkspace: {
           type: ['public', 'client', 'practice'],
