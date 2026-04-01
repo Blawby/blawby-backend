@@ -7,14 +7,6 @@ import { invoiceStripeCoordinationService } from '@/modules/invoices/services/in
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext, createServiceContext } from '@/shared/types/service-context';
 import { db } from '@/shared/database';
-import {
-  createRefundRequestHandler,
-  listClientRefundRequestsHandler,
-  cancelRefundRequestHandler,
-  listPracticeRefundRequestsHandler,
-  reviewRefundRequestHandler,
-  executeRefundHandler,
-} from '@/modules/invoices/refund-requests.handlers';
 
 const createInvoiceHandler: AppRouteHandler<typeof routes.createInvoiceRoute> = async (c) => {
   const { practice_id: organizationId } = c.req.valid('param');
@@ -149,10 +141,4 @@ export const handlers = {
   voidInvoiceHandler,
   getClientInvoicesHandler,
   getClientInvoiceDetailHandler,
-  createRefundRequestHandler,
-  listClientRefundRequestsHandler,
-  cancelRefundRequestHandler,
-  listPracticeRefundRequestsHandler,
-  reviewRefundRequestHandler,
-  executeRefundHandler,
 } as const;

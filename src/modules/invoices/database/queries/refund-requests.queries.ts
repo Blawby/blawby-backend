@@ -1,13 +1,14 @@
 import { eq, and, desc } from 'drizzle-orm';
-import { refundRequests } from '@/modules/invoices/database/schema/refund-requests.schema';
-import type {
-  InsertRefundRequest,
-  SelectRefundRequest,
+import {
+  type InsertRefundRequest,
+  type SelectRefundRequest,
+  refundRequests,
 } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { db } from '@/shared/database';
+import type { RefundRequestUpdatePatch } from '@/modules/invoices/types/refund-request';
 
 const create = async (data: InsertRefundRequest, tx?: typeof db): Promise<SelectRefundRequest> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [req] = await client.insert(refundRequests).values(data).returning();
   return req;
 };
@@ -45,7 +46,7 @@ const listByOrganization = async (
   filters?: { status?: string; invoice_id?: string; client_user_details_id?: string },
   tx?: typeof db
 ): Promise<SelectRefundRequest[]> => {
-  const client = tx || db;
+  const client = tx ?? db;
   return client.query.refundRequests.findMany({
     where: (rr, { and: a, eq: e }) =>
       a(
@@ -58,8 +59,8 @@ const listByOrganization = async (
   });
 };
 
-const listByClient = async (organizationId: string, clientUserDetailsId: string): Promise<SelectRefundRequest[]> => {
-  return db
+const listByClient = async (organizationId: string, clientUserDetailsId: string): Promise<SelectRefundRequest[]> =>
+  db
     .select()
     .from(refundRequests)
     .where(
@@ -69,21 +70,6 @@ const listByClient = async (organizationId: string, clientUserDetailsId: string)
       )
     )
     .orderBy(desc(refundRequests.created_at));
-};
-
-export type RefundRequestUpdatePatch = Partial<
-  Omit<
-    InsertRefundRequest,
-    | 'id'
-    | 'organization_id'
-    | 'client_user_details_id'
-    | 'created_by_user_details_id'
-    | 'invoice_id'
-    | 'requested_amount'
-    | 'currency'
-    | 'created_at'
-  >
->;
 
 const update = async (
   id: string,
@@ -91,7 +77,7 @@ const update = async (
   patch: RefundRequestUpdatePatch,
   tx?: typeof db
 ): Promise<SelectRefundRequest | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [updated] = await client
     .update(refundRequests)
     .set({ ...patch, updated_at: new Date() })
@@ -107,7 +93,7 @@ const transitionStatus = async (
   patch: RefundRequestUpdatePatch,
   tx?: typeof db
 ): Promise<SelectRefundRequest | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [updated] = await client
     .update(refundRequests)
     .set({ ...patch, updated_at: new Date() })
@@ -130,7 +116,7 @@ const transitionStatusForClient = async (
   patch: RefundRequestUpdatePatch,
   tx?: typeof db
 ): Promise<SelectRefundRequest | undefined> => {
-  const client = tx || db;
+  const client = tx ?? db;
   const [updated] = await client
     .update(refundRequests)
     .set({ ...patch, updated_at: new Date() })

@@ -7,7 +7,7 @@ import { db } from '@/shared/database';
 const logger = getLogger(['workers', 'process-metered-usage']);
 
 const isKnownMeteredType = (value: string): value is keyof typeof METERED_TYPE_TO_STRIPE_EVENT =>
-  Object.prototype.hasOwnProperty.call(METERED_TYPE_TO_STRIPE_EVENT, value);
+  Object.hasOwn(METERED_TYPE_TO_STRIPE_EVENT, value);
 
 export const processMeteredUsage: Task = async (payload): Promise<void> => {
   const { organizationId, meteredType, quantity, deduplicationId } =

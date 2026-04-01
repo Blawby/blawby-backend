@@ -1,130 +1,78 @@
-/**
- * Functional Error Handling with Discriminated Unions
- * No classes - pure TypeScript types + factory functions
- */
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 /**
- * Application Error Type - discriminated union for type-safe error handling
+ * Discriminated union for application errors
+ * Used by errorHandler middleware to map to HTTP responses
  */
-export type AppError =
-  | {
-      kind: 'app_error';
-      code: string; // 'INVOICE_NOT_FOUND', 'DB_TRANSACTION_FAILED'
-      status: number; // HTTP status
-      message: string; // User-safe message
-      context: Record<string, unknown>; // Debug context
-      cause?: Error; // Original error chain
-    }
-  | {
-      kind: 'validation_error';
-      code: string;
-      message: string;
-      context: Record<string, unknown>;
-    }
-  | {
-      kind: 'transaction_error';
-      code: string;
-      message: string;
-      context: Record<string, unknown>;
-      cause?: Error;
-    }
-  | {
-      kind: 'authorization_error';
-      code: string;
-      message: string;
-      context: Record<string, unknown>;
-    };
+export interface AppError {
+  kind: 'validation_error' | 'authorization_error' | 'transaction_error' | 'not_found_error' | 'app_error';
+  code: string;
+  message: string;
+  status: ContentfulStatusCode;
+  context?: Record<string, unknown>;
+  cause?: unknown;
+}
 
 /**
- * Factory function: Create an app error with code, status, message, context, and cause
- *
- * @param code - Error code (e.g., 'INVOICE_NOT_FOUND')
- * @param status - HTTP status code
- * @param message - User-safe error message
- * @param context - Debug context (invoiceId, organizationId, etc.)
- * @param cause - Original error (thrown exception)
+ * Create a validation error (400 Bad Request)
  */
-export const createAppError = (
-  code: string,
-  status: number,
-  message: string,
-  context: Record<string, unknown> = {},
-  cause?: Error
-): AppError => ({
-  kind: 'app_error',
-  code,
-  status,
-  message,
-  context,
-  cause,
-});
-
-/**
- * Factory function: Create a validation error
- *
- * @param code - Error code (e.g., 'INVALID_INVOICE_DATA')
- * @param message - Validation error message (safe to expose)
- * @param context - Debug context
- */
-export const createValidationError = (
-  code: string,
-  message: string,
-  context: Record<string, unknown> = {}
-): AppError => ({
+export const createValidationError = (code: string, message: string, context?: Record<string, unknown>): AppError => ({
   kind: 'validation_error',
   code,
   message,
+  status: 400,
   context,
 });
 
 /**
- * Factory function: Create a transaction error
- * Used for database transaction failures, atomicity violations
- *
- * @param code - Error code (e.g., 'TRANSACTION_FAILED')
- * @param message - Error message
- * @param context - Debug context
- * @param cause - Original error
+ * Create a not found error (404 Not Found)
  */
-export const createTransactionError = (
-  code: string,
-  message: string,
-  context: Record<string, unknown> = {},
-  cause?: Error
-): AppError => ({
-  kind: 'transaction_error',
+export const createNotFoundError = (code: string, message: string, context?: Record<string, unknown>): AppError => ({
+  kind: 'not_found_error',
   code,
   message,
+  status: 404,
   context,
-  cause,
 });
 
 /**
- * Factory function: Create an authorization error
- *
- * @param code - Error code (e.g., 'FORBIDDEN')
- * @param message - Authorization error message
- * @param context - Debug context
+ * Create an authorization error (403 Forbidden)
  */
 export const createAuthorizationError = (
   code: string,
   message: string,
-  context: Record<string, unknown> = {}
+  context?: Record<string, unknown>
 ): AppError => ({
   kind: 'authorization_error',
   code,
   message,
+  status: 403,
   context,
 });
 
 /**
- * Type guard: Check if error is an AppError
+ * Create a transaction error (500 Internal Server Error)
  */
-export const isAppError = (error: AppError): error is AppError =>
-  typeof error === 'object' &&
-  error !== null &&
-  'kind' in error &&
-  (error.kind === 'app_error' ||
-    error.kind === 'validation_error' ||
-    error.kind === 'transaction_error' ||
-    error.kind === 'authorization_error');
+export const createTransactionError = (code: string, message: string, context?: Record<string, unknown>): AppError => ({
+  kind: 'transaction_error',
+  code,
+  message,
+  status: 500,
+  context,
+});
+
+/**
+ * Create a generic app error
+ */
+export const createAppError = (
+  code: string,
+  message: string,
+  status: ContentfulStatusCode = 500,
+  context?: Record<string, unknown>
+): AppError => ({
+  kind: 'app_error',
+  code,
+  message,
+  status,
+  context,
+});

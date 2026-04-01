@@ -3,6 +3,8 @@ import { routes } from '@/modules/invoices/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
+import { refundRequestHandlers } from '@/modules/invoices/refund-requests.handlers';
+import { refundRequestRoutes } from '@/modules/invoices/refund-requests.routes';
 
 const app = createHonoApp();
 app.use('*', injectAbility());
@@ -20,12 +22,17 @@ app.openapi(routes.voidInvoiceRoute, handlers.voidInvoiceHandler);
 // ==================== CLIENT-SIDE INVOICES (read-only) ====================
 app.openapi(routes.getClientInvoicesRoute, handlers.getClientInvoicesHandler);
 app.openapi(routes.getClientInvoiceDetailRoute, handlers.getClientInvoiceDetailHandler);
-app.openapi(routes.createRefundRequestRoute, handlers.createRefundRequestHandler);
-app.openapi(routes.listClientRefundRequestsRoute, handlers.listClientRefundRequestsHandler);
-app.openapi(routes.cancelRefundRequestRoute, handlers.cancelRefundRequestHandler);
-app.openapi(routes.listPracticeRefundRequestsRoute, handlers.listPracticeRefundRequestsHandler);
-app.openapi(routes.reviewRefundRequestRoute, handlers.reviewRefundRequestHandler);
-app.openapi(routes.executeRefundRoute, handlers.executeRefundHandler);
+
+// ==================== REFUND REQUESTS ====================
+app.openapi(refundRequestRoutes.createRefundRequestRoute, refundRequestHandlers.createRefundRequestHandler);
+app.openapi(refundRequestRoutes.listClientRefundRequestsRoute, refundRequestHandlers.listClientRefundRequestsHandler);
+app.openapi(refundRequestRoutes.cancelRefundRequestRoute, refundRequestHandlers.cancelRefundRequestHandler);
+app.openapi(
+  refundRequestRoutes.listPracticeRefundRequestsRoute,
+  refundRequestHandlers.listPracticeRefundRequestsHandler
+);
+app.openapi(refundRequestRoutes.reviewRefundRequestRoute, refundRequestHandlers.reviewRefundRequestHandler);
+app.openapi(refundRequestRoutes.executeRefundRoute, refundRequestHandlers.executeRefundHandler);
 
 registerOpenApiRoutes(app, routes);
 

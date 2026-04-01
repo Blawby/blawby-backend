@@ -46,15 +46,10 @@ export const processRefundReconciliation: Task = async (payload): Promise<void> 
     refundedAmount,
   });
 
-  if (!res.success) {
-    const message =
-      res.error?.message ?? (typeof res === 'object' ? JSON.stringify(res) : 'Refund reconciliation failed');
-    throw new Error(message);
-  }
-
   logger.info('Processed refund reconciliation job {requestId}', {
     requestId,
     organizationId,
-    repaired: res.data.repaired,
+    repaired: res.repaired,
+    dispatched: res.dispatched,
   });
 };

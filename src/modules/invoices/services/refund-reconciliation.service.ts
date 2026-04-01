@@ -5,10 +5,9 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
 
-import type { RefundEventPayload } from '@/modules/invoices/services/refund-execution-persistence.service';
+import type { RefundEventPayload } from '@/modules/invoices/types/refund-request.ts';
 import { InvoiceRefunded } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
-import { result } from '@/shared/utils/result';
+import { createNotFoundError, createValidationError, createAppError } from '@/shared/types/errors';
 
 const logger = getLogger(['invoices', 'refund-reconciliation']);
 
@@ -17,10 +16,14 @@ const getStoredRefundEventPayload = (
   invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>>,
   organizationId: string
 ): RefundEventPayload | null => {
-  if (!claimedReq) return null;
+  if (!claimedReq) {
+    return null;
+  }
 
   const matchingRefundTx = invoiceTxs.find((tx) => {
-    if (tx.type !== 'refund') return false;
+    if (tx.type !== 'refund') {
+      return false;
+    }
 
     const metadata = tx.metadata as Record<string, unknown> | null | undefined;
     if (typeof metadata?.refund_request_id === 'string' && metadata.refund_request_id === claimedReq.id) {
@@ -34,7 +37,9 @@ const getStoredRefundEventPayload = (
     );
   });
 
-  if (!matchingRefundTx) return null;
+  if (!matchingRefundTx) {
+    return null;
+  }
 
   const metadata = matchingRefundTx.metadata as Record<string, unknown> | null | undefined;
   const payoutFeeCreditCents =
@@ -86,21 +91,27 @@ export const reconcileRefundExecution = async (
     buildRefundEventPayload: refundExecutionPersistenceService.buildRefundEventPayload,
     dispatchInvoiceRefunded: (payload, options) => InvoiceRefunded.dispatch(payload, options),
   }
-): Promise<Result<{ repaired: boolean; dispatched: boolean }>> => {
+): Promise<{ repaired: boolean; dispatched: boolean }> => {
   const claimedReq = await deps.findRefundRequestById(opts.requestId, opts.organizationId);
   if (!claimedReq) {
-    return result.notFound('Refund request not found for reconciliation');
+    throw createNotFoundError('REFUND_REQUEST_NOT_FOUND', 'Refund request not found for reconciliation', {
+      requestId: opts.requestId,
+      organizationId: opts.organizationId,
+    });
   }
 
   const invoice = await deps.findInvoiceById(claimedReq.invoice_id, opts.organizationId);
   if (!invoice) {
-    return result.notFound('Invoice not found for reconciliation');
+    throw createNotFoundError('INVOICE_NOT_FOUND', 'Invoice not found for reconciliation', {
+      invoiceId: claimedReq.invoice_id,
+      organizationId: opts.organizationId,
+    });
   }
 
   const invoiceTxs = await deps.listBillingTransactionsByInvoiceId(invoice.id);
 
   let repaired = false;
-  let refundEventPayload;
+  let refundEventPayload: RefundEventPayload | undefined = undefined;
 
   if (claimedReq.status === 'executed') {
     refundEventPayload =
@@ -128,15 +139,30 @@ export const reconcileRefundExecution = async (
     });
 
     if (!persisted.updated || !persisted.refundEventPayload) {
-      return result.internalError('Refund reconciliation could not persist executed refund');
+      throw createAppError('REFUND_PERSISTENCE_FAILED', 'Refund reconciliation could not persist executed refund', 500, {
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+      });
     }
 
-    refundEventPayload = persisted.refundEventPayload;
+    ({ refundEventPayload } = persisted);
     repaired = true;
   } else {
-    return result.badRequest(
-      `Refund request ${opts.requestId} is in unsupported status ${claimedReq.status} for reconciliation`
+    throw createValidationError(
+      'UNSUPPORTED_REFUND_STATUS',
+      `Refund request ${opts.requestId} is in unsupported status ${claimedReq.status} for reconciliation`,
+      {
+        requestId: opts.requestId,
+        status: claimedReq.status,
+      }
     );
+  }
+
+  if (!refundEventPayload) {
+    throw createAppError('REFUND_PAYLOAD_BUILD_FAILED', 'Failed to build or retrieve refund event payload', 500, {
+      requestId: opts.requestId,
+      organizationId: opts.organizationId,
+    });
   }
 
   try {
@@ -153,7 +179,16 @@ export const reconcileRefundExecution = async (
       refundRequestId: claimedReq.id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    return result.internalError('Refund reconciliation repaired local state but failed to dispatch refund event');
+    throw createAppError(
+      'REFUND_EVENT_DISPATCH_FAILED',
+      'Refund reconciliation repaired local state but failed to dispatch refund event',
+      500,
+      {
+        requestId: opts.requestId,
+        organizationId: opts.organizationId,
+        originalError: error instanceof Error ? error.message : 'Unknown error',
+      }
+    );
   }
 
   logger.info('Refund reconciliation completed for request {requestId}', {
@@ -163,7 +198,7 @@ export const reconcileRefundExecution = async (
     stripeRefundId: opts.stripeRefundId,
   });
 
-  return result.ok({ repaired, dispatched: true });
+  return { repaired, dispatched: true };
 };
 
 export const refundReconciliationService = {

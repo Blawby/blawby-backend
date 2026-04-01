@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extract financial processing logic into independent, composable engines in `src/engines/`, add event emissions as coordination outputs (not primary flow), fix error handling, simplify webhooks to be thin (receive → store → publish), and move async work to background workers.
+**Goal:** Extract financial processing logic into independent, engine engines in `src/engines/`, add event emissions as coordination outputs (not primary flow), fix error handling, simplify webhooks to be thin (receive → store → publish), and move async work to background workers.
 
 **Architecture:**
 Engines are the **primary nervous system** (coordinate, validate, execute business logic). Events are **output signals** (emitted FROM engines, subscribed to by listeners for side effects):
@@ -13,44 +13,49 @@ Webhook → Store → Worker → Engine (coordinate logic + emit events) → Lis
                            Services (trust, stripe, etc.)
 ```
 
-- **Phase 1:** Define event payloads (InvoicePaid, InvoiceRefunded, RetainerLowBalance) with minimal identifiers
-- **Phase 2:** Create composable engines (`useFundManagement`, `useInvoicePaymentOrchestrator`, etc.) that emit events as outputs
-- **Phase 3:** Create event listeners for side effects (trust deposits, emails, audit logging, billing)
-- **Phase 4:** Refactor webhook handler to be thin (store event → publish to queue → return 200), move payment orchestration to async worker
-- **Phase 5:** Fix error handling, consolidate handlers, test end-to-end (fix `errorHandler` + update imports)
+- **Phase 1:** Create engine foundation (directory structure + fund management engine)
+- **Phase 2:** Define event payloads (InvoicePaid, InvoiceRefunded, RetainerLowBalance) with minimal identifiers — module-owned
+- **Phase 3:** Create remaining engine engines (`useInvoicePaymentOrchestrator`, `useRetainerPaymentFlow`, etc.) that emit events as outputs
+- **Phase 4:** Create event listeners for side effects (trust deposits, emails, audit logging, billing)
+- **Phase 5:** Refactor webhook handler to be thin (store event → publish to queue → return 200), move payment orchestration to async worker
+- **Phase 6:** Fix error handling, consolidate handlers, test end-to-end (fix `errorHandler` + update imports)
 
-**Tech Stack:** TypeScript, Hono, Drizzle ORM, Stripe API, Graphile Worker, Functional composables (Vue-style exports), Event system (existing 3-tier dispatch)
+**Tech Stack:** TypeScript, Hono, Drizzle ORM, Stripe API, Graphile Worker, Functional engines (Vue-style exports), Event system (existing 3-tier dispatch)
 
 ---
 
 ## File Structure
 
 **New Files Created:**
+
 - `src/modules/invoices/types/events.ts` — Event payloads (InvoicePaid, InvoiceRefunded)
 - `src/modules/trust/types/events.ts` — Event payloads (RetainerLowBalance)
 - `src/modules/billing/types/events.ts` — Event payloads (AuditLogEvent)
 - `src/engines/index.ts` — Central exports for all engines
 - `src/engines/financial/index.ts` — Financial engine exports
-- `src/engines/financial/use-fund-management.ts` — Fund routing composable
-- `src/engines/financial/use-invoice-payment-orchestrator.ts` — Payment orchestration composable (emits InvoicePaid)
-- `src/engines/financial/use-retainer-payment-flow.ts` — Retainer deposit/withdrawal composable (emits RetainerLowBalance)
-- `src/engines/financial/use-refund-engine.ts` — Refund state machine composable (emits InvoiceRefunded)
-- `src/engines/financial/use-payment-processor.ts` — Placeholder for future payment intent logic
+- `src/engines/financial/types.ts` — Shared types for financial engines (FundDestination, FundRoutingInvoice, TransferInstruction, RefundEventPayload, etc.)
+- `src/engines/financial/fund-management.ts` — Fund routing engine
+- `src/engines/financial/invoice-payment-orchestrator.ts` — Payment orchestration engine (emits InvoicePaid)
+- `src/engines/financial/retainer-payment-flow.ts` — Retainer deposit/withdrawal engine (emits RetainerLowBalance)
+- `src/engines/financial/refund-engine.ts` — Refund state machine engine (emits InvoiceRefunded)
+- `src/engines/financial/payment-processor.ts` — Placeholder for future payment intent logic
 - `src/engines/stripe/index.ts` — Stripe engine exports
-- `src/engines/stripe/use-stripe-api-adapter.ts` — Stripe API calls composable
-- `src/engines/stripe/use-webhook-router.ts` — Webhook dispatcher composable
+- `src/engines/stripe/stripe-api-adapter.ts` — Stripe API calls engine
+- `src/engines/stripe/webhook-router.ts` — Webhook dispatcher engine
 - `src/modules/trust/listeners.ts` — Event listeners (deposits, withdrawals, low balance checks)
 - `src/modules/invoices/listeners.ts` — Event listeners (email notifications, audit logging)
 - `src/modules/billing/listeners.ts` — Event listeners (transaction creation, Stripe transfer execution)
 - `src/workers/tasks/process-invoice-payment.ts` — Async worker task (triggers payment orchestrator)
 
 **Files Modified:**
+
 - `src/shared/middleware/errorHandler.ts` — Add `AppError` discriminated union case
 - `src/modules/invoices/handlers.ts` — Simplify to delegate to engines
 - `src/modules/invoices/services/invoice-webhooks.service.ts` — Make thin (store → publish → reply)
 - `src/modules/practice-client-intakes/services/intake-creation.service.ts` — Update fund-router import path
 
 **Files Deleted (moved to engines):**
+
 - `src/modules/invoices/services/fund-router.service.ts`
 - `src/modules/invoices/services/stripe-invoices.service.ts`
 - `src/modules/invoices/services/payment-links.service.ts`
@@ -59,121 +64,38 @@ Webhook → Store → Worker → Engine (coordinate logic + emit events) → Lis
 
 ---
 
-## Phase 1: Event Definitions
+## Critical: Error Handling Pattern
 
-### Task 1: Define Event Payload Types (Module-Owned)
+**WHENEVER YOU TOUCH A SERVICE FILE:**
+1. Remove all `response.fromResult()` / `response.ok()` / `response.notFound()` calls
+2. Replace `Result<T>` return types with direct return type (or void)
+3. Replace error handling with `throw` statements:
+   - Expected failures: `throw createValidationError(...)` or `throw createNotFoundError(...)`
+   - Business logic errors: `throw new Error('...')` or custom AppError
+4. Services emit events via `ctx.emit()` (do NOT call listeners directly)
 
-**Files:**
-- Create: `src/modules/invoices/types/events.ts`
-- Create: `src/modules/trust/types/events.ts`
-- Create: `src/modules/billing/types/events.ts`
-
-**Context:** Event payloads are defined in the modules that own them. No classes—just interfaces. Engines will emit events with `Event.emit()` using these payload types. Each module is responsible for its event contracts.
-
-- [ ] **Step 1: Create invoices event payload types**
-
-Create `src/modules/invoices/types/events.ts`:
-
+**Example transformation:**
 ```typescript
-/**
- * Event type identifiers (used with Event.emit/listen)
- */
-export const INVOICE_PAID_EVENT = 'invoice:paid';
-export const INVOICE_REFUNDED_EVENT = 'invoice:refunded';
+// BEFORE (Result pattern)
+const result = await service.processPayment(data);
+if (result.isErr()) return response.fromResult(result);
+const payment = result.ok();
 
-/**
- * InvoicePaid: Emitted when invoice transitions to paid status.
- * Minimal payload: invoice_id, amount, timestamp.
- * Listeners (trust, invoices, billing) fetch fresh data using invoice_id.
- */
-export interface InvoicePaidPayload {
-  invoice_id: string;
-  organization_id: string;
-  amount_cents: number;
-  paid_at: string;
-}
-
-/**
- * InvoiceRefunded: Emitted when refund is executed.
- * Minimal payload: invoice_id, refund amount, timestamp.
- */
-export interface InvoiceRefundedPayload {
-  invoice_id: string;
-  organization_id: string;
-  refund_request_id: string;
-  refunded_amount_cents: number;
-  refunded_at: string;
-}
+// AFTER (Throw pattern)
+const payment = await service.processPayment(data);
+// If error, service throws. Handler catches and converts to HTTP response.
 ```
 
-- [ ] **Step 2: Create trust event payload types**
-
-Create `src/modules/trust/types/events.ts`:
-
-```typescript
-/**
- * Event type identifiers (used with Event.emit/listen)
- */
-export const RETAINER_LOW_BALANCE_EVENT = 'retainer:low_balance';
-
-/**
- * RetainerLowBalance: Emitted when retainer balance drops below threshold.
- * Listeners: invoices (email notifications).
- */
-export interface RetainerLowBalancePayload {
-  organization_id: string;
-  matter_id: string;
-  current_balance_cents: number;
-  threshold_cents: number;
-}
-```
-
-- [ ] **Step 3: Create billing event payload types**
-
-Create `src/modules/billing/types/events.ts`:
-
-```typescript
-/**
- * Event type identifiers (used with Event.emit/listen)
- */
-export const AUDIT_LOG_EVENT = 'audit:log';
-
-/**
- * AuditLogEvent: Emitted for all financial transactions.
- * Listeners: billing (write to audit ledger).
- */
-export interface AuditLogEventPayload {
-  organization_id: string;
-  event_type: 'invoice_paid' | 'invoice_refunded' | 'retainer_deposit' | 'retainer_withdrawal';
-  entity_id: string;
-  amount_cents: number;
-  metadata: Record<string, unknown>;
-  timestamp: string;
-}
-```
-
-- [ ] **Step 4: Run typecheck**
-
-```bash
-pnpm run typecheck
-```
-
-Expected: No errors
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/modules/invoices/types/events.ts src/modules/trust/types/events.ts src/modules/billing/types/events.ts
-git commit -m "feat: define module-owned event payload types (no classes, just interfaces)"
-```
+This ensures consistency across all service files as they're modified during engine implementation.
 
 ---
 
-## Phase 2: Create Composable Engines
+## Phase 1: Engine Foundation
 
-### Task 2: Create `src/engines/` Directory Structure and Index Files
+### Task 1: Create `src/engines/` Directory Structure and Index Files
 
 **Files:**
+
 - Create: `src/engines/index.ts`
 - Create: `src/engines/financial/index.ts`
 - Create: `src/engines/stripe/index.ts`
@@ -191,19 +113,18 @@ mkdir -p src/engines/financial src/engines/stripe
 /**
  * Financial Processing Engines
  *
- * Composable functions for fund routing, payment orchestration, refunds, and retainer management.
- * Exports Vue-style composables.
+ * Single object exports for fund routing, payment orchestration, refunds, and retainer management.
+ * All logic grouped by concern: FundManagement, InvoicePaymentOrchestrator, etc.
  */
 
-export { useFundManagement } from './use-fund-management';
-export { useInvoicePaymentOrchestrator } from './use-invoice-payment-orchestrator';
-export { useRetainerPaymentFlow } from './use-retainer-payment-flow';
-export { useRefundEngine } from './use-refund-engine';
-export { usePaymentProcessor } from './use-payment-processor';
+export { fundManagement } from './fund-management';
+export { invoicePaymentOrchestrator } from './invoice-payment-orchestrator';
+export { retainerPaymentFlow } from './retainer-payment-flow';
+export { refundEngine } from './refund-engine';
+export { paymentProcessor } from './payment-processor';
 
 // Types
-export type { FundRoutingInvoice, FundDestination, TransferInstruction } from './use-fund-management';
-export type { RefundEventPayload } from './use-refund-engine';
+export type { FundRoutingInvoice, FundDestination, TransferInstruction, RefundEventPayload } from './types';
 ```
 
 - [ ] **Step 3: Create `src/engines/stripe/index.ts`**
@@ -213,12 +134,12 @@ export type { RefundEventPayload } from './use-refund-engine';
 /**
  * Stripe Integration Engines
  *
- * Composable functions for Stripe API interactions and webhook routing.
- * Exports Vue-style composables.
+ * Single object exports for Stripe API interactions and webhook routing.
+ * StripeApiAdapter handles API calls; WebhookRouter handles event dispatch.
  */
 
-export { useStripeApiAdapter } from './use-stripe-api-adapter';
-export { useWebhookRouter } from './use-webhook-router';
+export { stripeApiAdapter } from './stripe-api-adapter';
+export { webhookRouter } from './webhook-router';
 ```
 
 - [ ] **Step 4: Create `src/engines/index.ts`**
@@ -245,15 +166,16 @@ git commit -m "chore: create engines directory structure and index exports"
 
 ---
 
-### Task 3: Create `useFundManagement` Composable Engine
+### Task 2: Create `useFundManagement` Composable Engine
 
 **Files:**
-- Create: `src/engines/financial/use-fund-management.ts`
 
-- [ ] **Step 1: Create `use-fund-management.ts`**
+- Create: `src/engines/financial/fund-management.ts`
+
+- [ ] **Step 1: Create `fund-management.ts`**
 
 ```typescript
-// src/engines/financial/use-fund-management.ts
+// src/engines/financial/fund-management.ts
 import { getLogger } from '@logtape/logtape';
 import { createValidationError } from '@/shared/types/errors';
 
@@ -376,32 +298,31 @@ const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): 
       };
 
     default:
-      throw createValidationError(
-        'UNKNOWN_INVOICE_TYPE',
-        `Unknown invoice type: ${invoice.invoice_type}`,
-        { invoiceType: invoice.invoice_type, invoiceId: invoice.id }
-      );
+      throw createValidationError('UNKNOWN_INVOICE_TYPE', `Unknown invoice type: ${invoice.invoice_type}`, {
+        invoiceType: invoice.invoice_type,
+        invoiceId: invoice.id,
+      });
   }
 };
 
 /**
- * Fund Management Engine — Vue-style composable export
+ * Fund Management Engine
  *
  * Determines where payment goes (operating vs. trust) based on invoice type.
- * Pure domain logic, no DB access.
+ * Pure domain logic, no DB access. Single object export with all related functions.
  *
  * Usage:
- *   const { routePayment, calculateApplicationFee } = useFundManagement();
- *   const instruction = routePayment(invoice, connectedAccountId);
+ *   const instruction = fundManagement.routePayment(invoice, connectedAccountId);
+ *   const fee = fundManagement.calculateApplicationFee(amount);
  */
-export const useFundManagement = () => ({
+export const fundManagement = {
   routePayment,
   isValidFundDestination,
   validateFundDestination,
   calculateApplicationFee,
   shouldUpdateRetainerBalance,
   shouldHoldForApproval,
-});
+};
 ```
 
 - [ ] **Step 2: Run typecheck to verify no errors**
@@ -415,21 +336,135 @@ Expected: No errors related to fund-management engine
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/engines/financial/use-fund-management.ts
-git commit -m "feat(engines): create useFundManagement composable engine"
+git add src/engines/financial/fund-management.ts
+git commit -m "feat(engines): create FundManagement engine (single object export)"
 ```
 
 ---
 
+## Phase 2: Define Event Payload Types
+
+### Task 3: Define Event Payload Types (Module-Owned)
+
+**Files:**
+
+- Create: `src/modules/invoices/types/events.ts`
+- Create: `src/modules/trust/types/events.ts`
+- Create: `src/modules/billing/types/events.ts`
+
+**Context:** Event payloads are defined in the modules that own them. No classes—just interfaces. Engines will emit events with `Event.emit()` using these payload types. Each module is responsible for its event contracts.
+
+- [ ] **Step 1: Create invoices event payload types**
+
+Create `src/modules/invoices/types/events.ts`:
+
+```typescript
+/**
+ * Event type identifiers (used with Event.emit/listen)
+ */
+export const INVOICE_PAID_EVENT = 'invoice:paid';
+export const INVOICE_REFUNDED_EVENT = 'invoice:refunded';
+
+/**
+ * InvoicePaid: Emitted when invoice transitions to paid status.
+ * Minimal payload: invoice_id, amount, timestamp.
+ * Listeners (trust, invoices, billing) fetch fresh data using invoice_id.
+ */
+export interface InvoicePaidPayload {
+  invoice_id: string;
+  organization_id: string;
+  amount_cents: number;
+  paid_at: string;
+}
+
+/**
+ * InvoiceRefunded: Emitted when refund is executed.
+ * Minimal payload: invoice_id, refund amount, timestamp.
+ */
+export interface InvoiceRefundedPayload {
+  invoice_id: string;
+  organization_id: string;
+  refund_request_id: string;
+  refunded_amount_cents: number;
+  refunded_at: string;
+}
+```
+
+- [ ] **Step 2: Create trust event payload types**
+
+Create `src/modules/trust/types/events.ts`:
+
+```typescript
+/**
+ * Event type identifiers (used with Event.emit/listen)
+ */
+export const RETAINER_LOW_BALANCE_EVENT = 'retainer:low_balance';
+
+/**
+ * RetainerLowBalance: Emitted when retainer balance drops below threshold.
+ * Listeners: invoices (email notifications).
+ */
+export interface RetainerLowBalancePayload {
+  organization_id: string;
+  matter_id: string;
+  current_balance_cents: number;
+  threshold_cents: number;
+}
+```
+
+- [ ] **Step 3: Create billing event payload types**
+
+Create `src/modules/billing/types/events.ts`:
+
+```typescript
+/**
+ * Event type identifiers (used with Event.emit/listen)
+ */
+export const AUDIT_LOG_EVENT = 'audit:log';
+
+/**
+ * AuditLogEvent: Emitted for all financial transactions.
+ * Listeners: billing (write to audit ledger).
+ */
+export interface AuditLogEventPayload {
+  organization_id: string;
+  event_type: 'invoice_paid' | 'invoice_refunded' | 'retainer_deposit' | 'retainer_withdrawal';
+  entity_id: string;
+  amount_cents: number;
+  metadata: Record<string, unknown>;
+  timestamp: string;
+}
+```
+
+- [ ] **Step 4: Run typecheck**
+
+```bash
+pnpm run typecheck
+```
+
+Expected: No errors
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/modules/invoices/types/events.ts src/modules/trust/types/events.ts src/modules/billing/types/events.ts
+git commit -m "feat: define module-owned event payload types (no classes, just interfaces)"
+```
+
+---
+
+## Phase 3: Create Remaining Engines
+
 ### Task 4: Create `useRetainerPaymentFlow` Composable Engine
 
 **Files:**
-- Create: `src/engines/financial/use-retainer-payment-flow.ts`
 
-- [ ] **Step 1: Create `use-retainer-payment-flow.ts`**
+- Create: `src/engines/financial/retainer-payment-flow.ts`
+
+- [ ] **Step 1: Create `retainer-payment-flow.ts`**
 
 ```typescript
-// src/engines/financial/use-retainer-payment-flow.ts
+// src/engines/financial/retainer-payment-flow.ts
 import { getLogger } from '@logtape/logtape';
 import { createTransactionError, createValidationError } from '@/shared/types/errors';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -514,17 +549,17 @@ const revertRefund = async (opts: RevertRetainerOpts): Promise<void> => {
 };
 
 /**
- * Retainer Payment Flow — Vue-style composable export
+ * Retainer Payment Flow — Vue-style engine export
  *
  * Usage:
  *   const { recordDeposit, recordWithdrawal } = useRetainerPaymentFlow();
  *   await recordDeposit({ organizationId, clientId, matterId, amount, ctx, tx });
  */
-export const useRetainerPaymentFlow = () => ({
+export const retainerPaymentFlow = {
   recordDeposit,
   recordWithdrawal,
   revertRefund,
-});
+};
 ```
 
 - [ ] **Step 2: Run typecheck**
@@ -538,8 +573,8 @@ Expected: No errors
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/engines/financial/use-retainer-payment-flow.ts
-git commit -m "feat(engines): create useRetainerPaymentFlow composable engine"
+git add src/engines/financial/retainer-payment-flow.ts
+git commit -m "feat(engines): create RetainerPaymentFlow engine (single object export)"
 ```
 
 ---
@@ -547,12 +582,13 @@ git commit -m "feat(engines): create useRetainerPaymentFlow composable engine"
 ### Task 5: Create `useRefundEngine` Composable Engine
 
 **Files:**
-- Create: `src/engines/financial/use-refund-engine.ts`
 
-- [ ] **Step 1: Create `use-refund-engine.ts`**
+- Create: `src/engines/financial/refund-engine.ts`
+
+- [ ] **Step 1: Create `refund-engine.ts`**
 
 ```typescript
-// src/engines/financial/use-refund-engine.ts
+// src/engines/financial/refund-engine.ts
 import { getLogger } from '@logtape/logtape';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { Database } from 'drizzle-orm';
@@ -631,17 +667,17 @@ const calculatePayoutFeeCreditCents = (
 };
 
 /**
- * Refund Engine — Vue-style composable export
+ * Refund Engine — Vue-style engine export
  *
  * Usage:
  *   const { persistExecutedRefund, reconcileRefund } = useRefundEngine();
  *   const payload = await persistExecutedRefund({ organizationId, refundRequestId, ... });
  */
-export const useRefundEngine = () => ({
+export const refundEngine = {
   persistExecutedRefund,
   reconcileRefund,
   calculatePayoutFeeCreditCents,
-});
+};
 ```
 
 - [ ] **Step 2: Run typecheck**
@@ -653,8 +689,8 @@ pnpm run typecheck
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/engines/financial/use-refund-engine.ts
-git commit -m "feat(engines): create useRefundEngine composable engine"
+git add src/engines/financial/refund-engine.ts
+git commit -m "feat(engines): create useRefundEngine engine engine"
 ```
 
 ---
@@ -662,12 +698,13 @@ git commit -m "feat(engines): create useRefundEngine composable engine"
 ### Task 6: Create `useInvoicePaymentOrchestrator` Composable Engine
 
 **Files:**
-- Create: `src/engines/financial/use-invoice-payment-orchestrator.ts`
 
-- [ ] **Step 1: Create `use-invoice-payment-orchestrator.ts`**
+- Create: `src/engines/financial/invoice-payment-orchestrator.ts`
+
+- [ ] **Step 1: Create `invoice-payment-orchestrator.ts`**
 
 ```typescript
-// src/engines/financial/use-invoice-payment-orchestrator.ts
+// src/engines/financial/invoice-payment-orchestrator.ts
 import { getLogger } from '@logtape/logtape';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { Database } from 'drizzle-orm';
@@ -747,15 +784,15 @@ const processPayment = async (opts: ProcessPaymentOpts): Promise<void> => {
 };
 
 /**
- * Invoice Payment Orchestrator — Vue-style composable export
+ * Invoice Payment Orchestrator — Vue-style engine export
  *
  * Usage:
  *   const { processPayment } = useInvoicePaymentOrchestrator();
  *   await processPayment({ stripeInvoiceId, organizationId, ctx });
  */
-export const useInvoicePaymentOrchestrator = () => ({
+export const invoicePaymentOrchestrator = {
   processPayment,
-});
+};
 ```
 
 - [ ] **Step 2: Run typecheck**
@@ -767,8 +804,8 @@ pnpm run typecheck
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/engines/financial/use-invoice-payment-orchestrator.ts
-git commit -m "feat(engines): create useInvoicePaymentOrchestrator composable engine"
+git add src/engines/financial/invoice-payment-orchestrator.ts
+git commit -m "feat(engines): create useInvoicePaymentOrchestrator engine engine"
 ```
 
 ---
@@ -776,14 +813,15 @@ git commit -m "feat(engines): create useInvoicePaymentOrchestrator composable en
 ### Task 7: Create Placeholder Engines
 
 **Files:**
-- Create: `src/engines/financial/use-payment-processor.ts`
-- Create: `src/engines/stripe/use-stripe-api-adapter.ts`
-- Create: `src/engines/stripe/use-webhook-router.ts`
 
-- [ ] **Step 1: Create `use-payment-processor.ts`** (placeholder for future intent orchestration)
+- Create: `src/engines/financial/payment-processor.ts`
+- Create: `src/engines/stripe/stripe-api-adapter.ts`
+- Create: `src/engines/stripe/webhook-router.ts`
+
+- [ ] **Step 1: Create `payment-processor.ts`** (placeholder for future intent orchestration)
 
 ```typescript
-// src/engines/financial/use-payment-processor.ts
+// src/engines/financial/payment-processor.ts
 /**
  * Payment Processor Engine — placeholder for Layer 4 payment intent orchestration
  *
@@ -795,15 +833,15 @@ git commit -m "feat(engines): create useInvoicePaymentOrchestrator composable en
  * Currently: empty placeholder
  */
 
-export const usePaymentProcessor = () => ({
+export const paymentProcessor = {
   // TODO: Add payment intent orchestration methods
-});
+};
 ```
 
-- [ ] **Step 2: Create `use-stripe-api-adapter.ts`** (placeholder for Stripe API calls)
+- [ ] **Step 2: Create `stripe-api-adapter.ts`** (placeholder for Stripe API calls)
 
 ```typescript
-// src/engines/stripe/use-stripe-api-adapter.ts
+// src/engines/stripe/stripe-api-adapter.ts
 /**
  * Stripe API Adapter Engine — API calls to Stripe
  *
@@ -815,15 +853,15 @@ export const usePaymentProcessor = () => ({
  * Injected: Stripe client instance
  */
 
-export const useStripeApiAdapter = () => ({
+export const stripeApiAdapter = {
   // TODO: Implement createInvoice, finalizeInvoice, createTransfer, etc.
-});
+};
 ```
 
-- [ ] **Step 3: Create `use-webhook-router.ts`** (placeholder for Stripe webhook routing)
+- [ ] **Step 3: Create `webhook-router.ts`** (placeholder for Stripe webhook routing)
 
 ```typescript
-// src/engines/stripe/use-webhook-router.ts
+// src/engines/stripe/webhook-router.ts
 import type Stripe from 'stripe';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -845,23 +883,25 @@ const handleInvoicePaid = async (stripeInvoiceId: string, ctx: ServiceContext): 
   // TODO: Call invoicePaymentOrchestrator.processPayment()
 };
 
-export const useWebhookRouter = () => ({
+export const webhookRouter = {
   processStripeWebhook,
   handleInvoicePaid,
-});
+};
 ```
 
 - [ ] **Step 4: Update engine indexes to export placeholders**
 
 Update `src/engines/financial/index.ts`:
+
 ```typescript
-export { usePaymentProcessor } from './use-payment-processor';
+export { paymentProcessor } from './payment-processor';
 ```
 
 Update `src/engines/stripe/index.ts`:
+
 ```typescript
-export { useStripeApiAdapter } from './use-stripe-api-adapter';
-export { useWebhookRouter } from './use-webhook-router';
+export { stripeApiAdapter } from './stripe-api-adapter';
+export { webhookRouter } from './webhook-router';
 ```
 
 - [ ] **Step 5: Run typecheck**
@@ -879,11 +919,12 @@ git commit -m "feat(engines): create placeholder engines for payment processor a
 
 ---
 
-## Phase 3: Event Listeners
+## Phase 4: Create Event Listeners
 
 ### Task 8: Create Event Listeners (Module-Specific)
 
 **Files:**
+
 - Create: `src/modules/trust/listeners.ts`
 - Create: `src/modules/invoices/listeners.ts`
 - Create: `src/modules/billing/listeners.ts`
@@ -891,6 +932,7 @@ git commit -m "feat(engines): create placeholder engines for payment processor a
 **Context:** Each module owns its own listeners.ts file. Modules are independent—they subscribe to events and handle only their own domain concerns. No module depends on another module's listeners.
 
 **Architecture:**
+
 ```
 Event: InvoicePaid
   ├─ Trust listener (deposits, balance checks)
@@ -907,7 +949,12 @@ Create `src/modules/trust/listeners.ts`:
 ```typescript
 import { getLogger } from '@logtape/logtape';
 import { Event } from '@/shared/events/event';
-import type { InvoicePaidPayload, InvoiceRefundedPayload, INVOICE_PAID_EVENT, INVOICE_REFUNDED_EVENT } from '@/modules/invoices/types/events';
+import type {
+  InvoicePaidPayload,
+  InvoiceRefundedPayload,
+  INVOICE_PAID_EVENT,
+  INVOICE_REFUNDED_EVENT,
+} from '@/modules/invoices/types/events';
 import type { RetainerLowBalancePayload } from '@/modules/trust/types/events';
 import { RETAINER_LOW_BALANCE_EVENT } from '@/modules/trust/types/events';
 import { trustService } from '@/modules/trust/services';
@@ -998,9 +1045,9 @@ const logger = getLogger(['modules', 'invoices', 'listeners']);
  * When InvoicePaid is emitted, send email notification and log to audit.
  * NOTE: Trust deposits and billing transactions are handled by their own listeners.
  */
-Event.listen(InvoicePaid, async (event) => {
+Event.listen('invoice:paid', async (payload: InvoicePaidPayload) => {
   try {
-    const { invoice_id, organization_id, amount_cents } = event.payload;
+    const { invoice_id, organization_id, amount_cents } = payload;
 
     // Email: Queue payment received notification
     await emailQueue.queueJob({
@@ -1028,9 +1075,9 @@ Event.listen(InvoicePaid, async (event) => {
 /**
  * When InvoiceRefunded is emitted, send refund email and log to audit.
  */
-Event.listen(InvoiceRefunded, async (event) => {
+Event.listen('invoice:refunded', async (payload: InvoiceRefundedPayload) => {
   try {
-    const { invoice_id, organization_id, refunded_amount_cents } = event.payload;
+    const { invoice_id, organization_id, refunded_amount_cents } = payload;
 
     await emailQueue.queueJob({
       type: 'invoice_refunded',
@@ -1056,9 +1103,9 @@ Event.listen(InvoiceRefunded, async (event) => {
 /**
  * When RetainerLowBalance is emitted, send low balance notification email.
  */
-Event.listen(RetainerLowBalance, async (event) => {
+Event.listen('retainer:low_balance', async (payload: RetainerLowBalancePayload) => {
   try {
-    const { matter_id, organization_id, current_balance_cents, threshold_cents } = event.payload;
+    const { matter_id, organization_id, current_balance_cents, threshold_cents } = payload;
 
     await emailQueue.queueJob({
       type: 'retainer_low_balance',
@@ -1085,7 +1132,7 @@ Create `src/modules/billing/listeners.ts`:
 ```typescript
 import { getLogger } from '@logtape/logtape';
 import { Event } from '@/shared/events/event';
-import { InvoicePaid, InvoiceRefunded } from '@/shared/events/definitions';
+import type { InvoicePaidPayload, InvoiceRefundedPayload } from '@/modules/invoices/types/events';
 import { billingService } from '@/modules/billing/services/billing.service';
 
 const logger = getLogger(['modules', 'billing', 'listeners']);
@@ -1095,9 +1142,9 @@ const logger = getLogger(['modules', 'billing', 'listeners']);
  * NOTE: Email notifications and audit logging are handled by invoices listener.
  * Trust deposits are handled by trust listener.
  */
-Event.listen(InvoicePaid, async (event) => {
+Event.listen('invoice:paid', async (payload: InvoicePaidPayload) => {
   try {
-    const { invoice_id, organization_id, amount_cents } = event.payload;
+    const { invoice_id, organization_id, amount_cents } = payload;
 
     // Billing: Create transaction and queue Stripe transfer
     await billingService.processPaymentBilling({
@@ -1118,9 +1165,9 @@ Event.listen(InvoicePaid, async (event) => {
 /**
  * When InvoiceRefunded is emitted, create reverse billing transaction and queue Stripe reversal.
  */
-Event.listen(InvoiceRefunded, async (event) => {
+Event.listen('invoice:refunded', async (payload: InvoiceRefundedPayload) => {
   try {
-    const { invoice_id, organization_id, refunded_amount_cents } = event.payload;
+    const { invoice_id, organization_id, refunded_amount_cents } = payload;
 
     await billingService.processRefundBilling({
       invoiceId: invoice_id,
@@ -1155,11 +1202,12 @@ git commit -m "feat: create module-specific event listeners (trust, invoices, bi
 
 ---
 
-## Phase 4: Webhooks and Worker Task
+## Phase 5: Webhooks and Worker Task
 
 ### Task 9: Create Thin Webhook Handler
 
 **Files:**
+
 - Create: `src/workers/tasks/process-invoice-payment.ts` (async worker task)
 - Modify: `src/modules/invoices/services/invoice-webhooks.service.ts` (make thin)
 
@@ -1171,7 +1219,7 @@ import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import { db } from '@/shared/database';
 import { createSystemContext } from '@/shared/types/service-context';
-import { useInvoicePaymentOrchestrator } from '@/engines/financial';
+import { invoicePaymentOrchestrator } from '@/engines/financial';
 
 const logger = getLogger(['workers', 'process-invoice-payment']);
 
@@ -1215,6 +1263,7 @@ export const processInvoicePaymentTask: Task = async (inProgressJob) => {
 - [ ] **Step 2: Register task in Graphile Worker config**
 
 Update `src/shared/queue/queue.config.ts` (add to TASK_NAMES):
+
 ```typescript
 export const TASK_NAMES = [
   // ... existing tasks ...
@@ -1227,6 +1276,7 @@ export const TASK_NAMES = [
 Modify `src/modules/invoices/services/invoice-webhooks.service.ts`:
 
 Replace the entire `handleInvoicePaid` function with:
+
 ```typescript
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   // THIN handler: store event, publish to queue, return immediately
@@ -1253,6 +1303,7 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
 ```
 
 Remove all the old code that:
+
 - Called `fundRouterService.routePayment()`
 - Recorded trust deposits
 - Called subscription metering
@@ -1276,11 +1327,12 @@ git commit -m "feat: create process-invoice-payment worker task, make webhook ha
 
 ---
 
-## Phase 5: Error Handling & Consolidation
+## Phase 6: Error Handling & Consolidation
 
 ### Task 10: Fix `errorHandler` and Simplify Invoice Handlers
 
 **Files:**
+
 - Modify: `src/shared/middleware/errorHandler.ts` — Add `AppError` discriminated union case
 - Modify: `src/modules/invoices/handlers.ts` — Simplify to use new orchestrators
 
@@ -1297,10 +1349,15 @@ import type { AppError } from '@/shared/types/errors';
 if (typeof error === 'object' && error !== null && 'kind' in error) {
   const appError = error as AppError;
   const status =
-    appError.kind === 'validation_error' ? 400 :
-    appError.kind === 'authorization_error' ? 403 :
-    appError.kind === 'transaction_error' ? 500 :
-    appError.kind === 'app_error' ? appError.status : 500;
+    appError.kind === 'validation_error'
+      ? 400
+      : appError.kind === 'authorization_error'
+        ? 403
+        : appError.kind === 'transaction_error'
+          ? 500
+          : appError.kind === 'app_error'
+            ? appError.status
+            : 500;
 
   const isClientError = status >= 400 && status < 500;
 
@@ -1319,10 +1376,7 @@ if (typeof error === 'object' && error !== null && 'kind' in error) {
     });
   }
 
-  return c.json(
-    { error: appError.code, message: appError.message },
-    status
-  );
+  return c.json({ error: appError.code, message: appError.message }, status);
 }
 ```
 
@@ -1331,6 +1385,7 @@ if (typeof error === 'object' && error !== null && 'kind' in error) {
 Update `src/modules/invoices/handlers.ts`:
 
 Replace old imports:
+
 ```typescript
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 import { trustService } from '@/modules/trust/services';
@@ -1338,12 +1393,14 @@ import { trustService } from '@/modules/trust/services';
 ```
 
 With:
+
 ```typescript
-import { useInvoicePaymentOrchestrator } from '@/engines/financial';
+import { invoicePaymentOrchestrator } from '@/engines/financial';
 import { getServiceContext } from '@/shared/types/service-context';
 ```
 
 Remove all direct service calls for payment processing. If a handler needs to process payment, delegate to orchestrator:
+
 ```typescript
 const { processPayment } = useInvoicePaymentOrchestrator();
 await processPayment({ stripeInvoiceId, organizationId, ctx });
@@ -1366,33 +1423,38 @@ git commit -m "fix: add AppError handler and simplify invoice handlers to use or
 
 ---
 
-## Phase 6: Integration Testing and Cleanup
+## Phase 7: Integration Testing and Cleanup
 
 ### Task 11: Update Consumer Module Imports
 
 **Files:**
+
 - Modify: `src/modules/practice-client-intakes/services/intake-creation.service.ts`
 
 - [ ] **Step 1: Update fund-router import**
 
 Replace:
+
 ```typescript
 import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
 ```
 
 With:
+
 ```typescript
-import { useFundManagement } from '@/engines/financial';
+import { fundManagement } from '@/engines/financial';
 ```
 
 - [ ] **Step 2: Update fund routing calls**
 
 Replace:
+
 ```typescript
 const routing = fundRouterService.routePayment(invoice, connectedAccountId);
 ```
 
 With:
+
 ```typescript
 const { routePayment } = useFundManagement();
 const routing = routePayment(invoice, connectedAccountId);
@@ -1418,6 +1480,7 @@ git commit -m "refactor: update fund-router imports to use engines"
 ### Task 12: End-to-End Testing
 
 **Files:**
+
 - Test: Run existing test suite
 
 - [ ] **Step 1: Run typecheck across the entire project**
@@ -1504,10 +1567,11 @@ pnpm run build
 ## Summary
 
 **What was done:**
+
 1. ✅ Fixed `errorHandler` to handle `AppError` discriminated union (foundation for throw-based errors)
 2. ✅ Defined event payloads (InvoicePaid, InvoiceRefunded, RetainerLowBalance, AuditLogEvent) with minimal identifiers
-3. ✅ Created `src/engines/financial/` with composable functions (Vue-style): `useFundManagement`, `useInvoicePaymentOrchestrator`, `useRetainerPaymentFlow`, `useRefundEngine` (all emit events as outputs)
-4. ✅ Created `src/engines/stripe/` with composable functions: `useWebhookRouter`, `useStripeApiAdapter` (placeholders)
+3. ✅ Created `src/engines/financial/` with engine functions (Vue-style): `useFundManagement`, `useInvoicePaymentOrchestrator`, `useRetainerPaymentFlow`, `useRefundEngine` (all emit events as outputs)
+4. ✅ Created `src/engines/stripe/` with engine functions: `useWebhookRouter`, `useStripeApiAdapter` (placeholders)
 5. ✅ Created event listeners in modules (trust, invoices) for side effects (trust deposits, emails, audit logging, billing)
 6. ✅ Made webhook handler thin (store → publish → reply)
 7. ✅ Created async worker task (`process-invoice-payment`) that triggers orchestrators
@@ -1529,11 +1593,11 @@ Webhook → Store → Worker → Orchestrator (validate + coordinate + emit) →
 - **Services**: Called by orchestrators to execute work (no direct listener calls)
 
 **Key wins:**
+
 - Webhook handler returns 200 immediately (Stripe timeout risk eliminated)
 - Payment processing happens asynchronously in worker (retry-safe via Graphile)
 - Error handling is consistent (AppError maps to correct HTTP status)
-- Financial logic is extracted and reusable (engines as composables)
+- Financial logic is extracted and reusable (engines as engines)
 - Side effects are decoupled from orchestrator (listeners retry independently)
 - Events are minimal signals, not the primary coordination layer
 - Clear separation of concerns: engines coordinate, listeners observe
-

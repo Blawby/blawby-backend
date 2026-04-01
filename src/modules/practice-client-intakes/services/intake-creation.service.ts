@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Stripe } from 'stripe';
-import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
+import { fundManagement } from '@/engines/financial';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
@@ -114,7 +114,7 @@ const insertIntakeRecordTx = async (
     address_id: addressId,
     conversation_id: params.request.conversation_id,
     amount: params.request.amount,
-    application_fee: fundRouterService.calculateApplicationFee(params.request.amount),
+    application_fee: fundManagement.calculateApplicationFee(params.request.amount),
     currency: 'usd',
     status: params.shouldBypassPayment ? 'succeeded' : 'open',
     triage_status: 'pending_review',
@@ -167,6 +167,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const validatedUserId = request.user_id;
 
     if (!shouldBypassPayment) {
+      // Validate intake settings (throws if invalid)
       const settingsResult = await getIntakeSettings({ slug: request.slug, organization });
       if (!settingsResult.success) {
         return settingsResult;

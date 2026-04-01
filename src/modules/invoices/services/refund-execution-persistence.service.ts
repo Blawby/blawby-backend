@@ -1,6 +1,5 @@
 import { getLogger } from '@logtape/logtape';
 import { and, eq } from 'drizzle-orm';
-
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
@@ -10,19 +9,9 @@ import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { db } from '@/shared/database';
+import { type RefundEventPayload, type InvoiceRecord } from '@/modules/invoices/types/refund-request';
 
 const logger = getLogger(['invoices', 'refund-execution-persistence']);
-
-type InvoiceRecord = NonNullable<Awaited<ReturnType<typeof invoicesRepository.findInvoiceById>>>;
-
-export type RefundEventPayload = {
-  invoice_id: string;
-  organization_id: string;
-  refund_request_id: string;
-  refunded_amount: number;
-  payout_fee_credit_cents: number;
-  credit_invoice_fee: boolean;
-};
 
 const getRefundCreditFlags = async (opts: {
   organizationId: string;
@@ -102,10 +91,14 @@ const calculatePayoutFeeCreditCents = (
 ): number => {
   const originalPayoutMeteredFeeCents = requirePayoutMeteredFeeCents(invoiceTxs, invoiceId);
   const priorRefundTxs = invoiceTxs.filter((tx) => {
-    if (tx.type !== 'refund') return false;
+    if (tx.type !== 'refund') {
+      return false;
+    }
 
     const metadata = tx.metadata as Record<string, unknown> | null | undefined;
-    if (!refundRequestId) return true;
+    if (!refundRequestId) {
+      return true;
+    }
 
     const metadataRefundRequestId = typeof metadata?.refund_request_id === 'string' ? metadata.refund_request_id : null;
     return metadataRefundRequestId !== refundRequestId;
@@ -157,7 +150,9 @@ const persistExecutedRefund = async (opts: {
       .for('update');
 
     const lockedInvoice = await invoicesRepository.findInvoiceById(opts.invoice.id, opts.organizationId, tx);
-    if (!lockedInvoice) return null;
+    if (!lockedInvoice) {
+      return null;
+    }
 
     const lockedInvoiceTxs = await billingTransactionsRepository.listByInvoiceId(lockedInvoice.id, tx);
     const amountPaidCents = lockedInvoice.amount_paid ?? 0;
@@ -192,7 +187,9 @@ const persistExecutedRefund = async (opts: {
       },
       tx
     );
-    if (!executedRequest) return null;
+    if (!executedRequest) {
+      return null;
+    }
 
     const refundDestinationAccountId = getRefundDestinationAccountId(lockedInvoice, lockedInvoiceTxs);
     if (refundDestinationAccountId) {
@@ -212,7 +209,7 @@ const persistExecutedRefund = async (opts: {
             stripe_refund_id: opts.stripeRefundId,
             stripe_payment_intent_id: opts.stripePaymentIntentId,
             stripe_transfer_id: opts.stripeTransferId,
-            reverse_transfer: !!opts.stripeTransferId,
+            reverse_transfer: Boolean(opts.stripeTransferId),
             credit_invoice_fee: creditInvoiceFee,
             payout_fee_credit_cents: payoutFeeCreditCents,
           },

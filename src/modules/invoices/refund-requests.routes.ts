@@ -1,17 +1,14 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import { errorResponseSchema, notFoundResponseSchema, practiceIdParamSchema } from '@/shared/validations/openapi';
+import { routeBuilder } from '@/shared/router/route-builder';
 
-export const refundStatusEnum = z.enum([
-  'requested',
-  'approved',
-  'rejected',
-  'executed',
-  'failed',
-  'cancelled',
-  'executing',
-]);
+const refundRequestIdParam = practiceIdParamSchema.extend({
+  id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, description: 'Refund request ID' }),
+});
 
-export const refundRequestSchema = z
+const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing']);
+
+const refundRequestSchema = z
   .object({
     id: z.uuid(),
     organization_id: z.uuid(),
@@ -26,21 +23,18 @@ export const refundRequestSchema = z
     stripe_refund_id: z.string().nullable(),
     stripe_payment_intent_id: z.string().nullable(),
     executed_amount: z.number().nullable(),
-    executed_at: z.string().datetime().nullable(),
+    executed_at: z.iso.datetime({ offset: true }).nullable(),
     executed_by_user_id: z.uuid().nullable(),
-    reviewed_at: z.string().datetime().nullable(),
+    reviewed_at: z.iso.datetime({ offset: true }).nullable(),
     reviewed_by_user_id: z.uuid().nullable(),
     review_notes: z.string().nullable(),
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    created_at: z.iso.datetime({ offset: true }),
+
+    updated_at: z.iso.datetime({ offset: true }),
   })
   .openapi('RefundRequest', { description: 'A client refund request' });
 
-const refundRequestIdParam = practiceIdParamSchema.extend({
-  id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, description: 'Refund request ID' }),
-});
-
-export const createRefundRequestRoute = createRoute({
+const createRefundRequestRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/client/refund-requests',
   tags: ['Client Refund Requests'],
@@ -71,7 +65,7 @@ export const createRefundRequestRoute = createRoute({
   },
 });
 
-export const listClientRefundRequestsRoute = createRoute({
+const listClientRefundRequestsRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/client/refund-requests',
   tags: ['Client Refund Requests'],
@@ -86,7 +80,7 @@ export const listClientRefundRequestsRoute = createRoute({
   },
 });
 
-export const cancelRefundRequestRoute = createRoute({
+const cancelRefundRequestRoute = routeBuilder.build({
   method: 'patch',
   path: '/{practice_id}/client/refund-requests/{id}/cancel',
   tags: ['Client Refund Requests'],
@@ -103,7 +97,7 @@ export const cancelRefundRequestRoute = createRoute({
   },
 });
 
-export const listPracticeRefundRequestsRoute = createRoute({
+const listPracticeRefundRequestsRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/refund-requests',
   tags: ['Practice Refund Requests'],
@@ -125,7 +119,7 @@ export const listPracticeRefundRequestsRoute = createRoute({
   },
 });
 
-export const reviewRefundRequestRoute = createRoute({
+const reviewRefundRequestRoute = routeBuilder.build({
   method: 'patch',
   path: '/{practice_id}/refund-requests/{id}',
   tags: ['Practice Refund Requests'],
@@ -154,7 +148,7 @@ export const reviewRefundRequestRoute = createRoute({
   },
 });
 
-export const executeRefundRoute = createRoute({
+const executeRefundRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/refund-requests/{id}/execute',
   tags: ['Practice Refund Requests'],
@@ -170,3 +164,12 @@ export const executeRefundRoute = createRoute({
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Not found' },
   },
 });
+
+export const refundRequestRoutes = {
+  createRefundRequestRoute,
+  listClientRefundRequestsRoute,
+  cancelRefundRequestRoute,
+  listPracticeRefundRequestsRoute,
+  reviewRefundRequestRoute,
+  executeRefundRoute,
+};

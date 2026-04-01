@@ -29,7 +29,7 @@ const finalizeAndSendStripeFlow = async (
 ): Promise<InvoiceWithRelations> => {
   // 1. Create on Stripe
   if (!invWithRel.client?.stripe_customer_id) {
-    throw createAppError('STRIPE_CUSTOMER_MISSING', 500, 'Client is missing Stripe customer ID', {
+    throw createAppError('STRIPE_CUSTOMER_MISSING', 'Client is missing Stripe customer ID', 500, {
       invoiceId,
       clientId: invWithRel.client_id,
     });
@@ -44,8 +44,8 @@ const finalizeAndSendStripeFlow = async (
   if (!stripeResult.success) {
     throw createAppError(
       'STRIPE_INVOICE_CREATION_FAILED',
-      500,
       stripeResult.error?.message || 'Failed to create Stripe invoice',
+      500,
       {
         invoiceId,
         stripeError: stripeResult.error?.code,
@@ -60,8 +60,8 @@ const finalizeAndSendStripeFlow = async (
   if (!sendResult.success) {
     throw createAppError(
       'STRIPE_INVOICE_SEND_FAILED',
-      500,
       sendResult.error?.message || 'Failed to send Stripe invoice',
+      500,
       {
         invoiceId,
         stripeInvoiceId: stripeInvoice.id,
@@ -107,7 +107,7 @@ const finalizeAndSendStripeFlow = async (
     const updated = await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId, executor);
 
     if (!updated) {
-      throw createAppError('INVOICE_RETRIEVAL_FAILED', 500, 'Invoice not found after update', {
+      throw createAppError('INVOICE_RETRIEVAL_FAILED', 'Invoice not found after update', 500, {
         invoiceId,
         organizationId: ctx.organizationId,
       });
@@ -129,8 +129,8 @@ const finalizeAndSendStripeFlow = async (
       {
         invoiceId,
         organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
+        cause: error instanceof Error ? error.message : String(error),
+      }
     );
   }
 };
@@ -180,7 +180,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
   try {
     let invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -210,7 +210,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
 
         if (!setupResult.stripe_customer_id) {
-          throw createAppError('STRIPE_CUSTOMER_SETUP_FAILED', 500, 'Failed to setup Stripe customer for client', {
+          throw createAppError('STRIPE_CUSTOMER_SETUP_FAILED', 'Failed to setup Stripe customer for client', 500, {
             invoiceId: id,
             clientId: invoice.client_id,
           });
@@ -219,7 +219,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         // Refetch invoice to get updated client with stripe_customer_id
         const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
         if (!freshInvoice) {
-          throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found after client setup', {
+          throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found after client setup', 404, {
             invoiceId: id,
             organizationId: ctx.organizationId,
           });
@@ -232,8 +232,8 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         }
         throw createAppError(
           'STRIPE_CUSTOMER_SETUP_FAILED',
-          500,
           error instanceof Error ? error.message : 'Failed to setup Stripe customer for client',
+          500,
           {
             invoiceId: id,
             clientId: invoice.client_id,
@@ -244,7 +244,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
     const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');
     if (!lockedInvoice) {
-      throw createAppError('INVOICE_ALREADY_SENDING', 409, 'Invoice is already being sent by another request', {
+      throw createAppError('INVOICE_ALREADY_SENDING', 'Invoice is already being sent by another request', 409, {
         invoiceId: id,
       });
     }
@@ -278,8 +278,8 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       {
         invoiceId: id,
         organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
+        cause: error instanceof Error ? error.message : String(error),
+      }
     );
   }
 };
@@ -294,7 +294,7 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
   try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -310,8 +310,8 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     if (!stripeResult.success) {
       throw createAppError(
         'STRIPE_FETCH_FAILED',
-        500,
         stripeResult.error?.message || 'Failed to fetch invoice from Stripe',
+        500,
         {
           invoiceId: id,
           stripeInvoiceId: invoice.stripe_invoice_id,
@@ -331,7 +331,7 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     );
 
     if (!updated) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found after sync', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found after sync', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -354,8 +354,8 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       {
         invoiceId: id,
         organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
+        cause: error instanceof Error ? error.message : String(error),
+      }
     );
   }
 };
@@ -370,7 +370,7 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
   try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -392,7 +392,7 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     // Void on Stripe
     const voidResult = await stripeInvoicesService.voidInvoice(invoice.stripe_invoice_id);
     if (!voidResult.success) {
-      throw createAppError('STRIPE_VOID_FAILED', 500, voidResult.error?.message || 'Failed to void invoice on Stripe', {
+      throw createAppError('STRIPE_VOID_FAILED', voidResult.error?.message || 'Failed to void invoice on Stripe', 500, {
         invoiceId: id,
         stripeInvoiceId: invoice.stripe_invoice_id,
         stripeError: voidResult.error?.code,
@@ -418,7 +418,7 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
     const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!updated) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found after void', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found after void', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -441,8 +441,8 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       {
         invoiceId: id,
         organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
+        cause: error instanceof Error ? error.message : String(error),
+      }
     );
   }
 };

@@ -2,13 +2,11 @@ import { and, or, eq, isNull } from 'drizzle-orm';
 import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
-import type { Result } from '@/shared/types/result';
+import { createNotFoundError } from '@/shared/types/errors';
 import { createSystemContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
-
-type Executor = typeof db;
 
 /**
  * Resolves a client for invoice creation
@@ -17,11 +15,10 @@ type Executor = typeof db;
 const resolveClientForInvoice = async (
   organizationId: string,
   clientId: string,
-  connectedAccountId: string,
-  executor: Executor = db
-): Promise<Result<ResolvedClientForInvoice>> => {
+  connectedAccountId: string
+): Promise<ResolvedClientForInvoice> => {
   // 1. Try to find existing user_details by ID or UserID
-  let clientDetails = await executor.query.clients.findFirst({
+  let clientDetails = await db.query.clients.findFirst({
     where: and(
       or(eq(clients.id, clientId), eq(clients.user_id, clientId)),
       eq(clients.organization_id, organizationId),
@@ -32,7 +29,7 @@ const resolveClientForInvoice = async (
       organization: {
         with: {
           stripeConnectedAccounts: {
-            where: (acc, { eq: eqOp }) => eqOp(acc.id, connectedAccountId),
+            where: eq(stripeConnectedAccounts.id, connectedAccountId),
           },
         },
       },
@@ -42,7 +39,7 @@ const resolveClientForInvoice = async (
 
   // 2. Auto-vivify if missing but user is a member
   if (!clientDetails) {
-    const [memberMatch] = await executor
+    const [memberMatch] = await db
       .select({
         user: users,
         organizationId: members.organizationId,
@@ -54,7 +51,7 @@ const resolveClientForInvoice = async (
 
     if (memberMatch) {
       // Minimal DB-only insert to get the ID required for Foreign Key
-      const [newDetail] = await executor
+      const [newDetail] = await db
         .insert(clients)
         .values({
           organization_id: organizationId,
@@ -67,14 +64,14 @@ const resolveClientForInvoice = async (
       void clientsCrudService.ensureClientSetup({ id: newDetail.id }, createSystemContext(organizationId, 'system'));
 
       // Re-fetch to populate relations for the remainder of the process
-      clientDetails = await executor.query.clients.findFirst({
+      clientDetails = await db.query.clients.findFirst({
         where: eq(clients.id, newDetail.id),
         with: {
           user: true,
           organization: {
             with: {
               stripeConnectedAccounts: {
-                where: (acc, { eq: eqOp }) => eqOp(acc.id, connectedAccountId),
+                where: eq(stripeConnectedAccounts.id, connectedAccountId),
               },
             },
           },
@@ -85,14 +82,14 @@ const resolveClientForInvoice = async (
   }
 
   if (!clientDetails) {
-    return result.notFound('Client not found or does not belong to this organization');
+    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client not found or does not belong to this organization');
   }
 
   // Extract connected account
   const connectedAccount = clientDetails.organization?.stripeConnectedAccounts?.[0] ?? null;
 
   // Return normalized result
-  return result.ok({
+  return {
     id: clientDetails.id,
     user_id: clientDetails.user_id,
     name: clientDetails.user?.name ?? '',
@@ -101,26 +98,22 @@ const resolveClientForInvoice = async (
     organization_id: clientDetails.organization_id,
     connectedAccount,
     matters: clientDetails.matters ?? [],
-  });
+  };
 };
 
 /**
  * Resolves a userId to a userDetails.id for the given org.
  * Used by client-facing invoice endpoints so the client never passes their own identifier.
  */
-const resolveUserDetailId = async (
-  organizationId: string,
-  userId: string,
-  executor: Executor = db
-): Promise<Result<string>> => {
-  const detail = await executor.query.clients.findFirst({
+const resolveUserDetailId = async (organizationId: string, userId: string): Promise<string> => {
+  const detail = await db.query.clients.findFirst({
     where: and(eq(clients.organization_id, organizationId), eq(clients.user_id, userId), isNull(clients.deleted_at)),
     columns: { id: true },
   });
   if (!detail) {
-    return result.notFound('Client record not found in this organization');
+    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client record not found in this organization');
   }
-  return result.ok(detail.id);
+  return detail.id;
 };
 
 export const invoiceClientResolver = {

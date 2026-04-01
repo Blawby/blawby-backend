@@ -56,18 +56,13 @@ const validateInvoiceCreation = async (
   ctx: ServiceContext
 ): Promise<{ clientId: string }> => {
   // 1. Resolve and validate client with all required relations
-  const clientResult = await invoiceClientResolver.resolveClientForInvoice(
+  const client = await invoiceClientResolver.resolveClientForInvoice(
     ctx.organizationId,
     data.client_id,
     data.connected_account_id
   );
-  if (!clientResult.success) {
-    throw createValidationError('INVALID_CLIENT', 'Failed to resolve client for invoice', {
-      clientId: data.client_id,
-    });
-  }
 
-  const { id: clientId, connectedAccount, matters } = clientResult.data;
+  const { id: clientId, connectedAccount, matters } = client;
 
   // 2. Validate connected account capabilities
   const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
@@ -79,7 +74,7 @@ const validateInvoiceCreation = async (
 
   // 3. Validate matter belongs to client (if provided)
   if (data.matter_id) {
-    const matter = matters.find((m) => m.id === data.matter_id);
+    const matter = matters.find((m: { id: string }) => m.id === data.matter_id);
     const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
     if (!matterValidation.success) {
       throw createValidationError('MATTER_NOT_FOR_CLIENT', 'Invalid matter for client', {
@@ -102,7 +97,7 @@ const validateInvoiceCreation = async (
       {
         hasTimeEntries: data.time_entry_ids?.length ?? 0,
         hasExpenses: data.expense_ids?.length ?? 0,
-        hasMilestone: !!data.milestone_id,
+        hasMilestone: Boolean(data.milestone_id),
       }
     );
   }
@@ -214,7 +209,13 @@ const persistInvoiceStructure = async (
 };
 
 /**
- * Create an invoice
+ * Create Invoice Service
+ *
+ * Orchestrates invoice creation:
+ * 1. Validates client, matter, and invoice data
+ * 2. Calculates totals
+ * 3. Persists invoice structure
+ * 4. Returns invoice with relations
  */
 const createInvoice = async (
   { data }: { data: CreateInvoiceRequest },
@@ -238,7 +239,7 @@ const createInvoice = async (
     // 2. Persist
     const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
     if (!invoice) {
-      throw createAppError('INVOICE_RETRIEVAL_FAILED', 400, 'Failed to retrieve created invoice', {
+      throw createAppError('INVOICE_RETRIEVAL_FAILED', 'Failed to retrieve created invoice', 400, {
         organizationId: ctx.organizationId,
       });
     }
@@ -250,14 +251,10 @@ const createInvoice = async (
       throw error;
     }
     // Wrap unexpected errors
-    throw createTransactionError(
-      'INVOICE_CREATION_FAILED',
-      'An error occurred while creating the invoice',
-      {
-        organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
-    );
+    throw createTransactionError('INVOICE_CREATION_FAILED', 'An error occurred while creating the invoice', {
+      organizationId: ctx.organizationId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 

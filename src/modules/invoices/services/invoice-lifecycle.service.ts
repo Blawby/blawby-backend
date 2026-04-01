@@ -72,7 +72,7 @@ const updateInvoice = async (
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -133,7 +133,7 @@ const updateInvoice = async (
     }
 
     if (!updated) {
-      throw createAppError('INVOICE_RETRIEVAL_FAILED', 500, 'Failed to retrieve updated invoice', {
+      throw createAppError('INVOICE_RETRIEVAL_FAILED', 'Failed to retrieve updated invoice', 500, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -157,8 +157,8 @@ const updateInvoice = async (
       {
         invoiceId: id,
         organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
+        cause: error instanceof Error ? error.message : String(error),
+      }
     );
   }
 };
@@ -173,7 +173,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
+      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
         invoiceId: id,
         organizationId: ctx.organizationId,
       });
@@ -219,8 +219,8 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
       {
         invoiceId: id,
         organizationId: ctx.organizationId,
-      },
-      error instanceof Error ? error : new Error(String(error))
+        cause: error instanceof Error ? error.message : String(error),
+      }
     );
   }
 };

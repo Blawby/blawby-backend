@@ -12,7 +12,7 @@ import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
-import { fundRouterService } from '@/modules/invoices/services/fund-router.service';
+import { fundManagement } from '@/engines/financial';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
@@ -172,17 +172,7 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
       }
 
       // 1. Determine fund routing based on invoice type
-      const routingResult = fundRouterService.routePayment(safeInvoice, destinationAccountId);
-
-      if (!routingResult.success) {
-        logger.warn('Fund routing failed for invoice {invoiceId}: {error}', {
-          invoiceId: safeInvoice.id,
-          error: routingResult.error.message,
-        });
-        throw new Error('Fund routing failed');
-      }
-
-      const routingInstruction = routingResult.data;
+      const routingInstruction = fundManagement.routePayment(safeInvoice, destinationAccountId);
 
       // 2. Persist billing transaction and prepare transfer (skip for retainer-funded invoices)
       // Retainer payments don't involve external transfers - funds come from trust ledger
@@ -233,8 +223,8 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
           stripeInvoice,
           safeInvoice.matter_id,
           tx,
-          async (tx, matter) => {
-            return await trustService.recordDeposit(
+          async (tx, matter) =>
+            await trustService.recordDeposit(
               {
                 organizationId: safeInvoice.organization_id,
                 clientId: matter.client_id,
@@ -247,8 +237,7 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
                 createdBy: 'webhook',
               },
               tx
-            );
-          }
+            )
         );
       } else if (safeInvoice.matter_id && safeInvoice.payment_from_retainer) {
         // Record retainer withdrawal and sync balance
@@ -257,8 +246,8 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
           stripeInvoice,
           safeInvoice.matter_id,
           tx,
-          async (tx, matter) => {
-            return await trustService.recordWithdrawal(
+          async (tx, matter) =>
+            await trustService.recordWithdrawal(
               {
                 organizationId: safeInvoice.organization_id,
                 clientId: matter.client_id,
@@ -271,8 +260,7 @@ export const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<
                 createdBy: 'webhook',
               },
               tx
-            );
-          }
+            )
         );
       }
 
