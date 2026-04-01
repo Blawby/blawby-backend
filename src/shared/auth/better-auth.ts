@@ -16,6 +16,7 @@ import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.ser
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
+import { EMAIL_TEMPLATES } from '@/shared/services/email/email.types';
 import type { PrefillData } from '@/shared/types/prefill';
 import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
@@ -194,8 +195,35 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         },
       },
     },
-    emailAndPassword: AUTH_CONFIG.emailAndPassword,
+    emailVerification: {
+      sendVerificationEmail: async ({ user, url }) => {
+        await queueManager.addEmailJob(
+          EMAIL_TEMPLATES.EMAIL_VERIFICATION,
+          user.email,
+          'Verify your email address',
+          {
+            url,
+            year: new Date().getFullYear(),
+          }
+        );
+      },
+    },
     user: {
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+          await queueManager.addEmailJob(
+            EMAIL_TEMPLATES.CHANGE_EMAIL_CONFIRMATION,
+            user.email,
+            'Confirm your email change',
+            {
+              newEmail,
+              url,
+              year: new Date().getFullYear(),
+            }
+          );
+        },
+      },
       additionalFields: {
         primaryWorkspace: {
           type: ['public', 'client', 'practice'],
@@ -222,6 +250,20 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           required: false,
           defaultValue: false,
         },
+      },
+    },
+    emailAndPassword: {
+      ...AUTH_CONFIG.emailAndPassword,
+      sendResetPassword: async ({ user, url }) => {
+        await queueManager.addEmailJob(
+          EMAIL_TEMPLATES.PASSWORD_RESET,
+          user.email,
+          'Reset your Blawby password',
+          {
+            url,
+            year: new Date().getFullYear(),
+          }
+        );
       },
     },
     socialProviders: {

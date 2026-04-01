@@ -3,16 +3,22 @@
  */
 
 import type {
+  ChangeEmailConfirmationData,
   CustomerPaymentReceiptData,
+  EmailVerificationData,
   MagicLinkData,
+  PasswordResetData,
   PracticeInvitationData,
   StripeConnectWelcomeData,
   WelcomeEmailData,
 } from '@/shared/services/email/email.types';
 import { Hono } from 'hono';
 import { config } from '@/shared/config';
+import { changeEmailConfirmationTemplate } from '@/shared/services/email/templates/auth/change-email-confirmation';
+import { emailVerificationTemplate } from '@/shared/services/email/templates/auth/email-verification';
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
 import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
+import { passwordResetTemplate } from '@/shared/services/email/templates/auth/password-reset';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
 import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
@@ -30,6 +36,22 @@ app.use('*', async (c, next) => {
 // Sample data for previews
 const sampleMagicLinkData: MagicLinkData = {
   url: 'https://blawby.com/auth/magic-link?token=sample-token-123',
+  year: 2026,
+};
+
+const samplePasswordResetData: PasswordResetData = {
+  url: 'https://blawby.com/auth/reset-password?token=sample-reset-token-123',
+  year: 2026,
+};
+
+const sampleEmailVerificationData: EmailVerificationData = {
+  url: 'https://blawby.com/api/auth/verify-email?token=sample-verify-token-123&callbackURL=https%3A%2F%2Fblawby.com%2Fsettings%2Faccount',
+  year: 2026,
+};
+
+const sampleChangeEmailConfirmationData: ChangeEmailConfirmationData = {
+  url: 'https://blawby.com/api/auth/verify-email?token=sample-change-email-token-123&callbackURL=https%3A%2F%2Fblawby.com%2Fsettings%2Faccount',
+  newEmail: 'new-email@example.com',
   year: 2026,
 };
 
@@ -95,6 +117,21 @@ const samplePracticeInvitationData: PracticeInvitationData = {
 // Magic Link Preview
 app.get('/magic-link', (c) => {
   const html = magicLinkTemplate(sampleMagicLinkData);
+  return c.html(html);
+});
+
+app.get('/password-reset', (c) => {
+  const html = passwordResetTemplate(samplePasswordResetData);
+  return c.html(html);
+});
+
+app.get('/email-verification', (c) => {
+  const html = emailVerificationTemplate(sampleEmailVerificationData);
+  return c.html(html);
+});
+
+app.get('/change-email-confirmation', (c) => {
+  const html = changeEmailConfirmationTemplate(sampleChangeEmailConfirmationData);
   return c.html(html);
 });
 

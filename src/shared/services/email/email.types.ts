@@ -28,6 +28,9 @@ export const EMAIL_TEMPLATES = {
   SCHEDULED_EVENT: 'scheduled-event',
   // Auth
   MAGIC_LINK: 'magic-link',
+  PASSWORD_RESET: 'password-reset',
+  EMAIL_VERIFICATION: 'email-verification',
+  CHANGE_EMAIL_CONFIRMATION: 'change-email-confirmation',
   // Intakes
   INTAKE_SUBMISSION_RECEIVED: 'intake-submission-received',
   INTAKE_NEW_NOTIFICATION: 'intake-new-notification',
@@ -55,6 +58,22 @@ export interface ScheduledEventData {
  */
 export interface MagicLinkData {
   url: string;
+  year: number;
+}
+
+export interface PasswordResetData {
+  url: string;
+  year: number;
+}
+
+export interface EmailVerificationData {
+  url: string;
+  year: number;
+}
+
+export interface ChangeEmailConfirmationData {
+  url: string;
+  newEmail: string;
   year: number;
 }
 
