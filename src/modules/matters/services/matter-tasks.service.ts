@@ -15,19 +15,25 @@ const createMatterTask = async (
   params: { matterId: string; data: CreateMatterTaskRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTask>> => {
+  // Verify matter access first
+  const matterResult = await mattersService.verifyMatterAccess(params.matterId, ctx);
+  if (!matterResult.success) {
+    return matterResult as Result<never>;
+  }
+
+  const taskData = {
+    ...params.data,
+    matter_id: params.matterId,
+  };
+
   try {
-    // Verify matter exists and user has access
-    const matterResult = await mattersService.getMatterById(params.matterId, ctx);
-    if (!matterResult.success) {
-      return matterResult as Result<never>;
+    const createdTasks = await matterTasksQueries.createMatterTasks(taskData);
+
+    if (!createdTasks || createdTasks.length === 0) {
+      return internalError('Failed to create matter task');
     }
 
-    const taskData = {
-      ...params.data,
-      matter_id: params.matterId,
-    };
-
-    const [task] = await matterTasksQueries.createMatterTasks(taskData);
+    const createdTask = createdTasks[0];
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
@@ -43,11 +49,11 @@ const createMatterTask = async (
         action: matterActivityService.ActivityAction.TASK_CREATED,
         description: `${userName} created task: ${params.data.name}${assigneeInfo}${priorityInfo}`,
         metadata: { 
-          task_id: task.id,
+          task_id: createdTask.id,
           assignee_id: params.data.assignee_id,
           priority: params.data.priority,
           stage: params.data.stage,
-          changed_fields: ['created'] 
+          changed_fields: Object.keys(params.data),
         },
       },
       ctx
@@ -60,7 +66,7 @@ const createMatterTask = async (
       });
     }
 
-    return ok(task);
+    return ok(createdTask);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to create matter task {matterId}: {error}', {
@@ -127,8 +133,28 @@ const updateMatterTask = async (
     if (params.data.assignee_id !== undefined && params.data.assignee_id !== existingTask.assignee_id) {
       changedFields.push('assignee_id');
     }
-    if (params.data.due_date !== undefined && params.data.due_date !== existingTask.due_date) {
-      changedFields.push('due_date');
+    if (params.data.due_date !== undefined) {
+      let newDueDate: string | null = null;
+      let existingDueDate: string | null = null;
+      
+      // Validate and parse new date
+      if (params.data.due_date) {
+        const parsedNewDate = new Date(params.data.due_date);
+        if (isNaN(parsedNewDate.getTime())) {
+          return internalError('Invalid due_date format');
+        }
+        newDueDate = parsedNewDate.toISOString().slice(0, 10);
+      }
+      
+      // Handle existing date
+      if (existingTask.due_date) {
+        const existingDate = new Date(existingTask.due_date);
+        existingDueDate = existingDate.toISOString().slice(0, 10);
+      }
+      
+      if (newDueDate !== existingDueDate) {
+        changedFields.push('due_date');
+      }
     }
     if (params.data.status !== undefined && params.data.status !== existingTask.status) {
       changedFields.push('status');
