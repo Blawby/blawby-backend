@@ -1,7 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
+import { admin, anonymous, magicLink, organization } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for drizzle adapter
@@ -135,7 +135,6 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           });
         },
       }),
-      ...(isDevelopment() ? [testUtils()] : []),
     ],
     baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',
