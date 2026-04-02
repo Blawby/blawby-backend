@@ -7,7 +7,7 @@ import type { SelectMatter } from '@/modules/matters/database/schema/matters.sch
 import { matterExpenseValidations } from '@/modules/matters/validations/matter-expenses.validation';
 import { matterMilestoneValidations } from '@/modules/matters/validations/matter-milestones.validation';
 import { matterNoteValidations } from '@/modules/matters/validations/matter-notes.validation';
-import type { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
+import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 // Export schemas
@@ -39,6 +39,11 @@ export const createMatterTimeEntryRequestSchema = matterTimeEntryValidations.cre
 export const updateMatterTimeEntryRequestSchema = matterTimeEntryValidations.updateMatterTimeEntrySchema;
 export const matterTimeEntryResponseSchema = matterTimeEntryValidations.timeEntrySchema;
 export const listMatterTimeEntriesQuerySchema = matterTimeEntryValidations.listTimeEntriesQuerySchema;
+
+export const createMatterTaskRequestSchema = matterTaskValidations.createMatterTaskSchema;
+export const updateMatterTaskRequestSchema = matterTaskValidations.updateMatterTaskSchema;
+export const matterTaskResponseSchema = matterTaskValidations.matterTaskSchema;
+export const listMatterTasksQuerySchema = matterTaskValidations.listMatterTasksQuerySchema;
 
 /**
  * Matter with relations

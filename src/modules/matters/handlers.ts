@@ -3,6 +3,7 @@ import { matterActivityService } from '@/modules/matters/services/matter-activit
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
 import { matterNotesService } from '@/modules/matters/services/matter-notes.service';
+import { matterTasksService } from '@/modules/matters/services/matter-tasks.service';
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
@@ -290,8 +291,62 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
   return sendResult(c, result);
 };
 
-const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) =>
-  c.json({ error: 'Matter tasks are not yet implemented' }, 501);
+const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId } = c.req.valid('param');
+  const query = c.req.valid('query');
+
+  const result = await matterTasksService.listMatterTasks(
+    { matterId, filters: query },
+    ctx
+  );
+
+  if (!result.success) {
+    return sendResult(c, result);
+  }
+  return c.json({ tasks: result.data }, 200);
+};
+
+const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterTaskRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+
+  const result = await matterTasksService.createMatterTask(
+    { matterId, data: validatedBody },
+    ctx
+  );
+
+  return sendResult(c, result, 201);
+};
+
+const updateMatterTaskHandler: AppRouteHandler<typeof matterRoutes.updateMatterTaskRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId, task_id: taskId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+
+  const result = await matterTasksService.updateMatterTask(
+    { matterId, taskId, data: validatedBody },
+    ctx
+  );
+
+  return sendResult(c, result);
+};
+
+const deleteMatterTaskHandler: AppRouteHandler<typeof matterRoutes.deleteMatterTaskRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { id: matterId, task_id: taskId } = c.req.valid('param');
+
+  const result = await matterTasksService.deleteMatterTask(
+    { matterId, taskId },
+    ctx
+  );
+
+  if (!result.success) {
+    return sendResult(c, result);
+  }
+  return c.json({ success: true }, 200);
+};
 const getMatterUnbilledHandler: AppRouteHandler<typeof matterRoutes.getMatterUnbilledRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { id: matterId } = c.req.valid('param');
@@ -328,5 +383,8 @@ export const handlers = {
   updateMatterNoteHandler,
   deleteMatterNoteHandler,
   listMatterTasksHandler,
+  createMatterTaskHandler,
+  updateMatterTaskHandler,
+  deleteMatterTaskHandler,
   getMatterUnbilledHandler,
 };
