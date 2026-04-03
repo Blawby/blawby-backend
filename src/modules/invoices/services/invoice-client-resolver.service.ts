@@ -4,8 +4,8 @@ import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { members, users } from '@/schema/better-auth-schema';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '@/shared/database';
-import { createNotFoundError } from '@/shared/types/errors';
 import { createSystemContext } from '@/shared/types/service-context';
 
 /**
@@ -82,7 +82,7 @@ const resolveClientForInvoice = async (
   }
 
   if (!clientDetails) {
-    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client not found or does not belong to this organization');
+    throw new HTTPException(404, { message: 'Client not found or does not belong to this organization' });
   }
 
   // Extract connected account
@@ -111,7 +111,7 @@ const resolveUserDetailId = async (organizationId: string, userId: string): Prom
     columns: { id: true },
   });
   if (!detail) {
-    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client record not found in this organization');
+    throw new HTTPException(404, { message: 'Client record not found in this organization' });
   }
   return detail.id;
 };

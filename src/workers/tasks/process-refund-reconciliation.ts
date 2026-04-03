@@ -1,7 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 
-import { refundReconciliationService } from '@/modules/invoices/services/refund-reconciliation.service';
+import { refundReconciliation } from '@/engines/financial/refund-reconciliation';
 
 const logger = getLogger(['workers', 'process-refund-reconciliation']);
 
@@ -36,7 +36,7 @@ export const processRefundReconciliation: Task = async (payload): Promise<void> 
     throw new Error('Invalid refund reconciliation payload');
   }
 
-  const res = await refundReconciliationService.reconcileRefundExecution({
+  const res = await refundReconciliation.reconcileRefundExecution({
     organizationId,
     requestId,
     executorUserId,

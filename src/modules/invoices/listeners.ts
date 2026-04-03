@@ -16,7 +16,8 @@ import { meteredProductsService } from '@/modules/subscriptions/services/metered
 import { db } from '@/shared/database';
 import { InvoicePaid, InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
-import { addMeteredUsageJob } from '@/shared/queue/queue.manager';
+import { addMeteredUsageJob, addInvoicePaymentJob } from '@/shared/queue/queue.manager';
+import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
 
 const logger = getLogger(['invoices', 'listeners']);
 
@@ -150,6 +151,27 @@ export function registerInvoicesListeners(): void {
    * Note: payout-fee metering is rebuilt from the persisted payout
    * transaction so retries stay consistent with later refund credits.
    */
+  /**
+   * On invoice:stripe_payment_received: enqueue the process-invoice-payment
+   * worker task. This is the bridge between the outbox and the worker.
+   */
+  Event.listen(InvoiceStripePaymentReceived, async (payload) => {
+    logger.info('InvoiceStripePaymentReceived listener: enqueueing payment job for {stripeInvoiceId}', {
+      stripeInvoiceId: payload.stripe_invoice_id,
+    });
+
+    await addInvoicePaymentJob({
+      invoice_id: payload.invoice_id,
+      organization_id: payload.organization_id,
+      stripe_invoice_id: payload.stripe_invoice_id,
+      stripe_amount_paid: payload.stripe_amount_paid,
+      stripe_amount_remaining: payload.stripe_amount_remaining,
+      stripe_paid_at: payload.stripe_paid_at,
+      stripe_customer_id: payload.stripe_customer_id,
+      stripe_on_behalf_of: payload.stripe_on_behalf_of,
+    });
+  });
+
   Event.listen(InvoicePaid, async (payload) => {
     const { invoice_id, organization_id } = payload;
 

@@ -1,15 +1,16 @@
 /**
  * Financial Processing Engines
  *
- * Single object exports for fund routing, payment orchestration, refunds, and retainer management.
- * All logic grouped by concern: fundManagement, invoicePaymentOrchestrator, etc.
+ * Single object exports for fund routing, transfer execution, billing records,
+ * refunds, and retainer management.
  */
 
 export { fundManagement } from './fund-management';
-export { invoicePaymentOrchestrator } from './invoice-payment-orchestrator';
+export { transferExecutor } from './transfer-executor';
+export { billingRecorder } from './billing-recorder';
 export { retainerPaymentFlow } from './retainer-payment-flow';
 export { refundEngine } from './refund-engine';
-export { paymentProcessor } from './payment-processor';
+export { refundReconciliation } from './refund-reconciliation';
 
 // Types
 export type { FundRoutingInvoice, FundDestination, TransferInstruction, RefundEventPayload } from './types';

@@ -1,4 +1,4 @@
-import { createValidationError } from '@/shared/types/errors';
+import { HTTPException } from 'hono/http-exception';
 import type { FundDestination, FundRoutingInvoice, TransferInstruction } from '@/engines/financial/types';
 
 const VALID_FUND_DESTINATIONS: readonly FundDestination[] = ['operating', 'trust'] as const;
@@ -16,11 +16,9 @@ const validateFundDestination = (value: unknown, invoiceId: string): FundDestina
   if (isValidFundDestination(value)) {
     return value;
   }
-  throw createValidationError(
-    'INVALID_FUND_DESTINATION',
-    `Invalid fund_destination '${String(value)}' on invoice ${invoiceId}. Expected one of: ${VALID_FUND_DESTINATIONS.join(', ')}`,
-    { invoiceId, value }
-  );
+  throw new HTTPException(400, {
+    message: `Invalid fund_destination '${String(value)}' on invoice ${invoiceId}. Expected one of: ${VALID_FUND_DESTINATIONS.join(', ')}`,
+  });
 };
 
 /**
@@ -49,11 +47,9 @@ const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): 
   const fundDestination = validateFundDestination(invoice.fund_destination, invoice.id);
 
   if (!invoice.matter_id) {
-    throw createValidationError(
-      'MISSING_MATTER_ID',
-      `Missing matter_id on invoice ${invoice.id}. Fund routing requires a matter association.`,
-      { invoiceId: invoice.id }
-    );
+    throw new HTTPException(400, {
+      message: `Missing matter_id on invoice ${invoice.id}. Fund routing requires a matter association.`,
+    });
   }
 
   const baseMetadata = {
@@ -93,9 +89,8 @@ const routePayment = (invoice: FundRoutingInvoice, connectedAccountId: string): 
       };
 
     default:
-      throw createValidationError('UNKNOWN_INVOICE_TYPE', `Unknown invoice type: ${invoice.invoice_type}`, {
-        invoiceType: invoice.invoice_type,
-        invoiceId: invoice.id,
+      throw new HTTPException(400, {
+        message: `Unknown invoice type: ${invoice.invoice_type}`,
       });
   }
 };

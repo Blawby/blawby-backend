@@ -1,5 +1,6 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import type {
@@ -11,7 +12,6 @@ import type {
 // Db executor is provided via ServiceContext (ctx.db)
 import { InvoiceUpdated, InvoiceDeleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { createAppError, createValidationError, createTransactionError } from '@/shared/types/errors';
 
 const logger = getLogger(['invoices', 'lifecycle-service']);
 
@@ -72,10 +72,7 @@ const updateInvoice = async (
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-      });
+      throw new HTTPException(404, { message: 'Invoice not found' });
     }
 
     // Only allow updating non-draft invoices if updating status ONLY
@@ -84,14 +81,7 @@ const updateInvoice = async (
       const isStatusOnlyUpdate = updateKeys.length === 1 && updateKeys[0] === 'status';
 
       if (!isStatusOnlyUpdate) {
-        throw createValidationError(
-          'INVOICE_NOT_DRAFT',
-          'Only draft invoices can be modified (except status updates)',
-          {
-            invoiceId: id,
-            currentStatus: existing.status,
-          }
-        );
+        throw new HTTPException(400, { message: 'Only draft invoices can be modified (except status updates)' });
       }
     }
 
@@ -133,29 +123,17 @@ const updateInvoice = async (
     }
 
     if (!updated) {
-      throw createAppError('INVOICE_RETRIEVAL_FAILED', 'Failed to retrieve updated invoice', 500, {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-      });
+      throw new Error('Failed to retrieve updated invoice');
     }
 
     return invoiceQueriesService.transformInvoiceResponse(updated);
   } catch (error) {
-    // Re-throw AppErrors as-is
-    if (error && typeof error === 'object' && 'kind' in error) {
-      throw error;
-    }
-
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    throw createTransactionError('INVOICE_UPDATE_FAILED', 'Failed to update invoice', {
-      invoiceId: id,
-      organizationId: ctx.organizationId,
-      cause: error instanceof Error ? error.message : String(error),
-    });
+    throw new Error('Failed to update invoice');
   }
 };
 
@@ -169,17 +147,11 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      throw createAppError('INVOICE_NOT_FOUND', 'Invoice not found', 404, {
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-      });
+      throw new HTTPException(404, { message: 'Invoice not found' });
     }
 
     if (existing.status !== 'draft') {
-      throw createValidationError('INVOICE_NOT_DRAFT', 'Only draft invoices can be deleted', {
-        invoiceId: id,
-        currentStatus: existing.status,
-      });
+      throw new HTTPException(400, { message: 'Only draft invoices can be deleted' });
     }
 
     const executor = ctx.db;
@@ -199,21 +171,12 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
     );
     return { success: true };
   } catch (error) {
-    // Re-throw AppErrors as-is
-    if (error && typeof error === 'object' && 'kind' in error) {
-      throw error;
-    }
-
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    throw createTransactionError('INVOICE_DELETE_FAILED', 'Failed to delete invoice', {
-      invoiceId: id,
-      organizationId: ctx.organizationId,
-      cause: error instanceof Error ? error.message : String(error),
-    });
+    throw new Error('Failed to delete invoice');
   }
 };
 

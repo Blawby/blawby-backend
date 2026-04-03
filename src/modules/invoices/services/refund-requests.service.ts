@@ -1,4 +1,5 @@
 import { ForbiddenError } from '@casl/ability';
+import { HTTPException } from 'hono/http-exception';
 import { getLogger } from '@logtape/logtape';
 import { eq, and } from 'drizzle-orm';
 import { Stripe } from 'stripe';
@@ -9,13 +10,12 @@ import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
-import { refundExecutionPersistenceService } from '@/modules/invoices/services/refund-execution-persistence.service';
+import { refundEngine } from '@/engines/financial/refund-engine';
 import type { Action, Subject } from '@/shared/auth/abilities';
 import { db } from '@/shared/database';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { createNotFoundError, createValidationError, createAppError } from '@/shared/types/errors';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const isStripeError = (err: unknown): err is Stripe.errors.StripeError => err instanceof Stripe.errors.StripeError;
@@ -112,7 +112,7 @@ const createRequest = async (
 
   const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
   if (!clientResult) {
-    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client user details not found');
+    throw new HTTPException(404, { message: 'Client user details not found' });
   }
   const clientUserDetailsId = clientResult;
 
@@ -130,10 +130,10 @@ const createRequest = async (
       tx
     );
     if (!invoice) {
-      throw createNotFoundError('INVOICE_NOT_FOUND', 'Invoice not found');
+      throw new HTTPException(404, { message: 'Invoice not found' });
     }
     if (invoice.status !== 'paid') {
-      throw createValidationError('INVOICE_NOT_PAID', 'Refunds can only be requested for paid invoices');
+      throw new HTTPException(400, { message: 'Refunds can only be requested for paid invoices' });
     }
 
     const existingRefunds = await refundRequestsQueries.listByOrganization(
@@ -144,7 +144,7 @@ const createRequest = async (
 
     const blockingStatuses: readonly SelectRefundRequest['status'][] = ['requested', 'approved', 'executing'];
     if (existingRefunds.some((r) => blockingStatuses.includes(r.status))) {
-      throw createValidationError('REFUND_REQUEST_EXISTS', 'An open refund request already exists for this invoice');
+      throw new HTTPException(400, { message: 'An open refund request already exists for this invoice' });
     }
 
     const reservedStatuses: readonly SelectRefundRequest['status'][] = [
@@ -159,10 +159,9 @@ const createRequest = async (
     const remainingRefundable = Math.max(0, (invoice.amount_paid ?? 0) - reservedAmount);
 
     if (opts.requestedAmount > remainingRefundable) {
-      throw createValidationError(
-        'AMOUNT_EXCEEDS_REFUNDABLE',
-        `Requested refund amount exceeds remaining refundable amount (${remainingRefundable} cents)`
-      );
+      throw new HTTPException(400, {
+        message: `Requested refund amount exceeds remaining refundable amount (${remainingRefundable} cents)`,
+      });
     }
 
     const req = await refundRequestsQueries.create(
@@ -188,7 +187,7 @@ const listClientRequests = async (ctx: ServiceContext): Promise<SelectRefundRequ
 
   const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
   if (!clientResult) {
-    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client user details not found');
+    throw new HTTPException(404, { message: 'Client user details not found' });
   }
   return await refundRequestsQueries.listByClient(ctx.organizationId, clientResult);
 };
@@ -203,7 +202,7 @@ const cancelRequest = async (
 
   const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
   if (!clientResult) {
-    throw createNotFoundError('CLIENT_NOT_FOUND', 'Client user details not found');
+    throw new HTTPException(404, { message: 'Client user details not found' });
   }
 
   const updated = await refundRequestsQueries.transitionStatusForClient(
@@ -214,10 +213,7 @@ const cancelRequest = async (
     { status: 'cancelled' }
   );
   if (!updated) {
-    throw createValidationError(
-      'INVALID_REFUND_STATUS',
-      'Only pending refund requests can be cancelled, or request not found'
-    );
+    throw new HTTPException(400, { message: 'Only pending refund requests can be cancelled, or request not found' });
   }
   return updated;
 };
@@ -247,10 +243,7 @@ const reviewRequest = async (
     review_notes: opts.reviewNotes,
   });
   if (!updated) {
-    throw createValidationError(
-      'INVALID_REFUND_STATUS',
-      'Only pending refund requests can be reviewed, or request not found'
-    );
+    throw new HTTPException(400, { message: 'Only pending refund requests can be reviewed, or request not found' });
   }
   return updated;
 };
@@ -272,12 +265,11 @@ const executeRefund = async (
   if (!claimedReq) {
     const existing = await refundRequestsQueries.findById(opts.requestId, ctx.organizationId);
     if (!existing) {
-      throw createNotFoundError('REFUND_REQUEST_NOT_FOUND', 'Refund request not found');
+      throw new HTTPException(404, { message: 'Refund request not found' });
     }
-    throw createValidationError(
-      'INVALID_REFUND_STATUS',
-      'Only approved refund requests can be executed, or request is currently being executed'
-    );
+    throw new HTTPException(400, {
+      message: 'Only approved refund requests can be executed, or request is currently being executed',
+    });
   }
 
   const invoice = await invoicesRepository.findInvoiceById(claimedReq.invoice_id, ctx.organizationId);
@@ -287,7 +279,7 @@ const executeRefund = async (
       organizationId: ctx.organizationId,
       rollbackTrigger: 'invoice lookup failed after claim',
     });
-    throw createNotFoundError('INVOICE_NOT_FOUND', 'Invoice not found');
+    throw new HTTPException(404, { message: 'Invoice not found' });
   }
 
   const stripePaymentIntentId = invoice.stripe_payment_intent_id;
@@ -297,10 +289,7 @@ const executeRefund = async (
       organizationId: ctx.organizationId,
       rollbackTrigger: 'missing Stripe payment intent on invoice',
     });
-    throw createValidationError(
-      'STRIPE_PAYMENT_INTENT_MISSING',
-      'Invoice has no Stripe payment intent ID — cannot refund'
-    );
+    throw new HTTPException(400, { message: 'Invoice has no Stripe payment intent ID — cannot refund' });
   }
   let stripeTransferId = invoice.stripe_transfer_id;
   let invoiceTxs: Awaited<ReturnType<typeof billingTransactionsRepository.listByInvoiceId>> = [];
@@ -351,7 +340,7 @@ const executeRefund = async (
       rollbackTrigger: 'pre-Stripe preparation error',
       logContext: { invoiceId: invoice.id },
     });
-    throw createAppError('REFUND_PREPARATION_FAILED', 'Failed to prepare refund execution');
+    throw new Error('Failed to prepare refund execution');
   }
 
   if (claimedReq.requested_amount > refundableBalanceCheck) {
@@ -360,10 +349,9 @@ const executeRefund = async (
       organizationId: ctx.organizationId,
       rollbackTrigger: 'requested refund exceeded remaining refundable balance',
     });
-    throw createValidationError(
-      'AMOUNT_EXCEEDS_REFUNDABLE',
-      `Requested refund amount exceeds remaining refundable amount (${refundableBalanceCheck} cents)`
-    );
+    throw new HTTPException(400, {
+      message: `Requested refund amount exceeds remaining refundable amount (${refundableBalanceCheck} cents)`,
+    });
   }
 
   let refund: RefundOutcome | undefined = undefined;
@@ -424,7 +412,7 @@ const executeRefund = async (
         organizationId: ctx.organizationId,
         rollbackTrigger: 'transient Stripe refund error',
       });
-      throw createAppError('STRIPE_TRANSIENT_ERROR', 'Stripe refund transient error — please retry later');
+      throw new Error('Stripe refund transient error — please retry later');
     }
 
     await refundRequestsQueries.transitionStatus(opts.requestId, ctx.organizationId, 'executing', {
@@ -436,13 +424,13 @@ const executeRefund = async (
         : `Stripe error: ${errorMsg}`,
     });
 
-    throw createAppError('STRIPE_REFUND_FAILED', 'Stripe refund failed — request marked as failed');
+    throw new Error('Stripe refund failed — request marked as failed');
   }
   if (!refund) {
-    throw createAppError('REFUND_EXECUTION_FAILED', 'Refund execution did not return a refund outcome');
+    throw new Error('Refund execution did not return a refund outcome');
   }
 
-  const { updated, refundEventPayload } = await refundExecutionPersistenceService.persistExecutedRefund({
+  const { updated, refundEventPayload } = await refundEngine.persistExecutedRefund({
     organizationId: ctx.organizationId,
     requestId: opts.requestId,
     executorUserId: ctx.userId,
@@ -515,8 +503,7 @@ const executeRefund = async (
         error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
       });
     }
-    throw createAppError(
-      'REFUND_DB_UPDATE_FAILED',
+    throw new Error(
       `Stripe refund ${refund.stripeRefundId ?? 'canceled_payment_intent'} completed, but local DB update failed`
     );
   }
@@ -590,12 +577,11 @@ const executeRefund = async (
           });
         }
 
-        throw createAppError(
-          'REFUND_FOLLOWUP_FAILED',
-          systemErrorDispatchMessage
+        throw new HTTPException(500, {
+          message: systemErrorDispatchMessage
             ? `Refund follow-up handling failed: dispatch=${dispatchErrorMessage}; queue=${queueErrorMessage}; system_event=${systemErrorDispatchMessage}`
-            : `Refund follow-up handling failed: dispatch=${dispatchErrorMessage}; queue=${queueErrorMessage}`
-        );
+            : `Refund follow-up handling failed: dispatch=${dispatchErrorMessage}; queue=${queueErrorMessage}`,
+        });
       }
     }
   }

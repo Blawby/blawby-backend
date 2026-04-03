@@ -1,4 +1,5 @@
 import { ForbiddenError } from '@casl/ability';
+import { HTTPException } from 'hono/http-exception';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
@@ -14,7 +15,6 @@ import type {
 } from '@/modules/invoices/types/invoices.types';
 import { invoiceValidators } from '@/modules/invoices/validators/invoice-creation.validators';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { createAppError, createValidationError, createTransactionError } from '@/shared/types/errors';
 
 /**
  * Calculate invoice subtotal and total based on line items
@@ -67,9 +67,7 @@ const validateInvoiceCreation = async (
   // 2. Validate connected account capabilities
   const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
   if (!accountValidation.success) {
-    throw createValidationError('INVALID_CONNECTED_ACCOUNT', 'Invalid connected account', {
-      connectedAccountId: data.connected_account_id,
-    });
+    throw new HTTPException(400, { message: 'Invalid connected account' });
   }
 
   // 3. Validate matter belongs to client (if provided)
@@ -77,29 +75,18 @@ const validateInvoiceCreation = async (
     const matter = matters.find((m: { id: string }) => m.id === data.matter_id);
     const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
     if (!matterValidation.success) {
-      throw createValidationError('MATTER_NOT_FOR_CLIENT', 'Invalid matter for client', {
-        matterId: data.matter_id,
-        clientId,
-      });
+      throw new HTTPException(400, { message: 'Invalid matter for client' });
     }
     if (matter?.billing_type === 'pro_bono') {
-      throw createValidationError('PRO_BONO_MATTER', 'Cannot create invoice for a pro bono matter', {
-        matterId: data.matter_id,
-      });
+      throw new HTTPException(400, { message: 'Cannot create invoice for a pro bono matter' });
     }
   }
 
   // 3.5 Validate invoice-linked IDs are scoped to the same matter
   if ((data.time_entry_ids?.length || data.expense_ids?.length || data.milestone_id) && !data.matter_id) {
-    throw createValidationError(
-      'MATTER_ID_REQUIRED',
-      'matter_id is required when linking time entries, expenses, or milestones',
-      {
-        hasTimeEntries: data.time_entry_ids?.length ?? 0,
-        hasExpenses: data.expense_ids?.length ?? 0,
-        hasMilestone: Boolean(data.milestone_id),
-      }
-    );
+    throw new HTTPException(400, {
+      message: 'matter_id is required when linking time entries, expenses, or milestones',
+    });
   }
 
   if (data.matter_id) {
@@ -108,11 +95,9 @@ const validateInvoiceCreation = async (
       const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
       const hasInvalidTimeEntry = data.time_entry_ids.some((id) => !validTimeEntryIds.has(id));
       if (hasInvalidTimeEntry) {
-        throw createValidationError(
-          'INVALID_TIME_ENTRY_IDS',
-          'One or more time_entry_ids do not belong to the provided matter_id',
-          { matterId: data.matter_id, timeEntryCount: data.time_entry_ids.length }
-        );
+        throw new HTTPException(400, {
+          message: 'One or more time_entry_ids do not belong to the provided matter_id',
+        });
       }
     }
 
@@ -121,21 +106,16 @@ const validateInvoiceCreation = async (
       const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
       const hasInvalidExpense = data.expense_ids.some((id) => !validExpenseIds.has(id));
       if (hasInvalidExpense) {
-        throw createValidationError(
-          'INVALID_EXPENSE_IDS',
-          'One or more expense_ids do not belong to the provided matter_id',
-          { matterId: data.matter_id, expenseCount: data.expense_ids.length }
-        );
+        throw new HTTPException(400, {
+          message: 'One or more expense_ids do not belong to the provided matter_id',
+        });
       }
     }
 
     if (data.milestone_id) {
       const milestone = await matterMilestonesQueries.findMatterMilestoneById(data.milestone_id);
       if (!milestone || milestone.matter_id !== data.matter_id) {
-        throw createValidationError('INVALID_MILESTONE_ID', 'milestone_id does not belong to the provided matter_id', {
-          matterId: data.matter_id,
-          milestoneId: data.milestone_id,
-        });
+        throw new HTTPException(400, { message: 'milestone_id does not belong to the provided matter_id' });
       }
     }
   }
@@ -143,10 +123,7 @@ const validateInvoiceCreation = async (
   // 4. Validate invoice number is unique
   const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
   if (!numberValidation.success) {
-    throw createValidationError('DUPLICATE_INVOICE_NUMBER', 'Invoice number must be unique', {
-      invoiceNumber: data.invoice_number,
-      organizationId: ctx.organizationId,
-    });
+    throw new HTTPException(400, { message: 'Invoice number must be unique' });
   }
 
   return { clientId };
@@ -227,9 +204,7 @@ const createInvoice = async (
   // 1. Validate State
   const validation = await validateInvoiceCreation(data, ctx);
   if (!validation.clientId) {
-    throw createValidationError('INVALID_INVOICE_CREATION', 'Invalid invoice creation data', {
-      organizationId: ctx.organizationId,
-    });
+    throw new HTTPException(400, { message: 'Invalid invoice creation data' });
   }
 
   const { clientId } = validation;
@@ -239,22 +214,12 @@ const createInvoice = async (
     // 2. Persist
     const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
     if (!invoice) {
-      throw createAppError('INVOICE_RETRIEVAL_FAILED', 'Failed to retrieve created invoice', 400, {
-        organizationId: ctx.organizationId,
-      });
+      throw new HTTPException(400, { message: 'Failed to retrieve created invoice' });
     }
 
     return invoiceQueriesService.transformInvoiceResponse(invoice);
   } catch (error) {
-    // Re-throw AppErrors and ValidationErrors as-is
-    if (error && typeof error === 'object' && 'kind' in error) {
-      throw error;
-    }
-    // Wrap unexpected errors
-    throw createTransactionError('INVOICE_CREATION_FAILED', 'An error occurred while creating the invoice', {
-      organizationId: ctx.organizationId,
-      cause: error instanceof Error ? error.message : String(error),
-    });
+    throw new Error('An error occurred while creating the invoice');
   }
 };
 

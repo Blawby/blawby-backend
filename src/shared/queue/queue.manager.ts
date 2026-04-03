@@ -135,6 +135,38 @@ export const addMeteredUsageJob = async (payload: {
   }
 };
 
+export const addInvoicePaymentJob = async (payload: {
+  invoice_id: string;
+  organization_id: string;
+  stripe_invoice_id: string;
+  stripe_amount_paid: number;
+  stripe_amount_remaining: number;
+  stripe_paid_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_on_behalf_of: string | null;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_INVOICE_PAYMENT, payload, {
+      jobKey: `invoice-payment:${payload.organization_id}:${payload.stripe_invoice_id}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Invoice payment job queued: {stripeInvoiceId}', {
+      stripeInvoiceId: payload.stripe_invoice_id,
+      organizationId: payload.organization_id,
+    });
+  } catch (error) {
+    logger.error('Failed to queue invoice payment job {stripeInvoiceId}', {
+      error,
+      stripeInvoiceId: payload.stripe_invoice_id,
+      organizationId: payload.organization_id,
+    });
+    throw error;
+  }
+};
+
 export const addRefundReconciliationJob = async (payload: {
   organizationId: string;
   requestId: string;

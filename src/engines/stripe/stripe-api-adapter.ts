@@ -1,8 +1,9 @@
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
+import { HTTPException } from 'hono/http-exception';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { stripe } from '@/shared/utils/stripe-client';
-import { createAppError } from '@/shared/types/errors';
+import { wrapStripeError } from '@/shared/utils/stripe-error';
 
 const logger = getLogger(['engines', 'stripe', 'stripe-api-adapter']);
 
@@ -20,7 +21,7 @@ const createStripeInvoice = async (
   idempotencyKeyPrefix?: string
 ): Promise<Stripe.Invoice> => {
   if (!onBehalfOfAccountId) {
-    throw createAppError('STRIPE_ACCOUNT_MISSING', 'Missing Stripe account ID for on_behalf_of', 400, { invoiceId: invoice.id });
+    throw new HTTPException(400, { message: 'Missing Stripe account ID for on_behalf_of' });
   }
 
   const createdItemIds: string[] = [];
@@ -87,7 +88,7 @@ const createStripeInvoice = async (
     );
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to create Stripe invoice {invoiceId}: {error}', { invoiceId: invoice.id, error: message });
-    throw createAppError('STRIPE_INVOICE_CREATION_FAILED', `Failed to create Stripe invoice: ${message}`, 500, { invoiceId: invoice.id });
+    throw new Error(`Failed to create Stripe invoice: ${message}`);
   }
 };
 
@@ -109,11 +110,18 @@ const finalizeAndSendInvoice = async (
     } catch (error) {
       if (attempt >= 3) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Failed to send Stripe invoice {stripeInvoiceId} after 3 attempts: {error}', { stripeInvoiceId, error: message });
-        throw createAppError('STRIPE_INVOICE_SEND_FAILED', `Invoice finalized but failed to send: ${message}`, 500, { stripeInvoiceId });
+        logger.error('Failed to send Stripe invoice {stripeInvoiceId} after 3 attempts: {error}', {
+          stripeInvoiceId,
+          error: message,
+        });
+        throw new Error(`Invoice finalized but failed to send: ${message}`);
       }
       const delay = 2 ** attempt * 500;
-      logger.warn('Failed to send Stripe invoice {stripeInvoiceId}, attempt {attempt}/3. Retrying in {delay}ms...', { stripeInvoiceId, attempt, delay });
+      logger.warn('Failed to send Stripe invoice {stripeInvoiceId}, attempt {attempt}/3. Retrying in {delay}ms...', {
+        stripeInvoiceId,
+        attempt,
+        delay,
+      });
       await wait(delay);
       return sendWithRetry(attempt + 1);
     }
@@ -127,10 +135,12 @@ const finalizeAndSendInvoice = async (
     );
     return sendWithRetry(1);
   } catch (error) {
-    if (error && typeof error === 'object' && 'kind' in error) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to finalize/send Stripe invoice {stripeInvoiceId}: {error}', { stripeInvoiceId, error: message });
-    throw createAppError('STRIPE_INVOICE_FINALIZE_FAILED', `Failed to finalize or send Stripe invoice: ${message}`, 500, { stripeInvoiceId });
+    logger.error('Failed to finalize/send Stripe invoice {stripeInvoiceId}: {error}', {
+      stripeInvoiceId,
+      error: message,
+    });
+    throw new Error(`Failed to finalize or send Stripe invoice: ${message}`);
   }
 };
 
@@ -143,7 +153,7 @@ const voidInvoice = async (stripeInvoiceId: string): Promise<Stripe.Invoice> => 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to void Stripe invoice {stripeInvoiceId}: {error}', { stripeInvoiceId, error: message });
-    throw createAppError('STRIPE_INVOICE_VOID_FAILED', `Failed to void Stripe invoice: ${message}`, 500, { stripeInvoiceId });
+    throw new Error(`Failed to void Stripe invoice: ${message}`);
   }
 };
 
@@ -155,8 +165,11 @@ const deleteDraftInvoice = async (stripeInvoiceId: string): Promise<Stripe.Delet
     return await stripe.invoices.del(stripeInvoiceId);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to delete draft Stripe invoice {stripeInvoiceId}: {error}', { stripeInvoiceId, error: message });
-    throw createAppError('STRIPE_INVOICE_DELETE_FAILED', `Failed to delete draft Stripe invoice: ${message}`, 500, { stripeInvoiceId });
+    logger.error('Failed to delete draft Stripe invoice {stripeInvoiceId}: {error}', {
+      stripeInvoiceId,
+      error: message,
+    });
+    throw new Error(`Failed to delete draft Stripe invoice: ${message}`);
   }
 };
 
@@ -169,7 +182,7 @@ const getStripeInvoice = async (stripeInvoiceId: string): Promise<Stripe.Invoice
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to retrieve Stripe invoice {stripeInvoiceId}: {error}', { stripeInvoiceId, error: message });
-    throw createAppError('STRIPE_INVOICE_FETCH_FAILED', `Failed to retrieve Stripe invoice: ${message}`, 500, { stripeInvoiceId });
+    throw new Error(`Failed to retrieve Stripe invoice: ${message}`);
   }
 };
 
