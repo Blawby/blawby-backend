@@ -2,13 +2,13 @@ import { z } from '@hono/zod-openapi';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
-const practiceUuidParamOpenAPISchema = z.object({
-  uuid: z.uuid().openapi({
+const practiceIdParamSchema = z.object({
+  practice_id: z.uuid().openapi({
     param: {
-      name: 'uuid',
+      name: 'practice_id',
       in: 'path',
     },
-    description: 'Practice/Organization ID (UUID)',
+    description: 'Practice ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
 });
@@ -61,12 +61,12 @@ export const createPracticeRoute = routeBuilder.build({
 
 export const getPracticeByIdRoute = routeBuilder.build({
   method: 'get',
-  path: '/{uuid}',
+  path: '/{practice_id}',
   tags: ['Practice'],
   summary: 'Get practice by ID',
   description: 'Retrieve a specific practice by its UUID',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
   },
   responses: {
     200: {
@@ -82,12 +82,12 @@ export const getPracticeByIdRoute = routeBuilder.build({
 
 export const updatePracticeRoute = routeBuilder.build({
   method: 'put',
-  path: '/{uuid}',
+  path: '/{practice_id}',
   tags: ['Practice'],
   summary: 'Update practice',
   description: 'Update an existing practice',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
@@ -111,12 +111,12 @@ export const updatePracticeRoute = routeBuilder.build({
 
 export const deletePracticeRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{uuid}',
+  path: '/{practice_id}',
   tags: ['Practice'],
   summary: 'Delete practice',
   description: 'Delete a practice by its UUID',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
   },
   responses: {
     204: {
@@ -127,12 +127,12 @@ export const deletePracticeRoute = routeBuilder.build({
 
 export const setActivePracticeRoute = routeBuilder.build({
   method: 'put',
-  path: '/{uuid}/active',
+  path: '/{practice_id}/active',
   tags: ['Practice'],
   summary: 'Set active practice',
   description: 'Set a practice as the active practice for the authenticated user',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
   },
   responses: {
     200: {

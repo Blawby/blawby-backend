@@ -25,18 +25,18 @@ export const createPracticeHandler: AppRouteHandler<typeof routes.createPractice
 
 export const getPracticeHandler: AppRouteHandler<typeof routes.getPracticeByIdRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
-  const result = await practiceQueriesService.getPracticeById({ organizationId: uuid }, ctx);
+  const { practice_id } = c.req.valid('param');
+  const result = await practiceQueriesService.getPracticeById({ organizationId: practice_id }, ctx);
   return c.json(result);
 };
 
 export const updatePracticeHandler: AppRouteHandler<typeof routes.updatePracticeRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
+  const { practice_id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await practiceManagementService.updatePractice(
     {
-      organizationId: uuid,
+      organizationId: practice_id,
       data: validatedBody,
     },
     ctx
@@ -46,32 +46,32 @@ export const updatePracticeHandler: AppRouteHandler<typeof routes.updatePractice
 
 export const deletePracticeHandler: AppRouteHandler<typeof routes.deletePracticeRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
-  await practiceDetailsManagementService.deletePractice({ organizationId: uuid }, ctx);
+  const { practice_id } = c.req.valid('param');
+  await practiceDetailsManagementService.deletePractice({ organizationId: practice_id }, ctx);
   return c.body(null, 204);
 };
 
 export const setActivePracticeHandler: AppRouteHandler<typeof routes.setActivePracticeRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
-  await practiceDetailsManagementService.setActivePractice({ organizationId: uuid }, ctx);
+  const { practice_id } = c.req.valid('param');
+  await practiceDetailsManagementService.setActivePractice({ organizationId: practice_id }, ctx);
   return c.json({ success: true });
 };
 
 export const getPracticeDetailsHandler: AppRouteHandler<typeof routes.getPracticeDetailsRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
-  const result = await practiceQueriesService.getPracticeDetails({ organizationId: uuid }, ctx);
+  const { practice_id } = c.req.valid('param');
+  const result = await practiceQueriesService.getPracticeDetails({ organizationId: practice_id }, ctx);
   return c.json(result);
 };
 
 export const createPracticeDetailsHandler: AppRouteHandler<typeof routes.createPracticeDetailsRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
+  const { practice_id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await practiceDetailsManagementService.upsertPracticeDetails(
     {
-      organizationId: uuid,
+      organizationId: practice_id,
       data: validatedBody,
     },
     ctx
@@ -81,11 +81,11 @@ export const createPracticeDetailsHandler: AppRouteHandler<typeof routes.createP
 
 export const updatePracticeDetailsHandler: AppRouteHandler<typeof routes.updatePracticeDetailsRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
+  const { practice_id } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
   const result = await practiceDetailsManagementService.upsertPracticeDetails(
     {
-      organizationId: uuid,
+      organizationId: practice_id,
       data: validatedBody,
     },
     ctx
@@ -95,8 +95,8 @@ export const updatePracticeDetailsHandler: AppRouteHandler<typeof routes.updateP
 
 export const deletePracticeDetailsHandler: AppRouteHandler<typeof routes.deletePracticeDetailsRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { uuid } = c.req.valid('param');
-  await practiceDetailsManagementService.deletePracticeDetails({ organizationId: uuid }, ctx);
+  const { practice_id } = c.req.valid('param');
+  await practiceDetailsManagementService.deletePracticeDetails({ organizationId: practice_id }, ctx);
   return c.body(null, 204);
 };
 

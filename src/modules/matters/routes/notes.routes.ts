@@ -11,12 +11,12 @@ const tags = ['Matters'];
 
 export const listMatterNotesRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/notes',
+  path: '/{matter_id}/notes',
   tags,
   summary: 'List matter notes',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     query: listMatterNotesQuerySchema,
   },
@@ -34,12 +34,12 @@ export const listMatterNotesRoute = routeBuilder.build({
 
 export const createMatterNoteRoute = routeBuilder.build({
   method: 'post',
-  path: '/{id}/notes',
+  path: '/{matter_id}/notes',
   tags,
   summary: 'Create a matter note',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     body: {
       content: {
@@ -63,12 +63,12 @@ export const createMatterNoteRoute = routeBuilder.build({
 
 export const updateMatterNoteRoute = routeBuilder.build({
   method: 'put',
-  path: '/{id}/notes/{note_id}',
+  path: '/{matter_id}/notes/{note_id}',
   tags,
   summary: 'Update a matter note',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
       note_id: z.uuid(),
     }),
     body: {
@@ -93,12 +93,12 @@ export const updateMatterNoteRoute = routeBuilder.build({
 
 export const deleteMatterNoteRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{id}/notes/{note_id}',
+  path: '/{matter_id}/notes/{note_id}',
   tags,
   summary: 'Delete a matter note',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
       note_id: z.uuid(),
     }),
   },

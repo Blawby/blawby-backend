@@ -4,12 +4,12 @@ import { routeBuilder } from '@/shared/router/route-builder';
 const tags = ['Matters'];
 
 const matterIdParamSchema = z.object({
-  id: z.uuid(),
+  matter_id: z.uuid(),
 });
 
 export const listMatterTasksRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/tasks',
+  path: '/{matter_id}/tasks',
   tags,
   summary: 'List matter tasks (not implemented)',
   request: {

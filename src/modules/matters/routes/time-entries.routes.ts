@@ -11,12 +11,12 @@ const tags = ['Matters'];
 
 export const listTimeEntriesRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/time-entries',
+  path: '/{matter_id}/time-entries',
   tags,
   summary: 'List time entries',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     query: listMatterTimeEntriesQuerySchema,
   },
@@ -34,12 +34,12 @@ export const listTimeEntriesRoute = routeBuilder.build({
 
 export const createTimeEntryRoute = routeBuilder.build({
   method: 'post',
-  path: '/{id}/time-entries',
+  path: '/{matter_id}/time-entries',
   tags,
   summary: 'Create a time entry',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     body: {
       content: {
@@ -63,12 +63,12 @@ export const createTimeEntryRoute = routeBuilder.build({
 
 export const updateTimeEntryRoute = routeBuilder.build({
   method: 'put',
-  path: '/{id}/time-entries/{entry_id}',
+  path: '/{matter_id}/time-entries/{entry_id}',
   tags,
   summary: 'Update a time entry',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
       entry_id: z.uuid(),
     }),
     body: {
@@ -93,12 +93,12 @@ export const updateTimeEntryRoute = routeBuilder.build({
 
 export const deleteTimeEntryRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{id}/time-entries/{entry_id}',
+  path: '/{matter_id}/time-entries/{entry_id}',
   tags,
   summary: 'Delete a time entry',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
       entry_id: z.uuid(),
     }),
   },
@@ -118,22 +118,28 @@ export const deleteTimeEntryRoute = routeBuilder.build({
 
 export const getTimeEntryStatsRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/time-entries/stats',
+  path: '/{matter_id}/time-entries/stats',
   tags,
-  summary: 'Get time entry',
+  summary: 'Get time entry stats',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
   },
   responses: {
     200: {
-      description: 'Time stats retrieved successfully',
+      description: 'Time entry stats retrieved successfully',
       content: {
         'application/json': {
           schema: z.object({
-            total_time: z.number(), // Minutes? or milliseconds?
-            billable_time: z.number(),
+            total_time: z.number().openapi({
+              description: 'Total logged time in minutes',
+              example: 120,
+            }),
+            billable_time: z.number().openapi({
+              description: 'Total billable time in minutes',
+              example: 90,
+            }),
           }),
         },
       },

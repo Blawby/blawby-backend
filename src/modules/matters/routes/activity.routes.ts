@@ -6,12 +6,12 @@ const tags = ['Matters'];
 
 export const getMatterActivityRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/activity',
+  path: '/{matter_id}/activity',
   tags,
   summary: 'Get matter activity log',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     query: getActivityLogQuerySchema,
   },

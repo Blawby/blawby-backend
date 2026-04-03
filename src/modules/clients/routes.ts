@@ -36,7 +36,7 @@ export const listClientsRoute = routeBuilder.build({
 
 export const getClientRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{client_id}',
   tags: ['Clients'],
   summary: 'Get client',
   description: 'Get a specific client by ID.',
@@ -55,7 +55,7 @@ export const getClientRoute = routeBuilder.build({
 
 export const updateClientRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{client_id}',
   tags: ['Clients'],
   summary: 'Update client',
   description: 'Update client profile',
@@ -73,7 +73,7 @@ export const updateClientRoute = routeBuilder.build({
 
 export const deleteClientRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{client_id}',
   tags: ['Clients'],
   summary: 'Delete client',
   description: 'Delete a client (soft delete)',
@@ -90,7 +90,7 @@ export const deleteClientRoute = routeBuilder.build({
 
 export const listClientMemosRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/{id}/memos',
+  path: '/{practice_id}/{client_id}/memos',
   tags: ['Clients: Memos'],
   summary: 'List client memos',
   description: 'Get all memos for a client',
@@ -105,7 +105,7 @@ export const listClientMemosRoute = routeBuilder.build({
 
 export const createClientMemoRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/{id}/memos',
+  path: '/{practice_id}/{client_id}/memos',
   tags: ['Clients: Memos'],
   summary: 'Create client memo',
   description: 'Add a memo for a client',
@@ -123,7 +123,7 @@ export const createClientMemoRoute = routeBuilder.build({
 
 export const updateClientMemoRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}/{id}/memos/{memo_id}',
+  path: '/{practice_id}/{client_id}/memos/{memo_id}',
   tags: ['Clients: Memos'],
   summary: 'Update client memo',
   description: 'Update a specific memo content',
@@ -138,7 +138,7 @@ export const updateClientMemoRoute = routeBuilder.build({
 
 export const deleteClientMemoRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/{id}/memos/{memo_id}',
+  path: '/{practice_id}/{client_id}/memos/{memo_id}',
   tags: ['Clients: Memos'],
   summary: 'Delete client memo',
   description: 'Delete a specific memo',

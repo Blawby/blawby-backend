@@ -12,12 +12,12 @@ const tags = ['Matters'];
 
 export const listMilestonesRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/milestones',
+  path: '/{matter_id}/milestones',
   tags,
   summary: 'List milestones',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     query: listMatterMilestonesQuerySchema,
   },
@@ -35,12 +35,12 @@ export const listMilestonesRoute = routeBuilder.build({
 
 export const createMilestoneRoute = routeBuilder.build({
   method: 'post',
-  path: '/{id}/milestones',
+  path: '/{matter_id}/milestones',
   tags,
   summary: 'Create a milestone',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     body: {
       content: {
@@ -64,12 +64,12 @@ export const createMilestoneRoute = routeBuilder.build({
 
 export const updateMilestoneRoute = routeBuilder.build({
   method: 'put',
-  path: '/{id}/milestones/{milestone_id}',
+  path: '/{matter_id}/milestones/{milestone_id}',
   tags,
   summary: 'Update a milestone',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
       milestone_id: z.uuid(),
     }),
     body: {
@@ -94,12 +94,12 @@ export const updateMilestoneRoute = routeBuilder.build({
 
 export const deleteMilestoneRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{id}/milestones/{milestone_id}',
+  path: '/{matter_id}/milestones/{milestone_id}',
   tags,
   summary: 'Delete a milestone',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
       milestone_id: z.uuid(),
     }),
   },
@@ -119,12 +119,12 @@ export const deleteMilestoneRoute = routeBuilder.build({
 
 export const reorderMilestonesRoute = routeBuilder.build({
   method: 'post',
-  path: '/{id}/milestones/reorder',
+  path: '/{matter_id}/milestones/reorder',
   tags,
   summary: 'Reorder milestones',
   request: {
     params: z.object({
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     body: {
       content: {
