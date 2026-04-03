@@ -41,12 +41,26 @@
 | `src/modules/invoices/routes.ts` | `getClientInvoicesRoute` response: `{ invoices, pagination }` → `{ data, pagination }` |
 | `src/modules/invoices/handlers.ts` | `getClientInvoicesHandler`: service result passthrough (service must match) |
 
-### Task 3 — REST violation fixes (deprecation strategy)
+### Task 3 — REST violation fixes (deprecation strategy, all modules)
 
 | File | What changes |
 |------|-------------|
-| `src/modules/practice/routes/practice.routes.ts` | Add `GET /` as `listPracticesRoute`; rename old to `listPracticesDeprecatedRoute` with `deprecated: true`; add `PATCH /{practice_id}` as `setActivePracticeRoute`; rename old to `setActivePracticeDeprecatedRoute` with `deprecated: true` |
-| `src/modules/practice/http.ts` | Register both canonical + deprecated routes pointing to same handlers |
+| `src/modules/practice/routes/practice.routes.ts` | `GET /list` → add `GET /` canonical; `PUT /active` → add `PATCH /{practice_id}` canonical; deprecate old routes |
+| `src/modules/practice/http.ts` | Register canonical + deprecated routes |
+| `src/modules/practice-client-intakes/routes/public.routes.ts` | `POST /create` → add `POST /` canonical; deprecate `/create` |
+| `src/modules/practice-client-intakes/routes/public http.ts` | Register canonical + deprecated |
+| `src/modules/subscriptions/routes.ts` | `POST /cancel` → add `DELETE /` canonical; deprecate `/cancel` |
+| `src/modules/subscriptions/http.ts` | Register canonical + deprecated |
+| `src/modules/invoices/routes.ts` | `POST /send`, `POST /void` → add `PATCH /{invoice_id}` with `{ status }` canonical; deprecate action routes. Keep `/sync` as-is (side-effect, no REST equivalent) |
+| `src/modules/invoices/handlers.ts` | Add `patchInvoiceStatusHandler` for the canonical PATCH |
+| `src/modules/matters/routes/core.routes.ts` + all sub-resource routes | `PUT` → add `PATCH` canonical for all update routes; deprecate `PUT` |
+| `src/modules/matters/handlers.ts` | Handler types updated to match PATCH routes |
+| `src/modules/practice/routes/practice-details.routes.ts` | `PUT /{practice_id}/details` → add `PATCH` canonical; deprecate `PUT` |
+| `src/modules/preferences/routes.ts` | `PUT /{category}` → add `PATCH /{category}` canonical (description explicitly says partial update); deprecate `PUT` |
+| `src/modules/trust/routes.ts` | `POST /deposit`, `POST /withdrawal` → add `POST /transactions` canonical with `type` field; deprecate verb routes |
+| `src/modules/uploads/routes/upload-write.routes.ts` | `/confirm`, `/restore` — keep as-is (side-effects with no REST noun equivalent; these are accepted industry practice) |
+| `src/modules/uploads/routes/upload-read.routes.ts` | `/download`, `/audit-log` — keep as-is (these are sub-resources, not verbs) |
+| `src/modules/practice-client-intakes/routes/staff.routes.ts` | `/invite`, `/convert`, `/status` — keep `/status` (noun); deprecate `/invite` → `POST /{id}/invitations`; deprecate `/convert` → `POST /{id}/conversions` |
 
 ---
 
@@ -653,29 +667,34 @@ Expected: no errors.
 
 ---
 
-## Task 3: Fix REST violations with deprecation strategy
+## Task 3: Fix REST violations with deprecation strategy (all modules)
 
-**Files:**
-- Modify: `src/modules/practice/routes/practice.routes.ts`
-- Modify: `src/modules/practice/routes/index.ts`
-- Modify: `src/modules/practice/http.ts`
+**Context:** REST violations fall into three categories across the codebase:
 
-**Context:** Two routes violate REST principles:
-1. `GET /list` — verb in URL; collection should be `GET /`
-2. `PUT /{practice_id}/active` — verb sub-resource; active state is a field, not a resource
+1. **Verb collection paths** — `GET /list`, `POST /create`, `POST /cancel` at the collection level
+2. **State transition action sub-resources** — `/send`, `/void`, `/invite`, `/convert` etc. after an ID
+3. **PUT used for partial updates** — `PUT` implies full replacement; partial updates must use `PATCH`
 
-**Strategy:** Add canonical REST routes alongside the existing ones. Mark old routes `deprecated: true` in OpenAPI (shows as strikethrough in docs). Both old and new routes call the **same handler** — zero logic duplication. Frontend migrates at its own pace, then deprecated routes are removed in a follow-up PR.
+**Strategy for all three:** Add the canonical REST route. Mark the old route `deprecated: true`. Both point to the same handler. Frontend migrates at its own pace. Deprecated routes are removed in a follow-up cleanup PR.
+
+**What to keep as-is** (these are accepted industry practice, not violations):
+- `POST /{id}/sync` — side-effect trigger with no state equivalent
+- `POST /{id}/confirm`, `POST /{id}/restore` (uploads) — side-effects
+- `GET /{id}/download`, `GET /{id}/audit-log` (uploads) — noun sub-resources, not verbs
+- `GET /organization/{practice_id}/status` (onboarding) — noun sub-resource
 
 ---
 
-### 3a: Add `GET /` alongside deprecated `GET /list`
+### 3a: Verb collection paths
 
-- [ ] **Step 1: Update `src/modules/practice/routes/practice.routes.ts`**
+**Pattern for all:** Add canonical route → mark old route `deprecated: true` → register both in `http.ts` pointing to the same handler.
 
-Add the canonical route and mark the old one deprecated. Rename the old export so the canonical one gets the clean name:
+- [ ] **Step 1: Practice — `GET /list` → `GET /`**
+
+In `src/modules/practice/routes/practice.routes.ts`, rename the existing export and add the canonical:
 
 ```typescript
-// Canonical REST endpoint — new name, clean path
+// Canonical
 export const listPracticesRoute = routeBuilder.build({
   method: 'get',
   path: '/',
@@ -684,17 +703,13 @@ export const listPracticesRoute = routeBuilder.build({
   description: 'Retrieve all practices for the authenticated user',
   responses: {
     200: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.practiceListResponseSchema,
-        },
-      },
+      content: { 'application/json': { schema: practiceValidations.practiceListResponseSchema } },
       description: 'Practices retrieved successfully',
     },
   },
 });
 
-// Kept for backwards compatibility — remove once frontend migrates to GET /
+// Deprecated — remove once frontend migrates to GET /api/practice
 export const listPracticesDeprecatedRoute = routeBuilder.build({
   method: 'get',
   path: '/list',
@@ -704,40 +719,79 @@ export const listPracticesDeprecatedRoute = routeBuilder.build({
   deprecated: true,
   responses: {
     200: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.practiceListResponseSchema,
-        },
-      },
+      content: { 'application/json': { schema: practiceValidations.practiceListResponseSchema } },
       description: 'Practices retrieved successfully',
     },
   },
 });
 ```
 
-- [ ] **Step 2: Export the new route from `src/modules/practice/routes/index.ts`**
-
-The file currently does `export * from './practice.routes'`. Since we renamed the old export and added a new one, the barrel re-export picks up both automatically — no change needed here. Verify by checking the file.
-
-- [ ] **Step 3: Register both routes in `src/modules/practice/http.ts`**
-
-Add the new canonical route registration. Both call `handlers.listPracticesHandler`:
+In `src/modules/practice/http.ts`, replace the single `listPracticesRoute` registration with both:
 
 ```typescript
-/**
- * GET /api/practice
- * List all practices for the authenticated user (canonical REST endpoint)
- */
 practiceApp.openapi(routes.listPracticesRoute, handlers.listPracticesHandler);
-
-/**
- * GET /api/practice/list
- * @deprecated — use GET /api/practice instead
- */
 practiceApp.openapi(routes.listPracticesDeprecatedRoute, handlers.listPracticesHandler);
 ```
 
-Replace the existing `practiceApp.openapi(routes.listPracticesRoute, ...)` line with both of the above.
+- [ ] **Step 2: Intakes — `POST /create` → `POST /`**
+
+In `src/modules/practice-client-intakes/routes/public.routes.ts`, find `createPracticeClientIntakeRoute` at `path: '/create'`. Add canonical alongside it:
+
+```typescript
+// Canonical
+export const createIntakeRoute = routeBuilder.build({
+  method: 'post',
+  path: '/',
+  tags: ['Client Intakes'],
+  summary: 'Submit client intake',
+  // ...copy request + responses from existing createPracticeClientIntakeRoute...
+});
+
+// Deprecated — remove once frontend migrates to POST /api/practice-client-intakes
+export const createPracticeClientIntakeRoute = routeBuilder.build({
+  // existing definition unchanged, add:
+  deprecated: true,
+  description: 'Deprecated — use `POST /api/practice-client-intakes` instead.',
+  // ...rest of existing definition...
+});
+```
+
+Register both in the intakes public `http.ts`, both pointing to the existing create handler.
+
+- [ ] **Step 3: Subscriptions — `POST /cancel` → `DELETE /`**
+
+In `src/modules/subscriptions/routes.ts`, add canonical alongside deprecated:
+
+```typescript
+// Canonical — cancelling a subscription is deleting it
+export const cancelSubscriptionRoute = routeBuilder.build({
+  method: 'delete',
+  path: '/',
+  tags: ['Subscriptions'],
+  summary: 'Cancel subscription',
+  description: 'Cancel the active subscription for the authenticated practice',
+  responses: {
+    204: { description: 'Subscription cancelled successfully' },
+  },
+});
+
+// Deprecated — remove once frontend migrates to DELETE /api/subscriptions
+export const cancelSubscriptionLegacyRoute = routeBuilder.build({
+  method: 'post',
+  path: '/cancel',
+  tags: ['Subscriptions'],
+  summary: 'Cancel subscription (deprecated)',
+  description: 'Deprecated — use `DELETE /api/subscriptions` instead.',
+  deprecated: true,
+  responses: {
+    200: {
+      // ...existing response schema...
+    },
+  },
+});
+```
+
+Register both in subscriptions `http.ts` pointing to the same cancel handler. Update the cancel handler to return `c.body(null, 204)` when called via the canonical route (or keep returning 200 for both until the deprecated route is removed — acceptable interim state).
 
 - [ ] **Step 4: Type-check**
 
@@ -749,27 +803,26 @@ Expected: no errors.
 
 ---
 
-### 3b: Add `PATCH /{practice_id}` with `is_active` alongside deprecated `PUT /{practice_id}/active`
+### 3b: State transition action sub-resources — invoices
 
-The canonical REST way to set a practice as active is a partial update: `PATCH /{practice_id}` with body `{ is_active: true }`. The existing `PUT /{practice_id}/active` stays but is marked deprecated.
+`POST /{invoice_id}/send` and `POST /{invoice_id}/void` are state transitions. The canonical REST pattern is `PATCH /{invoice_id}` with a `status` field. `/sync` is a side-effect trigger with no REST equivalent — leave it as-is.
 
-- [ ] **Step 1: Add the canonical route in `src/modules/practice/routes/practice.routes.ts`**
+- [ ] **Step 1: Add `PATCH /{practice_id}/{invoice_id}` canonical route in `src/modules/invoices/routes.ts`**
 
 ```typescript
-// Canonical REST endpoint for setting active practice
-export const setActivePracticeRoute = routeBuilder.build({
+const patchInvoiceStatusRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}',
-  tags: ['Practice'],
-  summary: 'Set active practice',
-  description: 'Set a practice as the active practice for the authenticated user',
+  path: '/{practice_id}/{invoice_id}/status',
+  tags: ['Invoices'],
+  summary: 'Transition invoice status',
+  description: 'Change invoice status. Replaces the deprecated /send and /void action endpoints.',
   request: {
-    params: practiceIdParamSchema,
+    params: invoiceParamSchema,
     body: {
       content: {
         'application/json': {
           schema: z.object({
-            is_active: z.literal(true),
+            status: z.enum(['sent', 'voided']),
           }),
         },
       },
@@ -777,57 +830,50 @@ export const setActivePracticeRoute = routeBuilder.build({
   },
   responses: {
     200: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.setActivePracticeResponseSchema,
-        },
-      },
-      description: 'Practice set as active successfully',
-    },
-  },
-});
-
-// Kept for backwards compatibility — remove once frontend migrates to PATCH /{practice_id}
-export const setActivePracticeDeprecatedRoute = routeBuilder.build({
-  method: 'put',
-  path: '/{practice_id}/active',
-  tags: ['Practice'],
-  summary: 'Set active practice (deprecated)',
-  description: 'Deprecated — use `PATCH /api/practice/{practice_id}` with body `{ is_active: true }` instead.',
-  deprecated: true,
-  request: {
-    params: practiceIdParamSchema,
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: practiceValidations.setActivePracticeResponseSchema,
-        },
-      },
-      description: 'Practice set as active successfully',
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
+      description: 'Invoice status updated',
     },
   },
 });
 ```
 
-- [ ] **Step 2: Register both routes in `src/modules/practice/http.ts`**
-
-Replace the existing `setActivePracticeRoute` registration with both:
+Mark the existing `sendInvoiceRoute` and `voidInvoiceRoute` as deprecated:
 
 ```typescript
-/**
- * PATCH /api/practice/:practice_id
- * Set practice as active (canonical REST endpoint)
- */
-practiceApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHandler);
+const sendInvoiceRoute = routeBuilder.build({
+  // ...existing definition...
+  deprecated: true,
+  description: 'Deprecated — use PATCH /{invoice_id}/status with { status: "sent" } instead.',
+});
 
-/**
- * PUT /api/practice/:practice_id/active
- * @deprecated — use PATCH /api/practice/:practice_id with { is_active: true }
- */
-practiceApp.openapi(routes.setActivePracticeDeprecatedRoute, handlers.setActivePracticeHandler);
+const voidInvoiceRoute = routeBuilder.build({
+  // ...existing definition...
+  deprecated: true,
+  description: 'Deprecated — use PATCH /{invoice_id}/status with { status: "voided" } instead.',
+});
 ```
+
+- [ ] **Step 2: Add `patchInvoiceStatusHandler` in `src/modules/invoices/handlers.ts`**
+
+```typescript
+const patchInvoiceStatusHandler: AppRouteHandler<typeof routes.patchInvoiceStatusRoute> = async (c) => {
+  const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
+  const baseCtx = { ...getServiceContext(c), organizationId };
+  const { status } = c.req.valid('json');
+
+  const result = await db.transaction(async (tx) => {
+    const ctx = createServiceContext(baseCtx, tx);
+    if (status === 'sent') {
+      return await invoiceStripeCoordinationService.sendInvoice({ id }, ctx);
+    }
+    return await invoiceStripeCoordinationService.voidInvoice({ id }, ctx);
+  });
+
+  return c.json(result, 200);
+};
+```
+
+Export it from the `handlers` object and register in `invoices/http.ts`.
 
 - [ ] **Step 3: Type-check**
 
@@ -835,7 +881,181 @@ practiceApp.openapi(routes.setActivePracticeDeprecatedRoute, handlers.setActiveP
 pnpm run typecheck
 ```
 
-Expected: no errors. If TypeScript complains about the `PATCH` handler not matching the route type, check that `setActivePracticeHandler` is typed as `AppRouteHandler<typeof routes.setActivePracticeRoute>` (the new PATCH route, not the old PUT).
+---
+
+### 3c: State transition action sub-resources — intakes
+
+`POST /{intake_id}/invite` and `PATCH /{intake_id}/convert` are state transitions. Model them as sub-resource collections.
+
+- [ ] **Step 1: Add canonical routes in `src/modules/practice-client-intakes/routes/staff.routes.ts`**
+
+```typescript
+// Canonical: sending an invitation = creating an invitation resource
+export const createIntakeInvitationRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{intake_id}/invitations',
+  tags: ['Client Intakes: Staff'],
+  summary: 'Send intake invitation',
+  description: 'Send an invitation to the client for this intake.',
+  request: {
+    params: z.object({ intake_id: z.uuid() }),
+  },
+  responses: {
+    201: { description: 'Invitation sent' },
+  },
+});
+
+// Canonical: converting an intake = creating a conversion record
+export const createIntakeConversionRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{intake_id}/conversions',
+  tags: ['Client Intakes: Staff'],
+  summary: 'Convert intake to client',
+  description: 'Convert an approved intake into a client record.',
+  request: {
+    params: z.object({ intake_id: z.uuid() }),
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: /* existing convertIntake response schema */ z.unknown() } },
+      description: 'Intake converted to client',
+    },
+  },
+});
+```
+
+Mark `triggerIntakeInvitationRoute` (`POST /{uuid}/invite`) and `convertIntakeRoute` (`PATCH /{uuid}/convert`) as `deprecated: true`.
+
+Register canonical + deprecated in the staff intakes `http.ts`, pointing to the same existing handlers.
+
+- [ ] **Step 2: Type-check**
+
+```bash
+pnpm run typecheck
+```
+
+---
+
+### 3d: Trust — `POST /deposit` and `POST /withdrawal` → `POST /transactions`
+
+Deposits and withdrawals are both financial transactions — the type is a field, not a URL segment.
+
+- [ ] **Step 1: Add canonical route in `src/modules/trust/routes.ts`**
+
+```typescript
+// Canonical: both deposit and withdrawal are trust transactions
+export const createTrustTransactionRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{practice_id}/transactions',
+  tags: ['Trust'],
+  summary: 'Create trust transaction',
+  description: 'Create a deposit or withdrawal transaction.',
+  request: {
+    params: z.object({ practice_id: z.uuid() }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            type: z.enum(['deposit', 'withdrawal']),
+            // ...other fields from existing deposit/withdrawal schemas...
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { /* existing transaction response schema */ } },
+      description: 'Transaction created',
+    },
+  },
+});
+```
+
+Mark `createDepositRoute` and `createWithdrawalRoute` as `deprecated: true`. Register canonical in trust `http.ts`.
+
+**Note:** The canonical handler needs to branch on `type` to call the correct service method. Add a `createTrustTransactionHandler` in `src/modules/trust/handlers.ts` that does this.
+
+- [ ] **Step 2: Type-check**
+
+```bash
+pnpm run typecheck
+```
+
+---
+
+### 3e: `PUT` → `PATCH` for all partial update routes
+
+Every `PUT` in this codebase is a partial update, not a full replacement. `PUT` semantics require the client to send the complete resource; these all accept optional fields. Fix: add `PATCH` canonical, deprecate `PUT`.
+
+**Affected routes:**
+
+| File | Route | Path |
+|------|-------|------|
+| `src/modules/matters/routes/core.routes.ts` | `updateMatterRoute` | `PUT /{practice_id}/{matter_id}` |
+| `src/modules/matters/routes/notes.routes.ts` | `updateMatterNoteRoute` | `PUT /{matter_id}/notes/{note_id}` |
+| `src/modules/matters/routes/time-entries.routes.ts` | `updateTimeEntryRoute` | `PUT /{matter_id}/time-entries/{entry_id}` |
+| `src/modules/matters/routes/expenses.routes.ts` | `updateExpenseRoute` | `PUT /{matter_id}/expenses/{expense_id}` |
+| `src/modules/matters/routes/milestones.routes.ts` | `updateMilestoneRoute` | `PUT /{matter_id}/milestones/{milestone_id}` |
+| `src/modules/practice/routes/practice.routes.ts` | `updatePracticeRoute` | `PUT /{practice_id}` |
+| `src/modules/practice/routes/practice-details.routes.ts` | `updatePracticeDetailsRoute` | `PUT /{practice_id}/details` |
+| `src/modules/preferences/routes.ts` | `updateCategoryPreferencesRoute` | `PUT /{category}` |
+
+- [ ] **Step 1: For each route in the table above, add a `PATCH` canonical and mark the `PUT` deprecated**
+
+The pattern is identical for all of them. Example for `updateMatterRoute`:
+
+```typescript
+// Canonical
+export const updateMatterRoute = routeBuilder.build({
+  method: 'patch',                          // ← was 'put'
+  path: '/{practice_id}/{matter_id}',
+  tags,
+  summary: 'Update a matter',
+  request: {
+    params: z.object({ practice_id: z.uuid(), matter_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterRequestSchema } } },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.object({ matter: matterResponseSchema }) } },
+      description: 'Matter updated successfully',
+    },
+  },
+});
+
+// Deprecated — remove once frontend migrates to PATCH
+export const updateMatterDeprecatedRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{practice_id}/{matter_id}',
+  deprecated: true,
+  summary: 'Update a matter (deprecated)',
+  description: 'Deprecated — use `PATCH /api/matters/{practice_id}/{matter_id}` instead.',
+  tags,
+  request: {
+    params: z.object({ practice_id: z.uuid(), matter_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterRequestSchema } } },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.object({ matter: matterResponseSchema }) } },
+      description: 'Matter updated successfully',
+    },
+  },
+});
+```
+
+Apply this same pattern to every route in the table. Both the canonical and deprecated routes point to the same existing handler.
+
+Register both in the respective `http.ts` files.
+
+- [ ] **Step 2: Type-check**
+
+```bash
+pnpm run typecheck
+```
+
+Expected: no errors. If handlers are typed as `AppRouteHandler<typeof routes.updateMatterRoute>`, TypeScript will enforce the new `PATCH` route type. Update handler type annotations where needed.
 
 ---
 
@@ -848,8 +1068,12 @@ Expected: no errors. If TypeScript complains about the `PATCH` handler not match
 - [x] Task 2a: matters list route + handler standardized
 - [x] Task 2b: invoices list route + handler standardized (with note about query field names)
 - [x] Task 2c: client invoices list route + handler standardized (with conditional step for service return shape)
-- [x] Task 3a: `GET /` added alongside deprecated `GET /list` — same handler, zero logic duplication
-- [x] Task 3b: `PATCH /{practice_id}` added alongside deprecated `PUT /{practice_id}/active` — same handler
+- [x] Task 3a: Verb collection paths fixed — `GET /`, `POST /`, `DELETE /` canonical routes added with deprecated originals
+- [x] Task 3b: Invoice state transitions — `PATCH /{invoice_id}/status` canonical with `patchInvoiceStatusHandler`
+- [x] Task 3c: Intake state transitions — `/invitations` and `/conversions` noun sub-resources replace verb routes
+- [x] Task 3d: Trust transactions — `POST /transactions` with `type` field replaces `/deposit` and `/withdrawal`
+- [x] Task 3e: All `PUT` partial update routes get `PATCH` canonical + deprecated `PUT` across 8 route files
+- [x] `/sync`, `/confirm`, `/restore`, `/download`, `/audit-log` correctly excluded (side-effects or noun sub-resources)
 - [x] Breaking change flagged at top of plan
 - [x] Deprecated routes use `deprecated: true` OpenAPI flag — shows as strikethrough in docs
 - [x] `deleteMatterNoteHandler` correctly uses direct `await` (no Result pattern) — verified from handler code
