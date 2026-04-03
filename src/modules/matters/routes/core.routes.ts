@@ -73,14 +73,14 @@ export const listMattersRoute = routeBuilder.build({
 
 export const getMatterRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Get a matter',
   description: 'Returns a single matter by ID.',
   request: {
     params: z.object({
       practice_id: z.uuid(),
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
   },
   responses: {
@@ -107,13 +107,13 @@ export const getMatterRoute = routeBuilder.build({
 
 export const updateMatterRoute = routeBuilder.build({
   method: 'put',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Update a matter',
   request: {
     params: z.object({
       practice_id: z.uuid(),
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
     body: {
       content: {
@@ -147,13 +147,13 @@ export const updateMatterRoute = routeBuilder.build({
 
 export const deleteMatterRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Delete a matter',
   request: {
     params: z.object({
       practice_id: z.uuid(),
-      id: z.uuid(),
+      matter_id: z.uuid(),
     }),
   },
   responses: {
