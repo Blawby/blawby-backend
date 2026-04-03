@@ -224,6 +224,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           );
         },
       },
+      deleteUser: {
+        enabled: true,
+      }
       additionalFields: {
         primaryWorkspace: {
           type: ['public', 'client', 'practice'],

@@ -5,7 +5,10 @@ import { addressSchema } from '@/shared/validations/address';
 // Public request schema - clientIp and userAgent are injected server-side from headers
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
-  amount: z.number().int().min(0).max(99999999), // $0.00 to $999,999.99
+  amount: z.number().int().min(0).max(99999999).openapi({
+    description: 'Consultation amount submitted by the client.',
+    example: 15000,
+  }), // $0.00 to $999,999.99
   email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
