@@ -197,15 +197,10 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
     },
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        await queueManager.addEmailJob(
-          EMAIL_TEMPLATES.EMAIL_VERIFICATION,
-          user.email,
-          'Verify your email address',
-          {
-            url,
-            year: new Date().getFullYear(),
-          }
-        );
+        await queueManager.addEmailJob(EMAIL_TEMPLATES.EMAIL_VERIFICATION, user.email, 'Verify your email address', {
+          url,
+          year: new Date().getFullYear(),
+        });
       },
     },
     user: {
@@ -226,7 +221,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       },
       deleteUser: {
         enabled: true,
-      }
+      },
       additionalFields: {
         primaryWorkspace: {
           type: ['public', 'client', 'practice'],
@@ -258,15 +253,10 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
     emailAndPassword: {
       ...AUTH_CONFIG.emailAndPassword,
       sendResetPassword: async ({ user, url }) => {
-        await queueManager.addEmailJob(
-          EMAIL_TEMPLATES.PASSWORD_RESET,
-          user.email,
-          'Reset your Blawby password',
-          {
-            url,
-            year: new Date().getFullYear(),
-          }
-        );
+        await queueManager.addEmailJob(EMAIL_TEMPLATES.PASSWORD_RESET, user.email, 'Reset your Blawby password', {
+          url,
+          year: new Date().getFullYear(),
+        });
       },
     },
     socialProviders: {
