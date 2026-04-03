@@ -6,8 +6,7 @@ import { addressSchema } from '@/shared/validations/address';
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
   amount: z.number().int().min(0).max(99999999).openapi({
-    description:
-      'Consultation amount submitted by the client. Must exactly match the practice consultation fee for the provided slug.',
+    description: 'Consultation amount submitted by the client.',
     example: 15000,
   }), // $0.00 to $999,999.99
   email: z.email().max(255),

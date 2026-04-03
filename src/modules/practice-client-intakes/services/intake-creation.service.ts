@@ -155,10 +155,6 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
     const consultationFee = practiceDetails?.consultation_fee ?? 0;
 
-    if (request.amount !== consultationFee) {
-      return result.badRequest('Amount must match the practice consultation fee');
-    }
-
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
     const shouldBypassPayment = !requiresPayment || request.amount === 0;
 
