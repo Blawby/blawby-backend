@@ -11,7 +11,7 @@ interface RecordDepositOpts {
   clientId: string;
   matterId: string;
   amount: number;
-  invoiceId: string;
+  invoiceId?: string;
 }
 
 interface RecordWithdrawalOpts {
@@ -39,7 +39,7 @@ const recordDeposit = async (opts: RecordDepositOpts, tx?: NodePgDatabase<typeof
       amount,
       invoiceId,
       source: 'stripe_payment',
-      description: `Retainer deposit — invoice ${invoiceId}`,
+      description: invoiceId ? `Retainer deposit — invoice ${invoiceId}` : 'Retainer deposit — refund reversal',
       createdBy: 'webhook',
     },
     tx
@@ -80,7 +80,7 @@ const recordWithdrawal = async (opts: RecordWithdrawalOpts, tx?: NodePgDatabase<
       amount,
       source: 'system_billing',
       description: reason,
-      createdBy: 'system',
+      createdBy: 'webhook',
     },
     tx
   );
@@ -123,7 +123,6 @@ const revertRefund = async (
       clientId,
       matterId,
       amount,
-      invoiceId: refundRequestId,
     },
     tx
   );

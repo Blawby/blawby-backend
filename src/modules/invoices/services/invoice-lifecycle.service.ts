@@ -128,6 +128,7 @@ const updateInvoice = async (
 
     return invoiceQueriesService.transformInvoiceResponse(updated);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update invoice {invoiceId}: {error}', {
       invoiceId: id,
@@ -171,6 +172,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
     );
     return { success: true };
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete invoice {invoiceId}: {error}', {
       invoiceId: id,

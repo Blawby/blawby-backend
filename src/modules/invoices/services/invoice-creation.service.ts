@@ -219,6 +219,7 @@ const createInvoice = async (
 
     return invoiceQueriesService.transformInvoiceResponse(invoice);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     throw new Error('An error occurred while creating the invoice');
   }
 };

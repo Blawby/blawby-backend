@@ -95,6 +95,7 @@ const listInvoices = async (
       },
     };
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     throw new Error('Failed to list invoices');
   }
 };
@@ -131,6 +132,7 @@ const listClientInvoices = async (
       pagination: { page, limit, total },
     };
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     throw new Error('Failed to list client invoices');
   }
 };
@@ -151,6 +153,7 @@ const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Prom
 
     return transformInvoiceResponse(invoice);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get invoice {invoiceId}: {error}', {
       invoiceId: id,
@@ -185,6 +188,7 @@ const getClientInvoiceDetail = async (
 
     return transformInvoiceResponse(invoice);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to get client invoice {invoiceId}: {error}', {
       invoiceId,

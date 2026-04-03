@@ -138,7 +138,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           matter_id: matterId,
           stripe_invoice_id,
           amount_paid: stripe_amount_paid,
-          retainer_deducted: invoiceType === 'retainer_deposit',
+          retainer_deducted: invoiceType === 'retainer_deposit' && !!matterId && !!clientId,
         },
         { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx }
       );

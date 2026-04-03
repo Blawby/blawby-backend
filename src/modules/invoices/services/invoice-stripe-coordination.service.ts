@@ -187,6 +187,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       throw error;
     }
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     logger.error('Failed to finalize and send invoice: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
@@ -230,6 +231,7 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
     return invoiceQueriesService.transformInvoiceResponse(updated);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     logger.error('Failed to sync invoice with Stripe: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
@@ -286,6 +288,7 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
     return invoiceQueriesService.transformInvoiceResponse(updated);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     logger.error('Failed to void invoice: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
