@@ -221,7 +221,7 @@ const getClientInvoicesRoute = routeBuilder.build({
 
 const getClientInvoiceDetailRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/client/{id}',
+  path: '/{practice_id}/client/{invoice_id}',
   tags: ['Client Invoices'],
   summary: 'Get my invoice detail',
   description: 'Get a single invoice for the authenticated client (includes line items).',

@@ -28,7 +28,7 @@
 
 ## File Structure
 
-```
+```text
 test/
   helpers/
     app.ts               ← Hono app instance (existing)
@@ -110,11 +110,11 @@ export async function createFullTestContext() {
   ]);
 
   return {
-    org: ownerCtx.org,          // orgA — the org under test
+    org: ownerCtx.org, // orgA — the org under test
     owner: ownerCtx,
     admin: { ...adminCtx, org: ownerCtx.org }, // admin of orgA
     member: { ...memberCtx, org: ownerCtx.org }, // member of orgA
-    outsider: outsiderCtx,      // owner of orgB — cross-org isolation
+    outsider: outsiderCtx, // owner of orgB — cross-org isolation
   };
 }
 ```
@@ -146,13 +146,18 @@ describe('Invoices — Authorization', () => {
     it('owner can delete',       () => authenticatedRequest(ctx.owner.sessionToken).delete(`/api/invoices/${invoiceId}`).expect(200));
     it('admin cannot delete',    () => authenticatedRequest(ctx.admin.sessionToken).delete(`/api/invoices/${invoiceId}`).expect(403));
     it('member cannot delete',   () => authenticatedRequest(ctx.member.sessionToken).delete(`/api/invoices/${invoiceId}`).expect(403));
-    it('outsider cannot delete', () => authenticatedRequest(ctx.outsider.sessionToken).delete(`/api/invoices/${invoiceId}`).expect(403));
+    it('outsider cannot delete', () =>
+      authenticatedRequest(ctx.outsider.sessionToken)
+        .delete(`/api/invoices/${invoiceId}`)
+        .expect((res) => { if (![403, 404].includes(res.status)) throw new Error(`expected 403 or 404, got ${res.status}`); })
+    );
     it('unauthenticated cannot delete', () => request.delete(`/api/invoices/${invoiceId}`).expect(401));
   });
 });
 ```
 
 **Rules:**
+
 - `beforeAll` seeds the minimum data needed — no re-seeding per test
 - One `describe` block per endpoint group (e.g. all invoice CRUD, then refund requests separately)
 - Files stay focused: if a module has sub-resources (notes, time entries, expenses), each gets its own `*.auth.test.ts`
@@ -234,6 +239,7 @@ describe('Invoice Lifecycle Flow', () => {
 ```
 
 **Rules:**
+
 - Tests are ordered and intentionally stateful within the file (each step depends on prior state)
 - `describe` block name describes the narrative, `it` names are numbered steps
 - Mocks (Stripe, email) reset between flow steps via `afterEach(() => vi.clearAllMocks())`
@@ -270,19 +276,19 @@ S3 (uploads module) is mocked via `vi.mock('@aws-sdk/client-s3', ...)`.
 
 Tests are written in this order so that later tests can reuse factories from earlier ones:
 
-| # | Module | Test files |
-|---|--------|-----------|
-| 1 | `practice` | crud, members.auth, practice.auth |
-| 2 | `clients` | crud, clients.auth, client-memos.auth |
-| 3 | `matters` | crud, matters.auth, notes.auth, time-entries.auth, expenses.auth |
-| 4 | `invoices` | crud, flow, invoices.auth, refund-requests.auth |
-| 5 | `subscriptions` | crud, subscriptions.auth |
-| 6 | `trust` | crud, trust.auth |
-| 7 | `uploads` | crud, uploads.auth |
-| 8 | `preferences` | crud, preferences.auth |
-| 9 | `practice-client-intakes` | intakes.auth (crud already exists) |
-| 10 | `webhooks` | stripe.test |
-| 11 | `flows/` | intake-to-client, matter-billing, subscription-lifecycle |
+| #   | Module                    | Test files                                                       |
+| --- | ------------------------- | ---------------------------------------------------------------- |
+| 1   | `practice`                | crud, members.auth, practice.auth                                |
+| 2   | `clients`                 | crud, clients.auth, client-memos.auth                            |
+| 3   | `matters`                 | crud, matters.auth, notes.auth, time-entries.auth, expenses.auth |
+| 4   | `invoices`                | crud, flow, invoices.auth, refund-requests.auth                  |
+| 5   | `subscriptions`           | crud, subscriptions.auth                                         |
+| 6   | `trust`                   | crud, trust.auth                                                 |
+| 7   | `uploads`                 | crud, uploads.auth                                               |
+| 8   | `preferences`             | crud, preferences.auth                                           |
+| 9   | `practice-client-intakes` | intakes.auth (crud already exists)                               |
+| 10  | `webhooks`                | stripe.test                                                      |
+| 11  | `flows/`                  | intake-to-client, matter-billing, subscription-lifecycle         |
 
 ---
 
@@ -298,6 +304,7 @@ Tests are written in this order so that later tests can reuse factories from ear
 ## CI
 
 To be determined. Options evaluated:
+
 - GitHub Actions self-hosted runner (no minutes quota)
 - Cloudflare Containers (beta) hosting the runner
 
@@ -311,7 +318,7 @@ Test suite itself is CI-agnostic — runs with `pnpm test` in any Node.js enviro
 enum OrgRole {
   OWNER = 'owner',
   ADMIN = 'admin',
-  ATTORNEY = 'attorney',   // admin-level
+  ATTORNEY = 'attorney', // admin-level
   MEMBER = 'member',
   PARALEGAL = 'paralegal', // member-level
   CLIENT = 'client',
