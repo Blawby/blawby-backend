@@ -9,7 +9,6 @@ export interface OffsetPaginationMeta {
   page: number;
   limit: number;
   total: number;
-  total_pages: number;
 }
 
 export interface CursorPaginatedResponse<T> {

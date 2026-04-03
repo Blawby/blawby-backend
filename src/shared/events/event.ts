@@ -315,7 +315,7 @@ export const Event = {
           eventId: record.eventId,
           error: error instanceof Error ? error.message : String(error),
         });
-        throw (error instanceof Error ? error : new Error(String(error)));
+        throw error instanceof Error ? error : new Error(String(error));
       }
     }
   },

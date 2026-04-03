@@ -1,5 +1,6 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
 import type {
@@ -8,11 +9,9 @@ import type {
   InvoiceTotals,
   InvoiceLineItemInput,
 } from '@/modules/invoices/types/invoices.types';
-import { db } from '@/shared/database';
+// Db executor is provided via ServiceContext (ctx.db)
 import { InvoiceUpdated, InvoiceDeleted } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
 
 const logger = getLogger(['invoices', 'lifecycle-service']);
 
@@ -27,9 +26,9 @@ const syncLineItems = async (
     invoiceId: string;
     lineItems: InvoiceLineItemInput[];
   },
-  tx: typeof db
+  executor: ServiceContext['db']
 ): Promise<void> => {
-  await invoicesRepository.deleteInvoiceLineItems(invoiceId, tx);
+  await invoicesRepository.deleteInvoiceLineItems(invoiceId, executor);
   await invoicesRepository.createInvoiceLineItems(
     lineItems.map((item, index) => ({
       ...item,
@@ -38,7 +37,7 @@ const syncLineItems = async (
       line_total: item.quantity * item.unit_price,
       sort_order: item.sort_order ?? index,
     })),
-    tx
+    executor
   );
 };
 
@@ -66,14 +65,14 @@ const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotal
 const updateInvoice = async (
   { id, data }: { id: string; data: UpdateInvoiceRequest },
   ctx: ServiceContext
-): Promise<Result<InvoiceResponse>> => {
+): Promise<InvoiceResponse> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      return result.notFound('Invoice not found');
+      throw new HTTPException(404, { message: 'Invoice not found' });
     }
 
     // Only allow updating non-draft invoices if updating status ONLY
@@ -82,106 +81,104 @@ const updateInvoice = async (
       const isStatusOnlyUpdate = updateKeys.length === 1 && updateKeys[0] === 'status';
 
       if (!isStatusOnlyUpdate) {
-        return result.badRequest<InvoiceResponse>('Only draft invoices can be modified (except status updates)');
+        throw new HTTPException(400, { message: 'Only draft invoices can be modified (except status updates)' });
       }
     }
 
     const { line_items, ...invoiceData } = data;
 
-    const updatedInvoice = await db.transaction(async (tx) => {
-      let totals = {};
-      if (line_items) {
-        totals = calculateInvoiceTotals(line_items);
-        await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
-      }
-
-      await invoicesRepository.updateInvoice(
-        id,
-        ctx.organizationId,
-        {
-          ...invoiceData,
-          ...totals,
-          due_date: data.due_date ? new Date(data.due_date) : undefined,
-        },
-        tx
-      );
-
-      const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
-      if (updated) {
-        await InvoiceUpdated.dispatch(
-          {
-            invoice_id: id,
-            organization_id: ctx.organizationId,
-            changes: data,
-          },
-          {
-            actorId: ctx.userId,
-            actorType: 'user',
-            organizationId: ctx.organizationId,
-            tx,
-          }
-        );
-      }
-
-      return updated;
-    });
-
-    if (!updatedInvoice) {
-      return result.internalError<InvoiceResponse>('Failed to retrieve updated invoice');
+    const executor = ctx.db;
+    let totals = {};
+    if (line_items) {
+      totals = calculateInvoiceTotals(line_items);
+      await syncLineItems({ invoiceId: id, lineItems: line_items }, executor);
     }
 
-    return result.ok<InvoiceResponse>(invoiceQueriesService.transformInvoiceResponse(updatedInvoice));
+    await invoicesRepository.updateInvoice(
+      id,
+      ctx.organizationId,
+      {
+        ...invoiceData,
+        ...totals,
+        due_date: data.due_date ? new Date(data.due_date) : undefined,
+      },
+      executor
+    );
+
+    const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId, executor);
+    if (updated) {
+      await InvoiceUpdated.dispatch(
+        {
+          invoice_id: id,
+          organization_id: ctx.organizationId,
+          changes: data,
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+          tx: executor,
+        }
+      );
+    }
+
+    if (!updated) {
+      throw new Error('Failed to retrieve updated invoice');
+    }
+
+    return invoiceQueriesService.transformInvoiceResponse(updated);
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to update invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    return result.internalError<InvoiceResponse>('Failed to update invoice');
+    throw new Error('Failed to update invoice');
   }
 };
 
 /**
  * Soft delete an invoice
  */
-const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Result<{ success: true }>> => {
+const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<{ success: true }> => {
   // CASL Check
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Invoice');
 
   try {
     const existing = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!existing) {
-      return result.notFound<{ success: true }>('Invoice not found');
+      throw new HTTPException(404, { message: 'Invoice not found' });
     }
 
     if (existing.status !== 'draft') {
-      return result.badRequest<{ success: true }>('Only draft invoices can be deleted');
+      throw new HTTPException(400, { message: 'Only draft invoices can be deleted' });
     }
 
-    await db.transaction(async (tx) => {
-      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, tx);
-      await InvoiceDeleted.dispatch(
-        {
-          invoice_id: id,
-          organization_id: ctx.organizationId,
-          deleted_by: 'user',
-        },
-        {
-          actorId: ctx.userId,
-          actorType: 'user',
-          organizationId: ctx.organizationId,
-          tx,
-        }
-      );
-    });
-    return result.ok<{ success: true }>({ success: true });
+    const executor = ctx.db;
+    await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, executor);
+    await InvoiceDeleted.dispatch(
+      {
+        invoice_id: id,
+        organization_id: ctx.organizationId,
+        deleted_by: 'user',
+      },
+      {
+        actorId: ctx.userId,
+        actorType: 'user',
+        organizationId: ctx.organizationId,
+        tx: executor,
+      }
+    );
+    return { success: true };
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete invoice {invoiceId}: {error}', {
       invoiceId: id,
       error: message,
     });
-    return result.internalError<{ success: true }>('Failed to delete invoice');
+    throw new Error('Failed to delete invoice');
   }
 };
 

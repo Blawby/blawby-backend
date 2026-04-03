@@ -1,14 +1,12 @@
 import { and, or, eq, isNull } from 'drizzle-orm';
-import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
-import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ResolvedClientForInvoice } from '@/modules/invoices/types/invoices.types';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { members, users } from '@/schema/better-auth-schema';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '@/shared/database';
-import type { Result } from '@/shared/types/result';
 import { createSystemContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
 
 /**
  * Resolves a client for invoice creation
@@ -18,7 +16,7 @@ const resolveClientForInvoice = async (
   organizationId: string,
   clientId: string,
   connectedAccountId: string
-): Promise<Result<ResolvedClientForInvoice>> => {
+): Promise<ResolvedClientForInvoice> => {
   // 1. Try to find existing user_details by ID or UserID
   let clientDetails = await db.query.clients.findFirst({
     where: and(
@@ -31,7 +29,7 @@ const resolveClientForInvoice = async (
       organization: {
         with: {
           stripeConnectedAccounts: {
-            where: (acc, { eq: eqOp }) => eqOp(acc.id, connectedAccountId),
+            where: eq(stripeConnectedAccounts.id, connectedAccountId),
           },
         },
       },
@@ -73,7 +71,7 @@ const resolveClientForInvoice = async (
           organization: {
             with: {
               stripeConnectedAccounts: {
-                where: (acc, { eq: eqOp }) => eqOp(acc.id, connectedAccountId),
+                where: eq(stripeConnectedAccounts.id, connectedAccountId),
               },
             },
           },
@@ -84,14 +82,14 @@ const resolveClientForInvoice = async (
   }
 
   if (!clientDetails) {
-    return result.notFound('Client not found or does not belong to this organization');
+    throw new HTTPException(404, { message: 'Client not found or does not belong to this organization' });
   }
 
   // Extract connected account
   const connectedAccount = clientDetails.organization?.stripeConnectedAccounts?.[0] ?? null;
 
   // Return normalized result
-  return result.ok({
+  return {
     id: clientDetails.id,
     user_id: clientDetails.user_id,
     name: clientDetails.user?.name ?? '',
@@ -100,25 +98,25 @@ const resolveClientForInvoice = async (
     organization_id: clientDetails.organization_id,
     connectedAccount,
     matters: clientDetails.matters ?? [],
-  });
+  };
 };
 
 /**
  * Resolves a userId to a userDetails.id for the given org.
  * Used by client-facing invoice endpoints so the client never passes their own identifier.
  */
-const resolveUserDetailId = async (organizationId: string, userId: string): Promise<Result<string>> => {
+const resolveUserDetailId = async (organizationId: string, userId: string): Promise<string> => {
   const detail = await db.query.clients.findFirst({
     where: and(eq(clients.organization_id, organizationId), eq(clients.user_id, userId), isNull(clients.deleted_at)),
     columns: { id: true },
   });
   if (!detail) {
-    return result.notFound('Client record not found in this organization');
+    throw new HTTPException(404, { message: 'Client record not found in this organization' });
   }
-  return result.ok(detail.id);
+  return detail.id;
 };
 
 export const invoiceClientResolver = {
   resolveClientForInvoice,
   resolveUserDetailId,
-};
+} as const;

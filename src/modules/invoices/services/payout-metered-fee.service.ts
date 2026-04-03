@@ -1,6 +1,6 @@
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
-import { db } from '@/shared/database';
+import type { db } from '@/shared/database';
 
 const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): number | null => {
   const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout');
@@ -16,10 +16,7 @@ const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): n
   return typeof metadataFee === 'number' && metadataFee > 0 ? metadataFee : null;
 };
 
-export const requirePayoutMeteredFeeCents = (
-  invoiceTxs: SelectBillingTransaction[],
-  invoiceId: string,
-): number => {
+export const requirePayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[], invoiceId: string): number => {
   const meteredFeeCents = extractPayoutMeteredFeeCents(invoiceTxs);
   if (typeof meteredFeeCents === 'number') {
     return meteredFeeCents;
@@ -28,10 +25,13 @@ export const requirePayoutMeteredFeeCents = (
   throw new Error(`Missing persisted payout metered fee for invoice ${invoiceId}`);
 };
 
-export const loadRequiredPayoutMeteredFeeCents = async (
-  invoiceId: string,
-  tx?: typeof db,
-): Promise<number> => {
+export const loadRequiredPayoutMeteredFeeCents = async (invoiceId: string, tx?: typeof db): Promise<number> => {
   const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoiceId, tx);
   return requirePayoutMeteredFeeCents(invoiceTxs, invoiceId);
 };
+
+export const payoutMeteredFeeService = {
+  extractPayoutMeteredFeeCents,
+  requirePayoutMeteredFeeCents,
+  loadRequiredPayoutMeteredFeeCents,
+} as const;
