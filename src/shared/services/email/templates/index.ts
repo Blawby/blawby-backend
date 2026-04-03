@@ -16,6 +16,9 @@ import {
   type PayoutSentData,
   type ScheduledEventData,
   type MagicLinkData,
+  type PasswordResetData,
+  type EmailVerificationData,
+  type ChangeEmailConfirmationData,
   type PracticeInvitationData,
   type IntakeSubmissionReceivedData,
   type IntakeNewNotificationData,
@@ -27,6 +30,9 @@ import {
 
 // Auth templates
 import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
+import { passwordResetTemplate } from '@/shared/services/email/templates/auth/password-reset';
+import { emailVerificationTemplate } from '@/shared/services/email/templates/auth/email-verification';
+import { changeEmailConfirmationTemplate } from '@/shared/services/email/templates/auth/change-email-confirmation';
 
 // Customer templates
 import { customerPaymentReceipt } from '@/shared/services/email/templates/customer/payment-receipt';
@@ -81,6 +87,9 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
   [EMAIL_TEMPLATES.SCHEDULED_EVENT]: ScheduledEventData;
   [EMAIL_TEMPLATES.MAGIC_LINK]: MagicLinkData;
+  [EMAIL_TEMPLATES.PASSWORD_RESET]: PasswordResetData;
+  [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: EmailVerificationData;
+  [EMAIL_TEMPLATES.CHANGE_EMAIL_CONFIRMATION]: ChangeEmailConfirmationData;
   [EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED]: IntakeSubmissionReceivedData;
   [EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION]: IntakeNewNotificationData;
   [EMAIL_TEMPLATES.INTAKE_ACCEPTED]: IntakeAcceptedData;
@@ -115,6 +124,9 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent,
   [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate,
   [EMAIL_TEMPLATES.MAGIC_LINK]: magicLinkTemplate,
+  [EMAIL_TEMPLATES.PASSWORD_RESET]: passwordResetTemplate,
+  [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: emailVerificationTemplate,
+  [EMAIL_TEMPLATES.CHANGE_EMAIL_CONFIRMATION]: changeEmailConfirmationTemplate,
 
   // Intake templates
   [EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED]: intakeSubmissionReceived,
@@ -152,6 +164,9 @@ export {
   payoutSent,
   scheduledEventTemplate,
   magicLinkTemplate,
+  passwordResetTemplate,
+  emailVerificationTemplate,
+  changeEmailConfirmationTemplate,
   intakeSubmissionReceived,
   intakeNewNotification,
   intakeAccepted,
