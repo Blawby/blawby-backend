@@ -47,7 +47,7 @@ Loads the intake form for a practice. Returns practice branding, settings, and w
   "success": true,
   "data": {
     "practice": { "id": "uuid", "name": "Smith & Co", "slug": "smith-co", "logo": "https://..." },
-    "settings": { "payment_link_enabled": true, "prefill_amount": 5000 },
+    "settings": { "payment_link_enabled": true, "consultation_fee": 5000 },
     "connectedAccount": { "id": "uuid", "chargesEnabled": true }
   }
 }
