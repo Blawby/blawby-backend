@@ -39,14 +39,15 @@ export const buildPracticeWithDetails = (
   organization: OrganizationApiShape,
   practiceDetails: PracticeDetails | null
 ): PracticeWithDetails => {
-  const { paymentLinkEnabled, paymentLinkPrefillAmount, createdAt, updatedAt, ...rest } = organization;
+  const { paymentLinkEnabled, createdAt, updatedAt, ...rest } = organization;
 
   return {
     ...practiceDetails,
     ...rest,
     metadata: parseBetterAuthMetadata(organization.metadata),
     payment_link_enabled: paymentLinkEnabled ?? null,
-    payment_link_prefill_amount: paymentLinkPrefillAmount ?? null,
+    // Use practice details consultation_fee as the canonical prefill amount
+    payment_link_prefill_amount: practiceDetails?.consultation_fee ?? null,
     created_at: createdAt ?? new Date(),
     updated_at: updatedAt ?? undefined,
   };

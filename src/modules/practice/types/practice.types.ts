@@ -32,15 +32,11 @@ export type DeleteOrganizationRequest = z.infer<BetterAuthInstance['api']['delet
 // Using Better Auth types directly from the instance
 export type OrganizationApiShape = Organization & {
   paymentLinkEnabled?: boolean | null;
-  paymentLinkPrefillAmount?: number | null;
   createdAt?: Date;
   updatedAt?: Date | null;
 };
 
-type OrganizationWithoutCamelCase = Omit<
-  OrganizationApiShape,
-  'paymentLinkEnabled' | 'paymentLinkPrefillAmount' | 'createdAt' | 'updatedAt'
->;
+type OrganizationWithoutCamelCase = Omit<OrganizationApiShape, 'paymentLinkEnabled' | 'createdAt' | 'updatedAt'>;
 
 export type NormalizedOrganization = OrganizationWithoutCamelCase & {
   payment_link_enabled: boolean | null;

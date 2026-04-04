@@ -55,6 +55,9 @@ const getIntakeSettings = async (params: {
       return result.forbidden('Connected account is not ready to accept payments');
     }
 
+    const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+    const consultationFee = practiceDetails?.consultation_fee ?? 0;
+
     return result.ok({
       success: true,
       data: {
@@ -65,8 +68,9 @@ const getIntakeSettings = async (params: {
           logo: organization.logo ?? undefined,
         },
         settings: {
-          payment_link_enabled: organization.paymentLinkEnabled ?? false,
-          prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
+          payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
+          // Keep FE display and create-intake amount consistent with the same backend source.
+          prefill_amount: consultationFee,
         },
         connected_account: {
           id: connectedAccount.id,
@@ -87,6 +91,7 @@ const insertIntakeRecordTx = async (
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   params: {
     request: IntakeCreationRequest;
+    resolvedAmount: number;
     organizationId: string;
     intakeId: string;
     connectedAccountId?: string;
@@ -113,8 +118,8 @@ const insertIntakeRecordTx = async (
     stripe_payment_link_id: params.stripePaymentLinkId,
     address_id: addressId,
     conversation_id: params.request.conversation_id,
-    amount: params.request.amount,
-    application_fee: fundManagement.calculateApplicationFee(params.request.amount),
+    amount: params.resolvedAmount,
+    application_fee: fundManagement.calculateApplicationFee(params.resolvedAmount),
     currency: 'usd',
     status: params.shouldBypassPayment ? 'succeeded' : 'open',
     triage_status: 'pending_review',
@@ -156,10 +161,16 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const consultationFee = practiceDetails?.consultation_fee ?? 0;
 
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
-    const shouldBypassPayment = !requiresPayment || request.amount === 0;
+    // Backend is the source of truth for amount in create-intake flows.
+    // UI/worker can read intake settings for display, but the charged amount must
+    // Always come from backend practice configuration.
+    const resolvedAmount = requiresPayment ? consultationFee : 0;
+    const shouldBypassPayment = !requiresPayment;
 
-    if (requiresPayment && request.amount < 50) {
-      return result.badRequest('Amount must be at least 50 cents when payment is required');
+    if (requiresPayment && resolvedAmount < 50) {
+      return result.badRequest(
+        `Invalid practice consultation fee configuration: resolved amount is ${resolvedAmount} cents, but minimum is 50 cents when payment is required.`
+      );
     }
 
     let stripePaymentLink: Stripe.Response<Stripe.PaymentLink> | null = null;
@@ -180,7 +191,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
       }
 
       stripePaymentLink = await createIntakePaymentLink({
-        amount: request.amount,
+        amount: resolvedAmount,
         email: request.email,
         name: request.name,
         phone: request.phone,
@@ -202,6 +213,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const intake = await db.transaction(async (tx) =>
       insertIntakeRecordTx(tx, {
         request,
+        resolvedAmount,
         organizationId: organization.id,
         intakeId,
         connectedAccountId: connectedAccount?.id,
@@ -216,7 +228,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
         intake_payment_id: intake.id,
         uuid: intake.id,
         stripe_payment_link_id: stripePaymentLink?.id,
-        amount: request.amount,
+        amount: resolvedAmount,
         currency: 'usd',
         client_email: request.email,
         client_name: request.name,
@@ -238,7 +250,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
           billing_email: organization.billingEmail ?? null,
           client_email: request.email,
           client_name: request.name,
-          amount: request.amount,
+          amount: resolvedAmount,
           currency: 'usd',
         },
         {
@@ -253,7 +265,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
       data: {
         uuid: intake.id,
         payment_link_url: stripePaymentLink?.url ?? null,
-        amount: request.amount,
+        amount: resolvedAmount,
         currency: 'usd',
         status: shouldBypassPayment ? 'succeeded' : 'open',
         organization: {

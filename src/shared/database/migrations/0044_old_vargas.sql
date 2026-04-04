@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" DROP COLUMN "payment_link_prefill_amount";
