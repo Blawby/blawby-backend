@@ -12,6 +12,7 @@ import { getLogger } from '@logtape/logtape';
 import { run, type TaskList } from 'graphile-worker';
 import pg, { type Client as PgClient } from 'pg';
 import { bootCore } from '@/boot';
+import { bootServices } from '@/boot/services';
 import { config } from '@/shared/config';
 import { initializeLogging } from '@/shared/logging/config';
 import { getWorkerUtils } from '@/shared/queue/graphile-worker.client';
@@ -26,6 +27,7 @@ interface WorkerOptions {
   taskList: TaskList;
   concurrency?: number;
   crontab?: string;
+  skipEventHandlers?: boolean;
 }
 
 /**
@@ -90,8 +92,11 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
   await initializeLogging();
 
   // 1. Ensure the application environment is ready (Events, Services, etc.)
-  // This is the "Everything should be ready" part
-  bootCore();
+  if (options.skipEventHandlers) {
+    bootServices();
+  } else {
+    bootCore();
+  }
 
   const connectionString = config.database.url;
   if (!connectionString) {

@@ -70,7 +70,7 @@ const getIntakeSettings = async (params: {
         settings: {
           payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
           // Keep FE display and create-intake amount consistent with the same backend source.
-          prefill_amount: consultationFee,
+          consultation_fee: consultationFee,
         },
         connected_account: {
           id: connectedAccount.id,

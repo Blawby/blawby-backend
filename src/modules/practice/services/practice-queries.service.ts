@@ -83,8 +83,6 @@ export const practiceQueriesService = {
         ...organization,
         metadata: parseBetterAuthMetadata(organization.metadata),
         payment_link_enabled: organization.paymentLinkEnabled ?? null,
-        // Derive prefill amount from practice details consultation_fee
-        payment_link_prefill_amount: practiceDetails?.consultation_fee ?? null,
         created_at: organization.createdAt,
         updated_at: practiceDetails?.updated_at ?? undefined,
       };
@@ -137,7 +135,6 @@ export const practiceQueriesService = {
         name: organization.name,
         logo: organization.logo ?? null,
         payment_link_enabled: organization?.paymentLinkEnabled ?? false,
-        payment_link_prefill_amount: fetchedDetails.consultation_fee ?? 0,
       };
 
       return responseData;
@@ -188,7 +185,6 @@ export const practiceQueriesService = {
         name: organization.name ?? '',
         logo: organization.logo ?? null,
         payment_link_enabled: organization.paymentLinkEnabled ?? false,
-        payment_link_prefill_amount: fetchedDetails.consultation_fee ?? 0,
       };
 
       return responseData;

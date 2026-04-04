@@ -79,8 +79,16 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
         logo: z.string().optional(),
       }),
       settings: z.object({
-        payment_link_enabled: z.boolean(),
-        prefill_amount: z.number(),
+        payment_link_enabled: z.boolean().openapi({
+          description:
+            'Whether payment links should be shown for this intake. True only when the practice has payment links enabled and the practice consultation_fee > 0.',
+        }),
+        consultation_fee: z
+          .number()
+          .openapi({
+            description:
+              'Consultation fee (in cents) from practice_details.consultation_fee — backend source of truth for intake payment flows.',
+          }),
       }),
       connected_account: z.object({
         id: z.uuid(),

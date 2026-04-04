@@ -70,7 +70,6 @@ export const practiceDetailsManagementService = {
         name: organization.name,
         logo: organization.logo ?? null,
         payment_link_enabled: organization?.paymentLinkEnabled ?? false,
-        payment_link_prefill_amount: result.details.consultation_fee ?? 0,
       };
 
       return responseData;
