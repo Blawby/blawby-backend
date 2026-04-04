@@ -12,6 +12,7 @@ import { getLogger } from '@logtape/logtape';
 import { run, type TaskList } from 'graphile-worker';
 import pg, { type Client as PgClient } from 'pg';
 import { bootCore } from '@/boot';
+import { bootServices } from '@/boot/services';
 import { config } from '@/shared/config';
 import { initializeLogging } from '@/shared/logging/config';
 import { getWorkerUtils } from '@/shared/queue/graphile-worker.client';
@@ -26,6 +27,7 @@ interface WorkerOptions {
   taskList: TaskList;
   concurrency?: number;
   crontab?: string;
+  skipEventHandlers?: boolean;
 }
 
 /**
@@ -90,8 +92,11 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
   await initializeLogging();
 
   // 1. Ensure the application environment is ready (Events, Services, etc.)
-  // This is the "Everything should be ready" part
-  bootCore();
+  if (options.skipEventHandlers) {
+    bootServices();
+  } else {
+    bootCore();
+  }
 
   const connectionString = config.database.url;
   if (!connectionString) {
@@ -121,13 +126,16 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
     // Setup LISTEN/NOTIFY for instant event pickup (best-effort)
     // This provides <10ms latency vs 1000ms polling
     // If LISTEN fails, worker continues with polling only
-    try {
-      listenClient = await setupEventListener(connectionString);
-    } catch (listenError) {
-      logger.warn('LISTEN/NOTIFY setup failed, falling back to polling only: {error}', {
-        error: listenError instanceof Error ? listenError.message : String(listenError),
-      });
-      listenClient = null;
+    // Only enable when event handlers are active (skipEventHandlers is false)
+    if (!options.skipEventHandlers) {
+      try {
+        listenClient = await setupEventListener(connectionString);
+      } catch (listenError) {
+        logger.warn('LISTEN/NOTIFY setup failed, falling back to polling only: {error}', {
+          error: listenError instanceof Error ? listenError.message : String(listenError),
+        });
+        listenClient = null;
+      }
     }
 
     // Handle graceful shutdown
