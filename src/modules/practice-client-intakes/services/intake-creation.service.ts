@@ -57,9 +57,6 @@ const getIntakeSettings = async (params: {
 
     const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
     const consultationFee = practiceDetails?.consultation_fee ?? 0;
-    const prefillAmount = consultationFee > 0
-      ? consultationFee
-      : organization.paymentLinkPrefillAmount ?? 0;
 
     return result.ok({
       success: true,
@@ -71,9 +68,9 @@ const getIntakeSettings = async (params: {
           logo: organization.logo ?? undefined,
         },
         settings: {
-          payment_link_enabled: organization.paymentLinkEnabled ?? false,
+          payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
           // Keep FE display and create-intake amount consistent with the same backend source.
-          prefill_amount: prefillAmount,
+          prefill_amount: consultationFee,
         },
         connected_account: {
           id: connectedAccount.id,
@@ -166,7 +163,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
     // Backend is the source of truth for amount in create-intake flows.
     // UI/worker can read intake settings for display, but the charged amount must
-    // always come from backend practice configuration.
+    // Always come from backend practice configuration.
     const resolvedAmount = requiresPayment ? consultationFee : 0;
     const shouldBypassPayment = !requiresPayment;
 
