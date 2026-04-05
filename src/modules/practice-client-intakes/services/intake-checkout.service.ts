@@ -1,37 +1,21 @@
-import { eq, sql } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { practiceClientIntakesSchema } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import { getLogger } from '@logtape/logtape';
 import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { createIntakeCheckoutSession } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
-  ClaimPracticeClientIntakeResponse,
   CreateCheckoutSessionResponse,
   IntakePostPayStatusResponse,
   IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
-import { db } from '@/shared/database';
 import type { Result } from '@/shared/types/result';
-import { createSystemContext, type ServiceContext } from '@/shared/types/service-context';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { result } from '@/shared/utils/result';
 
-const { practiceClientIntakes } = practiceClientIntakesSchema;
-
 const logger = getLogger(['practice-client-intakes', 'service']);
-
-interface ClaimIntakeAbort {
-  __claimIntakeResult: true;
-  result: Result<ClaimPracticeClientIntakeResponse>;
-}
-
-const isClaimIntakeAbort = (value: unknown): value is ClaimIntakeAbort =>
-  Boolean(value && typeof value === 'object' && '__claimIntakeResult' in value && 'result' in value);
 
 const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metadata: unknown }) => {
   const baseMetadata = intakeSharedHelpers.parseMetadata(practiceClientIntake.metadata);
@@ -42,123 +26,6 @@ const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metad
     };
   }
   return baseMetadata ?? undefined;
-};
-
-const processClaimIntakeTx = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  intake: NonNullable<
-    Extract<
-      Awaited<ReturnType<typeof intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId>>,
-      { success: true }
-    >['data']['intake']
-  >,
-  userId: string
-) => {
-  const rollbackWithResult = (resultValue: Result<ClaimPracticeClientIntakeResponse>): never => {
-    throw {
-      __claimIntakeResult: true,
-      result: resultValue,
-    } satisfies ClaimIntakeAbort;
-  };
-
-  await tx.execute(sql`
-    SELECT 1
-    FROM "practice_client_intakes"
-    WHERE "id" = ${intake.id}
-    FOR UPDATE
-  `);
-
-  const [lockedIntake] = await tx
-    .select()
-    .from(practiceClientIntakes)
-    .where(eq(practiceClientIntakes.id, intake.id))
-    .limit(1);
-
-  if (!lockedIntake) {
-    return rollbackWithResult(result.notFound('Practice client intake not found'));
-  }
-
-  if (lockedIntake.status !== 'succeeded') {
-    return rollbackWithResult(result.badRequest('Payment must be completed before claiming intake'));
-  }
-
-  const intakeMetadata = intakeSharedHelpers.parseMetadata(lockedIntake.metadata);
-  if (!intakeMetadata) {
-    return rollbackWithResult(result.badRequest('Intake metadata is invalid or malformed'));
-  }
-  if (!intakeMetadata.email || !intakeMetadata.name) {
-    return rollbackWithResult(result.badRequest('Intake metadata is missing required email or name'));
-  }
-
-  if (intakeMetadata.user_id && intakeMetadata.user_id !== userId) {
-    return rollbackWithResult(result.forbidden('This intake has already been claimed by another user'));
-  }
-
-  const sysCtx = createSystemContext(lockedIntake.organization_id);
-
-  // Note: No longer passes transaction - Stripe call happens outside this transaction
-  try {
-    await clientsCrudService.createClientFromIntake(
-      {
-        data: {
-          intakeId: lockedIntake.id,
-          userId: userId,
-          email: intakeMetadata.email,
-          name: intakeMetadata.name,
-          phone: intakeMetadata.phone,
-        },
-      },
-      sysCtx
-    );
-  } catch (error) {
-    // Preserve HTTPException types for proper error mapping
-    if (error instanceof HTTPException) {
-      const { status } = error;
-      const { message } = error;
-      if (status === 404) {
-        return rollbackWithResult(result.notFound(message));
-      } else if (status === 409) {
-        return rollbackWithResult(result.conflict(message));
-      } else if (status === 400) {
-        return rollbackWithResult(result.badRequest(message));
-      } else if (status === 401) {
-        return rollbackWithResult(result.unauthorized(message));
-      } else if (status === 403) {
-        return rollbackWithResult(result.forbidden(message));
-      } else if (status === 422) {
-        return rollbackWithResult(result.unprocessable(message));
-      }
-      // For other HTTP errors, use internalError
-      return rollbackWithResult(result.internalError(message));
-    }
-    // Non-HTTP errors
-    return rollbackWithResult(
-      result.internalError(error instanceof Error ? error.message : 'Failed to create client from intake')
-    );
-  }
-
-  if (!intakeMetadata.user_id) {
-    await tx
-      .update(practiceClientIntakes)
-      .set({
-        metadata: {
-          ...intakeMetadata,
-          email: intakeMetadata.email,
-          name: intakeMetadata.name,
-          user_id: userId,
-        },
-        updated_at: new Date(),
-      })
-      .where(eq(practiceClientIntakes.id, intake.id));
-  }
-
-  return result.ok({
-    success: true,
-    data: {
-      intake_uuid: lockedIntake.id,
-      organization_id: lockedIntake.organization_id,
-    },
-  });
 };
 
 const createCheckoutSession = async (
@@ -329,62 +196,8 @@ const getPostPayStatus = async (params: { sessionId: string }): Promise<Result<I
   }
 };
 
-const claimIntake = async (
-  params: { sessionId: string },
-  ctx: ServiceContext
-): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
-  try {
-    const resolveResult = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
-    if (!resolveResult.success) {
-      return resolveResult;
-    }
-    const { intake } = resolveResult.data;
-    if (!intake) {
-      return result.notFound('Checkout session not found');
-    }
-
-    return await db.transaction((tx) => processClaimIntakeTx(tx, intake, ctx.userId));
-  } catch (error) {
-    if (isClaimIntakeAbort(error)) {
-      return error.result;
-    }
-
-    logger.error('Failed to claim intake for session {sessionId}: {error}', {
-      sessionId: params.sessionId,
-      error,
-    });
-    return result.internalError('Failed to claim intake');
-  }
-};
-
-const claimIntakeByUuid = async (
-  params: { intakeUuid: string },
-  ctx: ServiceContext
-): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
-  try {
-    const intake = await practiceClientIntakesRepository.findById(params.intakeUuid);
-    if (!intake) {
-      return result.notFound('Practice client intake not found');
-    }
-
-    return await db.transaction((tx) => processClaimIntakeTx(tx, intake, ctx.userId));
-  } catch (error) {
-    if (isClaimIntakeAbort(error)) {
-      return error.result;
-    }
-
-    logger.error('Failed to claim intake by UUID {intakeUuid}: {error}', {
-      intakeUuid: params.intakeUuid,
-      error,
-    });
-    return result.internalError('Failed to claim intake');
-  }
-};
-
 export const intakeCheckoutService = {
   createCheckoutSession,
   getIntakeStatus,
   getPostPayStatus,
-  claimIntake,
-  claimIntakeByUuid,
 };

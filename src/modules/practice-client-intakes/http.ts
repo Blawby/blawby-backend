@@ -16,10 +16,6 @@ practiceClientIntakesApp.openapi(
   handlers.getPracticeClientIntakePostPayStatusHandler
 );
 practiceClientIntakesApp.openapi(
-  clientRoutes.claimPracticeClientIntakeRoute,
-  handlers.claimPracticeClientIntakeHandler
-);
-practiceClientIntakesApp.openapi(
   publicRoutes.createPracticeClientIntakeRoute,
   handlers.createPracticeClientIntakeHandler
 );
@@ -28,10 +24,6 @@ practiceClientIntakesApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.g
 practiceClientIntakesApp.openapi(
   clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
   handlers.createPracticeClientIntakeCheckoutSessionHandler
-);
-practiceClientIntakesApp.openapi(
-  clientRoutes.claimPracticeClientIntakeByUuidRoute,
-  handlers.claimPracticeClientIntakeByUuidHandler
 );
 practiceClientIntakesApp.openapi(
   clientRoutes.updatePracticeClientIntakeRoute,

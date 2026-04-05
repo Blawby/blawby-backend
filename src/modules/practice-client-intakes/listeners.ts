@@ -15,10 +15,14 @@ import {
   IntakeTriaged,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { config } from '@/shared/config';
 import { logError } from '@/shared/utils/logging';
+import { createSystemContext } from '@/shared/types/service-context';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -167,6 +171,41 @@ export const registerPracticeClientIntakesListeners = (): void => {
         .catch((error: unknown) => {
           logError('Failed to queue intake accepted email', error, {
             intakeId: payload.intake_id,
+          });
+        });
+
+      // Accepted triage is the backend trigger for invitation + linkage.
+      const systemCtx = createSystemContext(payload.organization_id);
+
+      void intakeLifecycleService.triggerInvitation({ uuid: payload.intake_id }, systemCtx).catch((error: unknown) => {
+        logError('Failed to trigger magic link on accepted intake', error, {
+          intakeId: payload.intake_id,
+          organizationId: payload.organization_id,
+        });
+      });
+
+      void clientsCrudService
+        .createClientFromIntake(
+          {
+            data: {
+              intakeId: payload.intake_id,
+              email: payload.client_email,
+              name: payload.client_name,
+            },
+          },
+          systemCtx
+        )
+        .catch((error: unknown) => {
+          if (error instanceof HTTPException && error.status === 409) {
+            logger.info('Client already linked for accepted intake {intakeId}', {
+              intakeId: payload.intake_id,
+            });
+            return;
+          }
+
+          logError('Failed to link client on accepted intake', error, {
+            intakeId: payload.intake_id,
+            organizationId: payload.organization_id,
           });
         });
     } else if (payload.triage_status === 'declined') {

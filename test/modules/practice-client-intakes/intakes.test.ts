@@ -8,11 +8,16 @@ import type { SuccessResponse, TestOrganization } from '@/test/types/shared';
 import { toTypedResponse } from '@/test/helpers/response';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import practiceClientIntakesApp from '@/modules/practice-client-intakes/http';
+import { registerPracticeClientIntakesListeners } from '@/modules/practice-client-intakes/listeners';
+import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
+import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
+import { Event } from '@/shared/events/event';
+import { IntakeTriaged } from '@/shared/events/definitions';
+import type { Event as StoredEvent } from '@/shared/events/schemas/events.schema';
 import { requireAuth } from '@/shared/middleware/requireAuth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { intakeHelpers } from '@/test/modules/practice-client-intakes/helpers/intake';
 import type {
-  ClaimPracticeClientIntakeResponse,
   ConvertIntakeResponse,
   CreateCheckoutSessionResponse,
   CreateIntakeResponse,
@@ -108,6 +113,20 @@ const authenticatedClientRequest = (sessionToken: string): ReturnType<typeof cre
 const authenticatedOrgRequest = (sessionToken: string): ReturnType<typeof createAuthenticatedRequest> =>
   createAuthenticatedRequest(orgProtectedApp.fetch, sessionToken);
 
+const retryAssert = async (assertion: () => void, retries = 25, delayMs = 20): Promise<void> => {
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      if (attempt === retries - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+};
+
 intakeHelpers.mockStripe();
 
 describe('Practice Client Intakes API', () => {
@@ -115,6 +134,16 @@ describe('Practice Client Intakes API', () => {
   let sessionToken = '';
   let org: TestOrganization = { id: '', name: '', slug: '' };
   let intakeId = '';
+  let listenersRegistered = false;
+
+  const ensureIntakeListenersRegistered = () => {
+    if (listenersRegistered) {
+      return;
+    }
+    Event.clearHandlers();
+    registerPracticeClientIntakesListeners();
+    listenersRegistered = true;
+  };
 
   beforeAll(async () => {
     ({ org, session, sessionToken } = await createTestContext('owner'));
@@ -303,82 +332,6 @@ describe('Practice Client Intakes API', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST /claim returns 200 with valid body and authenticated user', async () => {
-    const paidIntake = await intakeHelpers.createTestIntake(org.id, {
-      amount: 5000,
-      status: intakeHelpers.IntakeStatus.succeeded,
-      metadata: { email: 'claim@example.com', name: 'Claim User' },
-      stripe_checkout_session_id: 'cs_test_claim',
-    });
-
-    intakeHelpers.mockStripeSessionRetrieve({
-      id: 'cs_test_claim',
-      paymentStatus: 'paid',
-      status: 'complete',
-      metadata: { intake_uuid: paidIntake.id },
-    });
-
-    const res = await toTypedResponse<SuccessResponse<ClaimPracticeClientIntakeResponse>>(
-      authenticatedClientRequest(sessionToken)
-        .post('/api/practice-client-intakes/claim')
-        .send({ session_id: 'cs_test_claim' })
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.intake_uuid).toBe(paidIntake.id);
-    expect(res.body.data.organization_id).toBe(org.id);
-  });
-
-  it('POST /claim returns 400 for missing session_id', async () => {
-    const res = await authenticatedClientRequest(sessionToken).post('/api/practice-client-intakes/claim').send({});
-
-    expect(res.status).toBe(400);
-  });
-
-  it('POST /{uuid}/claim returns 200 for authenticated user with succeeded non-payment intake', async () => {
-    const freeIntake = await intakeHelpers.createTestIntake(org.id, {
-      amount: 0,
-      status: intakeHelpers.IntakeStatus.succeeded,
-      metadata: { email: session!.user.email, name: session!.user.name ?? 'Test User' },
-    });
-
-    const res = await toTypedResponse<SuccessResponse<ClaimPracticeClientIntakeResponse>>(
-      authenticatedClientRequest(sessionToken).post(`/api/practice-client-intakes/${freeIntake.id}/claim`)
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.intake_uuid).toBe(freeIntake.id);
-    expect(res.body.data.organization_id).toBe(org.id);
-  });
-
-  it('POST /{uuid}/claim returns 401 for unauthenticated user', async () => {
-    const res = await authOnlyRequest.post(`/api/practice-client-intakes/${intakeId}/claim`);
-    expect(res.status).toBe(401);
-  });
-
-  it('POST /{uuid}/claim returns 404 for unknown intake UUID', async () => {
-    const unknownUuid = '00000000-0000-0000-0000-000000000000';
-    const res = await authenticatedClientRequest(sessionToken).post(
-      `/api/practice-client-intakes/${unknownUuid}/claim`
-    );
-    expect(res.status).toBe(404);
-  });
-
-  it('POST /{uuid}/claim returns 400 when intake status is not succeeded', async () => {
-    const openIntake = await intakeHelpers.createTestIntake(org.id, {
-      amount: 5000,
-      status: intakeHelpers.IntakeStatus.open,
-      metadata: { email: 'open@example.com', name: 'Open User' },
-    });
-
-    const res = await authenticatedClientRequest(sessionToken).post(
-      `/api/practice-client-intakes/${openIntake.id}/claim`
-    );
-    expect(res.status).toBe(400);
-  });
-
   // ==================== STAFF ENDPOINTS ====================
 
   it('GET /{practice_id} returns 200 with paginated intakes for staff', async () => {
@@ -445,6 +398,142 @@ describe('Practice Client Intakes API', () => {
     expect(res.body.data.uuid).toBe(intakeId);
     expect(res.body.data.triage_status).toBe('accepted');
     expect(res.body.data.triage_decided_at).not.toBeNull();
+  });
+
+  it('accepted triage event triggers invite and linkage for payment intake flow', async () => {
+    ensureIntakeListenersRegistered();
+
+    const paymentIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 5000,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      triage_status: intakeHelpers.TriageStatus.pending,
+      metadata: { email: 'accepted-payment@example.com', name: 'Accepted Payment' },
+    });
+
+    const triggerInvitationSpy = vi
+      .spyOn(intakeLifecycleService, 'triggerInvitation')
+      .mockResolvedValueOnce({ success: true, data: { success: true, message: 'Magic link sent to client email' } });
+
+    const linkClientSpy = vi.spyOn(clientsCrudService, 'createClientFromIntake').mockImplementationOnce(async () => {
+      throw new Error('skip-linkage-write-in-test');
+    });
+
+    const eventRecord: StoredEvent = {
+      eventId: '11111111-1111-1111-1111-111111111111',
+      type: IntakeTriaged.type,
+      eventVersion: '1.0.0',
+      createdAt: new Date(),
+      actorId: session!.user.id,
+      actorType: 'user',
+      organizationId: org.id,
+      payload: {
+        intake_id: paymentIntake.id,
+        organization_id: org.id,
+        organization_name: org.name,
+        triage_status: 'accepted',
+        triage_reason: null,
+        client_email: 'accepted-payment@example.com',
+        client_name: 'Accepted Payment',
+      },
+      metadata: {
+        source: 'test',
+        environment: 'test',
+      },
+      processed: false,
+      retryCount: 0,
+      lastError: null,
+      processedAt: null,
+    };
+
+    await Event.dispatch(IntakeTriaged.type, eventRecord);
+
+    await retryAssert(() => {
+      expect(triggerInvitationSpy).toHaveBeenCalledWith(
+        { uuid: paymentIntake.id },
+        expect.objectContaining({ organizationId: org.id, userId: 'system' })
+      );
+      expect(linkClientSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            intakeId: paymentIntake.id,
+            email: 'accepted-payment@example.com',
+            name: 'Accepted Payment',
+          }),
+        }),
+        expect.objectContaining({ organizationId: org.id, userId: 'system' })
+      );
+    });
+
+    triggerInvitationSpy.mockRestore();
+    linkClientSpy.mockRestore();
+  });
+
+  it('accepted triage event triggers invite and linkage for non-payment intake flow', async () => {
+    ensureIntakeListenersRegistered();
+
+    const nonPaymentIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 0,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      triage_status: intakeHelpers.TriageStatus.pending,
+      metadata: { email: 'accepted-non-payment@example.com', name: 'Accepted Non Payment' },
+    });
+
+    const triggerInvitationSpy = vi
+      .spyOn(intakeLifecycleService, 'triggerInvitation')
+      .mockResolvedValueOnce({ success: true, data: { success: true, message: 'Magic link sent to client email' } });
+
+    const linkClientSpy = vi.spyOn(clientsCrudService, 'createClientFromIntake').mockImplementationOnce(async () => {
+      throw new Error('skip-linkage-write-in-test');
+    });
+
+    const eventRecord: StoredEvent = {
+      eventId: '22222222-2222-2222-2222-222222222222',
+      type: IntakeTriaged.type,
+      eventVersion: '1.0.0',
+      createdAt: new Date(),
+      actorId: session!.user.id,
+      actorType: 'user',
+      organizationId: org.id,
+      payload: {
+        intake_id: nonPaymentIntake.id,
+        organization_id: org.id,
+        organization_name: org.name,
+        triage_status: 'accepted',
+        triage_reason: null,
+        client_email: 'accepted-non-payment@example.com',
+        client_name: 'Accepted Non Payment',
+      },
+      metadata: {
+        source: 'test',
+        environment: 'test',
+      },
+      processed: false,
+      retryCount: 0,
+      lastError: null,
+      processedAt: null,
+    };
+
+    await Event.dispatch(IntakeTriaged.type, eventRecord);
+
+    await retryAssert(() => {
+      expect(triggerInvitationSpy).toHaveBeenCalledWith(
+        { uuid: nonPaymentIntake.id },
+        expect.objectContaining({ organizationId: org.id, userId: 'system' })
+      );
+      expect(linkClientSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            intakeId: nonPaymentIntake.id,
+            email: 'accepted-non-payment@example.com',
+            name: 'Accepted Non Payment',
+          }),
+        }),
+        expect.objectContaining({ organizationId: org.id, userId: 'system' })
+      );
+    });
+
+    triggerInvitationSpy.mockRestore();
+    linkClientSpy.mockRestore();
   });
 
   it('PATCH /{uuid}/status returns 400 for invalid status value', async () => {
