@@ -85,6 +85,15 @@ const claimPracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.clai
   return sendResult(c, result, 200);
 };
 
+const claimPracticeClientIntakeByUuidHandler: AppRouteHandler<
+  typeof clientRoutes.claimPracticeClientIntakeByUuidRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const result = await intakeCheckoutService.claimIntakeByUuid({ intakeUuid: uuid }, ctx);
+  return sendResult(c, result, 200);
+};
+
 const triggerIntakeInvitationHandler: AppRouteHandler<typeof staffRoutes.triggerIntakeInvitationRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
@@ -132,6 +141,7 @@ export const handlers = {
   getPracticeClientIntakeStatusHandler,
   getPracticeClientIntakePostPayStatusHandler,
   claimPracticeClientIntakeHandler,
+  claimPracticeClientIntakeByUuidHandler,
   triggerIntakeInvitationHandler,
   listIntakesHandler,
   getIntakeHandler,

@@ -357,9 +357,34 @@ const claimIntake = async (
   }
 };
 
+const claimIntakeByUuid = async (
+  params: { intakeUuid: string },
+  ctx: ServiceContext
+): Promise<Result<ClaimPracticeClientIntakeResponse>> => {
+  try {
+    const intake = await practiceClientIntakesRepository.findById(params.intakeUuid);
+    if (!intake) {
+      return result.notFound('Practice client intake not found');
+    }
+
+    return await db.transaction((tx) => processClaimIntakeTx(tx, intake, ctx.userId));
+  } catch (error) {
+    if (isClaimIntakeAbort(error)) {
+      return error.result;
+    }
+
+    logger.error('Failed to claim intake by UUID {intakeUuid}: {error}', {
+      intakeUuid: params.intakeUuid,
+      error,
+    });
+    return result.internalError('Failed to claim intake');
+  }
+};
+
 export const intakeCheckoutService = {
   createCheckoutSession,
   getIntakeStatus,
   getPostPayStatus,
   claimIntake,
+  claimIntakeByUuid,
 };

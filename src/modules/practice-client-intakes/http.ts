@@ -30,6 +30,10 @@ practiceClientIntakesApp.openapi(
   handlers.createPracticeClientIntakeCheckoutSessionHandler
 );
 practiceClientIntakesApp.openapi(
+  clientRoutes.claimPracticeClientIntakeByUuidRoute,
+  handlers.claimPracticeClientIntakeByUuidHandler
+);
+practiceClientIntakesApp.openapi(
   clientRoutes.updatePracticeClientIntakeRoute,
   handlers.updatePracticeClientIntakeHandler
 );

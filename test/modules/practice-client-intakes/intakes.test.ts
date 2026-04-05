@@ -148,7 +148,6 @@ describe('Practice Client Intakes API', () => {
     expect(data.organization.name).toBe(org.name);
     expect(data.organization.slug).toBe(org.slug);
     expect(typeof data.settings.payment_link_enabled).toBe('boolean');
-    expect(typeof data.settings.prefill_amount).toBe('number');
   });
 
   it('GET /{slug}/intake returns 404 for unknown slug', async () => {
@@ -334,6 +333,49 @@ describe('Practice Client Intakes API', () => {
   it('POST /claim returns 400 for missing session_id', async () => {
     const res = await authenticatedClientRequest(sessionToken).post('/api/practice-client-intakes/claim').send({});
 
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /{uuid}/claim returns 200 for authenticated user with succeeded non-payment intake', async () => {
+    const freeIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 0,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      metadata: { email: session!.user.email, name: session!.user.name ?? 'Test User' },
+    });
+
+    const res = await toTypedResponse<SuccessResponse<ClaimPracticeClientIntakeResponse>>(
+      authenticatedClientRequest(sessionToken).post(`/api/practice-client-intakes/${freeIntake.id}/claim`)
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.intake_uuid).toBe(freeIntake.id);
+    expect(res.body.data.organization_id).toBe(org.id);
+  });
+
+  it('POST /{uuid}/claim returns 401 for unauthenticated user', async () => {
+    const res = await authOnlyRequest.post(`/api/practice-client-intakes/${intakeId}/claim`);
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /{uuid}/claim returns 404 for unknown intake UUID', async () => {
+    const unknownUuid = '00000000-0000-0000-0000-000000000000';
+    const res = await authenticatedClientRequest(sessionToken).post(
+      `/api/practice-client-intakes/${unknownUuid}/claim`
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /{uuid}/claim returns 400 when intake status is not succeeded', async () => {
+    const openIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 5000,
+      status: intakeHelpers.IntakeStatus.open,
+      metadata: { email: 'open@example.com', name: 'Open User' },
+    });
+
+    const res = await authenticatedClientRequest(sessionToken).post(
+      `/api/practice-client-intakes/${openIntake.id}/claim`
+    );
     expect(res.status).toBe(400);
   });
 

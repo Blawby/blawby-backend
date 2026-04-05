@@ -203,9 +203,64 @@ const claimPracticeClientIntakeRoute = routeBuilder.build({
   },
 });
 
+const claimPracticeClientIntakeByUuidRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{uuid}/claim',
+  tags: ['Practice Client Intakes'],
+  summary: 'Claim non-payment intake by UUID',
+  description:
+    'Links a non-payment (free) intake to the authenticated user and ensures membership in the organization.',
+  request: {
+    params: uuidParamOpenAPISchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.claimPracticeClientIntakeResponseSchema,
+        },
+      },
+      description: 'Intake claimed successfully.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - intake not eligible (status is not succeeded)',
+    },
+    403: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Forbidden - intake already claimed by another user',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Intake not found',
+    },
+    500: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.internalServerErrorResponseSchema,
+        },
+      },
+      description: 'Internal server error',
+    },
+  },
+});
+
 export const clientRoutes = {
   updatePracticeClientIntakeRoute,
   getPracticeClientIntakeStatusRoute,
   createPracticeClientIntakeCheckoutSessionRoute,
   claimPracticeClientIntakeRoute,
+  claimPracticeClientIntakeByUuidRoute,
 };
