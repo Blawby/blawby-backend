@@ -40,7 +40,8 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
   const result = await intakeCreationService.createIntake({
     data: {
       ...body,
-      user_id: body.user_id ?? sessionUserId,
+      // Session-derived userId always wins; never trust a client-supplied user_id.
+      user_id: sessionUserId,
       ...getCreateIntakeRequestMetadata(c),
     },
   });
