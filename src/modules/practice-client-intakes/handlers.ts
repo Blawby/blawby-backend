@@ -7,9 +7,12 @@ import { intakeCreationService } from '@/modules/practice-client-intakes/service
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { getLogger } from '@logtape/logtape';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
+
+const logger = getLogger(['practice-client-intakes', 'handlers']);
 
 const getCreateIntakeRequestMetadata = (c: Context) => ({
   clientIp: c.req.header('x-forwarded-for') ?? c.req.header('remote-addr'),
@@ -33,8 +36,9 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
     const auth = createBetterAuthInstance(db);
     const session = await auth.api.getSession({ headers: c.req.raw.headers });
     sessionUserId = session?.user?.id;
-  } catch {
-    // Public route: proceed without session-derived user_id when session resolution fails.
+  } catch (error) {
+    // Public route: anonymous submission is valid. Log infrastructure errors but don't block.
+    logger.warn('Session resolution failed on public intake route, proceeding anonymously: {error}', { error });
   }
 
   const result = await intakeCreationService.createIntake({
