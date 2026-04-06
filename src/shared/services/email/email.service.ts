@@ -98,6 +98,13 @@ export const sendEmail = async (
     // 3. OR specifically in test mode
     const shouldSkip = !isProdLike || !apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_') || isTestMode;
 
+    const isTestDomain = payload.to.endsWith('@test-blawby.com');
+
+    if (isTestDomain) {
+      logger.info('📡 [TEST_DOMAIN] Skipping email to test address: {to}', { to: payload.to });
+      return { success: true, messageId: 'test_domain_skip' };
+    }
+
     if (shouldSkip) {
       const reason = isTestMode ? 'TEST' : !isProdLike ? 'DEV' : 'NO_API_KEY';
       logger.info('📡 [{reason}] Skipping actual Resend call for "{subject}". Local preview saved.', {
