@@ -176,7 +176,7 @@ export const createServiceContext = (
   userId: string,
   organizationId: string,
   role: MemberRole | null = 'member',
-  userEmail = 'test@example.com'
+  userEmail = 'test@test-blawby.com'
 ): ServiceContext & {
   userEmail: string;
   activeOrganizationId: string;
@@ -204,7 +204,7 @@ export const mockConnectedAccount = (overrides?: Partial<StripeConnectedAccount>
     organization_id: randomUUID(),
     account_type: 'custom',
     country: 'US',
-    email: 'test@example.com',
+    email: 'test@test-blawby.com',
     stripe_account_id: 'acct_test_123',
     charges_enabled: true,
     payouts_enabled: true,
@@ -291,7 +291,7 @@ export const createTestIntake = async (
     currency: 'usd',
     status: 'succeeded',
     triage_status: 'pending_review' as const,
-    metadata: { email: 'test@example.com', name: 'Test User' },
+    metadata: { email: 'test@test-blawby.com', name: 'Test User' },
     ...intake,
   };
 
@@ -312,7 +312,7 @@ export const createTestIntakes = async (
     currency: 'usd',
     status: 'succeeded',
     triage_status: 'pending_review',
-    metadata: { email: 'test@example.com', name: 'Test User' },
+    metadata: { email: 'test@test-blawby.com', name: 'Test User' },
     ...intake,
   }));
 

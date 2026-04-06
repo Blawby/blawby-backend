@@ -154,7 +154,7 @@ describe('Practice Client Intakes API', () => {
       amount: 0,
       status: intakeHelpers.IntakeStatus.succeeded,
       triage_status: intakeHelpers.TriageStatus.pending,
-      metadata: { email: 'client@example.com', name: 'Jane Doe' },
+      metadata: { email: 'client@test-blawby.com', name: 'Jane Doe' },
     });
 
     intakeId = intake.id;
@@ -189,7 +189,7 @@ describe('Practice Client Intakes API', () => {
       request.post('/api/practice-client-intakes/create').send({
         slug: org.slug,
         amount: 0,
-        email: 'test@example.com',
+        email: 'test@test-blawby.com',
         name: 'Test User',
       })
     );
@@ -256,7 +256,7 @@ describe('Practice Client Intakes API', () => {
     const openIntake = await intakeHelpers.createTestIntake(org.id, {
       amount: 5000,
       status: intakeHelpers.IntakeStatus.open,
-      metadata: { email: 'checkout@example.com', name: 'Checkout User' },
+      metadata: { email: 'checkout@test-blawby.com', name: 'Checkout User' },
     });
 
     intakeHelpers.mockStripeSessionCreate({
@@ -285,7 +285,7 @@ describe('Practice Client Intakes API', () => {
     const openIntake = await intakeHelpers.createTestIntake(org.id, {
       amount: 0,
       status: intakeHelpers.IntakeStatus.open,
-      metadata: { email: 'update@example.com', name: 'Update User', user_id: session!.user.id },
+      metadata: { email: 'update@test-blawby.com', name: 'Update User', user_id: session!.user.id },
     });
 
     const res = await toTypedResponse<{ success: boolean; message: string }>(
@@ -323,7 +323,7 @@ describe('Practice Client Intakes API', () => {
     expect(typeof data.triage_status).toBe('string');
     expect(data.amount).toBe(0);
     expect(typeof data.currency).toBe('string');
-    expect(data.metadata?.email).toBe('client@example.com');
+    expect(data.metadata?.email).toBe('client@test-blawby.com');
     expect(data.metadata?.name).toBe('Jane Doe');
   });
 
@@ -407,7 +407,7 @@ describe('Practice Client Intakes API', () => {
       amount: 5000,
       status: intakeHelpers.IntakeStatus.succeeded,
       triage_status: intakeHelpers.TriageStatus.pending,
-      metadata: { email: 'accepted-payment@example.com', name: 'Accepted Payment' },
+      metadata: { email: 'accepted-payment@test-blawby.com', name: 'Accepted Payment' },
     });
 
     const triggerInvitationSpy = vi
@@ -432,7 +432,7 @@ describe('Practice Client Intakes API', () => {
         organization_name: org.name,
         triage_status: 'accepted',
         triage_reason: null,
-        client_email: 'accepted-payment@example.com',
+        client_email: 'accepted-payment@test-blawby.com',
         client_name: 'Accepted Payment',
       },
       metadata: {
@@ -456,7 +456,7 @@ describe('Practice Client Intakes API', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             intakeId: paymentIntake.id,
-            email: 'accepted-payment@example.com',
+            email: 'accepted-payment@test-blawby.com',
             name: 'Accepted Payment',
           }),
         }),
@@ -475,7 +475,7 @@ describe('Practice Client Intakes API', () => {
       amount: 0,
       status: intakeHelpers.IntakeStatus.succeeded,
       triage_status: intakeHelpers.TriageStatus.pending,
-      metadata: { email: 'accepted-non-payment@example.com', name: 'Accepted Non Payment' },
+      metadata: { email: 'accepted-non-payment@test-blawby.com', name: 'Accepted Non Payment' },
     });
 
     const triggerInvitationSpy = vi
@@ -500,7 +500,7 @@ describe('Practice Client Intakes API', () => {
         organization_name: org.name,
         triage_status: 'accepted',
         triage_reason: null,
-        client_email: 'accepted-non-payment@example.com',
+        client_email: 'accepted-non-payment@test-blawby.com',
         client_name: 'Accepted Non Payment',
       },
       metadata: {
@@ -524,7 +524,7 @@ describe('Practice Client Intakes API', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             intakeId: nonPaymentIntake.id,
-            email: 'accepted-non-payment@example.com',
+            email: 'accepted-non-payment@test-blawby.com',
             name: 'Accepted Non Payment',
           }),
         }),
