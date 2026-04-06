@@ -8,7 +8,6 @@ import type { Variables } from '@/shared/types/hono';
 
 const logger = getLogger(['middleware', 'require-org-membership']);
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 
@@ -20,32 +19,12 @@ const authErrorResponder = (
 ) => c.json({ error, message, request_id: c.get('requestId') }, status);
 
 /**
- * Extracts the org/practice UUID from the URL path.
- *
- * Named URL params (e.g. `practice_id`) are NOT available in parent-app middleware
- * because Hono only resolves route params for the matched sub-app route, which runs
- * after the parent middleware chain. Parsing the raw path is the reliable approach.
- *
- * URL structure: /api/{module}/{practice_id}/...
- * The practice_id is always the 3rd path segment (index 2).
- */
-const extractOrgIdFromPath = (path: string): string | undefined => {
-  const segments = path.split('/').filter(Boolean);
-  const [candidate] = segments.slice(2);
-  return candidate && UUID_REGEX.test(candidate) ? candidate : undefined;
-};
-
-/**
  * Middleware to ensure the authenticated user is a member of the target organization.
  *
- * Resolves the org ID from the URL path first (reliable in parent middleware context),
- * then falls back to the session's `activeOrganizationId`.
+ * Uses the session's `activeOrganizationId` set by Better Auth — no URL parsing needed.
+ * Resource-level org validation (e.g. intake belongs to this org) is the service layer's job.
  *
  * Must be used AFTER `requireAuth` middleware.
- *
- * Returns 403 if:
- *  - No organization context is found at all
- *  - The user is not a member of the target organization
  */
 export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
   const userId = c.get('userId');
@@ -54,30 +33,10 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
     return authErrorResponder(c, HTTP_UNAUTHORIZED, 'Unauthorized', 'Authentication required');
   }
 
-  // Named params (c.req.param) are NOT reliable in parent middleware — parse the URL path directly.
-  const urlOrgId = extractOrgIdFromPath(c.req.path);
-  const sessionOrgId = c.get('activeOrganizationId');
-
-  // If the URL explicitly targets an org, it must match the session's active org.
-  // Acting on a non-active org requires calling setActiveOrganization first.
-  if (urlOrgId && sessionOrgId && urlOrgId !== sessionOrgId) {
-    logger.warn('User {userId} attempted cross-org access: session={sessionOrgId} requested={urlOrgId}', {
-      userId,
-      sessionOrgId,
-      urlOrgId,
-    });
-    return authErrorResponder(
-      c,
-      HTTP_FORBIDDEN,
-      'Forbidden',
-      'Organization context mismatch: switch your active organization first'
-    );
-  }
-
-  const orgId = urlOrgId ?? sessionOrgId;
+  const orgId = c.get('activeOrganizationId');
 
   if (!orgId) {
-    logger.warn('No organization context found for user {userId}', { userId });
+    logger.warn('No active organization in session for user {userId}', { userId });
     return authErrorResponder(c, HTTP_FORBIDDEN, 'Forbidden', 'No organization context found');
   }
 
@@ -89,13 +48,10 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
       .limit(1);
 
     if (!membership) {
-      logger.warn('User {userId} attempted to access organization {orgId} without membership', { userId, orgId });
+      logger.warn('User {userId} is not a member of organization {orgId}', { userId, orgId });
       return authErrorResponder(c, HTTP_FORBIDDEN, 'Forbidden', 'You are not a member of this organization');
     }
 
-    // CRITICAL: Propagate context to the Hono context
-    // This ensures downstream injectAbility and Services use the CORRECT targeted organization
-    c.set('activeOrganizationId', orgId);
     c.set('memberRole', membership.role);
 
     return next();

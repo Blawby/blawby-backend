@@ -66,7 +66,7 @@ export const createIntakePaymentLink = async (
     after_completion: {
       type: 'redirect',
       redirect: {
-        url: `${getMatchingFrontendUrl(params.origin)}/pay?uuid=${params.intakeId}&return_to=/p/${params.organizationSlug}${conversationParam}`,
+        url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&uuid=${params.intakeId}&return_to=/p/${params.organizationSlug}${conversationParam}`,
       },
     },
   });

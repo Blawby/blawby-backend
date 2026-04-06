@@ -6,5 +6,7 @@ export const config: Partial<ModuleConfig> = {
     '/:slug/intake': ['public'],
     '/create': ['public'],
     'GET /post-pay/status': ['public'],
+    'POST /:uuid/checkout-session': ['requireAuth'],
+    'PUT /:uuid': ['requireAuth'],
   },
 };

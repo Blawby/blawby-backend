@@ -5,6 +5,8 @@ import type { staffRoutes } from '@/modules/practice-client-intakes/routes/staff
 import { intakeCheckoutService } from '@/modules/practice-client-intakes/services/intake-checkout.service';
 import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
+import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { db } from '@/shared/database';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
@@ -25,9 +27,20 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
   c
 ) => {
   const body = c.req.valid('json');
+
+  let sessionUserId: string | undefined = undefined;
+  try {
+    const auth = createBetterAuthInstance(db);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    sessionUserId = session?.user?.id;
+  } catch {
+    // Public route: proceed without session-derived user_id when session resolution fails.
+  }
+
   const result = await intakeCreationService.createIntake({
     data: {
       ...body,
+      user_id: body.user_id ?? sessionUserId,
       ...getCreateIntakeRequestMetadata(c),
     },
   });

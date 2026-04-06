@@ -7,8 +7,10 @@ import { and, eq, not, inArray } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import {
+  practiceClientIntakes,
+  type SelectPracticeClientIntake,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
 import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
 import { db } from '@/shared/database';
@@ -64,6 +66,13 @@ export const findPracticeClientIntakeByCheckoutSession = async (
 
   if (!practiceClientIntake && typeof session.metadata?.intake_uuid === 'string') {
     practiceClientIntake = await practiceClientIntakesRepository.findById(session.metadata.intake_uuid);
+  }
+
+  // Payment link sessions don't carry session-level metadata or client_reference_id.
+  // Fall back to matching via the payment_link ID stored on the session.
+  if (!practiceClientIntake && session.payment_link) {
+    const paymentLinkId = typeof session.payment_link === 'string' ? session.payment_link : session.payment_link.id;
+    practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentLinkId(paymentLinkId);
   }
 
   return practiceClientIntake;
