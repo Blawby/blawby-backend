@@ -97,7 +97,7 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
     } else if (isInvoiceEvent(event.type)) {
       await invoiceWebhooksService.processEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
-    } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded') {
+    } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded' || event.type === 'checkout.session.completed') {
       await practiceClientIntakesWebhooksService.processEvent(eventId);
       // Service marks as processed internally
     } else {
