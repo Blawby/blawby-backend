@@ -4,6 +4,7 @@ import { pgTable, uuid, text, integer, jsonb, timestamp, index, varchar, boolean
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
+import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { organizations } from '@/schema/better-auth-schema';
 
 import { addressSchema } from '@/shared/validations/address';
@@ -19,6 +20,9 @@ export const practiceClientIntakes = pgTable(
       .references(() => organizations.id, { onDelete: 'cascade' }),
     connected_account_id: uuid('connected_account_id').references(() => stripeConnectedAccounts.id, {
       onDelete: 'restrict',
+    }),
+    practice_service_id: uuid('practice_service_id').references(() => practiceServices.id, {
+      onDelete: 'set null',
     }),
 
     // Stripe IDs
@@ -65,6 +69,7 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_stripe_intent_idx').on(table.stripe_payment_intent_id),
     index('practice_client_intakes_status_idx').on(table.status),
     index('practice_client_intakes_triage_status_idx').on(table.triage_status),
+    index('practice_client_intakes_practice_service_idx').on(table.practice_service_id),
     index('practice_client_intakes_created_at_idx').on(table.created_at),
     index('practice_client_intakes_urgency_idx').on(table.urgency),
     index('practice_client_intakes_court_date_idx').on(table.court_date),
@@ -84,6 +89,10 @@ export const practiceClientIntakesRelations = relations(practiceClientIntakes, (
     fields: [practiceClientIntakes.connected_account_id],
     references: [stripeConnectedAccounts.id],
   }),
+  practiceService: one(practiceServices, {
+    fields: [practiceClientIntakes.practice_service_id],
+    references: [practiceServices.id],
+  }),
   address: one(addresses, {
     fields: [practiceClientIntakes.address_id],
     references: [addresses.id],
@@ -101,6 +110,7 @@ export const practiceClientIntakeMetadataSchema = z
     opposing_party: z.string().optional(),
     opposing_counsel: z.string().optional(),
     description: z.string().optional(),
+    practice_service_uuid: z.uuid().optional(),
     address: addressSchema.optional(),
   })
   .openapi('PracticeClientIntakeMetadata');

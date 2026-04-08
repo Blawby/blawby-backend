@@ -57,6 +57,11 @@ const getIntakeSettings = async (params: {
 
     const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
     const consultationFee = practiceDetails?.consultation_fee ?? 0;
+    const serviceArea = (practiceDetails?.services ?? []).map((service) => ({
+      id: service.id,
+      name: service.name,
+      key: service.key,
+    }));
 
     return result.ok({
       success: true,
@@ -72,6 +77,7 @@ const getIntakeSettings = async (params: {
           // Keep FE display and create-intake amount consistent with the same backend source.
           consultation_fee: consultationFee,
         },
+        service_area: serviceArea,
         connected_account: {
           id: connectedAccount.id,
           charges_enabled: connectedAccount.charges_enabled,
@@ -115,6 +121,7 @@ const insertIntakeRecordTx = async (
     id: params.intakeId,
     organization_id: params.organizationId,
     connected_account_id: params.connectedAccountId,
+    practice_service_id: params.request.practice_service_uuid,
     stripe_payment_link_id: params.stripePaymentLinkId,
     address_id: addressId,
     conversation_id: params.request.conversation_id,
@@ -130,6 +137,7 @@ const insertIntakeRecordTx = async (
       on_behalf_of: params.request.on_behalf_of,
       opposing_party: params.request.opposing_party,
       description: params.request.description,
+      practice_service_uuid: params.request.practice_service_uuid,
       address: params.request.address,
       ...(params.validatedUserId && { user_id: params.validatedUserId }),
     },
@@ -159,6 +167,13 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
 
     const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
     const consultationFee = practiceDetails?.consultation_fee ?? 0;
+
+    if (
+      request.practice_service_uuid &&
+      !(practiceDetails?.services ?? []).some((service) => service.id === request.practice_service_uuid)
+    ) {
+      return result.badRequest('Selected practice service does not belong to this organization.');
+    }
 
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
     // Backend is the source of truth for amount in create-intake flows.

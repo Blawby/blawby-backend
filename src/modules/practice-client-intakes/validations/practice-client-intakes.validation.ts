@@ -19,6 +19,10 @@ const createPracticeClientIntakeSchema = z.object({
   }),
   description: z.string().max(500).optional(),
   user_id: z.uuid().optional(),
+  practice_service_uuid: z.uuid().optional().openapi({
+    description: 'Optional practice service UUID selected by the client.',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
   address: addressSchema.optional().openapi({
     description: 'Client address information',
   }),
@@ -88,6 +92,21 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
             'Consultation fee (in cents) from practice_details.consultation_fee — backend source of truth for intake payment flows.',
         }),
       }),
+      service_area: z
+        .array(
+          z.object({
+            id: z.uuid(),
+            name: z.string(),
+            key: z.string(),
+          })
+        )
+        .openapi({
+          description: 'Practice services configured for the organization.',
+          example: [
+            { id: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab', name: 'Family Law', key: 'FAMILY_LAW' },
+            { id: '7f7a2c1f-8e5c-4b8a-9d7f-1234567890cd', name: 'Immigration', key: 'IMMIGRATION' },
+          ],
+        }),
       connected_account: z.object({
         id: z.uuid(),
         charges_enabled: z.boolean(),
@@ -171,6 +190,7 @@ const practiceClientIntakeStatusResponseSchema = z.object({
           opposing_party: z.string().optional(),
           description: z.string().optional(),
           user_id: z.uuid().optional(),
+          practice_service_uuid: z.uuid().optional(),
           address: addressSchema.optional().openapi({
             example: {
               line1: '123 Client St',
