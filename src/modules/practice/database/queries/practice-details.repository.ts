@@ -4,6 +4,7 @@ import {
   practiceDetails,
   type InsertPracticeDetails,
   type PracticeDetails,
+  type PracticeService,
 } from '@/modules/practice/database/schema/practice.schema';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
@@ -15,14 +16,13 @@ export const createPracticeDetails = async (data: InsertPracticeDetails): Promis
 
 export const findPracticeDetailsByOrganization = async (
   organizationId: string
-): Promise<PracticeDetails | undefined> => {
-  const [practiceDetail] = await db
-    .select()
-    .from(practiceDetails)
-    .where(eq(practiceDetails.organization_id, organizationId))
-    .limit(1);
-  return practiceDetail;
-};
+): Promise<(PracticeDetails & { services: PracticeService[] }) | undefined> =>
+  await db.query.practiceDetails.findFirst({
+    where: (details) => eq(details.organization_id, organizationId),
+    with: {
+      services: true,
+    },
+  });
 
 export const findPracticeWithOrganization = async (
   organizationId: string

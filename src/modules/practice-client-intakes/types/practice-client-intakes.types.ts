@@ -19,6 +19,7 @@ export type UpdateIntakeTriageStatusRequest = z.infer<typeof intakeValidations.u
 export interface IntakeSettings {
   payment_link_enabled: boolean;
   consultation_fee: number;
+  service_area: { id: string; name: string; key: string }[];
 }
 
 /**
