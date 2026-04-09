@@ -21,7 +21,7 @@ export interface UpsertPracticeDetailsRequest {
   billing_increment_minutes?: number;
   services?: { id?: string; name: string; key: string }[];
   supported_states?: PracticeDetailsSupportedStates[];
-  service_states?: string[] | null;
+  service_states?: string[];
   // Nested Address fields
   address?: AddressData;
 }
