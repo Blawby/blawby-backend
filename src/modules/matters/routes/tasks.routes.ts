@@ -10,7 +10,7 @@ import { routeBuilder } from '@/shared/router/route-builder';
 const tags = ['Matters'];
 
 const matterIdParamSchema = z.object({
-  id: z.uuid(),
+  matter_id: z.uuid(),
 });
 
 const taskIdParamSchema = z.object({
@@ -19,7 +19,7 @@ const taskIdParamSchema = z.object({
 
 export const listMatterTasksRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}/tasks',
+  path: '/{matter_id}/tasks',
   tags,
   summary: 'List matter tasks',
   request: {
@@ -42,7 +42,7 @@ export const listMatterTasksRoute = routeBuilder.build({
 
 export const createMatterTaskRoute = routeBuilder.build({
   method: 'post',
-  path: '/{id}/tasks',
+  path: '/{matter_id}/tasks',
   tags,
   summary: 'Create a matter task',
   request: {
@@ -69,7 +69,7 @@ export const createMatterTaskRoute = routeBuilder.build({
 
 export const updateMatterTaskRoute = routeBuilder.build({
   method: 'put',
-  path: '/{id}/tasks/{task_id}',
+  path: '/{matter_id}/tasks/{task_id}',
   tags,
   summary: 'Update a matter task',
   request: {
@@ -96,7 +96,7 @@ export const updateMatterTaskRoute = routeBuilder.build({
 
 export const deleteMatterTaskRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{id}/tasks/{task_id}',
+  path: '/{matter_id}/tasks/{task_id}',
   tags,
   summary: 'Delete a matter task',
   request: {

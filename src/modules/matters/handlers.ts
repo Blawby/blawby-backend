@@ -293,7 +293,7 @@ const reorderMilestonesHandler: AppRouteHandler<typeof matterRoutes.reorderMiles
 
 const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTasksRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { id: matterId } = c.req.valid('param');
+  const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
 
   const result = await matterTasksService.listMatterTasks(
@@ -309,7 +309,7 @@ const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTask
 
 const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterTaskRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { id: matterId } = c.req.valid('param');
+  const { matter_id: matterId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
 
   const result = await matterTasksService.createMatterTask(
@@ -322,7 +322,7 @@ const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterT
 
 const updateMatterTaskHandler: AppRouteHandler<typeof matterRoutes.updateMatterTaskRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { id: matterId, task_id: taskId } = c.req.valid('param');
+  const { matter_id: matterId, task_id: taskId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
 
   const result = await matterTasksService.updateMatterTask(
@@ -335,7 +335,7 @@ const updateMatterTaskHandler: AppRouteHandler<typeof matterRoutes.updateMatterT
 
 const deleteMatterTaskHandler: AppRouteHandler<typeof matterRoutes.deleteMatterTaskRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { id: matterId, task_id: taskId } = c.req.valid('param');
+  const { matter_id: matterId, task_id: taskId } = c.req.valid('param');
 
   const result = await matterTasksService.deleteMatterTask(
     { matterId, taskId },
