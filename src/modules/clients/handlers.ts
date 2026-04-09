@@ -22,7 +22,7 @@ export const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = asyn
 };
 
 export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c) => {
-  const { id } = c.req.valid('param');
+  const { client_id: id } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
   const result = await clientsCrudService.getClient({ id }, ctx);
@@ -30,7 +30,7 @@ export const getClientHandler: AppRouteHandler<typeof getClientRoute> = async (c
 };
 
 export const updateClientHandler: AppRouteHandler<typeof updateClientRouteType> = async (c) => {
-  const { id } = c.req.valid('param');
+  const { client_id: id } = c.req.valid('param');
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
@@ -39,7 +39,7 @@ export const updateClientHandler: AppRouteHandler<typeof updateClientRouteType> 
 };
 
 export const deleteClientHandler: AppRouteHandler<typeof deleteClientRouteType> = async (c) => {
-  const { id } = c.req.valid('param');
+  const { client_id: id } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
   await clientsCrudService.deleteClient({ id }, ctx);
@@ -49,7 +49,7 @@ export const deleteClientHandler: AppRouteHandler<typeof deleteClientRouteType> 
 // ==================== MEMOS ====================
 
 export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute> = async (c) => {
-  const { id: clientId } = c.req.valid('param');
+  const { client_id: clientId } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
   const result = await clientMemosService.listMemos({ clientId }, ctx);
@@ -57,7 +57,7 @@ export const listClientMemosHandler: AppRouteHandler<typeof listClientMemosRoute
 };
 
 export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRoute> = async (c) => {
-  const { id: clientId } = c.req.valid('param');
+  const { client_id: clientId } = c.req.valid('param');
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
@@ -75,7 +75,7 @@ export const createClientMemoHandler: AppRouteHandler<typeof createClientMemoRou
 };
 
 export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRoute> = async (c) => {
-  const { id: clientId, memo_id: id } = c.req.valid('param');
+  const { client_id: clientId, memo_id: id } = c.req.valid('param');
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
 
@@ -94,7 +94,7 @@ export const updateClientMemoHandler: AppRouteHandler<typeof updateClientMemoRou
 };
 
 export const deleteClientMemoHandler: AppRouteHandler<typeof deleteClientMemoRoute> = async (c) => {
-  const { id: clientId, memo_id: id } = c.req.valid('param');
+  const { client_id: clientId, memo_id: id } = c.req.valid('param');
   const ctx = getServiceContext(c);
 
   await clientMemosService.deleteMemo({ id, clientId }, ctx);

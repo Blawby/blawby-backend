@@ -24,7 +24,7 @@ const practiceIdParamSchema = z.object({
   uuid: z.uuid().refine((val) => val.length > 0, 'Invalid practice UUID'),
 });
 
-export const supportedStatesItemSchema = z.object({
+const supportedStatesItemSchema = z.object({
   country: z
     .string()
     .regex(/^[A-Z]{2}$/)
@@ -197,10 +197,6 @@ const practiceResponseSchema = z
     payment_link_enabled: z.boolean().nullable().openapi({
       description: 'Whether the practice has payment links enabled',
       example: true,
-    }),
-    payment_link_prefill_amount: z.number().nullable().openapi({
-      description: 'Default prefill amount for payment links (in cents)',
-      example: 5000,
     }),
     billing_increment_minutes: billingIncrementMinutesSchema.openapi({
       description: 'Billing increment in minutes for time entry dropdowns',
@@ -464,9 +460,6 @@ const practiceDetailsResponseSchema = z
     payment_link_enabled: z.boolean().openapi({
       example: true,
     }),
-    payment_link_prefill_amount: z.number().openapi({
-      example: 5000,
-    }),
     billing_increment_minutes: billingIncrementMinutesSchema.openapi({
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
@@ -537,6 +530,7 @@ export const practiceValidations = {
   practiceDetailsCreateResponseSchema,
   practiceDetailsUpdateResponseSchema,
   slugParamSchema,
+  supportedStatesItemSchema,
   hasPracticeDetails: (data: Partial<z.infer<typeof practiceDetailsValidationSchema>>) =>
     isAnyFieldProvided(data, practiceDetailsValidationSchema),
 };

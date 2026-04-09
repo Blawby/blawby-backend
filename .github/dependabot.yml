@@ -6,6 +6,9 @@ updates:
     schedule:
       interval: 'weekly'
     # Groups small updates together to avoid PR spam
+    # Only update direct dependencies (skip transitive/indirect deps)
+    allow:
+      - dependency-type: 'direct'
     groups:
       dependencies:
         patterns:

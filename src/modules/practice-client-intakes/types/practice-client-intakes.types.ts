@@ -17,8 +17,9 @@ export type UpdateIntakeTriageStatusRequest = z.infer<typeof intakeValidations.u
  * Onboarding settings for client intakes
  */
 export interface IntakeSettings {
-  paymentLinkEnabled: boolean;
-  prefillAmount: number;
+  payment_link_enabled: boolean;
+  consultation_fee: number;
+  service_area: { id: string; name: string; key: string }[];
 }
 
 /**

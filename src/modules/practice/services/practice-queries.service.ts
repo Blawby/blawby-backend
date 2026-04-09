@@ -83,7 +83,6 @@ export const practiceQueriesService = {
         ...organization,
         metadata: parseBetterAuthMetadata(organization.metadata),
         payment_link_enabled: organization.paymentLinkEnabled ?? null,
-        payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? null,
         created_at: organization.createdAt,
         updated_at: practiceDetails?.updated_at ?? undefined,
       };
@@ -136,7 +135,6 @@ export const practiceQueriesService = {
         name: organization.name,
         logo: organization.logo ?? null,
         payment_link_enabled: organization?.paymentLinkEnabled ?? false,
-        payment_link_prefill_amount: organization?.paymentLinkPrefillAmount ?? 0,
       };
 
       return responseData;
@@ -187,7 +185,6 @@ export const practiceQueriesService = {
         name: organization.name ?? '',
         logo: organization.logo ?? null,
         payment_link_enabled: organization.paymentLinkEnabled ?? false,
-        payment_link_prefill_amount: organization.paymentLinkPrefillAmount ?? 0,
       };
 
       return responseData;

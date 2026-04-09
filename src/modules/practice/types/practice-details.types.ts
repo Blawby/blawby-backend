@@ -1,11 +1,11 @@
 import type { z } from '@hono/zod-openapi';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
 import type { PracticeDetailsResponse as PracticeDetailsApiResponse } from '@/modules/practice/types/practice.types';
-import type { supportedStatesItemSchema } from '@/modules/practice/validations/practice.validation';
+import type { practiceValidations } from '@/modules/practice/validations/practice.validation';
 
 export type PracticeDetailsResponse = PracticeDetailsApiResponse;
 
-export type PracticeDetailsSupportedStates = Readonly<z.infer<typeof supportedStatesItemSchema>>;
+export type PracticeDetailsSupportedStates = Readonly<z.infer<typeof practiceValidations.supportedStatesItemSchema>>;
 
 export interface UpsertPracticeDetailsRequest {
   business_phone?: string | null;

@@ -144,68 +144,8 @@ const getPracticeClientIntakeStatusRoute = routeBuilder.build({
   },
 });
 
-const claimPracticeClientIntakeRoute = routeBuilder.build({
-  method: 'post',
-  path: '/claim',
-  tags: ['Practice Client Intakes'],
-  summary: 'Claim paid intake',
-  description: 'Links a paid intake to the authenticated user and ensures membership in the organization.',
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.claimPracticeClientIntakeSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.claimPracticeClientIntakeResponseSchema,
-        },
-      },
-      description: 'Intake claimed successfully.',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.errorResponseSchema,
-        },
-      },
-      description: 'Bad request - missing session ID or intake not paid',
-    },
-    401: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.errorResponseSchema,
-        },
-      },
-      description: 'Unauthorized - authentication required',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Checkout session or intake not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: intakeValidations.internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
 export const clientRoutes = {
   updatePracticeClientIntakeRoute,
   getPracticeClientIntakeStatusRoute,
   createPracticeClientIntakeCheckoutSessionRoute,
-  claimPracticeClientIntakeRoute,
 };

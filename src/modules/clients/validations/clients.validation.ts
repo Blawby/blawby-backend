@@ -56,7 +56,7 @@ export const listClientsSchema = z
 export const clientParamsSchema = z
   .object({
     practice_id: z.uuid('Invalid practice ID'),
-    id: z.uuid('Invalid client ID'),
+    client_id: z.uuid('Invalid client ID'),
   })
   .openapi('ClientParams');
 

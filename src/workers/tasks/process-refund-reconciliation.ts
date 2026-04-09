@@ -1,7 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 
-import { refundReconciliationService } from '@/modules/invoices/services/refund-reconciliation.service';
+import { refundReconciliation } from '@/engines/financial/refund-reconciliation';
 
 const logger = getLogger(['workers', 'process-refund-reconciliation']);
 
@@ -14,22 +14,29 @@ export const processRefundReconciliation: Task = async (payload): Promise<void> 
     stripeTransferId,
     stripeRefundId,
     refundedAmount,
-  } = (payload as {
-    organizationId?: string;
-    requestId?: string;
-    executorUserId?: string;
-    stripePaymentIntentId?: string;
-    stripeTransferId?: string | null;
-    stripeRefundId?: string | null;
-    refundedAmount?: number;
-  }) || {};
+  } =
+    (payload as {
+      organizationId?: string;
+      requestId?: string;
+      executorUserId?: string;
+      stripePaymentIntentId?: string;
+      stripeTransferId?: string | null;
+      stripeRefundId?: string | null;
+      refundedAmount?: number;
+    }) || {};
 
-  if (!organizationId || !requestId || !executorUserId || !stripePaymentIntentId || typeof refundedAmount !== 'number') {
+  if (
+    !organizationId ||
+    !requestId ||
+    !executorUserId ||
+    !stripePaymentIntentId ||
+    typeof refundedAmount !== 'number'
+  ) {
     logger.error('Invalid refund reconciliation payload', { payload });
     throw new Error('Invalid refund reconciliation payload');
   }
 
-  const res = await refundReconciliationService.reconcileRefundExecution({
+  const res = await refundReconciliation.reconcileRefundExecution({
     organizationId,
     requestId,
     executorUserId,
@@ -39,15 +46,10 @@ export const processRefundReconciliation: Task = async (payload): Promise<void> 
     refundedAmount,
   });
 
-  if (!res.success) {
-    const message = res.error?.message
-      ?? (typeof res === 'object' ? JSON.stringify(res) : 'Refund reconciliation failed');
-    throw new Error(message);
-  }
-
   logger.info('Processed refund reconciliation job {requestId}', {
     requestId,
     organizationId,
-    repaired: res.data.repaired,
+    repaired: res.repaired,
+    dispatched: res.dispatched,
   });
 };

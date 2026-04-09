@@ -16,10 +16,6 @@ practiceClientIntakesApp.openapi(
   handlers.getPracticeClientIntakePostPayStatusHandler
 );
 practiceClientIntakesApp.openapi(
-  clientRoutes.claimPracticeClientIntakeRoute,
-  handlers.claimPracticeClientIntakeHandler
-);
-practiceClientIntakesApp.openapi(
   publicRoutes.createPracticeClientIntakeRoute,
   handlers.createPracticeClientIntakeHandler
 );

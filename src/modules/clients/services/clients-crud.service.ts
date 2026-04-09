@@ -432,6 +432,20 @@ const createClientFromIntake = async (
   ctx: ServiceContext
 ): Promise<SelectClient> => {
   const { intakeId, userId, email, name, phone } = params.data;
+
+  const isClientDuplicateRace = (error: unknown): boolean => {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const dbError = error as { code?: string; table?: string; constraint?: string };
+    if (dbError.code !== '23505') {
+      return false;
+    }
+
+    return dbError.table === 'clients' || Boolean(dbError.constraint?.toLowerCase().includes('clients'));
+  };
+
   try {
     const intake = await practiceClientIntakesRepository.findById(intakeId);
     if (!intake) {
@@ -524,6 +538,13 @@ const createClientFromIntake = async (
     if (error instanceof HTTPException) {
       throw error;
     }
+
+    if (isClientDuplicateRace(error)) {
+      throw new HTTPException(409, {
+        message: `Client already linked for intake '${intakeId}'`,
+      });
+    }
+
     logger.error('Failed to create client from intake {intakeId}: {error}', { intakeId, error });
     throw new HTTPException(500, { message: 'Failed to create client from intake' });
   }

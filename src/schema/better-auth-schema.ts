@@ -110,7 +110,7 @@ export const organizations = pgTable('organizations', {
 
   // Payment Links settings
   paymentLinkEnabled: boolean('payment_link_enabled').default(false),
-  paymentLinkPrefillAmount: integer('payment_link_prefill_amount').default(0),
+  // NOTE: `payment_link_prefill_amount` was removed in migration 0044. Use practice details `consultation_fee` instead.
 });
 
 export const members = pgTable(

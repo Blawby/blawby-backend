@@ -134,10 +134,21 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async (
     }
 
     if (!intakeUuid) {
-      return result.ok({ session });
+      // Payment link sessions don't carry session-level metadata or client_reference_id.
+      // Fall back to matching via the payment_link ID on the session.
+      if (session.payment_link) {
+        const paymentLinkId = typeof session.payment_link === 'string' ? session.payment_link : session.payment_link.id;
+        intake ??= await practiceClientIntakesRepository.findByStripePaymentLinkId(paymentLinkId);
+      }
+
+      if (!intake) {
+        return result.ok({ session });
+      }
     }
 
-    intake ??= await practiceClientIntakesRepository.findById(intakeUuid);
+    if (intakeUuid) {
+      intake ??= await practiceClientIntakesRepository.findById(intakeUuid);
+    }
 
     if (intake && !intake.stripe_checkout_session_id) {
       await practiceClientIntakesRepository.update(intake.id, {

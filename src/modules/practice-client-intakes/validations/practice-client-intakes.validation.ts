@@ -5,7 +5,10 @@ import { addressSchema } from '@/shared/validations/address';
 // Public request schema - clientIp and userAgent are injected server-side from headers
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
-  amount: z.number().int().min(0).max(99999999), // $0.00 to $999,999.99
+  amount: z.number().int().min(0).max(99999999).openapi({
+    description: 'Consultation amount submitted by the client.',
+    example: 15000,
+  }), // $0.00 to $999,999.99
   email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
@@ -16,6 +19,10 @@ const createPracticeClientIntakeSchema = z.object({
   }),
   description: z.string().max(500).optional(),
   user_id: z.uuid().optional(),
+  practice_service_uuid: z.uuid().optional().openapi({
+    description: 'Optional practice service UUID selected by the client.',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
   address: addressSchema.optional().openapi({
     description: 'Client address information',
   }),
@@ -76,9 +83,30 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
         logo: z.string().optional(),
       }),
       settings: z.object({
-        payment_link_enabled: z.boolean(),
-        prefill_amount: z.number(),
+        payment_link_enabled: z.boolean().openapi({
+          description:
+            'Whether payment links should be shown for this intake. True only when the practice has payment links enabled and the practice consultation_fee > 0.',
+        }),
+        consultation_fee: z.number().int().nonnegative().openapi({
+          description:
+            'Consultation fee (in cents) from practice_details.consultation_fee — backend source of truth for intake payment flows.',
+        }),
       }),
+      service_area: z
+        .array(
+          z.object({
+            id: z.uuid(),
+            name: z.string(),
+            key: z.string(),
+          })
+        )
+        .openapi({
+          description: 'Practice services configured for the organization.',
+          example: [
+            { id: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab', name: 'Family Law', key: 'FAMILY_LAW' },
+            { id: '7f7a2c1f-8e5c-4b8a-9d7f-1234567890cd', name: 'Immigration', key: 'IMMIGRATION' },
+          ],
+        }),
       connected_account: z.object({
         id: z.uuid(),
         charges_enabled: z.boolean(),
@@ -162,6 +190,7 @@ const practiceClientIntakeStatusResponseSchema = z.object({
           opposing_party: z.string().optional(),
           description: z.string().optional(),
           user_id: z.uuid().optional(),
+          practice_service_uuid: z.uuid().optional(),
           address: addressSchema.optional().openapi({
             example: {
               line1: '123 Client St',

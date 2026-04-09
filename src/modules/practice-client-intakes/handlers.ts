@@ -5,9 +5,14 @@ import type { staffRoutes } from '@/modules/practice-client-intakes/routes/staff
 import { intakeCheckoutService } from '@/modules/practice-client-intakes/services/intake-checkout.service';
 import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
+import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { db } from '@/shared/database';
+import { getLogger } from '@logtape/logtape';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
+
+const logger = getLogger(['practice-client-intakes', 'handlers']);
 
 const getCreateIntakeRequestMetadata = (c: Context) => ({
   clientIp: c.req.header('x-forwarded-for') ?? c.req.header('remote-addr'),
@@ -25,9 +30,22 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
   c
 ) => {
   const body = c.req.valid('json');
+
+  let sessionUserId: string | undefined = undefined;
+  try {
+    const auth = createBetterAuthInstance(db);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    sessionUserId = session?.user?.id;
+  } catch (error) {
+    // Public route: anonymous submission is valid. Log infrastructure errors but don't block.
+    logger.warn('Session resolution failed on public intake route, proceeding anonymously: {error}', { error });
+  }
+
   const result = await intakeCreationService.createIntake({
     data: {
       ...body,
+      // Session-derived userId always wins; never trust a client-supplied user_id.
+      user_id: sessionUserId,
       ...getCreateIntakeRequestMetadata(c),
     },
   });
@@ -73,15 +91,6 @@ const getPracticeClientIntakePostPayStatusHandler: AppRouteHandler<
 > = async (c) => {
   const { session_id: sessionId } = c.req.valid('query');
   const result = await intakeCheckoutService.getPostPayStatus({ sessionId });
-  return sendResult(c, result, 200);
-};
-
-const claimPracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.claimPracticeClientIntakeRoute> = async (
-  c
-) => {
-  const ctx = getServiceContext(c);
-  const { session_id: sessionId } = c.req.valid('json');
-  const result = await intakeCheckoutService.claimIntake({ sessionId }, ctx);
   return sendResult(c, result, 200);
 };
 
@@ -131,7 +140,6 @@ export const handlers = {
   updatePracticeClientIntakeHandler,
   getPracticeClientIntakeStatusHandler,
   getPracticeClientIntakePostPayStatusHandler,
-  claimPracticeClientIntakeHandler,
   triggerIntakeInvitationHandler,
   listIntakesHandler,
   getIntakeHandler,

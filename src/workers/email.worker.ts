@@ -14,4 +14,5 @@ void runWorker({
     [TASK_NAMES.SEND_EMAIL]: processEmail,
   },
   concurrency: 3,
+  skipEventHandlers: true,
 });

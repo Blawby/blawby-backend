@@ -1,5 +1,4 @@
 import { z } from '@hono/zod-openapi';
-import * as refundRoutes from '@/modules/invoices/refund-requests.routes';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
@@ -11,8 +10,8 @@ import {
 } from '@/shared/validations/openapi';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
-  id: z.uuid().openapi({
-    param: { name: 'id', in: 'path' },
+  invoice_id: z.uuid().openapi({
+    param: { name: 'invoice_id', in: 'path' },
     description: 'Invoice ID (UUID)',
     example: '789a1234-b56c-78d9-e012-345678901234',
   }),
@@ -79,7 +78,7 @@ const listInvoicesRoute = routeBuilder.build({
 
 const getInvoiceRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{invoice_id}',
   tags: ['Invoices'],
   summary: 'Get invoice',
   description: 'Get a single invoice by ID.',
@@ -101,7 +100,7 @@ const getInvoiceRoute = routeBuilder.build({
 
 const updateInvoiceRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{invoice_id}',
   tags: ['Invoices'],
   summary: 'Update invoice',
   description: 'Update a draft invoice',
@@ -125,7 +124,7 @@ const updateInvoiceRoute = routeBuilder.build({
 
 const deleteInvoiceRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/{id}',
+  path: '/{practice_id}/{invoice_id}',
   tags: ['Invoices'],
   summary: 'Delete invoice',
   description: 'Soft delete a draft invoice',
@@ -140,7 +139,7 @@ const deleteInvoiceRoute = routeBuilder.build({
 
 const sendInvoiceRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/{id}/send',
+  path: '/{practice_id}/{invoice_id}/send',
   tags: ['Invoices'],
   summary: 'Send invoice',
   description: 'Finalize and send an invoice via Stripe',
@@ -155,7 +154,7 @@ const sendInvoiceRoute = routeBuilder.build({
 
 const syncInvoiceRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/{id}/sync',
+  path: '/{practice_id}/{invoice_id}/sync',
   tags: ['Invoices'],
   summary: 'Sync invoice',
   description: 'Sync invoice status with Stripe',
@@ -170,7 +169,7 @@ const syncInvoiceRoute = routeBuilder.build({
 
 const voidInvoiceRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/{id}/void',
+  path: '/{practice_id}/{invoice_id}/void',
   tags: ['Invoices'],
   summary: 'Void invoice',
   description: 'Void a sent invoice (cannot be undone)',
@@ -222,7 +221,7 @@ const getClientInvoicesRoute = routeBuilder.build({
 
 const getClientInvoiceDetailRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/client/{id}',
+  path: '/{practice_id}/client/{invoice_id}',
   tags: ['Client Invoices'],
   summary: 'Get my invoice detail',
   description: 'Get a single invoice for the authenticated client (includes line items).',
@@ -253,10 +252,4 @@ export const routes = {
   voidInvoiceRoute,
   getClientInvoicesRoute,
   getClientInvoiceDetailRoute,
-  createRefundRequestRoute: refundRoutes.createRefundRequestRoute,
-  listClientRefundRequestsRoute: refundRoutes.listClientRefundRequestsRoute,
-  cancelRefundRequestRoute: refundRoutes.cancelRefundRequestRoute,
-  listPracticeRefundRequestsRoute: refundRoutes.listPracticeRefundRequestsRoute,
-  reviewRefundRequestRoute: refundRoutes.reviewRefundRequestRoute,
-  executeRefundRoute: refundRoutes.executeRefundRoute,
 };

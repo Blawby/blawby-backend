@@ -2,25 +2,25 @@ import { z } from '@hono/zod-openapi';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
-const practiceUuidParamOpenAPISchema = z.object({
-  uuid: z.uuid().openapi({
+const practiceIdParamSchema = z.object({
+  practice_id: z.uuid().openapi({
     param: {
-      name: 'uuid',
+      name: 'practice_id',
       in: 'path',
     },
-    description: 'Practice/Organization ID (UUID)',
+    description: 'Practice ID (UUID)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   }),
 });
 
 export const getPracticeDetailsRoute = routeBuilder.build({
   method: 'get',
-  path: '/{uuid}/details',
+  path: '/{practice_id}/details',
   tags: ['Practice'],
   summary: 'Get practice details',
   description: 'Retrieve practice details for a specific practice',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
   },
   responses: {
     200: {
@@ -36,12 +36,12 @@ export const getPracticeDetailsRoute = routeBuilder.build({
 
 export const createPracticeDetailsRoute = routeBuilder.build({
   method: 'post',
-  path: '/{uuid}/details',
+  path: '/{practice_id}/details',
   tags: ['Practice'],
   summary: 'Create practice details',
   description: 'Create practice details for a practice',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
@@ -65,12 +65,12 @@ export const createPracticeDetailsRoute = routeBuilder.build({
 
 export const updatePracticeDetailsRoute = routeBuilder.build({
   method: 'put',
-  path: '/{uuid}/details',
+  path: '/{practice_id}/details',
   tags: ['Practice'],
   summary: 'Update practice details',
   description: "Update practice details for a practice (creates if doesn't exist)",
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
@@ -94,12 +94,12 @@ export const updatePracticeDetailsRoute = routeBuilder.build({
 
 export const deletePracticeDetailsRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{uuid}/details',
+  path: '/{practice_id}/details',
   tags: ['Practice'],
   summary: 'Delete practice details',
   description: 'Delete practice details for a practice',
   request: {
-    params: practiceUuidParamOpenAPISchema,
+    params: practiceIdParamSchema,
   },
   responses: {
     204: {

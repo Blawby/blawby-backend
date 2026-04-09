@@ -3,10 +3,13 @@ import path from 'node:path';
 import { type Context, Hono } from 'hono';
 import type { AppContext } from '@/shared/types/hono';
 import type {
+  ChangeEmailConfirmationData,
   CustomerPaymentReceiptData,
   CustomerPaymentRequestData,
+  EmailVerificationData,
   MagicLinkData,
   PayoutSentData,
+  PasswordResetData,
   PracticeInvitationData,
   StripeConnectStatusData,
   StripeConnectWelcomeData,
@@ -18,7 +21,10 @@ import { customerPaymentRefundRejected } from '@/shared/services/email/templates
 import { customerPaymentRefundRequest } from '@/shared/services/email/templates/customer/payment-refund-request';
 import { customerPaymentRefunded } from '@/shared/services/email/templates/customer/payment-refunded';
 import { customerPaymentRequest } from '@/shared/services/email/templates/customer/payment-request';
+import { changeEmailConfirmationTemplate } from '@/shared/services/email/templates/auth/change-email-confirmation';
+import { emailVerificationTemplate } from '@/shared/services/email/templates/auth/email-verification';
 import { magicLinkTemplate } from '@/shared/services/email/templates/auth/magic-link';
+import { passwordResetTemplate } from '@/shared/services/email/templates/auth/password-reset';
 import { payoutSent } from '@/shared/services/email/templates/onboarding/payout-sent';
 import { practiceInvitation } from '@/shared/services/email/templates/team/practice-invitation';
 import { stripeConnectStatus } from '@/shared/services/email/templates/onboarding/stripe-connect-status';
@@ -126,6 +132,22 @@ http.get('/emails/:filename', async (c) => {
 // Sample data for previews
 const sampleMagicLinkData: MagicLinkData = {
   url: 'https://blawby.com/auth/magic-link?token=sample-token-123',
+  year: 2026,
+};
+
+const samplePasswordResetData: PasswordResetData = {
+  url: 'https://blawby.com/auth/reset-password?token=sample-reset-token-123',
+  year: 2026,
+};
+
+const sampleEmailVerificationData: EmailVerificationData = {
+  url: 'https://blawby.com/api/auth/verify-email?token=sample-verify-token-123&callbackURL=https%3A%2F%2Fblawby.com%2Fsettings%2Faccount',
+  year: 2026,
+};
+
+const sampleChangeEmailConfirmationData: ChangeEmailConfirmationData = {
+  url: 'https://blawby.com/api/auth/verify-email?token=sample-change-email-token-123&callbackURL=https%3A%2F%2Fblawby.com%2Fsettings%2Faccount',
+  newEmail: 'new-email@example.com',
   year: 2026,
 };
 
@@ -418,6 +440,33 @@ http.get('/email-templates', (c) => {
       </div>
     </div>
 
+    <div class="template-card">
+      <div class="template-header">Reset your Blawby password</div>
+      <div class="template-content">
+        <div class="mobile-frame">
+          <iframe src="/api/dev/email-templates/password-reset"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="template-card">
+      <div class="template-header">Verify your email address</div>
+      <div class="template-content">
+        <div class="mobile-frame">
+          <iframe src="/api/dev/email-templates/email-verification"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="template-card">
+      <div class="template-header">Confirm your email change</div>
+      <div class="template-content">
+        <div class="mobile-frame">
+          <iframe src="/api/dev/email-templates/change-email-confirmation"></iframe>
+        </div>
+      </div>
+    </div>
+
     <div class="section-title">Customer Emails</div>
 
     <div class="template-card">
@@ -555,6 +604,33 @@ http.get('/email-templates/magic-link', (c) => {
     return devOnlyError;
   }
   const html = magicLinkTemplate(sampleMagicLinkData);
+  return c.html(html);
+});
+
+http.get('/email-templates/password-reset', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = passwordResetTemplate(samplePasswordResetData);
+  return c.html(html);
+});
+
+http.get('/email-templates/email-verification', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = emailVerificationTemplate(sampleEmailVerificationData);
+  return c.html(html);
+});
+
+http.get('/email-templates/change-email-confirmation', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = changeEmailConfirmationTemplate(sampleChangeEmailConfirmationData);
   return c.html(html);
 });
 
