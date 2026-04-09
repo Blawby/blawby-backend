@@ -14,8 +14,8 @@ const logger = getLogger(['uploads', 'presign-service']);
 const resolveStorageProvider = (uploadContext: string, mimeType: string): 'r2' | 'images' =>
   uploadContext === 'profile' && mimeType.startsWith('image/') ? 'images' : 'r2';
 
-const resolveEntityType = (uploadContext: string): 'matter' | 'intake' | null => {
-  if (uploadContext === 'matter' || uploadContext === 'intake') {
+const resolveEntityType = (uploadContext: string): 'matter' | 'intake' | 'conversation' | null => {
+  if (uploadContext === 'matter' || uploadContext === 'intake' || uploadContext === 'conversation') {
     return uploadContext;
   }
 

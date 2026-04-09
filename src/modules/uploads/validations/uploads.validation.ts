@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Upload context enum
-const uploadContextSchema = z.enum(['matter', 'intake', 'trust', 'profile', 'asset']);
+const uploadContextSchema = z.enum(['matter', 'intake', 'trust', 'profile', 'asset', 'conversation']);
 
 // Sub context for matter uploads
 const subContextSchema = z.enum(['documents', 'correspondence', 'evidence']).optional();

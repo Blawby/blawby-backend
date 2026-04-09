@@ -25,6 +25,7 @@ Keys are generated server-side and embedded in the presigned URL. The frontend c
 ```
 orgs/{org_id}/matters/{matter_id}/{documents|correspondence|evidence}/{upload_id}_{filename}
 orgs/{org_id}/intakes/{intake_id}/{upload_id}_{filename}
+orgs/{org_id}/conversations/{conversation_id}/{upload_id}_{filename}
 orgs/{org_id}/trust-accounting/{yyyy}/{mm}/{upload_id}_{filename}
 orgs/{org_id}/firm-assets/{upload_id}_{filename}
 users/{user_id}/profile/{upload_id}_{filename}

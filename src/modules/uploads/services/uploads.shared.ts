@@ -15,7 +15,7 @@ import type { Result } from '@/shared/types/result';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { badRequest, forbidden, ok, unauthorized } from '@/shared/utils/result';
 
-const uploadContexts = ['matter', 'intake', 'trust', 'profile', 'asset'] as const;
+const uploadContexts = ['matter', 'intake', 'trust', 'profile', 'asset', 'conversation'] as const;
 const auditActions = ['created', 'viewed', 'downloaded', 'deleted', 'restored', 'confirmed'] as const;
 const storageProviders = ['r2', 'images'] as const;
 const uploadStatuses = ['pending', 'verified', 'rejected'] as const;
@@ -154,6 +154,14 @@ const generateStorageKey = (params: {
       }
 
       return ok(`orgs/${params.organizationId}/intakes/${params.entityId}/${params.uploadId}_${sanitizedFileName}`);
+    case 'conversation':
+      if (!params.entityId) {
+        return badRequest('Entity ID (conversation ID) required for conversation uploads');
+      }
+
+      return ok(
+        `orgs/${params.organizationId}/conversations/${params.entityId}/${params.uploadId}_${sanitizedFileName}`
+      );
     case 'trust':
       return ok(
         `orgs/${params.organizationId}/trust-accounting/${year}/${month}/${params.uploadId}_${sanitizedFileName}`
@@ -173,6 +181,7 @@ const calculateRetentionUntil = (uploadContext: UploadContext): Date | null => {
     case 'matter':
     case 'intake':
     case 'trust':
+    case 'conversation':
       return new Date(now.getFullYear() + yearsToRetain, now.getMonth(), now.getDate());
     case 'profile':
     case 'asset':
