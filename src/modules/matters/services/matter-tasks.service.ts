@@ -7,7 +7,7 @@ import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filte
 import type { CreateMatterTaskRequest, UpdateMatterTaskRequest } from '@/modules/matters/types/matter.types';
 import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, notFound, internalError } from '@/shared/utils/result';
+import { ok, notFound, internalError, forbidden } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'tasks']);
 
@@ -15,6 +15,11 @@ const createMatterTask = async (
   params: { matterId: string; data: CreateMatterTaskRequest },
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTask>> => {
+  // CASL Check
+  if (ctx.ability.cannot('update', 'Matter')) {
+    return forbidden('You do not have permission to update this matter');
+  }
+
   // Verify matter access first
   const matterResult = await mattersService.verifyMatterAccess(params.matterId, ctx);
   if (!matterResult.success) {
@@ -82,6 +87,11 @@ const listMatterTasks = async (
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTask[]>> => {
   try {
+    // CASL Check
+    if (ctx.ability.cannot('read', 'Matter')) {
+      return forbidden('You do not have permission to read this matter');
+    }
+
     // Verify matter exists and user has access
     const matterResult = await mattersService.getMatterById(params.matterId, ctx);
     if (!matterResult.success) {
@@ -105,6 +115,11 @@ const updateMatterTask = async (
   ctx: ServiceContext
 ): Promise<Result<SelectMatterTask>> => {
   try {
+    // CASL Check
+    if (ctx.ability.cannot('update', 'Matter')) {
+      return forbidden('You do not have permission to update this matter');
+    }
+
     // Verify matter exists and user has access
     const matterResult = await mattersService.getMatterById(params.matterId, ctx);
     if (!matterResult.success) {
@@ -220,6 +235,11 @@ const deleteMatterTask = async (
   ctx: ServiceContext
 ): Promise<Result<void>> => {
   try {
+    // CASL Check
+    if (ctx.ability.cannot('update', 'Matter')) {
+      return forbidden('You do not have permission to update this matter');
+    }
+
     // Verify matter exists and user has access
     const matterResult = await mattersService.getMatterById(params.matterId, ctx);
     if (!matterResult.success) {
