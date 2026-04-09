@@ -11,13 +11,14 @@ import { getLogger } from '@logtape/logtape';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
+import { extractOriginFromReferer } from '@/shared/utils/env';
 
 const logger = getLogger(['practice-client-intakes', 'handlers']);
 
 const getCreateIntakeRequestMetadata = (c: Context) => ({
   clientIp: c.req.header('x-forwarded-for') ?? c.req.header('remote-addr'),
   userAgent: c.req.header('user-agent'),
-  origin: c.req.header('origin'),
+  origin: c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer')),
 });
 
 const getIntakeSettingsHandler: AppRouteHandler<typeof publicRoutes.getIntakeSettingsRoute> = async (c) => {
@@ -57,10 +58,11 @@ const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
 > = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
+  const origin = c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer'));
   const result = await intakeCheckoutService.createCheckoutSession(
     {
       uuid,
-      origin: c.req.header('origin'),
+      origin,
     },
     ctx
   );
@@ -97,7 +99,10 @@ const getPracticeClientIntakePostPayStatusHandler: AppRouteHandler<
 const triggerIntakeInvitationHandler: AppRouteHandler<typeof staffRoutes.triggerIntakeInvitationRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await intakeLifecycleService.triggerInvitation({ uuid, origin: c.req.header('origin') }, ctx);
+  const result = await intakeLifecycleService.triggerInvitation(
+    { uuid, origin: c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer')) },
+    ctx
+  );
   return sendResult(c, result, 200);
 };
 

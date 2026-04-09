@@ -72,6 +72,19 @@ export const getEnvArray = (key: string, defaultValue: string[] = []): string[] 
 };
 
 /**
+ * Extract the origin (scheme + host) from a Referer header value.
+ * Returns undefined if the referer is missing or not a valid URL.
+ */
+export const extractOriginFromReferer = (referer?: string | null): string | undefined => {
+  if (!referer) return undefined;
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * Get the best matching frontend URL from FRONTEND_URL environment variable
  * based on the provided origin. Falls back to the first URL if no match is found.
  */
