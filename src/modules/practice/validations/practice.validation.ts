@@ -73,6 +73,21 @@ const practiceDetailsValidationSchema = z.object({
       description: 'List of supported countries and states',
       example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
     }),
+  service_states: z
+    .array(
+      z
+        .string()
+        .length(2)
+        .regex(/^[A-Z]{2}$/)
+    )
+    .optional()
+    .refine((items) => !items || new Set(items).size === items.length, {
+      message: 'State codes must be unique',
+    })
+    .openapi({
+      description: 'US states where the practice is licensed to practice (2-letter codes)',
+      example: ['NC', 'SC', 'VA'],
+    }),
 });
 
 /**
@@ -488,6 +503,13 @@ const practiceDetailsResponseSchema = z
       .openapi({
         description: 'List of supported countries and states',
         example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
+      }),
+    service_states: z
+      .array(z.string())
+      .nullable()
+      .openapi({
+        description: 'US states where the practice is licensed to practice (2-letter codes)',
+        example: ['NC', 'SC', 'VA'],
       }),
   })
   .openapi('PracticeDetailsResponse');
