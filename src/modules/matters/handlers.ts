@@ -6,6 +6,7 @@ import { matterNotesService } from '@/modules/matters/services/matter-notes.serv
 import { matterTasksService } from '@/modules/matters/services/matter-tasks.service';
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { sendResult } from '@/shared/utils/responseUtils';
@@ -295,9 +296,16 @@ const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTask
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
+  const filters: MatterTaskListFilters = {
+    taskId: query.task_id,
+    assigneeId: query.assignee_id,
+    status: query.status,
+    priority: query.priority,
+    stage: query.stage,
+  };
 
   const result = await matterTasksService.listMatterTasks(
-    { matterId, filters: query },
+    { matterId, filters },
     ctx
   );
 

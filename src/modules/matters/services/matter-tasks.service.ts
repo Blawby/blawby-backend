@@ -38,22 +38,18 @@ const createMatterTask = async (
       return internalError('Failed to create matter task');
     }
 
-    const createdTask = createdTasks[0];
+    const [createdTask] = createdTasks;
 
     // Log activity
     const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    const assigneeInfo = params.data.assignee_id 
-      ? ` (assigned to user)` 
-      : '';
-    const priorityInfo = params.data.priority !== 'normal' 
-      ? ` (${params.data.priority} priority)` 
-      : '';
-    
+    const assigneeInfo = params.data.assignee_id ? ` (assigned to user)` : '';
+    const priorityInfo = params.data.priority !== 'normal' ? ` (${params.data.priority} priority)` : '';
+
     const activityResult = await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.TASK_CREATED,
         description: `${userName} created task: ${params.data.name}${assigneeInfo}${priorityInfo}`,
-        metadata: { 
+        metadata: {
           task_id: createdTask.id,
           assignee_id: params.data.assignee_id,
           priority: params.data.priority,
@@ -93,7 +89,7 @@ const listMatterTasks = async (
     }
 
     // Verify matter exists and user has access
-    const matterResult = await mattersService.getMatterById(params.matterId, ctx);
+    const matterResult = await mattersService.verifyMatterAccess(params.matterId, ctx);
     if (!matterResult.success) {
       return matterResult as Result<never>;
     }
@@ -121,7 +117,7 @@ const updateMatterTask = async (
     }
 
     // Verify matter exists and user has access
-    const matterResult = await mattersService.getMatterById(params.matterId, ctx);
+    const matterResult = await mattersService.verifyMatterAccess(params.matterId, ctx);
     if (!matterResult.success) {
       return matterResult as Result<never>;
     }
@@ -151,7 +147,7 @@ const updateMatterTask = async (
     if (params.data.due_date !== undefined) {
       let newDueDate: string | null = null;
       let existingDueDate: string | null = null;
-      
+
       // Validate and parse new date
       if (params.data.due_date) {
         const parsedNewDate = new Date(params.data.due_date);
@@ -160,13 +156,13 @@ const updateMatterTask = async (
         }
         newDueDate = parsedNewDate.toISOString().slice(0, 10);
       }
-      
+
       // Handle existing date
       if (existingTask.due_date) {
         const existingDate = new Date(existingTask.due_date);
         existingDueDate = existingDate.toISOString().slice(0, 10);
       }
-      
+
       if (newDueDate !== existingDueDate) {
         changedFields.push('due_date');
       }
@@ -185,7 +181,7 @@ const updateMatterTask = async (
     if (changedFields.length > 0) {
       const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
       let description = `${userName} updated task: ${updatedTask.name}`;
-      
+
       // Add specific status change info
       if (params.data.status && params.data.status !== existingTask.status) {
         if (params.data.status === 'complete') {
@@ -197,11 +193,15 @@ const updateMatterTask = async (
 
       const activityResult = await matterActivityService.logMatterActivity(
         {
-          action: params.data.status === 'complete' 
-            ? matterActivityService.ActivityAction.TASK_COMPLETED
-            : matterActivityService.ActivityAction.TASK_UPDATED,
+          action:
+            params.data.status !== undefined &&
+            existingTask.status !== params.data.status &&
+            params.data.status === 'complete' &&
+            updatedTask.status === 'complete'
+              ? matterActivityService.ActivityAction.TASK_COMPLETED
+              : matterActivityService.ActivityAction.TASK_UPDATED,
           description,
-          metadata: { 
+          metadata: {
             task_id: updatedTask.id,
             changed_fields: changedFields,
             old_status: existingTask.status,
@@ -241,7 +241,7 @@ const deleteMatterTask = async (
     }
 
     // Verify matter exists and user has access
-    const matterResult = await mattersService.getMatterById(params.matterId, ctx);
+    const matterResult = await mattersService.verifyMatterAccess(params.matterId, ctx);
     if (!matterResult.success) {
       return matterResult as Result<never>;
     }
@@ -260,10 +260,10 @@ const deleteMatterTask = async (
       {
         action: matterActivityService.ActivityAction.TASK_DELETED,
         description: `${userName} deleted task: ${existingTask.name}`,
-        metadata: { 
+        metadata: {
           task_id: params.taskId,
           task_name: existingTask.name,
-          changed_fields: ['deleted'] 
+          changed_fields: ['deleted'],
         },
       },
       ctx
