@@ -136,7 +136,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           });
         },
       }),
-      ...(isDevelopment() ? [testUtils()] : []),
+      ...(config.env.isTest ? [testUtils()] : []),
     ],
     baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',

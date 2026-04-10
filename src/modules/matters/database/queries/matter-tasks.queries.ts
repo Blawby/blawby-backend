@@ -39,6 +39,9 @@ const listMatterTasks = async (matterId: string, filters?: MatterTaskListFilters
   if (filters?.assigneeId) {
     conditions.push(eq(matterTasks.assignee_id, filters.assigneeId));
   }
+  if (filters?.taskId) {
+    conditions.push(eq(matterTasks.id, filters.taskId));
+  }
   if (filters?.stage) {
     conditions.push(eq(matterTasks.stage, filters.stage));
   }
