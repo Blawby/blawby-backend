@@ -14,6 +14,7 @@ import { OnboardingCompletedProcessed, PracticeUpdated } from '@/shared/events/d
 import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
+import { generateFrontendUrls } from '@/shared/utils/urls';
 
 const logger = getLogger(['onboarding', 'handler', 'onboarding-completed']);
 const APP_URL = config.app.appUrl;
@@ -78,6 +79,9 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
     const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
 
     if (email) {
+      const practiceDashboardUrl = org.slug ? generateFrontendUrls.practiceDashboard(org.slug) : `${APP_URL}/dashboard`;
+      const payoutsUrl = org.slug ? generateFrontendUrls.practicePayoutsSettings(org.slug) : `${APP_URL}/dashboard`;
+      
       void queueManager
         .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
           recipientEmail: email,
@@ -85,6 +89,8 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
           dashboardUrl: `${APP_URL}/dashboard`,
           tutorialUrl: `${APP_URL}/docs/payments`,
           supportUrl: 'https://blawby.com/help',
+          practiceDashboardUrl,
+          payoutsUrl, // Add practice-specific payouts URL
         })
         .catch((error: unknown) => {
           logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {

@@ -6,23 +6,19 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import {
-  IntakePaymentCreated,
-  IntakePaymentSucceeded,
-  IntakePaymentFailed,
-  IntakePaymentCanceled,
-  IntakeSubmitted,
-  IntakeTriaged,
-} from '@/shared/events/definitions';
+import { eq } from 'drizzle-orm';
+import { config } from '@/shared/config';
+import { db } from '@/shared/database';
+import { IntakePaymentCreated, IntakePaymentSucceeded, IntakePaymentFailed, IntakePaymentCanceled, IntakeTriaged, IntakeSubmitted } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { config } from '@/shared/config';
 import { logError } from '@/shared/utils/logging';
 import { createSystemContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
+import { practiceClientIntakes, type PracticeClientIntakeMetadata } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 
 const logger = getLogger(['practice-client-intakes', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -30,14 +26,14 @@ const APP_URL = config.app.appUrl;
 /**
  * Send submission notification emails (prospect confirmation + practice notification)
  */
-const sendSubmissionEmails = (payload: {
+const sendSubmissionEmails = async (payload: {
   intake_id: string;
   organization_name: string;
   billing_email: string | null;
   client_email: string | null;
   client_name: string;
   amount: number;
-}): void => {
+}): Promise<void> => {
   // Determine recipient for client-facing email (prefer client_email, fallback to billing_email)
   const clientRecipient = payload.client_email ?? payload.billing_email;
 
@@ -65,26 +61,107 @@ const sendSubmissionEmails = (payload: {
   // 2. Practice-facing: "You've received a new intake submission"
   const practiceRecipient = payload.billing_email;
   if (practiceRecipient) {
-    void queueManager
-      .addEmailJob(
-        EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION,
-        practiceRecipient,
-        `New intake submission from ${payload.client_name}`,
-        {
-          recipientEmail: practiceRecipient,
-          recipientName: payload.organization_name,
-          clientName: payload.client_name,
-          clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
-          amount: payload.amount,
-          intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
-          practiceName: payload.organization_name,
-        }
-      )
-      .catch((error: unknown) => {
-        logError('Failed to queue intake new notification email', error, {
-          intakeId: payload.intake_id,
+    // Fetch full intake details for rich notification
+    try {
+      const [intake] = await db.select()
+        .from(practiceClientIntakes)
+        .where(eq(practiceClientIntakes.id, payload.intake_id))
+        .limit(1);
+
+      const intakeMetadata = intake?.metadata as PracticeClientIntakeMetadata || {};
+      
+      // Use practice service name if available, fallback to description
+      const practiceServiceName = (intakeMetadata as any).practice_service_name || 
+        intakeMetadata.description?.substring(0, 50) || 'General inquiry';
+      
+      // Format submission time
+      const submittedAt = intake?.created_at ? 
+        new Date(intake.created_at).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : 'Recently';
+
+      // Format court date if present
+      const courtDate = intake?.court_date ? 
+        new Date(intake.court_date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        }) : undefined;
+
+      // Generate action URLs (these would be signed URLs in production)
+      const baseUrl = config.app.frontendUrls[0] || config.app.appUrl;
+      const practiceSlug = payload.organization_name?.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const practiceIntakeUrl = practiceSlug ? 
+        `${baseUrl}/practice/${practiceSlug}/intakes/${payload.intake_id}` :
+        `${baseUrl}/dashboard/intakes/${payload.intake_id}`;
+
+      void queueManager
+        .addEmailJob(
+          EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION,
+          practiceRecipient,
+          `New Intake for: ${practiceServiceName} — ${payload.client_name}`,
+          {
+            recipientEmail: practiceRecipient,
+            recipientName: payload.organization_name,
+            clientName: payload.client_name,
+            clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
+            amount: payload.amount,
+            intakeUrl: practiceIntakeUrl,
+            practiceName: payload.organization_name,
+            // Enhanced decision-making fields
+            urgency: intake?.urgency as 'routine' | 'time_sensitive' | 'emergency' | undefined,
+            matterType: practiceServiceName, // Use practice service name
+            jurisdiction: intakeMetadata.address?.state || 'Not specified',
+            courtDate,
+            hasDocuments: intake?.has_documents || false,
+            caseStrength: intake?.case_strength || undefined,
+            desiredOutcome: intake?.desired_outcome || undefined,
+            opposingParty: intakeMetadata.opposing_party || undefined,
+            submittedAt,
+            intakeId: payload.intake_id,
+            // Action URLs (in production these would be signed, expiring URLs)
+            acceptUrl: `${practiceIntakeUrl}?action=accept`,
+            declineUrl: `${practiceIntakeUrl}?action=decline`,
+            conflictCheckUrl: `${practiceIntakeUrl}?action=conflict-check`,
+            description: intakeMetadata.description, // Full description for hyperlink
+          }
+        )
+        .catch((error: unknown) => {
+          logError('Failed to queue intake new notification email', error, {
+            intakeId: payload.intake_id,
+          });
         });
+    } catch (error) {
+      logError('Failed to fetch intake details for notification', error, {
+        intakeId: payload.intake_id,
       });
+      
+      // Fallback to basic notification
+      void queueManager
+        .addEmailJob(
+          EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION,
+          practiceRecipient,
+          `New intake submission from ${payload.client_name}`,
+          {
+            recipientEmail: practiceRecipient,
+            recipientName: payload.organization_name,
+            clientName: payload.client_name,
+            clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
+            amount: payload.amount,
+            intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
+            practiceName: payload.organization_name,
+          }
+        )
+        .catch((notificationError: unknown) => {
+          logError('Failed to queue fallback intake notification email', notificationError, {
+            intakeId: payload.intake_id,
+          });
+        });
+    }
   }
 };
 

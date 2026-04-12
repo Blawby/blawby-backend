@@ -12,14 +12,24 @@ import {
 
 /**
  * Practice-facing: "You've received a new intake submission"
+ * Enhanced with decision-making data while following established design system
  */
 export const intakeNewNotification = (data: IntakeNewNotificationData): string => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const clientName = escapeHtml(data.clientName);
   const clientEmail = escapeHtml(data.clientEmail);
   const practiceName = escapeHtml(data.practiceName);
-  const sanitizedIntakeUrl = sanitizeUrl(data.intakeUrl);
-  const formattedAmount = data.amount > 0 ? formatCurrency(data.amount) : 'No fee';
+  const formattedAmount = data.amount > 0 ? formatCurrency(data.amount) : 'Free';
+  
+  // Format urgency for display
+  const urgencyDisplay = data.urgency ? 
+    data.urgency === 'emergency' ? 'Emergency' :
+    data.urgency === 'time_sensitive' ? 'High' : 
+    'Normal' : 'Normal';
+
+  // Format case strength
+  const caseStrengthDisplay = data.caseStrength ? 
+    `${Math.round(data.caseStrength * 100)}%` : 'Not assessed';
 
   const mjmlContent = baseLayout(
     `
@@ -34,29 +44,41 @@ export const intakeNewNotification = (data: IntakeNewNotificationData): string =
         </mj-text>
 
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
-          You've received a new intake submission from <strong>${clientName}</strong> (${clientEmail}).
+          ${clientName} submitted a new intake for review.
         </mj-text>
 
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
-          <strong>Amount:</strong> ${formattedAmount}
+          <a href="${sanitizeUrl(data.intakeUrl)}" style="color: ${COLORS.text}; text-decoration: underline;">New Intake for: ${escapeHtml(data.matterType || 'General inquiry')} — ${clientName}</a>
         </mj-text>
 
-        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px" padding-bottom="20px">
-          Please review and triage this intake at your earliest convenience.
+        ${data.description ? `
+        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
+          ${escapeHtml(data.description)}
         </mj-text>
+        ` : ''}
 
-        <mj-button href="${sanitizedIntakeUrl}">
-          Review Intake
+        ${data.desiredOutcome ? `
+        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
+          <strong>Desired Outcome:</strong> ${escapeHtml(data.desiredOutcome)}
+        </mj-text>
+        ` : ''}
+
+        ${data.opposingParty ? `
+        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
+          <strong>Opposing Party:</strong> ${escapeHtml(data.opposingParty)}
+        </mj-text>
+        ` : ''}
+
+        <mj-button href="${sanitizeUrl(data.acceptUrl || data.intakeUrl)}">
+          Accept Intake
         </mj-button>
 
-        <mj-divider border-color="${COLORS.border}" padding="30px 0" />
-
-        <mj-text color="${COLORS.textMuted}" font-size="14px" line-height="20px">
-          This notification was sent to you as the owner of <strong>${practiceName}</strong>.
-        </mj-text>
+        <mj-button href="${sanitizeUrl(data.declineUrl || data.intakeUrl)}">
+          Decline
+        </mj-button>
       </mj-column>
     `)}
-  `,
+    `,
     BLAWBY_LOGO_URL
   );
 

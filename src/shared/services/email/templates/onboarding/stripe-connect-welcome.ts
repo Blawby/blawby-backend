@@ -2,8 +2,17 @@
  * Stripe Connect Welcome Email Template
  */
 
-import type { StripeConnectWelcomeData } from '../../email.types';
-import { baseLayout, cardSection, renderMjml, sanitizeUrl, COLORS, BLAWBY_LOGO_URL } from '../base.template';
+import type { StripeConnectWelcomeData } from '@/shared/services/email/email.types';
+import {
+  baseLayout,
+  cardSection,
+  renderMjml,
+  escapeHtml,
+  sanitizeUrl,
+  COLORS,
+  BLAWBY_LOGO_URL,
+} from '@/shared/services/email/templates/base.template';
+import { FRONTEND_URLS } from '@/shared/utils/urls';
 
 export const stripeConnectWelcome = (data: StripeConnectWelcomeData): string => {
   const mjmlContent = baseLayout(
@@ -21,7 +30,7 @@ export const stripeConnectWelcome = (data: StripeConnectWelcomeData): string => 
         </mj-button>
         <mj-divider border-color="${COLORS.border}" />
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500">
-          If you would like to build an integration, you might find our <a href="https://blawby.com/docs" style="color: #1a202c;">documentation</a> handy.
+          If you would like to build an integration, you might find our <a href="${sanitizeUrl(FRONTEND_URLS.DOCS)}" style="color: #1a202c;">documentation</a> handy.
         </mj-text>
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500" padding-top="10px">
           Once you're ready to start accepting live payments, simply <a href="${sanitizeUrl(data.tutorialUrl)}" style="color: #1a202c;">add a client</a> and send an invoice. You might find our tutorial on <a href="${sanitizeUrl(data.tutorialUrl)}" style="color: #1a202c;">account basics</a> useful.

@@ -7,10 +7,17 @@ import type {
   CustomerPaymentReceiptData,
   CustomerPaymentRequestData,
   EmailVerificationData,
+  IntakeAcceptedData,
+  IntakeDeclinedData,
+  IntakeNewNotificationData,
+  IntakeSubmissionReceivedData,
   MagicLinkData,
+  MatterClosedData,
+  MatterOpenedData,
   PayoutSentData,
   PasswordResetData,
   PracticeInvitationData,
+  ScheduledEventData,
   StripeConnectStatusData,
   StripeConnectWelcomeData,
   TeamPaymentReceiptData,
@@ -34,6 +41,14 @@ import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team
 import { teamPaymentRefunded } from '@/shared/services/email/templates/team/payment-refunded';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { intakeSubmissionReceived } from '@/shared/services/email/templates/intake/submission-received';
+import { intakeNewNotification } from '@/shared/services/email/templates/intake/new-intake-notification';
+import { intakeAccepted } from '@/shared/services/email/templates/intake/intake-accepted';
+import { intakeDeclined } from '@/shared/services/email/templates/intake/intake-declined';
+import { matterOpened } from '@/shared/services/email/templates/matter/matter-opened';
+import { matterClosed } from '@/shared/services/email/templates/matter/matter-closed';
+import { scheduledEventTemplate } from '@/shared/services/email/templates/scheduled-event';
+import { FRONTEND_URLS, generateFrontendUrls } from '@/shared/utils/urls';
 import { isProduction } from '@/shared/utils/env';
 import { HttpStatus } from '@/shared/utils/result';
 
@@ -131,7 +146,7 @@ http.get('/emails/:filename', async (c) => {
 
 // Sample data for previews
 const sampleMagicLinkData: MagicLinkData = {
-  url: 'https://blawby.com/auth/magic-link?token=sample-token-123',
+  url: `${FRONTEND_URLS.DASHBOARD}/auth/magic-link?token=sample-token-123`,
   year: 2026,
 };
 
@@ -181,29 +196,31 @@ const samplePaymentReceiptData: CustomerPaymentReceiptData = {
     },
   ],
   paymentMethod: 'Credit Card ending in 4242',
-  invoicePDFUrl: 'https://blawby.com/invoices/INV-2026-001.pdf',
+  invoicePDFUrl: generateFrontendUrls.invoices('INV-2026-001'),
   supportEmail: 'help@blawby.com',
-  supportUrl: 'https://blawby.com/help',
+  supportUrl: FRONTEND_URLS.HELP,
 };
 
 const sampleWelcomeData: WelcomeEmailData = {
-  dashboardUrl: 'https://blawby.com/dashboard',
+  dashboardUrl: FRONTEND_URLS.DASHBOARD,
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
-  supportUrl: 'https://blawby.com/help',
-  tutorialUrl: 'https://blawby.com/tutorials/account-basics',
+  supportUrl: FRONTEND_URLS.HELP,
+  tutorialUrl: FRONTEND_URLS.GETTING_STARTED,
+  practiceDashboardUrl: generateFrontendUrls.practiceDashboard('paul-yahoo'),
+  payoutsUrl: generateFrontendUrls.practicePayoutsSettings('paul-yahoo'),
 };
 
 const sampleStripeConnectData: StripeConnectWelcomeData = {
-  dashboardUrl: 'https://blawby.com/dashboard',
+  dashboardUrl: generateFrontendUrls.practiceDashboard('paul-yahoo'),
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
-  supportUrl: 'https://blawby.com/help',
-  tutorialUrl: 'https://blawby.com/tutorials/getting-started',
+  supportUrl: FRONTEND_URLS.HELP,
+  tutorialUrl: FRONTEND_URLS.GETTING_STARTED,
 };
 
 const samplePracticeInvitationData: PracticeInvitationData = {
-  inviteLink: 'https://blawby.com/invite/abc123def456',
+  inviteLink: generateFrontendUrls.intakes('abc123def456'),
   inviterName: 'Sarah Johnson',
   practiceName: 'Smith & Associates Law Firm',
   recipientEmail: 'associate@example.com',
@@ -229,9 +246,9 @@ const sampleRefundData: CustomerPaymentReceiptData = {
     },
   ],
   paymentMethod: 'Credit Card ending in 4242',
-  invoicePDFUrl: 'https://blawby.com/invoices/INV-2026-001.pdf',
+  invoicePDFUrl: generateFrontendUrls.invoices('INV-2026-001'),
   supportEmail: 'help@blawby.com',
-  supportUrl: 'https://blawby.com/help',
+  supportUrl: FRONTEND_URLS.HELP,
 };
 
 const sampleTeamRefundData: TeamPaymentReceiptData = {
@@ -249,9 +266,9 @@ const sampleTeamRefundData: TeamPaymentReceiptData = {
     },
   ],
   paymentMethod: 'Credit Card ending in 4242',
-  invoiceUrl: 'https://blawby.com/dashboard/intakes/abc123',
+  invoiceUrl: generateFrontendUrls.intakes('abc123'),
   supportEmail: 'help@blawby.com',
-  supportUrl: 'https://blawby.com/help',
+  supportUrl: FRONTEND_URLS.HELP,
 };
 
 const samplePaymentRequestData: CustomerPaymentRequestData = {
@@ -278,16 +295,16 @@ const samplePaymentRequestData: CustomerPaymentRequestData = {
       amount: 100000, // $1,000.00
     },
   ],
-  paymentLink: 'https://blawby.com/pay/INV-2026-002',
+  paymentLink: generateFrontendUrls.pay('INV-2026-002'),
   supportEmail: 'help@blawby.com',
-  supportUrl: 'https://blawby.com/help',
+  supportUrl: FRONTEND_URLS.HELP,
 };
 
 const sampleTeamPaymentReceiptData: TeamPaymentReceiptData = {
   amountPaid: 150000,
   businessName: 'Smith & Associates Law Firm',
   invoiceNumber: 'PAY-2026-001',
-  invoiceUrl: 'https://blawby.com/invoices/PAY-2026-001',
+  invoiceUrl: generateFrontendUrls.invoices('PAY-2026-001'),
   lineItems: [
     {
       amount: 50000,
@@ -312,22 +329,93 @@ const sampleTeamPaymentReceiptData: TeamPaymentReceiptData = {
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
   supportEmail: 'help@blawby.com',
-  supportUrl: 'https://blawby.com/help',
+  supportUrl: FRONTEND_URLS.HELP,
 };
 
 const samplePayoutSentData: PayoutSentData = {
   businessName: 'Smith & Associates Law Firm',
-  dashboardUrl: 'https://blawby.com/dashboard',
+  dashboardUrl: generateFrontendUrls.practiceDashboard('paul-yahoo'),
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
 };
 
 const sampleStripeConnectStatusData: StripeConnectStatusData = {
-  dashboardUrl: 'https://blawby.com/dashboard',
+  dashboardUrl: generateFrontendUrls.practicePayoutsSettings('paul-yahoo'),
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
-  supportUrl: 'https://blawby.com/help',
-  tutorialUrl: 'https://blawby.com/tutorials/getting-started',
+  supportUrl: FRONTEND_URLS.HELP,
+  tutorialUrl: FRONTEND_URLS.VERIFICATION,
+  payoutsUrl: generateFrontendUrls.practicePayoutsSettings('paul-yahoo'),
+};
+
+const sampleScheduledEventData: ScheduledEventData = {
+  recipientEmail: 'client@example.com',
+  recipientName: 'John Doe',
+  teamName: 'Smith & Associates Law Firm',
+  paymentUrl: generateFrontendUrls.pay('INV-2026-003'),
+  supportUrl: FRONTEND_URLS.HELP,
+};
+
+const sampleIntakeSubmissionReceivedData: IntakeSubmissionReceivedData = {
+  recipientEmail: 'prospect@example.com',
+  recipientName: 'Jane Smith',
+  practiceName: 'Smith & Associates Law Firm',
+  submittedAt: 'April 6, 2026 at 10:30 AM',
+};
+
+const sampleIntakeNewNotificationData: IntakeNewNotificationData = {
+  recipientEmail: 'lawyer@example.com',
+  recipientName: 'Sarah Johnson',
+  clientName: 'Jane Smith',
+  clientEmail: 'prospect@example.com',
+  amount: 50000, // $500.00 in cents
+  intakeUrl: generateFrontendUrls.practiceDashboard('paul-yahoo'),
+  practiceName: 'Smith & Associates Law Firm',
+  // Enhanced decision-making fields
+  urgency: 'time_sensitive',
+  matterType: 'Personal Injury', // Clean practice service name
+  jurisdiction: 'California',
+  courtDate: 'May 15, 2026',
+  hasDocuments: true,
+  caseStrength: 0.75,
+  desiredOutcome: 'Seeking compensation for medical expenses and lost wages',
+  opposingParty: 'ABC Insurance Company',
+  submittedAt: 'Apr 6, 2026 at 6:24 PM',
+  intakeId: 'abc123',
+  // Action URLs
+  acceptUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=accept',
+  declineUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=decline',
+  conflictCheckUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=conflict-check',
+  // Full description for hyperlink
+  description: 'I was injured in a car accident on highway 101 when another driver ran a red light and hit my vehicle. I sustained neck and back injuries, my car was totaled, and I\'ve been unable to work for the past 3 weeks.',
+};
+
+const sampleIntakeAcceptedData: IntakeAcceptedData = {
+  recipientEmail: 'prospect@example.com',
+  recipientName: 'Jane Smith',
+  practiceName: 'Smith & Associates Law Firm',
+};
+
+const sampleIntakeDeclinedData: IntakeDeclinedData = {
+  recipientEmail: 'prospect@example.com',
+  recipientName: 'Jane Smith',
+  practiceName: 'Smith & Associates Law Firm',
+  reason: 'Unfortunately, we are not accepting new cases in this practice area at this time.',
+};
+
+const sampleMatterOpenedData: MatterOpenedData = {
+  recipientEmail: 'client@example.com',
+  recipientName: 'John Doe',
+  matterTitle: 'Estate Planning for John Doe',
+  practiceName: 'Smith & Associates Law Firm',
+  dashboardUrl: generateFrontendUrls.practiceDashboard('paul-yahoo'),
+};
+
+const sampleMatterClosedData: MatterClosedData = {
+  recipientEmail: 'client@example.com',
+  recipientName: 'John Doe',
+  matterTitle: 'Estate Planning for John Doe',
+  practiceName: 'Smith & Associates Law Firm',
 };
 
 /**
@@ -361,12 +449,49 @@ http.get('/email-templates', (c) => {
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    .audience-section {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .audience-header {
+      background: #1a202c;
+      color: white;
+      padding: 15px 20px;
+      font-weight: 600;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .audience-header:hover {
+      background: #2d3748;
+    }
+    .audience-header .toggle {
+      font-size: 20px;
+      transition: transform 0.2s;
+    }
+    .audience-header.collapsed .toggle {
+      transform: rotate(-90deg);
+    }
+    .flow-description {
+      background: #f8fafc;
+      padding: 15px 20px;
+      border-left: 4px solid #4299e1;
+      margin: 0;
+      font-size: 14px;
+      color: #2d3748;
+      line-height: 1.5;
+    }
     .template-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
       gap: 20px;
-      max-width: 1200px;
-      margin: 0 auto;
+      padding: 20px;
     }
     .template-card {
       background: white;
@@ -375,7 +500,7 @@ http.get('/email-templates', (c) => {
       overflow: hidden;
     }
     .template-header {
-      background: #1a202c;
+      background: #4a5568;
       color: white;
       padding: 12px 16px;
       font-weight: 600;
@@ -404,192 +529,266 @@ http.get('/email-templates', (c) => {
       background: #f5f5f5;
       border-radius: 8px;
     }
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #666;
-    }
-    .section-title {
-      grid-column: 1 / -1;
-      text-align: center;
-      background: #f9fafb;
-      padding: 20px;
-      border-radius: 8px;
-      margin: 20px 0;
-      font-size: 24px;
-      font-weight: 700;
-      color: #1a202c;
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>📧 Email Templates Preview</h1>
-    <p>Review all email templates with the new premium design</p>
+    <p>Review all email templates organized by audience (Client vs Practice)</p>
   </div>
 
-  <div class="template-grid">
-    <div class="section-title">Authentication</div>
-
-    <div class="template-card">
-      <div class="template-header">Sign in to Blawby</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/magic-link"></iframe>
-        </div>
-      </div>
+  <!-- CLIENT-FACING EMAILS -->
+  <div class="audience-section">
+    <div class="audience-header" onclick="toggleSection('client-section')">
+      <span>👤 Client-Facing Emails (9 templates)</span>
+      <span class="toggle">▼</span>
     </div>
-
-    <div class="template-card">
-      <div class="template-header">Reset your Blawby password</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/password-reset"></iframe>
+    <div id="client-section">
+      <p class="flow-description">
+        <strong>Client Flow:</strong> These emails are sent to prospects and clients throughout their journey:<br>
+        1. <strong>Intake:</strong> Submission received -> Case accepted/declined<br>
+        2. <strong>Authentication:</strong> Magic link sign-in<br>
+        3. <strong>Payment:</strong> Invoice requests -> Receipts -> Refund notifications<br>
+        4. <strong>Matter Management:</strong> Matter opened -> Matter closed
+      </p>
+      <div class="template-grid">
+        <div class="template-card">
+          <div class="template-header">Reset your Blawby password</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/password-reset"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Verify your email address</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/email-verification"></iframe>
+        <div class="template-card">
+          <div class="template-header">Verify your email address</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/email-verification"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Confirm your email change</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/change-email-confirmation"></iframe>
+        <div class="template-card">
+          <div class="template-header">New invoice from Smith & Associates INV-2026-002</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/payment-request"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="section-title">Customer Emails</div>
-
-    <div class="template-card">
-      <div class="template-header">New invoice from Smith & Associates INV-2026-002</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/payment-request"></iframe>
+        <div class="template-card">
+          <div class="template-header">Sign in to Blawby</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/magic-link"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Your receipt from Smith & Associates INV-2026-001</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/payment-receipt"></iframe>
+        <div class="template-card">
+          <div class="template-header">We've received your submission</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/intake-submission-received"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Refund Request Received for INV-2026-001</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/customer-refund-request"></iframe>
+        <div class="template-card">
+          <div class="template-header">✅ Your case has been accepted</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/intake-accepted"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Refund Processed for INV-2026-001</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/customer-refunded"></iframe>
+        <div class="template-card">
+          <div class="template-header">❌ Your intake submission</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/intake-declined"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Refund Request Not Approved for INV-2026-001</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/customer-refund-rejected"></iframe>
+        <div class="template-card">
+          <div class="template-header">📋 New invoice from Smith & Associates</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/payment-request"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="section-title">Team/Practice Emails</div>
-
-    <div class="template-card">
-      <div class="template-header">Payment of $1,500.00 received from John Doe</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/team-payment-receipt"></iframe>
+        <div class="template-card">
+          <div class="template-header">🧾 Your receipt from Smith & Associates</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/payment-receipt"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Refund Request Received for $1,500.00</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/team-refund-request"></iframe>
+        <div class="template-card">
+          <div class="template-header">💰 Refund Request Received</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/customer-refund-request"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">Refund Processed for $1,500.00</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/team-refunded"></iframe>
+        <div class="template-card">
+          <div class="template-header">✅ Refund Processed</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/customer-refunded"></iframe>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="template-card">
-      <div class="template-header">You've been invited to join Smith & Associates on Blawby</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/practice-invitation"></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title">Onboarding Emails</div>
-
-    <div class="template-card">
-      <div class="template-header">Welcome to Blawby!</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/welcome"></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="template-card">
-      <div class="template-header">Your Stripe account is connected!</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/stripe-connect-welcome"></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="template-card">
-      <div class="template-header">Action required: Verify your account information</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/stripe-connect-status"></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="template-card">
-      <div class="template-header">A payout was sent to your bank account</div>
-      <div class="template-content">
-        <div class="mobile-frame">
-          <iframe src="/api/dev/email-templates/payout-sent"></iframe>
+        <div class="template-card">
+          <div class="template-header">❌ Refund Request Not Approved</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/customer-refund-rejected"></iframe>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- PRACTICE-FACING EMAILS -->
+  <div class="audience-section">
+    <div class="audience-header" onclick="toggleSection('practice-section')">
+      <span>⚖️ Practice-Facing Emails (10 templates)</span>
+      <span class="toggle">▼</span>
+    </div>
+    <div id="practice-section">
+      <p class="flow-description">
+        <strong>Practice Flow:</strong> These emails are sent to lawyers, practice owners, and team members:<br>
+        1. <strong>Onboarding:</strong> Welcome → Stripe setup → Payout notifications<br>
+        2. <strong>Team Management:</strong> Practice invitations<br>
+        3. <strong>Intake Management:</strong> New intake notifications<br>
+        4. <strong>Financial:</strong> Team payment receipts → Refund requests<br>
+        5. <strong>Automation:</strong> Scheduled payment reminders
+      </p>
+      <div class="template-grid">
+        <div class="template-card">
+          <div class="template-header">🎉 Welcome to Blawby!</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/welcome"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">🔗 Your Stripe account is connected!</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/stripe-connect-welcome"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">⚠️ Action required: Verify your account</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/stripe-connect-status"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">💸 A payout was sent to your bank account</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/payout-sent"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">👥 You've been invited to join Smith & Associates</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/practice-invitation"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">📬 New intake submission received</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/intake-new-notification"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">💳 Payment of $1,500.00 received</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/team-payment-receipt"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">💰 Refund Request Received</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/team-refund-request"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">✅ Refund Processed</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/team-refunded"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-card">
+          <div class="template-header">⏰ Payment reminder for Smith & Associates</div>
+          <div class="template-content">
+            <div class="mobile-frame">
+              <iframe src="/api/dev/email-templates/scheduled-event"></iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSection(sectionId) {
+      const section = document.getElementById(sectionId);
+      const header = section.previousElementSibling;
+      
+      if (section.classList.contains('hidden')) {
+        section.classList.remove('hidden');
+        header.classList.remove('collapsed');
+      } else {
+        section.classList.add('hidden');
+        header.classList.add('collapsed');
+      }
+    }
+  </script>
 </body>
 </html>
   `);
@@ -750,6 +949,72 @@ http.get('/email-templates/stripe-connect-status', (c) => {
     return devOnlyError;
   }
   const html = stripeConnectStatus(sampleStripeConnectStatusData);
+  return c.html(html);
+});
+
+// Intake template routes
+http.get('/email-templates/intake-submission-received', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = intakeSubmissionReceived(sampleIntakeSubmissionReceivedData);
+  return c.html(html);
+});
+
+http.get('/email-templates/intake-new-notification', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = intakeNewNotification(sampleIntakeNewNotificationData);
+  return c.html(html);
+});
+
+http.get('/email-templates/intake-accepted', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = intakeAccepted(sampleIntakeAcceptedData);
+  return c.html(html);
+});
+
+http.get('/email-templates/intake-declined', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = intakeDeclined(sampleIntakeDeclinedData);
+  return c.html(html);
+});
+
+// Matter template routes
+http.get('/email-templates/matter-opened', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = matterOpened(sampleMatterOpenedData);
+  return c.html(html);
+});
+
+http.get('/email-templates/matter-closed', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = matterClosed(sampleMatterClosedData);
+  return c.html(html);
+});
+
+// Scheduled event template route
+http.get('/email-templates/scheduled-event', (c) => {
+  const devOnlyError = guardDevelopmentOnly(c);
+  if (devOnlyError) {
+    return devOnlyError;
+  }
+  const html = scheduledEventTemplate(sampleScheduledEventData);
   return c.html(html);
 });
 

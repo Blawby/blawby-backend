@@ -139,6 +139,8 @@ export interface WelcomeEmailData extends BaseEmailData {
   dashboardUrl: string;
   tutorialUrl: string;
   supportUrl: string;
+  practiceDashboardUrl?: string; // Optional practice-specific dashboard URL
+  payoutsUrl?: string; // Optional practice-specific payouts settings URL
 }
 
 // Stripe Connect Welcome data
@@ -153,6 +155,7 @@ export interface StripeConnectStatusData extends BaseEmailData {
   dashboardUrl: string;
   tutorialUrl: string;
   supportUrl: string;
+  payoutsUrl?: string; // Optional practice-specific payouts settings URL
 }
 
 // Payout sent data
@@ -186,12 +189,34 @@ export interface IntakeSubmissionReceivedData extends BaseEmailData {
 }
 
 // Intake new notification data (practice-facing)
-export interface IntakeNewNotificationData extends BaseEmailData {
+export interface IntakeNewNotificationData {
+  recipientEmail: string;
+  recipientName: string;
   clientName: string;
   clientEmail: string;
   amount: number;
   intakeUrl: string;
   practiceName: string;
+  
+  // Enhanced decision-making fields
+  urgency?: 'routine' | 'time_sensitive' | 'emergency';
+  matterType?: string;
+  jurisdiction?: string;
+  courtDate?: string;
+  hasDocuments?: boolean;
+  caseStrength?: number;
+  desiredOutcome?: string;
+  opposingParty?: string;
+  submittedAt?: string;
+  intakeId: string;
+  
+  // Action URLs (in production these would be signed, expiring URLs)
+  acceptUrl?: string;
+  declineUrl?: string;
+  conflictCheckUrl?: string;
+  
+  // Full description for hyperlink
+  description?: string;
 }
 
 // Intake accepted data (prospect-facing)

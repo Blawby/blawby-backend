@@ -2,7 +2,7 @@
  * Payout Sent Email Template
  */
 
-import type { PayoutSentData } from '../../email.types';
+import type { PayoutSentData } from '@/shared/services/email/email.types';
 import {
   baseLayout,
   cardSection,
@@ -11,7 +11,8 @@ import {
   sanitizeUrl,
   COLORS,
   BLAWBY_LOGO_URL,
-} from '../base.template';
+} from '@/shared/services/email/templates/base.template';
+import { FRONTEND_URLS } from '@/shared/utils/urls';
 
 export const payoutSent = (data: PayoutSentData): string => {
   const mjmlContent = baseLayout(
@@ -29,7 +30,7 @@ export const payoutSent = (data: PayoutSentData): string => {
         </mj-button>
         <mj-divider border-color="${COLORS.border}" padding="30px 0" />
         <mj-text color="${COLORS.text}" font-size="16px" font-weight="500">
-          Learn more about <a href="https://blawby.com/docs/payouts.html" style="color: #1a202c;">payouts</a>.
+          Learn more about <a href="${sanitizeUrl(FRONTEND_URLS.PAYOUTS)}" style="color: #1a202c;">payouts</a>.
         </mj-text>
       </mj-column>
     `)}
