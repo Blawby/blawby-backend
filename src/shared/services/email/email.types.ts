@@ -24,8 +24,6 @@ export const EMAIL_TEMPLATES = {
   STRIPE_CONNECT_WELCOME: 'stripe-connect-welcome',
   STRIPE_CONNECT_STATUS: 'stripe-connect-status',
   PAYOUT_SENT: 'payout-sent',
-  // Events
-  SCHEDULED_EVENT: 'scheduled-event',
   // Auth
   MAGIC_LINK: 'magic-link',
   PASSWORD_RESET: 'password-reset',
@@ -43,16 +41,6 @@ export const EMAIL_TEMPLATES = {
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];
 
-/**
- * Scheduled Event Data
- */
-export interface ScheduledEventData {
-  recipientEmail: string;
-  recipientName: string;
-  teamName: string;
-  paymentUrl: string;
-  supportUrl: string;
-}
 /**
  * Magic Link Email Data
  */

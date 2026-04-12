@@ -12,7 +12,11 @@ import {
   COLORS,
   BLAWBY_LOGO_URL,
 } from '@/shared/services/email/templates/base.template';
-import { FRONTEND_URLS } from '@/shared/utils/urls';
+import { config } from '@/shared/config';
+
+const FRONTEND_URLS = {
+  PAYOUTS: `${config.app.appUrl}/payouts`,
+};
 
 export const payoutSent = (data: PayoutSentData): string => {
   const mjmlContent = baseLayout(

@@ -17,7 +17,6 @@ import type {
   PayoutSentData,
   PasswordResetData,
   PracticeInvitationData,
-  ScheduledEventData,
   StripeConnectStatusData,
   StripeConnectWelcomeData,
   TeamPaymentReceiptData,
@@ -47,13 +46,30 @@ import { intakeAccepted } from '@/shared/services/email/templates/intake/intake-
 import { intakeDeclined } from '@/shared/services/email/templates/intake/intake-declined';
 import { matterOpened } from '@/shared/services/email/templates/matter/matter-opened';
 import { matterClosed } from '@/shared/services/email/templates/matter/matter-closed';
-import { scheduledEventTemplate } from '@/shared/services/email/templates/scheduled-event';
-import { FRONTEND_URLS, generateFrontendUrls } from '@/shared/utils/urls';
+import { config } from '@/shared/config';
 import { isProduction } from '@/shared/utils/env';
 import { HttpStatus } from '@/shared/utils/result';
 
 const http = new Hono<AppContext>();
 http.use('*', injectAbility());
+
+// Helper functions for URL generation (replacing missing @/shared/utils/urls)
+const FRONTEND_URLS = {
+  DASHBOARD: config.app.appUrl,
+  HELP: `${config.app.appUrl}/help`,
+  DOCS: `${config.app.appUrl}/docs`,
+  GETTING_STARTED: `${config.app.appUrl}/getting-started`,
+  VERIFICATION: `${config.app.appUrl}/verification`,
+  PAYOUTS: `${config.app.appUrl}/payouts`,
+};
+
+const generateFrontendUrls = {
+  practiceDashboard: (slug: string) => `${config.app.appUrl}/practice/${slug}`,
+  practicePayoutsSettings: (slug: string) => `${config.app.appUrl}/practice/${slug}/settings/payouts`,
+  invoices: (id: string) => `${config.app.appUrl}/invoices/${id}`,
+  intakes: (id: string) => `${config.app.appUrl}/intakes/${id}`,
+  pay: (id: string) => `${config.app.appUrl}/pay/${id}`,
+};
 
 const EMAILS_DIR = path.join(process.cwd(), 'storage', 'emails');
 const DEV_ONLY_ERROR = { error: 'Not available in production' } as const;
@@ -348,22 +364,7 @@ const sampleStripeConnectStatusData: StripeConnectStatusData = {
   payoutsUrl: generateFrontendUrls.practicePayoutsSettings('paul-yahoo'),
 };
 
-const sampleScheduledEventData: ScheduledEventData = {
-  recipientEmail: 'client@example.com',
-  recipientName: 'John Doe',
-  teamName: 'Smith & Associates Law Firm',
-  paymentUrl: generateFrontendUrls.pay('INV-2026-003'),
-  supportUrl: FRONTEND_URLS.HELP,
-};
-
 const sampleIntakeSubmissionReceivedData: IntakeSubmissionReceivedData = {
-  recipientEmail: 'prospect@example.com',
-  recipientName: 'Jane Smith',
-  practiceName: 'Smith & Associates Law Firm',
-  submittedAt: 'April 6, 2026 at 10:30 AM',
-};
-
-const sampleIntakeNewNotificationData: IntakeNewNotificationData = {
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
   clientName: 'Jane Smith',
@@ -762,15 +763,6 @@ http.get('/email-templates', (c) => {
             </div>
           </div>
         </div>
-
-        <div class="template-card">
-          <div class="template-header">⏰ Payment reminder for Smith & Associates</div>
-          <div class="template-content">
-            <div class="mobile-frame">
-              <iframe src="/api/dev/email-templates/scheduled-event"></iframe>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -1005,16 +997,6 @@ http.get('/email-templates/matter-closed', (c) => {
     return devOnlyError;
   }
   const html = matterClosed(sampleMatterClosedData);
-  return c.html(html);
-});
-
-// Scheduled event template route
-http.get('/email-templates/scheduled-event', (c) => {
-  const devOnlyError = guardDevelopmentOnly(c);
-  if (devOnlyError) {
-    return devOnlyError;
-  }
-  const html = scheduledEventTemplate(sampleScheduledEventData);
   return c.html(html);
 });
 

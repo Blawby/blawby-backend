@@ -6,7 +6,6 @@ import { config } from '@/shared/config';
 import { db } from '@/shared/database';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { generateFrontendUrls } from '@/shared/utils/urls';
 
 const logger = getLogger(['onboarding', 'handler', 'internal-events']);
 const APP_URL = config.app.appUrl;
@@ -46,7 +45,7 @@ const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void>
     const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : 'there';
 
     if (email) {
-      const payoutsUrl = org?.slug ? generateFrontendUrls.practicePayoutsSettings(org.slug) : `${APP_URL}/dashboard/settings/billing`;
+      const payoutsUrl = org?.slug ? `${APP_URL}/practice/${org.slug}/settings/payouts` : `${APP_URL}/dashboard/settings/billing`;
       
       void queueManager
         .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {

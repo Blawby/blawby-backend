@@ -12,7 +12,12 @@ import {
   COLORS,
   BLAWBY_LOGO_URL,
 } from '@/shared/services/email/templates/base.template';
-import { FRONTEND_URLS } from '@/shared/utils/urls';
+import { config } from '@/shared/config';
+
+const FRONTEND_URLS = {
+  DOCS: `${config.app.appUrl}/docs`,
+  HELP: `${config.app.appUrl}/help`,
+};
 
 export const welcomeEmail = (data: WelcomeEmailData): string => {
   const mjmlContent = baseLayout(
