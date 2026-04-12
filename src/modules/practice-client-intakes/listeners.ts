@@ -9,7 +9,14 @@ import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { config } from '@/shared/config';
 import { db } from '@/shared/database';
-import { IntakePaymentCreated, IntakePaymentSucceeded, IntakePaymentFailed, IntakePaymentCanceled, IntakeTriaged, IntakeSubmitted } from '@/shared/events/definitions';
+import {
+  IntakePaymentCreated,
+  IntakePaymentSucceeded,
+  IntakePaymentFailed,
+  IntakePaymentCanceled,
+  IntakeTriaged,
+  IntakeSubmitted,
+} from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
@@ -18,10 +25,22 @@ import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { logError } from '@/shared/utils/logging';
 import { createSystemContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
-import { practiceClientIntakes, type PracticeClientIntakeMetadata } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import {
+  practiceClientIntakes,
+  type PracticeClientIntakeMetadata,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 
 const logger = getLogger(['practice-client-intakes', 'listeners']);
 const APP_URL = config.app.appUrl;
+
+const normalizePracticeSlug = (value: string): string =>
+  value
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 
 /**
  * Send submission notification emails (prospect confirmation + practice notification)
@@ -63,41 +82,47 @@ const sendSubmissionEmails = async (payload: {
   if (practiceRecipient) {
     // Fetch full intake details for rich notification
     try {
-      const [intake] = await db.select()
+      const [intake] = await db
+        .select()
         .from(practiceClientIntakes)
         .where(eq(practiceClientIntakes.id, payload.intake_id))
         .limit(1);
 
-      const intakeMetadata = intake?.metadata as PracticeClientIntakeMetadata || {};
-      
+      const intakeMetadata = (intake?.metadata as PracticeClientIntakeMetadata) || {};
+
       // Use practice service name if available, fallback to description
-      const practiceServiceName = (intakeMetadata as any).practice_service_name || 
-        intakeMetadata.description?.substring(0, 50) || 'General inquiry';
-      
+      const practiceServiceName =
+        (intakeMetadata as any).practice_service_name ||
+        intakeMetadata.description?.substring(0, 50) ||
+        'General inquiry';
+
       // Format submission time
-      const submittedAt = intake?.created_at ? 
-        new Date(intake.created_at).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }) : 'Recently';
+      const submittedAt = intake?.created_at
+        ? new Date(intake.created_at).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'Recently';
 
       // Format court date if present
-      const courtDate = intake?.court_date ? 
-        new Date(intake.court_date).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        }) : undefined;
+      const courtDate = intake?.court_date
+        ? new Date(intake.court_date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })
+        : undefined;
 
       // Generate action URLs (these would be signed URLs in production)
       const baseUrl = config.app.frontendUrls[0] || config.app.appUrl;
-      const practiceSlug = payload.organization_name?.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const practiceIntakeUrl = practiceSlug ? 
-        `${baseUrl}/practice/${practiceSlug}/intakes/${payload.intake_id}` :
-        `${baseUrl}/dashboard/intakes/${payload.intake_id}`;
+      const normalizedPracticeSlug = normalizePracticeSlug(payload.organization_name || '');
+      const practiceSlug = normalizedPracticeSlug.length >= 3 ? normalizedPracticeSlug : '';
+      const practiceIntakeUrl = practiceSlug
+        ? `${baseUrl}/practice/${practiceSlug}/intakes/${payload.intake_id}`
+        : `${baseUrl}/dashboard/intakes/${payload.intake_id}`;
 
       void queueManager
         .addEmailJob(
@@ -139,7 +164,7 @@ const sendSubmissionEmails = async (payload: {
       logError('Failed to fetch intake details for notification', error, {
         intakeId: payload.intake_id,
       });
-      
+
       // Fallback to basic notification
       void queueManager
         .addEmailJob(
@@ -152,7 +177,7 @@ const sendSubmissionEmails = async (payload: {
             clientName: payload.client_name,
             clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
             amount: payload.amount,
-            intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
+            intakeUrl: `${config.app.frontendUrls[0] || APP_URL}/dashboard/intakes/${payload.intake_id}`,
             practiceName: payload.organization_name,
           }
         )

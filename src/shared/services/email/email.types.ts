@@ -185,7 +185,7 @@ export interface IntakeNewNotificationData {
   amount: number;
   intakeUrl: string;
   practiceName: string;
-  
+
   // Enhanced decision-making fields
   urgency?: 'routine' | 'time_sensitive' | 'emergency';
   matterType?: string;
@@ -197,12 +197,12 @@ export interface IntakeNewNotificationData {
   opposingParty?: string;
   submittedAt?: string;
   intakeId: string;
-  
+
   // Action URLs (in production these would be signed, expiring URLs)
   acceptUrl?: string;
   declineUrl?: string;
   conflictCheckUrl?: string;
-  
+
   // Full description for hyperlink
   description?: string;
 }

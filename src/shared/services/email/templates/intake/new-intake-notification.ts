@@ -20,16 +20,19 @@ export const intakeNewNotification = (data: IntakeNewNotificationData): string =
   const clientEmail = escapeHtml(data.clientEmail);
   const practiceName = escapeHtml(data.practiceName);
   const formattedAmount = data.amount > 0 ? formatCurrency(data.amount) : 'Free';
-  
+
   // Format urgency for display
-  const urgencyDisplay = data.urgency ? 
-    data.urgency === 'emergency' ? 'Emergency' :
-    data.urgency === 'time_sensitive' ? 'High' : 
-    'Normal' : 'Normal';
+  const urgencyDisplay = data.urgency
+    ? data.urgency === 'emergency'
+      ? 'Emergency'
+      : data.urgency === 'time_sensitive'
+        ? 'High'
+        : 'Normal'
+    : 'Normal';
 
   // Format case strength
-  const caseStrengthDisplay = data.caseStrength ? 
-    `${Math.round(data.caseStrength * 100)}%` : 'Not assessed';
+  const caseStrengthDisplay =
+    data.caseStrength !== null && data.caseStrength !== undefined ? `${Math.round(data.caseStrength * 100)}%` : 'Not assessed';
 
   const mjmlContent = baseLayout(
     `
@@ -48,34 +51,74 @@ export const intakeNewNotification = (data: IntakeNewNotificationData): string =
         </mj-text>
 
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
+          <strong>Practice:</strong> ${practiceName}<br />
+          <strong>Client email:</strong> ${clientEmail}<br />
+          <strong>Estimated fee:</strong> ${formattedAmount}
+        </mj-text>
+
+        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
           <a href="${sanitizeUrl(data.intakeUrl)}" style="color: ${COLORS.text}; text-decoration: underline;">New Intake for: ${escapeHtml(data.matterType || 'General inquiry')} — ${clientName}</a>
         </mj-text>
 
-        ${data.description ? `
+        ${
+          data.description
+            ? `
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
           ${escapeHtml(data.description)}
         </mj-text>
-        ` : ''}
+        `
+            : ''
+        }
 
-        ${data.desiredOutcome ? `
+        ${
+          data.desiredOutcome
+            ? `
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
           <strong>Desired Outcome:</strong> ${escapeHtml(data.desiredOutcome)}
         </mj-text>
-        ` : ''}
+        `
+            : ''
+        }
 
-        ${data.opposingParty ? `
+        ${
+          data.opposingParty
+            ? `
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
           <strong>Opposing Party:</strong> ${escapeHtml(data.opposingParty)}
         </mj-text>
-        ` : ''}
+        `
+            : ''
+        }
 
-        <mj-button href="${sanitizeUrl(data.acceptUrl || data.intakeUrl)}">
+        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
+          <strong>Urgency:</strong> ${escapeHtml(urgencyDisplay)}<br />
+          <strong>Case strength:</strong> ${escapeHtml(caseStrengthDisplay)}
+        </mj-text>
+
+        ${
+          data.acceptUrl
+            ? `
+        <mj-button href="${sanitizeUrl(data.acceptUrl)}">
           Accept Intake
         </mj-button>
+        `
+            : ''
+        }
 
-        <mj-button href="${sanitizeUrl(data.declineUrl || data.intakeUrl)}">
+        ${
+          data.declineUrl
+            ? `
+        <mj-button
+          href="${sanitizeUrl(data.declineUrl)}"
+          background-color="${COLORS.white}"
+          color="${COLORS.text}"
+          border="1px solid ${COLORS.border}"
+        >
           Decline
         </mj-button>
+        `
+            : ''
+        }
       </mj-column>
     `)}
     `,

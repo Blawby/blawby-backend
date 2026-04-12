@@ -25,11 +25,11 @@ import {
   updateMatterNoteRoute,
   deleteMatterNoteRoute,
 } from '@/modules/matters/routes/notes.routes';
-import { 
-  listMatterTasksRoute, 
-  createMatterTaskRoute, 
-  updateMatterTaskRoute, 
-  deleteMatterTaskRoute 
+import {
+  listMatterTasksRoute,
+  createMatterTaskRoute,
+  updateMatterTaskRoute,
+  deleteMatterTaskRoute,
 } from '@/modules/matters/routes/tasks.routes';
 import {
   listTimeEntriesRoute,

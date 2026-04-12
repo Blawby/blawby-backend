@@ -304,10 +304,7 @@ const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTask
     stage: query.stage,
   };
 
-  const result = await matterTasksService.listMatterTasks(
-    { matterId, filters },
-    ctx
-  );
+  const result = await matterTasksService.listMatterTasks({ matterId, filters }, ctx);
 
   if (!result.success) {
     return sendResult(c, result);
@@ -320,10 +317,7 @@ const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterT
   const { matter_id: matterId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
 
-  const result = await matterTasksService.createMatterTask(
-    { matterId, data: validatedBody },
-    ctx
-  );
+  const result = await matterTasksService.createMatterTask({ matterId, data: validatedBody }, ctx);
 
   return sendResult(c, result, 201);
 };
@@ -333,10 +327,7 @@ const updateMatterTaskHandler: AppRouteHandler<typeof matterRoutes.updateMatterT
   const { matter_id: matterId, task_id: taskId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
 
-  const result = await matterTasksService.updateMatterTask(
-    { matterId, taskId, data: validatedBody },
-    ctx
-  );
+  const result = await matterTasksService.updateMatterTask({ matterId, taskId, data: validatedBody }, ctx);
 
   return sendResult(c, result);
 };
@@ -345,10 +336,7 @@ const deleteMatterTaskHandler: AppRouteHandler<typeof matterRoutes.deleteMatterT
   const ctx = getServiceContext(c);
   const { matter_id: matterId, task_id: taskId } = c.req.valid('param');
 
-  const result = await matterTasksService.deleteMatterTask(
-    { matterId, taskId },
-    ctx
-  );
+  const result = await matterTasksService.deleteMatterTask({ matterId, taskId }, ctx);
 
   if (!result.success) {
     return sendResult(c, result);

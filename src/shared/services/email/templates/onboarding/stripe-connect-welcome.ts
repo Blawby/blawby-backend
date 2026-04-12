@@ -14,8 +14,10 @@ import {
 } from '@/shared/services/email/templates/base.template';
 import { config } from '@/shared/config';
 
+const normalizedAppUrl = config.app.appUrl.replace(/\/+$/, '');
+
 const FRONTEND_URLS = {
-  DOCS: `${config.app.appUrl}/docs`,
+  DOCS: `${normalizedAppUrl}/docs`,
 };
 
 export const stripeConnectWelcome = (data: StripeConnectWelcomeData): string => {

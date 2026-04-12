@@ -365,12 +365,19 @@ const sampleStripeConnectStatusData: StripeConnectStatusData = {
 };
 
 const sampleIntakeSubmissionReceivedData: IntakeSubmissionReceivedData = {
+  recipientEmail: 'prospect@example.com',
+  recipientName: 'Jane Smith',
+  practiceName: 'Smith & Associates Law Firm',
+  submittedAt: 'Apr 6, 2026 at 6:24 PM',
+};
+
+const sampleIntakeNewNotificationData: IntakeNewNotificationData = {
   recipientEmail: 'lawyer@example.com',
   recipientName: 'Sarah Johnson',
   clientName: 'Jane Smith',
   clientEmail: 'prospect@example.com',
   amount: 50000, // $500.00 in cents
-  intakeUrl: generateFrontendUrls.practiceDashboard('paul-yahoo'),
+  intakeUrl: generateFrontendUrls.intakes('abc123'),
   practiceName: 'Smith & Associates Law Firm',
   // Enhanced decision-making fields
   urgency: 'time_sensitive',
@@ -388,7 +395,8 @@ const sampleIntakeSubmissionReceivedData: IntakeSubmissionReceivedData = {
   declineUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=decline',
   conflictCheckUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=conflict-check',
   // Full description for hyperlink
-  description: 'I was injured in a car accident on highway 101 when another driver ran a red light and hit my vehicle. I sustained neck and back injuries, my car was totaled, and I\'ve been unable to work for the past 3 weeks.',
+  description:
+    "I was injured in a car accident on highway 101 when another driver ran a red light and hit my vehicle. I sustained neck and back injuries, my car was totaled, and I've been unable to work for the past 3 weeks.",
 };
 
 const sampleIntakeAcceptedData: IntakeAcceptedData = {
@@ -544,7 +552,7 @@ http.get('/email-templates', (c) => {
   <!-- CLIENT-FACING EMAILS -->
   <div class="audience-section">
     <div class="audience-header" onclick="toggleSection('client-section')">
-      <span>👤 Client-Facing Emails (9 templates)</span>
+      <span>👤 Client-Facing Emails (11 templates)</span>
       <span class="toggle">▼</span>
     </div>
     <div id="client-section">
@@ -620,15 +628,6 @@ http.get('/email-templates', (c) => {
         </div>
 
         <div class="template-card">
-          <div class="template-header">📋 New invoice from Smith & Associates</div>
-          <div class="template-content">
-            <div class="mobile-frame">
-              <iframe src="/api/dev/email-templates/payment-request"></iframe>
-            </div>
-          </div>
-        </div>
-
-        <div class="template-card">
           <div class="template-header">🧾 Your receipt from Smith & Associates</div>
           <div class="template-content">
             <div class="mobile-frame">
@@ -670,7 +669,7 @@ http.get('/email-templates', (c) => {
   <!-- PRACTICE-FACING EMAILS -->
   <div class="audience-section">
     <div class="audience-header" onclick="toggleSection('practice-section')">
-      <span>⚖️ Practice-Facing Emails (10 templates)</span>
+      <span>⚖️ Practice-Facing Emails (9 templates)</span>
       <span class="toggle">▼</span>
     </div>
     <div id="practice-section">
@@ -771,7 +770,7 @@ http.get('/email-templates', (c) => {
     function toggleSection(sectionId) {
       const section = document.getElementById(sectionId);
       const header = section.previousElementSibling;
-      
+
       if (section.classList.contains('hidden')) {
         section.classList.remove('hidden');
         header.classList.remove('collapsed');

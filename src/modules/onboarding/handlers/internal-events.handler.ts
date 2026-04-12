@@ -45,8 +45,10 @@ const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void>
     const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : 'there';
 
     if (email) {
-      const payoutsUrl = org?.slug ? `${APP_URL}/practice/${org.slug}/settings/payouts` : `${APP_URL}/dashboard/settings/billing`;
-      
+      const payoutsUrl = org?.slug
+        ? `${APP_URL}/practice/${org.slug}/settings/payouts`
+        : `${APP_URL}/dashboard/settings/billing`;
+
       void queueManager
         .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {
           recipientEmail: email,
