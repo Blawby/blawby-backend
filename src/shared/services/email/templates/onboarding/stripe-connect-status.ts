@@ -7,7 +7,6 @@ import {
   baseLayout,
   cardSection,
   renderMjml,
-  escapeHtml,
   sanitizeUrl,
   COLORS,
   BLAWBY_LOGO_URL,

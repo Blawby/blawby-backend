@@ -67,7 +67,7 @@ const generateFrontendUrls = {
   practiceDashboard: (slug: string) => `${config.app.appUrl}/practice/${slug}`,
   practicePayoutsSettings: (slug: string) => `${config.app.appUrl}/practice/${slug}/settings/payouts`,
   invoices: (id: string) => `${config.app.appUrl}/invoices/${id}`,
-  intakes: (id: string) => `${config.app.appUrl}/intakes/${id}`,
+  intakes: (id: string) => `${config.app.appUrl}/dashboard/intakes/${id}`,
   pay: (id: string) => `${config.app.appUrl}/pay/${id}`,
 };
 
@@ -391,9 +391,9 @@ const sampleIntakeNewNotificationData: IntakeNewNotificationData = {
   submittedAt: 'Apr 6, 2026 at 6:24 PM',
   intakeId: 'abc123',
   // Action URLs
-  acceptUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=accept',
-  declineUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=decline',
-  conflictCheckUrl: generateFrontendUrls.practiceDashboard('paul-yahoo') + '?action=conflict-check',
+  acceptUrl: generateFrontendUrls.intakes('abc123') + '?action=accept',
+  declineUrl: generateFrontendUrls.intakes('abc123') + '?action=decline',
+  conflictCheckUrl: generateFrontendUrls.intakes('abc123') + '?action=conflict-check',
   // Full description for hyperlink
   description:
     "I was injured in a car accident on highway 101 when another driver ran a red light and hit my vehicle. I sustained neck and back injuries, my car was totaled, and I've been unable to work for the past 3 weeks.",

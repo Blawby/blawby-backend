@@ -32,7 +32,9 @@ export const intakeNewNotification = (data: IntakeNewNotificationData): string =
 
   // Format case strength
   const caseStrengthDisplay =
-    data.caseStrength !== null && data.caseStrength !== undefined ? `${Math.round(data.caseStrength * 100)}%` : 'Not assessed';
+    data.caseStrength !== null && data.caseStrength !== undefined
+      ? `${Math.round(data.caseStrength * 100)}%`
+      : 'Not assessed';
 
   const mjmlContent = baseLayout(
     `

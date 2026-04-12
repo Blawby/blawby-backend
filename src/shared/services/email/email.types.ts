@@ -177,9 +177,7 @@ export interface IntakeSubmissionReceivedData extends BaseEmailData {
 }
 
 // Intake new notification data (practice-facing)
-export interface IntakeNewNotificationData {
-  recipientEmail: string;
-  recipientName: string;
+export interface IntakeNewNotificationData extends BaseEmailData {
   clientName: string;
   clientEmail: string;
   amount: number;
