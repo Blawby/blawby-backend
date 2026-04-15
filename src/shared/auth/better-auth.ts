@@ -118,10 +118,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         },
         clientPrivileges: async (params) =>
           await checkClientIsOwner(params, db),
-      /**
-       * Checks if the current client is an owner by fetching the active member via Better Auth.
-       * Extracted to break circular type inference in config.
-       */
+      // ---
+      // Top-level helper to break circular type inference in betterAuthConfig
       export async function checkClientIsOwner(
         { headers, session }: { headers: Record<string, string | string[] | undefined>; session: { activeOrganizationId?: string | null } | null },
         db: NodePgDatabase<typeof schema>,
