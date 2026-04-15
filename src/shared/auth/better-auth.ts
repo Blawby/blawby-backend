@@ -116,13 +116,21 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         clientReference: ({ session }) => {
           return (session?.activeOrganizationId as string | undefined) ?? undefined;
         },
-        clientPrivileges: async ({ headers, session }) => {
-          if (!session?.activeOrganizationId) return false;
-          // Use the correct Better Auth instance for this request
-          const authInstance = createBetterAuthInstance(db);
-          const { data: member } = await authInstance.api.getActiveMember({ headers });
-          return member?.role === 'owner';
-        },
+        clientPrivileges: async (params) =>
+          await checkClientIsOwner(params, db),
+      /**
+       * Checks if the current client is an owner by fetching the active member via Better Auth.
+       * Extracted to break circular type inference in config.
+       */
+      export async function checkClientIsOwner(
+        { headers, session }: { headers: Record<string, string | string[] | undefined>; session: { activeOrganizationId?: string | null } | null },
+        db: NodePgDatabase<typeof schema>,
+      ): Promise<boolean> {
+        if (!session?.activeOrganizationId) return false;
+        const authInstance = createBetterAuthInstance(db);
+        const { data: member } = await authInstance.api.getActiveMember({ headers });
+        return member?.role === 'owner';
+      }
       }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
