@@ -7,6 +7,7 @@ import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { oauthProviderOpenIdConfigMetadata, oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
@@ -49,7 +50,32 @@ app.use('/api/auth/*', sanitizeAuthResponse()); // Then sanitize (remove token f
 app.use('/api/auth/*', autoCreateOrgForSubscription()); // Auto-create org for subscriptions
 
 // Mount Better Auth handler
+
+// Mount Better Auth handler for /api/auth/*
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
+  const host = c.req.header('host');
+  const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
+  const authInstance = createBetterAuthInstance(db, redirectUri);
+  return authInstance.handler(c.req.raw);
+});
+
+// Mount well-known endpoints for OAuth/OIDC
+app.get('/api/auth/.well-known/openid-configuration', (c) => {
+  const host = c.req.header('host');
+  const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
+  const authInstance = createBetterAuthInstance(db, redirectUri);
+  return oauthProviderOpenIdConfigMetadata(authInstance)(c.req.raw);
+});
+
+app.get('/.well-known/oauth-authorization-server', (c) => {
+  const host = c.req.header('host');
+  const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
+  const authInstance = createBetterAuthInstance(db, redirectUri);
+  return oauthProviderAuthServerMetadata(authInstance)(c.req.raw);
+});
+
+// Mount /oauth2/* endpoints
+app.on(['POST', 'GET'], '/oauth2/*', (c) => {
   const host = c.req.header('host');
   const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
   const authInstance = createBetterAuthInstance(db, redirectUri);

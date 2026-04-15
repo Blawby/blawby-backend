@@ -2,6 +2,8 @@ import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
+import { jwt } from 'better-auth/plugins';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for drizzle adapter
@@ -106,6 +108,20 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         },
       }),
       createStripePlugin(db),
+      jwt(),
+      oauthProvider({
+        loginPage: '/login',
+        consentPage: '/oauth/consent',
+        allowDynamicClientRegistration: false,
+        clientReference: ({ session }) => {
+          return (session?.activeOrganizationId as string | undefined) ?? undefined;
+        },
+        clientPrivileges: async ({ action, headers, user, session }) => {
+          if (!session?.activeOrganizationId) return false;
+          const { data: member } = await auth.api.getActiveMember({ headers });
+          return member?.role === 'owner';
+        },
+      }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
           await db
