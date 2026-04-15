@@ -37,7 +37,7 @@ export const oauthClients = pgTable('oauth_clients', {
 
 export const oauthAccessTokens = pgTable('oauth_access_tokens', {
   id: uuid('id').primaryKey().notNull(),
-  token: text('token').notNull(),
+  token: text('token').notNull().unique(),
   clientId: text('client_id').notNull(),
   sessionId: uuid('session_id'), // .references(() => sessions.id),
   refreshId: text('refresh_id'),
@@ -50,7 +50,7 @@ export const oauthAccessTokens = pgTable('oauth_access_tokens', {
 
 export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
   id: uuid('id').primaryKey().notNull(),
-  token: text('token').notNull(),
+  token: text('token').notNull().unique(),
   clientId: text('client_id').notNull(),
   sessionId: uuid('session_id'), // .references(() => sessions.id),
   userId: uuid('user_id').notNull(), // .references(() => users.id),

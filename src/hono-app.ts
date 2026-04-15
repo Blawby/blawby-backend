@@ -51,13 +51,6 @@ app.use('/api/auth/*', autoCreateOrgForSubscription()); // Auto-create org for s
 
 // Mount Better Auth handler
 
-// Mount Better Auth handler for /api/auth/*
-app.on(['POST', 'GET'], '/api/auth/*', (c) => {
-  const host = c.req.header('host');
-  const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
-  const authInstance = createBetterAuthInstance(db, redirectUri);
-  return authInstance.handler(c.req.raw);
-});
 
 // Mount well-known endpoints for OAuth/OIDC
 app.get('/api/auth/.well-known/openid-configuration', (c) => {
@@ -65,6 +58,14 @@ app.get('/api/auth/.well-known/openid-configuration', (c) => {
   const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
   const authInstance = createBetterAuthInstance(db, redirectUri);
   return oauthProviderOpenIdConfigMetadata(authInstance)(c.req.raw);
+});
+
+// Mount Better Auth handler for /api/auth/*
+app.on(['POST', 'GET'], '/api/auth/*', (c) => {
+  const host = c.req.header('host');
+  const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
+  const authInstance = createBetterAuthInstance(db, redirectUri);
+  return authInstance.handler(c.req.raw);
 });
 
 app.get('/.well-known/oauth-authorization-server', (c) => {

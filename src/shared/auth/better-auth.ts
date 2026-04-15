@@ -116,9 +116,11 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         clientReference: ({ session }) => {
           return (session?.activeOrganizationId as string | undefined) ?? undefined;
         },
-        clientPrivileges: async ({ action, headers, user, session }) => {
+        clientPrivileges: async ({ headers, session }) => {
           if (!session?.activeOrganizationId) return false;
-          const { data: member } = await auth.api.getActiveMember({ headers });
+          // Use the correct Better Auth instance for this request
+          const authInstance = createBetterAuthInstance(db);
+          const { data: member } = await authInstance.api.getActiveMember({ headers });
           return member?.role === 'owner';
         },
       }),
