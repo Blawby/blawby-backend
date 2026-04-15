@@ -1,2 +1,0 @@
-ALTER TABLE "practice_client_intakes" ADD COLUMN "stripe_checkout_session_id" text;--> statement-breakpoint
-ALTER TABLE "practice_client_intakes" ADD CONSTRAINT "practice_client_intakes_stripe_checkout_session_id_unique" UNIQUE("stripe_checkout_session_id");

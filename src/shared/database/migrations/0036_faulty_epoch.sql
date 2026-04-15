@@ -1,2 +1,0 @@
-ALTER TABLE "billing_transactions" ADD COLUMN "application_fee_amount" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
-ALTER TABLE "invoices" ADD COLUMN "application_fee_amount" integer DEFAULT 0 NOT NULL;

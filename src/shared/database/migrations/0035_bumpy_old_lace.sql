@@ -1,1 +1,0 @@
-ALTER TABLE "practice_details" ADD COLUMN "supported_states" jsonb;

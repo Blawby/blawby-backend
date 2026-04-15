@@ -1,1 +1,0 @@
-ALTER TABLE "subscription_plans" ADD COLUMN "image" text;

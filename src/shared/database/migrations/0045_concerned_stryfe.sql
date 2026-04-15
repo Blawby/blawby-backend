@@ -1,3 +1,0 @@
-ALTER TABLE "practice_client_intakes" ADD COLUMN "practice_service_id" uuid;--> statement-breakpoint
-ALTER TABLE "practice_client_intakes" ADD CONSTRAINT "practice_client_intakes_practice_service_id_practice_services_id_fk" FOREIGN KEY ("practice_service_id") REFERENCES "public"."practice_services"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "practice_client_intakes_practice_service_idx" ON "practice_client_intakes" USING btree ("practice_service_id");
