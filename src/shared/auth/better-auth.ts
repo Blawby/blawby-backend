@@ -32,6 +32,18 @@ const authSessionAdditionalFields =
  * Internal factory to define the Better Auth configuration.
  * Used for type inference without executing betterAuth() at import time.
  */
+// ---
+// Top-level helper to break circular type inference in betterAuthConfig
+export async function checkClientIsOwner(
+  { headers, session }: { headers: Headers; session?: any },
+  db: NodePgDatabase<typeof schema>,
+): Promise<boolean> {
+  if (!session?.activeOrganizationId) return false;
+  const authInstance = createBetterAuthInstance(db);
+  const member = await authInstance.api.getActiveMember({ headers });
+  return member?.role === 'owner';
+}
+
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
   betterAuth({
     secret: config.auth.betterAuthSecret,
@@ -116,19 +128,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         clientReference: ({ session }) => {
           return (session?.activeOrganizationId as string | undefined) ?? undefined;
         },
-        clientPrivileges: async (params) =>
-          await checkClientIsOwner(params, db),
-      // ---
-      // Top-level helper to break circular type inference in betterAuthConfig
-      export async function checkClientIsOwner(
-        { headers, session }: { headers: Record<string, string | string[] | undefined>; session: { activeOrganizationId?: string | null } | null },
-        db: NodePgDatabase<typeof schema>,
-      ): Promise<boolean> {
-        if (!session?.activeOrganizationId) return false;
-        const authInstance = createBetterAuthInstance(db);
-        const { data: member } = await authInstance.api.getActiveMember({ headers });
-        return member?.role === 'owner';
-      }
+         clientPrivileges: async (params) =>
+           await checkClientIsOwner(params, db),
       }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
