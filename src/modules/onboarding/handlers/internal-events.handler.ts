@@ -49,14 +49,16 @@ const handleAccountRequirementsChanged = async (event: BaseEvent): Promise<void>
         ? `${APP_URL}/practice/${org.slug}/settings/payouts`
         : `${APP_URL}/dashboard/settings/billing`;
 
+      const dashboardUrl = org?.slug ? `${APP_URL}/practice/${org.slug}` : `${APP_URL}/dashboard`;
+
       void queueManager
         .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS, email, 'Action required: Verify your account information', {
           recipientEmail: email,
           recipientName: name,
-          dashboardUrl: payoutsUrl, // Use payouts URL as primary dashboard URL
+          dashboardUrl,
           tutorialUrl: `${APP_URL}/docs/verification`,
           supportUrl: 'https://blawby.com/help',
-          payoutsUrl, // Add practice-specific payouts URL
+          payoutsUrl,
         })
         .catch((error: unknown) => {
           logger.error('Failed to queue Connect status email for {organizationId}: {error}', {

@@ -21,15 +21,6 @@ export const intakeNewNotification = (data: IntakeNewNotificationData): string =
   const practiceName = escapeHtml(data.practiceName);
   const formattedAmount = data.amount > 0 ? formatCurrency(data.amount) : 'Free';
 
-  // Format urgency for display
-  const urgencyDisplay = data.urgency
-    ? data.urgency === 'emergency'
-      ? 'Emergency'
-      : data.urgency === 'time_sensitive'
-        ? 'High'
-        : 'Normal'
-    : 'Normal';
-
   // Format case strength
   const caseStrengthDisplay =
     data.caseStrength !== null && data.caseStrength !== undefined
@@ -93,8 +84,13 @@ export const intakeNewNotification = (data: IntakeNewNotificationData): string =
         }
 
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
-          <strong>Urgency:</strong> ${escapeHtml(urgencyDisplay)}<br />
-          <strong>Case strength:</strong> ${escapeHtml(caseStrengthDisplay)}
+          <strong>Case strength:</strong> ${escapeHtml(caseStrengthDisplay)}${
+            data.jurisdiction ? `<br /><strong>Jurisdiction:</strong> ${escapeHtml(data.jurisdiction)}` : ''
+          }${data.courtDate ? `<br /><strong>Court date:</strong> ${escapeHtml(data.courtDate)}` : ''}${
+            data.hasDocuments !== undefined
+              ? `<br /><strong>Documents attached:</strong> ${data.hasDocuments ? 'Yes' : 'No'}`
+              : ''
+          }${data.submittedAt ? `<br /><strong>Submitted:</strong> ${escapeHtml(data.submittedAt)}` : ''}
         </mj-text>
 
         ${

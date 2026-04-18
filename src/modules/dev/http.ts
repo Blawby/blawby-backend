@@ -380,7 +380,6 @@ const sampleIntakeNewNotificationData: IntakeNewNotificationData = {
   intakeUrl: generateFrontendUrls.intakes('abc123'),
   practiceName: 'Smith & Associates Law Firm',
   // Enhanced decision-making fields
-  urgency: 'time_sensitive',
   matterType: 'Personal Injury', // Clean practice service name
   jurisdiction: 'California',
   courtDate: 'May 15, 2026',
@@ -391,9 +390,8 @@ const sampleIntakeNewNotificationData: IntakeNewNotificationData = {
   submittedAt: 'Apr 6, 2026 at 6:24 PM',
   intakeId: 'abc123',
   // Action URLs
-  acceptUrl: generateFrontendUrls.intakes('abc123') + '?action=accept',
-  declineUrl: generateFrontendUrls.intakes('abc123') + '?action=decline',
-  conflictCheckUrl: generateFrontendUrls.intakes('abc123') + '?action=conflict-check',
+  acceptUrl: `${generateFrontendUrls.intakes('abc123')}?action=accept`,
+  declineUrl: `${generateFrontendUrls.intakes('abc123')}?action=decline`,
   // Full description for hyperlink
   description:
     "I was injured in a car accident on highway 101 when another driver ran a red light and hit my vehicle. I sustained neck and back injuries, my car was totaled, and I've been unable to work for the past 3 weeks.",

@@ -87,7 +87,7 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
         .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
           recipientEmail: email,
           recipientName: name,
-          dashboardUrl: `${APP_URL}/dashboard`,
+          dashboardUrl: practiceDashboardUrl,
           tutorialUrl: `${APP_URL}/docs/payments`,
           supportUrl: 'https://blawby.com/help',
           practiceDashboardUrl,

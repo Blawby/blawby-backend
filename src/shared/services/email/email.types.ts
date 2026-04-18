@@ -185,7 +185,6 @@ export interface IntakeNewNotificationData extends BaseEmailData {
   practiceName: string;
 
   // Enhanced decision-making fields
-  urgency?: 'routine' | 'time_sensitive' | 'emergency';
   matterType?: string;
   jurisdiction?: string;
   courtDate?: string;
@@ -199,7 +198,6 @@ export interface IntakeNewNotificationData extends BaseEmailData {
   // Action URLs (in production these would be signed, expiring URLs)
   acceptUrl?: string;
   declineUrl?: string;
-  conflictCheckUrl?: string;
 
   // Full description for hyperlink
   description?: string;

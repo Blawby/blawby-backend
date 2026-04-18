@@ -29,10 +29,9 @@ const logger = getLogger(['practice-client-intakes', 'listeners']);
 /**
  * Send submission notification emails (prospect confirmation + practice notification)
  */
-const sendSubmissionEmails = async (payload: {
+const sendSubmissionEmails = (payload: {
   intake_id: string;
   organization_name: string;
-  organization_id?: string;
   organization_slug?: string;
   billing_email: string | null;
   client_email: string | null;
@@ -47,7 +46,7 @@ const sendSubmissionEmails = async (payload: {
   opposing_party?: string;
   description?: string;
   submitted_at?: string;
-}): Promise<void> => {
+}): void => {
   // Determine recipient for client-facing email (prefer client_email, fallback to billing_email)
   const clientRecipient = payload.client_email ?? payload.billing_email;
 
@@ -85,6 +84,8 @@ const sendSubmissionEmails = async (payload: {
           year: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
+          timeZone: 'UTC',
+          timeZoneName: 'short',
         })
       : 'Recently';
 
@@ -93,10 +94,11 @@ const sendSubmissionEmails = async (payload: {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
+          timeZone: 'UTC',
         })
       : undefined;
 
-    const baseUrl = config.app.frontendUrls[0] || config.app.appUrl;
+    const baseUrl = config.app.appUrl;
     const practiceIntakeUrl = payload.organization_slug
       ? `${baseUrl}/practice/${payload.organization_slug}/intakes/${payload.intake_id}`
       : `${baseUrl}/dashboard/intakes/${payload.intake_id}`;
@@ -125,7 +127,6 @@ const sendSubmissionEmails = async (payload: {
           intakeId: payload.intake_id,
           acceptUrl: `${practiceIntakeUrl}?action=accept`,
           declineUrl: `${practiceIntakeUrl}?action=decline`,
-          conflictCheckUrl: `${practiceIntakeUrl}?action=conflict-check`,
           description: payload.description,
         }
       )
@@ -163,7 +164,6 @@ export const registerPracticeClientIntakesListeners = (): void => {
     void sendSubmissionEmails({
       intake_id: payload.uuid,
       organization_name: payload.organization_name,
-      organization_id: payload.organization_id,
       organization_slug: payload.organization_slug,
       billing_email: payload.billing_email,
       client_email: payload.client_email ?? null,
@@ -190,7 +190,6 @@ export const registerPracticeClientIntakesListeners = (): void => {
     void sendSubmissionEmails({
       intake_id: payload.intake_id,
       organization_name: payload.organization_name,
-      organization_id: payload.organization_id,
       organization_slug: payload.organization_slug,
       billing_email: payload.billing_email,
       client_email: payload.client_email,
