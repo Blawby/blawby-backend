@@ -110,6 +110,7 @@ export const practiceClientIntakeMetadataSchema = z
     opposing_party: z.string().optional(),
     opposing_counsel: z.string().optional(),
     description: z.string().optional(),
+    practice_service_name: z.string().optional(),
     practice_service_uuid: z.uuid().optional(),
     address: addressSchema.optional(),
   })

@@ -101,11 +101,13 @@ export const handlePracticeClientIntakeSucceeded = async ({
       : undefined;
 
     let organizationName = 'Your Legal Team';
+    let organizationSlug: string | undefined;
     let billingEmail: string | null = null;
     try {
       const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
       if (organization) {
         organizationName = organization.name;
+        organizationSlug = organization.slug ?? undefined;
         billingEmail = organization.billingEmail ?? null;
       }
     } catch (orgError) {
@@ -133,6 +135,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
             event_id: eventId,
             organization_id: practiceClientIntake.organization_id,
             organization_name: organizationName,
+            organization_slug: organizationSlug,
             billing_email: billingEmail,
             stripe_payment_intent_id: paymentIntent.id,
             intake_payment_id: practiceClientIntake.id,
@@ -141,6 +144,15 @@ export const handlePracticeClientIntakeSucceeded = async ({
             currency: practiceClientIntake.currency,
             client_email: practiceClientIntake.metadata?.email,
             client_name: practiceClientIntake.metadata?.name,
+            practice_service_name: practiceClientIntake.metadata?.practice_service_name,
+            jurisdiction: practiceClientIntake.metadata?.address?.state,
+            court_date: practiceClientIntake.court_date?.toISOString(),
+            has_documents: practiceClientIntake.has_documents ?? undefined,
+            case_strength: practiceClientIntake.case_strength ?? undefined,
+            desired_outcome: practiceClientIntake.desired_outcome ?? undefined,
+            opposing_party: practiceClientIntake.metadata?.opposing_party,
+            description: practiceClientIntake.metadata?.description,
+            submitted_at: practiceClientIntake.created_at?.toISOString(),
             user_id: practiceClientIntake.metadata?.user_id,
             stripe_charge_id: stripeChargeId,
             succeeded_at: new Date().toISOString(),

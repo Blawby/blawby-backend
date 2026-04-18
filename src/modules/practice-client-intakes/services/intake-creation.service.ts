@@ -100,6 +100,7 @@ const insertIntakeRecordTx = async (
     resolvedAmount: number;
     organizationId: string;
     intakeId: string;
+    practiceServiceName?: string;
     connectedAccountId?: string;
     stripePaymentLinkId: string | null;
     shouldBypassPayment: boolean;
@@ -137,6 +138,7 @@ const insertIntakeRecordTx = async (
       on_behalf_of: params.request.on_behalf_of,
       opposing_party: params.request.opposing_party,
       description: params.request.description,
+      practice_service_name: params.practiceServiceName,
       practice_service_uuid: params.request.practice_service_uuid,
       address: params.request.address,
       ...(params.validatedUserId && { user_id: params.validatedUserId }),
@@ -176,6 +178,9 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     }
 
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
+    const selectedPracticeServiceName = request.practice_service_uuid
+      ? (practiceDetails?.services ?? []).find((service) => service.id === request.practice_service_uuid)?.name
+      : undefined;
     // Backend is the source of truth for amount in create-intake flows.
     // UI/worker can read intake settings for display, but the charged amount must
     // Always come from backend practice configuration.
@@ -231,6 +236,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
         resolvedAmount,
         organizationId: organization.id,
         intakeId,
+        practiceServiceName: selectedPracticeServiceName,
         connectedAccountId: connectedAccount?.id,
         stripePaymentLinkId: stripePaymentLink?.id ?? null,
         shouldBypassPayment,
@@ -262,11 +268,21 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
           intake_id: intake.id,
           organization_id: organization.id,
           organization_name: organization.name,
+          organization_slug: organization.slug ?? undefined,
           billing_email: organization.billingEmail ?? null,
           client_email: request.email,
           client_name: request.name,
           amount: resolvedAmount,
           currency: 'usd',
+          practice_service_name: selectedPracticeServiceName,
+          jurisdiction: request.address?.state,
+          court_date: request.court_date,
+          has_documents: request.has_documents,
+          case_strength: request.case_strength,
+          desired_outcome: request.desired_outcome,
+          opposing_party: request.opposing_party,
+          description: request.description,
+          submitted_at: new Date().toISOString(),
         },
         {
           actorId: 'organization',

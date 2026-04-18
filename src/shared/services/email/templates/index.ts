@@ -14,7 +14,6 @@ import {
   type StripeConnectWelcomeData,
   type StripeConnectStatusData,
   type PayoutSentData,
-  type ScheduledEventData,
   type MagicLinkData,
   type PasswordResetData,
   type EmailVerificationData,
@@ -46,9 +45,6 @@ import { payoutSent } from '@/shared/services/email/templates/onboarding/payout-
 import { stripeConnectStatus } from '@/shared/services/email/templates/onboarding/stripe-connect-status';
 import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
-
-// Event templates
-import { scheduledEventTemplate } from '@/shared/services/email/templates/scheduled-event';
 
 // Team templates
 import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
@@ -85,7 +81,6 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
   [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
-  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: ScheduledEventData;
   [EMAIL_TEMPLATES.MAGIC_LINK]: MagicLinkData;
   [EMAIL_TEMPLATES.PASSWORD_RESET]: PasswordResetData;
   [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: EmailVerificationData;
@@ -122,7 +117,6 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: stripeConnectWelcome,
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: stripeConnectStatus,
   [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent,
-  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate,
   [EMAIL_TEMPLATES.MAGIC_LINK]: magicLinkTemplate,
   [EMAIL_TEMPLATES.PASSWORD_RESET]: passwordResetTemplate,
   [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: emailVerificationTemplate,
@@ -162,7 +156,6 @@ export {
   stripeConnectWelcome,
   stripeConnectStatus,
   payoutSent,
-  scheduledEventTemplate,
   magicLinkTemplate,
   passwordResetTemplate,
   emailVerificationTemplate,

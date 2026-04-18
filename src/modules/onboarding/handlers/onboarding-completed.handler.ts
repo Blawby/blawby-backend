@@ -78,13 +78,20 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
     const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
 
     if (email) {
+      const practiceDashboardUrl = org.slug ? `${APP_URL}/practice/${org.slug}` : `${APP_URL}/dashboard`;
+      const payoutsUrl = org.slug
+        ? `${APP_URL}/practice/${org.slug}/settings/payouts`
+        : `${APP_URL}/dashboard/settings/billing`;
+
       void queueManager
         .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
           recipientEmail: email,
           recipientName: name,
-          dashboardUrl: `${APP_URL}/dashboard`,
+          dashboardUrl: practiceDashboardUrl,
           tutorialUrl: `${APP_URL}/docs/payments`,
           supportUrl: 'https://blawby.com/help',
+          practiceDashboardUrl,
+          payoutsUrl, // Add practice-specific payouts URL
         })
         .catch((error: unknown) => {
           logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {

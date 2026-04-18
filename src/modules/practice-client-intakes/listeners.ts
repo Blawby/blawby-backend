@@ -6,26 +6,25 @@
  */
 
 import { getLogger } from '@logtape/logtape';
+import { config } from '@/shared/config';
 import {
   IntakePaymentCreated,
   IntakePaymentSucceeded,
   IntakePaymentFailed,
   IntakePaymentCanceled,
-  IntakeSubmitted,
   IntakeTriaged,
+  IntakeSubmitted,
 } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { config } from '@/shared/config';
 import { logError } from '@/shared/utils/logging';
 import { createSystemContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'listeners']);
-const APP_URL = config.app.appUrl;
 
 /**
  * Send submission notification emails (prospect confirmation + practice notification)
@@ -33,10 +32,20 @@ const APP_URL = config.app.appUrl;
 const sendSubmissionEmails = (payload: {
   intake_id: string;
   organization_name: string;
+  organization_slug?: string;
   billing_email: string | null;
   client_email: string | null;
   client_name: string;
   amount: number;
+  practice_service_name?: string;
+  jurisdiction?: string;
+  court_date?: string;
+  has_documents?: boolean;
+  case_strength?: number;
+  desired_outcome?: string;
+  opposing_party?: string;
+  description?: string;
+  submitted_at?: string;
 }): void => {
   // Determine recipient for client-facing email (prefer client_email, fallback to billing_email)
   const clientRecipient = payload.client_email ?? payload.billing_email;
@@ -65,19 +74,64 @@ const sendSubmissionEmails = (payload: {
   // 2. Practice-facing: "You've received a new intake submission"
   const practiceRecipient = payload.billing_email;
   if (practiceRecipient) {
+    const practiceServiceName =
+      payload.practice_service_name ?? payload.description?.substring(0, 50) ?? 'General inquiry';
+
+    const submittedAtDate = payload.submitted_at ? new Date(payload.submitted_at) : null;
+    const submittedAt =
+      submittedAtDate && !isNaN(submittedAtDate.getTime())
+        ? submittedAtDate.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'UTC',
+            timeZoneName: 'short',
+          })
+        : 'Recently';
+
+    const courtDateObj = payload.court_date ? new Date(payload.court_date) : null;
+    const courtDate =
+      courtDateObj && !isNaN(courtDateObj.getTime())
+        ? courtDateObj.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'UTC',
+          })
+        : undefined;
+
+    const baseUrl = config.app.appUrl;
+    const practiceIntakeUrl = payload.organization_slug
+      ? `${baseUrl}/practice/${payload.organization_slug}/intakes/${payload.intake_id}`
+      : `${baseUrl}/dashboard/intakes/${payload.intake_id}`;
+
     void queueManager
       .addEmailJob(
         EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION,
         practiceRecipient,
-        `New intake submission from ${payload.client_name}`,
+        `New Intake for: ${practiceServiceName} — ${payload.client_name}`,
         {
           recipientEmail: practiceRecipient,
           recipientName: payload.organization_name,
           clientName: payload.client_name,
           clientEmail: payload.client_email ?? payload.billing_email ?? 'N/A',
           amount: payload.amount,
-          intakeUrl: `${APP_URL}/dashboard/intakes/${payload.intake_id}`,
+          intakeUrl: practiceIntakeUrl,
           practiceName: payload.organization_name,
+          matterType: practiceServiceName,
+          jurisdiction: payload.jurisdiction ?? 'Not specified',
+          courtDate,
+          hasDocuments: payload.has_documents ?? false,
+          caseStrength: payload.case_strength,
+          desiredOutcome: payload.desired_outcome,
+          opposingParty: payload.opposing_party,
+          submittedAt,
+          intakeId: payload.intake_id,
+          acceptUrl: `${practiceIntakeUrl}?action=accept`,
+          declineUrl: `${practiceIntakeUrl}?action=decline`,
+          description: payload.description,
         }
       )
       .catch((error: unknown) => {
@@ -114,10 +168,20 @@ export const registerPracticeClientIntakesListeners = (): void => {
     sendSubmissionEmails({
       intake_id: payload.uuid,
       organization_name: payload.organization_name,
+      organization_slug: payload.organization_slug,
       billing_email: payload.billing_email,
       client_email: payload.client_email ?? null,
       client_name: payload.client_name ?? 'Valued Client',
       amount: payload.amount,
+      practice_service_name: payload.practice_service_name,
+      jurisdiction: payload.jurisdiction,
+      court_date: payload.court_date,
+      has_documents: payload.has_documents,
+      case_strength: payload.case_strength,
+      desired_outcome: payload.desired_outcome,
+      opposing_party: payload.opposing_party,
+      description: payload.description,
+      submitted_at: payload.submitted_at,
     });
   });
 
@@ -130,10 +194,20 @@ export const registerPracticeClientIntakesListeners = (): void => {
     sendSubmissionEmails({
       intake_id: payload.intake_id,
       organization_name: payload.organization_name,
+      organization_slug: payload.organization_slug,
       billing_email: payload.billing_email,
       client_email: payload.client_email,
       client_name: payload.client_name,
       amount: payload.amount,
+      practice_service_name: payload.practice_service_name,
+      jurisdiction: payload.jurisdiction,
+      court_date: payload.court_date,
+      has_documents: payload.has_documents,
+      case_strength: payload.case_strength,
+      desired_outcome: payload.desired_outcome,
+      opposing_party: payload.opposing_party,
+      description: payload.description,
+      submitted_at: payload.submitted_at,
     });
   });
 
