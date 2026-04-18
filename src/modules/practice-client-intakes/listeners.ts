@@ -75,28 +75,32 @@ const sendSubmissionEmails = (payload: {
   const practiceRecipient = payload.billing_email;
   if (practiceRecipient) {
     const practiceServiceName =
-      payload.practice_service_name || payload.description?.substring(0, 50) || 'General inquiry';
+      payload.practice_service_name ?? payload.description?.substring(0, 50) ?? 'General inquiry';
 
-    const submittedAt = payload.submitted_at
-      ? new Date(payload.submitted_at).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'UTC',
-          timeZoneName: 'short',
-        })
-      : 'Recently';
+    const submittedAtDate = payload.submitted_at ? new Date(payload.submitted_at) : null;
+    const submittedAt =
+      submittedAtDate && !isNaN(submittedAtDate.getTime())
+        ? submittedAtDate.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'UTC',
+            timeZoneName: 'short',
+          })
+        : 'Recently';
 
-    const courtDate = payload.court_date
-      ? new Date(payload.court_date).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          timeZone: 'UTC',
-        })
-      : undefined;
+    const courtDateObj = payload.court_date ? new Date(payload.court_date) : null;
+    const courtDate =
+      courtDateObj && !isNaN(courtDateObj.getTime())
+        ? courtDateObj.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'UTC',
+          })
+        : undefined;
 
     const baseUrl = config.app.appUrl;
     const practiceIntakeUrl = payload.organization_slug
@@ -117,7 +121,7 @@ const sendSubmissionEmails = (payload: {
           intakeUrl: practiceIntakeUrl,
           practiceName: payload.organization_name,
           matterType: practiceServiceName,
-          jurisdiction: payload.jurisdiction || 'Not specified',
+          jurisdiction: payload.jurisdiction ?? 'Not specified',
           courtDate,
           hasDocuments: payload.has_documents ?? false,
           caseStrength: payload.case_strength,
@@ -161,7 +165,7 @@ export const registerPracticeClientIntakesListeners = (): void => {
       });
     }
 
-    void sendSubmissionEmails({
+    sendSubmissionEmails({
       intake_id: payload.uuid,
       organization_name: payload.organization_name,
       organization_slug: payload.organization_slug,
@@ -187,7 +191,7 @@ export const registerPracticeClientIntakesListeners = (): void => {
       intakeId: payload.intake_id,
     });
 
-    void sendSubmissionEmails({
+    sendSubmissionEmails({
       intake_id: payload.intake_id,
       organization_name: payload.organization_name,
       organization_slug: payload.organization_slug,
