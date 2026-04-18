@@ -160,7 +160,7 @@ export const registerPracticeClientIntakesListeners = (): void => {
       });
     }
 
-    await sendSubmissionEmails({
+    void sendSubmissionEmails({
       intake_id: payload.uuid,
       organization_name: payload.organization_name,
       organization_id: payload.organization_id,
@@ -187,7 +187,7 @@ export const registerPracticeClientIntakesListeners = (): void => {
       intakeId: payload.intake_id,
     });
 
-    await sendSubmissionEmails({
+    void sendSubmissionEmails({
       intake_id: payload.intake_id,
       organization_name: payload.organization_name,
       organization_id: payload.organization_id,
