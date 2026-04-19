@@ -134,7 +134,7 @@ const deleteFile = async (params: { bucket: string; key: string }): Promise<void
   await client.send(command);
 };
 
-export const cloudflareR2Service = {
+export const r2Service = {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
   verifyFileExists,

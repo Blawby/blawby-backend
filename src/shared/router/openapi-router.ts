@@ -4,6 +4,7 @@ import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
 import { CONFIG_REGISTRY } from './configs.generated';
 import { MODULE_REGISTRY } from './modules.generated';
+import { uploadsHttp } from '@/shared/uploads/http';
 import type { AppContext } from '@/shared/types/hono';
 
 /**
@@ -48,6 +49,11 @@ export const createOpenApiApp = (): OpenAPIHono<AppContext> => {
       const mountPath = calculateMountPath(module.name);
       openApiApp.route(mountPath, module.http);
     }
+  }
+
+  // Shared infrastructure routes that are mounted directly in hono-app.ts
+  if (uploadsHttp instanceof OpenAPIHono) {
+    openApiApp.route('/api/uploads', uploadsHttp);
   }
 
   return openApiApp;

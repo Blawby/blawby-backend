@@ -5,6 +5,7 @@ import { matterMilestonesService } from '@/modules/matters/services/matter-miles
 import { matterNotesService } from '@/modules/matters/services/matter-notes.service';
 import { matterTasksService } from '@/modules/matters/services/matter-tasks.service';
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
+import { matterFilesService } from '@/modules/matters/services/matter-files.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { AppRouteHandler } from '@/shared/types/hono';
@@ -353,6 +354,29 @@ const getMatterUnbilledHandler: AppRouteHandler<typeof matterRoutes.getMatterUnb
   return sendResult(c, result);
 };
 
+const linkMatterFileHandler: AppRouteHandler<typeof matterRoutes.linkMatterFileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId } = c.req.valid('param');
+  const { upload_id: uploadId } = c.req.valid('json');
+
+  const linked = await matterFilesService.linkUpload({ matterId, uploadId }, ctx);
+  return c.json(linked, 201);
+};
+
+const listMatterFilesHandler: AppRouteHandler<typeof matterRoutes.listMatterFilesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId } = c.req.valid('param');
+  const files = await matterFilesService.listMatterFiles({ matterId }, ctx);
+  return c.json(files, 200);
+};
+
+const unlinkMatterFileHandler: AppRouteHandler<typeof matterRoutes.unlinkMatterFileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId, upload_id: uploadId } = c.req.valid('param');
+  const result = await matterFilesService.unlinkUpload({ matterId, uploadId }, ctx);
+  return c.json(result, 200);
+};
+
 export const handlers = {
   listMattersHandler,
   getMatterHandler,
@@ -383,4 +407,7 @@ export const handlers = {
   updateMatterTaskHandler,
   deleteMatterTaskHandler,
   getMatterUnbilledHandler,
+  linkMatterFileHandler,
+  listMatterFilesHandler,
+  unlinkMatterFileHandler,
 };

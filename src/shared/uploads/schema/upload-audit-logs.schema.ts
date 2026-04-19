@@ -2,7 +2,7 @@ import { relations } from 'drizzle-orm';
 import { pgTable, uuid, varchar, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from '@/schema/better-auth-schema';
-import { uploads } from './uploads.schema';
+import { uploads } from '@/shared/uploads/schema/uploads.schema';
 
 export const uploadAuditLogs = pgTable(
   'upload_audit_logs',
@@ -14,18 +14,11 @@ export const uploadAuditLogs = pgTable(
     organization_id: uuid('organization_id').references(() => organizations.id, {
       onDelete: 'cascade',
     }),
-
-    // Action details
-    action: varchar('action', { length: 50 }).notNull(), // 'created', 'viewed', 'downloaded', 'deleted', 'restored'
-
-    // Actor info
+    action: varchar('action', { length: 50 }).notNull(),
     user_id: uuid('user_id').references(() => users.id),
     ip_address: varchar('ip_address', { length: 45 }),
     user_agent: text('user_agent'),
-
-    // Additional context
-    metadata: jsonb('metadata').$type<Record<string, unknown>>(), // Any additional action-specific data
-
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
@@ -37,7 +30,6 @@ export const uploadAuditLogs = pgTable(
   ]
 );
 
-// Define relations
 export const uploadAuditLogsRelations = relations(uploadAuditLogs, ({ one }) => ({
   upload: one(uploads, {
     fields: [uploadAuditLogs.upload_id],
