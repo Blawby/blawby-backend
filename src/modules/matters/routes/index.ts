@@ -32,6 +32,11 @@ import {
   deleteMatterTaskRoute,
 } from '@/modules/matters/routes/tasks.routes';
 import {
+  linkMatterFileRoute,
+  listMatterFilesRoute,
+  unlinkMatterFileRoute,
+} from '@/modules/matters/routes/matter-files.routes';
+import {
   listTimeEntriesRoute,
   createTimeEntryRoute,
   updateTimeEntryRoute,
@@ -71,4 +76,7 @@ export const routes = {
   updateMatterTaskRoute,
   deleteMatterTaskRoute,
   getMatterUnbilledRoute,
+  linkMatterFileRoute,
+  listMatterFilesRoute,
+  unlinkMatterFileRoute,
 };

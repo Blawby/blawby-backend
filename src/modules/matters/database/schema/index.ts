@@ -8,3 +8,4 @@ export * from './matter-milestones.schema';
 export * from './matter-tasks.schema';
 export * from './matter-activity-log.schema';
 export * from './matter-status-history.schema';
+export * from '@/modules/matters/database/schema/matter-files.schema';

@@ -13,6 +13,7 @@ import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/share
 import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
+import { uploadsHttp } from '@/shared/uploads/http';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { createOpenApiApp } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
@@ -58,6 +59,9 @@ app.on(['POST', 'GET'], '/api/auth/*', (c) => {
 
 // Register additional module routes
 await registerModuleRoutes(app);
+
+// Shared upload infrastructure endpoints
+app.route('/api/uploads', uploadsHttp);
 
 // Create OpenAPI app for documentation - collect routes from all OpenAPIHono modules
 const openApiApp = createOpenApiApp();
