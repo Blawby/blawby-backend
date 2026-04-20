@@ -26,7 +26,7 @@ export const uploads = pgTable(
 
     status: varchar('status', { length: 20 }).default('pending').notNull(),
 
-    is_privileged: boolean('is_privileged').default(true),
+    is_privileged: boolean('is_privileged').default(true).notNull(),
     retention_until: timestamp('retention_until', { withTimezone: true, mode: 'date' }),
 
     last_accessed_at: timestamp('last_accessed_at', { withTimezone: true, mode: 'date' }),

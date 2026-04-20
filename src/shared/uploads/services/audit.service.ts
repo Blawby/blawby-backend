@@ -26,6 +26,12 @@ export const auditService = {
       metadata: params.metadata ?? null,
     };
 
-    await auditLogsRepository.create(auditLog, db);
+    try {
+      await auditLogsRepository.create(auditLog, db);
+    } catch (err) {
+      // Audit failures must not break the primary flow
+      const { getLogger } = await import('@logtape/logtape');
+      getLogger(['uploads', 'audit-service']).error('Failed to write audit log: {err}', { err, ...params });
+    }
   },
 };

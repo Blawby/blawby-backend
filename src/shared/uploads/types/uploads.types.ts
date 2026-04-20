@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from '@hono/zod-openapi';
 import type { uploadValidations } from '@/shared/uploads/types/uploads.validation';
 
 export type UploadScopeType = z.infer<typeof uploadValidations.uploadScopeTypeSchema>;

@@ -1,11 +1,19 @@
+import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
 
 import { matterFilesQueries } from '@/modules/matters/database/queries/matter-files.queries';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
+import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
 
-const ensureMatterAccess = async (matterId: string, ctx: ServiceContext): Promise<void> => {
+const ensureMatterAccess = async (matterId: string, ctx: ServiceContext, action: 'create' | 'read'): Promise<void> => {
+  try {
+    ForbiddenError.from(ctx.ability).throwUnlessCan(action, 'Upload');
+  } catch {
+    throw new HTTPException(403, { message: 'Access denied' });
+  }
+
   const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
   if (accessResult.success) {
     return;
@@ -14,6 +22,20 @@ const ensureMatterAccess = async (matterId: string, ctx: ServiceContext): Promis
   const status = accessResult.error.status === 404 ? 404 : 403;
   throw new HTTPException(status, { message: accessResult.error.message });
 };
+
+const toUploadShape = (upload: SelectUpload) => ({
+  upload_id: upload.id,
+  file_name: upload.file_name,
+  file_size: upload.file_size,
+  file_type: upload.file_type,
+  mime_type: upload.mime_type,
+  status: upload.status,
+  storage_key: upload.storage_key,
+  public_url: upload.public_url,
+  scope_type: upload.scope_type,
+  scope_id: upload.scope_id,
+  created_at: upload.created_at,
+});
 
 const assertLinkableUpload = async (uploadId: string, ctx: ServiceContext) => {
   const upload = await uploadsRepository.findById(uploadId, ctx.db);
@@ -38,7 +60,7 @@ const assertLinkableUpload = async (uploadId: string, ctx: ServiceContext) => {
 
 export const matterFilesService = {
   async linkUpload({ matterId, uploadId }: { matterId: string; uploadId: string }, ctx: ServiceContext) {
-    await ensureMatterAccess(matterId, ctx);
+    await ensureMatterAccess(matterId, ctx, 'create');
     const upload = await assertLinkableUpload(uploadId, ctx);
 
     const created = await matterFilesQueries.createLink(
@@ -52,13 +74,16 @@ export const matterFilesService = {
 
     if (!created) {
       const existing = await matterFilesQueries.findLink(matterId, uploadId, ctx.db);
+      if (!existing) {
+        throw new HTTPException(409, { message: 'Link could not be created or found' });
+      }
       return {
-        id: existing?.id ?? crypto.randomUUID(),
+        id: existing.id,
         matter_id: matterId,
         upload_id: uploadId,
-        linked_at: existing?.linked_at ?? new Date(),
-        linked_by: existing?.linked_by ?? ctx.userId,
-        upload,
+        linked_at: existing.linked_at,
+        linked_by: existing.linked_by,
+        upload: toUploadShape(upload),
       };
     }
 
@@ -68,12 +93,12 @@ export const matterFilesService = {
       upload_id: uploadId,
       linked_at: created.linked_at,
       linked_by: created.linked_by,
-      upload,
+      upload: toUploadShape(upload),
     };
   },
 
   async listMatterFiles({ matterId }: { matterId: string }, ctx: ServiceContext) {
-    await ensureMatterAccess(matterId, ctx);
+    await ensureMatterAccess(matterId, ctx, 'read');
 
     const rows = await matterFilesQueries.listByMatter(matterId, ctx.db);
 
@@ -83,24 +108,12 @@ export const matterFilesService = {
       upload_id: row.upload.id,
       linked_by: row.linked_by,
       linked_at: row.linked_at,
-      upload: {
-        upload_id: row.upload.id,
-        file_name: row.upload.file_name,
-        file_size: row.upload.file_size,
-        file_type: row.upload.file_type,
-        mime_type: row.upload.mime_type,
-        status: row.upload.status,
-        storage_key: row.upload.storage_key,
-        public_url: row.upload.public_url,
-        scope_type: row.upload.scope_type,
-        scope_id: row.upload.scope_id,
-        created_at: row.upload.created_at,
-      },
+      upload: toUploadShape(row.upload),
     }));
   },
 
   async unlinkUpload({ matterId, uploadId }: { matterId: string; uploadId: string }, ctx: ServiceContext) {
-    await ensureMatterAccess(matterId, ctx);
+    await ensureMatterAccess(matterId, ctx, 'create');
 
     const deleted = await matterFilesQueries.deleteLink(matterId, uploadId, ctx.db);
     if (!deleted) {

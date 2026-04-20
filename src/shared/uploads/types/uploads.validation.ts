@@ -1,6 +1,6 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
-const uploadScopeTypeSchema = z.enum(['matter', 'intake', 'conversation']);
+const uploadScopeTypeSchema = z.enum(['matter', 'intake', 'conversation', 'profile']);
 const uploadStatusSchema = z.enum(['pending', 'verified', 'rejected']);
 const uploadAuditActionSchema = z.enum(['created', 'viewed', 'downloaded', 'deleted', 'restored', 'confirmed']);
 
@@ -33,7 +33,7 @@ const listUploadsQuerySchema = z.object({
 const presignUploadResponseSchema = z.object({
   upload_id: z.uuid(),
   presigned_url: z.url(),
-  method: z.enum(['PUT']),
+  method: z.enum(['PUT', 'POST']),
   storage_key: z.string(),
   expires_at: z.date(),
 });
@@ -51,7 +51,7 @@ const uploadDetailsResponseSchema = z.object({
   file_type: z.string(),
   file_size: z.number(),
   mime_type: z.string(),
-  storage_provider: z.literal('r2'),
+  storage_provider: z.enum(['r2', 'images']),
   storage_key: z.string(),
   public_url: z.string().nullable(),
   scope_type: uploadScopeTypeSchema.nullable(),

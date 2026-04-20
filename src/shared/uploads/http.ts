@@ -229,7 +229,7 @@ uploadsHttp.openapi(getDownloadUrlRoute, async (c) => {
   const result = await uploadCoreService.getDownloadUrl(
     {
       id,
-      ipAddress: c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip'),
+      ipAddress: (c.req.header('x-forwarded-for')?.split(',')[0]?.trim()) ?? c.req.header('cf-connecting-ip'),
       userAgent: c.req.header('user-agent'),
     },
     ctx

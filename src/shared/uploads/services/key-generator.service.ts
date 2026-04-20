@@ -1,12 +1,16 @@
 import { HTTPException } from 'hono/http-exception';
 import type { UploadScopeType } from '@/shared/uploads/types/uploads.types';
 
-const sanitizeFileName = (fileName: string): string =>
-  fileName
+const sanitizeFileName = (fileName: string, fallback = 'file'): string => {
+  const sanitized = fileName
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .replace(/\.\./g, '_')
     .replace(/^\./, '_')
-    .substring(0, 255);
+    .substring(0, 255)
+    .replace(/^[._-]+|[._-]+$/g, '');
+
+  return sanitized.length > 0 ? sanitized : fallback;
+};
 
 export const keyGeneratorService = {
   sanitizeFileName,
@@ -33,6 +37,7 @@ export const keyGeneratorService = {
         matter: 'matters',
         intake: 'intakes',
         conversation: 'conversations',
+        profile: 'profile',
       };
       const scopeFolder = scopeFolderByType[params.scopeType];
 

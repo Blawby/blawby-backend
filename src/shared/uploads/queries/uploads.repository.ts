@@ -19,7 +19,7 @@ export const uploadsRepository = {
 
   update: async (
     id: string,
-    data: Partial<SelectUpload>,
+    data: Partial<InsertUpload>,
     executor: DbExecutor = db
   ): Promise<SelectUpload | undefined> => {
     const [updated] = await executor.update(uploads).set(data).where(eq(uploads.id, id)).returning();
@@ -33,6 +33,7 @@ export const uploadsRepository = {
       scopeId?: string;
       status?: string;
       includeDeleted?: boolean;
+      userId?: string;
       limit?: number;
       offset?: number;
     } = {},
@@ -56,6 +57,10 @@ export const uploadsRepository = {
       conditions.push(isNull(uploads.deleted_at));
     }
 
+    if (options.userId) {
+      conditions.push(eq(uploads.user_id, options.userId));
+    }
+
     const limit = options.limit ?? 20;
     const offset = options.offset ?? 0;
 
@@ -75,6 +80,7 @@ export const uploadsRepository = {
       scopeId?: string;
       status?: string;
       includeDeleted?: boolean;
+      userId?: string;
     } = {},
     executor: DbExecutor = db
   ): Promise<number> => {
@@ -94,6 +100,10 @@ export const uploadsRepository = {
 
     if (!options.includeDeleted) {
       conditions.push(isNull(uploads.deleted_at));
+    }
+
+    if (options.userId) {
+      conditions.push(eq(uploads.user_id, options.userId));
     }
 
     const [result] = await executor
@@ -136,9 +146,10 @@ export const uploadsRepository = {
       .where(eq(uploads.id, id));
   },
 
-  findExpiredUnconfirmed: async (beforeDate: Date, executor: DbExecutor = db): Promise<SelectUpload[]> =>
+  findExpiredUnconfirmed: async (beforeDate: Date, limit = 500, executor: DbExecutor = db): Promise<SelectUpload[]> =>
     executor
       .select()
       .from(uploads)
-      .where(and(eq(uploads.status, 'pending'), isNotNull(uploads.expires_at), lte(uploads.expires_at, beforeDate))),
+      .where(and(eq(uploads.status, 'pending'), isNotNull(uploads.expires_at), lte(uploads.expires_at, beforeDate)))
+      .limit(limit),
 };

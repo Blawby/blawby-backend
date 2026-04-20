@@ -7,6 +7,7 @@ import { auditLogsRepository } from '@/shared/uploads/queries/audit-logs.reposit
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import { auditService } from '@/shared/uploads/services/audit.service';
 import { keyGeneratorService } from '@/shared/uploads/services/key-generator.service';
+import { cloudflareImagesService } from '@/shared/uploads/services/cloudflare-images.service';
 import { r2Service } from '@/shared/uploads/services/r2.service';
 import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
 import type {
@@ -67,6 +68,16 @@ const getBucketOrThrow = (): string => {
   return bucket;
 };
 
+const getImagesConfigOrThrow = (): { accountId: string; accountHash: string; apiToken: string } => {
+  const accountId = config.cloudflare.accountId;
+  const accountHash = config.cloudflare.imagesAccountHash;
+  const apiToken = config.cloudflare.imagesApiToken;
+  if (!accountId || !accountHash || !apiToken) {
+    throw new HTTPException(500, { message: 'Image storage configuration error' });
+  }
+  return { accountId, accountHash, apiToken };
+};
+
 const buildPublicUrl = (storageKey: string): string | null => {
   const publicUrlBase = config.cloudflare.r2PublicUrl;
   if (!publicUrlBase) {
@@ -81,7 +92,7 @@ const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
   file_type: upload.file_type,
   file_size: upload.file_size,
   mime_type: upload.mime_type,
-  storage_provider: 'r2',
+  storage_provider: upload.storage_provider as 'r2' | 'images',
   storage_key: upload.storage_key,
   public_url: upload.public_url,
   scope_type: (upload.scope_type as UploadDetails['scope_type']) ?? null,
@@ -109,9 +120,12 @@ const toAuditLogEntry = (log: Awaited<ReturnType<typeof auditLogsRepository.find
   created_at: log.created_at,
 });
 
-const getUploadOrThrow = async (uploadId: string, ctx: ServiceContext): Promise<SelectUpload> => {
+const getUploadOrThrow = async (uploadId: string, ctx: ServiceContext, includeDeleted = false): Promise<SelectUpload> => {
   const upload = await uploadsRepository.findById(uploadId, ctx.db);
   if (!upload) {
+    throw new HTTPException(404, { message: 'Upload not found' });
+  }
+  if (!includeDeleted && upload.deleted_at) {
     throw new HTTPException(404, { message: 'Upload not found' });
   }
   return upload;
@@ -124,24 +138,44 @@ export const uploadCoreService = {
     assertCan(ctx, 'create');
 
     const uploadId = crypto.randomUUID();
-    const storageKey = keyGeneratorService.generateStorageKey({
-      organizationId: ctx.organizationId,
-      scopeType: request.scope_type,
-      scopeId: request.scope_id,
-      uploadId,
-      fileName: request.file_name,
-    });
+    const isProfileUpload = request.scope_type === 'profile';
 
-    const bucket = getBucketOrThrow();
-    const presignedUrl = await r2Service.generatePresignedUploadUrl({
-      bucket,
-      key: storageKey,
-      contentType: request.mime_type,
-      expiresIn: 15 * 60,
-    });
+    let presignedUrl: string;
+    let method: 'PUT' | 'POST';
+    let storageKey: string;
+    let storageProvider: 'r2' | 'images';
 
-    if (!presignedUrl) {
-      throw new HTTPException(500, { message: 'Failed to generate presigned upload URL' });
+    if (isProfileUpload) {
+      const { accountId, apiToken } = getImagesConfigOrThrow();
+      const target = await cloudflareImagesService.generateDirectUploadUrl({ accountId, apiToken });
+      if (!target) {
+        throw new HTTPException(500, { message: 'Failed to generate image upload URL' });
+      }
+      presignedUrl = target.uploadUrl;
+      storageKey = target.imageId;
+      method = 'POST';
+      storageProvider = 'images';
+    } else {
+      storageKey = keyGeneratorService.generateStorageKey({
+        organizationId: ctx.organizationId,
+        scopeType: request.scope_type,
+        scopeId: request.scope_id,
+        uploadId,
+        fileName: request.file_name,
+      });
+      const bucket = getBucketOrThrow();
+      const url = await r2Service.generatePresignedUploadUrl({
+        bucket,
+        key: storageKey,
+        contentType: request.mime_type,
+        expiresIn: 15 * 60,
+      });
+      if (!url) {
+        throw new HTTPException(500, { message: 'Failed to generate presigned upload URL' });
+      }
+      presignedUrl = url;
+      method = 'PUT';
+      storageProvider = 'r2';
     }
 
     const lastDotIndex = request.file_name.lastIndexOf('.');
@@ -159,7 +193,7 @@ export const uploadCoreService = {
         file_type: fileType,
         file_size: request.file_size,
         mime_type: request.mime_type,
-        storage_provider: 'r2',
+        storage_provider: storageProvider,
         storage_key: storageKey,
         scope_type: request.scope_type ?? null,
         scope_id: request.scope_id ?? null,
@@ -184,7 +218,7 @@ export const uploadCoreService = {
     return {
       upload_id: uploadId,
       presigned_url: presignedUrl,
-      method: 'PUT',
+      method,
       storage_key: storageKey,
       expires_at: new Date(Date.now() + 15 * 60 * 1000),
     };
@@ -200,16 +234,21 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: `Upload already ${upload.status}` });
     }
 
-    const exists = await r2Service.verifyFileExists({
-      bucket: getBucketOrThrow(),
-      key: upload.storage_key,
-    });
+    let publicUrl: string | null;
 
-    if (!exists) {
-      throw new HTTPException(400, { message: 'File not found in storage. Upload before confirming.' });
+    if (upload.storage_provider === 'images') {
+      const { accountHash } = getImagesConfigOrThrow();
+      publicUrl = cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key });
+    } else {
+      const exists = await r2Service.verifyFileExists({
+        bucket: getBucketOrThrow(),
+        key: upload.storage_key,
+      });
+      if (!exists) {
+        throw new HTTPException(400, { message: 'File not found in storage. Upload before confirming.' });
+      }
+      publicUrl = buildPublicUrl(upload.storage_key);
     }
-
-    const publicUrl = buildPublicUrl(upload.storage_key);
     await uploadsRepository.update(
       id,
       {
@@ -251,15 +290,26 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: 'Upload must be verified before download' });
     }
 
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    const downloadUrl = await r2Service.generatePresignedDownloadUrl({
-      bucket: getBucketOrThrow(),
-      key: upload.storage_key,
-      expiresIn: 15 * 60,
-    });
+    let downloadUrl: string;
+    let expiresAt: Date | null;
 
-    if (!downloadUrl) {
-      throw new HTTPException(500, { message: 'Failed to generate presigned download URL' });
+    if (upload.storage_provider === 'images') {
+      if (!upload.public_url) {
+        throw new HTTPException(400, { message: 'Download URL not available for this image' });
+      }
+      downloadUrl = upload.public_url;
+      expiresAt = null;
+    } else {
+      expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      const url = await r2Service.generatePresignedDownloadUrl({
+        bucket: getBucketOrThrow(),
+        key: upload.storage_key,
+        expiresIn: 15 * 60,
+      });
+      if (!url) {
+        throw new HTTPException(500, { message: 'Failed to generate presigned download URL' });
+      }
+      downloadUrl = url;
     }
 
     await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
@@ -312,6 +362,9 @@ export const uploadCoreService = {
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
 
+    // CLIENT users can only see their own uploads (per CASL ability conditions)
+    const userIdFilter = ctx.memberRole === 'client' ? ctx.userId : undefined;
+
     const [results, total] = await Promise.all([
       uploadsRepository.listByOrganization(
         ctx.organizationId,
@@ -320,6 +373,7 @@ export const uploadCoreService = {
           scopeId: query.scope_id,
           status: query.status,
           includeDeleted: query.include_deleted,
+          userId: userIdFilter,
           limit,
           offset,
         },
@@ -332,6 +386,7 @@ export const uploadCoreService = {
           scopeId: query.scope_id,
           status: query.status,
           includeDeleted: query.include_deleted,
+          userId: userIdFilter,
         },
         ctx.db
       ),
@@ -348,7 +403,7 @@ export const uploadCoreService = {
   async softDelete({ id, reason }: { id: string; reason: string }, ctx: ServiceContext): Promise<{ id: string; status: string }> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id, ctx, true);
     assertUploadAccess(upload, ctx, 'delete');
 
     if (upload.deleted_at) {
@@ -373,7 +428,7 @@ export const uploadCoreService = {
   async restoreUpload({ id }: { id: string }, ctx: ServiceContext): Promise<{ id: string; status: string }> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id, ctx, true);
     assertUploadAccess(upload, ctx, 'delete');
 
     if (!upload.deleted_at) {
@@ -394,14 +449,20 @@ export const uploadCoreService = {
     return { id, status: 'pending' };
   },
 
-  async getAuditLogs({ id }: { id: string }, ctx: ServiceContext): Promise<AuditLogResponse> {
+  async getAuditLogs(
+    { id, page = 1, limit = 50 }: { id: string; page?: number; limit?: number },
+    ctx: ServiceContext
+  ): Promise<AuditLogResponse> {
     requireAuth(ctx);
 
     const upload = await getUploadOrThrow(id, ctx);
     assertUploadAccess(upload, ctx, 'read');
 
+    const cappedLimit = Math.min(limit, 100);
+    const offset = (page - 1) * cappedLimit;
+
     const [logs, total] = await Promise.all([
-      auditLogsRepository.findByUploadId(id, 100, ctx.db),
+      auditLogsRepository.findByUploadId(id, cappedLimit, ctx.db, offset),
       auditLogsRepository.countByUploadId(id, ctx.db),
     ]);
 
