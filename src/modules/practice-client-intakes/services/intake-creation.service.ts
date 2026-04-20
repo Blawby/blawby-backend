@@ -141,6 +141,7 @@ const insertIntakeRecordTx = async (
       practice_service_name: params.practiceServiceName,
       practice_service_uuid: params.request.practice_service_uuid,
       address: params.request.address,
+      custom_fields: params.request.custom_fields,
       ...(params.validatedUserId && { user_id: params.validatedUserId }),
     },
     client_ip: params.request.clientIp,

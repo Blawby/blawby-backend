@@ -43,6 +43,7 @@ const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, is
         on_behalf_of: metadata.on_behalf_of ?? undefined,
         opposing_party: metadata.opposing_party ?? undefined,
         description: metadata.description ?? undefined,
+        custom_fields: metadata.custom_fields ?? undefined,
       }
     : { email: '', name: '' };
 
