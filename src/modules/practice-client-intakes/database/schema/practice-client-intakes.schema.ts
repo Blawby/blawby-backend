@@ -113,6 +113,7 @@ export const practiceClientIntakeMetadataSchema = z
     practice_service_name: z.string().optional(),
     practice_service_uuid: z.uuid().optional(),
     address: addressSchema.optional(),
+    custom_fields: z.record(z.string(), z.unknown()).optional(),
   })
   .openapi('PracticeClientIntakeMetadata');
 

@@ -37,6 +37,9 @@ const createPracticeClientIntakeSchema = z.object({
   income: z.number().int().optional(),
   household_size: z.number().int().optional(),
   case_strength: z.number().min(0).max(1).optional(),
+  custom_fields: z.record(z.string(), z.unknown()).optional().openapi({
+    description: 'Template-defined intake answers that do not map to first-class intake columns.',
+  }),
 });
 
 const updatePracticeClientIntakeSchema = z.object({
@@ -191,6 +194,7 @@ const practiceClientIntakeStatusResponseSchema = z.object({
           description: z.string().optional(),
           user_id: z.uuid().optional(),
           practice_service_uuid: z.uuid().optional(),
+          custom_fields: z.record(z.string(), z.unknown()).optional(),
           address: addressSchema.optional().openapi({
             example: {
               line1: '123 Client St',
@@ -306,6 +310,7 @@ const listIntakesResponseSchema = z.object({
             on_behalf_of: z.string().optional(),
             opposing_party: z.string().optional(),
             description: z.string().optional(),
+            custom_fields: z.record(z.string(), z.unknown()).optional(),
           }),
           succeeded_at: z.date().nullable(),
           created_at: z.date(),
