@@ -131,8 +131,23 @@ const getUploadOrThrow = async (uploadId: string, ctx: ServiceContext, includeDe
   return upload;
 };
 
+type PresignPreparation = {
+  uploadId: string;
+  storageKey: string;
+  storageProvider: 'r2' | 'images';
+  presignedUrl: string;
+  method: 'PUT' | 'POST';
+  fileType: string;
+};
+
+type ConfirmPreparation = {
+  upload: SelectUpload;
+  publicUrl: string | null;
+};
+
 export const uploadCoreService = {
-  async presignUpload({ request }: { request: PresignUploadRequest }, ctx: ServiceContext): Promise<PresignUploadResponse> {
+  // Step 1: auth + external call only — no DB, safe to run outside a transaction
+  async preparePresign({ request }: { request: PresignUploadRequest }, ctx: ServiceContext): Promise<PresignPreparation> {
     requireAuth(ctx);
     requireOrganizationContext(ctx);
     assertCan(ctx, 'create');
@@ -140,10 +155,11 @@ export const uploadCoreService = {
     const uploadId = crypto.randomUUID();
     const isProfileUpload = request.scope_type === 'profile';
 
-    let presignedUrl: string;
-    let method: 'PUT' | 'POST';
-    let storageKey: string;
-    let storageProvider: 'r2' | 'images';
+    const lastDotIndex = request.file_name.lastIndexOf('.');
+    const fileType =
+      lastDotIndex > 0 && lastDotIndex < request.file_name.length - 1
+        ? request.file_name.slice(lastDotIndex + 1)
+        : 'unknown';
 
     if (isProfileUpload) {
       const { accountId, apiToken } = getImagesConfigOrThrow();
@@ -151,50 +167,44 @@ export const uploadCoreService = {
       if (!target) {
         throw new HTTPException(500, { message: 'Failed to generate image upload URL' });
       }
-      presignedUrl = target.uploadUrl;
-      storageKey = target.imageId;
-      method = 'POST';
-      storageProvider = 'images';
-    } else {
-      storageKey = keyGeneratorService.generateStorageKey({
-        organizationId: ctx.organizationId,
-        scopeType: request.scope_type,
-        scopeId: request.scope_id,
-        uploadId,
-        fileName: request.file_name,
-      });
-      const bucket = getBucketOrThrow();
-      const url = await r2Service.generatePresignedUploadUrl({
-        bucket,
-        key: storageKey,
-        contentType: request.mime_type,
-        expiresIn: 15 * 60,
-      });
-      if (!url) {
-        throw new HTTPException(500, { message: 'Failed to generate presigned upload URL' });
-      }
-      presignedUrl = url;
-      method = 'PUT';
-      storageProvider = 'r2';
+      return { uploadId, storageKey: target.imageId, storageProvider: 'images', presignedUrl: target.uploadUrl, method: 'POST', fileType };
     }
 
-    const lastDotIndex = request.file_name.lastIndexOf('.');
-    const fileType =
-      lastDotIndex > 0 && lastDotIndex < request.file_name.length - 1
-        ? request.file_name.slice(lastDotIndex + 1)
-        : 'unknown';
+    const storageKey = keyGeneratorService.generateStorageKey({
+      organizationId: ctx.organizationId,
+      scopeType: request.scope_type,
+      scopeId: request.scope_id,
+      uploadId,
+      fileName: request.file_name,
+    });
+    const url = await r2Service.generatePresignedUploadUrl({
+      bucket: getBucketOrThrow(),
+      key: storageKey,
+      contentType: request.mime_type,
+      expiresIn: 15 * 60,
+    });
+    if (!url) {
+      throw new HTTPException(500, { message: 'Failed to generate presigned upload URL' });
+    }
+    return { uploadId, storageKey, storageProvider: 'r2', presignedUrl: url, method: 'PUT', fileType };
+  },
 
+  // Step 2: DB writes only — run inside a transaction
+  async persistPresign(
+    { prep, request }: { prep: PresignPreparation; request: PresignUploadRequest },
+    ctx: ServiceContext
+  ): Promise<PresignUploadResponse> {
     await uploadsRepository.create(
       {
-        id: uploadId,
+        id: prep.uploadId,
         user_id: ctx.userId,
         organization_id: ctx.organizationId,
         file_name: request.file_name,
-        file_type: fileType,
+        file_type: prep.fileType,
         file_size: request.file_size,
         mime_type: request.mime_type,
-        storage_provider: storageProvider,
-        storage_key: storageKey,
+        storage_provider: prep.storageProvider,
+        storage_key: prep.storageKey,
         scope_type: request.scope_type ?? null,
         scope_id: request.scope_id ?? null,
         status: 'pending',
@@ -206,25 +216,21 @@ export const uploadCoreService = {
     );
 
     await auditService.log(
-      {
-        upload_id: uploadId,
-        organization_id: ctx.organizationId,
-        action: 'created',
-        user_id: ctx.userId,
-      },
+      { upload_id: prep.uploadId, organization_id: ctx.organizationId, action: 'created', user_id: ctx.userId },
       ctx.db
     );
 
     return {
-      upload_id: uploadId,
-      presigned_url: presignedUrl,
-      method,
-      storage_key: storageKey,
+      upload_id: prep.uploadId,
+      presigned_url: prep.presignedUrl,
+      method: prep.method,
+      storage_key: prep.storageKey,
       expires_at: new Date(Date.now() + 15 * 60 * 1000),
     };
   },
 
-  async confirmUpload({ id }: { id: string }, ctx: ServiceContext): Promise<ConfirmUploadResponse> {
+  // Step 1: DB read + external verify — no mutations, safe to run outside a transaction
+  async prepareConfirm({ id }: { id: string }, ctx: ServiceContext): Promise<ConfirmPreparation> {
     requireAuth(ctx);
 
     const upload = await getUploadOrThrow(id, ctx);
@@ -234,47 +240,29 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: `Upload already ${upload.status}` });
     }
 
-    let publicUrl: string | null;
-
     if (upload.storage_provider === 'images') {
       const { accountHash } = getImagesConfigOrThrow();
-      publicUrl = cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key });
-    } else {
-      const exists = await r2Service.verifyFileExists({
-        bucket: getBucketOrThrow(),
-        key: upload.storage_key,
-      });
-      if (!exists) {
-        throw new HTTPException(400, { message: 'File not found in storage. Upload before confirming.' });
-      }
-      publicUrl = buildPublicUrl(upload.storage_key);
+      return { upload, publicUrl: cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key }) };
     }
-    await uploadsRepository.update(
-      id,
-      {
-        status: 'verified',
-        verified_at: new Date(),
-        public_url: publicUrl,
-      },
-      ctx.db
-    );
 
+    const exists = await r2Service.verifyFileExists({ bucket: getBucketOrThrow(), key: upload.storage_key });
+    if (!exists) {
+      throw new HTTPException(400, { message: 'File not found in storage. Upload before confirming.' });
+    }
+    return { upload, publicUrl: buildPublicUrl(upload.storage_key) };
+  },
+
+  // Step 2: DB writes only — run inside a transaction
+  async persistConfirm({ prep }: { prep: ConfirmPreparation }, ctx: ServiceContext): Promise<ConfirmUploadResponse> {
+    const { upload, publicUrl } = prep;
+
+    await uploadsRepository.update(upload.id, { status: 'verified', verified_at: new Date(), public_url: publicUrl }, ctx.db);
     await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'confirmed',
-        user_id: ctx.userId,
-      },
+      { upload_id: upload.id, organization_id: upload.organization_id ?? undefined, action: 'confirmed', user_id: ctx.userId },
       ctx.db
     );
 
-    return {
-      upload_id: id,
-      public_url: publicUrl,
-      storage_key: upload.storage_key,
-      status: 'verified',
-    };
+    return { upload_id: upload.id, public_url: publicUrl, storage_key: upload.storage_key, status: 'verified' };
   },
 
   async getDownloadUrl(
@@ -462,7 +450,7 @@ export const uploadCoreService = {
     const offset = (page - 1) * cappedLimit;
 
     const [logs, total] = await Promise.all([
-      auditLogsRepository.findByUploadId(id, cappedLimit, ctx.db, offset),
+      auditLogsRepository.findByUploadId(id, { limit: cappedLimit, offset, executor: ctx.db }),
       auditLogsRepository.countByUploadId(id, ctx.db),
     ]);
 

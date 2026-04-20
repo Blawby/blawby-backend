@@ -10,14 +10,16 @@ export const cloudflareImagesService = {
     accountId: string;
     apiToken: string;
   }): Promise<{ uploadUrl: string; imageId: string } | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
     try {
       const response = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v2/direct_upload`,
         {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-          },
+          headers: { Authorization: `Bearer ${apiToken}` },
+          signal: controller.signal,
         }
       );
 
@@ -40,6 +42,8 @@ export const cloudflareImagesService = {
     } catch (error) {
       logger.error('CF Images direct upload error: {error}', { error });
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   },
 

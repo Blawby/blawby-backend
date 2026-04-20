@@ -16,14 +16,19 @@ export const auditLogsRepository = {
     return log;
   },
 
-  findByUploadId: async (uploadId: string, limit = 100, executor: DbExecutor = db, offset = 0): Promise<SelectUploadAuditLog[]> =>
-    executor
+  findByUploadId: async (
+    uploadId: string,
+    options: { limit?: number; offset?: number; executor?: DbExecutor } = {}
+  ): Promise<SelectUploadAuditLog[]> => {
+    const { limit = 100, offset = 0, executor: exec = db } = options;
+    return exec
       .select()
       .from(uploadAuditLogs)
       .where(eq(uploadAuditLogs.upload_id, uploadId))
       .orderBy(desc(uploadAuditLogs.created_at))
       .limit(limit)
-      .offset(offset),
+      .offset(offset);
+  },
 
   countByUploadId: async (uploadId: string, executor: DbExecutor = db): Promise<number> => {
     const [result] = await executor

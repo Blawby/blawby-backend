@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from '@/schema/better-auth-schema';
@@ -46,6 +46,9 @@ export const uploads = pgTable(
     index('uploads_retention_idx').on(table.retention_until),
     index('uploads_status_idx').on(table.status),
     index('uploads_created_at_idx').on(table.created_at),
+    index('uploads_org_scope_active_idx')
+      .on(table.organization_id, table.scope_type, table.scope_id)
+      .where(sql`${table.deleted_at} IS NULL`),
   ]
 );
 

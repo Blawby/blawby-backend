@@ -203,7 +203,9 @@ uploadsHttp.openapi(presignUploadRoute, async (c) => {
   const ctx = getServiceContext(c);
   const { db, emit, ...baseCtx } = ctx;
 
-  const result = await db.transaction((tx) => uploadCoreService.presignUpload({ request }, createServiceContext(baseCtx, tx)));
+  // External call outside transaction (avoids holding a DB connection during Cloudflare API call)
+  const prep = await uploadCoreService.preparePresign({ request }, ctx);
+  const result = await db.transaction((tx) => uploadCoreService.persistPresign({ prep, request }, createServiceContext(baseCtx, tx)));
   return c.json(result, 201);
 });
 
@@ -212,7 +214,9 @@ uploadsHttp.openapi(confirmUploadRoute, async (c) => {
   const ctx = getServiceContext(c);
   const { db, emit, ...baseCtx } = ctx;
 
-  const result = await db.transaction((tx) => uploadCoreService.confirmUpload({ id }, createServiceContext(baseCtx, tx)));
+  // DB read + external verify outside transaction; only mutations run inside
+  const prep = await uploadCoreService.prepareConfirm({ id }, ctx);
+  const result = await db.transaction((tx) => uploadCoreService.persistConfirm({ prep }, createServiceContext(baseCtx, tx)));
   return c.json(result, 200);
 });
 
