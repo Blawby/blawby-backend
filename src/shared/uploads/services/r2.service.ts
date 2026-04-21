@@ -38,6 +38,8 @@ const initR2Client = (): S3Client | null => {
         accessKeyId,
         secretAccessKey,
       },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 
@@ -96,26 +98,41 @@ const generatePresignedDownloadUrl = async (params: {
   return await getSignedUrl(client, getCommand, { expiresIn });
 };
 
-/**
- * Verify file exists in R2
- */
-const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
+type FileMetadata = {
+  exists: true;
+  contentType: string | null;
+  contentLength: number | null;
+} | { exists: false };
+
+const getFileMetadata = async (params: { bucket: string; key: string }): Promise<FileMetadata> => {
   const client = getR2Client();
-  if (!client) {
-    return false;
-  }
+  if (!client) return { exists: false };
 
   try {
-    const command = new HeadObjectCommand({
-      Bucket: params.bucket,
-      Key: params.key,
-    });
+    const response = await client.send(new HeadObjectCommand({ Bucket: params.bucket, Key: params.key }));
+    return {
+      exists: true,
+      contentType: response.ContentType ?? null,
+      contentLength: response.ContentLength ?? null,
+    };
+  } catch (error) {
+    const statusCode =
+      typeof error === 'object' && error !== null && '$metadata' in error
+        ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode
+        : undefined;
+    const errorName = typeof error === 'object' && error !== null && 'name' in error ? error.name : undefined;
 
-    await client.send(command);
-    return true;
-  } catch {
-    return false;
+    if (statusCode === 404 || errorName === 'NotFound') {
+      return { exists: false };
+    }
+
+    throw error;
   }
+};
+
+const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
+  const result = await getFileMetadata(params);
+  return result.exists;
 };
 
 /**
@@ -137,6 +154,7 @@ const deleteFile = async (params: { bucket: string; key: string }): Promise<void
 export const r2Service = {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
+  getFileMetadata,
   verifyFileExists,
   deleteFile,
 };

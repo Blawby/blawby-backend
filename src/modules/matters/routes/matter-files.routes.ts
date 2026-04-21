@@ -11,7 +11,7 @@ const matterFileSchema = z.object({
   id: z.uuid(),
   matter_id: z.uuid(),
   upload_id: z.uuid(),
-  linked_by: z.uuid(),
+  linked_by: z.uuid().nullable(),
   linked_at: z.date(),
   upload: z.object({
     upload_id: z.uuid(),
