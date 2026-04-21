@@ -82,7 +82,7 @@ export const matterFilesService = {
     if (currentUpload.deleted_at) throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
     if (currentUpload.status === 'rejected')
       throw new HTTPException(400, { message: 'Upload was rejected and cannot be linked' });
-    if (currentUpload.status === 'expired')
+    if (currentUpload.status === 'pending' && currentUpload.expires_at !== null && currentUpload.expires_at <= new Date())
       throw new HTTPException(400, { message: 'Upload has expired and cannot be linked' });
 
     await uploadsRepository.update(uploadId, { scope_type: 'matter', scope_id: matterId }, ctx.db);

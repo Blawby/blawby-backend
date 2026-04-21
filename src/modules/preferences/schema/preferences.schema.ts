@@ -15,6 +15,7 @@ import type {
   SecurityPreferences,
   AccountPreferences,
   OnboardingPreferences,
+  OrganizationPreferences,
   ProductUsage,
 } from '@/modules/preferences/types/preferences.types';
 import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
@@ -41,7 +42,7 @@ export const preferences = pgTable(
 
     // Org-level context - nullable until org preferences are built
     organization_id: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
-    organization: jsonb('organization').$type<Record<string, unknown>>(),
+    organization: jsonb('organization').$type<OrganizationPreferences>(),
 
     // Old field (temporary - will be removed after data migration)
     product_usage: jsonb('product_usage').$type<ProductUsage[]>(),
@@ -66,7 +67,7 @@ export const preferencesRelations = relations(preferences, ({ one }) => ({
     fields: [preferences.user_id],
     references: [users.id],
   }),
-  organization: one(organizations, {
+  organizationRef: one(organizations, {
     fields: [preferences.organization_id],
     references: [organizations.id],
   }),

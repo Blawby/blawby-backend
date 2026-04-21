@@ -52,11 +52,10 @@ export const defineAbilityFor = (
 
   const orgRole = role ?? null;
 
-  // User-scoped preferences: any authenticated user can read/update their own row.
-  // Security is enforced at the DB layer via WHERE user_id = ctx.userId.
+  // User-scoped preferences: authenticated users can only read/update their own row.
   if (metadata.userId) {
-    can('read', 'UserPreferences');
-    can('update', 'UserPreferences');
+    canWithConditions('read', 'UserPreferences', { user_id: metadata.userId });
+    canWithConditions('update', 'UserPreferences', { user_id: metadata.userId });
   }
 
   // Global admin fallback
