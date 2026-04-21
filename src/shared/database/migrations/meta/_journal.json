@@ -344,6 +344,13 @@
       "when": 1776747361908,
       "tag": "0048_third_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1776788709277,
+      "tag": "0049_jittery_makkari",
+      "breakpoints": true
     }
   ]
 }

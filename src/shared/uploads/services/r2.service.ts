@@ -122,7 +122,7 @@ const getFileMetadata = async (params: { bucket: string; key: string }): Promise
         : undefined;
     const errorName = typeof error === 'object' && error !== null && 'name' in error ? error.name : undefined;
 
-    if (statusCode === 404 || errorName === 'NotFound') {
+    if (statusCode === 404 || errorName === 'NotFound' || errorName === 'NoSuchKey') {
       return { exists: false };
     }
 

@@ -74,6 +74,7 @@ export const matterFilesService = {
       await uploadCoreService.persistConfirm({ prep: prep.confirmPrep }, ctx);
     }
 
+    // Re-fetch after potential auto-confirm so status reflects the confirmed state
     const currentUpload = await uploadsRepository.findById(uploadId, ctx.db);
     if (!currentUpload) throw new HTTPException(404, { message: 'Upload not found' });
     if (currentUpload.organization_id !== ctx.organizationId)
@@ -81,6 +82,8 @@ export const matterFilesService = {
     if (currentUpload.deleted_at) throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
     if (currentUpload.status === 'rejected')
       throw new HTTPException(400, { message: 'Upload was rejected and cannot be linked' });
+    if (currentUpload.status === 'pending' && currentUpload.expires_at !== null && currentUpload.expires_at <= new Date())
+      throw new HTTPException(400, { message: 'Upload has expired and cannot be linked' });
 
     await uploadsRepository.update(uploadId, { scope_type: 'matter', scope_id: matterId }, ctx.db);
 

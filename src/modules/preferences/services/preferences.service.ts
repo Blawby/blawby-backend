@@ -57,7 +57,7 @@ const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefi
  */
 const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
   const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
@@ -81,7 +81,7 @@ const getPreferencesByCategory = async (
   ctx: ServiceContext
 ): Promise<Record<string, unknown>> => {
   // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
   if (category === 'profile') {
     return {};
@@ -125,15 +125,15 @@ const updatePreferencesByCategory = async (
     throw new HTTPException(400, { message: 'Profile fields should be updated via Better Auth updateUser endpoint' });
   }
 
-  // 1. Fetch current preferences for ownership verification
+  // 1. CASL Check — verify the user can update preferences before any DB access
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserPreferences');
+
+  // 2. Fetch current preferences for ownership verification
   const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   if (!current) {
     throw new HTTPException(404, { message: 'Preference not found' });
   }
-
-  // 2. CASL Check — verify the user can update preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'OrganizationPreferences');
 
   // Handle notifications category with special logic
   let dataToUpdate = data;
