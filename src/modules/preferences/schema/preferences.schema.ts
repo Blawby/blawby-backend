@@ -18,7 +18,7 @@ import type {
   ProductUsage,
 } from '@/modules/preferences/types/preferences.types';
 import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
-import { users } from '@/schema/better-auth-schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 // Zod schema for product usage validation
 const productUsageSchema = z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5);
@@ -39,6 +39,10 @@ export const preferences = pgTable(
     account: jsonb('account').$type<AccountPreferences>().default({}),
     onboarding: jsonb('onboarding').$type<OnboardingPreferences>().default({}),
 
+    // Org-level context - nullable until org preferences are built
+    organization_id: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
+    organization: jsonb('organization').$type<Record<string, unknown>>(),
+
     // Old field (temporary - will be removed after data migration)
     product_usage: jsonb('product_usage').$type<ProductUsage[]>(),
 
@@ -49,7 +53,11 @@ export const preferences = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index('preferences_user_idx').on(table.user_id), index('preferences_created_at_idx').on(table.created_at)]
+  (table) => [
+    index('preferences_user_idx').on(table.user_id),
+    index('preferences_created_at_idx').on(table.created_at),
+    index('preferences_organization_idx').on(table.organization_id),
+  ]
 );
 
 // Define relations
@@ -57,6 +65,10 @@ export const preferencesRelations = relations(preferences, ({ one }) => ({
   user: one(users, {
     fields: [preferences.user_id],
     references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [preferences.organization_id],
+    references: [organizations.id],
   }),
 }));
 

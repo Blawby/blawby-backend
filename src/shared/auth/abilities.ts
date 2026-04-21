@@ -12,6 +12,7 @@ export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
 export type SubjectName =
   | 'all'
   | 'OrganizationPreferences'
+  | 'UserPreferences'
   | 'UserDetails'
   | 'PracticeClientIntake'
   | 'Upload'
@@ -49,8 +50,14 @@ export const defineAbilityFor = (
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
   const canWithConditions = can as (action: Action, subject: SubjectName, conditions: Record<string, unknown>) => void;
 
-  // Cast role to OrgRole for simpler checks
   const orgRole = role ?? null;
+
+  // User-scoped preferences: any authenticated user can read/update their own row.
+  // Security is enforced at the DB layer via WHERE user_id = ctx.userId.
+  if (metadata.userId) {
+    can('read', 'UserPreferences');
+    can('update', 'UserPreferences');
+  }
 
   // Global admin fallback
   if (orgRole && (ADMIN_ROLES as readonly string[]).includes(orgRole)) {
@@ -62,7 +69,6 @@ export const defineAbilityFor = (
     can('read', 'Upload');
     cannot('update', 'Upload');
     cannot('delete', 'Upload');
-    can('update', 'OrganizationPreferences');
     can('update', 'Matter');
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');

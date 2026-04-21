@@ -57,7 +57,7 @@ const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefi
  */
 const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
   const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
@@ -81,7 +81,7 @@ const getPreferencesByCategory = async (
   ctx: ServiceContext
 ): Promise<Record<string, unknown>> => {
   // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
   if (category === 'profile') {
     return {};
@@ -133,7 +133,7 @@ const updatePreferencesByCategory = async (
   }
 
   // 2. CASL Check — verify the user can update preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserPreferences');
 
   // Handle notifications category with special logic
   let dataToUpdate = data;
