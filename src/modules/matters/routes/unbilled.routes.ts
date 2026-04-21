@@ -11,7 +11,6 @@ export const getMatterUnbilledRoute = routeBuilder.build({
   summary: 'Get unbilled time entries, expenses, and milestones for a matter',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
   },

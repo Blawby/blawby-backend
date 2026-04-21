@@ -264,8 +264,8 @@ export const uploadCoreService = {
         status: 'verified',
         verified_at: new Date(),
         public_url: publicUrl,
-        ...(actualMimeType && { mime_type: actualMimeType }),
-        ...(actualFileSize && { file_size: actualFileSize }),
+        ...(actualMimeType !== null && actualMimeType !== undefined && { mime_type: actualMimeType }),
+        ...(actualFileSize !== null && actualFileSize !== undefined && { file_size: actualFileSize }),
       },
       ctx.db
     );

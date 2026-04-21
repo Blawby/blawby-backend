@@ -11,7 +11,6 @@ export const getMatterActivityRoute = routeBuilder.build({
   summary: 'Get matter activity log',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     query: getActivityLogQuerySchema,

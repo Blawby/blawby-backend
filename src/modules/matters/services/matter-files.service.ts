@@ -74,9 +74,17 @@ export const matterFilesService = {
       await uploadCoreService.persistConfirm({ prep: prep.confirmPrep }, ctx);
     }
 
+    const currentUpload = await uploadsRepository.findById(uploadId, ctx.db);
+    if (!currentUpload) throw new HTTPException(404, { message: 'Upload not found' });
+    if (currentUpload.organization_id !== ctx.organizationId)
+      throw new HTTPException(403, { message: 'Upload does not belong to this organization' });
+    if (currentUpload.deleted_at) throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
+    if (currentUpload.status === 'rejected')
+      throw new HTTPException(400, { message: 'Upload was rejected and cannot be linked' });
+
     await uploadsRepository.update(uploadId, { scope_type: 'matter', scope_id: matterId }, ctx.db);
 
-    const upload = (await uploadsRepository.findById(uploadId, ctx.db)) ?? prep.upload;
+    const upload: SelectUpload = { ...currentUpload, scope_type: 'matter', scope_id: matterId };
 
     const created = await matterFilesQueries.createLink(
       { matter_id: matterId, upload_id: uploadId, linked_by: ctx.userId },

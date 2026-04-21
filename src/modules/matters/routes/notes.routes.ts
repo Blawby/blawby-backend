@@ -16,7 +16,6 @@ export const listMatterNotesRoute = routeBuilder.build({
   summary: 'List matter notes',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     query: listMatterNotesQuerySchema,
@@ -40,7 +39,6 @@ export const createMatterNoteRoute = routeBuilder.build({
   summary: 'Create a matter note',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     body: {
@@ -70,7 +68,6 @@ export const updateMatterNoteRoute = routeBuilder.build({
   summary: 'Update a matter note',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       matter_id: z.uuid(),
       note_id: z.uuid(),
     }),
@@ -101,7 +98,6 @@ export const deleteMatterNoteRoute = routeBuilder.build({
   summary: 'Delete a matter note',
   request: {
     params: z.object({
-      practice_id: z.uuid(),
       matter_id: z.uuid(),
       note_id: z.uuid(),
     }),

@@ -115,8 +115,18 @@ const getFileMetadata = async (params: { bucket: string; key: string }): Promise
       contentType: response.ContentType ?? null,
       contentLength: response.ContentLength ?? null,
     };
-  } catch {
-    return { exists: false };
+  } catch (error) {
+    const statusCode =
+      typeof error === 'object' && error !== null && '$metadata' in error
+        ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode
+        : undefined;
+    const errorName = typeof error === 'object' && error !== null && 'name' in error ? error.name : undefined;
+
+    if (statusCode === 404 || errorName === 'NotFound') {
+      return { exists: false };
+    }
+
+    throw error;
   }
 };
 
