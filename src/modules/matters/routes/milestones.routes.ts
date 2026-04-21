@@ -17,6 +17,7 @@ export const listMilestonesRoute = routeBuilder.build({
   summary: 'List milestones',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     query: listMatterMilestonesQuerySchema,
@@ -40,6 +41,7 @@ export const createMilestoneRoute = routeBuilder.build({
   summary: 'Create a milestone',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     body: {
@@ -69,6 +71,7 @@ export const updateMilestoneRoute = routeBuilder.build({
   summary: 'Update a milestone',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       milestone_id: z.uuid(),
     }),
@@ -99,6 +102,7 @@ export const deleteMilestoneRoute = routeBuilder.build({
   summary: 'Delete a milestone',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       milestone_id: z.uuid(),
     }),
@@ -124,6 +128,7 @@ export const reorderMilestonesRoute = routeBuilder.build({
   summary: 'Reorder milestones',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     body: {

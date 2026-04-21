@@ -16,6 +16,7 @@ export const listTimeEntriesRoute = routeBuilder.build({
   summary: 'List time entries',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     query: listMatterTimeEntriesQuerySchema,
@@ -39,6 +40,7 @@ export const createTimeEntryRoute = routeBuilder.build({
   summary: 'Create a time entry',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     body: {
@@ -68,6 +70,7 @@ export const updateTimeEntryRoute = routeBuilder.build({
   summary: 'Update a time entry',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       entry_id: z.uuid(),
     }),
@@ -98,6 +101,7 @@ export const deleteTimeEntryRoute = routeBuilder.build({
   summary: 'Delete a time entry',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       entry_id: z.uuid(),
     }),
@@ -123,6 +127,7 @@ export const getTimeEntryStatsRoute = routeBuilder.build({
   summary: 'Get time entry stats',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
   },

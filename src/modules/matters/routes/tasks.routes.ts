@@ -10,6 +10,7 @@ import { routeBuilder } from '@/shared/router/route-builder';
 const tags = ['Matters'];
 
 const matterIdParamSchema = z.object({
+  practice_id: z.uuid(),
   matter_id: z.uuid(),
 });
 

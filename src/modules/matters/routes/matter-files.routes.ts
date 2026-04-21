@@ -35,6 +35,7 @@ export const linkMatterFileRoute = routeBuilder.build({
   summary: 'Link confirmed upload to matter',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     body: {
@@ -64,6 +65,7 @@ export const listMatterFilesRoute = routeBuilder.build({
   summary: 'List files linked to a matter',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
   },
@@ -86,6 +88,7 @@ export const unlinkMatterFileRoute = routeBuilder.build({
   summary: 'Unlink upload from matter',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       upload_id: z.uuid(),
     }),

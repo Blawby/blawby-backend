@@ -38,6 +38,8 @@ const initR2Client = (): S3Client | null => {
         accessKeyId,
         secretAccessKey,
       },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 
@@ -96,26 +98,31 @@ const generatePresignedDownloadUrl = async (params: {
   return await getSignedUrl(client, getCommand, { expiresIn });
 };
 
-/**
- * Verify file exists in R2
- */
-const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
+type FileMetadata = {
+  exists: true;
+  contentType: string | null;
+  contentLength: number | null;
+} | { exists: false };
+
+const getFileMetadata = async (params: { bucket: string; key: string }): Promise<FileMetadata> => {
   const client = getR2Client();
-  if (!client) {
-    return false;
-  }
+  if (!client) return { exists: false };
 
   try {
-    const command = new HeadObjectCommand({
-      Bucket: params.bucket,
-      Key: params.key,
-    });
-
-    await client.send(command);
-    return true;
+    const response = await client.send(new HeadObjectCommand({ Bucket: params.bucket, Key: params.key }));
+    return {
+      exists: true,
+      contentType: response.ContentType ?? null,
+      contentLength: response.ContentLength ?? null,
+    };
   } catch {
-    return false;
+    return { exists: false };
   }
+};
+
+const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
+  const result = await getFileMetadata(params);
+  return result.exists;
 };
 
 /**
@@ -137,6 +144,7 @@ const deleteFile = async (params: { bucket: string; key: string }): Promise<void
 export const r2Service = {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
+  getFileMetadata,
   verifyFileExists,
   deleteFile,
 };

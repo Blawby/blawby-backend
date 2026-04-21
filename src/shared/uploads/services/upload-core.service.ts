@@ -143,6 +143,8 @@ type PresignPreparation = {
 type ConfirmPreparation = {
   upload: SelectUpload;
   publicUrl: string | null;
+  actualMimeType: string | null;
+  actualFileSize: number | null;
 };
 
 export const uploadCoreService = {
@@ -242,21 +244,31 @@ export const uploadCoreService = {
 
     if (upload.storage_provider === 'images') {
       const { accountHash } = getImagesConfigOrThrow();
-      return { upload, publicUrl: cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key }) };
+      return { upload, publicUrl: cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key }), actualMimeType: null, actualFileSize: null };
     }
 
-    const exists = await r2Service.verifyFileExists({ bucket: getBucketOrThrow(), key: upload.storage_key });
-    if (!exists) {
+    const metadata = await r2Service.getFileMetadata({ bucket: getBucketOrThrow(), key: upload.storage_key });
+    if (!metadata.exists) {
       throw new HTTPException(400, { message: 'File not found in storage. Upload before confirming.' });
     }
-    return { upload, publicUrl: buildPublicUrl(upload.storage_key) };
+    return { upload, publicUrl: buildPublicUrl(upload.storage_key), actualMimeType: metadata.contentType, actualFileSize: metadata.contentLength };
   },
 
   // Step 2: DB writes only — run inside a transaction
   async persistConfirm({ prep }: { prep: ConfirmPreparation }, ctx: ServiceContext): Promise<ConfirmUploadResponse> {
-    const { upload, publicUrl } = prep;
+    const { upload, publicUrl, actualMimeType, actualFileSize } = prep;
 
-    await uploadsRepository.update(upload.id, { status: 'verified', verified_at: new Date(), public_url: publicUrl }, ctx.db);
+    await uploadsRepository.update(
+      upload.id,
+      {
+        status: 'verified',
+        verified_at: new Date(),
+        public_url: publicUrl,
+        ...(actualMimeType && { mime_type: actualMimeType }),
+        ...(actualFileSize && { file_size: actualFileSize }),
+      },
+      ctx.db
+    );
     await auditService.log(
       { upload_id: upload.id, organization_id: upload.organization_id ?? undefined, action: 'confirmed', user_id: ctx.userId },
       ctx.db

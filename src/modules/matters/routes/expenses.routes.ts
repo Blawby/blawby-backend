@@ -16,6 +16,7 @@ export const listExpensesRoute = routeBuilder.build({
   summary: 'List expenses',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     query: listMatterExpensesQuerySchema,
@@ -39,6 +40,7 @@ export const createExpenseRoute = routeBuilder.build({
   summary: 'Create an expense',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
     }),
     body: {
@@ -68,6 +70,7 @@ export const updateExpenseRoute = routeBuilder.build({
   summary: 'Update an expense',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       expense_id: z.uuid(),
     }),
@@ -98,6 +101,7 @@ export const deleteExpenseRoute = routeBuilder.build({
   summary: 'Delete an expense',
   request: {
     params: z.object({
+      practice_id: z.uuid(),
       matter_id: z.uuid(),
       expense_id: z.uuid(),
     }),
