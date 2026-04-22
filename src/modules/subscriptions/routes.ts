@@ -10,7 +10,7 @@ const listPlansRoute = routeBuilder.build({
   path: '/plans',
   tags: ['Subscriptions'],
   summary: 'List subscription plans',
-  description: 'Get all available subscription plans (public endpoint)',
+  description: 'Get all available subscription plans. Requires authentication but no active organization.',
   responses: {
     200: {
       content: {
