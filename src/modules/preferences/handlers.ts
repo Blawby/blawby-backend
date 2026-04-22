@@ -73,7 +73,7 @@ const getCategoryPreferences = async (c: Context) => {
 const updateCategoryPreferences = async (c: Context) => {
   const ctx = getServiceContext(c);
   const categoryParam = c.req.param('category');
-  const validatedBody = c.get('validatedBody');
+  const validatedBody = (await c.req.json()) as unknown;
 
   // Validate category exists and is one of the allowed values
   if (!categoryParam || !isValidPreferenceCategory(categoryParam)) {
