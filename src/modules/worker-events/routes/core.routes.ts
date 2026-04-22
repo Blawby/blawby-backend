@@ -8,7 +8,7 @@ export const ingestRoute = routeBuilder.build({
   tags: ['Worker Events'],
   summary: 'Ingest a worker event',
   description:
-    'Authenticated internal endpoint for external workers to dispatch events into the backend event pipeline. Supports idempotent replay via event_id.',
+    'Internal endpoint for external workers to dispatch events into the backend event pipeline. No session auth — secured via x-worker-secret shared-secret header instead. Supports idempotent replay via event_id.',
   request: {
     headers: z.object({
       'x-worker-secret': z.string().openapi({
