@@ -83,9 +83,9 @@ export const updateCategoryPreferencesRoute = routeBuilder.build({
     body: {
       content: {
         'application/json': {
-          schema: preferenceValidations.notificationPreferencesSchema.openapi({
+          schema: z.record(z.string(), z.unknown()).openapi({
             description:
-              'Category-specific preferences data. Schema depends on the category parameter. Example shown is for notifications category. Supports partial updates - only include fields you want to change. Note: For notifications category, system_push and system_email are always set to true regardless of input.',
+              'Category-specific preferences data. Schema depends on the category parameter. Supports partial updates - only include fields you want to change. For notifications category, system_push and system_email are always set to true regardless of input.',
             example: {
               messages_push: true,
               messages_email: true,
