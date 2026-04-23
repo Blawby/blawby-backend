@@ -181,7 +181,7 @@ export const practiceQueriesService = {
       const slugResult = await organizationRepository.findBySlug(slug);
 
       if (!slugResult) {
-        throw new HTTPException(404, { message: `Organization with slug '${slug}' not found` });
+        throw new HTTPException(404, { message: 'Practice not found' });
       }
       const organization = slugResult;
 
@@ -192,7 +192,7 @@ export const practiceQueriesService = {
       ]);
 
       if (!fetchedDetails || !fetchedDetails.is_public) {
-        throw new HTTPException(404, { message: `Practice details not found for organization '${slug}'` });
+        throw new HTTPException(404, { message: 'Practice not found' });
       }
 
       // 3. Fetch address if linked
