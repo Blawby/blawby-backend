@@ -105,7 +105,16 @@ const onboardingService = {
       const account = await onboardingRepo.findByOrganizationId(organizationId);
 
       if (!account) {
-        return notFound(`Onboarding status not found for organization ${organizationId}`);
+        // Return default "not started" status instead of 404
+        // This is a valid business state, not an error
+        return ok({
+          practice_uuid: organizationId,
+          connected_account_id: null,
+          stripe_account_id: null,
+          charges_enabled: false,
+          payouts_enabled: false,
+          details_submitted: false,
+        });
       }
 
       return ok({

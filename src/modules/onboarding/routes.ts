@@ -23,14 +23,6 @@ export const getOnboardingStatusRoute = routeBuilder.build({
       },
       description: 'Onboarding status retrieved successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: onboardingValidations.notFoundResponseSchema,
-        },
-      },
-      description: 'Onboarding status not found',
-    },
     400: {
       content: {
         'application/json': {
