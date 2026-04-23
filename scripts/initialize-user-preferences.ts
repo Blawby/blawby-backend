@@ -162,6 +162,7 @@ const main = async (): Promise<void> => {
 
   // Close connection on successful completion
   await closeDbConnection();
+  process.exit(0);
 };
 
 main().catch(async (error) => {

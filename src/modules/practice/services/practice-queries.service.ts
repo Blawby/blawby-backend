@@ -120,8 +120,6 @@ export const practiceQueriesService = {
       ]);
 
       if (!fetchedDetails) {
-        // Return empty practice details instead of 404
-        // This is a valid business state, not an error
         return {
           id: null,
           user_id: null,
@@ -141,8 +139,8 @@ export const practiceQueriesService = {
           address: null,
           name: organization.name,
           logo: organization.logo ?? null,
-          payment_link_enabled: organization?.paymentLinkEnabled ?? false,
-          billing_increment_minutes: 15,
+          payment_link_enabled: organization.paymentLinkEnabled ?? false,
+          billing_increment_minutes: 1,
           created_at: null,
           updated_at: undefined,
           supported_states: null,
@@ -183,7 +181,7 @@ export const practiceQueriesService = {
       const slugResult = await organizationRepository.findBySlug(slug);
 
       if (!slugResult) {
-        throw new HTTPException(404, { message: `Organization with slug '${slug}' not found` });
+        throw new HTTPException(404, { message: 'Practice not found' });
       }
       const organization = slugResult;
 
@@ -193,40 +191,8 @@ export const practiceQueriesService = {
         practiceServicesRepository.findServicesByOrganization(organization.id),
       ]);
 
-      if (!fetchedDetails) {
-        // Return empty practice details instead of 404 for non-existent details
-        // This is a valid business state, not an error
-        return {
-          id: null,
-          user_id: null,
-          address_id: null,
-          business_phone: null,
-          business_email: null,
-          consultation_fee: null,
-          payment_url: null,
-          calendly_url: null,
-          website: null,
-          intro_message: null,
-          overview: null,
-          accent_color: null,
-          is_public: false,
-          organization_id: organization.id,
-          services: [],
-          address: null,
-          name: organization.name ?? '',
-          logo: organization.logo ?? null,
-          payment_link_enabled: organization.paymentLinkEnabled ?? false,
-          billing_increment_minutes: 15,
-          created_at: null,
-          updated_at: undefined,
-          supported_states: null,
-          service_states: null,
-        };
-      }
-      
-      if (!fetchedDetails.is_public) {
-        // Still return 404 for private practice details when accessed via public slug
-        throw new HTTPException(404, { message: `Practice details not found for organization '${slug}'` });
+      if (!fetchedDetails || !fetchedDetails.is_public) {
+        throw new HTTPException(404, { message: 'Practice not found' });
       }
 
       // 3. Fetch address if linked
