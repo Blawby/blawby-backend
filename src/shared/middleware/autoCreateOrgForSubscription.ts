@@ -125,6 +125,14 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
       return next(); // Failed - let Better Auth handle error
     }
 
+    // Activate the org on the current session so requireOrgMembership passes on the next request.
+    // The session.create.before hook only fires on new sessions, so a freshly-created org is never
+    // reflected in an existing session without this call.
+    await authInstance.api.setActiveOrganization({
+      body: { organizationId },
+      headers: c.req.raw.headers,
+    });
+
     // Check for existing active subscription to prevent duplicates
     // Only check if subscriptionId is not provided (new subscription)
     if (!body.subscriptionId) {
