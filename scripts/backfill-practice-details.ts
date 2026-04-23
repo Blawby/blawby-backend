@@ -3,7 +3,8 @@
  *
  * Organizations created before this fix do not have a practice_details row.
  * This script inserts a default row (using DB defaults) for each org that is missing one.
- * The org owner's user_id is used to satisfy the NOT NULL constraint.
+ * The org owner's user_id is used to satisfy the NOT NULL constraint, falling back to
+ * any admin or any member if no owner is found.
  *
  * Usage: npx tsx scripts/backfill-practice-details.ts
  *
@@ -16,7 +17,7 @@
 import { config } from '@dotenvx/dotenvx';
 config();
 
-import { notInArray, eq, and } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { db, pool } from '../src/shared/database';
 import { organizations, members } from '../src/schema/better-auth-schema';
 import { practiceDetails } from '../src/modules/practice/database/schema/practice.schema';
@@ -38,8 +39,29 @@ const closeDbConnection = async (): Promise<void> => {
   }
 };
 
+const findMemberForOrg = async (orgId: string): Promise<string | null> => {
+  // Try owner first, then admin, then any member
+  const preferredRoles = ['owner', 'admin'];
+  const preferred = await db
+    .select({ userId: members.userId, role: members.role })
+    .from(members)
+    .where(and(eq(members.organizationId, orgId), inArray(members.role, preferredRoles)))
+    .limit(1);
+
+  if (preferred[0]) return preferred[0].userId;
+
+  const [any] = await db
+    .select({ userId: members.userId })
+    .from(members)
+    .where(eq(members.organizationId, orgId))
+    .limit(1);
+
+  return any?.userId ?? null;
+};
+
 const main = async (): Promise<void> => {
   const { dryRun, verbose, batchSize } = parseArgs();
+  let exitCode = 0;
 
   console.log('🚀 Backfilling practice_details for existing organizations...');
   console.log(`Mode: ${dryRun ? 'DRY RUN (no changes will be made)' : 'LIVE (changes will be applied)'}`);
@@ -47,18 +69,12 @@ const main = async (): Promise<void> => {
   console.log('');
 
   try {
-    // Find orgs that already have practice_details
-    const orgsWithDetails = await db.select({ orgId: practiceDetails.organization_id }).from(practiceDetails);
-    const orgIdsWithDetails = orgsWithDetails.map((r) => r.orgId);
-
-    // Find all orgs without practice_details
-    const orgsWithoutDetails =
-      orgIdsWithDetails.length > 0
-        ? await db
-            .select({ id: organizations.id, name: organizations.name })
-            .from(organizations)
-            .where(notInArray(organizations.id, orgIdsWithDetails))
-        : await db.select({ id: organizations.id, name: organizations.name }).from(organizations);
+    // LEFT JOIN to avoid PostgreSQL parameter limit from notInArray
+    const orgsWithoutDetails = await db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .leftJoin(practiceDetails, eq(practiceDetails.organization_id, organizations.id))
+      .where(isNull(practiceDetails.organization_id));
 
     console.log(`Found ${orgsWithoutDetails.length} organizations without practice_details`);
     console.log('');
@@ -95,25 +111,17 @@ const main = async (): Promise<void> => {
 
       for (const org of batch) {
         try {
-          // Find the owner of the org to satisfy user_id NOT NULL
-          const [owner] = await db
-            .select({ userId: members.userId })
-            .from(members)
-            .where(and(eq(members.organizationId, org.id), eq(members.role, 'owner')))
-            .limit(1);
+          const userId = await findMemberForOrg(org.id);
 
-          if (!owner) {
-            console.warn(`  ⚠ No owner found for org ${org.id} (${org.name}), skipping`);
+          if (!userId) {
+            console.warn(`  ⚠ No member found for org ${org.id} (${org.name}) — requires manual attention, skipping`);
             skipped++;
             continue;
           }
 
           await db
             .insert(practiceDetails)
-            .values({
-              organization_id: org.id,
-              user_id: owner.userId,
-            })
+            .values({ organization_id: org.id, user_id: userId })
             .onConflictDoNothing({ target: practiceDetails.organization_id });
 
           created++;
@@ -131,23 +139,26 @@ const main = async (): Promise<void> => {
     console.log('');
     console.log('📊 Summary:');
     console.log(`  Created: ${created}`);
-    console.log(`  Skipped (no owner): ${skipped}`);
+    console.log(`  Skipped (no member): ${skipped}`);
     console.log(`  Errors: ${errors}`);
     console.log('');
 
-    if (errors > 0) {
-      console.log('⚠️  Completed with errors. Review the output above.');
-      await closeDbConnection();
-      process.exit(1);
+    if (skipped > 0) {
+      console.warn(`⚠️  ${skipped} org(s) have no members and require manual attention.`);
     }
 
-    console.log('✅ Backfill complete.');
-    await closeDbConnection();
-    process.exit(0);
+    if (errors > 0) {
+      console.error('⚠️  Completed with errors. Review the output above.');
+      exitCode = 1;
+    } else {
+      console.log('✅ Backfill complete.');
+    }
   } catch (error) {
     console.error('Fatal error:', error);
+    exitCode = 1;
+  } finally {
     await closeDbConnection();
-    process.exit(1);
+    process.exit(exitCode);
   }
 };
 
