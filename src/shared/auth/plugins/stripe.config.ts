@@ -534,11 +534,15 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
  * flat-rate plan while metered billing is still wired up on the resulting subscription.
  */
 const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subscription): Promise<void> => {
-  const existingPriceIds = new Set(stripeSubscription.items.data.map((i) => i.price.id));
+  const stripe = getStripeInstance();
+
+  // Fetch the live subscription so retries don't re-add prices from a prior attempt.
+  const liveSub = await stripe.subscriptions.retrieve(stripeSubscription.id);
+  const existingPriceIds = new Set(liveSub.items.data.map((i) => i.price.id));
 
   const productIds = Array.from(
     new Set(
-      stripeSubscription.items.data
+      liveSub.items.data
         .map((i) => (typeof i.price.product === 'string' ? i.price.product : (i.price.product as { id: string } | null)?.id))
         .filter(Boolean)
     )
@@ -557,15 +561,22 @@ const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subs
       )
     );
 
-  const toAdd = meteredPrices.map((p) => p.stripe_price_id).filter((id) => !existingPriceIds.has(id));
+  const toAdd = meteredPrices
+    .map((p) => p.stripe_price_id)
+    .filter((id) => !existingPriceIds.has(id))
+    .sort();
 
   if (toAdd.length === 0) return;
 
-  const stripe = getStripeInstance();
-  await stripe.subscriptions.update(stripeSubscription.id, {
-    items: toAdd.map((price) => ({ price })),
-    proration_behavior: 'none',
-  });
+  // Deterministic idempotency key: same subscription + same price set → same key,
+  // so Stripe deduplicates repeated calls within its idempotency window.
+  const idempotencyKey = `attach-metered-${stripeSubscription.id}-${toAdd.join(',')}`;
+
+  await stripe.subscriptions.update(
+    stripeSubscription.id,
+    { items: toAdd.map((price) => ({ price })), proration_behavior: 'none' },
+    { idempotencyKey },
+  );
 
   logger.info('[Subscription] Attached {count} metered price(s) to subscription {id}', {
     count: toAdd.length,
@@ -625,7 +636,9 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                         new Set(
                           subscription.items.data
                             .map((i) =>
-                              typeof i.price === 'object' ? (i.price.product as string | undefined) : undefined
+                              typeof i.price.product === 'string'
+                                ? i.price.product
+                                : (i.price.product as { id: string } | null)?.id
                             )
                             .filter(Boolean)
                         )
@@ -655,15 +668,16 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
                       }
                       const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
-                      const injectedItems = meteredIds
-                        .filter((id) => existingMap.has(id))
-                        .map((id) => ({ id: existingMap.get(id)! }));
-
-                      if (injectedItems.length > 0) {
-                        flow.items = [...items, ...injectedItems];
-                        logger.info('[Stripe Proxy] Bundled {count} metered items into portal session', {
-                          count: injectedItems.length,
-                        });
+                      // Stripe's subscription_update_confirm allows at most one item in flow.items.
+                      // Only inject if the caller supplied no items; pick the first matching metered item.
+                      if (items.length === 0) {
+                        const firstMeteredPriceId = meteredIds.find((id) => existingMap.has(id));
+                        if (firstMeteredPriceId) {
+                          flow.items = [{ id: existingMap.get(firstMeteredPriceId)! }];
+                          logger.info('[Stripe Proxy] Injected single metered item into portal session', {
+                            priceId: firstMeteredPriceId,
+                          });
+                        }
                       }
                     }
                   }
