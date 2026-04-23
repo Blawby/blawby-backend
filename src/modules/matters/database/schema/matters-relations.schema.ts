@@ -7,6 +7,7 @@ import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
+import { engagementContracts } from '@/modules/engagement-contracts/database/schema/engagement-contracts.schema';
 
 export const mattersRelations = relations(matters, ({ one, many }) => ({
   organization: one(organizations, {
@@ -40,4 +41,5 @@ export const mattersRelations = relations(matters, ({ one, many }) => ({
   milestones: many(matterMilestones),
   invoices: many(invoices),
   billingTransactions: many(billingTransactions),
+  engagementContracts: many(engagementContracts),
 }));

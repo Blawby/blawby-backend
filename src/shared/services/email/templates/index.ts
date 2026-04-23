@@ -25,6 +25,11 @@ import {
   type IntakeDeclinedData,
   type MatterOpenedData,
   type MatterClosedData,
+  type EngagementContractSentData,
+  type EngagementContractAcceptedData,
+  type EngagementContractSignedCopyData,
+  type EngagementContractDeclinedData,
+  type ConflictCheckReviewRequiredData,
 } from '@/shared/services/email/email.types';
 
 // Auth templates
@@ -61,6 +66,11 @@ import { intakeDeclined } from '@/shared/services/email/templates/intake/intake-
 // Matter templates
 import { matterOpened } from '@/shared/services/email/templates/matter/matter-opened';
 import { matterClosed } from '@/shared/services/email/templates/matter/matter-closed';
+import { engagementContractSent } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-sent';
+import { engagementContractAccepted } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-accepted';
+import { engagementContractSignedCopy } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-signed-copy';
+import { engagementContractDeclined } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-declined';
+import { conflictCheckReviewRequired } from '@/shared/services/email/templates/engagement-contracts/conflict-check-review-required';
 
 /**
  * Mapping of email templates to their specific data types
@@ -91,6 +101,11 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.INTAKE_DECLINED]: IntakeDeclinedData;
   [EMAIL_TEMPLATES.MATTER_OPENED]: MatterOpenedData;
   [EMAIL_TEMPLATES.MATTER_CLOSED]: MatterClosedData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SENT]: EngagementContractSentData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_ACCEPTED]: EngagementContractAcceptedData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY]: EngagementContractSignedCopyData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_DECLINED]: EngagementContractDeclinedData;
+  [EMAIL_TEMPLATES.CONFLICT_CHECK_REVIEW_REQUIRED]: ConflictCheckReviewRequiredData;
 }
 
 // Template registry with explicit mapping
@@ -131,6 +146,11 @@ const templateRegistry = {
   // Matter templates
   [EMAIL_TEMPLATES.MATTER_OPENED]: matterOpened,
   [EMAIL_TEMPLATES.MATTER_CLOSED]: matterClosed,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SENT]: engagementContractSent,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_ACCEPTED]: engagementContractAccepted,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY]: engagementContractSignedCopy,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_DECLINED]: engagementContractDeclined,
+  [EMAIL_TEMPLATES.CONFLICT_CHECK_REVIEW_REQUIRED]: conflictCheckReviewRequired,
 } as const;
 
 /**
@@ -166,4 +186,9 @@ export {
   intakeDeclined,
   matterOpened,
   matterClosed,
+  engagementContractSent,
+  engagementContractAccepted,
+  engagementContractSignedCopy,
+  engagementContractDeclined,
+  conflictCheckReviewRequired,
 };

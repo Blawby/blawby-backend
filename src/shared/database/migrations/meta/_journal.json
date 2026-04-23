@@ -351,6 +351,13 @@
       "when": 1776788709277,
       "tag": "0049_jittery_makkari",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1776956381992,
+      "tag": "0050_spicy_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

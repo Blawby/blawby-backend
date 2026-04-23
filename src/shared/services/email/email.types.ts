@@ -37,6 +37,12 @@ export const EMAIL_TEMPLATES = {
   // Matters
   MATTER_OPENED: 'matter-opened',
   MATTER_CLOSED: 'matter-closed',
+  // Engagement Contracts
+  ENGAGEMENT_CONTRACT_SENT: 'engagement-contract-sent',
+  ENGAGEMENT_CONTRACT_ACCEPTED: 'engagement-contract-accepted',
+  ENGAGEMENT_CONTRACT_SIGNED_COPY: 'engagement-contract-signed-copy',
+  ENGAGEMENT_CONTRACT_DECLINED: 'engagement-contract-declined',
+  CONFLICT_CHECK_REVIEW_REQUIRED: 'conflict-check-review-required',
 } as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATES)[keyof typeof EMAIL_TEMPLATES];
@@ -225,6 +231,43 @@ export interface MatterOpenedData extends BaseEmailData {
 export interface MatterClosedData extends BaseEmailData {
   matterTitle: string;
   practiceName: string;
+}
+
+// Engagement contract sent (client-facing)
+export interface EngagementContractSentData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
+  reviewUrl: string;
+}
+
+// Engagement contract accepted (practice-facing)
+export interface EngagementContractAcceptedData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
+  clientName: string;
+  signedContractUrl: string;
+}
+
+// Engagement contract signed copy (client-facing)
+export interface EngagementContractSignedCopyData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
+  signedContractUrl: string;
+}
+
+// Engagement contract declined (practice-facing)
+export interface EngagementContractDeclinedData extends BaseEmailData {
+  matterTitle: string;
+  practiceName: string;
+  clientName: string;
+}
+
+// Conflict check needs review (practice-facing)
+export interface ConflictCheckReviewRequiredData extends BaseEmailData {
+  practiceName: string;
+  matterId: string;
+  resultStatus: 'review_required' | 'conflicted';
+  reviewUrl: string;
 }
 
 // Email job payload (what gets queued)

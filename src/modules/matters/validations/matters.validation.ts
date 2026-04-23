@@ -11,6 +11,9 @@ const matterStatusEnum = z.enum([
   'consultation_scheduled',
   'declined',
   'engagement_pending',
+  'engagement_draft',
+  'engagement_sent',
+  'engagement_accepted',
   'active',
   'pleadings_filed',
   'discovery',
@@ -179,6 +182,8 @@ const matterSchema = z
     created_at: z.date(),
     updated_at: z.date(),
     retainer_low_balance_threshold: z.number().nullable(),
+    last_conflict_check_at: z.date().nullable(),
+    last_conflict_check_result: z.record(z.string(), z.unknown()).nullable(),
     assignees: z.array(z.any()).optional(),
     milestones: z.array(z.any()).optional(),
   })

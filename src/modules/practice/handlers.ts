@@ -1,4 +1,5 @@
 import type { routes } from '@/modules/practice/routes';
+import { conflictCheckService } from '@/modules/practice/services/conflict-check.service';
 import { practiceDetailsManagementService } from '@/modules/practice/services/practice-details-management.service';
 import { practiceManagementService } from '@/modules/practice/services/practice-management.service';
 import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
@@ -98,6 +99,13 @@ export const deletePracticeDetailsHandler: AppRouteHandler<typeof routes.deleteP
   const { practice_id } = c.req.valid('param');
   await practiceDetailsManagementService.deletePracticeDetails({ organizationId: practice_id }, ctx);
   return c.body(null, 204);
+};
+
+export const conflictCheckHandler: AppRouteHandler<typeof routes.conflictCheckRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const result = await conflictCheckService.runConflictCheck({ data: body }, ctx);
+  return c.json(result);
 };
 
 export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof routes.getPracticeDetailsBySlugRoute> = async (
