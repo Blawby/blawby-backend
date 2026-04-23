@@ -123,8 +123,8 @@ export const practiceQueriesService = {
         // Return empty practice details instead of 404
         // This is a valid business state, not an error
         return {
-          id: '',
-          user_id: '',
+          id: null,
+          user_id: null,
           address_id: null,
           business_phone: null,
           business_email: null,
@@ -143,7 +143,7 @@ export const practiceQueriesService = {
           logo: organization.logo ?? null,
           payment_link_enabled: organization?.paymentLinkEnabled ?? false,
           billing_increment_minutes: 15,
-          created_at: new Date(),
+          created_at: null,
           updated_at: undefined,
           supported_states: null,
           service_states: null,
@@ -197,8 +197,8 @@ export const practiceQueriesService = {
         // Return empty practice details instead of 404 for non-existent details
         // This is a valid business state, not an error
         return {
-          id: '',
-          user_id: '',
+          id: null,
+          user_id: null,
           address_id: null,
           business_phone: null,
           business_email: null,
@@ -217,7 +217,7 @@ export const practiceQueriesService = {
           logo: organization.logo ?? null,
           payment_link_enabled: organization.paymentLinkEnabled ?? false,
           billing_increment_minutes: 15,
-          created_at: new Date(),
+          created_at: null,
           updated_at: undefined,
           supported_states: null,
           service_states: null,
