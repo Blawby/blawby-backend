@@ -52,28 +52,26 @@ export const practiceManagementService = {
 
       let practiceDetails: PracticeDetails | null = null;
 
-      if (practiceValidations.hasPracticeDetails(data)) {
-        try {
-          practiceDetails = await db.transaction(async (tx) => {
-            const { details } = await upsertDetailsTransaction(tx, ctx, {
-              organizationId: organization.id,
-              userId: user.id,
-              data,
-              isCreate: true,
-            });
-            return details;
+      try {
+        practiceDetails = await db.transaction(async (tx) => {
+          const { details } = await upsertDetailsTransaction(tx, ctx, {
+            organizationId: organization.id,
+            userId: user.id,
+            data: practiceValidations.hasPracticeDetails(data) ? data : {},
+            isCreate: true,
           });
-        } catch (detailsError) {
-          try {
-            await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
-          } catch (rollbackError) {
-            logger.error('Create practice compensation failed for organization {organizationId}: {error}', {
-              organizationId: organization.id,
-              error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-            });
-          }
-          throw detailsError;
+          return details;
+        });
+      } catch (detailsError) {
+        try {
+          await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
+        } catch (rollbackError) {
+          logger.error('Create practice compensation failed for organization {organizationId}: {error}', {
+            organizationId: organization.id,
+            error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+          });
         }
+        throw detailsError;
       }
 
       await ctx.emit(PracticeCreated, {

@@ -162,10 +162,7 @@ const main = async (): Promise<void> => {
 
   // Close connection on successful completion
   await closeDbConnection();
+  process.exit(0);
 };
 
-main().catch(async (error) => {
-  console.error('❌ Unhandled error:', error);
-  await closeDbConnection();
-  process.exit(1);
-});
+main();

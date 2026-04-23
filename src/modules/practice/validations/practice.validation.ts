@@ -416,11 +416,11 @@ const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
 
 const practiceDetailsResponseSchema = z
   .object({
-    id: z.uuid().nullable().openapi({
+    id: z.uuid().openapi({
       description: 'Practice Details ID',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
-    user_id: z.uuid().nullable().openapi({
+    user_id: z.uuid().openapi({
       description: 'User ID of the creator',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
@@ -479,7 +479,7 @@ const practiceDetailsResponseSchema = z
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
     }),
-    created_at: z.date().nullable().openapi({
+    created_at: z.date().openapi({
       description: 'Practice details creation timestamp',
       format: 'date-time',
       example: '2024-01-01T00:00:00Z',
