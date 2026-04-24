@@ -1,4 +1,4 @@
-import { eq, and, like, isNull, inArray, sql, desc } from 'drizzle-orm';
+import { eq, and, like, isNull, inArray, sql, desc, getTableColumns } from 'drizzle-orm';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters/database/schema/matters.schema';
@@ -111,42 +111,7 @@ const listMattersByOrganization = async (
   // Handle assignee filter separately with join
   if (filters?.assigneeId) {
     results = await db
-      .select({
-        id: matters.id,
-        organization_id: matters.organization_id,
-        client_id: matters.client_id,
-        title: matters.title,
-        description: matters.description,
-        case_number: matters.case_number,
-        matter_type: matters.matter_type,
-        billing_type: matters.billing_type,
-        total_fixed_price: matters.total_fixed_price,
-        contingency_percentage: matters.contingency_percentage,
-        settlement_amount: matters.settlement_amount,
-        practice_service_id: matters.practice_service_id,
-        admin_hourly_rate: matters.admin_hourly_rate,
-        attorney_hourly_rate: matters.attorney_hourly_rate,
-        payment_frequency: matters.payment_frequency,
-        retainer_balance: matters.retainer_balance,
-        retainer_low_balance_threshold: matters.retainer_low_balance_threshold,
-        status: matters.status,
-        urgency: matters.urgency,
-        responsible_attorney_id: matters.responsible_attorney_id,
-        originating_attorney_id: matters.originating_attorney_id,
-        court: matters.court,
-        judge: matters.judge,
-        opposing_party: matters.opposing_party,
-        opposing_counsel: matters.opposing_counsel,
-        open_date: matters.open_date,
-        close_date: matters.close_date,
-        deleted_at: matters.deleted_at,
-        deleted_by: matters.deleted_by,
-        created_at: matters.created_at,
-        updated_at: matters.updated_at,
-        conversation_id: matters.conversation_id,
-        intake_uuid: matters.intake_uuid,
-        on_behalf_of: matters.on_behalf_of,
-      })
+      .select(getTableColumns(matters))
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
       .where(and(...conditions, eq(matterAssignees.user_id, filters.assigneeId)))

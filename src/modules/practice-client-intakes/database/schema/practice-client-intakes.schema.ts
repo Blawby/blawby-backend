@@ -58,6 +58,13 @@ export const practiceClientIntakes = pgTable(
     household_size: integer('household_size'),
     case_strength: real('case_strength'),
 
+    // Transcript and Jurisdiction
+    transcript_summary: text('transcript_summary'),
+    jurisdiction_status: varchar('jurisdiction_status', { length: 20 }).$type<
+      'supported' | 'unsupported' | 'unknown' | 'review_required'
+    >(),
+    jurisdiction_match: jsonb('jurisdiction_match').$type<{ country?: string; state?: string } | null>(),
+
     // Timestamps
     succeeded_at: timestamp('succeeded_at', { withTimezone: true, mode: 'date' }),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
@@ -73,6 +80,7 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_created_at_idx').on(table.created_at),
     index('practice_client_intakes_urgency_idx').on(table.urgency),
     index('practice_client_intakes_court_date_idx').on(table.court_date),
+    index('practice_client_intakes_jurisdiction_status_idx').on(table.jurisdiction_status),
   ]
 );
 
