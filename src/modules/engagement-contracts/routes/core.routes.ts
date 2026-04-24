@@ -1,12 +1,28 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import { engagementContractValidations } from '@/modules/engagement-contracts/validations/engagement-contract.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
+import {
+  errorResponseSchema,
+  forbiddenResponseSchema,
+  notFoundResponseSchema,
+  practiceIdParamSchema,
+  unauthorizedResponseSchema,
+} from '@/shared/validations/openapi';
 
-const createEngagementContractRoute = createRoute({
+const engagementContractParamSchema = practiceIdParamSchema.extend({
+  contract_id: z.uuid().openapi({
+    param: { name: 'contract_id', in: 'path' },
+    description: 'Engagement Contract ID (UUID)',
+  }),
+});
+
+const createEngagementContractRoute = routeBuilder.build({
   method: 'post',
-  path: '/',
+  path: '/{practice_id}',
   tags: ['Engagement Contracts'],
   summary: 'Create a new engagement contract for a matter',
   request: {
+    params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
@@ -24,19 +40,24 @@ const createEngagementContractRoute = createRoute({
       },
       description: 'Engagement contract created',
     },
-    400: { description: 'Bad request' },
-    403: { description: 'Forbidden' },
-    404: { description: 'Matter not found' },
-    409: { description: 'Conflict - matter already has active contract' },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Bad request' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Matter not found' },
+    409: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Conflict - matter already has active contract',
+    },
   },
 });
 
-const listEngagementContractsRoute = createRoute({
+const listEngagementContractsRoute = routeBuilder.build({
   method: 'get',
-  path: '/',
+  path: '/{practice_id}',
   tags: ['Engagement Contracts'],
-  summary: 'List engagement contracts for the current practice',
+  summary: 'List engagement contracts for a practice',
   request: {
+    params: practiceIdParamSchema,
     query: engagementContractValidations.listEngagementContractsQuerySchema,
   },
   responses: {
@@ -55,17 +76,18 @@ const listEngagementContractsRoute = createRoute({
       },
       description: 'List of engagement contracts',
     },
-    403: { description: 'Forbidden' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
   },
 });
 
-const getEngagementContractRoute = createRoute({
+const getEngagementContractRoute = routeBuilder.build({
   method: 'get',
-  path: '/{id}',
+  path: '/{practice_id}/{contract_id}',
   tags: ['Engagement Contracts'],
   summary: 'Get an engagement contract by ID',
   request: {
-    params: engagementContractValidations.engagementContractIdParamSchema,
+    params: engagementContractParamSchema,
   },
   responses: {
     200: {
@@ -76,18 +98,22 @@ const getEngagementContractRoute = createRoute({
       },
       description: 'Engagement contract details',
     },
-    403: { description: 'Forbidden' },
-    404: { description: 'Engagement contract not found' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Engagement contract not found',
+    },
   },
 });
 
-const updateEngagementContractRoute = createRoute({
+const updateEngagementContractRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{id}',
+  path: '/{practice_id}/{contract_id}',
   tags: ['Engagement Contracts'],
   summary: 'Update a draft engagement contract',
   request: {
-    params: engagementContractValidations.engagementContractIdParamSchema,
+    params: engagementContractParamSchema,
     body: {
       content: {
         'application/json': {
@@ -105,20 +131,27 @@ const updateEngagementContractRoute = createRoute({
       },
       description: 'Engagement contract updated',
     },
-    400: { description: 'Bad request' },
-    403: { description: 'Forbidden' },
-    404: { description: 'Engagement contract not found' },
-    409: { description: 'Conflict - contract already sent' },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Bad request' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Engagement contract not found',
+    },
+    409: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Conflict - contract already sent',
+    },
   },
 });
 
-const updateEngagementContractStatusRoute = createRoute({
+const updateEngagementContractStatusRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{id}/status',
+  path: '/{practice_id}/{contract_id}/status',
   tags: ['Engagement Contracts'],
   summary: 'Transition an engagement contract status (draft → sent, sent → accepted | declined)',
   request: {
-    params: engagementContractValidations.engagementContractIdParamSchema,
+    params: engagementContractParamSchema,
     body: {
       content: {
         'application/json': {
@@ -136,11 +169,24 @@ const updateEngagementContractStatusRoute = createRoute({
       },
       description: 'Engagement contract status updated',
     },
-    400: { description: 'Bad request - contract body cannot be empty when sending' },
-    403: { description: 'Forbidden' },
-    404: { description: 'Engagement contract not found' },
-    409: { description: 'Conflict - invalid status transition' },
-    500: { description: 'Failed to generate or upload PDF' },
+    400: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Bad request - contract body cannot be empty when sending',
+    },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Engagement contract not found',
+    },
+    409: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Conflict - invalid status transition',
+    },
+    500: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Failed to generate or upload PDF',
+    },
   },
 });
 

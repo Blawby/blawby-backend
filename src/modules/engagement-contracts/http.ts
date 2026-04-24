@@ -1,4 +1,4 @@
-import { engagementContractHandlers } from '@/modules/engagement-contracts/handlers';
+import { handlers } from '@/modules/engagement-contracts/handlers';
 import { routes } from '@/modules/engagement-contracts/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
@@ -8,11 +8,11 @@ const app = createHonoApp();
 
 app.use('*', injectAbility());
 
-app.openapi(routes.createEngagementContractRoute, engagementContractHandlers.createEngagementContractHandler);
-app.openapi(routes.listEngagementContractsRoute, engagementContractHandlers.listEngagementContractsHandler);
-app.openapi(routes.getEngagementContractRoute, engagementContractHandlers.getEngagementContractHandler);
-app.openapi(routes.updateEngagementContractRoute, engagementContractHandlers.updateEngagementContractHandler);
-app.openapi(routes.updateEngagementContractStatusRoute, engagementContractHandlers.updateEngagementContractStatusHandler);
+app.openapi(routes.createEngagementContractRoute, handlers.createEngagementContractHandler);
+app.openapi(routes.listEngagementContractsRoute, handlers.listEngagementContractsHandler);
+app.openapi(routes.getEngagementContractRoute, handlers.getEngagementContractHandler);
+app.openapi(routes.updateEngagementContractRoute, handlers.updateEngagementContractHandler);
+app.openapi(routes.updateEngagementContractStatusRoute, handlers.updateEngagementContractStatusHandler);
 
 registerOpenApiRoutes(app, routes);
 

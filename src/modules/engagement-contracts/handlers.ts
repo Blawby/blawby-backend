@@ -21,7 +21,7 @@ const listEngagementContractsHandler: AppRouteHandler<typeof routes.listEngageme
 
 const getEngagementContractHandler: AppRouteHandler<typeof routes.getEngagementContractRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { id } = c.req.valid('param');
+  const { contract_id: id } = c.req.valid('param');
 
   const contract = await engagementContractService.getEngagementContract({ id }, ctx);
   return c.json(contract);
@@ -29,7 +29,7 @@ const getEngagementContractHandler: AppRouteHandler<typeof routes.getEngagementC
 
 const updateEngagementContractHandler: AppRouteHandler<typeof routes.updateEngagementContractRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { id } = c.req.valid('param');
+  const { contract_id: id } = c.req.valid('param');
   const body = c.req.valid('json');
 
   const contract = await engagementContractService.updateEngagementContract({ id, data: body }, ctx);
@@ -40,7 +40,7 @@ const updateEngagementContractStatusHandler: AppRouteHandler<
   typeof routes.updateEngagementContractStatusRoute
 > = async (c) => {
   const ctx = getServiceContext(c);
-  const { id } = c.req.valid('param');
+  const { contract_id: id } = c.req.valid('param');
   const { status } = c.req.valid('json');
 
   if (status === 'sent') {
@@ -58,7 +58,7 @@ const updateEngagementContractStatusHandler: AppRouteHandler<
   return c.json(contract);
 };
 
-export const engagementContractHandlers = {
+export const handlers = {
   createEngagementContractHandler,
   listEngagementContractsHandler,
   getEngagementContractHandler,
