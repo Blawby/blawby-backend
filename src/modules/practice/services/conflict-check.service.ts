@@ -7,37 +7,16 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { db } from '@/shared/database';
 import { ConflictCheckCompleted } from '@/shared/events/definitions/engagement-contracts';
 import type { ServiceContext } from '@/shared/types/service-context';
+import type {
+  ConflictCheckInput,
+  ConflictCheckResult,
+  ConflictCheckStatus,
+} from '@/modules/practice/types/conflict-check.types';
 
 const logger = getLogger(['practice', 'conflict-check-service']);
 
 const SIMILARITY_THRESHOLD = 0.35;
 const CONFLICT_THRESHOLD = 0.7;
-
-export type ConflictCheckStatus = 'clear' | 'review_required' | 'conflicted' | 'insufficient_data';
-
-export type ConflictCheckInput = {
-  name: string;
-  date_of_birth?: string;
-  opposing_party?: string;
-  aliases?: string[];
-  matter_id?: string;
-};
-
-export type ConflictCheckResult = {
-  status: ConflictCheckStatus;
-  conflicting_matters: Array<{
-    matter_id: string;
-    title: string;
-    similarity_score: number;
-    match_field: 'on_behalf_of' | 'opposing_party';
-  }>;
-  conflicting_contacts: Array<{
-    client_id: string;
-    name: string;
-    similarity_score: number;
-  }>;
-  suggested_next_action: string;
-};
 
 const normalizeTerms = (input: ConflictCheckInput): string[] => {
   const terms = [input.name, ...(input.aliases ?? []), input.opposing_party ?? '']
@@ -94,22 +73,56 @@ const runConflictCheck = async (
   >();
 
   for (const term of terms) {
-    const onBehalfMatches = await db
-      .select({
-        matter_id: matters.id,
-        title: matters.title,
-        similarity_score: sql<number>`similarity(${matters.on_behalf_of}, ${term})`,
-      })
-      .from(matters)
-      .where(
-        and(
-          eq(matters.organization_id, ctx.organizationId),
-          isNull(matters.deleted_at),
-          isNotNull(matters.on_behalf_of),
-          gt(sql<number>`similarity(${matters.on_behalf_of}, ${term})`, SIMILARITY_THRESHOLD)
+    const [onBehalfMatches, opposingMatches, clientMatches] = await Promise.all([
+      db
+        .select({
+          matter_id: matters.id,
+          title: matters.title,
+          similarity_score: sql<number>`similarity(${matters.on_behalf_of}, ${term})`,
+        })
+        .from(matters)
+        .where(
+          and(
+            eq(matters.organization_id, ctx.organizationId),
+            isNull(matters.deleted_at),
+            isNotNull(matters.on_behalf_of),
+            gt(sql<number>`similarity(${matters.on_behalf_of}, ${term})`, SIMILARITY_THRESHOLD)
+          )
         )
-      )
-      .limit(25);
+        .limit(25),
+      db
+        .select({
+          matter_id: matters.id,
+          title: matters.title,
+          similarity_score: sql<number>`similarity(${matters.opposing_party}, ${term})`,
+        })
+        .from(matters)
+        .where(
+          and(
+            eq(matters.organization_id, ctx.organizationId),
+            isNull(matters.deleted_at),
+            isNotNull(matters.opposing_party),
+            gt(sql<number>`similarity(${matters.opposing_party}, ${term})`, SIMILARITY_THRESHOLD)
+          )
+        )
+        .limit(25),
+      db
+        .select({
+          client_id: clients.id,
+          name: clients.name,
+          similarity_score: sql<number>`similarity(${clients.name}, ${term})`,
+        })
+        .from(clients)
+        .where(
+          and(
+            eq(clients.organization_id, ctx.organizationId),
+            isNull(clients.deleted_at),
+            isNotNull(clients.name),
+            gt(sql<number>`similarity(${clients.name}, ${term})`, SIMILARITY_THRESHOLD)
+          )
+        )
+        .limit(25),
+    ]);
 
     for (const row of onBehalfMatches) {
       const existing = matterMatches.get(row.matter_id);
@@ -123,23 +136,6 @@ const runConflictCheck = async (
       }
     }
 
-    const opposingMatches = await db
-      .select({
-        matter_id: matters.id,
-        title: matters.title,
-        similarity_score: sql<number>`similarity(${matters.opposing_party}, ${term})`,
-      })
-      .from(matters)
-      .where(
-        and(
-          eq(matters.organization_id, ctx.organizationId),
-          isNull(matters.deleted_at),
-          isNotNull(matters.opposing_party),
-          gt(sql<number>`similarity(${matters.opposing_party}, ${term})`, SIMILARITY_THRESHOLD)
-        )
-      )
-      .limit(25);
-
     for (const row of opposingMatches) {
       const existing = matterMatches.get(row.matter_id);
       if (!existing || row.similarity_score > existing.similarity_score) {
@@ -151,23 +147,6 @@ const runConflictCheck = async (
         });
       }
     }
-
-    const clientMatches = await db
-      .select({
-        client_id: clients.id,
-        name: clients.name,
-        similarity_score: sql<number>`similarity(${clients.name}, ${term})`,
-      })
-      .from(clients)
-      .where(
-        and(
-          eq(clients.organization_id, ctx.organizationId),
-          isNull(clients.deleted_at),
-          isNotNull(clients.name),
-          gt(sql<number>`similarity(${clients.name}, ${term})`, SIMILARITY_THRESHOLD)
-        )
-      )
-      .limit(25);
 
     for (const row of clientMatches) {
       const existing = contactMatches.get(row.client_id);
@@ -203,28 +182,44 @@ const runConflictCheck = async (
   };
 
   if (data.matter_id) {
-    await db
-      .update(matters)
-      .set({
-        last_conflict_check_at: new Date(),
-        last_conflict_check_result: {
-          status: result.status,
-          conflicting_matters: result.conflicting_matters,
-          conflicting_contacts: result.conflicting_contacts,
-          suggested_next_action: result.suggested_next_action,
-          checked_at: new Date().toISOString(),
-        },
-        updated_at: new Date(),
-      })
-      .where(and(eq(matters.id, data.matter_id), eq(matters.organization_id, ctx.organizationId)));
-
+    const matterId = data.matter_id;
     const organization = await organizationRepository.findById(ctx.organizationId);
-    await ctx.emit(ConflictCheckCompleted, {
-      matter_id: data.matter_id,
-      organization_id: ctx.organizationId,
-      result_status: result.status,
-      practice_name: organization?.name ?? 'Practice',
-      practice_email: organization?.billingEmail ?? '',
+    const billingEmail = organization?.billingEmail;
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matters)
+        .set({
+          last_conflict_check_at: new Date(),
+          last_conflict_check_result: {
+            status: result.status,
+            conflicting_matters: result.conflicting_matters,
+            conflicting_contacts: result.conflicting_contacts,
+            suggested_next_action: result.suggested_next_action,
+            checked_at: new Date().toISOString(),
+          },
+          updated_at: new Date(),
+        })
+        .where(and(eq(matters.id, matterId), eq(matters.organization_id, ctx.organizationId)));
+
+      if (!billingEmail) {
+        logger.warn('Skipping ConflictCheckCompleted event: missing billingEmail', {
+          organizationId: ctx.organizationId,
+          matterId,
+        });
+      } else {
+        await ctx.emit(
+          ConflictCheckCompleted,
+          {
+            matter_id: matterId,
+            organization_id: ctx.organizationId,
+            result_status: result.status,
+            practice_name: organization?.name ?? '',
+            practice_email: billingEmail,
+          },
+          tx
+        );
+      }
     });
   }
 

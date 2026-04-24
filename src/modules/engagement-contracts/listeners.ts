@@ -17,19 +17,27 @@ const APP_URL = config.app.appUrl;
 
 const getSignedContractDownloadUrl = async (signedPdfKey: string): Promise<string> => {
   if (!signedPdfKey) {
+    logger.warn('getSignedContractDownloadUrl: no signedPdfKey provided, returning #');
     return '#';
   }
 
   const bucket = config.cloudflare.r2BucketName;
   if (bucket) {
-    const presigned = await r2Service.generatePresignedDownloadUrl({
-      bucket,
-      key: signedPdfKey,
-      expiresIn: 60 * 60 * 24,
-    });
+    try {
+      const presigned = await r2Service.generatePresignedDownloadUrl({
+        bucket,
+        key: signedPdfKey,
+        expiresIn: 60 * 60 * 24,
+      });
 
-    if (presigned) {
-      return presigned;
+      if (presigned) {
+        return presigned;
+      }
+    } catch (error: unknown) {
+      logger.warn('getSignedContractDownloadUrl: presigned URL generation failed, falling back', {
+        key: signedPdfKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -39,6 +47,9 @@ const getSignedContractDownloadUrl = async (signedPdfKey: string): Promise<strin
     return `${base}/${key}`;
   }
 
+  logger.warn('getSignedContractDownloadUrl: no R2 bucket or public URL configured, returning #', {
+    key: signedPdfKey,
+  });
   return '#';
 };
 
@@ -74,7 +85,10 @@ export const registerEngagementContractsListeners = (): void => {
   });
 
   Event.listen(EngagementContractAccepted, async (payload) => {
-    const signedContractUrl = await getSignedContractDownloadUrl(payload.signed_pdf_s3_key);
+    const hasRecipient = payload.practice_email || payload.client_email;
+    const signedContractUrl = hasRecipient
+      ? await getSignedContractDownloadUrl(payload.signed_pdf_s3_key)
+      : '#';
 
     if (payload.practice_email) {
       void queueManager
@@ -98,7 +112,7 @@ export const registerEngagementContractsListeners = (): void => {
         });
     }
 
-    if (payload.client_email) {
+    if (payload.client_email && signedContractUrl !== '#') {
       void queueManager
         .addEmailJob(
           EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY,
@@ -117,6 +131,10 @@ export const registerEngagementContractsListeners = (): void => {
             contractId: payload.contract_id,
           });
         });
+    } else if (payload.client_email) {
+      logger.warn('Skipping signed-copy email: no valid contract download URL', {
+        contractId: payload.contract_id,
+      });
     }
   });
 

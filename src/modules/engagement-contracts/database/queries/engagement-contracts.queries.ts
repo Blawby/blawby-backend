@@ -53,20 +53,18 @@ const listByOrg = async (
     conditions.push(eq(engagementContracts.status, filters.status));
   }
 
-  const [{ total }] = await tx
-    .select({ total: count() })
-    .from(engagementContracts)
-    .where(and(...conditions));
+  const [countResult, data] = await Promise.all([
+    tx.select({ total: count() }).from(engagementContracts).where(and(...conditions)),
+    tx
+      .select()
+      .from(engagementContracts)
+      .where(and(...conditions))
+      .orderBy(desc(engagementContracts.created_at))
+      .limit(filters?.limit ?? 20)
+      .offset(filters?.offset ?? 0),
+  ]);
 
-  const data = await tx
-    .select()
-    .from(engagementContracts)
-    .where(and(...conditions))
-    .orderBy(desc(engagementContracts.created_at))
-    .limit(filters?.limit || 20)
-    .offset(filters?.offset || 0);
-
-  return { data, total: Number(total) };
+  return { data, total: Number(countResult[0]?.total ?? 0) };
 };
 
 const update = async (

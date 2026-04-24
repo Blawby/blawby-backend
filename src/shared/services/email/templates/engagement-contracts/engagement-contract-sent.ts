@@ -35,9 +35,7 @@ export const engagementContractSent = (data: EngagementContractSentData): string
           ${matterTitle}
         </mj-text>
 
-        <mj-button href="${reviewUrl}">
-          Review Contract
-        </mj-button>
+        ${reviewUrl !== '#' ? `<mj-button href="${reviewUrl}">Review Contract</mj-button>` : '<mj-text color="${COLORS.textMuted}" font-size="14px">Contract review link unavailable. Please contact the practice directly.</mj-text>'}
       </mj-column>
     `)}
   `,

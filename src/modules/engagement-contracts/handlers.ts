@@ -49,7 +49,8 @@ const updateEngagementContractStatusHandler: AppRouteHandler<
   }
 
   if (status === 'accepted') {
-    const clientIp = c.req.header('x-forwarded-for') ?? c.req.header('x-real-ip');
+    const rawForwardedFor = c.req.header('x-forwarded-for');
+    const clientIp = rawForwardedFor ? rawForwardedFor.split(',')[0]?.trim() : c.req.header('x-real-ip');
     const contract = await engagementContractService.acceptEngagementContract({ id, clientIp }, ctx);
     return c.json(contract);
   }

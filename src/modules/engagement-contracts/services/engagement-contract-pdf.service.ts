@@ -4,6 +4,22 @@ import { getLogger } from '@logtape/logtape';
 import type { SelectEngagementContract } from '@/modules/engagement-contracts/database/schema/engagement-contracts.schema';
 import { config } from '@/shared/config';
 
+let r2Client: S3Client | null = null;
+
+const getR2Client = (): S3Client => {
+  if (r2Client) return r2Client;
+  const { accountId, r2AccessKeyId, r2SecretAccessKey } = config.cloudflare;
+  if (!accountId || !r2AccessKeyId || !r2SecretAccessKey) {
+    throw new Error('Cloudflare R2 configuration is missing');
+  }
+  r2Client = new S3Client({
+    region: 'auto',
+    credentials: { accessKeyId: r2AccessKeyId, secretAccessKey: r2SecretAccessKey },
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+  });
+  return r2Client;
+};
+
 const logger = getLogger(['engagement-contracts', 'pdf-service']);
 
 const generatePdfBuffer = (
@@ -58,7 +74,15 @@ const generatePdfBuffer = (
         doc.fontSize(10).font('Helvetica');
         const billing = contract.billing_snapshot as Record<string, unknown>;
         Object.entries(billing).forEach(([key, value]) => {
-          doc.text(`${key}: ${JSON.stringify(value)}`);
+          let displayValue: string;
+          if (value === null || value === undefined) {
+            displayValue = 'null';
+          } else if (typeof value === 'object') {
+            displayValue = JSON.stringify(value, null, 2);
+          } else {
+            displayValue = String(value);
+          }
+          doc.text(`${key}: ${displayValue}`);
         });
         doc.moveDown();
       }
@@ -89,20 +113,11 @@ const uploadPdfToR2 = async (params: {
   pdfBuffer: Buffer;
 }): Promise<string> => {
   const { organizationId, contractId, pdfBuffer } = params;
-  const { accountId, r2AccessKeyId, r2SecretAccessKey, r2BucketName } = config.cloudflare;
+  const { r2BucketName } = config.cloudflare;
 
-  if (!accountId || !r2AccessKeyId || !r2SecretAccessKey || !r2BucketName) {
-    throw new Error('Cloudflare R2 configuration is missing');
+  if (!r2BucketName) {
+    throw new Error('Cloudflare R2 bucket name is missing');
   }
-
-  const s3Client = new S3Client({
-    region: 'auto',
-    credentials: {
-      accessKeyId: r2AccessKeyId,
-      secretAccessKey: r2SecretAccessKey,
-    },
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-  });
 
   const key = `engagement-contracts/${organizationId}/${contractId}/signed-contract.pdf`;
 
@@ -114,7 +129,7 @@ const uploadPdfToR2 = async (params: {
       ContentType: 'application/pdf',
     });
 
-    await s3Client.send(command);
+    await getR2Client().send(command);
     logger.info('PDF uploaded to R2', { key });
 
     return key;

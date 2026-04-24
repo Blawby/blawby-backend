@@ -58,18 +58,26 @@ const createEngagementContract = async (
   }
 
   const contract = await db.transaction(async (tx) => {
-    const created = await engagementContractsQueries.insert(
-      {
-        matter_id: data.matter_id,
-        organization_id: ctx.organizationId,
-        status: 'draft',
-        contract_body: data.contract_body ?? null,
-        engagement_notes: data.engagement_notes ?? null,
-        proposal_data: (data.proposal_data as SelectEngagementContract['proposal_data']) ?? null,
-        created_by: ctx.userId,
-      },
-      tx
-    );
+    let created: SelectEngagementContract;
+    try {
+      created = await engagementContractsQueries.insert(
+        {
+          matter_id: data.matter_id,
+          organization_id: ctx.organizationId,
+          status: 'draft',
+          contract_body: data.contract_body ?? null,
+          engagement_notes: data.engagement_notes ?? null,
+          proposal_data: (data.proposal_data as SelectEngagementContract['proposal_data']) ?? null,
+          created_by: ctx.userId,
+        },
+        tx
+      );
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+        throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this matter' });
+      }
+      throw error;
+    }
 
     await tx
       .update(matters)
@@ -79,7 +87,7 @@ const createEngagementContract = async (
       })
       .where(and(eq(matters.id, data.matter_id), eq(matters.organization_id, ctx.organizationId)));
 
-    void ctx.emit(
+    await ctx.emit(
       EngagementContractCreated,
       {
         contract_id: created.id,
@@ -152,25 +160,40 @@ const sendEngagementContract = async (
     throw new HTTPException(400, { message: 'Contract body cannot be empty' });
   }
 
+  const matter = await db.query.matters.findFirst({
+    where: (table, { and: andExpr, eq: eqExpr }) =>
+      andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
+  });
+
+  if (!matter) {
+    throw new HTTPException(404, { message: 'Associated matter not found' });
+  }
+
+  const clientId = matter.client_id;
+  const [client, organization] = await Promise.all([
+    clientId !== null
+      ? db.query.clients.findFirst({
+          where: (table, { and: andExpr, eq: eqExpr }) =>
+            andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
+        })
+      : Promise.resolve(null),
+    db.query.organizations.findFirst({
+      where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
+    }),
+  ]);
+
+  const billingSnapshot = {
+    billing_type: matter.billing_type,
+    total_fixed_price: matter.total_fixed_price,
+    contingency_percentage: matter.contingency_percentage,
+    admin_hourly_rate: matter.admin_hourly_rate,
+    attorney_hourly_rate: matter.attorney_hourly_rate,
+    payment_frequency: matter.payment_frequency,
+  };
+
+  const reviewUrl = `${config.app.appUrl}/client/${organization?.slug ?? ctx.organizationId}/engagement-contracts/${id}/review`;
+
   const sentContract = await db.transaction(async (tx) => {
-    const matter = await tx.query.matters.findFirst({
-      where: (table, { and: andExpr, eq: eqExpr }) =>
-        andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-    });
-
-    if (!matter) {
-      throw new HTTPException(404, { message: 'Associated matter not found' });
-    }
-
-    const billingSnapshot = {
-      billing_type: matter.billing_type,
-      total_fixed_price: matter.total_fixed_price,
-      contingency_percentage: matter.contingency_percentage,
-      admin_hourly_rate: matter.admin_hourly_rate,
-      attorney_hourly_rate: matter.attorney_hourly_rate,
-      payment_frequency: matter.payment_frequency,
-    };
-
     const sent = await engagementContractsQueries.update(
       id,
       {
@@ -190,22 +213,7 @@ const sendEngagementContract = async (
       })
       .where(and(eq(matters.id, contract.matter_id), eq(matters.organization_id, ctx.organizationId)));
 
-    const clientId = matter.client_id;
-    const client =
-      clientId !== null
-        ? await tx.query.clients.findFirst({
-            where: (table, { and: andExpr, eq: eqExpr }) =>
-              andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
-          })
-        : null;
-
-    const organization = await tx.query.organizations.findFirst({
-      where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
-    });
-
-    const reviewUrl = `${config.app.appUrl}/client/${organization?.slug ?? ctx.organizationId}/engagement-contracts/${sent.id}/review`;
-
-    void ctx.emit(
+    await ctx.emit(
       EngagementContractSent,
       {
         contract_id: sent.id,
@@ -235,7 +243,7 @@ const acceptEngagementContract = async (
   { id, clientIp }: { id: string; clientIp?: string },
   ctx: ServiceContext
 ): Promise<EngagementContractRecord> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Organization');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
 
   const contract = await engagementContractsQueries.findById(id);
   if (!contract) {
@@ -247,47 +255,49 @@ const acceptEngagementContract = async (
     throw new HTTPException(409, { message: 'Only sent contracts can be accepted' });
   }
 
+  // Load context data outside the transaction to avoid holding DB connections during I/O
+  const matter = await db.query.matters.findFirst({
+    where: (table, { and: andExpr, eq: eqExpr }) =>
+      andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
+  });
+
+  if (!matter) {
+    throw new HTTPException(404, { message: 'Associated matter not found' });
+  }
+
+  const clientId = matter.client_id;
+  const client =
+    clientId !== null
+      ? await db.query.clients.findFirst({
+          where: (table, { and: andExpr, eq: eqExpr }) =>
+            andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
+        })
+      : null;
+
+  const organization = await db.query.organizations.findFirst({
+    where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
+  });
+
+  const acceptedAt = new Date();
+  const clientName = client?.name ?? matter.on_behalf_of ?? 'Client';
+  const clientEmail = client?.email ?? '';
+
+  // Generate PDF and upload to R2 outside the transaction
+  const pdfBuffer = await engagementContractPdfService.generatePdfBuffer(contract, {
+    practiceName: organization?.name ?? 'Practice',
+    clientName,
+    matterTitle: matter.title,
+    acceptedAt,
+    clientIp,
+  });
+
+  const s3Key = await engagementContractPdfService.uploadPdfToR2({
+    organizationId: contract.organization_id,
+    contractId: contract.id,
+    pdfBuffer,
+  });
+
   const acceptedContract = await db.transaction(async (tx) => {
-    const matter = await tx.query.matters.findFirst({
-      where: (table, { and: andExpr, eq: eqExpr }) =>
-        andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-    });
-
-    if (!matter) {
-      throw new HTTPException(404, { message: 'Associated matter not found' });
-    }
-
-    const clientId = matter.client_id;
-    const client =
-      clientId !== null
-        ? await tx.query.clients.findFirst({
-            where: (table, { and: andExpr, eq: eqExpr }) =>
-              andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
-          })
-        : null;
-
-    const organization = await tx.query.organizations.findFirst({
-      where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
-    });
-
-    const acceptedAt = new Date();
-    const clientName = client?.name ?? matter.on_behalf_of ?? 'Client';
-    const clientEmail = client?.email ?? '';
-
-    const pdfBuffer = await engagementContractPdfService.generatePdfBuffer(contract, {
-      practiceName: organization?.name ?? 'Practice',
-      clientName,
-      matterTitle: matter.title,
-      acceptedAt,
-      clientIp,
-    });
-
-    const s3Key = await engagementContractPdfService.uploadPdfToR2({
-      organizationId: contract.organization_id,
-      contractId: contract.id,
-      pdfBuffer,
-    });
-
     const accepted = await engagementContractsQueries.update(
       id,
       {
@@ -308,7 +318,7 @@ const acceptEngagementContract = async (
       })
       .where(and(eq(matters.id, contract.matter_id), eq(matters.organization_id, ctx.organizationId)));
 
-    void ctx.emit(
+    await ctx.emit(
       EngagementContractAccepted,
       {
         contract_id: accepted.id,
@@ -339,7 +349,7 @@ const declineEngagementContract = async (
   { id }: { id: string },
   ctx: ServiceContext
 ): Promise<EngagementContractRecord> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Organization');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
 
   const contract = await engagementContractsQueries.findById(id);
   if (!contract) {
@@ -351,29 +361,29 @@ const declineEngagementContract = async (
     throw new HTTPException(409, { message: 'Only sent contracts can be declined' });
   }
 
-  const declinedContract = await db.transaction(async (tx) => {
-    const matter = await tx.query.matters.findFirst({
-      where: (table, { and: andExpr, eq: eqExpr }) =>
-        andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-    });
+  const matter = await db.query.matters.findFirst({
+    where: (table, { and: andExpr, eq: eqExpr }) =>
+      andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
+  });
 
-    if (!matter) {
-      throw new HTTPException(404, { message: 'Associated matter not found' });
-    }
+  if (!matter) {
+    throw new HTTPException(404, { message: 'Associated matter not found' });
+  }
 
-    const clientId = matter.client_id;
-    const client =
-      clientId !== null
-        ? await tx.query.clients.findFirst({
-            where: (table, { and: andExpr, eq: eqExpr }) =>
-              andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
-          })
-        : null;
-
-    const organization = await tx.query.organizations.findFirst({
+  const clientId = matter.client_id;
+  const [client, organization] = await Promise.all([
+    clientId !== null
+      ? db.query.clients.findFirst({
+          where: (table, { and: andExpr, eq: eqExpr }) =>
+            andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
+        })
+      : Promise.resolve(null),
+    db.query.organizations.findFirst({
       where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
-    });
+    }),
+  ]);
 
+  const declinedContract = await db.transaction(async (tx) => {
     const declined = await engagementContractsQueries.update(
       id,
       {
@@ -384,7 +394,7 @@ const declineEngagementContract = async (
       tx
     );
 
-    void ctx.emit(
+    await ctx.emit(
       EngagementContractDeclined,
       {
         contract_id: declined.id,

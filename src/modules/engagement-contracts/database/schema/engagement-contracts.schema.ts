@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { organizations, users } from '@/schema/better-auth-schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import type { EngagementContractStatus, ProposalData } from '@/modules/engagement-contracts/types/proposal-data.types';
@@ -37,6 +38,9 @@ export const engagementContracts = pgTable(
     index('engagement_contracts_org_idx').on(table.organization_id),
     index('engagement_contracts_status_idx').on(table.status),
     index('engagement_contracts_created_at_idx').on(table.created_at),
+    uniqueIndex('engagement_contracts_unique_accepted_per_matter_idx')
+      .on(table.matter_id)
+      .where(sql`${table.status} = 'accepted'`),
   ]
 );
 

@@ -31,3 +31,4 @@ CREATE INDEX "engagement_contracts_status_idx" ON "engagement_contracts" USING b
 CREATE INDEX "engagement_contracts_created_at_idx" ON "engagement_contracts" USING btree ("created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "engagement_contracts_matter_accepted_unique" ON "engagement_contracts" ("matter_id") WHERE "status" = 'accepted';--> statement-breakpoint
 CREATE INDEX "practice_client_intakes_jurisdiction_status_idx" ON "practice_client_intakes" USING btree ("jurisdiction_status");
+CREATE UNIQUE INDEX "engagement_contracts_unique_accepted_per_matter_idx" ON "engagement_contracts" USING btree ("matter_id") WHERE "engagement_contracts"."status" = 'accepted';

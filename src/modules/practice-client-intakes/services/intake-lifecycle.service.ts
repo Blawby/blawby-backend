@@ -263,7 +263,7 @@ const toMatterResponse = (
   open_date: matter.open_date ?? null,
   close_date: matter.close_date ?? null,
   last_conflict_check_result:
-    (matter.last_conflict_check_result as Record<string | number | symbol, unknown> | null) ?? null,
+    (matter.last_conflict_check_result as Record<string, unknown> | null) ?? null,
 });
 
 const convertIntake = async (
