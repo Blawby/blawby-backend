@@ -112,11 +112,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
         const matter = await mattersQueries.findMatterById(matterId, tx);
         if (matter && matter.retainer_low_balance_threshold !== null && matter.retainer_low_balance_threshold > 0) {
           const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId }, tx);
-          if (!balance.success) {
-            throw new Error('Failed to retrieve trust balance');
-          }
-
-          const matterBalance = balance.data.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
+          const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
           if (matterBalance < matter.retainer_low_balance_threshold) {
             await RetainerLowBalance.dispatch(
               {

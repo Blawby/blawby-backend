@@ -1,26 +1,56 @@
-import { getLogger } from '@logtape/logtape';
-import { ForbiddenError } from '@casl/ability';
+# Error Handling Migration — `trust` Module
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Migrate `trust.service.ts` from `Result<T>` to throw-based error handling. Convert `assertTrustManageAccess`/`assertTrustReadAccess` from `Result<void>` returns to direct throws. Convert `withTrustLock` to throw instead of returning `Result<T>`. All public service functions return data directly.
+
+**Architecture:** `withTrustLock` is the key structural change — its `execute` callback type changes from `Promise<Result<T>>` to `Promise<T>`, and the helper throws `HTTPException(409)` on lock timeout instead of returning `result.conflict(...)`. Retry logic for serialization failures (40001) is preserved unchanged. `recordDeposit`/`recordWithdrawal` are called by invoice/webhook code paths — they throw `HTTPException` for expected failures (bad amount, insufficient funds) so callers get proper HTTP errors.
+
+**Tech Stack:** Hono + `@hono/zod-openapi`, TypeScript 5.9, `hono/http-exception`, `@casl/ability`
+
+---
+
+## File Map
+
+| File | Change |
+|------|--------|
+| `src/modules/trust/services/trust.service.ts` | Remove `assertTrust*Access` helpers; use `ForbiddenError.from().throwUnlessCan()` directly; convert `withTrustLock` to throw-based; all functions return data directly |
+| `src/modules/trust/handlers.ts` | Remove `sendResult`; return `c.json(data, status)` directly |
+
+---
+
+## Task 1: Migrate `trust.service.ts`
+
+**Files:**
+- Modify: `src/modules/trust/services/trust.service.ts`
+
+- [ ] **Step 1: Replace imports**
+
+Remove:
+```typescript
+import { result } from '@/shared/utils/result';
+import type { Result } from '@/shared/types/result';
+```
+
+Add (if not already present):
+```typescript
 import { HTTPException } from 'hono/http-exception';
-import { sql } from 'drizzle-orm';
-import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
-import { db } from '@/shared/database';
-import type { SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
-import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
-import { RetainerLowBalance } from '@/shared/events/definitions/matters';
-import type { ServiceContext } from '@/shared/types/service-context';
-import {
-  type RecordDepositParams,
-  type RecordWithdrawalParams,
-  type GetTransactionsParams,
-  type GetBalanceParams,
-  type GetReportParams,
-} from '@/modules/trust/types/trust.types';
+```
 
-const logger = getLogger(['trust', 'service']);
+(`ForbiddenError` is already imported.)
 
-/**
- * Shared helper to acquire a trust lock and execute logic with retries for serialization failures.
- */
+- [ ] **Step 2: Remove `assertTrustManageAccess` and `assertTrustReadAccess`**
+
+Delete both helper functions entirely. Their logic moves inline at each call site as:
+```typescript
+ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
+// or
+ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+```
+
+- [ ] **Step 3: Rewrite `withTrustLock`**
+
+```typescript
 const withTrustLock = async <T>(
   params: { organizationId: string; clientId: string; matterId?: string | null },
   execute: (trx: typeof db) => Promise<T>,
@@ -50,7 +80,7 @@ const withTrustLock = async <T>(
         throw error;
       }
 
-      const delay = 100 * 2 ** attempt; // 200ms → 400ms → 800ms
+      const delay = 100 * 2 ** attempt;
       logger.info('Retrying trust transaction after serialization failure (attempt {attempt}/3)', { attempt });
       await new Promise((r) => setTimeout(r, delay));
       return run(attempt + 1);
@@ -59,10 +89,11 @@ const withTrustLock = async <T>(
 
   return run(1);
 };
+```
 
-/**
- * Record a trust deposit (e.g., retainer payment received).
- */
+- [ ] **Step 4: Rewrite `recordDeposit`**
+
+```typescript
 const recordDeposit = async (
   params: RecordDepositParams,
   tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
@@ -103,10 +134,11 @@ const recordDeposit = async (
     tx
   );
 };
+```
 
-/**
- * Record a trust withdrawal (e.g., invoice paid from retainer).
- */
+- [ ] **Step 5: Rewrite `recordWithdrawal`**
+
+```typescript
 const recordWithdrawal = async (
   params: RecordWithdrawalParams,
   tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
@@ -152,10 +184,11 @@ const recordWithdrawal = async (
     tx
   );
 };
+```
 
-/**
- * Get trust transaction history filtered by client and/or matter.
- */
+- [ ] **Step 6: Rewrite `getTransactions`**
+
+```typescript
 const getTransactions = async (
   params: GetTransactionsParams,
   ctx: ServiceContext
@@ -163,18 +196,11 @@ const getTransactions = async (
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
   return trustTransactionsRepository.listByOrg(params);
 };
+```
 
-/**
- * Get current trust balance per client (sum of all matter balances).
- */
-const getBalance = async (
-  params: GetBalanceParams,
-  ctx: ServiceContext
-): Promise<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
-  return getBalanceWithTx(params);
-};
+- [ ] **Step 7: Rewrite `getBalanceWithTx` and `getBalance`**
 
+```typescript
 const getBalanceWithTx = async (
   params: GetBalanceParams,
   tx?: typeof db
@@ -184,21 +210,27 @@ const getBalanceWithTx = async (
   return { total, byMatter: rows };
 };
 
-/**
- * Get trust report for IOLTA compliance over a date range.
- */
+const getBalance = async (
+  params: GetBalanceParams,
+  ctx: ServiceContext
+): Promise<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+  return getBalanceWithTx(params);
+};
+```
+
+- [ ] **Step 8: Rewrite `getReport`**
+
+```typescript
 const getReport = async (params: GetReportParams, ctx: ServiceContext): Promise<SelectTrustTransaction[]> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
   return trustTransactionsRepository.listByOrg(params);
 };
+```
 
-interface ManualTrustData {
-  matter_id: string;
-  client_id: string;
-  amount: number;
-  description?: string;
-}
+- [ ] **Step 9: Rewrite `syncBalanceAndCheckThreshold`**
 
+```typescript
 const syncBalanceAndCheckThreshold = async (
   matterId: string,
   organizationId: string,
@@ -236,10 +268,11 @@ const syncBalanceAndCheckThreshold = async (
     });
   }
 };
+```
 
-/**
- * Manual trust deposit (staff-initiated). Records in ledger, syncs retainer_balance, checks threshold.
- */
+- [ ] **Step 10: Rewrite `manualDeposit`**
+
+```typescript
 const manualDeposit = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
@@ -264,11 +297,11 @@ const manualDeposit = async (
     return record;
   });
 };
+```
 
-/**
- * Manual trust withdrawal (staff-initiated). Records in ledger, syncs retainer_balance, checks threshold.
- * Rejects if balance would go below 0.
- */
+- [ ] **Step 11: Rewrite `manualWithdrawal`**
+
+```typescript
 const manualWithdrawal = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
@@ -293,14 +326,112 @@ const manualWithdrawal = async (
     return record;
   });
 };
+```
 
-export const trustService = {
-  recordDeposit,
-  recordWithdrawal,
-  manualDeposit,
-  manualWithdrawal,
-  getTransactions,
-  getBalance,
-  getBalanceWithTx,
-  getReport,
+---
+
+## Task 2: Update `handlers.ts`
+
+**Files:**
+- Modify: `src/modules/trust/handlers.ts`
+
+- [ ] **Step 1: Remove `sendResult` import and replace all handlers**
+
+Replace the entire file content with:
+
+```typescript
+import { trustRoutes } from '@/modules/trust/routes';
+import { trustService } from '@/modules/trust/services/trust.service';
+import type { AppRouteHandler } from '@/shared/types/hono';
+import { getServiceContext } from '@/shared/types/service-context';
+
+const {
+  getTrustTransactionsRoute,
+  getTrustBalanceRoute,
+  getTrustReportRoute,
+  createDepositRoute,
+  createWithdrawalRoute,
+} = trustRoutes;
+
+const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const record = await trustService.manualDeposit({ data: body }, ctx);
+  return c.json(record, 201);
 };
+
+const createWithdrawalHandler: AppRouteHandler<typeof createWithdrawalRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const record = await trustService.manualWithdrawal({ data: body }, ctx);
+  return c.json(record, 201);
+};
+
+const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+  const txs = await trustService.getTransactions(
+    {
+      organizationId: ctx.organizationId,
+      clientId: query.client_id,
+      matterId: query.matter_id,
+      startDate: query.start_date ? new Date(query.start_date) : undefined,
+      endDate: query.end_date ? new Date(query.end_date) : undefined,
+    },
+    ctx
+  );
+  return c.json(txs, 200);
+};
+
+const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+  const balance = await trustService.getBalance(
+    { organizationId: ctx.organizationId, clientId: query.client_id },
+    ctx
+  );
+  return c.json(balance, 200);
+};
+
+const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+  const report = await trustService.getReport(
+    {
+      organizationId: ctx.organizationId,
+      startDate: query.start_date ? new Date(query.start_date) : undefined,
+      endDate: query.end_date ? new Date(query.end_date) : undefined,
+    },
+    ctx
+  );
+  return c.json(report, 200);
+};
+
+export const handlers = {
+  createDepositHandler,
+  createWithdrawalHandler,
+  getTrustTransactionsHandler,
+  getTrustBalanceHandler,
+  getTrustReportHandler,
+};
+```
+
+---
+
+## Task 3: Typecheck Gate
+
+- [ ] **Step 1: Run typecheck**
+
+```bash
+pnpm run typecheck
+```
+
+Expected: zero errors. Fix any before proceeding.
+
+- [ ] **Step 2: Run format check**
+
+```bash
+pnpm run format:check
+```
+
+If errors, run `pnpm run format`.
