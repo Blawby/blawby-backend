@@ -39,7 +39,7 @@ Plus one standalone item:
 Each module plan executes the same steps:
 
 1. **Service layer** — replace `Result<T>` returns with direct returns. Remove `try/catch` blocks that convert errors to `Result<never>`. Replace `return { success: false, error }` with `throw new HTTPException(status, { message })`. For delete operations, change `Promise<Result<{ success: true }>>` to `Promise<void>`.
-2. **Handler layer** — replace `sendResult(c, result)` with direct `return c.json(data, status)`. For deletes, return `c.body(null, 204)`. Remove all `Result<T>` unwrapping.
+2. **Handler layer** — replace `sendResult(c, result)` with direct `return c.json(data, status)`. For deletes, return `c.body(null, 204)`, and update the corresponding route `responses` entry from `200` with a `{ success: boolean }` body to `204` with no content so `AppRouteHandler<typeof route>` typing and OpenAPI output stay aligned. Remove all `Result<T>` unwrapping.
 3. **Trust-specific** — convert `assertTrustManageAccess()` / `assertTrustReadAccess()` to `void` functions that throw instead of returning `Result<void>`.
 4. **Typecheck gate** — `pnpm run typecheck` must pass before the plan is marked complete.
 
@@ -51,13 +51,12 @@ Track 1 absorbs the DELETE→204 handler changes for modules it touches (`matter
 
 | Plan file | Module |
 |-----------|--------|
-| `plans/error-handling-matters.md` | `matters` |
-| `plans/error-handling-trust.md` | `trust` |
-| `plans/error-handling-subscriptions.md` | `subscriptions` |
-| `plans/error-handling-practice-client-intakes.md` | `practice-client-intakes` |
-| `plans/error-handling-stripe.md` | `stripe` |
-| `plans/error-handling-onboarding.md` | `onboarding` |
-| `plans/engagement-contracts-practice-id-validation.md` | `engagement-contracts` |
+| `plans/2026-04-25-error-handling-matters.md` | `matters` |
+| `plans/2026-04-25-error-handling-trust.md` | `trust` |
+| `plans/2026-04-25-error-handling-subscriptions.md` | `subscriptions` |
+| `plans/2026-04-25-error-handling-practice-client-intakes.md` | `practice-client-intakes` |
+| `plans/2026-04-25-error-handling-stripe.md` | `stripe + engagement-contracts validation` |
+| `plans/2026-04-25-error-handling-onboarding.md` | `onboarding` |
 
 ---
 
@@ -159,13 +158,12 @@ Investigate only — no code changes until confirmed:
 
 ```
 Track 1 (sequential — complete in order)
-  [ ] error-handling-matters.md
-  [ ] error-handling-trust.md
-  [ ] error-handling-subscriptions.md
-  [ ] error-handling-practice-client-intakes.md
-  [ ] error-handling-stripe.md
-  [ ] error-handling-onboarding.md
-  [ ] engagement-contracts-practice-id-validation.md
+  [ ] 2026-04-25-error-handling-matters.md
+  [ ] 2026-04-25-error-handling-trust.md
+  [ ] 2026-04-25-error-handling-subscriptions.md
+  [ ] 2026-04-25-error-handling-practice-client-intakes.md
+  [ ] 2026-04-25-error-handling-stripe.md
+  [ ] 2026-04-25-error-handling-onboarding.md
 
 Track 2 (coordinated release with frontend)
   [ ] 2026-04-03-api-non-breaking-fixes.md (resume)

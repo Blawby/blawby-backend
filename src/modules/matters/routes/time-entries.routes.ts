@@ -103,15 +103,8 @@ export const deleteTimeEntryRoute = routeBuilder.build({
     }),
   },
   responses: {
-    200: {
+    204: {
       description: 'Time entry deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-          }),
-        },
-      },
     },
   },
 });
