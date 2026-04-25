@@ -21,11 +21,10 @@ import { db } from '@/shared/database';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
-import type { PaginatedResultWithMeta, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
-import { result } from '@/shared/utils/result';
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
@@ -38,19 +37,16 @@ const listIntakes = async (
     query: z.infer<typeof intakeValidations.listIntakesQuerySchema>;
   },
   ctx: ServiceContext
-): Promise<PaginatedResultWithMeta<ListIntakeItem, 'intakes'>> => {
+): Promise<{ intakes: ListIntakeItem[]; total: number; page: number; limit: number; total_pages: number }> => {
   try {
-    const accessResult = ensureStaffOrganizationAccess(ctx.organizationId, ctx);
-    if (!accessResult.success) {
-      return accessResult;
-    }
+    ensureStaffOrganizationAccess(ctx.organizationId, ctx);
 
     if (params.query.from && !intakeSharedHelpers.parseValidDate(params.query.from)) {
-      return result.badRequest('Invalid date: from');
+      throw new HTTPException(400, { message: 'Invalid date: from' });
     }
 
     if (params.query.to && !intakeSharedHelpers.parseValidDate(params.query.to)) {
-      return result.badRequest('Invalid date: to');
+      throw new HTTPException(400, { message: 'Invalid date: to' });
     }
 
     const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
@@ -60,54 +56,51 @@ const listIntakes = async (
       to: params.query.to ? new Date(params.query.to) : undefined,
     });
 
-    return result.ok({
+    return {
       intakes: intakes.map((intake) => intakeSharedHelpers.formatIntakeListItem(intake, { isAdmin: true })),
       total,
       page: params.query.page,
       limit: params.query.limit,
       total_pages: Math.ceil(total / params.query.limit),
-    });
+    };
   } catch (error) {
     logger.error('Failed to list intakes for organization {organizationId}: {error}', {
       organizationId: ctx.organizationId,
       error,
     });
-    return result.internalError('Failed to list intakes');
+    throw error;
   }
 };
 
 const getIntakeById = async (
   id: string,
   ctx: ServiceContext
-): Promise<Result<{ data: z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>['data'] }>> => {
+): Promise<{
+  success: true;
+  data: z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>['data'];
+}> => {
   try {
-    const intakeResult = await getStaffAccessibleIntake(id, ctx, 'read');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
+    const intake = await getStaffAccessibleIntake(id, ctx, 'read');
 
-    return result.ok({
+    return {
       success: true,
-      data: intakeSharedHelpers.formatIntakeStatusResponse(intakeResult.data, { isAdmin: true }),
-    });
+      data: intakeSharedHelpers.formatIntakeStatusResponse(intake, { isAdmin: true }),
+    };
   } catch (error) {
     logger.error('Failed to get intake {id}: {error}', {
       id,
       error,
     });
-    return result.internalError('Failed to get intake');
+    throw error;
   }
 };
 
 const updateTriageStatus = async (
   params: { uuid: string; data: UpdateIntakeTriageStatusRequest },
   ctx: ServiceContext
-): Promise<Result<UpdateIntakeTriageStatusResponse>> => {
+): Promise<UpdateIntakeTriageStatusResponse> => {
   try {
-    const intakeResult = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
+    const intake = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
 
     const nextTriageStatus = params.data.status;
     const nextReason = nextTriageStatus === 'declined' ? (params.data.reason?.trim() ?? null) : null;
@@ -119,7 +112,7 @@ const updateTriageStatus = async (
     });
 
     // Emit triage event for email notifications
-    const metadata = intakeSharedHelpers.parseMetadata(intakeResult.data.metadata);
+    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
 
     if (metadata?.email) {
       try {
@@ -150,7 +143,7 @@ const updateTriageStatus = async (
       }
     }
 
-    return result.ok({
+    return {
       success: true,
       data: {
         uuid: updatedIntake.id,
@@ -159,13 +152,13 @@ const updateTriageStatus = async (
         triage_reason: updatedIntake.triage_reason ?? null,
         triage_decided_at: updatedIntake.triage_decided_at ?? null,
       },
-    });
+    };
   } catch (error) {
     logger.error('Failed to update triage status for intake {uuid}: {error}', {
       uuid: params.uuid,
       error,
     });
-    return result.internalError('Failed to update intake triage status');
+    throw error;
   }
 };
 
@@ -174,7 +167,7 @@ const createMatterFromIntakeTx = async (
   params: {
     uuid: string;
     data: z.infer<typeof intakeValidations.convertIntakeSchema>;
-    intake: Extract<Awaited<ReturnType<typeof getStaffAccessibleIntake>>, { success: true }>['data'];
+    intake: Awaited<ReturnType<typeof getStaffAccessibleIntake>>;
     metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
     userId: string;
   }
@@ -271,42 +264,37 @@ const convertIntake = async (
     data: z.infer<typeof intakeValidations.convertIntakeSchema>;
   },
   ctx: ServiceContext
-): Promise<Result<{ matter_id: string; matter: MatterResponse }>> => {
+): Promise<{ matter_id: string; matter: MatterResponse }> => {
   try {
-    const intakeResult = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
-
-    const intake = intakeResult.data;
+    const intake = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
     if (intake.status === 'converted') {
       const existingMatter = await mattersQueries.findByIntakeUuid(params.uuid);
       if (existingMatter) {
         const existingMatterWithRelations = await mattersQueries.findMatterByIdWithRelations(existingMatter.id);
         if (!existingMatterWithRelations) {
-          return result.conflict('Intake is marked as converted but no associated matter was found');
+          throw new HTTPException(409, { message: 'Intake is marked as converted but no associated matter was found' });
         }
 
-        return result.ok({
+        return {
           matter_id: existingMatter.id,
           matter: toMatterResponse(existingMatterWithRelations),
-        });
+        };
       }
 
-      return result.conflict('Intake is marked as converted but no associated matter was found');
+      throw new HTTPException(409, { message: 'Intake is marked as converted but no associated matter was found' });
     }
 
     if (intake.status !== 'succeeded') {
-      return result.badRequest('Only successful intakes can be converted to matters');
+      throw new HTTPException(400, { message: 'Only successful intakes can be converted to matters' });
     }
 
     if (intake.triage_status !== 'accepted') {
-      return result.badRequest('Intake must be accepted before converting to a matter');
+      throw new HTTPException(400, { message: 'Intake must be accepted before converting to a matter' });
     }
 
     const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
     if (!metadata) {
-      return result.badRequest('Intake metadata is missing');
+      throw new HTTPException(400, { message: 'Intake metadata is missing' });
     }
 
     const matterId = await db.transaction((tx) =>
@@ -321,41 +309,36 @@ const convertIntake = async (
 
     const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
     if (!matter) {
-      return result.internalError('Matter was created but could not be loaded');
+      throw new HTTPException(500, { message: 'Matter was created but could not be loaded' });
     }
 
-    return result.ok({
+    return {
       matter_id: matterId,
       matter: toMatterResponse(matter),
-    });
+    };
   } catch (error) {
     logger.error('Failed to convert intake {uuid} to matter: {error}', {
       uuid: params.uuid,
       error,
     });
-    return result.internalError('Failed to convert intake to matter');
+    throw error;
   }
 };
 
 const triggerInvitation = async (
   params: { uuid: string; origin?: string | null },
   ctx: ServiceContext
-): Promise<Result<{ success: true; message: string }>> => {
+): Promise<{ success: true; message: string }> => {
   try {
-    const intakeResult = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
-
-    const intake = intakeResult.data;
+    const intake = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
     const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
     if (!metadata?.email) {
-      return result.badRequest('No email address found in intake data');
+      throw new HTTPException(400, { message: 'No email address found in intake data' });
     }
 
     const organization = await organizationRepository.findById(intake.organization_id);
     if (!organization) {
-      return result.notFound('Organization not found');
+      throw new HTTPException(404, { message: 'Organization not found' });
     }
 
     const prefillData: PrefillData = {
@@ -381,7 +364,7 @@ const triggerInvitation = async (
       headers: params.origin ? { origin: params.origin } : {},
     });
 
-    return result.ok({ success: true, message: 'Magic link sent to client email' });
+    return { success: true, message: 'Magic link sent to client email' };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const safeDetails: Record<string, unknown> = { message: errorMessage };
@@ -401,7 +384,7 @@ const triggerInvitation = async (
       error: errorMessage,
       details: JSON.stringify(safeDetails),
     });
-    return result.internalError('An unexpected error occurred while sending the magic link');
+    throw error;
   }
 };
 

@@ -48,7 +48,6 @@ import { matterOpened } from '@/shared/services/email/templates/matter/matter-op
 import { matterClosed } from '@/shared/services/email/templates/matter/matter-closed';
 import { config } from '@/shared/config';
 import { isProduction } from '@/shared/utils/env';
-import { HttpStatus } from '@/shared/utils/result';
 
 const http = new Hono<AppContext>();
 http.use('*', injectAbility());
@@ -76,7 +75,7 @@ const DEV_ONLY_ERROR = { error: 'Not available in production' } as const;
 
 const guardDevelopmentOnly = (c: Context): Response | null => {
   if (isProduction()) {
-    return c.json(DEV_ONLY_ERROR, HttpStatus.FORBIDDEN);
+    return c.json(DEV_ONLY_ERROR, 403);
   }
 
   return null;
@@ -146,14 +145,14 @@ http.get('/emails/:filename', async (c) => {
   const sanitizedFilename = path.basename(filename);
 
   if (!sanitizedFilename.endsWith('.html')) {
-    return c.json({ error: 'Email not found' }, HttpStatus.NOT_FOUND);
+    return c.json({ error: 'Email not found' }, 404);
   }
 
   const filePath = path.resolve(EMAILS_DIR, sanitizedFilename);
 
   // Ensure the resolved path is still within EMAILS_DIR
   if (!filePath.startsWith(EMAILS_DIR) || !fs.existsSync(filePath)) {
-    return c.json({ error: 'Email not found' }, HttpStatus.NOT_FOUND);
+    return c.json({ error: 'Email not found' }, 404);
   }
 
   const content = fs.readFileSync(filePath, 'utf-8');

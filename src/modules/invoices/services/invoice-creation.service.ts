@@ -65,18 +65,12 @@ const validateInvoiceCreation = async (
   const { id: clientId, connectedAccount, matters } = client;
 
   // 2. Validate connected account capabilities
-  const accountValidation = invoiceValidators.validateConnectedAccount(connectedAccount);
-  if (!accountValidation.success) {
-    throw new HTTPException(400, { message: 'Invalid connected account' });
-  }
+  invoiceValidators.validateConnectedAccount(connectedAccount);
 
   // 3. Validate matter belongs to client (if provided)
   if (data.matter_id) {
     const matter = matters.find((m: { id: string }) => m.id === data.matter_id);
-    const matterValidation = invoiceValidators.validateMatterBelongsToClient(matter, clientId);
-    if (!matterValidation.success) {
-      throw new HTTPException(400, { message: 'Invalid matter for client' });
-    }
+    invoiceValidators.validateMatterBelongsToClient(matter, clientId);
     if (matter?.billing_type === 'pro_bono') {
       throw new HTTPException(400, { message: 'Cannot create invoice for a pro bono matter' });
     }
@@ -121,10 +115,7 @@ const validateInvoiceCreation = async (
   }
 
   // 4. Validate invoice number is unique
-  const numberValidation = await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
-  if (!numberValidation.success) {
-    throw new HTTPException(400, { message: 'Invoice number must be unique' });
-  }
+  await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
 
   return { clientId };
 };

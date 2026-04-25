@@ -6,7 +6,6 @@ import { members } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
-import { sendError } from '@/shared/utils/responseUtils';
 
 /**
  * Authentication Middleware - Sets user context and blocks unauthenticated users
@@ -39,7 +38,7 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
 
     // Block request if no user
     if (!session?.user) {
-      return sendError(c, { code: 'UNAUTHORIZED', message: 'Authentication required', status: 401 });
+      return c.json({ error: 'UNAUTHORIZED', message: 'Authentication required' }, 401);
     }
 
     return next();
@@ -47,7 +46,7 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
     // Log the error and block the request
     const logger = getLogger(['app', 'auth']);
     logger.error('Error in requireAuth middleware: {error}', { error });
-    return sendError(c, { code: 'UNAUTHORIZED', message: 'Authentication required', status: 401 });
+    return c.json({ error: 'UNAUTHORIZED', message: 'Authentication required' }, 401);
   }
 };
 

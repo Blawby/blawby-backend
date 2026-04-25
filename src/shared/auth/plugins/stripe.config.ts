@@ -11,7 +11,7 @@ import { db } from '@/shared/database';
 import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
-import { createWebhookEventIfNotExists } from '@/shared/repositories/stripe.webhook-events.repository';
+import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
@@ -298,7 +298,7 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
     // Opt: Centralized Webhook Handling
     onEvent: async (event) => {
       try {
-        const webhookEvent = await createWebhookEventIfNotExists(
+        const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(
           event,
           { 'stripe-event-id': event.id, 'stripe-event-type': event.type },
           '/api/auth/stripe/webhook'

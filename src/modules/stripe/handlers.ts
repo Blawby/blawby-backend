@@ -16,16 +16,12 @@ const createAccountSessionHandler: AppRouteHandler<typeof createAccountSessionRo
 const getConnectedAccountHandler: AppRouteHandler<typeof getConnectedAccountRoute> = async (c) => {
   const ctx = getServiceContext(c);
 
-  const result = await connectedAccountsService.getAccount(ctx.organizationId);
-  if (!result.success) {
-    throw new HTTPException(result.error.status, { message: result.error.message });
-  }
-
-  if (result.data === null) {
+  const account = await connectedAccountsService.getAccount(ctx.organizationId);
+  if (account === null) {
     throw new HTTPException(404, { message: 'No connected Stripe account found for this practice' });
   }
 
-  return c.json(result.data);
+  return c.json(account);
 };
 
 export const handlers = {

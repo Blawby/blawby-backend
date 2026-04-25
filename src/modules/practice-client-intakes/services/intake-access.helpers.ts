@@ -1,66 +1,56 @@
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { forbidden, notFound, ok } from '@/shared/utils/result';
+import { ForbiddenError } from '@casl/ability';
+import { HTTPException } from 'hono/http-exception';
 
-const getIntakeById = async (uuid: string): Promise<Result<SelectPracticeClientIntake>> => {
+const getIntakeById = async (uuid: string): Promise<SelectPracticeClientIntake> => {
   const intake = await practiceClientIntakesRepository.findById(uuid);
   if (!intake) {
-    return notFound('Practice client intake not found');
+    throw new HTTPException(404, { message: 'Practice client intake not found' });
   }
-  return ok(intake);
+  return intake;
 };
 
 export const getActorAccessibleIntake = async (
   uuid: string,
   ctx: ServiceContext,
   action: 'read' | 'update'
-): Promise<Result<SelectPracticeClientIntake>> => {
-  const intakeResult = await getIntakeById(uuid);
-  if (!intakeResult.success) {
-    return intakeResult;
-  }
-
-  const intake = intakeResult.data;
+): Promise<SelectPracticeClientIntake> => {
+  const intake = await getIntakeById(uuid);
 
   if (ctx.memberRole) {
-    if (ctx.ability.cannot(action, 'PracticeClientIntake')) {
-      return forbidden('You do not have permission to access this intake');
-    }
+    ForbiddenError.from(ctx.ability).throwUnlessCan(action, 'PracticeClientIntake');
     if (!ctx.organizationId || intake.organization_id !== ctx.organizationId) {
-      return forbidden('Access denied');
+      throw new HTTPException(403, { message: 'Access denied' });
     }
-    return ok(intake);
+    return intake;
   }
 
   if (intake.metadata?.user_id !== ctx.userId) {
-    return forbidden('Access denied');
+    throw new HTTPException(403, { message: 'Access denied' });
   }
 
-  return ok(intake);
+  return intake;
 };
 
 export const getStaffAccessibleIntake = async (
   uuid: string,
   ctx: ServiceContext,
   action: 'read' | 'update'
-): Promise<Result<SelectPracticeClientIntake>> => {
+): Promise<SelectPracticeClientIntake> => {
   if (!ctx.memberRole) {
-    return forbidden('You do not have permission to access this intake');
+    throw new HTTPException(403, { message: 'You do not have permission to access this intake' });
   }
   return getActorAccessibleIntake(uuid, ctx, action);
 };
 
-export const ensureStaffOrganizationAccess = (organizationId: string, ctx: ServiceContext): Result<void> => {
+export const ensureStaffOrganizationAccess = (organizationId: string, ctx: ServiceContext): void => {
   if (!ctx.memberRole) {
-    return forbidden('You do not have permission to access these intakes');
+    throw new HTTPException(403, { message: 'You do not have permission to access these intakes' });
   }
-  if (ctx.ability.cannot('read', 'PracticeClientIntake')) {
-    return forbidden('You do not have permission to read intakes');
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'PracticeClientIntake');
   if (!ctx.organizationId || ctx.organizationId !== organizationId) {
-    return forbidden('Access denied');
+    throw new HTTPException(403, { message: 'Access denied' });
   }
-  return ok(undefined);
 };

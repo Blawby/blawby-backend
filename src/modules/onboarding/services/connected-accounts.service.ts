@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import { onboardingRepository as onboardingRepo } from '@/modules/onboarding/database/queries/onboarding.repository';
 import type { StripeConnectedAccount, NewStripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import type {
@@ -8,8 +9,6 @@ import type {
 } from '@/modules/onboarding/types/onboarding.types';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { StripeConnectedAccountCreated } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
-import { ok, notFound, internalError } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['onboarding', 'connected-accounts']);
@@ -107,11 +106,7 @@ export const connectedAccountsService = {
   /**
    * Create new Stripe connected account
    */
-  async createStripeAccount(
-    organizationId: string,
-    email: string,
-    userId?: string
-  ): Promise<Result<StripeConnectedAccount>> {
+  async createStripeAccount(organizationId: string, email: string, userId?: string): Promise<StripeConnectedAccount> {
     try {
       const stripeAccount = await stripe.accounts.create({
         country: 'US',
@@ -163,14 +158,14 @@ export const connectedAccountsService = {
         }
       );
 
-      return ok(createdAccount);
+      return createdAccount;
     } catch (error) {
       logger.error('Failed to create Stripe account for organization {organizationId}: {error}', {
         error,
         userId,
         organizationId,
       });
-      return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account');
     }
   },
 
@@ -181,7 +176,7 @@ export const connectedAccountsService = {
     account: StripeConnectedAccount,
     refreshUrl: string,
     returnUrl: string
-  ): Promise<Result<CreateSessionResponse>> {
+  ): Promise<CreateSessionResponse> {
     try {
       const accountLink = await stripe.accountLinks.create({
         account: account.stripe_account_id,
@@ -190,16 +185,16 @@ export const connectedAccountsService = {
         type: 'account_onboarding',
       });
 
-      return ok({
+      return {
         url: accountLink.url,
         expires_at: accountLink.expires_at,
-      });
+      };
     } catch (error) {
       logger.error('Failed to create Stripe account link for organization {organizationId}: {error}', {
         error,
         organizationId: account.organization_id,
       });
-      return internalError(error instanceof Error ? error.message : 'Failed to create Stripe account link');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account link');
     }
   },
 
@@ -212,28 +207,19 @@ export const connectedAccountsService = {
     refreshUrl: string,
     returnUrl: string,
     userId?: string
-  ): Promise<Result<CreateAccountResponse>> {
+  ): Promise<CreateAccountResponse> {
     // Check if account exists
     let account = await connectedAccountsService.findAccountByOrganization(organizationId);
 
     if (!account) {
-      // Create new account
-      const result = await connectedAccountsService.createStripeAccount(organizationId, email, userId);
-      if (!result.success) {
-        return result;
-      }
-      account = result.data;
+      // Create new account — throws on failure
+      account = await connectedAccountsService.createStripeAccount(organizationId, email, userId);
     }
 
-    // Create account link for the account
-    const linkResult = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
-    if (!linkResult.success) {
-      return linkResult;
-    }
+    // Create account link for the account — throws on failure
+    const accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
 
-    const accountLink = linkResult.data;
-
-    return ok({
+    return {
       account_id: account.stripe_account_id,
       url: accountLink.url ?? '',
       expires_at: accountLink.expires_at,
@@ -244,13 +230,13 @@ export const connectedAccountsService = {
         payouts_enabled: account.payouts_enabled,
         details_submitted: account.details_submitted,
       },
-    });
+    };
   },
 
   /**
    * Create embedded payments session
    */
-  async createPaymentsSession(stripeAccountId: string): Promise<Result<CreateSessionResponse>> {
+  async createPaymentsSession(stripeAccountId: string): Promise<CreateSessionResponse> {
     try {
       const session = await stripe.accountSessions.create({
         account: stripeAccountId,
@@ -266,33 +252,34 @@ export const connectedAccountsService = {
         },
       });
 
-      return ok({
+      return {
         client_secret: session.client_secret,
         expires_at: session.expires_at,
-      });
+      };
     } catch (error) {
       logger.error('Failed to create Stripe payments session for {stripeAccountId}: {error}', {
         error,
         stripeAccountId,
       });
-      return internalError(error instanceof Error ? error.message : 'Failed to create Stripe payments session');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe payments session');
     }
   },
 
   /**
    * Get account status and requirements
+   * Returns null if no account exists (not an error condition).
    */
-  async getAccount(organizationId: string): Promise<Result<GetAccountResponse | null>> {
+  async getAccount(organizationId: string): Promise<GetAccountResponse | null> {
     try {
       const account = await onboardingRepo.findByOrganizationId(organizationId);
 
       if (!account) {
-        return ok(null);
+        return null;
       }
 
       const readiness = getAccountReadiness({ account });
 
-      return ok({
+      return {
         account_id: account.stripe_account_id,
         status: {
           charges_enabled: account.charges_enabled,
@@ -307,13 +294,13 @@ export const connectedAccountsService = {
         requirements: account.requirements,
         future_requirements: account.futureRequirements,
         onboarding_completed_at: account.onboarding_completed_at ?? null,
-      });
+      };
     } catch (error) {
       logger.error('Failed to retrieve connected account status for {organizationId}: {error}', {
         organizationId,
         error,
       });
-      return internalError('Failed to retrieve connected account status');
+      throw new Error('Failed to retrieve connected account status');
     }
   },
 
@@ -327,16 +314,11 @@ export const connectedAccountsService = {
   /**
    * Create payments session for organization
    */
-  async createPaymentsSessionForOrganization(organizationId: string): Promise<Result<CreateSessionResponse>> {
-    const result = await connectedAccountsService.getAccount(organizationId);
-    if (!result.success) {
-      return result;
-    }
-
-    const account = result.data;
+  async createPaymentsSessionForOrganization(organizationId: string): Promise<CreateSessionResponse> {
+    const account = await connectedAccountsService.getAccount(organizationId);
 
     if (!account) {
-      return notFound('No Stripe account found for organization');
+      throw new HTTPException(404, { message: 'No Stripe account found for organization' });
     }
 
     return connectedAccountsService.createPaymentsSession(account.account_id);
@@ -344,13 +326,3 @@ export const connectedAccountsService = {
 };
 
 export default connectedAccountsService;
-
-// Legacy exports
-export const { findAccountByOrganization } = connectedAccountsService;
-export const { createStripeAccount } = connectedAccountsService;
-export const { createAccountLinkForAccount } = connectedAccountsService;
-export const { createOrGetAccount } = connectedAccountsService;
-export const { createPaymentsSession } = connectedAccountsService;
-export const { getAccount } = connectedAccountsService;
-export const { isAccountActive } = connectedAccountsService;
-export const { createPaymentsSessionForOrganization } = connectedAccountsService;

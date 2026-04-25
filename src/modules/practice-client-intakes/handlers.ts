@@ -10,7 +10,6 @@ import { db } from '@/shared/database';
 import { getLogger } from '@logtape/logtape';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
-import { sendResult } from '@/shared/utils/responseUtils';
 import { extractOriginFromReferer } from '@/shared/utils/env';
 
 const logger = getLogger(['practice-client-intakes', 'handlers']);
@@ -23,8 +22,8 @@ const getCreateIntakeRequestMetadata = (c: Context) => ({
 
 const getIntakeSettingsHandler: AppRouteHandler<typeof publicRoutes.getIntakeSettingsRoute> = async (c) => {
   const { slug } = c.req.valid('param');
-  const result = await intakeCreationService.getIntakeSettings({ slug });
-  return sendResult(c, result, 200);
+  const data = await intakeCreationService.getIntakeSettings({ slug });
+  return c.json(data, 200);
 };
 
 const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.createPracticeClientIntakeRoute> = async (
@@ -42,7 +41,7 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
     logger.warn('Session resolution failed on public intake route, proceeding anonymously: {error}', { error });
   }
 
-  const result = await intakeCreationService.createIntake({
+  const data = await intakeCreationService.createIntake({
     data: {
       ...body,
       // Session-derived userId always wins; never trust a client-supplied user_id.
@@ -50,7 +49,7 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
       ...getCreateIntakeRequestMetadata(c),
     },
   });
-  return sendResult(c, result, 201);
+  return c.json(data, 201);
 };
 
 const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
@@ -59,14 +58,14 @@ const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const origin = c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer'));
-  const result = await intakeCheckoutService.createCheckoutSession(
+  const data = await intakeCheckoutService.createCheckoutSession(
     {
       uuid,
       origin,
     },
     ctx
   );
-  return sendResult(c, result, 201);
+  return c.json(data, 201);
 };
 
 const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.updatePracticeClientIntakeRoute> = async (
@@ -75,8 +74,8 @@ const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.upd
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
-  const result = await intakeCreationService.updateIntake({ uuid, data: body }, ctx);
-  return sendResult(c, result, 200);
+  const data = await intakeCreationService.updateIntake({ uuid, data: body }, ctx);
+  return c.json(data, 200);
 };
 
 const getPracticeClientIntakeStatusHandler: AppRouteHandler<
@@ -84,48 +83,48 @@ const getPracticeClientIntakeStatusHandler: AppRouteHandler<
 > = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await intakeCheckoutService.getIntakeStatus({ uuid }, ctx);
-  return sendResult(c, result, 200);
+  const data = await intakeCheckoutService.getIntakeStatus({ uuid }, ctx);
+  return c.json(data, 200);
 };
 
 const getPracticeClientIntakePostPayStatusHandler: AppRouteHandler<
   typeof publicRoutes.getPracticeClientIntakePostPayStatusRoute
 > = async (c) => {
   const { session_id: sessionId } = c.req.valid('query');
-  const result = await intakeCheckoutService.getPostPayStatus({ sessionId });
-  return sendResult(c, result, 200);
+  const data = await intakeCheckoutService.getPostPayStatus({ sessionId });
+  return c.json(data, 200);
 };
 
 const triggerIntakeInvitationHandler: AppRouteHandler<typeof staffRoutes.triggerIntakeInvitationRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
-  const result = await intakeLifecycleService.triggerInvitation(
+  const data = await intakeLifecycleService.triggerInvitation(
     { uuid, origin: c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer')) },
     ctx
   );
-  return sendResult(c, result, 200);
+  return c.json(data, 200);
 };
 
 const listIntakesHandler: AppRouteHandler<typeof staffRoutes.listIntakesRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-  const result = await intakeLifecycleService.listIntakes({ query }, ctx);
-  return sendResult(c, result, 200);
+  const data = await intakeLifecycleService.listIntakes({ query }, ctx);
+  return c.json(data, 200);
 };
 
 const getIntakeHandler: AppRouteHandler<typeof staffRoutes.getIntakeRoute> = async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const result = await intakeLifecycleService.getIntakeById(id, ctx);
-  return sendResult(c, result, 200);
+  const data = await intakeLifecycleService.getIntakeById(id, ctx);
+  return c.json(data, 200);
 };
 
 const convertIntakeHandler: AppRouteHandler<typeof staffRoutes.convertIntakeRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
-  const result = await intakeLifecycleService.convertIntake({ uuid, data: body }, ctx);
-  return sendResult(c, result, 201);
+  const data = await intakeLifecycleService.convertIntake({ uuid, data: body }, ctx);
+  return c.json(data, 201);
 };
 
 const updateIntakeTriageStatusHandler: AppRouteHandler<typeof staffRoutes.updateIntakeTriageStatusRoute> = async (
@@ -134,8 +133,8 @@ const updateIntakeTriageStatusHandler: AppRouteHandler<typeof staffRoutes.update
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
-  const result = await intakeLifecycleService.updateTriageStatus({ uuid, data: body }, ctx);
-  return sendResult(c, result, 200);
+  const data = await intakeLifecycleService.updateTriageStatus({ uuid, data: body }, ctx);
+  return c.json(data, 200);
 };
 
 export const handlers = {
