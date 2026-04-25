@@ -7,8 +7,6 @@
 
 import { getLogger } from '@logtape/logtape';
 import { handleProductCreated } from '@/modules/subscriptions/handlers/productCreated.handler';
-import type { Result } from '@/shared/types/result';
-import { ok, internalError } from '@/shared/utils/result';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'sync-plans']);
@@ -22,7 +20,7 @@ interface SyncResult {
  * Sync all subscription plans from Stripe to database
  * Uses the product.created handler to ensure consistent logic
  */
-const syncAllPlansFromStripe = async (): Promise<Result<SyncResult>> => {
+const syncAllPlansFromStripe = async (): Promise<SyncResult> => {
   const stripe = getStripeInstance();
   const result: SyncResult = {
     synced: 0,
@@ -69,10 +67,10 @@ const syncAllPlansFromStripe = async (): Promise<Result<SyncResult>> => {
       errorCount: result.errors.length,
     });
 
-    return ok(result);
+    return result;
   } catch (error) {
     logger.error('Failed to sync plans from Stripe: {error}', { error });
-    return internalError('Failed to sync plans from Stripe');
+    throw new Error('Failed to sync plans from Stripe');
   }
 };
 

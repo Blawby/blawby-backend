@@ -51,85 +51,80 @@ export const reportMeteredUsageWithRetry = async (
     dispatchSystemError: (payload, options) => SystemErrorOccurred.dispatch(payload, options),
   }
 ): Promise<void> => {
-  const usageResult = await deps.reportMeteredUsage(
-    db,
-    opts.organizationId,
-    opts.meteredType,
-    opts.quantity,
-    opts.deduplicationId
-  );
-
-  if (usageResult.success) {
-    return;
-  }
-
-  logger.error('Failed to report {failureLabel} for invoice {invoiceId}: {error}', {
-    failureLabel: opts.failureLabel,
-    invoiceId: opts.invoiceId,
-    error: usageResult.error.message,
-  });
-
   try {
-    await deps.queueMeteredUsageJob({
-      organizationId: opts.organizationId,
-      meteredType: opts.meteredType,
-      quantity: opts.quantity,
-      deduplicationId: opts.deduplicationId,
-    });
+    await deps.reportMeteredUsage(db, opts.organizationId, opts.meteredType, opts.quantity, opts.deduplicationId);
+    return;
+  } catch (usageError) {
+    const usageErrorMessage = usageError instanceof Error ? usageError.message : 'Unknown error';
 
-    logger.warn('Queued metered usage retry for {failureLabel} on invoice {invoiceId}', {
+    logger.error('Failed to report {failureLabel} for invoice {invoiceId}: {error}', {
       failureLabel: opts.failureLabel,
       invoiceId: opts.invoiceId,
-      deduplicationId: opts.deduplicationId,
-    });
-  } catch (queueError) {
-    let dispatchErrorMessage: string | null = null;
-
-    logger.error('Failed to queue metered usage retry for invoice {invoiceId}: {error}', {
-      invoiceId: opts.invoiceId,
-      error: queueError instanceof Error ? queueError.message : 'Unknown error',
-      deduplicationId: opts.deduplicationId,
+      error: usageErrorMessage,
     });
 
     try {
-      await deps.dispatchSystemError(
-        {
-          error: 'Failed to report metered usage and failed to queue retry',
-          context: {
-            organizationId: opts.organizationId,
-            invoiceId: opts.invoiceId,
-            meteredType: opts.meteredType,
-            quantity: opts.quantity,
-            deduplicationId: opts.deduplicationId,
-            failureLabel: opts.failureLabel,
-            meteredError: usageResult.error.message,
-            queueError: queueError instanceof Error ? queueError.message : 'Unknown error',
-          },
-        },
-        {
-          actorId: 'system',
-          actorType: 'system',
-          organizationId: opts.organizationId,
-          critical: true,
-        }
-      );
-    } catch (dispatchError) {
-      dispatchErrorMessage = dispatchError instanceof Error ? dispatchError.message : 'Unknown error';
-      logger.error('Failed to dispatch SystemErrorOccurred for invoice {invoiceId}: {error}', {
-        invoiceId: opts.invoiceId,
-        error: dispatchErrorMessage,
+      await deps.queueMeteredUsageJob({
+        organizationId: opts.organizationId,
+        meteredType: opts.meteredType,
+        quantity: opts.quantity,
+        deduplicationId: opts.deduplicationId,
       });
-    }
 
-    if (dispatchErrorMessage) {
-      throw new Error(
-        `Failed to queue metered usage retry (${queueError instanceof Error ? queueError.message : 'Unknown error'}); ` +
-          `failed to dispatch SystemErrorOccurred (${dispatchErrorMessage})`,
-        { cause: queueError }
-      );
-    }
+      logger.warn('Queued metered usage retry for {failureLabel} on invoice {invoiceId}', {
+        failureLabel: opts.failureLabel,
+        invoiceId: opts.invoiceId,
+        deduplicationId: opts.deduplicationId,
+      });
+    } catch (queueError) {
+      let dispatchErrorMessage: string | null = null;
 
-    throw queueError instanceof Error ? queueError : new Error('Failed to queue metered usage retry');
+      logger.error('Failed to queue metered usage retry for invoice {invoiceId}: {error}', {
+        invoiceId: opts.invoiceId,
+        error: queueError instanceof Error ? queueError.message : 'Unknown error',
+        deduplicationId: opts.deduplicationId,
+      });
+
+      try {
+        await deps.dispatchSystemError(
+          {
+            error: 'Failed to report metered usage and failed to queue retry',
+            context: {
+              organizationId: opts.organizationId,
+              invoiceId: opts.invoiceId,
+              meteredType: opts.meteredType,
+              quantity: opts.quantity,
+              deduplicationId: opts.deduplicationId,
+              failureLabel: opts.failureLabel,
+              meteredError: usageErrorMessage,
+              queueError: queueError instanceof Error ? queueError.message : 'Unknown error',
+            },
+          },
+          {
+            actorId: 'system',
+            actorType: 'system',
+            organizationId: opts.organizationId,
+            critical: true,
+          }
+        );
+      } catch (dispatchError) {
+        dispatchErrorMessage = dispatchError instanceof Error ? dispatchError.message : 'Unknown error';
+        logger.error('Failed to dispatch SystemErrorOccurred for invoice {invoiceId}: {error}', {
+          invoiceId: opts.invoiceId,
+          error: dispatchErrorMessage,
+        });
+      }
+
+      if (dispatchErrorMessage) {
+        throw new Error(
+          `Failed to queue metered usage retry (${queueError instanceof Error ? queueError.message : 'Unknown error'}); ` +
+            `failed to dispatch SystemErrorOccurred (${dispatchErrorMessage})`,
+          { cause: queueError }
+        );
+      }
+
+      throw queueError instanceof Error ? queueError : new Error('Failed to queue metered usage retry');
+    }
   }
 };
 
