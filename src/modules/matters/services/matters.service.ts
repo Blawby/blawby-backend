@@ -18,6 +18,7 @@ import type {
   MatterRecord,
   UnbilledMatterData,
 } from '@/modules/matters/types/matter.types';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { toSubject } from '@/shared/auth/subject-helpers';
@@ -217,6 +218,11 @@ const updateMatter = async (
     }
   }
 
+  const organizationName =
+    data.status && data.status !== existing.status
+      ? ((await organizationRepository.findById(ctx.organizationId))?.name ?? 'Your Legal Team')
+      : null;
+
   const updated = await db.transaction(async (tx) => {
     const dbData = {
       ...matterData,
@@ -270,7 +276,7 @@ const updateMatter = async (
           old_status: existing.status,
           new_status: data.status,
           matter_title: existing.title,
-          organization_name: 'Your Legal Team',
+          organization_name: organizationName ?? 'Your Legal Team',
           client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
           client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
         },

@@ -32,7 +32,7 @@ const createMatterTimeEntry = async (
   ctx: ServiceContext
 ): Promise<SelectMatterTimeEntry> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -82,7 +82,7 @@ const listMatterTimeEntries = async (
   ctx: ServiceContext
 ): Promise<SelectMatterTimeEntry[]> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -104,7 +104,7 @@ const updateMatterTimeEntry = async (
   ctx: ServiceContext
 ): Promise<SelectMatterTimeEntry> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -159,7 +159,7 @@ const updateMatterTimeEntry = async (
  */
 const deleteMatterTimeEntry = async (params: { entryId: string }, ctx: ServiceContext): Promise<void> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -194,7 +194,7 @@ const getTimeEntryStats = async (
   totalHours: number;
 }> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);

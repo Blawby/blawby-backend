@@ -100,6 +100,8 @@ Change return type from `Promise<Result<IntakeSettingsResponse>>` to `Promise<In
 - `return result.forbidden(...)` → `throw new HTTPException(403, { message: ... })`
 - `return result.ok({ success: true, data: ... })` → `return { success: true, data: ... }`
 
+Keep the `{ success: true, data: ... }` envelope here for backward compatibility with existing intake callers; unlike the `matters` module, these endpoints intentionally preserve that response shape during the error-handling migration.
+
 Remove the outer `try/catch` that returns `internalError` — let errors propagate naturally.
 
 - [ ] **Step 3: Replace `createIntake`**

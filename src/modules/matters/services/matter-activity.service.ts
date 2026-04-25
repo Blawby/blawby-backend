@@ -7,6 +7,7 @@
 import { getLogger } from '@logtape/logtape';
 import { eq, desc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { HTTPException } from 'hono/http-exception';
 import {
   matterActivityLog,
   type SelectMatterActivityLog,
@@ -55,6 +56,7 @@ const logMatterActivity = async (
       matterId,
       error: error instanceof Error ? error.message : String(error),
     });
+    if (tx) throw error;
   }
 };
 
@@ -67,7 +69,7 @@ const getMatterActivity = async (
 ): Promise<SelectMatterActivityLog[]> => {
   const { matterId } = ctx;
   if (!matterId) {
-    throw new Error('Matter ID not found in context');
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
   }
 
   const { mattersService } = await import('@/modules/matters/services/matters.service');

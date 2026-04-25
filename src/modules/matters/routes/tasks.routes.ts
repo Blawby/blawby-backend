@@ -103,15 +103,8 @@ export const deleteMatterTaskRoute = routeBuilder.build({
     params: matterIdParamSchema.merge(taskIdParamSchema),
   },
   responses: {
-    200: {
+    204: {
       description: 'Task deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-          }),
-        },
-      },
     },
   },
 });

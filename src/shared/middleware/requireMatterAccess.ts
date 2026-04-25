@@ -26,12 +26,8 @@ export const requireMatterAccess =
     try {
       await mattersService.verifyMatterAccess(matterId, ctx);
     } catch (error) {
-      if (error instanceof HTTPException) {
-        return c.json({ error: error.message }, error.status);
-      }
-
       if (error instanceof ForbiddenError) {
-        return c.json({ error: error.message }, 403);
+        throw new HTTPException(403, { message: error.message });
       }
 
       throw error;

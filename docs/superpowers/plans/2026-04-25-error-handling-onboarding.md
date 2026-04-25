@@ -223,7 +223,7 @@ const getConnectedAccountHandler: AppRouteHandler<typeof getConnectedAccountRout
 };
 ```
 
-Remove the `import { HTTPException } from 'hono/http-exception'` if it's no longer needed for the manual result conversion (it still is needed for the 404 throw, so keep it).
+Keep `import { HTTPException } from 'hono/http-exception'` because `HTTPException` is still required for the 404 throw in `getConnectedAccountHandler`.
 
 ---
 

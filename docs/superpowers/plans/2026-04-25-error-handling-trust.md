@@ -34,10 +34,13 @@ import type { Result } from '@/shared/types/result';
 
 Add (if not already present):
 ```typescript
+import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
+import { sql } from 'drizzle-orm';
+import { db } from '@/shared/database';
 ```
 
-(`ForbiddenError` is already imported.)
+Retain `getLogger`, `sql`, `db`, and `HTTPException` because `withTrustLock` uses `logger.warn` / `logger.info`, `sql\`...\``, `db.transaction(...)`, and an `HTTPException` throw. `setTimeout` is global and does not need an import.
 
 - [ ] **Step 2: Remove `assertTrustManageAccess` and `assertTrustReadAccess`**
 
@@ -72,16 +75,21 @@ const withTrustLock = async <T>(
 
       if (code === '55P03') {
         logger.warn('Trust lock timed out waiting for advisory lock', { lockKey });
-        throw new HTTPException(409, { message: 'Operation timed out due to high concurrency. Please try again.' });
+        throw new HTTPException(503, {
+          message: 'Temporary high concurrency; please retry.',
+          headers: { 'Retry-After': '1' },
+        });
       }
 
-      const canRetry = code === '40001' && !tx && attempt <= 3;
+      const canRetry = code === '40001' && !tx && attempt < 3;
       if (!canRetry) {
         throw error;
       }
 
       const delay = 100 * 2 ** attempt;
-      logger.info('Retrying trust transaction after serialization failure (attempt {attempt}/3)', { attempt });
+      logger.info('Retrying trust transaction after serialization failure (retry {retryAttempt}/3)', {
+        retryAttempt: attempt + 1,
+      });
       await new Promise((r) => setTimeout(r, delay));
       return run(attempt + 1);
     }

@@ -27,7 +27,8 @@
 - [ ] **Step 1: Scan for Result usage**
 
 ```bash
-grep -rn "Result<\|sendResult\|result\." src/modules/stripe/services/ --include="*.ts"
+grep -rnE "import .*\\b(Result|sendResult)\\b from" src/modules/stripe/services/ --include="*.ts"
+grep -rnE "\\bResult<|\\bsendResult\\s*\\(" src/modules/stripe/services/ --include="*.ts"
 ```
 
 - [ ] **Step 2: Fix any findings**

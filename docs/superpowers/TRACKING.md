@@ -27,7 +27,7 @@ Modules still using `Result<T>` / `sendResult`:
 
 | Module | Plan | Status | Notes |
 |--------|------|--------|-------|
-| `matters/` | `docs/superpowers/plans/2026-04-25-error-handling-matters.md` | ✅ | Fully closed: migration landed, `getMatterActivity` now uses `verifyMatterAccess`, and `unlinkUpload` returns `204 No Content` via handler |
+| `matters/` | `plans/2026-04-25-error-handling-matters.md` | ✅ | Fully closed: migration landed, `getMatterActivity` now uses `verifyMatterAccess`, and `unlinkUpload` returns `204 No Content` via handler |
 | `matters/services/matters.service.ts` — remaining try/catch follow-up | ↑ same plan | ✅ | Removed the last localized status-event enrichment try/catch |
 | `trust/` — `assertTrustManageAccess` / `assertTrustReadAccess` return `Result<void>` | `plans/2026-04-25-error-handling-trust.md` | ⬜ | |
 | `subscriptions/` | `plans/2026-04-25-error-handling-subscriptions.md` | ⬜ | |

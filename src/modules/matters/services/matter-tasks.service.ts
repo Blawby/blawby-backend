@@ -21,7 +21,7 @@ const createMatterTask = async (
   });
 
   if (!createdTasks || createdTasks.length === 0) {
-    throw new HTTPException(500, { message: 'Failed to create matter task' });
+    throw new Error('Failed to create matter task');
   }
 
   const [createdTask] = createdTasks;
@@ -133,7 +133,10 @@ const deleteMatterTask = async (params: { matterId: string; taskId: string }, ct
     throw new HTTPException(404, { message: 'Task not found' });
   }
 
-  await matterTasksQueries.deleteMatterTask(params.taskId);
+  const deleted = await matterTasksQueries.deleteMatterTask(params.taskId);
+  if (!deleted) {
+    throw new HTTPException(404, { message: 'Task not found' });
+  }
 
   const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
   await matterActivityService.logMatterActivity(

@@ -62,8 +62,9 @@ const updateMatterTask = async (id: string, data: Partial<InsertMatterTask>): Pr
   return task;
 };
 
-const deleteMatterTask = async (id: string): Promise<void> => {
-  await db.delete(matterTasks).where(eq(matterTasks.id, id));
+const deleteMatterTask = async (id: string): Promise<boolean> => {
+  const rows = await db.delete(matterTasks).where(eq(matterTasks.id, id)).returning({ id: matterTasks.id });
+  return rows.length > 0;
 };
 
 export const matterTasksQueries = {

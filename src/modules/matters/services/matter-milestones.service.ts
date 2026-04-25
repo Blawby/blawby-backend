@@ -102,9 +102,9 @@ const updateMatterMilestone = async (
   if (params.data.status !== undefined && params.data.status !== milestone.status) changedFields.push('status');
   if (params.data.order !== undefined && params.data.order !== milestone.order) changedFields.push('order');
   if (params.data.due_date !== undefined) {
-    const nextDue = params.data.due_date ? new Date(params.data.due_date) : null;
-    const currentDue = milestone.due_date ? new Date(milestone.due_date) : null;
-    if (nextDue?.getTime() !== currentDue?.getTime()) changedFields.push('due_date');
+    const nextDue = params.data.due_date ? new Date(params.data.due_date).toISOString().slice(0, 10) : null;
+    const currentDue = milestone.due_date ? new Date(milestone.due_date).toISOString().slice(0, 10) : null;
+    if (nextDue !== currentDue) changedFields.push('due_date');
   }
 
   const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';

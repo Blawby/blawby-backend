@@ -14,7 +14,7 @@ const createMatterNote = async (
 ): Promise<SelectMatterNote> => {
   const { matterId } = ctx;
   if (!matterId) {
-    throw new Error('Matter ID not found in context');
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
   }
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
@@ -48,7 +48,7 @@ const listMatterNotes = async (
 ): Promise<SelectMatterNote[]> => {
   const { matterId } = ctx;
   if (!matterId) {
-    throw new Error('Matter ID not found in context');
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
   }
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
@@ -74,7 +74,7 @@ const updateMatterNote = async (
 ): Promise<SelectMatterNote> => {
   const { matterId } = ctx;
   if (!matterId) {
-    throw new Error('Matter ID not found in context');
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
   }
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
@@ -114,7 +114,7 @@ const updateMatterNote = async (
 const deleteMatterNote = async (params: { noteId: string }, ctx: ServiceContext): Promise<void> => {
   const { matterId } = ctx;
   if (!matterId) {
-    throw new Error('Matter ID not found in context');
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
   }
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');

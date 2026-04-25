@@ -17,6 +17,7 @@
 | `src/modules/subscriptions/services/subscription.service.ts` | Remove `Result<T>` returns; return data directly; throw `HTTPException` for expected failures |
 | `src/modules/subscriptions/services/meteredProducts.service.ts` | Change `Result<void>` / `Result<T>` returns to `void`/data + raw `Error` throws |
 | `src/modules/subscriptions/services/syncPlans.service.ts` | Change `Result<SyncResult>` return to data directly + raw `Error` throws |
+| `src/modules/subscriptions/services/subscriptionWebhooks.service.ts` | Out of scope for this plan; already uses worker/webhook-style raw errors rather than handler-facing `Result<T>` returns |
 | `src/modules/subscriptions/handlers.ts` | Remove `sendResult`; return `c.json(data, status)` directly |
 
 ---
