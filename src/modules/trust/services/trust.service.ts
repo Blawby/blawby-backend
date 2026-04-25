@@ -206,34 +206,27 @@ const syncBalanceAndCheckThreshold = async (
   ctx: ServiceContext,
   tx: typeof db
 ) => {
-  try {
-    const balance = await getBalanceWithTx({ organizationId, clientId }, tx);
-    const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
-    await mattersQueries.updateRetainerBalance(matterId, matterBalance, tx);
+  const balance = await getBalanceWithTx({ organizationId, clientId }, tx);
+  const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
+  await mattersQueries.updateRetainerBalance(matterId, matterBalance, tx);
 
-    const matter = await mattersQueries.findMatterById(matterId, tx);
-    if (
-      matter?.retainer_low_balance_threshold !== null &&
-      matter?.retainer_low_balance_threshold !== undefined &&
-      matter.retainer_low_balance_threshold > 0 &&
-      matterBalance < matter.retainer_low_balance_threshold
-    ) {
-      await ctx.emit(
-        RetainerLowBalance,
-        {
-          matter_id: matter.id,
-          organization_id: matter.organization_id,
-          current_balance: matterBalance,
-          threshold: matter.retainer_low_balance_threshold,
-        },
-        tx
-      );
-    }
-  } catch (error) {
-    logger.warn('Failed to sync balance for matter {matterId}: {error}', {
-      matterId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  const matter = await mattersQueries.findMatterById(matterId, tx);
+  if (
+    matter?.retainer_low_balance_threshold !== null &&
+    matter?.retainer_low_balance_threshold !== undefined &&
+    matter.retainer_low_balance_threshold > 0 &&
+    matterBalance < matter.retainer_low_balance_threshold
+  ) {
+    await ctx.emit(
+      RetainerLowBalance,
+      {
+        matter_id: matter.id,
+        organization_id: matter.organization_id,
+        current_balance: matterBalance,
+        threshold: matter.retainer_low_balance_threshold,
+      },
+      tx
+    );
   }
 };
 
