@@ -86,9 +86,7 @@ export const registerEngagementContractsListeners = (): void => {
 
   Event.listen(EngagementContractAccepted, async (payload) => {
     const hasRecipient = payload.practice_email || payload.client_email;
-    const signedContractUrl = hasRecipient
-      ? await getSignedContractDownloadUrl(payload.signed_pdf_s3_key)
-      : '#';
+    const signedContractUrl = hasRecipient ? await getSignedContractDownloadUrl(payload.signed_pdf_s3_key) : '#';
 
     if (payload.practice_email) {
       void queueManager

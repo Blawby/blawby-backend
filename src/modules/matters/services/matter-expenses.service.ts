@@ -1,15 +1,12 @@
-import { getLogger } from '@logtape/logtape';
+import { ForbiddenError } from '@casl/ability';
+import { HTTPException } from 'hono/http-exception';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import type { SelectMatterExpense } from '@/modules/matters/database/schema/matter-expenses.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { CreateMatterExpenseRequest, UpdateMatterExpenseRequest } from '@/modules/matters/types/matter.types';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError, notFound, forbidden } from '@/shared/utils/result';
-
-const logger = getLogger(['matters', 'services', 'expenses']);
 
 /**
  * Create a matter expense
@@ -17,61 +14,38 @@ const logger = getLogger(['matters', 'services', 'expenses']);
 const createMatterExpense = async (
   params: { data: CreateMatterExpenseRequest },
   ctx: ServiceContext
-): Promise<Result<SelectMatterExpense>> => {
+): Promise<SelectMatterExpense> => {
   const { matterId } = ctx;
-  if (!matterId) {
-    return internalError('Matter ID not found in context');
-  }
+  if (!matterId) throw new Error('Matter ID not found in context');
 
-  // CASL Check
-  if (ctx.ability.cannot('update', 'Matter')) {
-    return forbidden('You do not have permission to update this matter');
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  await mattersService.verifyMatterAccess(matterId, ctx);
 
-  // Verify user has access to matter
-  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!matterResult.success) {
-    return matterResult;
-  }
+  const expense = await matterExpensesQueries.createMatterExpense({
+    matter_id: matterId,
+    user_id: ctx.userId,
+    description: params.data.description,
+    amount: params.data.amount,
+    date: params.data.date,
+    billable: params.data.billable,
+  });
 
-  try {
-    const expense = await matterExpensesQueries.createMatterExpense({
-      matter_id: matterId,
-      user_id: ctx.userId,
-      description: params.data.description,
-      amount: params.data.amount,
-      date: params.data.date,
-      billable: params.data.billable,
-    });
-    const changedFields = ['description', 'amount', 'date', 'billable'];
-
-    // Log activity
-    const amountFormatted = (params.data.amount / 100).toFixed(2);
-    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    const activityResult = await matterActivityService.logMatterActivity(
-      {
-        action: matterActivityService.ActivityAction.EXPENSE_ADDED,
-        description: `${userName} added expense: ${params.data.description} ($${amountFormatted})${params.data.billable ? ' (billable)' : ''}`,
-        metadata: { amount: params.data.amount, billable: params.data.billable, changed_fields: changedFields },
+  const amountFormatted = (params.data.amount / 100).toFixed(2);
+  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+  await matterActivityService.logMatterActivity(
+    {
+      action: matterActivityService.ActivityAction.EXPENSE_ADDED,
+      description: `${userName} added expense: ${params.data.description} ($${amountFormatted})${params.data.billable ? ' (billable)' : ''}`,
+      metadata: {
+        amount: params.data.amount,
+        billable: params.data.billable,
+        changed_fields: ['description', 'amount', 'date', 'billable'],
       },
-      ctx
-    );
-    if (!activityResult.success) {
-      logger.error('Failed to log expense create activity {matterId}: {error}', {
-        matterId,
-        error: activityResult.error.message,
-      });
-    }
+    },
+    ctx
+  );
 
-    return ok(expense);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to create matter expense {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  return expense;
 };
 
 /**
@@ -80,45 +54,20 @@ const createMatterExpense = async (
 const listMatterExpenses = async (
   params: { filters?: MatterExpenseListFilters },
   ctx: ServiceContext
-): Promise<Result<SelectMatterExpense[]>> => {
+): Promise<SelectMatterExpense[]> => {
   const { matterId } = ctx;
-  if (!matterId) {
-    return internalError('Matter ID not found in context');
+  if (!matterId) throw new Error('Matter ID not found in context');
+
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  await mattersService.verifyMatterAccess(matterId, ctx);
+
+  if (params.filters?.expenseId) {
+    const expense = await matterExpensesQueries.findMatterExpenseById(params.filters.expenseId);
+    if (!expense || expense.matter_id !== matterId) return [];
+    return [expense];
   }
 
-  // CASL Check
-  if (ctx.ability.cannot('read', 'Matter')) {
-    return forbidden('You do not have permission to read this matter');
-  }
-
-  // Verify user has access to matter
-  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!matterResult.success) {
-    return matterResult;
-  }
-
-  try {
-    // Short-circuit: direct lookup when a specific expense ID is provided.
-    // When expenseId is set, other filters (billable, startDate, endDate) are
-    // Intentionally ignored — this path is for single-resource retrieval.
-    if (params.filters?.expenseId) {
-      const expense = await matterExpensesQueries.findMatterExpenseById(params.filters.expenseId);
-      if (!expense || expense.matter_id !== matterId) {
-        return ok([]);
-      }
-      return ok([expense]);
-    }
-
-    const expenses = await matterExpensesQueries.listMatterExpenses(matterId, params.filters);
-    return ok(expenses);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to list matter expenses {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  return matterExpensesQueries.listMatterExpenses(matterId, params.filters);
 };
 
 /**
@@ -127,118 +76,58 @@ const listMatterExpenses = async (
 const updateMatterExpense = async (
   params: { expenseId: string; data: UpdateMatterExpenseRequest },
   ctx: ServiceContext
-): Promise<Result<SelectMatterExpense>> => {
+): Promise<SelectMatterExpense> => {
   const { matterId } = ctx;
-  if (!matterId) {
-    return internalError('Matter ID not found in context');
-  }
+  if (!matterId) throw new Error('Matter ID not found in context');
 
-  // CASL Check
-  if (ctx.ability.cannot('update', 'Matter')) {
-    return forbidden('You do not have permission to update this matter');
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  await mattersService.verifyMatterAccess(matterId, ctx);
 
-  // Verify user has access to matter
-  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!matterResult.success) {
-    return matterResult;
-  }
+  const updated = await matterExpensesQueries.updateMatterExpense(params.expenseId, matterId, params.data);
+  if (!updated) throw new HTTPException(404, { message: 'Expense not found' });
 
-  try {
-    const updated = await matterExpensesQueries.updateMatterExpense(params.expenseId, matterId, params.data);
-    if (!updated) {
-      return notFound('Expense not found');
-    }
-    const changedFields: string[] = [
-      ...(params.data.description !== undefined ? ['description'] : []),
-      ...(params.data.amount !== undefined ? ['amount'] : []),
-      ...(params.data.date !== undefined ? ['date'] : []),
-      ...(params.data.billable !== undefined ? ['billable'] : []),
-    ];
+  const changedFields: string[] = [
+    ...(params.data.description !== undefined ? ['description'] : []),
+    ...(params.data.amount !== undefined ? ['amount'] : []),
+    ...(params.data.date !== undefined ? ['date'] : []),
+    ...(params.data.billable !== undefined ? ['billable'] : []),
+  ];
 
-    // Log activity
-    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    const activityResult = await matterActivityService.logMatterActivity(
-      {
-        action: matterActivityService.ActivityAction.EXPENSE_UPDATED,
-        description: `${userName} updated an expense`,
-        metadata: { changed_fields: changedFields },
-      },
-      ctx
-    );
-    if (!activityResult.success) {
-      logger.error('Failed to log expense update activity {expenseId}: {error}', {
-        expenseId: params.expenseId,
-        error: activityResult.error.message,
-      });
-    }
+  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+  await matterActivityService.logMatterActivity(
+    {
+      action: matterActivityService.ActivityAction.EXPENSE_UPDATED,
+      description: `${userName} updated an expense`,
+      metadata: { changed_fields: changedFields },
+    },
+    ctx
+  );
 
-    return ok(updated);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to update matter expense {expenseId}: {error}', {
-      expenseId: params.expenseId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  return updated;
 };
 
 /**
  * Delete matter expense
  */
-const deleteMatterExpense = async (
-  params: { expenseId: string },
-  ctx: ServiceContext
-): Promise<Result<{ success: true }>> => {
+const deleteMatterExpense = async (params: { expenseId: string }, ctx: ServiceContext): Promise<void> => {
   const { matterId } = ctx;
-  if (!matterId) {
-    return internalError('Matter ID not found in context');
-  }
+  if (!matterId) throw new Error('Matter ID not found in context');
 
-  // CASL Check
-  if (ctx.ability.cannot('update', 'Matter')) {
-    return forbidden('You do not have permission to update this matter');
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
+  await mattersService.verifyMatterAccess(matterId, ctx);
 
-  // Verify user has access to matter
-  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!matterResult.success) {
-    return matterResult;
-  }
+  const deleted = await matterExpensesQueries.deleteMatterExpense(params.expenseId, matterId);
+  if (!deleted) throw new HTTPException(404, { message: 'Expense not found' });
 
-  try {
-    const deleted = await matterExpensesQueries.deleteMatterExpense(params.expenseId, matterId);
-    if (!deleted) {
-      return notFound('Expense not found');
-    }
-
-    // Log activity
-    const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
-    const activityResult = await matterActivityService.logMatterActivity(
-      {
-        action: matterActivityService.ActivityAction.EXPENSE_DELETED,
-        description: `${userName} deleted an expense`,
-        metadata: { changed_fields: ['deleted'] },
-      },
-      ctx
-    );
-    if (!activityResult.success) {
-      logger.error('Failed to log expense delete activity {expenseId}: {error}', {
-        expenseId: params.expenseId,
-        error: activityResult.error.message,
-      });
-    }
-
-    return ok({ success: true });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to delete matter expense {expenseId}: {error}', {
-      expenseId: params.expenseId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  const userName = ctx.user?.name || ctx.user?.email || 'Unknown User';
+  await matterActivityService.logMatterActivity(
+    {
+      action: matterActivityService.ActivityAction.EXPENSE_DELETED,
+      description: `${userName} deleted an expense`,
+      metadata: { changed_fields: ['deleted'] },
+    },
+    ctx
+  );
 };
 
 /**
@@ -246,48 +135,27 @@ const deleteMatterExpense = async (
  */
 const getExpenseStats = async (
   ctx: ServiceContext
-): Promise<
-  Result<{
-    totalBillableCents: number;
-    totalCents: number;
-    totalBillable: number;
-    total: number;
-  }>
-> => {
+): Promise<{
+  totalBillableCents: number;
+  totalCents: number;
+  totalBillable: number;
+  total: number;
+}> => {
   const { matterId } = ctx;
-  if (!matterId) {
-    return internalError('Matter ID not found in context');
-  }
+  if (!matterId) throw new Error('Matter ID not found in context');
 
-  // CASL Check
-  if (ctx.ability.cannot('read', 'Matter')) {
-    return forbidden('You do not have permission to read this matter');
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  await mattersService.verifyMatterAccess(matterId, ctx);
 
-  // Verify user has access to matter
-  const matterResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (!matterResult.success) {
-    return matterResult;
-  }
+  const totalBillable = await matterExpensesQueries.getTotalBillableExpenses(matterId);
+  const totalExpenses = await matterExpensesQueries.getTotalExpenses(matterId);
 
-  try {
-    const totalBillable = await matterExpensesQueries.getTotalBillableExpenses(matterId);
-    const totalExpenses = await matterExpensesQueries.getTotalExpenses(matterId);
-
-    return ok({
-      totalBillableCents: totalBillable,
-      totalCents: totalExpenses,
-      totalBillable: totalBillable / 100,
-      total: totalExpenses / 100,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get expense stats {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return internalError(message);
-  }
+  return {
+    totalBillableCents: totalBillable,
+    totalCents: totalExpenses,
+    totalBillable: totalBillable / 100,
+    total: totalExpenses / 100,
+  };
 };
 
 export const matterExpensesService = {

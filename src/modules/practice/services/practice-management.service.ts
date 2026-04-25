@@ -66,11 +66,14 @@ export const practiceManagementService = {
         try {
           await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
         } catch (rollbackError) {
-          logger.error('Create practice compensation failed for organization {organizationId}: {rollbackError} (original: {detailsError})', {
-            organizationId: organization.id,
-            rollbackError: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-            detailsError: detailsError instanceof Error ? detailsError.message : String(detailsError),
-          });
+          logger.error(
+            'Create practice compensation failed for organization {organizationId}: {rollbackError} (original: {detailsError})',
+            {
+              organizationId: organization.id,
+              rollbackError: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+              detailsError: detailsError instanceof Error ? detailsError.message : String(detailsError),
+            }
+          );
         }
         throw detailsError;
       }

@@ -37,7 +37,11 @@ const requireAuth = (ctx: ServiceContext): void => {
   }
 };
 
-const assertCan = (ctx: ServiceContext, action: 'create' | 'read' | 'update' | 'delete', upload?: SelectUpload): void => {
+const assertCan = (
+  ctx: ServiceContext,
+  action: 'create' | 'read' | 'update' | 'delete',
+  upload?: SelectUpload
+): void => {
   try {
     if (upload) {
       ForbiddenError.from(ctx.ability).throwUnlessCan(action, toSubject('Upload', upload));
@@ -105,7 +109,9 @@ const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
   uploaded_by: upload.user_id,
 });
 
-const toAuditLogEntry = (log: Awaited<ReturnType<typeof auditLogsRepository.findByUploadId>>[number]): AuditLogEntry => ({
+const toAuditLogEntry = (
+  log: Awaited<ReturnType<typeof auditLogsRepository.findByUploadId>>[number]
+): AuditLogEntry => ({
   id: log.id,
   upload_id: log.upload_id,
   action: log.action as AuditLogEntry['action'],
@@ -120,7 +126,11 @@ const toAuditLogEntry = (log: Awaited<ReturnType<typeof auditLogsRepository.find
   created_at: log.created_at,
 });
 
-const getUploadOrThrow = async (uploadId: string, ctx: ServiceContext, includeDeleted = false): Promise<SelectUpload> => {
+const getUploadOrThrow = async (
+  uploadId: string,
+  ctx: ServiceContext,
+  includeDeleted = false
+): Promise<SelectUpload> => {
   const upload = await uploadsRepository.findById(uploadId, ctx.db);
   if (!upload) {
     throw new HTTPException(404, { message: 'Upload not found' });
@@ -149,7 +159,10 @@ type ConfirmPreparation = {
 
 export const uploadCoreService = {
   // Step 1: auth + external call only — no DB, safe to run outside a transaction
-  async preparePresign({ request }: { request: PresignUploadRequest }, ctx: ServiceContext): Promise<PresignPreparation> {
+  async preparePresign(
+    { request }: { request: PresignUploadRequest },
+    ctx: ServiceContext
+  ): Promise<PresignPreparation> {
     requireAuth(ctx);
     requireOrganizationContext(ctx);
     assertCan(ctx, 'create');
@@ -169,7 +182,14 @@ export const uploadCoreService = {
       if (!target) {
         throw new HTTPException(500, { message: 'Failed to generate image upload URL' });
       }
-      return { uploadId, storageKey: target.imageId, storageProvider: 'images', presignedUrl: target.uploadUrl, method: 'POST', fileType };
+      return {
+        uploadId,
+        storageKey: target.imageId,
+        storageProvider: 'images',
+        presignedUrl: target.uploadUrl,
+        method: 'POST',
+        fileType,
+      };
     }
 
     const storageKey = keyGeneratorService.generateStorageKey({
@@ -244,14 +264,24 @@ export const uploadCoreService = {
 
     if (upload.storage_provider === 'images') {
       const { accountHash } = getImagesConfigOrThrow();
-      return { upload, publicUrl: cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key }), actualMimeType: null, actualFileSize: null };
+      return {
+        upload,
+        publicUrl: cloudflareImagesService.getImageUrl({ accountHash, imageId: upload.storage_key }),
+        actualMimeType: null,
+        actualFileSize: null,
+      };
     }
 
     const metadata = await r2Service.getFileMetadata({ bucket: getBucketOrThrow(), key: upload.storage_key });
     if (!metadata.exists) {
       throw new HTTPException(400, { message: 'File not found in storage. Upload before confirming.' });
     }
-    return { upload, publicUrl: buildPublicUrl(upload.storage_key), actualMimeType: metadata.contentType, actualFileSize: metadata.contentLength };
+    return {
+      upload,
+      publicUrl: buildPublicUrl(upload.storage_key),
+      actualMimeType: metadata.contentType,
+      actualFileSize: metadata.contentLength,
+    };
   },
 
   // Step 2: DB writes only — run inside a transaction
@@ -270,7 +300,12 @@ export const uploadCoreService = {
       ctx.db
     );
     await auditService.log(
-      { upload_id: upload.id, organization_id: upload.organization_id ?? undefined, action: 'confirmed', user_id: ctx.userId },
+      {
+        upload_id: upload.id,
+        organization_id: upload.organization_id ?? undefined,
+        action: 'confirmed',
+        user_id: ctx.userId,
+      },
       ctx.db
     );
 
@@ -400,7 +435,10 @@ export const uploadCoreService = {
     };
   },
 
-  async softDelete({ id, reason }: { id: string; reason: string }, ctx: ServiceContext): Promise<{ id: string; status: string }> {
+  async softDelete(
+    { id, reason }: { id: string; reason: string },
+    ctx: ServiceContext
+  ): Promise<{ id: string; status: string }> {
     requireAuth(ctx);
 
     const upload = await getUploadOrThrow(id, ctx, true);

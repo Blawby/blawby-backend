@@ -205,7 +205,9 @@ uploadsHttp.openapi(presignUploadRoute, async (c) => {
 
   // External call outside transaction (avoids holding a DB connection during Cloudflare API call)
   const prep = await uploadCoreService.preparePresign({ request }, ctx);
-  const result = await db.transaction((tx) => uploadCoreService.persistPresign({ prep, request }, createServiceContext(baseCtx, tx)));
+  const result = await db.transaction((tx) =>
+    uploadCoreService.persistPresign({ prep, request }, createServiceContext(baseCtx, tx))
+  );
   return c.json(result, 201);
 });
 
@@ -216,7 +218,9 @@ uploadsHttp.openapi(confirmUploadRoute, async (c) => {
 
   // DB read + external verify outside transaction; only mutations run inside
   const prep = await uploadCoreService.prepareConfirm({ id }, ctx);
-  const result = await db.transaction((tx) => uploadCoreService.persistConfirm({ prep }, createServiceContext(baseCtx, tx)));
+  const result = await db.transaction((tx) =>
+    uploadCoreService.persistConfirm({ prep }, createServiceContext(baseCtx, tx))
+  );
   return c.json(result, 200);
 });
 
@@ -233,7 +237,7 @@ uploadsHttp.openapi(getDownloadUrlRoute, async (c) => {
   const result = await uploadCoreService.getDownloadUrl(
     {
       id,
-      ipAddress: (c.req.header('x-forwarded-for')?.split(',')[0]?.trim()) ?? c.req.header('cf-connecting-ip'),
+      ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('cf-connecting-ip'),
       userAgent: c.req.header('user-agent'),
     },
     ctx
@@ -247,7 +251,9 @@ uploadsHttp.openapi(deleteUploadRoute, async (c) => {
   const ctx = getServiceContext(c);
   const { db, emit, ...baseCtx } = ctx;
 
-  const result = await db.transaction((tx) => uploadCoreService.softDelete({ id, reason }, createServiceContext(baseCtx, tx)));
+  const result = await db.transaction((tx) =>
+    uploadCoreService.softDelete({ id, reason }, createServiceContext(baseCtx, tx))
+  );
   return c.json(result, 200);
 });
 
@@ -256,7 +262,9 @@ uploadsHttp.openapi(restoreUploadRoute, async (c) => {
   const ctx = getServiceContext(c);
   const { db, emit, ...baseCtx } = ctx;
 
-  const result = await db.transaction((tx) => uploadCoreService.restoreUpload({ id }, createServiceContext(baseCtx, tx)));
+  const result = await db.transaction((tx) =>
+    uploadCoreService.restoreUpload({ id }, createServiceContext(baseCtx, tx))
+  );
   return c.json(result, 200);
 });
 

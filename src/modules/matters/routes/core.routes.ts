@@ -157,15 +157,8 @@ export const deleteMatterRoute = routeBuilder.build({
     }),
   },
   responses: {
-    200: {
+    204: {
       description: 'Matter deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-          }),
-        },
-      },
     },
     404: {
       description: 'Matter not found',

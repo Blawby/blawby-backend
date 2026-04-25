@@ -54,7 +54,10 @@ const listByOrg = async (
   }
 
   const [countResult, data] = await Promise.all([
-    tx.select({ total: count() }).from(engagementContracts).where(and(...conditions)),
+    tx
+      .select({ total: count() })
+      .from(engagementContracts)
+      .where(and(...conditions)),
     tx
       .select()
       .from(engagementContracts)
