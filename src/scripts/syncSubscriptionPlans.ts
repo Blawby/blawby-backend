@@ -21,13 +21,7 @@ const main = async (): Promise<void> => {
     console.log('🚀 Starting subscription plans sync...\n');
 
     const result = await syncPlansService.syncAllPlansFromStripe();
-
-    if (!result.success) {
-      console.error('\n❌ Sync failed:', result.error.message);
-      process.exit(1);
-    }
-
-    const { synced, errors } = result.data;
+    const { synced, errors } = result;
 
     console.log('\n✅ Sync completed!');
     console.log(`   Synced: ${synced} plans`);
