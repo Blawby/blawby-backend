@@ -29,6 +29,14 @@ import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['subscriptions', 'services', 'subscription']);
 
+const shouldLogSubscriptionError = (error: unknown): boolean => {
+  if (!(error instanceof HTTPException)) {
+    return true;
+  }
+
+  return error.status >= 500;
+};
+
 /**
  * Helper to safely cast authed API to SubscriptionAPI
  */
@@ -290,10 +298,12 @@ const getCurrentSubscription = async (
       },
     };
   } catch (error) {
-    logger.error('Failed to get current subscription for org {organizationId}: {error}', {
-      organizationId,
-      error,
-    });
+    if (shouldLogSubscriptionError(error)) {
+      logger.error('Failed to get current subscription for org {organizationId}: {error}', {
+        organizationId,
+        error,
+      });
+    }
     throw error;
   }
 };
@@ -362,10 +372,12 @@ const createSubscription = async (
       message: 'Subscription created successfully',
     };
   } catch (error) {
-    logger.error('Failed to create subscription for org {organizationId}: {error}', {
-      organizationId,
-      error,
-    });
+    if (shouldLogSubscriptionError(error)) {
+      logger.error('Failed to create subscription for org {organizationId}: {error}', {
+        organizationId,
+        error,
+      });
+    }
     throw error;
   }
 };
@@ -417,10 +429,12 @@ const cancelSubscription = async (
       redirect: result.redirect,
     };
   } catch (error) {
-    logger.error('Failed to cancel subscription for org {organizationId}: {error}', {
-      organizationId,
-      error,
-    });
+    if (shouldLogSubscriptionError(error)) {
+      logger.error('Failed to cancel subscription for org {organizationId}: {error}', {
+        organizationId,
+        error,
+      });
+    }
     throw error;
   }
 };

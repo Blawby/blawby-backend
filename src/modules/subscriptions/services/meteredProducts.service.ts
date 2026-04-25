@@ -26,8 +26,15 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
 /**
  * Report metered usage for a subscription by type
  *
- * This function is designed to be called asynchronously (fire-and-forget)
- * and will not throw errors to avoid disrupting the main feature flow.
+ * This function may throw. It validates `meteredType` against
+ * `METERED_TYPE_TO_STRIPE_EVENT` and throws on unknown values, and it lets the
+ * Stripe `meterEvents.create(...)` call propagate failures so callers can
+ * decide whether to retry, swallow, or surface the error. Only the audit DB
+ * insert at the end is caught internally and logged.
+ *
+ * Callers should wrap this in `try/catch` or otherwise handle rejected
+ * promises if they do not want Stripe outages or invalid `meteredType` inputs
+ * to break the caller flow.
  *
  * @param db - Database instance
  * @param organizationId - Organization UUID

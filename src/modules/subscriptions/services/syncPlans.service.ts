@@ -70,7 +70,7 @@ const syncAllPlansFromStripe = async (): Promise<SyncResult> => {
     return result;
   } catch (error) {
     logger.error('Failed to sync plans from Stripe: {error}', { error });
-    throw new Error('Failed to sync plans from Stripe');
+    throw new Error('Failed to sync plans from Stripe', { cause: error });
   }
 };
 
