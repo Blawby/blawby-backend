@@ -543,7 +543,9 @@ const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subs
   const productIds = Array.from(
     new Set(
       liveSub.items.data
-        .map((i) => (typeof i.price.product === 'string' ? i.price.product : (i.price.product as { id: string } | null)?.id))
+        .map((i) =>
+          typeof i.price.product === 'string' ? i.price.product : (i.price.product as { id: string } | null)?.id
+        )
         .filter(Boolean)
     )
   ) as string[];
@@ -575,7 +577,7 @@ const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subs
   await stripe.subscriptions.update(
     stripeSubscription.id,
     { items: toAdd.map((price) => ({ price })), proration_behavior: 'none' },
-    { idempotencyKey },
+    { idempotencyKey }
   );
 
   logger.info('[Subscription] Attached {count} metered price(s) to subscription {id}', {
@@ -617,70 +619,70 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
               try {
                 const params = currentArgs[0];
                 if (
-                    isBillingPortalSessionCreateParams(params) &&
-                    params.flow_data?.type === 'subscription_update_confirm' &&
-                    params.flow_data.subscription_update_confirm
-                  ) {
-                    // To inject items here, we must have existing subscription item IDs.
-                    // We look them up from the subscription being updated.
-                    const flow = params.flow_data.subscription_update_confirm;
-                    const items = flow.items || [];
-                    const subscriptionId = params.flow_data.subscription_update_confirm.subscription;
+                  isBillingPortalSessionCreateParams(params) &&
+                  params.flow_data?.type === 'subscription_update_confirm' &&
+                  params.flow_data.subscription_update_confirm
+                ) {
+                  // To inject items here, we must have existing subscription item IDs.
+                  // We look them up from the subscription being updated.
+                  const flow = params.flow_data.subscription_update_confirm;
+                  const items = flow.items || [];
+                  const subscriptionId = params.flow_data.subscription_update_confirm.subscription;
 
-                    if (subscriptionId) {
-                      const stripeClient = getStripeInstance();
-                      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+                  if (subscriptionId) {
+                    const stripeClient = getStripeInstance();
+                    const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
 
-                      // Resolve product IDs from subscription items and fetch only metered prices for those products
-                      const productIds = Array.from(
-                        new Set(
-                          subscription.items.data
-                            .map((i) =>
-                              typeof i.price.product === 'string'
-                                ? i.price.product
-                                : (i.price.product as { id: string } | null)?.id
-                            )
-                            .filter(Boolean)
-                        )
-                      ) as string[];
+                    // Resolve product IDs from subscription items and fetch only metered prices for those products
+                    const productIds = Array.from(
+                      new Set(
+                        subscription.items.data
+                          .map((i) =>
+                            typeof i.price.product === 'string'
+                              ? i.price.product
+                              : (i.price.product as { id: string } | null)?.id
+                          )
+                          .filter(Boolean)
+                      )
+                    ) as string[];
 
-                      let meteredIds: string[] = [];
-                      if (productIds.length > 0) {
-                        const meteredPrices = await db
-                          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-                          .from(subscriptionPrices)
-                          .where(
-                            and(
-                              eq(subscriptionPrices.usage_type, 'metered'),
-                              eq(subscriptionPrices.is_active, true),
-                              inArray(subscriptionPrices.stripe_product_id, productIds)
-                            )
-                          );
-
-                        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
-                      } else {
-                        // No product context could be resolved from the subscription items.
-                        // Avoid a global query that would pull unrelated metered prices.
-                        logger.warn(
-                          '[Stripe Proxy] No product context found for subscription items; skipping metered item injection to avoid unrelated global matches.'
+                    let meteredIds: string[] = [];
+                    if (productIds.length > 0) {
+                      const meteredPrices = await db
+                        .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+                        .from(subscriptionPrices)
+                        .where(
+                          and(
+                            eq(subscriptionPrices.usage_type, 'metered'),
+                            eq(subscriptionPrices.is_active, true),
+                            inArray(subscriptionPrices.stripe_product_id, productIds)
+                          )
                         );
-                        meteredIds = [];
-                      }
-                      const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
-                      // Stripe's subscription_update_confirm allows at most one item in flow.items.
-                      // Only inject if the caller supplied no items; pick the first matching metered item.
-                      if (items.length === 0) {
-                        const firstMeteredPriceId = meteredIds.find((id) => existingMap.has(id));
-                        if (firstMeteredPriceId) {
-                          flow.items = [{ id: existingMap.get(firstMeteredPriceId)! }];
-                          logger.info('[Stripe Proxy] Injected single metered item into portal session', {
-                            priceId: firstMeteredPriceId,
-                          });
-                        }
+                      meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+                    } else {
+                      // No product context could be resolved from the subscription items.
+                      // Avoid a global query that would pull unrelated metered prices.
+                      logger.warn(
+                        '[Stripe Proxy] No product context found for subscription items; skipping metered item injection to avoid unrelated global matches.'
+                      );
+                      meteredIds = [];
+                    }
+                    const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
+
+                    // Stripe's subscription_update_confirm allows at most one item in flow.items.
+                    // Only inject if the caller supplied no items; pick the first matching metered item.
+                    if (items.length === 0) {
+                      const firstMeteredPriceId = meteredIds.find((id) => existingMap.has(id));
+                      if (firstMeteredPriceId) {
+                        flow.items = [{ id: existingMap.get(firstMeteredPriceId)! }];
+                        logger.info('[Stripe Proxy] Injected single metered item into portal session', {
+                          priceId: firstMeteredPriceId,
+                        });
                       }
                     }
                   }
+                }
               } catch (injectError) {
                 logger.error('[Stripe Proxy] Failed to inject metered items: {error}', {
                   path: currentPath,

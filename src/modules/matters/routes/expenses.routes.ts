@@ -103,15 +103,8 @@ export const deleteExpenseRoute = routeBuilder.build({
     }),
   },
   responses: {
-    200: {
+    204: {
       description: 'Expense deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-          }),
-        },
-      },
     },
   },
 });

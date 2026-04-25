@@ -104,15 +104,8 @@ export const deleteMilestoneRoute = routeBuilder.build({
     }),
   },
   responses: {
-    200: {
+    204: {
       description: 'Milestone deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-          }),
-        },
-      },
     },
   },
 });
@@ -135,13 +128,8 @@ export const reorderMilestonesRoute = routeBuilder.build({
     },
   },
   responses: {
-    200: {
+    204: {
       description: 'Milestones reordered successfully',
-      content: {
-        'application/json': {
-          schema: z.array(matterMilestoneResponseSchema),
-        },
-      },
     },
   },
 });

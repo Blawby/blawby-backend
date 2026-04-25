@@ -98,11 +98,13 @@ const generatePresignedDownloadUrl = async (params: {
   return await getSignedUrl(client, getCommand, { expiresIn });
 };
 
-type FileMetadata = {
-  exists: true;
-  contentType: string | null;
-  contentLength: number | null;
-} | { exists: false };
+type FileMetadata =
+  | {
+      exists: true;
+      contentType: string | null;
+      contentLength: number | null;
+    }
+  | { exists: false };
 
 const getFileMetadata = async (params: { bucket: string; key: string }): Promise<FileMetadata> => {
   const client = getR2Client();

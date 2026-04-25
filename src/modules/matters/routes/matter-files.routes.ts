@@ -91,13 +91,8 @@ export const unlinkMatterFileRoute = routeBuilder.build({
     }),
   },
   responses: {
-    200: {
+    204: {
       description: 'Upload unlinked from matter successfully',
-      content: {
-        'application/json': {
-          schema: z.object({ success: z.boolean() }),
-        },
-      },
     },
   },
 });

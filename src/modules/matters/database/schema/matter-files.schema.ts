@@ -15,8 +15,7 @@ export const matterFiles = pgTable(
     upload_id: uuid('upload_id')
       .notNull()
       .references(() => uploads.id, { onDelete: 'cascade' }),
-    linked_by: uuid('linked_by')
-      .references(() => users.id, { onDelete: 'set null' }),
+    linked_by: uuid('linked_by').references(() => users.id, { onDelete: 'set null' }),
     linked_at: timestamp('linked_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [

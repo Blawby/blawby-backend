@@ -7,6 +7,7 @@
 import { getLogger } from '@logtape/logtape';
 import { eq, desc, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { HTTPException } from 'hono/http-exception';
 import {
   matterActivityLog,
   type SelectMatterActivityLog,
@@ -14,9 +15,7 @@ import {
 import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
 import type * as schema from '@/schema';
 import { db } from '@/shared/database';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { ok, internalError } from '@/shared/utils/result';
 
 const logger = getLogger(['matters', 'services', 'activity']);
 
@@ -32,7 +31,7 @@ const logMatterActivity = async (
   },
   ctx: ServiceContext,
   tx?: NodePgDatabase<typeof schema>
-): Promise<Result<SelectMatterActivityLog>> => {
+): Promise<void> => {
   const matterId = params.matterId ?? ctx.matterId;
 
   if (!matterId) {
@@ -40,30 +39,24 @@ const logMatterActivity = async (
       action: params.action,
       userId: ctx.userId,
     });
-    return internalError('Matter ID is required for logging activity');
+    return;
   }
 
   try {
     const client = tx ?? db;
-    const [activity] = await client
-      .insert(matterActivityLog)
-      .values({
-        matter_id: matterId,
-        user_id: ctx.userId || null,
-        action: params.action,
-        description: params.description,
-        metadata: params.metadata ?? null,
-      })
-      .returning();
-
-    return ok(activity);
+    await client.insert(matterActivityLog).values({
+      matter_id: matterId,
+      user_id: ctx.userId || null,
+      action: params.action,
+      description: params.description,
+      metadata: params.metadata ?? null,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to insert activity log for matter {matterId}: {error}', {
       matterId,
-      error: message,
+      error: error instanceof Error ? error.message : String(error),
     });
-    return internalError('Failed to log matter activity');
+    if (tx) throw error;
   }
 };
 
@@ -73,49 +66,34 @@ const logMatterActivity = async (
 const getMatterActivity = async (
   options: MatterActivityListFilters | undefined,
   ctx: ServiceContext
-): Promise<Result<SelectMatterActivityLog[]>> => {
+): Promise<SelectMatterActivityLog[]> => {
   const { matterId } = ctx;
   if (!matterId) {
-    return internalError('Matter ID not found in context');
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
   }
-  // Verify user has access to matter (lazy import to avoid circular dependency)
+
   const { mattersService } = await import('@/modules/matters/services/matters.service');
-  const matterResult = await mattersService.getMatterById(matterId, ctx);
-  if (!matterResult.success) {
-    return matterResult as Result<never>;
-  }
+  await mattersService.verifyMatterAccess(matterId, ctx);
 
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
 
-  try {
-    // Short-circuit: direct lookup when a specific activity ID is provided
-    if (options?.activityId) {
-      const [activity] = await db
-        .select()
-        .from(matterActivityLog)
-        .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, options.activityId)))
-        .limit(1);
-      return ok(activity ? [activity] : []);
-    }
-
-    const activity = await db
+  if (options?.activityId) {
+    const [activity] = await db
       .select()
       .from(matterActivityLog)
-      .where(eq(matterActivityLog.matter_id, matterId))
-      .orderBy(desc(matterActivityLog.created_at))
-      .limit(limit)
-      .offset(offset);
-
-    return ok(activity);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get matter activity {matterId}: {error}', {
-      matterId,
-      error: message,
-    });
-    return internalError(message);
+      .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, options.activityId)))
+      .limit(1);
+    return activity ? [activity] : [];
   }
+
+  return db
+    .select()
+    .from(matterActivityLog)
+    .where(eq(matterActivityLog.matter_id, matterId))
+    .orderBy(desc(matterActivityLog.created_at))
+    .limit(limit)
+    .offset(offset);
 };
 
 /**
