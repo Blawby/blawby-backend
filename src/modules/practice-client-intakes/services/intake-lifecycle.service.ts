@@ -309,7 +309,7 @@ const convertIntake = async (
 
     const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
     if (!matter) {
-      throw new HTTPException(500, { message: 'Matter was created but could not be loaded' });
+      throw new Error('Matter was created but could not be loaded');
     }
 
     return {

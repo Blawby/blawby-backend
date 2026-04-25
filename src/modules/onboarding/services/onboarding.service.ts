@@ -80,7 +80,9 @@ const onboardingService = {
         error,
       });
 
-      throw new Error(error instanceof Error ? error.message : 'Failed to create onboarding session');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create onboarding session', {
+        cause: error,
+      });
     }
   },
 
@@ -133,7 +135,7 @@ const onboardingService = {
         error,
       });
 
-      throw new Error('Failed to get onboarding status');
+      throw new Error('Failed to get onboarding status', { cause: error });
     }
   },
 
@@ -192,7 +194,9 @@ const onboardingService = {
         error,
       });
 
-      throw new Error(error instanceof Error ? error.message : 'Failed to create connected account');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create connected account', {
+        cause: error,
+      });
     }
   },
 };

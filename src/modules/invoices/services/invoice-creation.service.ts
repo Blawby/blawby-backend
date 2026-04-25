@@ -194,10 +194,6 @@ const createInvoice = async (
 
   // 1. Validate State
   const validation = await validateInvoiceCreation(data, ctx);
-  if (!validation.clientId) {
-    throw new HTTPException(400, { message: 'Invalid invoice creation data' });
-  }
-
   const { clientId } = validation;
   const totals = calculateInvoiceTotals(data.line_items);
 
@@ -205,13 +201,13 @@ const createInvoice = async (
     // 2. Persist
     const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
     if (!invoice) {
-      throw new HTTPException(400, { message: 'Failed to retrieve created invoice' });
+      throw new Error('Failed to retrieve created invoice');
     }
 
     return invoiceQueriesService.transformInvoiceResponse(invoice);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
-    throw new Error('An error occurred while creating the invoice');
+    throw new Error('An error occurred while creating the invoice', { cause: error });
   }
 };
 

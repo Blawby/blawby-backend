@@ -162,7 +162,11 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async (
       sessionId,
       error,
     });
-    throw new HTTPException(500, { message: 'Failed to resolve checkout session' });
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+
+    throw new Error('Failed to resolve checkout session', { cause: error });
   }
 };
 

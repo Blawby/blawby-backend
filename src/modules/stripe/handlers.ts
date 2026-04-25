@@ -21,7 +21,7 @@ const getConnectedAccountHandler: AppRouteHandler<typeof getConnectedAccountRout
     throw new HTTPException(404, { message: 'No connected Stripe account found for this practice' });
   }
 
-  return c.json(account);
+  return c.json(account, 200);
 };
 
 export const handlers = {

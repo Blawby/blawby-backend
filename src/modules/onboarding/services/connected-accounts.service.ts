@@ -165,7 +165,7 @@ export const connectedAccountsService = {
         userId,
         organizationId,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account', { cause: error });
     }
   },
 
@@ -194,7 +194,9 @@ export const connectedAccountsService = {
         error,
         organizationId: account.organization_id,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account link');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account link', {
+        cause: error,
+      });
     }
   },
 
@@ -261,7 +263,9 @@ export const connectedAccountsService = {
         error,
         stripeAccountId,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe payments session');
+      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe payments session', {
+        cause: error,
+      });
     }
   },
 
@@ -300,7 +304,9 @@ export const connectedAccountsService = {
         organizationId,
         error,
       });
-      throw new Error('Failed to retrieve connected account status');
+      throw new Error(error instanceof Error ? error.message : 'Failed to retrieve connected account status', {
+        cause: error,
+      });
     }
   },
 

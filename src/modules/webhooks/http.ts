@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { getLogger } from '@logtape/logtape';
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import {
   onboardingWebhooksService,
   WebhookVerificationError,
@@ -13,6 +14,8 @@ import type { AppContext } from '@/shared/types/hono';
 const logger = getLogger(['webhooks', 'http']);
 const webhooksApp = new OpenAPIHono<AppContext>();
 webhooksApp.use('*', injectAbility());
+
+const buildErrorEnvelope = (code: string, message: string) => ({ code, message });
 
 /**
  * Shared webhook handler to reduce code duplication
@@ -34,13 +37,7 @@ const handleWebhook = async (
 
   if (!signature) {
     logger.warn('Missing stripe-signature header in webhook request');
-    return c.json(
-      {
-        code: 'BAD_REQUEST',
-        message: 'Missing stripe-signature header',
-      },
-      400
-    );
+    return c.json(buildErrorEnvelope('BAD_REQUEST', 'Missing stripe-signature header'), 400);
   }
 
   try {
@@ -54,13 +51,7 @@ const handleWebhook = async (
 
     if (!webhookId) {
       logger.error('Failed to queue webhook job: Missing webhookId for {eventId}', { eventId: event.id });
-      return c.json(
-        {
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to queue webhook job',
-        },
-        500
-      );
+      return c.json(buildErrorEnvelope('INTERNAL_SERVER_ERROR', 'Failed to queue webhook job'), 500);
     }
 
     // 2. Process asynchronously via Graphile Worker
@@ -77,25 +68,13 @@ const handleWebhook = async (
   } catch (err) {
     if (err instanceof WebhookVerificationError) {
       logger.error('Webhook verification failed: {error}', { error: err.message });
-      return c.json(
-        {
-          code: err.status === 400 ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR',
-          message: err.message,
-        },
-        err.status
-      );
+      throw new HTTPException(err.status, { message: err.message });
     }
 
     logger.error('Unexpected error processing webhook: {error}', {
       error: err instanceof Error ? err.message : 'Unknown error',
     });
-    return c.json(
-      {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to process webhook',
-      },
-      500
-    );
+    return c.json(buildErrorEnvelope('INTERNAL_SERVER_ERROR', 'Failed to process webhook'), 500);
   }
 };
 

@@ -44,9 +44,9 @@ Modules still using `Result<T>` / `sendResult`:
 | ~~Generic `{id}` param instead of `{contract_id}`~~ | ✅ |
 | ~~Exported handlers as `engagementContractHandlers` instead of `handlers`~~ | ✅ |
 | ~~Handler `{ id }` destructuring instead of `{ contract_id: id }`~~ | ✅ |
-| `practice_id` URL param not validated against `ctx.organizationId` in service | ✅ |
+| `practice_id` URL param not validated against session active organization in handler/service flow | 🔄 |
 
-~~Remaining item tracked in: `plans/2026-04-25-error-handling-stripe.md` Task 2~~ ✅ Done
+Remaining item tracked in: `plans/2026-04-25-error-handling-stripe.md` Task 2
 
 ---
 
