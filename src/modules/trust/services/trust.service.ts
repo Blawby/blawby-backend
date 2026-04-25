@@ -1,11 +1,10 @@
 import { getLogger } from '@logtape/logtape';
 import { ForbiddenError } from '@casl/ability';
+import { HTTPException } from 'hono/http-exception';
 import { sql } from 'drizzle-orm';
 import { trustTransactionsRepository } from '@/modules/trust/database/queries/trust-transactions.queries';
-import { result } from '@/shared/utils/result';
 import { db } from '@/shared/database';
 import type { SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
-import type { Result } from '@/shared/types/result';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -19,41 +18,23 @@ import {
 
 const logger = getLogger(['trust', 'service']);
 
-const assertTrustManageAccess = (ctx: ServiceContext): Result<void> => {
-  try {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
-    return result.ok(undefined);
-  } catch {
-    return result.forbidden('Access denied');
-  }
-};
-
-const assertTrustReadAccess = (ctx: ServiceContext): Result<void> => {
-  try {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
-    return result.ok(undefined);
-  } catch {
-    return result.forbidden('Access denied');
-  }
-};
-
 /**
  * Shared helper to acquire a trust lock and execute logic with retries for serialization failures.
  */
 const withTrustLock = async <T>(
   params: { organizationId: string; clientId: string; matterId?: string | null },
-  execute: (trx: typeof db) => Promise<Result<T>>,
+  execute: (trx: typeof db) => Promise<T>,
   tx?: typeof db
-): Promise<Result<T>> => {
+): Promise<T> => {
   const lockKey = `${params.organizationId}:${params.clientId}:${params.matterId ?? 'no-matter'}`;
 
-  const runWithLock = async (trx: typeof db): Promise<Result<T>> => {
+  const runWithLock = async (trx: typeof db): Promise<T> => {
     await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
     await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
     return execute(trx);
   };
 
-  const run = async (attempt: number): Promise<Result<T>> => {
+  const run = async (attempt: number): Promise<T> => {
     try {
       return tx ? await runWithLock(tx) : await db.transaction(runWithLock);
     } catch (error: unknown) {
@@ -61,7 +42,7 @@ const withTrustLock = async <T>(
 
       if (code === '55P03') {
         logger.warn('Trust lock timed out waiting for advisory lock', { lockKey });
-        return result.conflict('Operation timed out due to high concurrency. Please try again.');
+        throw new HTTPException(409, { message: 'Operation timed out due to high concurrency. Please try again.' });
       }
 
       const canRetry = code === '40001' && !tx && attempt <= 3;
@@ -85,50 +66,42 @@ const withTrustLock = async <T>(
 const recordDeposit = async (
   params: RecordDepositParams,
   tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
-): Promise<Result<SelectTrustTransaction>> => {
+): Promise<SelectTrustTransaction> => {
   if (params.amount <= 0) {
-    return result.badRequest('Amount must be positive');
+    throw new HTTPException(400, { message: 'Amount must be positive' });
   }
 
-  try {
-    return await withTrustLock(
-      params,
-      async (trx) => {
-        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
-          params.organizationId,
-          params.clientId,
-          params.matterId ?? null,
-          trx
-        );
-        const currentBalance = balanceRow?.balance ?? 0;
-        const newBalance = currentBalance + params.amount;
+  return withTrustLock(
+    params,
+    async (trx) => {
+      const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+        params.organizationId,
+        params.clientId,
+        params.matterId ?? null,
+        trx
+      );
+      const currentBalance = balanceRow?.balance ?? 0;
+      const newBalance = currentBalance + params.amount;
 
-        const record = await trustTransactionsRepository.createTransaction(
-          {
-            organization_id: params.organizationId,
-            client_id: params.clientId,
-            matter_id: params.matterId ?? null,
-            transaction_type: 'deposit',
-            amount: params.amount,
-            balance_after: newBalance,
-            description: params.description ?? 'Retainer deposit',
-            source: params.source ?? 'retainer_invoice',
-            invoice_id: params.invoiceId ?? null,
-            stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-            created_by: params.createdBy,
-          },
-          trx
-        );
-        return result.ok(record);
-      },
-      tx
-    );
-  } catch (error) {
-    logger.error('Failed to record trust deposit: {error}', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return result.internalError('Failed to record trust deposit');
-  }
+      return trustTransactionsRepository.createTransaction(
+        {
+          organization_id: params.organizationId,
+          client_id: params.clientId,
+          matter_id: params.matterId ?? null,
+          transaction_type: 'deposit',
+          amount: params.amount,
+          balance_after: newBalance,
+          description: params.description ?? 'Retainer deposit',
+          source: params.source ?? 'retainer_invoice',
+          invoice_id: params.invoiceId ?? null,
+          stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+          created_by: params.createdBy,
+        },
+        trx
+      );
+    },
+    tx
+  );
 };
 
 /**
@@ -137,55 +110,47 @@ const recordDeposit = async (
 const recordWithdrawal = async (
   params: RecordWithdrawalParams,
   tx?: Parameters<typeof trustTransactionsRepository.createTransaction>[1]
-): Promise<Result<SelectTrustTransaction>> => {
+): Promise<SelectTrustTransaction> => {
   if (params.amount <= 0) {
-    return result.badRequest('Amount must be positive');
+    throw new HTTPException(400, { message: 'Amount must be positive' });
   }
 
-  try {
-    return await withTrustLock(
-      params,
-      async (trx) => {
-        const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
-          params.organizationId,
-          params.clientId,
-          params.matterId ?? null,
-          trx
-        );
-        const currentBalance = balanceRow?.balance ?? 0;
+  return withTrustLock(
+    params,
+    async (trx) => {
+      const balanceRow = await trustTransactionsRepository.getLatestBalanceForMatter(
+        params.organizationId,
+        params.clientId,
+        params.matterId ?? null,
+        trx
+      );
+      const currentBalance = balanceRow?.balance ?? 0;
 
-        if (currentBalance < params.amount) {
-          return result.badRequest('Insufficient funds');
-        }
+      if (currentBalance < params.amount) {
+        throw new HTTPException(400, { message: 'Insufficient funds' });
+      }
 
-        const newBalance = currentBalance - params.amount;
+      const newBalance = currentBalance - params.amount;
 
-        const record = await trustTransactionsRepository.createTransaction(
-          {
-            organization_id: params.organizationId,
-            client_id: params.clientId,
-            matter_id: params.matterId ?? null,
-            transaction_type: 'withdrawal',
-            amount: params.amount,
-            balance_after: newBalance,
-            description: params.description ?? 'Invoice payment from retainer',
-            source: params.source ?? 'invoice_payment',
-            invoice_id: params.invoiceId ?? null,
-            stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
-            created_by: params.createdBy,
-          },
-          trx
-        );
-        return result.ok(record);
-      },
-      tx
-    );
-  } catch (error) {
-    logger.error('Failed to record trust withdrawal: {error}', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return result.internalError('Failed to record trust withdrawal');
-  }
+      return trustTransactionsRepository.createTransaction(
+        {
+          organization_id: params.organizationId,
+          client_id: params.clientId,
+          matter_id: params.matterId ?? null,
+          transaction_type: 'withdrawal',
+          amount: params.amount,
+          balance_after: newBalance,
+          description: params.description ?? 'Invoice payment from retainer',
+          source: params.source ?? 'invoice_payment',
+          invoice_id: params.invoiceId ?? null,
+          stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+          created_by: params.createdBy,
+        },
+        trx
+      );
+    },
+    tx
+  );
 };
 
 /**
@@ -194,21 +159,9 @@ const recordWithdrawal = async (
 const getTransactions = async (
   params: GetTransactionsParams,
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction[]>> => {
-  const accessResult = assertTrustReadAccess(ctx);
-  if (!accessResult.success) {
-    return accessResult;
-  }
-
-  try {
-    const txs = await trustTransactionsRepository.listByOrg(params);
-    return result.ok(txs);
-  } catch (error) {
-    logger.error('Failed to list trust transactions: {error}', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return result.internalError('Failed to list trust transactions');
-  }
+): Promise<SelectTrustTransaction[]> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+  return trustTransactionsRepository.listByOrg(params);
 };
 
 /**
@@ -217,49 +170,26 @@ const getTransactions = async (
 const getBalance = async (
   params: GetBalanceParams,
   ctx: ServiceContext
-): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
-  const accessResult = assertTrustReadAccess(ctx);
-  if (!accessResult.success) {
-    return accessResult;
-  }
-
+): Promise<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
   return getBalanceWithTx(params);
 };
 
 const getBalanceWithTx = async (
   params: GetBalanceParams,
   tx?: typeof db
-): Promise<Result<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }>> => {
-  try {
-    const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId, tx);
-    const total = rows.reduce((sum, r) => sum + r.balance, 0);
-    return result.ok({ total, byMatter: rows });
-  } catch (error) {
-    logger.error('Failed to get trust balance: {error}', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return result.internalError('Failed to get trust balance');
-  }
+): Promise<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }> => {
+  const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId, tx);
+  const total = rows.reduce((sum, r) => sum + r.balance, 0);
+  return { total, byMatter: rows };
 };
 
 /**
  * Get trust report for IOLTA compliance over a date range.
  */
-const getReport = async (params: GetReportParams, ctx: ServiceContext): Promise<Result<SelectTrustTransaction[]>> => {
-  const accessResult = assertTrustReadAccess(ctx);
-  if (!accessResult.success) {
-    return accessResult;
-  }
-
-  try {
-    const txs = await trustTransactionsRepository.listByOrg(params);
-    return result.ok(txs);
-  } catch (error) {
-    logger.error('Failed to generate trust report: {error}', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return result.internalError('Failed to generate trust report');
-  }
+const getReport = async (params: GetReportParams, ctx: ServiceContext): Promise<SelectTrustTransaction[]> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+  return trustTransactionsRepository.listByOrg(params);
 };
 
 interface ManualTrustData {
@@ -276,16 +206,8 @@ const syncBalanceAndCheckThreshold = async (
   ctx: ServiceContext,
   tx: typeof db
 ) => {
-  const balanceResult = await getBalanceWithTx({ organizationId, clientId }, tx);
-  if (!balanceResult.success) {
-    logger.warn('Failed to sync balance for matter {matterId}: {error}', {
-      matterId,
-      error: balanceResult.error.message,
-    });
-    return;
-  }
-
-  const matterBalance = balanceResult.data.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
+  const balance = await getBalanceWithTx({ organizationId, clientId }, tx);
+  const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
   await mattersQueries.updateRetainerBalance(matterId, matterBalance, tx);
 
   const matter = await mattersQueries.findMatterById(matterId, tx);
@@ -314,14 +236,11 @@ const syncBalanceAndCheckThreshold = async (
 const manualDeposit = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction>> => {
-  const accessResult = assertTrustManageAccess(ctx);
-  if (!accessResult.success) {
-    return accessResult;
-  }
+): Promise<SelectTrustTransaction> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
 
   return db.transaction(async (tx) => {
-    const depositResult = await recordDeposit(
+    const record = await recordDeposit(
       {
         organizationId: ctx.organizationId,
         clientId: data.client_id,
@@ -334,12 +253,8 @@ const manualDeposit = async (
       tx
     );
 
-    if (!depositResult.success) {
-      return depositResult;
-    }
-
     await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
-    return depositResult;
+    return record;
   });
 };
 
@@ -350,14 +265,11 @@ const manualDeposit = async (
 const manualWithdrawal = async (
   { data }: { data: ManualTrustData },
   ctx: ServiceContext
-): Promise<Result<SelectTrustTransaction>> => {
-  const accessResult = assertTrustManageAccess(ctx);
-  if (!accessResult.success) {
-    return accessResult;
-  }
+): Promise<SelectTrustTransaction> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
 
   return db.transaction(async (tx) => {
-    const withdrawalResult = await recordWithdrawal(
+    const record = await recordWithdrawal(
       {
         organizationId: ctx.organizationId,
         clientId: data.client_id,
@@ -370,12 +282,8 @@ const manualWithdrawal = async (
       tx
     );
 
-    if (!withdrawalResult.success) {
-      return withdrawalResult;
-    }
-
     await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
-    return withdrawalResult;
+    return record;
   });
 };
 

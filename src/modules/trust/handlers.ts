@@ -2,7 +2,6 @@ import { trustRoutes } from '@/modules/trust/routes';
 import { trustService } from '@/modules/trust/services/trust.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
-import { sendResult } from '@/shared/utils/responseUtils';
 
 const {
   getTrustTransactionsRoute,
@@ -15,22 +14,22 @@ const {
 const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
-  const res = await trustService.manualDeposit({ data: body }, ctx);
-  return sendResult(c, res, 201);
+  const transaction = await trustService.manualDeposit({ data: body }, ctx);
+  return c.json(transaction, 201);
 };
 
 const createWithdrawalHandler: AppRouteHandler<typeof createWithdrawalRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
-  const res = await trustService.manualWithdrawal({ data: body }, ctx);
-  return sendResult(c, res, 201);
+  const transaction = await trustService.manualWithdrawal({ data: body }, ctx);
+  return c.json(transaction, 201);
 };
 
 const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const res = await trustService.getTransactions(
+  const transactions = await trustService.getTransactions(
     {
       organizationId: ctx.organizationId,
       clientId: query.client_id,
@@ -41,14 +40,14 @@ const getTrustTransactionsHandler: AppRouteHandler<typeof getTrustTransactionsRo
     ctx
   );
 
-  return sendResult(c, res);
+  return c.json(transactions, 200);
 };
 
 const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const res = await trustService.getBalance(
+  const balance = await trustService.getBalance(
     {
       organizationId: ctx.organizationId,
       clientId: query.client_id,
@@ -56,14 +55,14 @@ const getTrustBalanceHandler: AppRouteHandler<typeof getTrustBalanceRoute> = asy
     ctx
   );
 
-  return sendResult(c, res);
+  return c.json(balance, 200);
 };
 
 const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
-  const res = await trustService.getReport(
+  const report = await trustService.getReport(
     {
       organizationId: ctx.organizationId,
       startDate: query.start_date ? new Date(query.start_date) : undefined,
@@ -72,7 +71,7 @@ const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async
     ctx
   );
 
-  return sendResult(c, res);
+  return c.json(report, 200);
 };
 
 export const handlers = {
