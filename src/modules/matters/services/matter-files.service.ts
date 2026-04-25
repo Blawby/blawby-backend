@@ -15,13 +15,7 @@ const ensureMatterAccess = async (matterId: string, ctx: ServiceContext, action:
     throw new HTTPException(403, { message: 'Access denied' });
   }
 
-  const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
-  if (accessResult.success) {
-    return;
-  }
-
-  const status = accessResult.error.status === 404 ? 404 : 403;
-  throw new HTTPException(status, { message: accessResult.error.message });
+  await mattersService.verifyMatterAccess(matterId, ctx);
 };
 
 const toUploadShape = (upload: SelectUpload) => ({
@@ -82,7 +76,11 @@ export const matterFilesService = {
     if (currentUpload.deleted_at) throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
     if (currentUpload.status === 'rejected')
       throw new HTTPException(400, { message: 'Upload was rejected and cannot be linked' });
-    if (currentUpload.status === 'pending' && currentUpload.expires_at !== null && currentUpload.expires_at <= new Date())
+    if (
+      currentUpload.status === 'pending' &&
+      currentUpload.expires_at !== null &&
+      currentUpload.expires_at <= new Date()
+    )
       throw new HTTPException(400, { message: 'Upload has expired and cannot be linked' });
 
     await uploadsRepository.update(uploadId, { scope_type: 'matter', scope_id: matterId }, ctx.db);
@@ -132,14 +130,15 @@ export const matterFilesService = {
     }));
   },
 
-  async unlinkUpload({ matterId, uploadId }: { matterId: string; uploadId: string }, ctx: ServiceContext) {
+  async unlinkUpload(
+    { matterId, uploadId }: { matterId: string; uploadId: string },
+    ctx: ServiceContext
+  ): Promise<void> {
     await ensureMatterAccess(matterId, ctx, 'create');
 
     const deleted = await matterFilesQueries.deleteLink(matterId, uploadId, ctx.db);
     if (!deleted) {
       throw new HTTPException(404, { message: 'Matter file link not found' });
     }
-
-    return { success: true };
   },
 };

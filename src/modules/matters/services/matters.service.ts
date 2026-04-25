@@ -5,7 +5,7 @@
  */
 
 import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 import { isEqual } from 'es-toolkit';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
@@ -18,81 +18,52 @@ import type {
   MatterRecord,
   UnbilledMatterData,
 } from '@/modules/matters/types/matter.types';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
-import type { Action, Subject } from '@/shared/auth/abilities';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { db } from '@/shared/database';
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
-import type { PaginatedResult, Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 
-const logger = getLogger(['matters', 'services', 'matters']);
-
-const getForbiddenResult = (ctx: ServiceContext, action: Action, subject: Subject): Result<never> | undefined => {
-  try {
-    ForbiddenError.from(ctx.ability).throwUnlessCan(action, subject);
-    return undefined;
-  } catch (error) {
-    if (error instanceof ForbiddenError) {
-      return result.forbidden(error.message);
-    }
-    throw error;
-  }
-};
-
 /**
  * Create a new matter
  */
-const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Promise<Result<MatterRecord>> => {
-  const forbiddenResult = getForbiddenResult(ctx, 'create', 'Matter');
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
+const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Promise<MatterRecord> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Matter');
 
-  // Extract assignees and milestones from data
   const { assignee_ids, milestones, ...matterData } = data;
 
-  // Validate client_id if provided
   if (data.client_id) {
     const client = await clientsRepository.findById(data.client_id);
     if (!client || client.organization_id !== ctx.organizationId) {
-      return result.badRequest('Invalid client_id or client does not belong to this organization');
+      throw new HTTPException(400, { message: 'Invalid client_id or client does not belong to this organization' });
     }
   }
 
-  // Validate practice_service_id if provided
   if (data.practice_service_id) {
     const service = await practiceServicesRepository.findById(data.practice_service_id);
     if (!service || service.organization_id !== ctx.organizationId) {
-      return result.badRequest('Invalid practice_service_id or service does not belong to this organization');
+      throw new HTTPException(400, {
+        message: 'Invalid practice_service_id or service does not belong to this organization',
+      });
     }
   }
 
-  // Create matter in transaction
-  const matterResult = await db.transaction(async (tx) => {
-    // Convert date strings to Date objects
+  return db.transaction(async (tx) => {
     const dbData = {
       ...matterData,
       open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
       close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
     };
 
-    // Create the matter
     const [newMatter] = await tx
       .insert(matters)
-      .values({
-        organization_id: ctx.organizationId,
-        ...dbData,
-      })
+      .values({ organization_id: ctx.organizationId, ...dbData })
       .returning();
 
-    // Add assignees if provided
     if (assignee_ids && assignee_ids.length > 0) {
       await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids, tx);
     }
@@ -111,7 +82,7 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
       );
     }
 
-    const creationActivityResult = await matterActivityService.logMatterActivity(
+    await matterActivityService.logMatterActivity(
       {
         matterId: newMatter.id,
         action: matterActivityService.ActivityAction.MATTER_CREATED,
@@ -121,14 +92,7 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
       ctx,
       tx
     );
-    if (!creationActivityResult.success) {
-      logger.error('Failed to log matter create activity {matterId}: {error}', {
-        matterId: newMatter.id,
-        error: creationActivityResult.error.message,
-      });
-    }
 
-    // Dispatch event using ctx.emit
     await ctx.emit(
       MatterCreated,
       {
@@ -142,45 +106,35 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
 
     return newMatter;
   });
-
-  return result.ok<MatterRecord>(matterResult);
 };
 
 /**
  * Lightweight access check for sub-resource endpoints (notes, time entries, expenses, milestones).
  * Uses a minimal DB query — does NOT load relations.
  */
-const verifyMatterAccess = async (matterId: string, ctx: ServiceContext): Promise<Result<void>> => {
+const verifyMatterAccess = async (matterId: string, ctx: ServiceContext): Promise<void> => {
   const matter = await mattersQueries.findMatterById(matterId);
 
   if (!matter || matter.organization_id !== ctx.organizationId) {
-    return result.notFound('Matter not found');
+    throw new HTTPException(404, { message: 'Matter not found' });
   }
 
-  const forbiddenResult = getForbiddenResult(ctx, 'read', toSubject('Matter', matter));
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
-
-  return result.ok();
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Matter', matter));
 };
 
 /**
  * Get matter by ID (with full relations — for matter detail view only)
  */
-const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Result<MatterRecord>> => {
+const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<MatterRecord> => {
   const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
 
   if (!matter || matter.organization_id !== ctx.organizationId) {
-    return result.notFound('Matter not found');
+    throw new HTTPException(404, { message: 'Matter not found' });
   }
 
-  const forbiddenResult = getForbiddenResult(ctx, 'read', toSubject('Matter', matter));
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Matter', matter));
 
-  return result.ok<MatterRecord>({
+  return {
     ...matter,
     assignees: matter.assignees.map((assignee) => ({
       ...assignee.user,
@@ -189,7 +143,7 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Res
     client: matter.client
       ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' }
       : null,
-  });
+  };
 };
 
 /**
@@ -198,13 +152,10 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Res
 const listMatters = async (
   filters: ListMattersQuery,
   ctx: ServiceContext
-): Promise<PaginatedResult<MatterRecord, 'matters'>> => {
-  const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
+): Promise<{ matters: MatterRecord[]; total: number }> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
 
-  const listResult = await mattersQueries.listMattersByOrganization(ctx.organizationId, {
+  return mattersQueries.listMattersByOrganization(ctx.organizationId, {
     status: filters.status,
     practiceServiceId: filters.practice_service_id,
     clientId: filters.client_id,
@@ -212,11 +163,6 @@ const listMatters = async (
     search: filters.search,
     page: filters.page,
     limit: filters.limit,
-  });
-
-  return result.ok({
-    matters: listResult.matters,
-    total: listResult.total,
   });
 };
 
@@ -227,32 +173,22 @@ const updateMatter = async (
   matterId: string,
   data: UpdateMatterRequest,
   ctx: ServiceContext
-): Promise<Result<MatterRecord>> => {
-  // 1. Fetch existing for authorization
+): Promise<MatterRecord> => {
   const existing = await mattersQueries.findMatterByIdWithRelations(matterId);
 
   if (!existing || existing.organization_id !== ctx.organizationId) {
-    return result.notFound('Matter not found');
+    throw new HTTPException(404, { message: 'Matter not found' });
   }
 
-  const forbiddenResult = getForbiddenResult(ctx, 'update', toSubject('Matter', existing));
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('Matter', existing));
 
-  // Extract assignees from data
   const { assignee_ids, ...matterData } = data;
   const existingRecord: Record<string, unknown> = { ...existing };
   const changedFields = Object.entries(matterData).reduce<string[]>((acc, [key, value]) => {
-    if (value === undefined) {
-      return acc;
-    }
+    if (value === undefined) return acc;
     const existingValue = existingRecord[key];
-    // Normalize dates for comparison (existing values from DB are Date objects)
     const normalizedExisting = existingValue instanceof Date ? existingValue.toISOString() : existingValue;
-    if (!isEqual(normalizedExisting, value)) {
-      acc.push(key);
-    }
+    if (!isEqual(normalizedExisting, value)) acc.push(key);
     return acc;
   }, []);
 
@@ -262,88 +198,61 @@ const updateMatter = async (
       : [];
     const normalizedExisting = [...existingAssignees].sort().join(',');
     const normalizedNext = [...assignee_ids].sort().join(',');
-    if (normalizedExisting !== normalizedNext) {
-      changedFields.push('assignees');
-    }
+    if (normalizedExisting !== normalizedNext) changedFields.push('assignees');
   }
 
-  // Validate client_id if provided
   if (data.client_id) {
     const client = await clientsRepository.findById(data.client_id);
     if (!client || client.organization_id !== ctx.organizationId) {
-      return result.badRequest('Invalid client_id or client does not belong to this organization');
+      throw new HTTPException(400, { message: 'Invalid client_id or client does not belong to this organization' });
     }
   }
 
-  // Validate practice_service_id if provided
   if (data.practice_service_id) {
     const service = await practiceServicesRepository.findById(data.practice_service_id);
     if (!service || service.organization_id !== ctx.organizationId) {
-      return result.badRequest('Invalid practice_service_id or service does not belong to this organization');
+      throw new HTTPException(400, {
+        message: 'Invalid practice_service_id or service does not belong to this organization',
+      });
     }
   }
 
-  const transactionResult = await db.transaction(async (tx) => {
-    // Convert date strings to Date objects
+  const updated = await db.transaction(async (tx) => {
     const dbData = {
       ...matterData,
       open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
       close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
     };
 
-    // Update the matter
-    const updated = await mattersQueries.updateMatter(matterId, dbData, tx);
-    if (!updated) {
-      return null;
+    const result = await mattersQueries.updateMatter(matterId, dbData, tx);
+    if (!result) {
+      throw new HTTPException(500, { message: 'Failed to update matter' });
     }
 
-    // Update assignees if provided
     if (assignee_ids !== undefined) {
-      // Clear existing assignees and add new ones
       await mattersQueries.clearMatterAssignees(matterId, tx);
       if (assignee_ids.length > 0) {
         await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
       }
     }
 
-    // Log activity
-    if (changedFields.length > 0) {
-      const updateActivityResult = await matterActivityService.logMatterActivity(
-        {
-          action: matterActivityService.ActivityAction.MATTER_UPDATED,
-          description: `Matter "${updated.title}" was updated (${changedFields.join(', ')})`,
-          metadata: { changes: matterData, changed_fields: changedFields },
-        },
-        ctx,
-        tx
-      );
-      if (!updateActivityResult.success) {
-        logger.error('Failed to log matter update activity {matterId}: {error}', {
-          matterId,
-          error: updateActivityResult.error.message,
-        });
-      }
-    } else {
-      const noChangeActivityResult = await matterActivityService.logMatterActivity(
-        {
-          action: matterActivityService.ActivityAction.MATTER_UPDATED,
-          description: `Matter "${updated.title}" update attempted (no changes)`,
-          metadata: { changes: matterData, changed_fields: changedFields },
-        },
-        ctx,
-        tx
-      );
-      if (!noChangeActivityResult.success) {
-        logger.error('Failed to log no-change update activity {matterId}: {error}', {
-          matterId,
-          error: noChangeActivityResult.error.message,
-        });
-      }
-    }
+    const activityDescription =
+      changedFields.length > 0
+        ? `Matter "${result.title}" was updated (${changedFields.join(', ')})`
+        : `Matter "${result.title}" update attempted (no changes)`;
 
-    // Check for status change
+    await matterActivityService.logMatterActivity(
+      {
+        action: matterActivityService.ActivityAction.MATTER_UPDATED,
+        description: activityDescription,
+        metadata: { changes: matterData, changed_fields: changedFields },
+      },
+      ctx,
+      tx
+    );
+
     if (data.status && data.status !== existing.status) {
-      const statusActivityResult = await matterActivityService.logMatterActivity(
+      await matterActivityService.logMatterActivity(
         {
           action: matterActivityService.ActivityAction.MATTER_STATUS_CHANGED,
           description: `Matter status changed from "${existing.status}" to "${data.status}"`,
@@ -352,25 +261,6 @@ const updateMatter = async (
         ctx,
         tx
       );
-      if (!statusActivityResult.success) {
-        logger.error('Failed to log status-change activity {matterId}: {error}', {
-          matterId,
-          error: statusActivityResult.error.message,
-        });
-      }
-
-      let organizationName = 'Your Legal Team';
-      try {
-        const organization = await organizationRepository.findById(ctx.organizationId);
-        if (organization) {
-          organizationName = organization.name;
-        }
-      } catch (orgError) {
-        logger.warn('Failed to fetch organization for matter status event enrichment: {error}', {
-          organizationId: ctx.organizationId,
-          error: orgError instanceof Error ? orgError.message : String(orgError),
-        });
-      }
 
       await ctx.emit(
         MatterStatusChanged,
@@ -380,7 +270,7 @@ const updateMatter = async (
           old_status: existing.status,
           new_status: data.status,
           matter_title: existing.title,
-          organization_name: organizationName,
+          organization_name: 'Your Legal Team',
           client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
           client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
         },
@@ -388,51 +278,37 @@ const updateMatter = async (
       );
     }
 
-    // Dispatch update event
     await ctx.emit(
       MatterUpdated,
-      {
-        matter_id: matterId,
-        organization_id: ctx.organizationId,
-        changes: { ...matterData },
-      },
+      { matter_id: matterId, organization_id: ctx.organizationId, changes: { ...matterData } },
       tx
     );
 
-    return updated;
+    return result;
   });
 
-  if (!transactionResult) {
-    return result.internalError('Failed to update matter');
-  }
-
-  return result.ok<MatterRecord>(transactionResult);
+  return updated;
 };
 
 /**
  * Delete matter (soft delete)
  */
-const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<Result<{ success: true }>> => {
-  // 1. Fetch for authorization
+const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<void> => {
   const existing = await mattersQueries.findMatterByIdWithRelations(matterId);
 
   if (!existing || existing.organization_id !== ctx.organizationId) {
-    return result.notFound('Matter not found');
+    throw new HTTPException(404, { message: 'Matter not found' });
   }
 
-  const forbiddenResult = getForbiddenResult(ctx, 'delete', toSubject('Matter', existing));
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Matter', existing));
 
-  const deletedMatter = await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     const deleted = await mattersQueries.softDeleteMatter(matterId, ctx.userId, tx);
     if (!deleted) {
-      return null;
+      throw new HTTPException(500, { message: 'Failed to delete matter' });
     }
 
-    // Log activity
-    const deleteActivityResult = await matterActivityService.logMatterActivity(
+    await matterActivityService.logMatterActivity(
       {
         action: matterActivityService.ActivityAction.MATTER_DELETED,
         description: `Matter "${deleted.title}" was deleted`,
@@ -441,62 +317,31 @@ const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<Resu
       ctx,
       tx
     );
-    if (!deleteActivityResult.success) {
-      logger.error('Failed to log matter delete activity {matterId}: {error}', {
-        matterId,
-        error: deleteActivityResult.error.message,
-      });
-    }
 
-    // Dispatch event
-    await ctx.emit(
-      MatterDeleted,
-      {
-        matter_id: matterId,
-        organization_id: ctx.organizationId,
-      },
-      tx
-    );
-
-    return deleted;
+    await ctx.emit(MatterDeleted, { matter_id: matterId, organization_id: ctx.organizationId }, tx);
   });
-
-  if (!deletedMatter) {
-    return result.internalError('Failed to delete matter');
-  }
-
-  return result.ok({ success: true });
 };
 
 /**
  * Get matter counts by status
  */
-const getMatterCounts = async (ctx: ServiceContext): Promise<Result<Record<string, number>>> => {
-  const forbiddenResult = getForbiddenResult(ctx, 'read', 'Matter');
-  if (forbiddenResult) {
-    return forbiddenResult;
-  }
+const getMatterCounts = async (ctx: ServiceContext): Promise<Record<string, number>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
 
   const counts = await mattersQueries.getMatterCountsByStatus(ctx.organizationId);
 
-  // Transform to object format
-  const transformed = counts.reduce<Record<string, number>>((acc: Record<string, number>, { status, count }) => {
+  return counts.reduce<Record<string, number>>((acc, { status, count }) => {
     acc[status] = count;
     return acc;
   }, {});
-
-  return result.ok(transformed);
 };
 
-const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise<Result<UnbilledMatterData>> => {
-  const accessResult = await verifyMatterAccess(matterId, ctx);
-  if (!accessResult.success) {
-    return accessResult;
-  }
+const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise<UnbilledMatterData> => {
+  await verifyMatterAccess(matterId, ctx);
 
   const matter = await mattersQueries.findMatterById(matterId);
   if (!matter) {
-    return result.notFound('Matter not found');
+    throw new HTTPException(404, { message: 'Matter not found' });
   }
 
   const [timeEntries, expenses, milestones, connectedAccount] = await Promise.all([
@@ -508,7 +353,7 @@ const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise
 
   const hourlyRate = matter.attorney_hourly_rate ?? matter.admin_hourly_rate ?? 0;
 
-  return result.ok({
+  return {
     time_entries: timeEntries.map((entry) => {
       const durationMinutes = Math.round(entry.duration / 60);
       return {
@@ -538,7 +383,7 @@ const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise
         order: milestone.order,
       })),
     connected_account_id: connectedAccount?.id ?? null,
-  });
+  };
 };
 
 /**

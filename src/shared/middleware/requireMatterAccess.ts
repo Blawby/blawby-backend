@@ -1,4 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
+import { ForbiddenError } from '@casl/ability';
+import { HTTPException } from 'hono/http-exception';
 
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { Variables } from '@/shared/types/hono';
@@ -20,12 +22,19 @@ export const requireMatterAccess =
   async (c, next) => {
     const matterId = c.req.param(matterParamName)!;
     const ctx = getServiceContext(c);
-    const accessResult = await mattersService.verifyMatterAccess(matterId, ctx);
 
-    if (!accessResult.success) {
-      const { error } = accessResult;
-      const status = error.status === 404 ? 404 : 403;
-      return c.json({ error: error.message }, status);
+    try {
+      await mattersService.verifyMatterAccess(matterId, ctx);
+    } catch (error) {
+      if (error instanceof HTTPException) {
+        return c.json({ error: error.message }, error.status);
+      }
+
+      if (error instanceof ForbiddenError) {
+        return c.json({ error: error.message }, 403);
+      }
+
+      throw error;
     }
 
     return next();

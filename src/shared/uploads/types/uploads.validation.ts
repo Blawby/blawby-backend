@@ -25,7 +25,10 @@ const listUploadsQuerySchema = z.object({
   scope_type: uploadScopeTypeSchema.optional(),
   scope_id: z.uuid().optional(),
   status: uploadStatusSchema.optional(),
-  include_deleted: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional().default(false),
+  include_deleted: z
+    .preprocess((v) => v === 'true' || v === true, z.boolean())
+    .optional()
+    .default(false),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
