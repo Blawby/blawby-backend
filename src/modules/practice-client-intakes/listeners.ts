@@ -251,13 +251,12 @@ export const registerPracticeClientIntakesListeners = (): void => {
       // Accepted triage is the backend trigger for invitation + linkage.
       const systemCtx = createSystemContext(payload.organization_id);
 
-      const invitationResult = await intakeLifecycleService.triggerInvitation({ uuid: payload.intake_id }, systemCtx);
-      if (!invitationResult.success) {
-        logError('Failed to trigger magic link on accepted intake', invitationResult.error ?? invitationResult, {
+      await intakeLifecycleService.triggerInvitation({ uuid: payload.intake_id }, systemCtx).catch((error: unknown) => {
+        logError('Failed to trigger magic link on accepted intake', error, {
           intakeId: payload.intake_id,
           organizationId: payload.organization_id,
         });
-      }
+      });
 
       void clientsCrudService
         .createClientFromIntake(

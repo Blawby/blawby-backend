@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Stripe } from 'stripe';
 import { fundManagement } from '@/engines/financial';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
-import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
+import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
@@ -19,9 +19,8 @@ import type {
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { db } from '@/shared/database';
 import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
@@ -34,63 +33,52 @@ type IntakeCreationRequest = CreatePracticeClientIntakeRequest & {
 const getIntakeSettings = async (params: {
   slug: string;
   organization?: NonNullable<Awaited<ReturnType<typeof organizationRepository.findBySlug>>>;
-}): Promise<Result<IntakeSettingsResponse>> => {
-  try {
-    const organization = params.organization ?? (await organizationRepository.findBySlug(params.slug));
+}): Promise<IntakeSettingsResponse> => {
+  const organization = params.organization ?? (await organizationRepository.findBySlug(params.slug));
 
-    if (!organization) {
-      return result.notFound(`Organization with slug '${params.slug}' not found`);
-    }
-
-    if (!organization.activeSubscriptionId) {
-      return result.forbidden('Organization does not have an active subscription');
-    }
-
-    const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
-    if (!connectedAccount) {
-      return result.forbidden('Organization does not have a connected Stripe account');
-    }
-
-    if (!(await isAccountActive(connectedAccount))) {
-      return result.forbidden('Connected account is not ready to accept payments');
-    }
-
-    const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
-    const consultationFee = practiceDetails?.consultation_fee ?? 0;
-    const serviceArea = (practiceDetails?.services ?? []).map((service) => ({
-      id: service.id,
-      name: service.name,
-      key: service.key,
-    }));
-
-    return result.ok({
-      success: true,
-      data: {
-        organization: {
-          id: organization.id,
-          name: organization.name,
-          slug: organization.slug,
-          logo: organization.logo ?? undefined,
-        },
-        settings: {
-          payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
-          // Keep FE display and create-intake amount consistent with the same backend source.
-          consultation_fee: consultationFee,
-        },
-        service_area: serviceArea,
-        connected_account: {
-          id: connectedAccount.id,
-          charges_enabled: connectedAccount.charges_enabled,
-        },
-      },
-    });
-  } catch (error) {
-    logger.error('Failed to get organization intake settings for {slug}: {error}', {
-      slug: params.slug,
-      error,
-    });
-    return result.internalError('Failed to get organization intake settings');
+  if (!organization) {
+    throw new HTTPException(404, { message: `Organization with slug '${params.slug}' not found` });
   }
+
+  if (!organization.activeSubscriptionId) {
+    throw new HTTPException(403, { message: 'Organization does not have an active subscription' });
+  }
+
+  const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
+  if (!connectedAccount) {
+    throw new HTTPException(403, { message: 'Organization does not have a connected Stripe account' });
+  }
+
+  if (!(await connectedAccountsService.isAccountActive(connectedAccount))) {
+    throw new HTTPException(403, { message: 'Connected account is not ready to accept payments' });
+  }
+
+  const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+  const consultationFee = practiceDetails?.consultation_fee ?? 0;
+  const serviceArea = (practiceDetails?.services ?? []).map((service) => ({
+    id: service.id,
+    name: service.name,
+    key: service.key,
+  }));
+
+  return {
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      logo: organization.logo ?? undefined,
+    },
+    settings: {
+      payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
+      // Keep FE display and create-intake amount consistent with the same backend source.
+      consultation_fee: consultationFee,
+    },
+    service_area: serviceArea,
+    connected_account: {
+      id: connectedAccount.id,
+      charges_enabled: connectedAccount.charges_enabled,
+    },
+  };
 };
 
 const insertIntakeRecordTx = async (
@@ -159,13 +147,13 @@ const insertIntakeRecordTx = async (
   return practiceClientIntakesRepository.create(intakeData, tx);
 };
 
-const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Result<CreateIntakeResponse>> => {
+const createIntake = async (params: { data: IntakeCreationRequest }): Promise<CreateIntakeResponse> => {
   const { data: request } = params;
 
   try {
     const organization = await organizationRepository.findBySlug(request.slug);
     if (!organization) {
-      return result.notFound(`Organization with slug '${request.slug}' not found`);
+      throw new HTTPException(404, { message: `Organization with slug '${request.slug}' not found` });
     }
 
     const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
@@ -175,7 +163,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
       request.practice_service_uuid &&
       !(practiceDetails?.services ?? []).some((service) => service.id === request.practice_service_uuid)
     ) {
-      return result.badRequest('Selected practice service does not belong to this organization.');
+      throw new HTTPException(400, { message: 'Selected practice service does not belong to this organization.' });
     }
 
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
@@ -189,9 +177,9 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const shouldBypassPayment = !requiresPayment;
 
     if (requiresPayment && resolvedAmount < 50) {
-      return result.badRequest(
-        `Invalid practice consultation fee configuration: resolved amount is ${resolvedAmount} cents, but minimum is 50 cents when payment is required.`
-      );
+      throw new HTTPException(400, {
+        message: `Invalid practice consultation fee configuration: resolved amount is ${resolvedAmount} cents, but minimum is 50 cents when payment is required.`,
+      });
     }
 
     let stripePaymentLink: Stripe.Response<Stripe.PaymentLink> | null = null;
@@ -200,15 +188,11 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
     const validatedUserId = request.user_id;
 
     if (!shouldBypassPayment) {
-      // Validate intake settings (throws if invalid)
-      const settingsResult = await getIntakeSettings({ slug: request.slug, organization });
-      if (!settingsResult.success) {
-        return settingsResult;
-      }
+      await getIntakeSettings({ slug: request.slug, organization });
 
       connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
       if (!connectedAccount) {
-        return result.fail('Connected account not found');
+        throw new Error('Connected account not found');
       }
 
       stripePaymentLink = await createIntakePaymentLink({
@@ -292,45 +276,39 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Re
       );
     }
 
-    return result.ok({
-      success: true,
-      data: {
-        uuid: intake.id,
-        payment_link_url: stripePaymentLink?.url ?? null,
-        amount: resolvedAmount,
-        currency: 'usd',
-        status: shouldBypassPayment ? 'succeeded' : 'open',
-        organization: {
-          name: organization.name,
-          logo: organization.logo ?? undefined,
-        },
-        urgency: request.urgency,
-        desired_outcome: request.desired_outcome,
-        court_date: request.court_date ? new Date(request.court_date) : undefined,
-        has_documents: request.has_documents,
-        income: request.income,
-        household_size: request.household_size,
-        case_strength: request.case_strength,
+    return {
+      uuid: intake.id,
+      payment_link_url: stripePaymentLink?.url ?? null,
+      amount: resolvedAmount,
+      currency: 'usd',
+      status: shouldBypassPayment ? 'succeeded' : 'open',
+      organization: {
+        name: organization.name,
+        logo: organization.logo ?? undefined,
       },
-    });
+      urgency: request.urgency,
+      desired_outcome: request.desired_outcome,
+      court_date: request.court_date ? new Date(request.court_date) : undefined,
+      has_documents: request.has_documents,
+      income: request.income,
+      household_size: request.household_size,
+      case_strength: request.case_strength,
+    };
   } catch (error) {
     logger.error('Failed to create practice client intake for {slug}: {error}', {
       slug: request.slug,
       error,
     });
-    return result.internalError('Failed to create practice client intake');
+    throw error;
   }
 };
 
 const updateIntake = async (
   params: { uuid: string; data: UpdatePracticeClientIntakeRequest },
   ctx: ServiceContext
-): Promise<Result<{ success: boolean; message: string }>> => {
+): Promise<{ message: string }> => {
   try {
-    const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'update');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
+    await getActorAccessibleIntake(params.uuid, ctx, 'update');
 
     const { amount, court_date, ...restUpdateData } = params.data;
     const dataToUpdate = {
@@ -340,18 +318,18 @@ const updateIntake = async (
     };
 
     if (Object.keys(dataToUpdate).length === 0) {
-      return result.badRequest('No fields to update provided.');
+      throw new HTTPException(400, { message: 'No fields to update provided.' });
     }
 
     await practiceClientIntakesRepository.update(params.uuid, dataToUpdate);
 
-    return result.ok({ success: true, message: 'Intake updated successfully.' });
+    return { message: 'Intake updated successfully.' };
   } catch (error) {
     logger.error('Failed to update practice client intake for {uuid}: {error}', {
       uuid: params.uuid,
       error,
     });
-    return result.internalError('Failed to update practice client intake');
+    throw error;
   }
 };
 

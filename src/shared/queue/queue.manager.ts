@@ -265,22 +265,6 @@ const closeQueues = async (): Promise<void> => {
   logger.info('Queue manager closed');
 };
 
-// Legacy exports for backward compatibility during migration
-// TODO: Remove after full migration
-const getQueue = (_name: string): never => {
-  throw new Error('getQueue() is deprecated. Use getWorkerUtils() and addJob() directly.');
-};
-
-const getWebhookQueue = (): never => {
-  throw new Error('getWebhookQueue() is deprecated. Use queueManager.addWebhookJob() instead.');
-};
-
-const getQueueEvents = (_name: string): never => {
-  throw new Error(
-    'getQueueEvents() is not available in Graphile Worker. Query the jobs table directly for monitoring.'
-  );
-};
-
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
   logger.info('Received SIGINT, closing queue manager...');
@@ -301,7 +285,4 @@ export const queueManager = {
   getQueueStats,
   getWebhookQueueStats,
   closeQueues,
-  getQueue,
-  getWebhookQueue,
-  getQueueEvents,
 };

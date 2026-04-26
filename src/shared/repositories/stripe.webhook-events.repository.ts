@@ -129,11 +129,3 @@ export const stripeWebhookEventsRepository = {
       );
   },
 };
-
-// Legacy exports for partial migration support if needed
-export const { existsByStripeEventId } = stripeWebhookEventsRepository;
-export const createWebhookEvent = stripeWebhookEventsRepository.create;
-export const createWebhookEventIfNotExists = stripeWebhookEventsRepository.createIfNotExists;
-export const findWebhookById = stripeWebhookEventsRepository.findById;
-export const markWebhookProcessed = stripeWebhookEventsRepository.markProcessed;
-export const markWebhookFailed = stripeWebhookEventsRepository.markFailed;

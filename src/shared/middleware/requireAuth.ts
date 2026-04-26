@@ -1,12 +1,12 @@
 import { getLogger } from '@logtape/logtape';
 import { and, eq } from 'drizzle-orm';
 import type { MiddlewareHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { ADMIN_ROLES } from '@/shared/enums/org-roles';
 import { members } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
-import { sendError } from '@/shared/utils/responseUtils';
 
 /**
  * Authentication Middleware - Sets user context and blocks unauthenticated users
@@ -39,15 +39,20 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
 
     // Block request if no user
     if (!session?.user) {
-      return sendError(c, { code: 'UNAUTHORIZED', message: 'Authentication required', status: 401 });
+      throw new HTTPException(401, {
+        message: 'Authentication required',
+      });
     }
 
     return next();
   } catch (error) {
-    // Log the error and block the request
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+
     const logger = getLogger(['app', 'auth']);
     logger.error('Error in requireAuth middleware: {error}', { error });
-    return sendError(c, { code: 'UNAUTHORIZED', message: 'Authentication required', status: 401 });
+    throw error;
   }
 };
 

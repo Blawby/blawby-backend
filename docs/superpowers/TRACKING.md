@@ -25,16 +25,15 @@
 
 Modules still using `Result<T>` / `sendResult`:
 
-| Module | Plan | Status | Notes |
-|--------|------|--------|-------|
-| `matters/` | `plans/2026-04-25-error-handling-matters.md` | ✅ | Fully closed: migration landed, `getMatterActivity` now uses `verifyMatterAccess`, and `unlinkUpload` returns `204 No Content` via handler |
-| `matters/services/matters.service.ts` — remaining try/catch follow-up | ↑ same plan | ✅ | Removed the last localized status-event enrichment try/catch |
-| `trust/` — `assertTrustManageAccess` / `assertTrustReadAccess` return `Result<void>` | `plans/2026-04-25-error-handling-trust.md` | ⬜ | |
-| `subscriptions/` | `plans/2026-04-25-error-handling-subscriptions.md` | ⬜ | |
-| `practice-client-intakes/` | `plans/2026-04-25-error-handling-practice-client-intakes.md` | ⬜ | |
-| `onboarding/` | `plans/2026-04-25-error-handling-onboarding.md` | ⬜ | |
-| `stripe/` handlers | `plans/2026-04-25-error-handling-stripe.md` | 🔒 | Blocked on onboarding plan |
-| Services returning `Result<{ success: true }>` for deletes | all above plans | 🔄 | Matters delete paths are migrated to `Promise<void>` / `204`; other modules still pending |
+| Module | Status | Notes |
+|--------|--------|-------|
+| `matters/` | ✅ | Migration landed; `unlinkUpload` returns `204 No Content` |
+| `trust/` | ✅ | `assertTrust*Access` helpers removed; `syncBalanceAndCheckThreshold` try/catch fixed |
+| `subscriptions/` | ✅ | Handler-facing services throw-based; worker-facing services use raw `Error` |
+| `practice-client-intakes/` | ✅ | Helpers, services, handlers migrated |
+| `onboarding/` | ✅ | Migrated; legacy named exports removed from `connected-accounts.service.ts` |
+| `stripe/` | ✅ | `getConnectedAccountHandler` cleaned up; legacy exports removed from `stripe.webhook-events.repository.ts` |
+| Services returning `Result<{ success: true }>` for deletes | ✅ | All modules now `Promise<void>` / `204` |
 
 **Audit Item 2 — `engagement-contracts` Module Deviations** | Severity: High
 
@@ -45,7 +44,7 @@ Modules still using `Result<T>` / `sendResult`:
 | ~~Generic `{id}` param instead of `{contract_id}`~~ | ✅ |
 | ~~Exported handlers as `engagementContractHandlers` instead of `handlers`~~ | ✅ |
 | ~~Handler `{ id }` destructuring instead of `{ contract_id: id }`~~ | ✅ |
-| `practice_id` URL param not validated against `ctx.organizationId` in service | ⬜ |
+| `practice_id` URL param not validated against session active organization in handler/service flow | 🔄 |
 
 Remaining item tracked in: `plans/2026-04-25-error-handling-stripe.md` Task 2
 
@@ -183,15 +182,9 @@ Import `z` from `@hono/zod-openapi`, not `'zod'`:
 
 ---
 
-## Quick Reference — All Plan Files
+## Quick Reference — Active Plan Files
 
 | File | Track | Scope |
 |------|-------|-------|
-| `plans/2026-04-25-error-handling-matters.md` | 1 | matters |
-| `plans/2026-04-25-error-handling-trust.md` | 1 | trust |
-| `plans/2026-04-25-error-handling-subscriptions.md` | 1 | subscriptions |
-| `plans/2026-04-25-error-handling-practice-client-intakes.md` | 1 | practice-client-intakes |
-| `plans/2026-04-25-error-handling-onboarding.md` | 1 | onboarding |
-| `plans/2026-04-25-error-handling-stripe.md` | 1 | stripe + engagement-contracts item 2 |
 | `plans/2026-04-03-api-breaking-standardization.md` | 2 | breaking API changes |
 | `plans/2026-04-03-api-non-breaking-fixes.md` | 2 | non-breaking API fixes |
