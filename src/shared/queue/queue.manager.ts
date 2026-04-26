@@ -167,6 +167,35 @@ export const addInvoicePaymentJob = async (payload: {
   }
 };
 
+export const addInvoiceVoidReconciliationJob = async (payload: {
+  invoiceId: string;
+  organizationId: string;
+  stripeInvoiceId: string;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_INVOICE_VOID_RECONCILIATION, payload, {
+      jobKey: `invoice-void-reconcile:${payload.organizationId}:${payload.stripeInvoiceId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Invoice void reconciliation job queued: {stripeInvoiceId}', {
+      stripeInvoiceId: payload.stripeInvoiceId,
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue invoice void reconciliation job {stripeInvoiceId}', {
+      error,
+      stripeInvoiceId: payload.stripeInvoiceId,
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
+
 export const addRefundReconciliationJob = async (payload: {
   organizationId: string;
   requestId: string;

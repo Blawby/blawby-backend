@@ -9,8 +9,9 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { organizations } from '@/schema/better-auth-schema';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { InvoiceSent, InvoiceVoided } from '@/shared/events/definitions';
+import { InvoiceSent, InvoiceVoided, SystemErrorOccurred } from '@/shared/events/definitions';
 import { db } from '@/shared/database';
+import { addInvoiceVoidReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'delivery-service']);
@@ -187,7 +188,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         throw new HTTPException(400, { message: 'Only draft invoices can be sent' });
       }
 
-      if (!found.line_items.length) {
+      if (!found.lineItems.length) {
         throw new HTTPException(400, { message: 'Cannot send an invoice with no line items' });
       }
 
@@ -203,21 +204,21 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       return found;
     });
 
-    if (!invoice.client?.stripe_customer_id) {
-      const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
-      if (!setupResult.stripe_customer_id) {
-        throw new Error('Failed to setup Stripe customer for client');
-      }
-
-      const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-      if (!freshInvoice) {
-        throw new HTTPException(404, { message: 'Invoice not found after client setup' });
-      }
-      invoice = freshInvoice;
-    }
-
     const idempotencyKeyPrefix = `invoice-send:${id}`;
     try {
+      if (!invoice.client?.stripe_customer_id) {
+        const setupResult = await clientsCrudService.ensureClientSetup({ id: invoice.client_id }, ctx);
+        if (!setupResult.stripe_customer_id) {
+          throw new Error('Failed to setup Stripe customer for client');
+        }
+
+        const freshInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+        if (!freshInvoice) {
+          throw new HTTPException(404, { message: 'Invoice not found after client setup' });
+        }
+        invoice = freshInvoice;
+      }
+
       const stripeInvoice = await createAndSendStripeInvoice({ invWithRel: invoice, idempotencyKeyPrefix });
       const updatedInvoice = await markInvoiceSent({ invoiceId: id, invoice, stripeInvoice }, ctx);
 
@@ -287,8 +288,6 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       throw new HTTPException(400, { message: 'Invoice has no Stripe record' });
     }
 
-    await stripeApiAdapter.voidInvoice(invoice.stripe_invoice_id);
-
     await db.transaction(async (tx) => {
       await invoicesRepository.updateInvoice(id, ctx.organizationId, { status: 'cancelled' }, tx);
       await InvoiceVoided.dispatch(
@@ -306,6 +305,42 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         }
       );
     });
+
+    try {
+      await stripeApiAdapter.voidInvoice(invoice.stripe_invoice_id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Invoice marked cancelled but Stripe void failed for invoice {invoiceId}: {error}', {
+        invoiceId: id,
+        stripeInvoiceId: invoice.stripe_invoice_id,
+        error: message,
+      });
+
+      await addInvoiceVoidReconciliationJob({
+        invoiceId: id,
+        organizationId: ctx.organizationId,
+        stripeInvoiceId: invoice.stripe_invoice_id,
+      });
+
+      await SystemErrorOccurred.dispatch(
+        {
+          error: 'Invoice marked cancelled but Stripe void failed',
+          context: {
+            invoiceId: id,
+            organizationId: ctx.organizationId,
+            stripeInvoiceId: invoice.stripe_invoice_id,
+            recovery: 'Re-run invoice void reconciliation against Stripe',
+          },
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+        }
+      );
+
+      throw error;
+    }
 
     const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!updated) {

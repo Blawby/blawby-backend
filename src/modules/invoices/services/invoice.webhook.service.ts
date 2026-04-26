@@ -143,7 +143,11 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
       await handleInvoiceDeleted(stripeInvoice);
       break;
     default:
-      logger.info('Unhandled invoice event type: {eventType}', { eventType: event.type });
+      logger.warn('Unhandled invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
+        eventType: event.type,
+        stripeInvoiceId: stripeInvoice.id,
+        stripeInvoiceNumber: stripeInvoice.number,
+      });
   }
 };
 

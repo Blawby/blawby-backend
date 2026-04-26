@@ -198,9 +198,7 @@ const listInvoices = async (
   { filters }: { filters: ListInvoicesQuery },
   ctx: ServiceContext
 ): Promise<PaginatedResponse<InvoiceSummary>> => {
-  if (ctx.ability.cannot('read', 'Invoice')) {
-    throw new HTTPException(403, { message: 'You do not have permission to view invoices' });
-  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Invoice');
 
   try {
     const { invoices: list, total } = await invoicesRepository.listInvoicesByOrganization(ctx.organizationId, {
@@ -227,11 +225,9 @@ const listInvoices = async (
 };
 
 const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Promise<InvoiceWithRelations> => {
-  try {
-    if (ctx.ability.cannot('read', 'Invoice')) {
-      throw new HTTPException(403, { message: 'You do not have permission to view this invoice' });
-    }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Invoice');
 
+  try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
       throw new HTTPException(404, { message: 'Invoice not found' });
@@ -369,16 +365,14 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
 const listClientInvoices = async (
   { filters }: { filters: { status?: string; page?: number; limit?: number } },
   ctx: ServiceContext
-): Promise<{ invoices: InvoiceSummary[]; pagination: { page: number; limit: number; total: number } }> => {
+): Promise<PaginatedResponse<InvoiceSummary>> => {
+  if (!ctx.userId) {
+    throw new HTTPException(401, { message: 'Authentication required' });
+  }
+
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Invoice', { client_user_id: ctx.userId }));
+
   try {
-    if (!ctx.userId) {
-      throw new HTTPException(401, { message: 'Authentication required' });
-    }
-
-    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-      throw new HTTPException(403, { message: 'You do not have permission to view invoices' });
-    }
-
     const userDetailId = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
@@ -389,7 +383,7 @@ const listClientInvoices = async (
     });
 
     return {
-      invoices: list,
+      data: list,
       pagination: { page, limit, total },
     };
   } catch (error) {
@@ -404,15 +398,13 @@ const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations> => {
+  if (!ctx.userId) {
+    throw new HTTPException(401, { message: 'Authentication required' });
+  }
+
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Invoice', { client_user_id: ctx.userId }));
+
   try {
-    if (!ctx.userId) {
-      throw new HTTPException(401, { message: 'Authentication required' });
-    }
-
-    if (ctx.ability.cannot('read', toSubject('Invoice', { client_user_id: ctx.userId }))) {
-      throw new HTTPException(403, { message: 'You do not have permission to view this invoice' });
-    }
-
     const userDetailId = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
     const invoice = await invoicesRepository.findOneByIdAndClientId(ctx.organizationId, invoiceId, userDetailId);
     if (!invoice) {

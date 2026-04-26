@@ -35,7 +35,7 @@ export type InvoiceWithRelations = BuildQueryResult<
   Schema['invoices'],
   {
     with: {
-      line_items: true;
+      lineItems: true;
       client: {
         with: { user: true };
       };

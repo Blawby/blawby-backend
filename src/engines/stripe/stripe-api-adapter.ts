@@ -47,9 +47,9 @@ const createStripeInvoice = async (
       idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:invoice` } : undefined
     );
 
-    if (invoice.line_items) {
+    if (invoice.lineItems) {
       const createdItems = await Promise.all(
-        invoice.line_items.map((item, index) => {
+        invoice.lineItems.map((item, index) => {
           const lineItemIdempotencySuffix = item.id ?? `${invoice.id}:${index}`;
           return stripe.invoiceItems.create(
             {

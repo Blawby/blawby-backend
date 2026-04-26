@@ -37,10 +37,10 @@ export const eventsDeadLetter = pgTable('events_dead_letter', {
   // Failure information
   lastError: text('last_error'),
   retryCount: integer('retry_count').notNull(),
-  failedAt: timestamp('failed_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  failedAt: timestamp('failed_at').defaultNow().notNull(),
 
   // When the original event was created
-  originalCreatedAt: timestamp('original_created_at', { withTimezone: true, mode: 'date' }).notNull(),
+  originalCreatedAt: timestamp('original_created_at').notNull(),
 });
 
 // Zod schemas

@@ -4,7 +4,7 @@
  * Validation schemas for preferences API endpoints
  */
 
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import {
   PRODUCT_USAGE_OPTIONS,
   PREFERENCE_CATEGORIES,

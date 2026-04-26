@@ -207,7 +207,7 @@ const getClientInvoicesRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            invoices: z.array(invoiceValidations.invoiceSummarySchema),
+            data: z.array(invoiceValidations.invoiceSummarySchema),
             pagination: z.object({
               page: z.number().int(),
               limit: z.number().int(),
