@@ -1,4 +1,5 @@
 import { getLogger } from '@logtape/logtape';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { HTTPException } from 'hono/http-exception';
 import { onboardingRepository as onboardingRepo } from '@/modules/onboarding/database/queries/onboarding.repository';
 import type { StripeConnectedAccount, NewStripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
@@ -12,6 +13,29 @@ import { StripeConnectedAccountCreated } from '@/shared/events/definitions';
 import { stripe } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['onboarding', 'connected-accounts']);
+
+const isStripeClientError = (
+  error: unknown
+): error is Error & {
+  statusCode?: number;
+  type?: string;
+} =>
+  typeof error === 'object' &&
+  error !== null &&
+  typeof (error as { statusCode?: unknown }).statusCode === 'number' &&
+  (error as { statusCode: number }).statusCode >= 400 &&
+  (error as { statusCode: number }).statusCode < 500;
+
+const rethrowConnectedAccountError = (error: unknown, fallbackMessage: string): never => {
+  if (isStripeClientError(error)) {
+    throw new HTTPException(error.statusCode as ContentfulStatusCode, {
+      message: error instanceof Error ? error.message : fallbackMessage,
+      cause: error,
+    });
+  }
+
+  throw new Error(error instanceof Error ? error.message : fallbackMessage, { cause: error });
+};
 
 /**
  * Helper to determine readiness status based on requirements and capabilities
@@ -165,7 +189,7 @@ export const connectedAccountsService = {
         userId,
         organizationId,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account', { cause: error });
+      return rethrowConnectedAccountError(error, 'Failed to create Stripe account');
     }
   },
 
@@ -194,9 +218,7 @@ export const connectedAccountsService = {
         error,
         organizationId: account.organization_id,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe account link', {
-        cause: error,
-      });
+      return rethrowConnectedAccountError(error, 'Failed to create Stripe account link');
     }
   },
 
@@ -263,9 +285,7 @@ export const connectedAccountsService = {
         error,
         stripeAccountId,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to create Stripe payments session', {
-        cause: error,
-      });
+      return rethrowConnectedAccountError(error, 'Failed to create Stripe payments session');
     }
   },
 
@@ -304,9 +324,7 @@ export const connectedAccountsService = {
         organizationId,
         error,
       });
-      throw new Error(error instanceof Error ? error.message : 'Failed to retrieve connected account status', {
-        cause: error,
-      });
+      return rethrowConnectedAccountError(error, 'Failed to retrieve connected account status');
     }
   },
 

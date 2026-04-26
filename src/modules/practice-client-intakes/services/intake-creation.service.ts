@@ -195,7 +195,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
 
       connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
       if (!connectedAccount) {
-        throw new HTTPException(500, { message: 'Connected account not found' });
+        throw new Error('Connected account not found');
       }
 
       stripePaymentLink = await createIntakePaymentLink({

@@ -44,7 +44,7 @@ const createCheckoutSession = async (
 
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
     if (!connectedAccount) {
-      throw new HTTPException(500, { message: 'Connected account not found' });
+      throw new Error('Connected account not found');
     }
 
     if (!(await connectedAccountsService.isAccountActive(connectedAccount))) {

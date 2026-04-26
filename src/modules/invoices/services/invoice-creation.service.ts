@@ -197,18 +197,20 @@ const createInvoice = async (
   const { clientId } = validation;
   const totals = calculateInvoiceTotals(data.line_items);
 
+  let invoice: InvoiceWithRelations | undefined;
   try {
     // 2. Persist
-    const invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
-    if (!invoice) {
-      throw new Error('Failed to retrieve created invoice');
-    }
-
-    return invoiceQueriesService.transformInvoiceResponse(invoice);
+    invoice = await persistInvoiceStructure({ data, clientId, totals }, ctx);
   } catch (error) {
-    if (error instanceof HTTPException) throw error;
+    if (error instanceof ForbiddenError || error instanceof HTTPException) throw error;
     throw new Error('An error occurred while creating the invoice', { cause: error });
   }
+
+  if (!invoice) {
+    throw new Error('Failed to retrieve created invoice');
+  }
+
+  return invoiceQueriesService.transformInvoiceResponse(invoice);
 };
 
 export const invoiceCreationService = {

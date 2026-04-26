@@ -15,8 +15,6 @@ const logger = getLogger(['webhooks', 'http']);
 const webhooksApp = new OpenAPIHono<AppContext>();
 webhooksApp.use('*', injectAbility());
 
-const buildErrorEnvelope = (code: string, message: string) => ({ code, message });
-
 /**
  * Shared webhook handler to reduce code duplication
  * Uses addWebhookJob for both routes since process-stripe-webhook handles
@@ -37,7 +35,7 @@ const handleWebhook = async (
 
   if (!signature) {
     logger.warn('Missing stripe-signature header in webhook request');
-    return c.json(buildErrorEnvelope('BAD_REQUEST', 'Missing stripe-signature header'), 400);
+    throw new HTTPException(400, { message: 'Missing stripe-signature header' });
   }
 
   try {
@@ -51,7 +49,7 @@ const handleWebhook = async (
 
     if (!webhookId) {
       logger.error('Failed to queue webhook job: Missing webhookId for {eventId}', { eventId: event.id });
-      return c.json(buildErrorEnvelope('INTERNAL_SERVER_ERROR', 'Failed to queue webhook job'), 500);
+      throw new Error('Failed to queue webhook job');
     }
 
     // 2. Process asynchronously via Graphile Worker
@@ -74,7 +72,7 @@ const handleWebhook = async (
     logger.error('Unexpected error processing webhook: {error}', {
       error: err instanceof Error ? err.message : 'Unknown error',
     });
-    return c.json(buildErrorEnvelope('INTERNAL_SERVER_ERROR', 'Failed to process webhook'), 500);
+    throw err;
   }
 };
 
