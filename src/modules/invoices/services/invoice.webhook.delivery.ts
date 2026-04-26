@@ -40,16 +40,21 @@ export const syncSeatCountForInvoice = async (
 
   const meteringSynced = await seatMeteringService.syncSeatCountOnInvoice(db, stripeInvoice, org.id, customerId);
 
-  logger.info(
-    meteringSynced
-      ? 'Processed {eventType} event: {invoiceId} for organization {organizationId}'
-      : 'Processed {eventType} event: {invoiceId} for organization {organizationId} (metering sync failed)',
-    {
-      eventType,
-      invoiceId: stripeInvoice.id,
-      organizationId: org.id,
-    }
-  );
+  const message = meteringSynced
+    ? 'Processed {eventType} event: {invoiceId} for organization {organizationId}'
+    : 'Processed {eventType} event: {invoiceId} for organization {organizationId} (metering sync failed)';
+  const logContext = {
+    eventType,
+    invoiceId: stripeInvoice.id,
+    organizationId: org.id,
+  };
+
+  if (meteringSynced) {
+    logger.info(message, logContext);
+    return;
+  }
+
+  logger.warn(message, logContext);
 };
 
 export const handleInvoiceUpcoming = async (stripeInvoice: Stripe.Invoice): Promise<void> => {

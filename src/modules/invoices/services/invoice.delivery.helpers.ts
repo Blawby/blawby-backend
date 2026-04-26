@@ -87,7 +87,13 @@ export const lockInvoiceForSending = async (
       throw new HTTPException(400, { message: 'Cannot send an invoice with zero or negative total' });
     }
 
-    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending', tx);
+    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(
+      id,
+      ctx.organizationId,
+      'draft',
+      'sending',
+      tx
+    );
     if (!lockedInvoice) {
       throw new HTTPException(409, { message: 'Invoice is already being sent by another request' });
     }
@@ -96,17 +102,18 @@ export const lockInvoiceForSending = async (
   });
 };
 
-export const createAndSendStripeInvoice = async (
-  {
-    invWithRel,
-    idempotencyKeyPrefix,
-  }: {
-    invWithRel: InvoiceWithRelations;
-    idempotencyKeyPrefix?: string;
-  }
-): Promise<Stripe.Invoice> => {
+export const createAndSendStripeInvoice = async ({
+  invWithRel,
+  idempotencyKeyPrefix,
+}: {
+  invWithRel: InvoiceWithRelations;
+  idempotencyKeyPrefix?: string;
+}): Promise<Stripe.Invoice> => {
   if (!invWithRel.client?.stripe_customer_id) {
     throw new Error('Client is missing Stripe customer ID');
+  }
+  if (!invWithRel.connectedAccount?.stripe_account_id) {
+    throw new Error('Connected account is missing Stripe account ID');
   }
 
   const stripeInvoice = await stripeApiAdapter.createStripeInvoice(

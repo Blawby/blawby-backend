@@ -44,7 +44,14 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
 
       const stripeInvoice = await createAndSendStripeInvoice({ invWithRel: invoice, idempotencyKeyPrefix });
       stripeInvoiceId = stripeInvoice.id;
-      await invoicesRepository.persistStripeInvoiceId(id, ctx.organizationId, stripeInvoice.id);
+      const persistedStripeInvoice = await invoicesRepository.persistStripeInvoiceId(
+        id,
+        ctx.organizationId,
+        stripeInvoice.id
+      );
+      if (!persistedStripeInvoice) {
+        throw new Error(`Failed to persist Stripe invoice ID for invoice ${id}`);
+      }
       const updatedInvoice = await markInvoiceSent({ invoiceId: id, invoice, stripeInvoice }, ctx);
 
       return updatedInvoice;
@@ -162,12 +169,21 @@ const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         organizationId: ctx.organizationId,
         stripeInvoiceId,
       });
-      await dispatchVoidSystemError({
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        stripeInvoiceId,
-        ctx,
-      });
+      try {
+        await dispatchVoidSystemError({
+          invoiceId: id,
+          organizationId: ctx.organizationId,
+          stripeInvoiceId,
+          ctx,
+        });
+      } catch (dispatchError) {
+        logger.error('Failed to dispatch invoice void system error: {error}', {
+          invoiceId: id,
+          organizationId: ctx.organizationId,
+          stripeInvoiceId,
+          error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
+        });
+      }
 
       throw error;
     }

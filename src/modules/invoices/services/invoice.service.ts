@@ -114,7 +114,7 @@ const updateInvoice = async (
 
     const definedKeys = Object.keys(data).filter((key) => data[key as keyof UpdateInvoiceRequest] !== undefined);
     if (definedKeys.length === 0) {
-      throw new HTTPException(400, { message: 'Only draft invoices can be modified (except status updates)' });
+      throw new HTTPException(400, { message: 'Request must include at least one field to update' });
     }
 
     if (existing.status !== 'draft') {
@@ -129,7 +129,7 @@ const updateInvoice = async (
       let totals = {};
 
       if (line_items) {
-        totals = calculateInvoiceTotals(line_items);
+        totals = calculateInvoiceTotals(line_items, existing.amount_paid);
         await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
       }
 
@@ -194,21 +194,22 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
       throw new HTTPException(400, { message: 'Only draft invoices can be deleted' });
     }
 
-    const executor = ctx.db;
-    await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, executor);
-    await InvoiceDeleted.dispatch(
-      {
-        invoice_id: id,
-        organization_id: ctx.organizationId,
-        deleted_by: 'user',
-      },
-      {
-        actorId: ctx.userId,
-        actorType: 'user',
-        organizationId: ctx.organizationId,
-        tx: executor,
-      }
-    );
+    await ctx.db.transaction(async (tx) => {
+      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, tx);
+      await InvoiceDeleted.dispatch(
+        {
+          invoice_id: id,
+          organization_id: ctx.organizationId,
+          deleted_by: 'user',
+        },
+        {
+          actorId: ctx.userId,
+          actorType: 'user',
+          organizationId: ctx.organizationId,
+          tx,
+        }
+      );
+    });
 
     return { success: true };
   } catch (error) {

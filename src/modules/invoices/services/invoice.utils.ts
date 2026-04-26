@@ -3,12 +3,13 @@ import type { SelectBillingTransaction } from '@/modules/invoices/database/schem
 import type { InvoiceLineItemInput, InvoiceTotals } from '@/modules/invoices/types/invoices.types';
 import type { db } from '@/shared/database';
 
-export const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotals => {
+export const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[], amount_paid = 0): InvoiceTotals => {
   const subtotal = lineItems.reduce((acc, item) => acc + item.quantity * item.unit_price, 0);
   // Tax and discounts are intentionally fixed to zero until those rules exist.
   const total = subtotal;
+  const amount_due = total - amount_paid;
 
-  return { subtotal, tax_amount: 0, discount_amount: 0, total, amount_due: total };
+  return { subtotal, tax_amount: 0, discount_amount: 0, total, amount_due };
 };
 
 export const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): number | null => {

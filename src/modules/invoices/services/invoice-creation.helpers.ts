@@ -20,7 +20,6 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
       return 'trust';
     case 'flat_fee':
     case 'phase_fee':
-    default:
       return 'operating';
   }
 };
@@ -35,17 +34,19 @@ export const syncLineItems = async (
   },
   executor: ServiceContext['db']
 ): Promise<void> => {
-  await invoicesRepository.deleteInvoiceLineItems(invoiceId, executor);
-  await invoicesRepository.createInvoiceLineItems(
-    lineItems.map((item, index) => ({
-      ...item,
-      type: item.type,
-      invoice_id: invoiceId,
-      line_total: item.quantity * item.unit_price,
-      sort_order: item.sort_order ?? index,
-    })),
-    executor
-  );
+  await executor.transaction(async (tx) => {
+    await invoicesRepository.deleteInvoiceLineItems(invoiceId, tx);
+    await invoicesRepository.createInvoiceLineItems(
+      lineItems.map((item, index) => ({
+        ...item,
+        type: item.type,
+        invoice_id: invoiceId,
+        line_total: item.quantity * item.unit_price,
+        sort_order: item.sort_order ?? index,
+      })),
+      tx
+    );
+  });
 };
 
 export const validateInvoiceCreation = async (
@@ -119,7 +120,7 @@ export const persistInvoiceStructure = async (
   return await ctx.db.transaction(async (tx) => {
     const { line_items, time_entry_ids, expense_ids, milestone_id, ...invoiceData } = data;
     const matterId = data.matter_id;
-    const invoice_type = data.invoice_type || 'flat_fee';
+    const invoice_type = data.invoice_type;
     const fund_destination = getFundDestination(invoice_type);
     const totals = calculateInvoiceTotals(data.line_items);
 
