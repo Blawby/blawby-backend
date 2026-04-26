@@ -47,6 +47,11 @@ const createInvoiceRoute = routeBuilder.build({
       description: 'Invoice created successfully',
     },
     400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Bad request' },
+    // Release note: duplicate invoice numbers now return 409 instead of 400.
+    409: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Invoice number already exists',
+    },
     401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
     403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
   },

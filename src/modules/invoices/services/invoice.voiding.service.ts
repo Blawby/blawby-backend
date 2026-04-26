@@ -121,11 +121,11 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
     }
     const cancelledInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (cancelledInvoice?.status === 'cancelled') {
-      logger.error('Invoice cancelled locally; Stripe reconciliation pending for {invoiceId}: {error}', {
+      logger.warn('Invoice cancelled locally; Stripe reconciliation pending for {invoiceId}: {error}', {
         invoiceId: id,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      throw new HTTPException(202, { message: 'Invoice cancelled locally; Stripe reconciliation pending' });
+      return Object.assign(cancelledInvoice, { reconciliation_pending: true });
     }
     logger.error('Failed to void invoice: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',

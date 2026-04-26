@@ -3,7 +3,6 @@ import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { SystemErrorOccurred } from '@/shared/events/definitions';
-import { db } from '@/shared/database';
 import { addInvoiceVoidReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -83,7 +82,7 @@ export const syncStripeState = async (
   },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> => {
-  const executor = ctx.db ?? db;
+  const executor = ctx.db;
   const stripeStatus = stripeInvoice.status;
   const mappedStatus =
     stripeStatus && stripeStatus in statusMap

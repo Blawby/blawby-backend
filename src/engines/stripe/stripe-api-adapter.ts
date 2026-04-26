@@ -11,20 +11,15 @@ const wait = (delay: number): Promise<void> => new Promise((resolve) => setTimeo
 
 /**
  * Create a Stripe invoice shell with line items attached.
- * Uses separate charges + transfers model (no stripeAccount header).
+ * Creates the invoice directly on the connected account via the stripeAccount header.
  * Cleans up on failure.
  */
 const createStripeInvoice = async (
   invoice: InvoiceWithRelations,
   stripeCustomerId: string,
-  onBehalfOfAccountId: string,
   stripeAccountId: string,
   idempotencyKeyPrefix?: string
 ): Promise<Stripe.Invoice> => {
-  if (!onBehalfOfAccountId) {
-    throw new HTTPException(400, { message: 'Missing Stripe account ID for on_behalf_of' });
-  }
-
   const createdItemIds: string[] = [];
 
   try {
@@ -33,7 +28,6 @@ const createStripeInvoice = async (
         customer: stripeCustomerId,
         auto_advance: false,
         collection_method: 'send_invoice',
-        on_behalf_of: onBehalfOfAccountId,
         pending_invoice_items_behavior: 'exclude',
         days_until_due: invoice.due_date
           ? Math.max(0, Math.ceil((invoice.due_date.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))

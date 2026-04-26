@@ -29,7 +29,7 @@ export const persistInvoiceUpdate = async (
           }
         : {};
 
-    if (line_items) {
+    if (line_items?.length) {
       totals = calculateInvoiceTotals(line_items, existing.amount_paid);
       await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
     }

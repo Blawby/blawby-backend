@@ -26,7 +26,8 @@ const isPayload = (payload: unknown): payload is ProcessInvoiceVoidReconciliatio
 
 export const processInvoiceVoidReconciliation: Task = async (payload: unknown) => {
   if (!isPayload(payload)) {
-    throw new Error('Invalid processInvoiceVoidReconciliation payload');
+    logger.error('Discarding invalid invoice void reconciliation payload', { payload });
+    return;
   }
 
   const invoice = await invoicesRepository.findInvoiceById(payload.invoiceId, payload.organizationId);
@@ -60,12 +61,14 @@ export const processInvoiceVoidReconciliation: Task = async (payload: unknown) =
   }
 
   if (!invoice.connectedAccount?.stripe_account_id) {
-    logger.warn('Invoice void reconciliation skipped; missing Stripe connected account: {invoiceId}', {
+    logger.error('Invoice void reconciliation missing Stripe connected account: {invoiceId}', {
       invoiceId: payload.invoiceId,
       organizationId: payload.organizationId,
       stripeInvoiceId: payload.stripeInvoiceId,
     });
-    return;
+    throw new Error(
+      `Missing Stripe connected account for invoice ${payload.invoiceId} in organization ${payload.organizationId}`
+    );
   }
 
   const stripeInvoice = await stripeApiAdapter.getStripeInvoice(

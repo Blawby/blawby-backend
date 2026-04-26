@@ -17,6 +17,64 @@ import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'delivery-service']);
 
+const sendAndPersistStripeInvoice = async ({
+  invoice,
+  id,
+  idempotencyKeyPrefix,
+  ctx,
+}: {
+  invoice: InvoiceWithRelations;
+  id: string;
+  idempotencyKeyPrefix: string;
+  ctx: ServiceContext;
+}): Promise<{ updatedInvoice: InvoiceWithRelations; stripeInvoiceId: string }> => {
+  if (!invoice.connectedAccount?.stripe_account_id) {
+    throw new HTTPException(400, { message: 'Invoice is missing a Stripe connected account' });
+  }
+
+  const stripeInvoice = await createAndSendStripeInvoice({
+    invWithRel: invoice,
+    idempotencyKeyPrefix,
+    stripeAccountId: invoice.connectedAccount.stripe_account_id,
+  });
+  const stripeInvoiceId = stripeInvoice.id;
+  const persistedStripeInvoice = await invoicesRepository.persistStripeInvoiceId(id, ctx.organizationId, stripeInvoice.id);
+  if (persistedStripeInvoice.status === 'missing') {
+    throw new Error(`Failed to persist Stripe invoice ID for invoice ${id}`);
+  }
+  if (
+    persistedStripeInvoice.status === 'already-linked' &&
+    persistedStripeInvoice.invoice.stripe_invoice_id !== stripeInvoice.id
+  ) {
+    throw new Error(`Invoice ${id} is already linked to a different Stripe invoice`);
+  }
+
+  return {
+    updatedInvoice: await markInvoiceSent({ invoiceId: id, invoice, stripeInvoice }, ctx),
+    stripeInvoiceId,
+  };
+};
+
+const rollbackSendingTransaction = async ({
+  id,
+  organizationId,
+  stripeInvoiceId,
+}: {
+  id: string;
+  organizationId: string;
+  stripeInvoiceId: string | null;
+}): Promise<void> => {
+  await db.transaction(async (tx) => {
+    const rolledBack = await invoicesRepository.transitionInvoiceStatus(id, organizationId, 'sending', 'draft', tx);
+    if (!rolledBack) {
+      throw new Error('Invoice was not in sending state during rollback');
+    }
+    if (stripeInvoiceId) {
+      await invoicesRepository.updateInvoice(id, organizationId, { stripe_invoice_id: null }, tx);
+    }
+  });
+};
+
 const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<InvoiceWithRelations> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
@@ -38,50 +96,13 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         }
         invoice = freshInvoice;
       }
-      if (!invoice.connectedAccount?.stripe_account_id) {
-        throw new HTTPException(400, { message: 'Invoice is missing a Stripe connected account' });
-      }
+      const result = await sendAndPersistStripeInvoice({ invoice, id, idempotencyKeyPrefix, ctx });
+      stripeInvoiceId = result.stripeInvoiceId;
 
-      const stripeInvoice = await createAndSendStripeInvoice({
-        invWithRel: invoice,
-        idempotencyKeyPrefix,
-        stripeAccountId: invoice.connectedAccount.stripe_account_id,
-      });
-      stripeInvoiceId = stripeInvoice.id;
-      const persistedStripeInvoice = await invoicesRepository.persistStripeInvoiceId(
-        id,
-        ctx.organizationId,
-        stripeInvoice.id
-      );
-      if (persistedStripeInvoice.status === 'missing') {
-        throw new Error(`Failed to persist Stripe invoice ID for invoice ${id}`);
-      }
-      if (
-        persistedStripeInvoice.status === 'already-linked' &&
-        persistedStripeInvoice.invoice.stripe_invoice_id !== stripeInvoice.id
-      ) {
-        throw new Error(`Invoice ${id} is already linked to a different Stripe invoice`);
-      }
-      const updatedInvoice = await markInvoiceSent({ invoiceId: id, invoice, stripeInvoice }, ctx);
-
-      return updatedInvoice;
+      return result.updatedInvoice;
     } catch (error) {
       try {
-        await db.transaction(async (tx) => {
-          const rolledBack = await invoicesRepository.transitionInvoiceStatus(
-            id,
-            ctx.organizationId,
-            'sending',
-            'draft',
-            tx
-          );
-          if (!rolledBack) {
-            throw new Error('Invoice was not in sending state during rollback');
-          }
-          if (stripeInvoiceId) {
-            await invoicesRepository.updateInvoice(id, ctx.organizationId, { stripe_invoice_id: null }, tx);
-          }
-        });
+        await rollbackSendingTransaction({ id, organizationId: ctx.organizationId, stripeInvoiceId });
       } catch (rollbackError) {
         logger.error('Failed to rollback invoice from sending to draft: {error}', {
           invoiceId: id,

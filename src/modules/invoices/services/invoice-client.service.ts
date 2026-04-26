@@ -14,10 +14,6 @@ export const listClientInvoices = async (
   { filters }: { filters: { status?: ListInvoicesQuery['status']; page?: number; limit?: number } },
   ctx: ServiceContext
 ): Promise<PaginatedResponse<InvoiceSummary>> => {
-  if (!ctx.userId) {
-    throw new HTTPException(401, { message: 'Authentication required' });
-  }
-
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Invoice', { client_user_id: ctx.userId }));
 
   try {
@@ -50,10 +46,6 @@ export const getClientInvoiceDetail = async (
   { invoiceId }: { invoiceId: string },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations> => {
-  if (!ctx.userId) {
-    throw new HTTPException(401, { message: 'Authentication required' });
-  }
-
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Invoice', { client_user_id: ctx.userId }));
 
   try {

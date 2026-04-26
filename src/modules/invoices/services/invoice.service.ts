@@ -33,7 +33,7 @@ const createInvoice = async (
 
     return invoice;
   } catch (error) {
-    if (error instanceof ForbiddenError || error instanceof HTTPException) {
+    if (error instanceof HTTPException) {
       throw error;
     }
     logger.error('Failed to create invoice: {error}', {

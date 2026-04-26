@@ -42,7 +42,7 @@ const updateInvoiceSchema = z
     due_date: z.iso.date().optional(),
     notes: z.string().optional(),
     memo: z.string().optional(),
-    line_items: z.array(invoiceLineItemRequestSchema).optional(),
+    line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required').optional(),
     status: z.enum(['draft', 'pending', 'sent', 'overdue', 'cancelled']).optional(),
   })
   .strict();

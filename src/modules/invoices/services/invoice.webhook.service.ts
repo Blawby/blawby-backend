@@ -81,6 +81,9 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
     logger.warn('Invoice not found for Stripe ID: {stripeInvoiceId}', { stripeInvoiceId: stripeInvoice.id });
     return;
   }
+  if (invoice.status === 'cancelled') {
+    return;
+  }
 
   await db.transaction(async (tx) => {
     await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' }, tx);
@@ -163,12 +166,6 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
       break;
     case 'invoice.payment_failed':
       await handleInvoicePaymentFailed(stripeInvoice);
-      break;
-    case 'invoice.created':
-      await handleInvoiceCreated(stripeInvoice);
-      break;
-    case 'invoice.upcoming':
-      await handleInvoiceUpcoming(stripeInvoice);
       break;
     case 'invoice.voided':
       await handleInvoiceVoided(stripeInvoice);

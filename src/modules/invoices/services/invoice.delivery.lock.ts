@@ -5,7 +5,6 @@ import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { InvoiceSent } from '@/shared/events/definitions';
-import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'delivery-lock']);
@@ -14,7 +13,7 @@ export const lockInvoiceForSending = async (
   { id }: { id: string },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations> => {
-  return await db.transaction(async (tx) => {
+  return await ctx.db.transaction(async (tx) => {
     const found = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
     if (!found) {
       throw new HTTPException(404, { message: 'Invoice not found' });
@@ -60,7 +59,6 @@ export const createAndSendStripeInvoice = async ({
   const stripeInvoice = await stripeApiAdapter.createStripeInvoice(
     invWithRel,
     invWithRel.client.stripe_customer_id,
-    invWithRel.connectedAccount.stripe_account_id,
     stripeAccountId,
     idempotencyKeyPrefix
   );
@@ -85,7 +83,7 @@ export const markInvoiceSent = async (
   }
   const hostedInvoiceUrl = stripeInvoice.hosted_invoice_url;
 
-  return await db.transaction(async (tx) => {
+  return await ctx.db.transaction(async (tx) => {
     const transitioned = await invoicesRepository.transitionInvoiceStatus(
       invoiceId,
       ctx.organizationId,

@@ -135,8 +135,8 @@ export const persistInvoiceStructure = async (
     try {
       newInvoice = await invoicesRepository.createInvoice(
         {
-          organization_id: ctx.organizationId,
           ...invoiceData,
+          organization_id: ctx.organizationId,
           client_id: clientId,
           invoice_type,
           fund_destination,
