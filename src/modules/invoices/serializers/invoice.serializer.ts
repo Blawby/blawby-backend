@@ -17,15 +17,17 @@ export const serializeInvoice = <T extends InvoiceSummary | InvoiceWithRelations
 export const serializePaginatedInvoices = <T extends InvoiceSummary | InvoiceWithRelations>(
   response: PaginatedResponse<T>
 ): PaginatedResponse<SerializedInvoice<T>> => {
+  const serializedData = response.data.map((invoice) => serializeInvoice(invoice));
+
   if (response.pagination !== undefined) {
     return {
-      data: response.data.map((invoice) => serializeInvoice(invoice)),
+      data: serializedData,
       pagination: response.pagination,
     };
   }
 
   return {
-    data: response.data.map((invoice) => serializeInvoice(invoice)),
+    data: serializedData,
     page_info: response.page_info,
   };
 };

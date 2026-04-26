@@ -3,7 +3,7 @@ import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
-import type { InvoiceSummary, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import type { InvoiceSummary, InvoiceWithRelations, ListInvoicesQuery } from '@/modules/invoices/types/invoices.types';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -11,7 +11,7 @@ import type { ServiceContext } from '@/shared/types/service-context';
 const logger = getLogger(['invoices', 'client-service']);
 
 export const listClientInvoices = async (
-  { filters }: { filters: { status?: string; page?: number; limit?: number } },
+  { filters }: { filters: { status?: ListInvoicesQuery['status']; page?: number; limit?: number } },
   ctx: ServiceContext
 ): Promise<PaginatedResponse<InvoiceSummary>> => {
   if (!ctx.userId) {
@@ -38,7 +38,11 @@ export const listClientInvoices = async (
     if (error instanceof HTTPException) {
       throw error;
     }
-    throw new Error('Failed to list client invoices');
+    logger.error('Failed to list client invoices for user {userId}: {error}', {
+      userId: ctx.userId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    throw new Error('Failed to list client invoices', { cause: error });
   }
 };
 
@@ -68,6 +72,6 @@ export const getClientInvoiceDetail = async (
       invoiceId,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    throw new Error('Failed to get client invoice');
+    throw new Error('Failed to get client invoice', { cause: error });
   }
 };

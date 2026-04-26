@@ -204,7 +204,14 @@ const persistStripeInvoiceId = async (
       stripe_invoice_id: stripeInvoiceId,
       updated_at: new Date(),
     })
-    .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)))
+    .where(
+      and(
+        eq(invoices.id, id),
+        eq(invoices.organization_id, organizationId),
+        isNull(invoices.deleted_at),
+        isNull(invoices.stripe_invoice_id)
+      )
+    )
     .returning();
 
   return invoice;

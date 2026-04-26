@@ -16,8 +16,11 @@ const isPayload = (payload: unknown): payload is ProcessInvoiceVoidReconciliatio
   const candidate = payload as Record<string, unknown>;
   return (
     typeof candidate.invoiceId === 'string' &&
+    candidate.invoiceId.trim().length > 0 &&
     typeof candidate.organizationId === 'string' &&
-    typeof candidate.stripeInvoiceId === 'string'
+    candidate.organizationId.trim().length > 0 &&
+    typeof candidate.stripeInvoiceId === 'string' &&
+    candidate.stripeInvoiceId.trim().length > 0
   );
 };
 

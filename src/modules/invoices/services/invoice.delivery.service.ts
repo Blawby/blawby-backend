@@ -6,16 +6,12 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import {
   createAndSendStripeInvoice,
-  dispatchVoidSystemError,
-  enqueueVoidReconciliation,
   lockInvoiceForSending,
   markInvoiceSent,
-  syncStripeState,
-} from '@/modules/invoices/services/invoice.delivery.helpers';
-import { handleInvoiceCreated, handleInvoiceUpcoming } from '@/modules/invoices/services/invoice.webhook.delivery';
+} from '@/modules/invoices/services/invoice.delivery.lock';
+import { syncStripeState } from '@/modules/invoices/services/invoice.delivery.recovery';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { InvoiceVoided } from '@/shared/events/definitions';
-import { db } from '@/shared/database';
+import { voidInvoice } from '@/modules/invoices/services/invoice.voiding.service';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'delivery-service']);
@@ -58,6 +54,9 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     } catch (error) {
       try {
         await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'sending', 'draft');
+        if (stripeInvoiceId) {
+          await invoicesRepository.updateInvoice(id, ctx.organizationId, { stripe_invoice_id: null });
+        }
       } catch (rollbackError) {
         logger.error('Failed to rollback invoice from sending to draft: {error}', {
           invoiceId: id,
@@ -82,7 +81,7 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
     });
-    throw new Error('Failed to finalize and send invoice');
+    throw new Error('Failed to finalize and send invoice', { cause: error });
   }
 };
 
@@ -114,95 +113,7 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
     });
-    throw new Error('Failed to sync invoice with Stripe');
-  }
-};
-
-const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<InvoiceWithRelations> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
-
-  try {
-    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!invoice) {
-      throw new HTTPException(404, { message: 'Invoice not found' });
-    }
-
-    if (invoice.status !== 'sent') {
-      throw new HTTPException(400, { message: 'Only sent invoices can be voided' });
-    }
-
-    if (!invoice.stripe_invoice_id) {
-      throw new HTTPException(400, { message: 'Invoice has no Stripe record' });
-    }
-    const stripeInvoiceId = invoice.stripe_invoice_id;
-
-    await db.transaction(async (tx) => {
-      await invoicesRepository.updateInvoice(id, ctx.organizationId, { status: 'cancelled' }, tx);
-      await InvoiceVoided.dispatch(
-        {
-          invoice_id: id,
-          organization_id: ctx.organizationId,
-          stripe_invoice_id: stripeInvoiceId,
-          voided_by: 'user',
-        },
-        {
-          actorId: ctx.userId,
-          actorType: 'user',
-          organizationId: ctx.organizationId,
-          tx,
-        }
-      );
-    });
-
-    try {
-      await stripeApiAdapter.voidInvoice(stripeInvoiceId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Invoice marked cancelled but Stripe void failed for invoice {invoiceId}: {error}', {
-        invoiceId: id,
-        stripeInvoiceId,
-        error: message,
-      });
-
-      await enqueueVoidReconciliation({
-        invoiceId: id,
-        organizationId: ctx.organizationId,
-        stripeInvoiceId,
-      });
-      try {
-        await dispatchVoidSystemError({
-          invoiceId: id,
-          organizationId: ctx.organizationId,
-          stripeInvoiceId,
-          ctx,
-        });
-      } catch (dispatchError) {
-        logger.error('Failed to dispatch invoice void system error: {error}', {
-          invoiceId: id,
-          organizationId: ctx.organizationId,
-          stripeInvoiceId,
-          error: dispatchError instanceof Error ? dispatchError.message : 'Unknown error',
-        });
-      }
-
-      throw error;
-    }
-
-    const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
-    if (!updated) {
-      throw new HTTPException(404, { message: 'Invoice not found after void' });
-    }
-
-    return updated;
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logger.error('Failed to void invoice: {error}', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      invoiceId: id,
-    });
-    throw new Error('Failed to void invoice');
+    throw new Error('Failed to sync invoice with Stripe', { cause: error });
   }
 };
 
@@ -210,6 +121,4 @@ export const invoiceDeliveryService = {
   sendInvoice,
   syncInvoice,
   voidInvoice,
-  handleInvoiceUpcoming,
-  handleInvoiceCreated,
 } as const;

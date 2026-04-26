@@ -3,8 +3,7 @@ import { serializeInvoice, serializePaginatedInvoices } from '@/modules/invoices
 import { invoiceService } from '@/modules/invoices/services/invoice.service';
 import { invoiceDeliveryService } from '@/modules/invoices/services/invoice.delivery.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
-import { getServiceContext, createServiceContext } from '@/shared/types/service-context';
-import { db } from '@/shared/database';
+import { getServiceContext } from '@/shared/types/service-context';
 
 const createInvoiceHandler: AppRouteHandler<typeof routes.createInvoiceRoute> = async (c) => {
   const { practice_id: organizationId } = c.req.valid('param');
@@ -47,12 +46,8 @@ const updateInvoiceHandler: AppRouteHandler<typeof routes.updateInvoiceRoute> = 
 
 const deleteInvoiceHandler: AppRouteHandler<typeof routes.deleteInvoiceRoute> = async (c) => {
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
-  const baseCtx = { ...getServiceContext(c), organizationId };
-
-  const result = await db.transaction(async (tx) => {
-    const ctx = createServiceContext(baseCtx, tx);
-    return await invoiceService.deleteInvoice({ id }, ctx);
-  });
+  const ctx = { ...getServiceContext(c), organizationId };
+  const result = await invoiceService.deleteInvoice({ id }, ctx);
 
   return c.json(result, 200);
 };

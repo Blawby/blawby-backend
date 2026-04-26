@@ -7,7 +7,7 @@ import { db } from '@/shared/database';
 
 const logger = getLogger(['invoices', 'delivery-webhook-service']);
 
-export const syncSeatCountForInvoice = async (
+const syncSeatCountForInvoice = async (
   stripeInvoice: Stripe.Invoice,
   eventType: 'invoice.upcoming' | 'invoice.created'
 ): Promise<void> => {

@@ -1,69 +1,14 @@
 import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
 import type { Stripe } from 'stripe';
+import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
-import { InvoiceSent, SystemErrorOccurred } from '@/shared/events/definitions';
+import { InvoiceSent } from '@/shared/events/definitions';
 import { db } from '@/shared/database';
-import { addInvoiceVoidReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
 
-const logger = getLogger(['invoices', 'delivery-service']);
-
-export const enqueueVoidReconciliation = async ({
-  invoiceId,
-  organizationId,
-  stripeInvoiceId,
-}: {
-  invoiceId: string;
-  organizationId: string;
-  stripeInvoiceId: string;
-}): Promise<void> => {
-  try {
-    await addInvoiceVoidReconciliationJob({
-      invoiceId,
-      organizationId,
-      stripeInvoiceId,
-    });
-  } catch (queueError) {
-    logger.error('Failed to queue invoice void reconciliation job: {error}', {
-      invoiceId,
-      organizationId,
-      stripeInvoiceId,
-      error: queueError instanceof Error ? queueError.message : 'Unknown error',
-    });
-  }
-};
-
-export const dispatchVoidSystemError = async ({
-  invoiceId,
-  organizationId,
-  stripeInvoiceId,
-  ctx,
-}: {
-  invoiceId: string;
-  organizationId: string;
-  stripeInvoiceId: string;
-  ctx: ServiceContext;
-}): Promise<void> => {
-  await SystemErrorOccurred.dispatch(
-    {
-      error: 'Invoice marked cancelled but Stripe void failed',
-      context: {
-        invoiceId,
-        organizationId,
-        stripeInvoiceId,
-        recovery: 'Re-run invoice void reconciliation against Stripe',
-      },
-    },
-    {
-      actorId: ctx.userId,
-      actorType: 'user',
-      organizationId,
-    }
-  );
-};
+const logger = getLogger(['invoices', 'delivery-lock']);
 
 export const lockInvoiceForSending = async (
   { id }: { id: string },
@@ -87,13 +32,7 @@ export const lockInvoiceForSending = async (
       throw new HTTPException(400, { message: 'Cannot send an invoice with zero or negative total' });
     }
 
-    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(
-      id,
-      ctx.organizationId,
-      'draft',
-      'sending',
-      tx
-    );
+    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending', tx);
     if (!lockedInvoice) {
       throw new HTTPException(409, { message: 'Invoice is already being sent by another request' });
     }
@@ -185,41 +124,10 @@ export const markInvoiceSent = async (
 
     const updated = await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId, tx);
     if (!updated) {
+      logger.error('Invoice not found after markInvoiceSent: {invoiceId}', { invoiceId });
       throw new Error('Invoice not found after update');
     }
 
     return updated;
   });
-};
-
-export const syncStripeState = async (
-  {
-    invoiceId,
-    stripeInvoice,
-    currentInvoice,
-  }: {
-    invoiceId: string;
-    stripeInvoice: Stripe.Invoice;
-    currentInvoice: InvoiceWithRelations;
-  },
-  ctx: ServiceContext
-): Promise<InvoiceWithRelations | undefined> => {
-  const statusMap: Record<string, string> = {
-    draft: 'draft',
-    open: 'sent',
-    paid: 'paid',
-    uncollectible: 'overdue',
-    void: 'cancelled',
-  };
-
-  await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
-    status: statusMap[stripeInvoice.status ?? ''] || currentInvoice.status,
-    amount_paid: stripeInvoice.amount_paid,
-    amount_due: stripeInvoice.amount_remaining,
-    paid_at: stripeInvoice.status_transitions?.paid_at
-      ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-      : null,
-  });
-
-  return await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId);
 };

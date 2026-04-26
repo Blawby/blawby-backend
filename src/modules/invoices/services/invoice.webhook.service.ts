@@ -167,12 +167,12 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
         return;
       }
 
-      logger.error('Unhandled invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
+      logger.warn('Unhandled invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
         eventType: event.type,
         stripeInvoiceId: stripeInvoice.id,
         stripeInvoiceNumber: stripeInvoice.number,
       });
-      throw new Error('UnhandledInvoiceEventType');
+      return;
   }
 };
 

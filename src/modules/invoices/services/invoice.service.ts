@@ -3,12 +3,8 @@ import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { getClientInvoiceDetail, listClientInvoices } from '@/modules/invoices/services/invoice-client.service';
-import {
-  persistInvoiceStructure,
-  syncLineItems,
-  validateInvoiceCreation,
-} from '@/modules/invoices/services/invoice-creation.helpers';
-import { calculateInvoiceTotals } from '@/modules/invoices/services/invoice.utils';
+import { persistInvoiceStructure, validateInvoiceCreation } from '@/modules/invoices/services/invoice-creation.helpers';
+import { persistInvoiceUpdate } from '@/modules/invoices/services/invoice-lifecycle.helpers';
 import type {
   CreateInvoiceRequest,
   InvoiceSummary,
@@ -74,7 +70,7 @@ const listInvoices = async (
     if (error instanceof HTTPException) {
       throw error;
     }
-    throw new Error('Failed to list invoices');
+    throw new Error('Failed to list invoices', { cause: error });
   }
 };
 
@@ -96,7 +92,7 @@ const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Prom
       invoiceId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    throw new Error('Failed to get invoice');
+    throw new Error('Failed to get invoice', { cause: error });
   }
 };
 
@@ -124,45 +120,7 @@ const updateInvoice = async (
       }
     }
 
-    const updated = await ctx.db.transaction(async (tx) => {
-      const { line_items, ...invoiceData } = data;
-      let totals = {};
-
-      if (line_items) {
-        totals = calculateInvoiceTotals(line_items, existing.amount_paid);
-        await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
-      }
-
-      await invoicesRepository.updateInvoice(
-        id,
-        ctx.organizationId,
-        {
-          ...invoiceData,
-          ...totals,
-          due_date: data.due_date ? new Date(data.due_date) : undefined,
-        },
-        tx
-      );
-
-      const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
-      if (invoice) {
-        await InvoiceUpdated.dispatch(
-          {
-            invoice_id: id,
-            organization_id: ctx.organizationId,
-            changes: data,
-          },
-          {
-            actorId: ctx.userId,
-            actorType: 'user',
-            organizationId: ctx.organizationId,
-            tx,
-          }
-        );
-      }
-
-      return invoice;
-    });
+    const updated = await persistInvoiceUpdate({ id, data, existing, definedKeys }, ctx);
 
     if (!updated) {
       throw new Error('Failed to retrieve updated invoice');
@@ -177,7 +135,7 @@ const updateInvoice = async (
       invoiceId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    throw new Error('Failed to update invoice');
+    throw new Error('Failed to update invoice', { cause: error });
   }
 };
 
@@ -220,7 +178,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
       invoiceId: id,
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    throw new Error('Failed to delete invoice');
+    throw new Error('Failed to delete invoice', { cause: error });
   }
 };
 

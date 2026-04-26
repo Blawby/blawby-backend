@@ -14,6 +14,10 @@ import { invoiceValidators } from '@/modules/invoices/validators/invoice-creatio
 import { InvoiceCreated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
+const assertUnreachable = (value: never): never => {
+  throw new Error(`Unhandled invoiceType: ${String(value)}`);
+};
+
 const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_deposit'): 'operating' | 'trust' => {
   switch (invoiceType) {
     case 'retainer_deposit':
@@ -21,6 +25,45 @@ const getFundDestination = (invoiceType: 'flat_fee' | 'phase_fee' | 'retainer_de
     case 'flat_fee':
     case 'phase_fee':
       return 'operating';
+    default:
+      return assertUnreachable(invoiceType);
+  }
+};
+
+const mapToLineItemRows = (invoiceId: string, lineItems: InvoiceLineItemInput[]) =>
+  lineItems.map((item, index) => ({
+    ...item,
+    invoice_id: invoiceId,
+    line_total: item.quantity * item.unit_price,
+    sort_order: item.sort_order ?? index,
+  }));
+
+const verifyTimeEntries = async (timeEntryIds: string[], matterId: string): Promise<void> => {
+  const matterTimeEntries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId);
+  const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
+  const hasInvalidTimeEntry = timeEntryIds.some((id) => !validTimeEntryIds.has(id));
+  if (hasInvalidTimeEntry) {
+    throw new HTTPException(400, {
+      message: 'One or more time_entry_ids do not belong to the provided matter_id',
+    });
+  }
+};
+
+const verifyExpenses = async (expenseIds: string[], matterId: string): Promise<void> => {
+  const matterExpenses = await matterExpensesQueries.listMatterExpenses(matterId);
+  const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
+  const hasInvalidExpense = expenseIds.some((id) => !validExpenseIds.has(id));
+  if (hasInvalidExpense) {
+    throw new HTTPException(400, {
+      message: 'One or more expense_ids do not belong to the provided matter_id',
+    });
+  }
+};
+
+const verifyMilestone = async (milestoneId: string, matterId: string): Promise<void> => {
+  const milestone = await matterMilestonesQueries.findMatterMilestoneById(milestoneId);
+  if (!milestone || milestone.matter_id !== matterId) {
+    throw new HTTPException(400, { message: 'milestone_id does not belong to the provided matter_id' });
   }
 };
 
@@ -36,16 +79,7 @@ export const syncLineItems = async (
 ): Promise<void> => {
   await executor.transaction(async (tx) => {
     await invoicesRepository.deleteInvoiceLineItems(invoiceId, tx);
-    await invoicesRepository.createInvoiceLineItems(
-      lineItems.map((item, index) => ({
-        ...item,
-        type: item.type,
-        invoice_id: invoiceId,
-        line_total: item.quantity * item.unit_price,
-        sort_order: item.sort_order ?? index,
-      })),
-      tx
-    );
+    await invoicesRepository.createInvoiceLineItems(mapToLineItemRows(invoiceId, lineItems), tx);
   });
 };
 
@@ -64,7 +98,7 @@ export const validateInvoiceCreation = async (
   invoiceValidators.validateConnectedAccount(connectedAccount);
 
   if (data.matter_id) {
-    const matter = matters.find((m: { id: string }) => m.id === data.matter_id);
+    const matter = matters.find((m) => m.id === data.matter_id);
     invoiceValidators.validateMatterBelongsToClient(matter, clientId);
     if (matter?.billing_type === 'pro_bono') {
       throw new HTTPException(400, { message: 'Cannot create invoice for a pro bono matter' });
@@ -78,34 +112,11 @@ export const validateInvoiceCreation = async (
   }
 
   if (data.matter_id) {
-    if (data.time_entry_ids?.length) {
-      const matterTimeEntries = await matterTimeEntriesQueries.listMatterTimeEntries(data.matter_id);
-      const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
-      const hasInvalidTimeEntry = data.time_entry_ids.some((id) => !validTimeEntryIds.has(id));
-      if (hasInvalidTimeEntry) {
-        throw new HTTPException(400, {
-          message: 'One or more time_entry_ids do not belong to the provided matter_id',
-        });
-      }
-    }
-
-    if (data.expense_ids?.length) {
-      const matterExpenses = await matterExpensesQueries.listMatterExpenses(data.matter_id);
-      const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
-      const hasInvalidExpense = data.expense_ids.some((id) => !validExpenseIds.has(id));
-      if (hasInvalidExpense) {
-        throw new HTTPException(400, {
-          message: 'One or more expense_ids do not belong to the provided matter_id',
-        });
-      }
-    }
-
-    if (data.milestone_id) {
-      const milestone = await matterMilestonesQueries.findMatterMilestoneById(data.milestone_id);
-      if (!milestone || milestone.matter_id !== data.matter_id) {
-        throw new HTTPException(400, { message: 'milestone_id does not belong to the provided matter_id' });
-      }
-    }
+    const checks: Promise<void>[] = [];
+    if (data.time_entry_ids?.length) checks.push(verifyTimeEntries(data.time_entry_ids, data.matter_id));
+    if (data.expense_ids?.length) checks.push(verifyExpenses(data.expense_ids, data.matter_id));
+    if (data.milestone_id) checks.push(verifyMilestone(data.milestone_id, data.matter_id));
+    await Promise.all(checks);
   }
 
   await invoiceValidators.validateInvoiceNumberUnique(ctx.organizationId, data.invoice_number);
@@ -139,16 +150,7 @@ export const persistInvoiceStructure = async (
       tx
     );
 
-    await invoicesRepository.createInvoiceLineItems(
-      line_items.map((item, index) => ({
-        ...item,
-        type: item.type,
-        invoice_id: newInvoice.id,
-        line_total: item.quantity * item.unit_price,
-        sort_order: item.sort_order ?? index,
-      })),
-      tx
-    );
+    await invoicesRepository.createInvoiceLineItems(mapToLineItemRows(newInvoice.id, line_items), tx);
 
     if (matterId && time_entry_ids?.length) {
       await matterTimeEntriesQueries.markAsInvoiced(time_entry_ids, newInvoice.id, matterId, tx);
