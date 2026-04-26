@@ -62,24 +62,21 @@ const getIntakeSettings = async (params: {
   }));
 
   return {
-    success: true,
-    data: {
-      organization: {
-        id: organization.id,
-        name: organization.name,
-        slug: organization.slug,
-        logo: organization.logo ?? undefined,
-      },
-      settings: {
-        payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
-        // Keep FE display and create-intake amount consistent with the same backend source.
-        consultation_fee: consultationFee,
-      },
-      service_area: serviceArea,
-      connected_account: {
-        id: connectedAccount.id,
-        charges_enabled: connectedAccount.charges_enabled,
-      },
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      logo: organization.logo ?? undefined,
+    },
+    settings: {
+      payment_link_enabled: Boolean(organization.paymentLinkEnabled) && consultationFee > 0,
+      // Keep FE display and create-intake amount consistent with the same backend source.
+      consultation_fee: consultationFee,
+    },
+    service_area: serviceArea,
+    connected_account: {
+      id: connectedAccount.id,
+      charges_enabled: connectedAccount.charges_enabled,
     },
   };
 };
@@ -280,25 +277,22 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
     }
 
     return {
-      success: true,
-      data: {
-        uuid: intake.id,
-        payment_link_url: stripePaymentLink?.url ?? null,
-        amount: resolvedAmount,
-        currency: 'usd',
-        status: shouldBypassPayment ? 'succeeded' : 'open',
-        organization: {
-          name: organization.name,
-          logo: organization.logo ?? undefined,
-        },
-        urgency: request.urgency,
-        desired_outcome: request.desired_outcome,
-        court_date: request.court_date ? new Date(request.court_date) : undefined,
-        has_documents: request.has_documents,
-        income: request.income,
-        household_size: request.household_size,
-        case_strength: request.case_strength,
+      uuid: intake.id,
+      payment_link_url: stripePaymentLink?.url ?? null,
+      amount: resolvedAmount,
+      currency: 'usd',
+      status: shouldBypassPayment ? 'succeeded' : 'open',
+      organization: {
+        name: organization.name,
+        logo: organization.logo ?? undefined,
       },
+      urgency: request.urgency,
+      desired_outcome: request.desired_outcome,
+      court_date: request.court_date ? new Date(request.court_date) : undefined,
+      has_documents: request.has_documents,
+      income: request.income,
+      household_size: request.household_size,
+      case_strength: request.case_strength,
     };
   } catch (error) {
     logger.error('Failed to create practice client intake for {slug}: {error}', {
@@ -312,7 +306,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
 const updateIntake = async (
   params: { uuid: string; data: UpdatePracticeClientIntakeRequest },
   ctx: ServiceContext
-): Promise<{ success: boolean; message: string }> => {
+): Promise<{ message: string }> => {
   try {
     await getActorAccessibleIntake(params.uuid, ctx, 'update');
 
@@ -329,7 +323,7 @@ const updateIntake = async (
 
     await practiceClientIntakesRepository.update(params.uuid, dataToUpdate);
 
-    return { success: true, message: 'Intake updated successfully.' };
+    return { message: 'Intake updated successfully.' };
   } catch (error) {
     logger.error('Failed to update practice client intake for {uuid}: {error}', {
       uuid: params.uuid,

@@ -28,9 +28,7 @@ import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
-type ListIntakeItem = NonNullable<
-  z.infer<typeof intakeValidations.listIntakesResponseSchema>['data']
->['intakes'][number];
+type ListIntakeItem = z.infer<typeof intakeValidations.listIntakesResponseSchema>['intakes'][number];
 
 const listIntakes = async (
   params: {
@@ -75,17 +73,11 @@ const listIntakes = async (
 const getIntakeById = async (
   id: string,
   ctx: ServiceContext
-): Promise<{
-  success: true;
-  data: z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>['data'];
-}> => {
+): Promise<z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>> => {
   try {
     const intake = await getStaffAccessibleIntake(id, ctx, 'read');
 
-    return {
-      success: true,
-      data: intakeSharedHelpers.formatIntakeStatusResponse(intake, { isAdmin: true }),
-    };
+    return intakeSharedHelpers.formatIntakeStatusResponse(intake, { isAdmin: true });
   } catch (error) {
     logger.error('Failed to get intake {id}: {error}', {
       id,
@@ -144,14 +136,11 @@ const updateTriageStatus = async (
     }
 
     return {
-      success: true,
-      data: {
-        uuid: updatedIntake.id,
-        conversation_id: updatedIntake.conversation_id ?? null,
-        triage_status: intakeSharedHelpers.normalizeTriageStatus(updatedIntake.triage_status),
-        triage_reason: updatedIntake.triage_reason ?? null,
-        triage_decided_at: updatedIntake.triage_decided_at ?? null,
-      },
+      uuid: updatedIntake.id,
+      conversation_id: updatedIntake.conversation_id ?? null,
+      triage_status: intakeSharedHelpers.normalizeTriageStatus(updatedIntake.triage_status),
+      triage_reason: updatedIntake.triage_reason ?? null,
+      triage_decided_at: updatedIntake.triage_decided_at ?? null,
     };
   } catch (error) {
     logger.error('Failed to update triage status for intake {uuid}: {error}', {
@@ -328,7 +317,7 @@ const convertIntake = async (
 const triggerInvitation = async (
   params: { uuid: string; origin?: string | null },
   ctx: ServiceContext
-): Promise<{ success: true; message: string }> => {
+): Promise<{ message: string }> => {
   try {
     const intake = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
     const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
@@ -364,7 +353,7 @@ const triggerInvitation = async (
       headers: params.origin ? { origin: params.origin } : {},
     });
 
-    return { success: true, message: 'Magic link sent to client email' };
+    return { message: 'Magic link sent to client email' };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const safeDetails: Record<string, unknown> = { message: errorMessage };

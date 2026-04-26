@@ -64,11 +64,8 @@ const createCheckoutSession = async (
 
         if (isReusable && existingSession.url) {
           return {
-            success: true,
-            data: {
-              url: existingSession.url,
-              session_id: existingSession.id,
-            },
+            url: existingSession.url,
+            session_id: existingSession.id,
           };
         }
       } catch (error) {
@@ -112,11 +109,8 @@ const createCheckoutSession = async (
     });
 
     return {
-      success: true,
-      data: {
-        url: session.url,
-        session_id: session.id,
-      },
+      url: session.url,
+      session_id: session.id,
     };
   } catch (error) {
     logger.error('Failed to create checkout session for intake {uuid}: {error}', {
@@ -131,13 +125,10 @@ const getIntakeStatus = async (params: { uuid: string }, ctx: ServiceContext): P
   try {
     const intake = await getActorAccessibleIntake(params.uuid, ctx, 'read');
 
-    return {
-      success: true,
-      data: intakeSharedHelpers.formatIntakeStatusResponse(intake, {
-        requestingUserId: ctx.userId,
-        isAdmin: Boolean(ctx.memberRole),
-      }),
-    };
+    return intakeSharedHelpers.formatIntakeStatusResponse(intake, {
+      requestingUserId: ctx.userId,
+      isAdmin: Boolean(ctx.memberRole),
+    });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', {
       uuid: params.uuid,
@@ -156,20 +147,14 @@ const getPostPayStatus = async (params: { sessionId: string }): Promise<IntakePo
 
     if (intake.status !== 'succeeded') {
       return {
-        success: true,
-        data: {
-          paid: false,
-        },
+        paid: false,
       };
     }
 
     return {
-      success: true,
-      data: {
-        paid: true,
-        intake_uuid: intake.id,
-        organization_id: intake.organization_id,
-      },
+      paid: true,
+      intake_uuid: intake.id,
+      organization_id: intake.organization_id,
     };
   } catch (error) {
     logger.error('Failed to get post-pay status for session {sessionId}: {error}', {

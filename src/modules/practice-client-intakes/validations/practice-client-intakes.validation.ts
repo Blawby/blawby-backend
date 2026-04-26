@@ -2,13 +2,12 @@ import { z } from '@hono/zod-openapi';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import { addressSchema } from '@/shared/validations/address';
 
-// Public request schema - clientIp and userAgent are injected server-side from headers
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
   amount: z.number().int().min(0).max(99999999).openapi({
     description: 'Consultation amount submitted by the client.',
     example: 15000,
-  }), // $0.00 to $999,999.99
+  }),
   email: z.email().max(255),
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
@@ -58,7 +57,7 @@ const slugParamSchema = z.object({
 });
 
 const uuidParamSchema = z.object({
-  uuid: z.uuid(), // UUID format
+  uuid: z.uuid(),
 });
 
 const stripeCheckoutSessionIdSchema = z
@@ -74,173 +73,135 @@ const claimPracticeClientIntakeSchema = z.object({
   session_id: stripeCheckoutSessionIdSchema,
 });
 
-// Response schemas for OpenAPI
 const practiceClientIntakeSettingsResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      organization: z.object({
+  organization: z.object({
+    id: z.uuid(),
+    name: z.string(),
+    slug: z.string(),
+    logo: z.string().optional(),
+  }),
+  settings: z.object({
+    payment_link_enabled: z.boolean().openapi({
+      description:
+        'Whether payment links should be shown for this intake. True only when the practice has payment links enabled and the practice consultation_fee > 0.',
+    }),
+    consultation_fee: z.number().int().nonnegative().openapi({
+      description:
+        'Consultation fee (in cents) from practice_details.consultation_fee — backend source of truth for intake payment flows.',
+    }),
+  }),
+  service_area: z
+    .array(
+      z.object({
         id: z.uuid(),
         name: z.string(),
-        slug: z.string(),
-        logo: z.string().optional(),
-      }),
-      settings: z.object({
-        payment_link_enabled: z.boolean().openapi({
-          description:
-            'Whether payment links should be shown for this intake. True only when the practice has payment links enabled and the practice consultation_fee > 0.',
-        }),
-        consultation_fee: z.number().int().nonnegative().openapi({
-          description:
-            'Consultation fee (in cents) from practice_details.consultation_fee — backend source of truth for intake payment flows.',
-        }),
-      }),
-      service_area: z
-        .array(
-          z.object({
-            id: z.uuid(),
-            name: z.string(),
-            key: z.string(),
-          })
-        )
-        .openapi({
-          description: 'Practice services configured for the organization.',
-          example: [
-            { id: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab', name: 'Family Law', key: 'FAMILY_LAW' },
-            { id: '7f7a2c1f-8e5c-4b8a-9d7f-1234567890cd', name: 'Immigration', key: 'IMMIGRATION' },
-          ],
-        }),
-      connected_account: z.object({
-        id: z.uuid(),
-        charges_enabled: z.boolean(),
-      }),
-    })
-    .optional(),
-  error: z.string().optional(),
+        key: z.string(),
+      })
+    )
+    .openapi({
+      description: 'Practice services configured for the organization.',
+      example: [
+        { id: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab', name: 'Family Law', key: 'FAMILY_LAW' },
+        { id: '7f7a2c1f-8e5c-4b8a-9d7f-1234567890cd', name: 'Immigration', key: 'IMMIGRATION' },
+      ],
+    }),
+  connected_account: z.object({
+    id: z.uuid(),
+    charges_enabled: z.boolean(),
+  }),
 });
 
 const createPracticeClientIntakeResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      uuid: z.uuid(),
-      payment_link_url: z.url().nullable().optional(),
-      amount: z.number(),
-      currency: z.string(),
-      status: z.string(),
-      organization: z.object({
-        name: z.string(),
-        logo: z.string().optional(),
-      }),
-      urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
-      desired_outcome: z.string().optional(),
-      court_date: z.date().optional(),
-      has_documents: z.boolean().optional(),
-      income: z.number().int().optional(),
-      household_size: z.number().int().optional(),
-      case_strength: z.number().min(0).max(1).optional(),
-    })
-    .optional(),
-  error: z.string().optional(),
+  uuid: z.uuid(),
+  payment_link_url: z.url().nullable().optional(),
+  amount: z.number(),
+  currency: z.string(),
+  status: z.string(),
+  organization: z.object({
+    name: z.string(),
+    logo: z.string().optional(),
+  }),
+  urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
+  desired_outcome: z.string().optional(),
+  court_date: z.date().optional(),
+  has_documents: z.boolean().optional(),
+  income: z.number().int().optional(),
+  household_size: z.number().int().optional(),
+  case_strength: z.number().min(0).max(1).optional(),
 });
 
 const createPracticeClientIntakeCheckoutSessionResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      url: z.url(),
-      session_id: z.string(),
-    })
-    .optional(),
-  error: z.string().optional(),
+  url: z.url(),
+  session_id: z.string(),
 });
 
 const updatePracticeClientIntakeResponseSchema = z.object({
-  success: z.boolean(),
   message: z.string(),
 });
 
 const practiceClientIntakeStatusResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
+  uuid: z.uuid(),
+  organization_id: z.uuid(),
+  amount: z.number(),
+  currency: z.string(),
+  status: z.string().openapi({ example: 'succeeded' }),
+  triage_status: z.enum(['pending_review', 'accepted', 'declined']).openapi({
+    description: 'Practice triage decision state',
+    example: 'pending_review',
+  }),
+  triage_reason: z.string().nullable(),
+  triage_decided_at: z.date().nullable(),
+  address_id: z.uuid().optional().openapi({
+    description: 'ID of the created address record',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+  conversation_id: z.uuid().optional().openapi({
+    description: 'Conversation ID associated with the client intake',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+  stripe_charge_id: z.string().optional(),
+  metadata: z
     .object({
-      uuid: z.uuid(),
-      organization_id: z.uuid(),
-      amount: z.number(),
-      currency: z.string(),
-      status: z.string().openapi({ example: 'succeeded' }),
-      triage_status: z.enum(['pending_review', 'accepted', 'declined']).openapi({
-        description: 'Practice triage decision state',
-        example: 'pending_review',
+      email: z.string(),
+      name: z.string(),
+      phone: z.string().optional(),
+      on_behalf_of: z.string().optional(),
+      opposing_party: z.string().optional(),
+      description: z.string().optional(),
+      user_id: z.uuid().optional(),
+      practice_service_uuid: z.uuid().optional(),
+      custom_fields: z.record(z.string(), z.unknown()).optional(),
+      address: addressSchema.optional().openapi({
+        example: {
+          line1: '123 Client St',
+          city: 'New York',
+          state: 'NY',
+          postal_code: '10001',
+          country: 'US',
+        },
       }),
-      triage_reason: z.string().nullable(),
-      triage_decided_at: z.date().nullable(),
-      address_id: z.uuid().optional().openapi({
-        description: 'ID of the created address record',
-        example: '123e4567-e89b-12d3-a456-426614174000',
-      }),
-      conversation_id: z.uuid().optional().openapi({
-        description: 'Conversation ID associated with the client intake',
-        example: '123e4567-e89b-12d3-a456-426614174000',
-      }),
-      stripe_charge_id: z.string().optional(),
-      metadata: z
-        .object({
-          email: z.string(),
-          name: z.string(),
-          phone: z.string().optional(),
-          on_behalf_of: z.string().optional(),
-          opposing_party: z.string().optional(),
-          description: z.string().optional(),
-          user_id: z.uuid().optional(),
-          practice_service_uuid: z.uuid().optional(),
-          custom_fields: z.record(z.string(), z.unknown()).optional(),
-          address: addressSchema.optional().openapi({
-            example: {
-              line1: '123 Client St',
-              city: 'New York',
-              state: 'NY',
-              postal_code: '10001',
-              country: 'US',
-            },
-          }),
-        })
-        .optional(),
-      succeeded_at: z.date().nullable(),
-      created_at: z.date(),
-      urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
-      desired_outcome: z.string().optional(),
-      court_date: z.date().nullable(),
-      has_documents: z.boolean().optional(),
-      income: z.number().int().nullable(),
-      household_size: z.number().int().nullable(),
-      case_strength: z.number().optional(),
     })
     .optional(),
-  error: z.string().optional(),
+  succeeded_at: z.date().nullable(),
+  created_at: z.date(),
+  urgency: z.enum(['routine', 'time_sensitive', 'emergency']).optional(),
+  desired_outcome: z.string().optional(),
+  court_date: z.date().nullable(),
+  has_documents: z.boolean().optional(),
+  income: z.number().int().nullable(),
+  household_size: z.number().int().nullable(),
+  case_strength: z.number().optional(),
 });
 
 const practiceClientIntakePostPayStatusResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      paid: z.boolean(),
-      intake_uuid: z.uuid().optional(),
-      organization_id: z.uuid().optional(),
-    })
-    .optional(),
-  error: z.string().optional(),
+  paid: z.boolean(),
+  intake_uuid: z.uuid().optional(),
+  organization_id: z.uuid().optional(),
 });
 
 const claimPracticeClientIntakeResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      intake_uuid: z.uuid(),
-      organization_id: z.uuid(),
-    })
-    .optional(),
-  error: z.string().optional(),
+  intake_uuid: z.uuid(),
+  organization_id: z.uuid(),
 });
 
 const errorResponseSchema = z.object({
@@ -281,48 +242,42 @@ const listIntakesQuerySchema = z.object({
 });
 
 const listIntakesResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      intakes: z.array(
-        z.object({
-          uuid: z.uuid(),
-          organization_id: z.uuid(),
-          amount: z.number(),
-          currency: z.string(),
-          status: z.string(),
-          triage_status: z.enum(['pending_review', 'accepted', 'declined']),
-          triage_reason: z.string().nullable(),
-          triage_decided_at: z.date().nullable(),
-          conversation_id: z.uuid().nullable(),
-          stripe_charge_id: z.string().nullable(),
-          urgency: z.enum(['routine', 'time_sensitive', 'emergency']).nullable(),
-          court_date: z.date().nullable(),
-          case_strength: z.number().nullable(),
-          desired_outcome: z.string().nullable(),
-          has_documents: z.boolean().nullable(),
-          income: z.number().int().nullable(),
-          household_size: z.number().int().nullable(),
-          metadata: z.object({
-            email: z.string(),
-            name: z.string(),
-            phone: z.string().optional(),
-            on_behalf_of: z.string().optional(),
-            opposing_party: z.string().optional(),
-            description: z.string().optional(),
-            custom_fields: z.record(z.string(), z.unknown()).optional(),
-          }),
-          succeeded_at: z.date().nullable(),
-          created_at: z.date(),
-        })
-      ),
-      total: z.number(),
-      page: z.number(),
-      limit: z.number(),
-      total_pages: z.number(),
+  intakes: z.array(
+    z.object({
+      uuid: z.uuid(),
+      organization_id: z.uuid(),
+      amount: z.number(),
+      currency: z.string(),
+      status: z.string(),
+      triage_status: z.enum(['pending_review', 'accepted', 'declined']),
+      triage_reason: z.string().nullable(),
+      triage_decided_at: z.date().nullable(),
+      conversation_id: z.uuid().nullable(),
+      stripe_charge_id: z.string().nullable(),
+      urgency: z.enum(['routine', 'time_sensitive', 'emergency']).nullable(),
+      court_date: z.date().nullable(),
+      case_strength: z.number().nullable(),
+      desired_outcome: z.string().nullable(),
+      has_documents: z.boolean().nullable(),
+      income: z.number().int().nullable(),
+      household_size: z.number().int().nullable(),
+      metadata: z.object({
+        email: z.string(),
+        name: z.string(),
+        phone: z.string().optional(),
+        on_behalf_of: z.string().optional(),
+        opposing_party: z.string().optional(),
+        description: z.string().optional(),
+        custom_fields: z.record(z.string(), z.unknown()).optional(),
+      }),
+      succeeded_at: z.date().nullable(),
+      created_at: z.date(),
     })
-    .optional(),
-  error: z.string().optional(),
+  ),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  total_pages: z.number(),
 });
 
 const convertIntakeSchema = z.object({
@@ -355,17 +310,11 @@ const updateIntakeTriageStatusSchema = z
   });
 
 const updateIntakeTriageStatusResponseSchema = z.object({
-  success: z.boolean(),
-  data: z
-    .object({
-      uuid: z.uuid(),
-      conversation_id: z.uuid().nullable().optional(),
-      triage_status: z.enum(['pending_review', 'accepted', 'declined']),
-      triage_reason: z.string().nullable().optional(),
-      triage_decided_at: z.date().nullable().optional(),
-    })
-    .optional(),
-  error: z.string().optional(),
+  uuid: z.uuid(),
+  conversation_id: z.uuid().nullable().optional(),
+  triage_status: z.enum(['pending_review', 'accepted', 'declined']),
+  triage_reason: z.string().nullable().optional(),
+  triage_decided_at: z.date().nullable().optional(),
 });
 
 export const intakeValidations = {
