@@ -42,6 +42,14 @@ export const internalServerErrorResponseSchema = z
   })
   .openapi('InternalServerErrorResponse');
 
+export const paginationSchema = z
+  .object({
+    page: z.number().int(),
+    limit: z.number().int(),
+    total: z.number().int(),
+  })
+  .openapi('PaginationResponse');
+
 /**
  * Common parameter schemas
  */

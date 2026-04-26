@@ -5,6 +5,7 @@ import {
   errorResponseSchema,
   forbiddenResponseSchema,
   notFoundResponseSchema,
+  paginationSchema,
   practiceIdParamSchema,
   unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
@@ -67,11 +68,7 @@ const listInvoicesRoute = routeBuilder.build({
         'application/json': {
           schema: z.object({
             data: z.array(invoiceValidations.invoiceSummarySchema),
-            pagination: z.object({
-              page: z.number().int(),
-              limit: z.number().int(),
-              total: z.number().int(),
-            }),
+            pagination: paginationSchema,
           }),
         },
       },
@@ -208,11 +205,7 @@ const getClientInvoicesRoute = routeBuilder.build({
         'application/json': {
           schema: z.object({
             data: z.array(invoiceValidations.invoiceSummarySchema),
-            pagination: z.object({
-              page: z.number().int(),
-              limit: z.number().int(),
-              total: z.number().int(),
-            }),
+            pagination: paginationSchema,
           }),
         },
       },

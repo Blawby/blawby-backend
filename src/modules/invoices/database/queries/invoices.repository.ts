@@ -191,6 +191,25 @@ const transitionInvoiceStatus = async (
   return invoice;
 };
 
+const persistStripeInvoiceId = async (
+  id: string,
+  organizationId: string,
+  stripeInvoiceId: string,
+  tx?: typeof db
+): Promise<SelectInvoice | undefined> => {
+  const client = tx ?? db;
+  const [invoice] = await client
+    .update(invoices)
+    .set({
+      stripe_invoice_id: stripeInvoiceId,
+      updated_at: new Date(),
+    })
+    .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)))
+    .returning();
+
+  return invoice;
+};
+
 /**
  * Soft delete invoice
  */
@@ -315,6 +334,7 @@ export const invoicesRepository = {
   findOneByIdAndClientId,
   updateInvoice,
   transitionInvoiceStatus,
+  persistStripeInvoiceId,
   softDeleteInvoice,
   createInvoiceLineItems,
   deleteInvoiceLineItems,

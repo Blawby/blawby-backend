@@ -6,6 +6,13 @@ import { InvoiceDeleted, InvoicePaymentFailed, InvoiceVoided } from '@/shared/ev
 import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
 
 const logger = getLogger(['invoices', 'webhook-service']);
+const IGNORED_INVOICE_EVENTS = [
+  'invoice.created',
+  'invoice.finalized',
+  'invoice.updated',
+  'invoice.sent',
+  'invoice.marked_uncollectible',
+] as const;
 
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
@@ -119,7 +126,15 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
 };
 
 const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice =>
-  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
+  obj !== null &&
+  typeof obj === 'object' &&
+  'object' in obj &&
+  obj.object === 'invoice' &&
+  'id' in obj &&
+  typeof obj.id === 'string' &&
+  'status_transitions' in obj &&
+  typeof obj.status_transitions === 'object' &&
+  obj.status_transitions !== null;
 
 const processEvent = async (event: Stripe.Event): Promise<void> => {
   const stripeInvoice = event.data.object;
@@ -143,11 +158,21 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
       await handleInvoiceDeleted(stripeInvoice);
       break;
     default:
-      logger.warn('Unhandled invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
+      if (IGNORED_INVOICE_EVENTS.includes(event.type as (typeof IGNORED_INVOICE_EVENTS)[number])) {
+        logger.info('Ignoring invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
+          eventType: event.type,
+          stripeInvoiceId: stripeInvoice.id,
+          stripeInvoiceNumber: stripeInvoice.number,
+        });
+        return;
+      }
+
+      logger.error('Unhandled invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
         eventType: event.type,
         stripeInvoiceId: stripeInvoice.id,
         stripeInvoiceNumber: stripeInvoice.number,
       });
+      throw new Error('UnhandledInvoiceEventType');
   }
 };
 

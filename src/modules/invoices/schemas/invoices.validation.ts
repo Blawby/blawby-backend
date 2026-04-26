@@ -107,7 +107,7 @@ const invoiceSchema = z
     memo: z.string().nullable(),
     created_at: z.iso.datetime({ offset: true }),
     updated_at: z.iso.datetime({ offset: true }),
-    lineItems: z.array(lineItemSchema).optional(),
+    line_items: z.array(lineItemSchema).optional(),
     client: z
       .object({
         id: z.uuid(),
@@ -122,7 +122,7 @@ const invoiceSchema = z
 
 const invoiceSummarySchema = invoiceSchema
   .omit({
-    lineItems: true,
+    line_items: true,
   })
   .openapi('InvoiceSummary');
 

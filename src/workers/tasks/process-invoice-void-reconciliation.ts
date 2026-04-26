@@ -46,6 +46,26 @@ export const processInvoiceVoidReconciliation: Task = async (payload: unknown) =
     return;
   }
 
+  if (invoice.stripe_invoice_id !== payload.stripeInvoiceId) {
+    logger.warn('Invoice void reconciliation skipped; Stripe invoice ID mismatch: {invoiceId}', {
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+      expectedStripeInvoiceId: invoice.stripe_invoice_id,
+      receivedStripeInvoiceId: payload.stripeInvoiceId,
+    });
+    return;
+  }
+
+  const stripeInvoice = await stripeApiAdapter.getStripeInvoice(payload.stripeInvoiceId);
+  if (stripeInvoice.status === 'void') {
+    logger.info('Invoice void reconciliation skipped; Stripe invoice already void: {invoiceId}', {
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+      stripeInvoiceId: payload.stripeInvoiceId,
+    });
+    return;
+  }
+
   await stripeApiAdapter.voidInvoice(payload.stripeInvoiceId);
 
   logger.info('Invoice void reconciliation succeeded: {invoiceId}', {
