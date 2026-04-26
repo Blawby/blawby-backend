@@ -1,8 +1,18 @@
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
+import type { InvoiceLineItemInput, InvoiceTotals } from '@/modules/invoices/types/invoices.types';
 import type { db } from '@/shared/database';
 
-const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): number | null => {
+export const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[]): InvoiceTotals => {
+  const subtotal = lineItems.reduce((acc, item) => acc + item.quantity * item.unit_price, 0);
+  const tax_amount = 0;
+  const discount_amount = 0;
+  const total = subtotal + tax_amount - discount_amount;
+
+  return { subtotal, tax_amount, discount_amount, total, amount_due: total };
+};
+
+export const extractPayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransaction[]): number | null => {
   const payoutTx = invoiceTxs.find((tx) => tx.type === 'payout');
   if (!payoutTx) {
     return null;
@@ -29,9 +39,3 @@ export const loadRequiredPayoutMeteredFeeCents = async (invoiceId: string, tx?: 
   const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoiceId, tx);
   return requirePayoutMeteredFeeCents(invoiceTxs, invoiceId);
 };
-
-export const payoutMeteredFeeService = {
-  extractPayoutMeteredFeeCents,
-  requirePayoutMeteredFeeCents,
-  loadRequiredPayoutMeteredFeeCents,
-} as const;

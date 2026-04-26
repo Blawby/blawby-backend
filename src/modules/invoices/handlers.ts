@@ -1,9 +1,7 @@
 import type { routes } from '@/modules/invoices/routes';
-import { invoiceCreationService } from '@/modules/invoices/services/invoice-creation.service';
+import { invoiceService } from '@/modules/invoices/services/invoice.service';
 import { InvoiceCreated } from '@/shared/events/definitions';
-import { invoiceLifecycleService } from '@/modules/invoices/services/invoice-lifecycle.service';
-import { invoiceQueriesService } from '@/modules/invoices/services/invoice-queries.service';
-import { invoiceStripeCoordinationService } from '@/modules/invoices/services/invoice-stripe-coordination.service';
+import { invoiceDeliveryService } from '@/modules/invoices/services/invoice.delivery.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext, createServiceContext } from '@/shared/types/service-context';
 import { db } from '@/shared/database';
@@ -16,7 +14,7 @@ const createInvoiceHandler: AppRouteHandler<typeof routes.createInvoiceRoute> = 
   const result = await db.transaction(async (tx) => {
     const ctx = createServiceContext(baseCtx, tx);
 
-    const invoiceCreated = await invoiceCreationService.createInvoice({ data }, ctx);
+    const invoiceCreated = await invoiceService.createInvoice({ data }, ctx);
 
     // If creation succeeded, emit InvoiceCreated within same transaction
     await ctx.emit(InvoiceCreated, {
@@ -39,7 +37,7 @@ const listInvoicesHandler: AppRouteHandler<typeof routes.listInvoicesRoute> = as
   const ctx = { ...getServiceContext(c), organizationId };
   const query = c.req.valid('query');
 
-  const result = await invoiceQueriesService.listInvoices({ filters: query }, ctx);
+  const result = await invoiceService.listInvoices({ filters: query }, ctx);
 
   return c.json(result, 200);
 };
@@ -48,7 +46,7 @@ const getInvoiceHandler: AppRouteHandler<typeof routes.getInvoiceRoute> = async 
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
 
-  const result = await invoiceQueriesService.getInvoiceById({ id }, ctx);
+  const result = await invoiceService.getInvoiceById({ id }, ctx);
 
   return c.json(result, 200);
 };
@@ -60,7 +58,7 @@ const updateInvoiceHandler: AppRouteHandler<typeof routes.updateInvoiceRoute> = 
 
   const result = await db.transaction(async (tx) => {
     const ctx = createServiceContext(baseCtx, tx);
-    return await invoiceLifecycleService.updateInvoice({ id, data }, ctx);
+    return await invoiceService.updateInvoice({ id, data }, ctx);
   });
 
   return c.json(result, 200);
@@ -72,7 +70,7 @@ const deleteInvoiceHandler: AppRouteHandler<typeof routes.deleteInvoiceRoute> = 
 
   const result = await db.transaction(async (tx) => {
     const ctx = createServiceContext(baseCtx, tx);
-    return await invoiceLifecycleService.deleteInvoice({ id }, ctx);
+    return await invoiceService.deleteInvoice({ id }, ctx);
   });
 
   return c.json(result, 200);
@@ -80,12 +78,8 @@ const deleteInvoiceHandler: AppRouteHandler<typeof routes.deleteInvoiceRoute> = 
 
 const sendInvoiceHandler: AppRouteHandler<typeof routes.sendInvoiceRoute> = async (c) => {
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
-  const baseCtx = { ...getServiceContext(c), organizationId };
-
-  const result = await db.transaction(async (tx) => {
-    const ctx = createServiceContext(baseCtx, tx);
-    return await invoiceStripeCoordinationService.sendInvoice({ id }, ctx);
-  });
+  const ctx = { ...getServiceContext(c), organizationId };
+  const result = await invoiceDeliveryService.sendInvoice({ id }, ctx);
 
   return c.json(result, 200);
 };
@@ -94,19 +88,15 @@ const syncInvoiceHandler: AppRouteHandler<typeof routes.syncInvoiceRoute> = asyn
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
 
-  const result = await invoiceStripeCoordinationService.syncInvoice({ id }, ctx);
+  const result = await invoiceDeliveryService.syncInvoice({ id }, ctx);
 
   return c.json(result, 200);
 };
 
 const voidInvoiceHandler: AppRouteHandler<typeof routes.voidInvoiceRoute> = async (c) => {
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
-  const baseCtx = { ...getServiceContext(c), organizationId };
-
-  const result = await db.transaction(async (tx) => {
-    const ctx = createServiceContext(baseCtx, tx);
-    return await invoiceStripeCoordinationService.voidInvoice({ id }, ctx);
-  });
+  const ctx = { ...getServiceContext(c), organizationId };
+  const result = await invoiceDeliveryService.voidInvoice({ id }, ctx);
 
   return c.json(result, 200);
 };
@@ -116,7 +106,7 @@ const getClientInvoicesHandler: AppRouteHandler<typeof routes.getClientInvoicesR
   const ctx = { ...getServiceContext(c), organizationId };
   const query = c.req.valid('query');
 
-  const result = await invoiceQueriesService.listClientInvoices({ filters: query }, ctx);
+  const result = await invoiceService.listClientInvoices({ filters: query }, ctx);
 
   return c.json(result, 200);
 };
@@ -125,7 +115,7 @@ const getClientInvoiceDetailHandler: AppRouteHandler<typeof routes.getClientInvo
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
 
-  const result = await invoiceQueriesService.getClientInvoiceDetail({ invoiceId: id }, ctx);
+  const result = await invoiceService.getClientInvoiceDetail({ invoiceId: id }, ctx);
 
   return c.json(result, 200);
 };

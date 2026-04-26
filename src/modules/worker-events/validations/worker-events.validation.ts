@@ -15,7 +15,7 @@ const payloadSchema = z
     event_id: z.uuid().openapi({
       description: 'Unique event identifier (idempotency key)',
     }),
-    occurred_at: z.iso.datetime().openapi({
+    occurred_at: z.iso.datetime({ offset: true }).openapi({
       description: 'When the event occurred (ISO 8601)',
       example: '2026-03-28T12:00:00Z',
     }),

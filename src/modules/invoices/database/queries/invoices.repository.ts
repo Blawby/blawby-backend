@@ -39,7 +39,7 @@ const findInvoiceById = async (
   return await client.query.invoices.findFirst({
     where: and(eq(invoices.id, id), eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)),
     with: {
-      lineItems: {
+      line_items: {
         orderBy: (li, { asc }) => [asc(li.sort_order)],
       },
       client: {
@@ -64,7 +64,7 @@ const findInvoiceByStripeId = async (
   return await client.query.invoices.findFirst({
     where: and(eq(invoices.stripe_invoice_id, stripeInvoiceId), isNull(invoices.deleted_at)),
     with: {
-      lineItems: true,
+      line_items: true,
       client: {
         with: { user: true },
       },
@@ -294,7 +294,7 @@ const findOneByIdAndClientId = async (
       isNull(invoices.deleted_at)
     ),
     with: {
-      lineItems: { orderBy: (li, { asc }) => [asc(li.sort_order)] },
+      line_items: { orderBy: (li, { asc }) => [asc(li.sort_order)] },
       client: { with: { user: true } },
       matter: true,
       connectedAccount: true,

@@ -29,7 +29,7 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
     fields: [invoices.deleted_by],
     references: [users.id],
   }),
-  lineItems: many(invoiceLineItems),
+  line_items: many(invoiceLineItems),
   paymentLinks: many(paymentLinks),
   billingTransactions: many(billingTransactions),
 }));

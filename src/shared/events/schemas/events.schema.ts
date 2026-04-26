@@ -52,10 +52,10 @@ export const events = pgTable('events', {
   processed: boolean('processed').default(false).notNull(),
   retryCount: integer('retry_count').default(0).notNull(),
   lastError: text('last_error'),
-  processedAt: timestamp('processed_at'),
+  processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
 
   // Timestamps
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
 // Event subscriptions table (for user preferences)
@@ -68,8 +68,8 @@ export const eventSubscriptions = pgTable('event_subscriptions', {
   channel: text('channel').notNull(), // 'email', 'webhook', 'in_app'
   enabled: boolean('enabled').default(true).notNull(),
   config: json('config').default({}).$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
 // Zod schemas for validation

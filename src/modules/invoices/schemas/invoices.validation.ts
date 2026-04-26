@@ -72,8 +72,8 @@ const lineItemSchema = z
     time_entry_id: z.uuid().nullable(),
     expense_id: z.uuid().nullable(),
     sort_order: z.number(),
-    created_at: z.date().openapi({ format: 'date-time' }),
-    updated_at: z.date().openapi({ format: 'date-time' }),
+    created_at: z.iso.datetime({ offset: true }),
+    updated_at: z.iso.datetime({ offset: true }),
   })
   .openapi('InvoiceLineItem');
 
@@ -94,9 +94,9 @@ const invoiceSchema = z
     total: z.number(),
     amount_paid: z.number(),
     amount_due: z.number(),
-    issue_date: z.date().nullable().openapi({ format: 'date-time' }),
-    due_date: z.date().nullable().openapi({ format: 'date-time' }),
-    paid_at: z.date().nullable().openapi({ format: 'date-time' }),
+    issue_date: z.iso.datetime({ offset: true }).nullable(),
+    due_date: z.iso.datetime({ offset: true }).nullable(),
+    paid_at: z.iso.datetime({ offset: true }).nullable(),
     stripe_invoice_id: z.string().nullable(),
     stripe_invoice_number: z.string().nullable(),
     stripe_charge_id: z.string().nullable(),
@@ -105,8 +105,8 @@ const invoiceSchema = z
     stripe_hosted_invoice_url: z.string().nullable(),
     notes: z.string().nullable(),
     memo: z.string().nullable(),
-    created_at: z.date().openapi({ format: 'date-time' }),
-    updated_at: z.date().openapi({ format: 'date-time' }),
+    created_at: z.iso.datetime({ offset: true }),
+    updated_at: z.iso.datetime({ offset: true }),
     line_items: z.array(lineItemSchema).optional(),
     client: z
       .object({

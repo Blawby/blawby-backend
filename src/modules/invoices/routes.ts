@@ -66,8 +66,12 @@ const listInvoicesRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            invoices: z.array(invoiceValidations.invoiceSchema),
-            total: z.number(),
+            data: z.array(invoiceValidations.invoiceSummarySchema),
+            pagination: z.object({
+              page: z.number().int(),
+              limit: z.number().int(),
+              total: z.number().int(),
+            }),
           }),
         },
       },

@@ -137,8 +137,8 @@ const preferencesResponseSchema = z
       account: accountPreferencesSchema.nullable(),
       onboarding: onboardingPreferencesSchema.nullable(),
       product_usage: z.array(z.enum(PRODUCT_USAGE_OPTIONS)).nullable(),
-      created_at: z.date(),
-      updated_at: z.date(),
+      created_at: z.iso.datetime({ offset: true }),
+      updated_at: z.iso.datetime({ offset: true }),
     }),
   })
   .openapi('PreferencesResponse');

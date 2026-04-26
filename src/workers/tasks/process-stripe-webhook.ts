@@ -6,7 +6,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
-import { invoiceWebhooksService } from '@/modules/invoices/services/invoice-webhooks.service';
+import { invoiceWebhookService } from '@/modules/invoices/services/invoice.webhook.service';
 import { subscriptionWebhooksService } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
@@ -95,7 +95,7 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
       await onboardingWebhooksService.processEvent(eventId);
       // Service marks as processed internally
     } else if (isInvoiceEvent(event.type)) {
-      await invoiceWebhooksService.processEvent(event);
+      await invoiceWebhookService.processEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (
       isPaymentIntentEvent(event) ||

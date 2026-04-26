@@ -26,15 +26,15 @@ export const emailLogs = pgTable(
     errorMessage: text('error_message'),
 
     // Retention and anonymization controls for PII fields
-    expiresAt: timestamp('expires_at')
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' })
       .default(sql`now() + interval '90 days'`)
       .notNull(),
-    deletedAt: timestamp('deleted_at'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
     isAnonymized: boolean('is_anonymized').default(false).notNull(),
 
     // Timestamps
-    sentAt: timestamp('sent_at').defaultNow().notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [index('email_logs_expires_at_anonymized_idx').on(table.expiresAt, table.isAnonymized)]
 );
