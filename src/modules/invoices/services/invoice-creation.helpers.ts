@@ -39,10 +39,8 @@ const mapToLineItemRows = (invoiceId: string, lineItems: InvoiceLineItemInput[])
   }));
 
 const verifyTimeEntries = async (timeEntryIds: string[], matterId: string): Promise<void> => {
-  const matterTimeEntries = await matterTimeEntriesQueries.listMatterTimeEntries(matterId);
-  const validTimeEntryIds = new Set(matterTimeEntries.map((entry) => entry.id));
-  const hasInvalidTimeEntry = timeEntryIds.some((id) => !validTimeEntryIds.has(id));
-  if (hasInvalidTimeEntry) {
+  const matchingCount = await matterTimeEntriesQueries.countByIds(matterId, timeEntryIds);
+  if (matchingCount !== timeEntryIds.length) {
     throw new HTTPException(400, {
       message: 'One or more time_entry_ids do not belong to the provided matter_id',
     });
@@ -50,10 +48,8 @@ const verifyTimeEntries = async (timeEntryIds: string[], matterId: string): Prom
 };
 
 const verifyExpenses = async (expenseIds: string[], matterId: string): Promise<void> => {
-  const matterExpenses = await matterExpensesQueries.listMatterExpenses(matterId);
-  const validExpenseIds = new Set(matterExpenses.map((expense) => expense.id));
-  const hasInvalidExpense = expenseIds.some((id) => !validExpenseIds.has(id));
-  if (hasInvalidExpense) {
+  const matchingCount = await matterExpensesQueries.countByIds(matterId, expenseIds);
+  if (matchingCount !== expenseIds.length) {
     throw new HTTPException(400, {
       message: 'One or more expense_ids do not belong to the provided matter_id',
     });
@@ -135,20 +131,29 @@ export const persistInvoiceStructure = async (
     const fund_destination = getFundDestination(invoice_type);
     const totals = calculateInvoiceTotals(data.line_items);
 
-    const newInvoice = await invoicesRepository.createInvoice(
-      {
-        organization_id: ctx.organizationId,
-        ...invoiceData,
-        client_id: clientId,
-        invoice_type,
-        fund_destination,
-        ...totals,
-        status: 'draft',
-        issue_date: new Date(),
-        due_date: data.due_date ? new Date(data.due_date) : undefined,
-      },
-      tx
-    );
+    let newInvoice;
+    try {
+      newInvoice = await invoicesRepository.createInvoice(
+        {
+          organization_id: ctx.organizationId,
+          ...invoiceData,
+          client_id: clientId,
+          invoice_type,
+          fund_destination,
+          ...totals,
+          status: 'draft',
+          issue_date: new Date(),
+          due_date: data.due_date ? new Date(data.due_date) : undefined,
+        },
+        tx
+      );
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+      if (code === '23505') {
+        throw new HTTPException(409, { message: `Invoice number '${data.invoice_number}' already exists` });
+      }
+      throw error;
+    }
 
     await invoicesRepository.createInvoiceLineItems(mapToLineItemRows(newInvoice.id, line_items), tx);
 

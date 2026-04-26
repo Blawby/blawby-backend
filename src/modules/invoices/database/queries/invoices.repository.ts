@@ -196,7 +196,11 @@ const persistStripeInvoiceId = async (
   organizationId: string,
   stripeInvoiceId: string,
   tx?: typeof db
-): Promise<SelectInvoice | undefined> => {
+): Promise<
+  | { status: 'linked'; invoice: SelectInvoice }
+  | { status: 'already-linked'; invoice: SelectInvoice }
+  | { status: 'missing' }
+> => {
   const client = tx ?? db;
   const [invoice] = await client
     .update(invoices)
@@ -214,7 +218,21 @@ const persistStripeInvoiceId = async (
     )
     .returning();
 
-  return invoice;
+  if (invoice) {
+    return { status: 'linked', invoice };
+  }
+
+  const [existingInvoice] = await client
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId)))
+    .limit(1);
+
+  if (!existingInvoice || existingInvoice.deleted_at) {
+    return { status: 'missing' };
+  }
+
+  return { status: 'already-linked', invoice: existingInvoice };
 };
 
 /**

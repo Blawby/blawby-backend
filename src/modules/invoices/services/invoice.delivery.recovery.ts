@@ -64,8 +64,8 @@ export const dispatchVoidSystemError = async ({
       },
     },
     {
-      actorId: ctx.userId,
-      actorType: 'user',
+      actorId: 'system',
+      actorType: 'system',
       organizationId,
     }
   );
@@ -81,9 +81,9 @@ export const syncStripeState = async (
     stripeInvoice: Stripe.Invoice;
     currentInvoice: InvoiceWithRelations;
   },
-  ctx: ServiceContext,
-  executor: ServiceContext['db'] = db
+  ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> => {
+  const executor = ctx.db ?? db;
   const stripeStatus = stripeInvoice.status;
   const mappedStatus =
     stripeStatus && stripeStatus in statusMap

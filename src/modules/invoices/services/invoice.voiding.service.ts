@@ -18,15 +18,17 @@ export const attemptStripeVoidWithRecovery = async ({
   invoiceId,
   organizationId,
   stripeInvoiceId,
+  stripeAccountId,
   ctx,
 }: {
   invoiceId: string;
   organizationId: string;
   stripeInvoiceId: string;
+  stripeAccountId: string;
   ctx: ServiceContext;
 }): Promise<void> => {
   try {
-    await stripeApiAdapter.voidInvoice(stripeInvoiceId);
+    await stripeApiAdapter.voidInvoice(stripeInvoiceId, stripeAccountId);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Invoice marked cancelled but Stripe void failed for invoice {invoiceId}: {error}', {
@@ -76,6 +78,9 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
     if (!invoice.stripe_invoice_id) {
       throw new HTTPException(400, { message: 'Invoice has no Stripe record' });
     }
+    if (!invoice.connectedAccount?.stripe_account_id) {
+      throw new HTTPException(400, { message: 'Invoice is missing a Stripe connected account' });
+    }
     const stripeInvoiceId = invoice.stripe_invoice_id;
 
     await db.transaction(async (tx) => {
@@ -100,6 +105,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
       invoiceId: id,
       organizationId: ctx.organizationId,
       stripeInvoiceId,
+      stripeAccountId: invoice.connectedAccount.stripe_account_id,
       ctx,
     });
 
@@ -112,6 +118,14 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
+    }
+    const cancelledInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+    if (cancelledInvoice?.status === 'cancelled') {
+      logger.error('Invoice cancelled locally; Stripe reconciliation pending for {invoiceId}: {error}', {
+        invoiceId: id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw new HTTPException(202, { message: 'Invoice cancelled locally; Stripe reconciliation pending' });
     }
     logger.error('Failed to void invoice: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',

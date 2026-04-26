@@ -59,7 +59,19 @@ export const processInvoiceVoidReconciliation: Task = async (payload: unknown) =
     return;
   }
 
-  const stripeInvoice = await stripeApiAdapter.getStripeInvoice(payload.stripeInvoiceId);
+  if (!invoice.connectedAccount?.stripe_account_id) {
+    logger.warn('Invoice void reconciliation skipped; missing Stripe connected account: {invoiceId}', {
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+      stripeInvoiceId: payload.stripeInvoiceId,
+    });
+    return;
+  }
+
+  const stripeInvoice = await stripeApiAdapter.getStripeInvoice(
+    payload.stripeInvoiceId,
+    invoice.connectedAccount.stripe_account_id
+  );
   if (stripeInvoice.status === 'void') {
     logger.info('Invoice void reconciliation skipped; Stripe invoice already void: {invoiceId}', {
       invoiceId: payload.invoiceId,
@@ -69,7 +81,17 @@ export const processInvoiceVoidReconciliation: Task = async (payload: unknown) =
     return;
   }
 
-  await stripeApiAdapter.voidInvoice(payload.stripeInvoiceId);
+  if (stripeInvoice.status !== 'open') {
+    logger.info('Invoice void reconciliation skipped; Stripe invoice not voidable in current status: {invoiceId}', {
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+      stripeInvoiceId: payload.stripeInvoiceId,
+      status: stripeInvoice.status,
+    });
+    return;
+  }
+
+  await stripeApiAdapter.voidInvoice(payload.stripeInvoiceId, invoice.connectedAccount.stripe_account_id);
 
   logger.info('Invoice void reconciliation succeeded: {invoiceId}', {
     invoiceId: payload.invoiceId,

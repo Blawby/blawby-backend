@@ -12,6 +12,7 @@ import {
 import { syncStripeState } from '@/modules/invoices/services/invoice.delivery.recovery';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { voidInvoice } from '@/modules/invoices/services/invoice.voiding.service';
+import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'delivery-service']);
@@ -37,26 +38,50 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
         }
         invoice = freshInvoice;
       }
+      if (!invoice.connectedAccount?.stripe_account_id) {
+        throw new HTTPException(400, { message: 'Invoice is missing a Stripe connected account' });
+      }
 
-      const stripeInvoice = await createAndSendStripeInvoice({ invWithRel: invoice, idempotencyKeyPrefix });
+      const stripeInvoice = await createAndSendStripeInvoice({
+        invWithRel: invoice,
+        idempotencyKeyPrefix,
+        stripeAccountId: invoice.connectedAccount.stripe_account_id,
+      });
       stripeInvoiceId = stripeInvoice.id;
       const persistedStripeInvoice = await invoicesRepository.persistStripeInvoiceId(
         id,
         ctx.organizationId,
         stripeInvoice.id
       );
-      if (!persistedStripeInvoice) {
+      if (persistedStripeInvoice.status === 'missing') {
         throw new Error(`Failed to persist Stripe invoice ID for invoice ${id}`);
+      }
+      if (
+        persistedStripeInvoice.status === 'already-linked' &&
+        persistedStripeInvoice.invoice.stripe_invoice_id !== stripeInvoice.id
+      ) {
+        throw new Error(`Invoice ${id} is already linked to a different Stripe invoice`);
       }
       const updatedInvoice = await markInvoiceSent({ invoiceId: id, invoice, stripeInvoice }, ctx);
 
       return updatedInvoice;
     } catch (error) {
       try {
-        await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'sending', 'draft');
-        if (stripeInvoiceId) {
-          await invoicesRepository.updateInvoice(id, ctx.organizationId, { stripe_invoice_id: null });
-        }
+        await db.transaction(async (tx) => {
+          const rolledBack = await invoicesRepository.transitionInvoiceStatus(
+            id,
+            ctx.organizationId,
+            'sending',
+            'draft',
+            tx
+          );
+          if (!rolledBack) {
+            throw new Error('Invoice was not in sending state during rollback');
+          }
+          if (stripeInvoiceId) {
+            await invoicesRepository.updateInvoice(id, ctx.organizationId, { stripe_invoice_id: null }, tx);
+          }
+        });
       } catch (rollbackError) {
         logger.error('Failed to rollback invoice from sending to draft: {error}', {
           invoiceId: id,
@@ -96,8 +121,14 @@ const syncInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
     if (!invoice.stripe_invoice_id) {
       throw new HTTPException(400, { message: 'Invoice has not been synced with Stripe' });
     }
+    if (!invoice.connectedAccount?.stripe_account_id) {
+      throw new HTTPException(400, { message: 'Invoice is missing a Stripe connected account' });
+    }
 
-    const stripeInvoice = await stripeApiAdapter.getStripeInvoice(invoice.stripe_invoice_id);
+    const stripeInvoice = await stripeApiAdapter.getStripeInvoice(
+      invoice.stripe_invoice_id,
+      invoice.connectedAccount.stripe_account_id
+    );
     const updated = await syncStripeState({ invoiceId: id, stripeInvoice, currentInvoice: invoice }, ctx);
 
     if (!updated) {

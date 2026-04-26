@@ -12,7 +12,7 @@ import type {
   ListInvoicesQuery,
   UpdateInvoiceRequest,
 } from '@/modules/invoices/types/invoices.types';
-import { InvoiceDeleted, InvoiceUpdated } from '@/shared/events/definitions';
+import { InvoiceDeleted } from '@/shared/events/definitions';
 import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -24,9 +24,8 @@ const createInvoice = async (
 ): Promise<InvoiceWithRelations> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Invoice');
 
-  const { clientId } = await validateInvoiceCreation(data, ctx);
-
   try {
+    const { clientId } = await validateInvoiceCreation(data, ctx);
     const invoice = await persistInvoiceStructure({ data, clientId }, ctx);
     if (!invoice) {
       throw new Error('Failed to retrieve created invoice');
@@ -70,6 +69,11 @@ const listInvoices = async (
     if (error instanceof HTTPException) {
       throw error;
     }
+    logger.error('Failed to list invoices: {error}', {
+      organizationId: ctx.organizationId,
+      filters,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     throw new Error('Failed to list invoices', { cause: error });
   }
 };

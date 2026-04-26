@@ -6,6 +6,9 @@ import { z } from '@hono/zod-openapi';
  * This is the contract for external workers (chatbot, etc.) to dispatch
  * events into the backend's event/listener pipeline.
  */
+// TODO(workers): migrate external workers to offset-aware timestamps.
+const occurredAtSchema = z.union([z.iso.datetime({ offset: true }), z.iso.datetime()]);
+
 const payloadSchema = z
   .object({
     event_type: z.string().min(1).max(255).openapi({
@@ -15,7 +18,7 @@ const payloadSchema = z
     event_id: z.uuid().openapi({
       description: 'Unique event identifier (idempotency key)',
     }),
-    occurred_at: z.iso.datetime({ offset: true }).openapi({
+    occurred_at: occurredAtSchema.openapi({
       description: 'When the event occurred (ISO 8601)',
       example: '2026-03-28T12:00:00Z',
     }),

@@ -1,18 +1,21 @@
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { handleInvoiceCreated, handleInvoiceUpcoming } from '@/modules/invoices/services/invoice.webhook.delivery';
 import { db } from '@/shared/database';
 import { InvoiceDeleted, InvoicePaymentFailed, InvoiceVoided } from '@/shared/events/definitions';
 import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
 
 const logger = getLogger(['invoices', 'webhook-service']);
 const IGNORED_INVOICE_EVENTS = [
-  'invoice.created',
   'invoice.finalized',
   'invoice.updated',
   'invoice.sent',
   'invoice.marked_uncollectible',
 ] as const;
+
+const isStripeInvoiceLike = (obj: unknown): obj is Stripe.Invoice =>
+  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
 
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
@@ -139,6 +142,16 @@ const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice =>
 const processEvent = async (event: Stripe.Event): Promise<void> => {
   const stripeInvoice = event.data.object;
 
+  if ((event.type === 'invoice.created' || event.type === 'invoice.upcoming') && isStripeInvoiceLike(stripeInvoice)) {
+    if (event.type === 'invoice.created') {
+      await handleInvoiceCreated(stripeInvoice);
+      return;
+    }
+
+    await handleInvoiceUpcoming(stripeInvoice);
+    return;
+  }
+
   if (!isStripeInvoice(stripeInvoice)) {
     logger.warn('Received Stripe event without invoice object: {eventType}', { eventType: event.type });
     return;
@@ -150,6 +163,12 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
       break;
     case 'invoice.payment_failed':
       await handleInvoicePaymentFailed(stripeInvoice);
+      break;
+    case 'invoice.created':
+      await handleInvoiceCreated(stripeInvoice);
+      break;
+    case 'invoice.upcoming':
+      await handleInvoiceUpcoming(stripeInvoice);
       break;
     case 'invoice.voided':
       await handleInvoiceVoided(stripeInvoice);

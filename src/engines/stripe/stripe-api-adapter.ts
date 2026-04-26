@@ -18,6 +18,7 @@ const createStripeInvoice = async (
   invoice: InvoiceWithRelations,
   stripeCustomerId: string,
   onBehalfOfAccountId: string,
+  stripeAccountId: string,
   idempotencyKeyPrefix?: string
 ): Promise<Stripe.Invoice> => {
   if (!onBehalfOfAccountId) {
@@ -44,7 +45,10 @@ const createStripeInvoice = async (
         description: invoice.notes ?? undefined,
         footer: invoice.memo ?? undefined,
       },
-      idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:invoice` } : undefined
+      {
+        ...(idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:invoice` } : {}),
+        stripeAccount: stripeAccountId,
+      }
     );
 
     if (invoice.lineItems) {
@@ -63,9 +67,12 @@ const createStripeInvoice = async (
                 internal_invoice_id: invoice.id,
               },
             },
-            idempotencyKeyPrefix
-              ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${lineItemIdempotencySuffix}` }
-              : undefined
+            {
+              ...(idempotencyKeyPrefix
+                ? { idempotencyKey: `${idempotencyKeyPrefix}:line-item:${lineItemIdempotencySuffix}` }
+                : {}),
+              stripeAccount: stripeAccountId,
+            }
           );
         })
       );
@@ -77,7 +84,7 @@ const createStripeInvoice = async (
     await Promise.all(
       createdItemIds.map(async (itemId) => {
         try {
-          await stripe.invoiceItems.del(itemId);
+          await stripe.invoiceItems.del(itemId, { stripeAccount: stripeAccountId });
         } catch (cleanupError) {
           logger.error('Failed to cleanup Stripe invoice item {itemId}: {error}', {
             itemId,
@@ -98,6 +105,7 @@ const createStripeInvoice = async (
  */
 const finalizeAndSendInvoice = async (
   stripeInvoiceId: string,
+  stripeAccountId: string,
   idempotencyKeyPrefix?: string
 ): Promise<Stripe.Invoice> => {
   const sendWithRetry = async (attempt: number): Promise<Stripe.Invoice> => {
@@ -105,7 +113,10 @@ const finalizeAndSendInvoice = async (
       return await stripe.invoices.sendInvoice(
         stripeInvoiceId,
         {},
-        idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:send` } : undefined
+        {
+          ...(idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:send` } : {}),
+          stripeAccount: stripeAccountId,
+        }
       );
     } catch (error) {
       if (attempt >= 3) {
@@ -131,7 +142,10 @@ const finalizeAndSendInvoice = async (
     await stripe.invoices.finalizeInvoice(
       stripeInvoiceId,
       {},
-      idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:finalize` } : undefined
+      {
+        ...(idempotencyKeyPrefix ? { idempotencyKey: `${idempotencyKeyPrefix}:finalize` } : {}),
+        stripeAccount: stripeAccountId,
+      }
     );
     return sendWithRetry(1);
   } catch (error) {
@@ -147,9 +161,9 @@ const finalizeAndSendInvoice = async (
 /**
  * Void an open Stripe invoice.
  */
-const voidInvoice = async (stripeInvoiceId: string): Promise<Stripe.Invoice> => {
+const voidInvoice = async (stripeInvoiceId: string, stripeAccountId: string): Promise<Stripe.Invoice> => {
   try {
-    return await stripe.invoices.voidInvoice(stripeInvoiceId);
+    return await stripe.invoices.voidInvoice(stripeInvoiceId, { stripeAccount: stripeAccountId });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to void Stripe invoice {stripeInvoiceId}: {error}', { stripeInvoiceId, error: message });
@@ -160,9 +174,9 @@ const voidInvoice = async (stripeInvoiceId: string): Promise<Stripe.Invoice> => 
 /**
  * Delete a draft Stripe invoice.
  */
-const deleteDraftInvoice = async (stripeInvoiceId: string): Promise<Stripe.DeletedInvoice> => {
+const deleteDraftInvoice = async (stripeInvoiceId: string, stripeAccountId: string): Promise<Stripe.DeletedInvoice> => {
   try {
-    return await stripe.invoices.del(stripeInvoiceId);
+    return await stripe.invoices.del(stripeInvoiceId, { stripeAccount: stripeAccountId });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to delete draft Stripe invoice {stripeInvoiceId}: {error}', {
@@ -176,9 +190,9 @@ const deleteDraftInvoice = async (stripeInvoiceId: string): Promise<Stripe.Delet
 /**
  * Retrieve a Stripe invoice by ID.
  */
-const getStripeInvoice = async (stripeInvoiceId: string): Promise<Stripe.Invoice> => {
+const getStripeInvoice = async (stripeInvoiceId: string, stripeAccountId: string): Promise<Stripe.Invoice> => {
   try {
-    return await stripe.invoices.retrieve(stripeInvoiceId);
+    return await stripe.invoices.retrieve(stripeInvoiceId, { stripeAccount: stripeAccountId });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to retrieve Stripe invoice {stripeInvoiceId}: {error}', { stripeInvoiceId, error: message });

@@ -44,9 +44,9 @@ export const internalServerErrorResponseSchema = z
 
 export const paginationSchema = z
   .object({
-    page: z.number().int(),
-    limit: z.number().int(),
-    total: z.number().int(),
+    page: z.number().int().min(1),
+    limit: z.number().int().min(1),
+    total: z.number().int().min(0),
   })
   .openapi('PaginationResponse');
 

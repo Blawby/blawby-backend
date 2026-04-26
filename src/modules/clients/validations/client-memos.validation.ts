@@ -1,7 +1,6 @@
 import { z } from '@hono/zod-openapi';
 
-// TODO(frontend): migrate memo event_time payloads to offset-aware timestamps.
-const eventTimeSchema = z.union([z.iso.datetime({ offset: true }), z.iso.datetime({ local: true })]);
+const eventTimeSchema = z.iso.datetime({ offset: true });
 
 export const createMemoSchema = z
   .object({

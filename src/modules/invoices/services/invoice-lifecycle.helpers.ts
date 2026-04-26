@@ -20,8 +20,14 @@ export const persistInvoiceUpdate = async (
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> => {
   return await ctx.db.transaction(async (tx) => {
-    const { line_items, ...invoiceData } = data;
+    const { line_items, due_date: _dueDate, ...invoiceData } = data;
     let totals = {};
+    const dueDateUpdate =
+      'due_date' in data
+        ? {
+            due_date: data.due_date === null ? null : data.due_date ? new Date(data.due_date) : undefined,
+          }
+        : {};
 
     if (line_items) {
       totals = calculateInvoiceTotals(line_items, existing.amount_paid);
@@ -34,7 +40,7 @@ export const persistInvoiceUpdate = async (
       {
         ...invoiceData,
         ...totals,
-        due_date: data.due_date ? new Date(data.due_date) : undefined,
+        ...dueDateUpdate,
       },
       tx
     );

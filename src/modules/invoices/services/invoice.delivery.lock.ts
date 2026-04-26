@@ -44,9 +44,11 @@ export const lockInvoiceForSending = async (
 export const createAndSendStripeInvoice = async ({
   invWithRel,
   idempotencyKeyPrefix,
+  stripeAccountId,
 }: {
   invWithRel: InvoiceWithRelations;
   idempotencyKeyPrefix?: string;
+  stripeAccountId: string;
 }): Promise<Stripe.Invoice> => {
   if (!invWithRel.client?.stripe_customer_id) {
     throw new Error('Client is missing Stripe customer ID');
@@ -59,10 +61,11 @@ export const createAndSendStripeInvoice = async ({
     invWithRel,
     invWithRel.client.stripe_customer_id,
     invWithRel.connectedAccount.stripe_account_id,
+    stripeAccountId,
     idempotencyKeyPrefix
   );
 
-  return await stripeApiAdapter.finalizeAndSendInvoice(stripeInvoice.id, idempotencyKeyPrefix);
+  return await stripeApiAdapter.finalizeAndSendInvoice(stripeInvoice.id, stripeAccountId, idempotencyKeyPrefix);
 };
 
 export const markInvoiceSent = async (
