@@ -14,6 +14,8 @@ import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'voiding-service']);
 
+export type VoidInvoiceResult = InvoiceWithRelations & { reconciliation_pending?: boolean };
+
 export const attemptStripeVoidWithRecovery = async ({
   invoiceId,
   organizationId,
@@ -62,7 +64,7 @@ export const attemptStripeVoidWithRecovery = async ({
   }
 };
 
-export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<InvoiceWithRelations> => {
+export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<VoidInvoiceResult> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
   try {
@@ -84,7 +86,16 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
     const stripeInvoiceId = invoice.stripe_invoice_id;
 
     await db.transaction(async (tx) => {
-      await invoicesRepository.updateInvoice(id, ctx.organizationId, { status: 'cancelled' }, tx);
+      const transitioned = await invoicesRepository.transitionInvoiceStatus(
+        id,
+        ctx.organizationId,
+        'sent',
+        'cancelled',
+        tx
+      );
+      if (!transitioned) {
+        throw new HTTPException(409, { message: 'Invoice status changed before void could be applied' });
+      }
       await InvoiceVoided.dispatch(
         {
           invoice_id: id,
@@ -125,7 +136,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
         invoiceId: id,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      return Object.assign(cancelledInvoice, { reconciliation_pending: true });
+      return { ...cancelledInvoice, reconciliation_pending: true };
     }
     logger.error('Failed to void invoice: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',

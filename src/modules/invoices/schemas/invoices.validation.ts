@@ -39,7 +39,7 @@ const createInvoiceSchema = z
 // Update invoice schema (only for draft invoices)
 const updateInvoiceSchema = z
   .object({
-    due_date: z.iso.date().optional(),
+    due_date: z.iso.date().nullable().optional(),
     notes: z.string().optional(),
     memo: z.string().optional(),
     line_items: z.array(invoiceLineItemRequestSchema).min(1, 'At least one line item is required').optional(),

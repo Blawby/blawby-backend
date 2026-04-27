@@ -59,10 +59,12 @@ const rollbackSendingTransaction = async ({
   id,
   organizationId,
   stripeInvoiceId,
+  stripeAccountId,
 }: {
   id: string;
   organizationId: string;
   stripeInvoiceId: string | null;
+  stripeAccountId: string | null;
 }): Promise<void> => {
   await db.transaction(async (tx) => {
     const rolledBack = await invoicesRepository.transitionInvoiceStatus(id, organizationId, 'sending', 'draft', tx);
@@ -73,6 +75,19 @@ const rollbackSendingTransaction = async ({
       await invoicesRepository.updateInvoice(id, organizationId, { stripe_invoice_id: null }, tx);
     }
   });
+
+  if (stripeInvoiceId && stripeAccountId) {
+    try {
+      await stripeApiAdapter.voidInvoice(stripeInvoiceId, stripeAccountId);
+    } catch (stripeRollbackError) {
+      logger.error('Failed to void Stripe invoice during send rollback: {error}', {
+        invoiceId: id,
+        organizationId,
+        stripeInvoiceId,
+        error: stripeRollbackError instanceof Error ? stripeRollbackError.message : 'Unknown error',
+      });
+    }
+  }
 };
 
 const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<InvoiceWithRelations> => {
@@ -102,7 +117,12 @@ const sendInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise
       return result.updatedInvoice;
     } catch (error) {
       try {
-        await rollbackSendingTransaction({ id, organizationId: ctx.organizationId, stripeInvoiceId });
+        await rollbackSendingTransaction({
+          id,
+          organizationId: ctx.organizationId,
+          stripeInvoiceId,
+          stripeAccountId: invoice.connectedAccount?.stripe_account_id ?? null,
+        });
       } catch (rollbackError) {
         logger.error('Failed to rollback invoice from sending to draft: {error}', {
           invoiceId: id,
