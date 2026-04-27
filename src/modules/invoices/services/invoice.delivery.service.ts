@@ -31,7 +31,11 @@ const rollbackSendingTransaction = async ({
   await db.transaction(async (tx) => {
     const rolledBack = await invoicesRepository.transitionInvoiceStatus(id, organizationId, 'sending', 'draft', tx);
     if (!rolledBack) {
-      throw new Error('Invoice was not in sending state during rollback');
+      logger.warn('Invoice was no longer in sending state during rollback', {
+        invoiceId: id,
+        organizationId,
+        stripeInvoiceId,
+      });
     }
     if (stripeInvoiceId) {
       await invoicesRepository.updateInvoice(id, organizationId, { stripe_invoice_id: null }, tx);

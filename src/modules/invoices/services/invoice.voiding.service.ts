@@ -67,6 +67,7 @@ export const attemptStripeVoidWithRecovery = async ({
 export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<VoidInvoiceResult> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Invoice');
 
+  let stripeVoidSucceeded = false;
   try {
     const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!invoice) {
@@ -119,6 +120,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
       stripeAccountId: invoice.connectedAccount.stripe_account_id,
       ctx,
     });
+    stripeVoidSucceeded = true;
 
     const updated = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!updated) {
@@ -141,7 +143,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
       });
     }
 
-    if (cancelledInvoice?.status === 'cancelled') {
+    if (cancelledInvoice?.status === 'cancelled' && !stripeVoidSucceeded) {
       logger.warn('Invoice cancelled locally; Stripe reconciliation pending for {invoiceId}: {error}', {
         invoiceId: id,
         error: error instanceof Error ? error.message : 'Unknown error',
