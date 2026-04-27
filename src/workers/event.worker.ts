@@ -9,6 +9,7 @@ import { processOnboardingWebhook } from '@/workers/tasks/process-onboarding-web
 import { processRefundReconciliation } from '@/workers/tasks/process-refund-reconciliation';
 import { processStripeWebhook } from '@/workers/tasks/process-stripe-webhook';
 import { processInvoicePayment } from '@/workers/tasks/process-invoice-payment';
+import { processInvoiceVoidReconciliation } from '@/workers/tasks/process-invoice-void-reconciliation';
 
 config();
 
@@ -20,6 +21,7 @@ void runWorker({
     [TASK_NAMES.PROCESS_ONBOARDING_WEBHOOK]: processOnboardingWebhook,
     [TASK_NAMES.PROCESS_OUTBOX_EVENT]: processOutboxEvent,
     [TASK_NAMES.PROCESS_INVOICE_PAYMENT]: processInvoicePayment,
+    [TASK_NAMES.PROCESS_INVOICE_VOID_RECONCILIATION]: processInvoiceVoidReconciliation,
     [TASK_NAMES.PROCESS_METERED_USAGE]: processMeteredUsage,
     [TASK_NAMES.PROCESS_REFUND_RECONCILIATION]: processRefundReconciliation,
     [TASK_NAMES.CLEANUP_EMAIL_LOGS]: cleanupEmailLogs,

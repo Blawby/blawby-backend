@@ -56,7 +56,7 @@ export const validateInvoiceNumberUnique = async (
   });
 
   if (existingInvoice) {
-    throw new HTTPException(400, { message: `Invoice number '${invoiceNumber}' already exists` });
+    throw new HTTPException(409, { message: `Invoice number '${invoiceNumber}' already exists` });
   }
 };
 

@@ -1,16 +1,22 @@
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { handleInvoiceCreated, handleInvoiceUpcoming } from '@/modules/invoices/services/invoice.webhook.delivery';
 import { db } from '@/shared/database';
-import { InvoicePaymentFailed, InvoiceVoided, InvoiceDeleted } from '@/shared/events/definitions';
+import { InvoiceDeleted, InvoicePaymentFailed, InvoiceVoided } from '@/shared/events/definitions';
 import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
 
-const logger = getLogger(['invoices', 'webhooks-service']);
+const logger = getLogger(['invoices', 'webhook-service']);
+const IGNORED_INVOICE_EVENTS = [
+  'invoice.finalized',
+  'invoice.updated',
+  'invoice.sent',
+  'invoice.marked_uncollectible',
+] as const;
 
-/**
- * Handle invoice.paid event from Stripe webhook
- * Thin handler: store event + queue async processing
- */
+const isStripeInvoiceLike = (obj: unknown): obj is Stripe.Invoice =>
+  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
+
 const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
   if (!invoice) {
@@ -18,13 +24,6 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
     return;
   }
 
-  logger.info('Storing invoice.paid event for async processing: {invoiceId}', {
-    invoiceId: invoice.id,
-    stripeInvoiceId: stripeInvoice.id,
-    amount: stripeInvoice.amount_paid,
-  });
-
-  // Store to outbox with critical flag (persist before response)
   await InvoiceStripePaymentReceived.dispatch(
     {
       invoice_id: invoice.id,
@@ -48,28 +47,17 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
       critical: true,
     }
   );
-
-  logger.info('Invoice.paid event queued for async processing');
 };
 
-/**
- * Handle invoice.payment_failed event
- */
 const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
   if (!invoice) {
+    logger.warn('Invoice not found for Stripe ID: {stripeInvoiceId}', { stripeInvoiceId: stripeInvoice.id });
     return;
   }
 
   await db.transaction(async (tx) => {
-    await invoicesRepository.updateInvoice(
-      invoice.id,
-      invoice.organization_id,
-      {
-        status: 'overdue',
-      },
-      tx
-    );
+    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'overdue' }, tx);
 
     await InvoicePaymentFailed.dispatch(
       {
@@ -85,28 +73,20 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
       }
     );
   });
-
-  logger.info('Payment failed for invoice {invoiceId}', { invoiceId: invoice.id });
 };
 
-/**
- * Handle invoice.voided event
- */
 const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
   if (!invoice) {
+    logger.warn('Invoice not found for Stripe ID: {stripeInvoiceId}', { stripeInvoiceId: stripeInvoice.id });
+    return;
+  }
+  if (invoice.status === 'cancelled') {
     return;
   }
 
   await db.transaction(async (tx) => {
-    await invoicesRepository.updateInvoice(
-      invoice.id,
-      invoice.organization_id,
-      {
-        status: 'cancelled',
-      },
-      tx
-    );
+    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' }, tx);
 
     await InvoiceVoided.dispatch(
       {
@@ -123,16 +103,12 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
       }
     );
   });
-
-  logger.info('Invoice {invoiceId} voided', { invoiceId: invoice.id });
 };
 
-/**
- * Handle invoice.deleted event (for draft invoices)
- */
 const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
   if (!invoice) {
+    logger.warn('Invoice not found for Stripe ID: {stripeInvoiceId}', { stripeInvoiceId: stripeInvoice.id });
     return;
   }
 
@@ -153,34 +129,38 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
       }
     );
   });
-
-  logger.info('Invoice {invoiceId} deleted via Stripe', { invoiceId: invoice.id });
 };
 
-/**
- * Type guard for Stripe Invoice
- */
 const isStripeInvoice = (obj: unknown): obj is Stripe.Invoice =>
-  obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
+  obj !== null &&
+  typeof obj === 'object' &&
+  'object' in obj &&
+  obj.object === 'invoice' &&
+  'id' in obj &&
+  typeof obj.id === 'string' &&
+  'status_transitions' in obj &&
+  typeof obj.status_transitions === 'object' &&
+  obj.status_transitions !== null;
 
-/**
- * Process a Stripe invoice event
- */
 const processEvent = async (event: Stripe.Event): Promise<void> => {
-  const eventType = event.type;
   const stripeInvoice = event.data.object;
 
-  if (!isStripeInvoice(stripeInvoice)) {
-    logger.warn('Received Stripe event without invoice object: {eventType}', { eventType });
+  if ((event.type === 'invoice.created' || event.type === 'invoice.upcoming') && isStripeInvoiceLike(stripeInvoice)) {
+    if (event.type === 'invoice.created') {
+      await handleInvoiceCreated(stripeInvoice);
+      return;
+    }
+
+    await handleInvoiceUpcoming(stripeInvoice);
     return;
   }
 
-  logger.info('Processing invoice webhook event {eventType} for Stripe Invoice {stripeInvoiceId}', {
-    eventType,
-    stripeInvoiceId: stripeInvoice.id,
-  });
+  if (!isStripeInvoice(stripeInvoice)) {
+    logger.warn('Received Stripe event without invoice object: {eventType}', { eventType: event.type });
+    return;
+  }
 
-  switch (eventType) {
+  switch (event.type) {
     case 'invoice.paid':
       await handleInvoicePaid(stripeInvoice);
       break;
@@ -194,19 +174,28 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
       await handleInvoiceDeleted(stripeInvoice);
       break;
     default:
-      logger.info('Unhandled invoice event type: {eventType}', { eventType });
+      if (IGNORED_INVOICE_EVENTS.includes(event.type as (typeof IGNORED_INVOICE_EVENTS)[number])) {
+        logger.info('Ignoring invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
+          eventType: event.type,
+          stripeInvoiceId: stripeInvoice.id,
+          stripeInvoiceNumber: stripeInvoice.number,
+        });
+        return;
+      }
+
+      logger.warn('Unhandled invoice event type: {eventType} for Stripe invoice {stripeInvoiceId}', {
+        eventType: event.type,
+        stripeInvoiceId: stripeInvoice.id,
+        stripeInvoiceNumber: stripeInvoice.number,
+      });
+      return;
   }
 };
 
-/**
- * Invoice Webhooks Service
- *
- * Processes Stripe invoice-related webhook events.
- */
-export const invoiceWebhooksService = {
+export const invoiceWebhookService = {
   processEvent,
   handleInvoicePaid,
   handleInvoicePaymentFailed,
   handleInvoiceVoided,
   handleInvoiceDeleted,
-};
+} as const;

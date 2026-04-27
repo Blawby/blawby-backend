@@ -191,6 +191,50 @@ const transitionInvoiceStatus = async (
   return invoice;
 };
 
+const persistStripeInvoiceId = async (
+  id: string,
+  organizationId: string,
+  stripeInvoiceId: string,
+  tx?: typeof db
+): Promise<
+  | { status: 'linked'; invoice: SelectInvoice }
+  | { status: 'already-linked'; invoice: SelectInvoice }
+  | { status: 'missing' }
+> => {
+  const client = tx ?? db;
+  const [invoice] = await client
+    .update(invoices)
+    .set({
+      stripe_invoice_id: stripeInvoiceId,
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(invoices.id, id),
+        eq(invoices.organization_id, organizationId),
+        isNull(invoices.deleted_at),
+        isNull(invoices.stripe_invoice_id)
+      )
+    )
+    .returning();
+
+  if (invoice) {
+    return { status: 'linked', invoice };
+  }
+
+  const [existingInvoice] = await client
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId)))
+    .limit(1);
+
+  if (!existingInvoice || existingInvoice.deleted_at) {
+    return { status: 'missing' };
+  }
+
+  return { status: 'already-linked', invoice: existingInvoice };
+};
+
 /**
  * Soft delete invoice
  */
@@ -315,6 +359,7 @@ export const invoicesRepository = {
   findOneByIdAndClientId,
   updateInvoice,
   transitionInvoiceStatus,
+  persistStripeInvoiceId,
   softDeleteInvoice,
   createInvoiceLineItems,
   deleteInvoiceLineItems,

@@ -145,6 +145,19 @@ const getUnbilled = async (matterId: string): Promise<SelectMatterTimeEntry[]> =
     )
     .orderBy(desc(matterTimeEntries.start_time));
 
+const countByIds = async (matterId: string, timeEntryIds: string[]): Promise<number> => {
+  if (timeEntryIds.length === 0) {
+    return 0;
+  }
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(matterTimeEntries)
+    .where(and(eq(matterTimeEntries.matter_id, matterId), inArray(matterTimeEntries.id, timeEntryIds)));
+
+  return Number(result?.count ?? 0);
+};
+
 export const matterTimeEntriesQueries = {
   createMatterTimeEntry,
   findMatterTimeEntryById,
@@ -156,4 +169,5 @@ export const matterTimeEntriesQueries = {
   markAsInvoiced,
   unmarkInvoiced,
   getUnbilled,
+  countByIds,
 };

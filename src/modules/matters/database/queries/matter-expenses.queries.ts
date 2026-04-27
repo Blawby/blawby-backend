@@ -153,6 +153,19 @@ const getUnbilled = async (matterId: string): Promise<SelectMatterExpense[]> =>
     )
     .orderBy(desc(matterExpenses.date));
 
+const countByIds = async (matterId: string, expenseIds: string[]): Promise<number> => {
+  if (expenseIds.length === 0) {
+    return 0;
+  }
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(matterExpenses)
+    .where(and(eq(matterExpenses.matter_id, matterId), inArray(matterExpenses.id, expenseIds)));
+
+  return Number(result?.count ?? 0);
+};
+
 export const matterExpensesQueries = {
   createMatterExpense,
   findMatterExpenseById,
@@ -164,4 +177,5 @@ export const matterExpensesQueries = {
   markAsInvoiced,
   unmarkInvoiced,
   getUnbilled,
+  countByIds,
 };

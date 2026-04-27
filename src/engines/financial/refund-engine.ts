@@ -4,7 +4,7 @@ import { billingTransactionsRepository } from '@/modules/invoices/database/queri
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { refundRequestsQueries } from '@/modules/invoices/database/queries/refund-requests.queries';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
-import { requirePayoutMeteredFeeCents } from '@/modules/invoices/services/payout-metered-fee.service';
+import { requirePayoutMeteredFeeCents } from '@/modules/invoices/services/invoice.utils';
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
