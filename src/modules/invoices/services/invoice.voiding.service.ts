@@ -130,7 +130,17 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
     if (error instanceof HTTPException) {
       throw error;
     }
-    const cancelledInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+
+    let cancelledInvoice: InvoiceWithRelations | undefined = undefined;
+    try {
+      cancelledInvoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
+    } catch (refetchError) {
+      logger.error('Failed to refetch invoice during void error handling: {error}', {
+        invoiceId: id,
+        error: refetchError instanceof Error ? refetchError.message : 'Unknown error',
+      });
+    }
+
     if (cancelledInvoice?.status === 'cancelled') {
       logger.warn('Invoice cancelled locally; Stripe reconciliation pending for {invoiceId}: {error}', {
         invoiceId: id,
@@ -138,6 +148,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
       });
       return { ...cancelledInvoice, reconciliation_pending: true };
     }
+
     logger.error('Failed to void invoice: {error}', {
       error: error instanceof Error ? error.message : 'Unknown error',
       invoiceId: id,
