@@ -30,6 +30,9 @@ matterSubResources.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.g
 
 // Tasks
 matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
+matterSubResources.openapi(matterRoutes.createMatterTaskRoute, matterHandlers.createMatterTaskHandler);
+matterSubResources.openapi(matterRoutes.updateMatterTaskRoute, matterHandlers.updateMatterTaskHandler);
+matterSubResources.openapi(matterRoutes.deleteMatterTaskRoute, matterHandlers.deleteMatterTaskHandler);
 
 // Unbilled
 matterSubResources.openapi(matterRoutes.getMatterUnbilledRoute, matterHandlers.getMatterUnbilledHandler);
