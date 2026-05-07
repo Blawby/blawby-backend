@@ -20,6 +20,19 @@ const findById = async (id: string, tx: typeof db = db): Promise<SelectEngagemen
   return record;
 };
 
+const findByIntakeAndOrg = async (
+  intakeId: string,
+  organizationId: string,
+  tx: typeof db = db
+): Promise<SelectEngagementContract | undefined> => {
+  const [record] = await tx
+    .select()
+    .from(engagementContracts)
+    .where(and(eq(engagementContracts.intake_id, intakeId), eq(engagementContracts.organization_id, organizationId)))
+    .limit(1);
+  return record;
+};
+
 const findByMatterAndOrg = async (
   matterId: string,
   organizationId: string,
@@ -36,6 +49,7 @@ const findByMatterAndOrg = async (
 const listByOrg = async (
   organizationId: string,
   filters?: {
+    intake_id?: string;
     matter_id?: string;
     status?: EngagementContractStatus;
     limit?: number;
@@ -44,6 +58,10 @@ const listByOrg = async (
   tx: typeof db = db
 ): Promise<{ data: SelectEngagementContract[]; total: number }> => {
   const conditions = [eq(engagementContracts.organization_id, organizationId)];
+
+  if (filters?.intake_id) {
+    conditions.push(eq(engagementContracts.intake_id, filters.intake_id));
+  }
 
   if (filters?.matter_id) {
     conditions.push(eq(engagementContracts.matter_id, filters.matter_id));
@@ -85,6 +103,7 @@ const update = async (
 export const engagementContractsQueries = {
   insert,
   findById,
+  findByIntakeAndOrg,
   findByMatterAndOrg,
   listByOrg,
   update,

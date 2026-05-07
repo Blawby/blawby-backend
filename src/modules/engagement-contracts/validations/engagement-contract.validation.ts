@@ -64,7 +64,7 @@ const proposalDataSchema = z.object({
 
 const createEngagementContractSchema = z
   .object({
-    matter_id: uuidValidator,
+    intake_id: uuidValidator,
     contract_body: z.string().optional(),
     engagement_notes: z.string().optional(),
     proposal_data: proposalDataSchema.optional(),
@@ -82,7 +82,8 @@ const updateEngagementContractSchema = z
 const engagementContractSchema = z
   .object({
     id: z.uuid(),
-    matter_id: z.uuid(),
+    intake_id: z.uuid(),
+    matter_id: z.uuid().nullable(),
     organization_id: z.uuid(),
     status: engagementContractStatusEnum,
     contract_body: z.string().nullable(),
@@ -100,6 +101,7 @@ const engagementContractSchema = z
   .openapi('EngagementContract');
 
 const listEngagementContractsQuerySchema = z.object({
+  intake_id: uuidValidator.optional(),
   matter_id: uuidValidator.optional(),
   status: engagementContractStatusEnum.optional(),
   page: z.coerce.number().int().min(1).default(1),
