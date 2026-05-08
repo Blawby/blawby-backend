@@ -274,11 +274,12 @@ describe('Intake File Uploads API', () => {
       const presignRes = await req
         .post(`/api/practice-client-intakes/${intakeId}/files/presign`)
         .send({ file_name: 'cross-intake.pdf', mime_type: 'application/pdf', file_size: 512 });
+
+      expect(presignRes.status).toBe(201);
       const { upload_id: uploadId } = presignRes.body as { upload_id: string };
 
       const confirmRes = await req.post(`/api/practice-client-intakes/${otherIntake.id}/files/${uploadId}/confirm`);
 
-      expect(presignRes.status).toBe(201);
       expect(confirmRes.status).toBe(403);
     });
   });
@@ -324,13 +325,14 @@ describe('Intake File Uploads API', () => {
       const presignRes = await req
         .post(`/api/practice-client-intakes/${intakeId}/files/presign`)
         .send({ file_name: 'cross-delete.pdf', mime_type: 'application/pdf', file_size: 128 });
+
+      expect(presignRes.status).toBe(201);
       const { upload_id: uploadId } = presignRes.body as { upload_id: string };
 
       const deleteRes = await req
         .delete(`/api/practice-client-intakes/${otherIntake.id}/files/${uploadId}`)
         .send({ reason: 'Should fail' });
 
-      expect(presignRes.status).toBe(201);
       expect(deleteRes.status).toBe(403);
     });
   });
