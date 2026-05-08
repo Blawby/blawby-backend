@@ -225,6 +225,12 @@ describe('Intake File Uploads API', () => {
       expect(res.body).toMatchObject({ uploads: expect.any(Array) });
     });
 
+    it('unauthenticated request returns 401', async () => {
+      const res = await unauthRequest.get(`/api/practice-client-intakes/${intakeId}/files`);
+
+      expect(res.status).toBe(401);
+    });
+
     it('supports pagination query params', async () => {
       const req = createAuthenticatedRequest(authApp.fetch, staffSessionToken);
       const res = await req.get(`/api/practice-client-intakes/${intakeId}/files?page=2&limit=1`);
@@ -240,13 +246,20 @@ describe('Intake File Uploads API', () => {
       const presignRes = await req
         .post(`/api/practice-client-intakes/${intakeId}/files/presign`)
         .send({ file_name: 'evidence.pdf', mime_type: 'application/pdf', file_size: 2048 });
+
+      expect(presignRes.status).toBe(201);
       const { upload_id: uploadId } = presignRes.body as { upload_id: string };
 
       const confirmRes = await req.post(`/api/practice-client-intakes/${intakeId}/files/${uploadId}/confirm`);
 
-      expect(presignRes.status).toBe(201);
       expect(confirmRes.status).toBe(200);
       expect(confirmRes.body).toMatchObject({ upload_id: uploadId, status: 'verified' });
+    });
+
+    it('unauthenticated request returns 401', async () => {
+      const res = await unauthRequest.post(`/api/practice-client-intakes/${intakeId}/files/${randomUUID()}/confirm`);
+
+      expect(res.status).toBe(401);
     });
 
     it('cannot confirm upload belonging to different intake', async () => {
@@ -276,15 +289,27 @@ describe('Intake File Uploads API', () => {
       const presignRes = await req
         .post(`/api/practice-client-intakes/${intakeId}/files/presign`)
         .send({ file_name: 'to-delete.pdf', mime_type: 'application/pdf', file_size: 256 });
+
+      expect(presignRes.status).toBe(201);
       const { upload_id: uploadId } = presignRes.body as { upload_id: string };
 
-      await req.post(`/api/practice-client-intakes/${intakeId}/files/${uploadId}/confirm`);
+      const confirmRes = await req.post(`/api/practice-client-intakes/${intakeId}/files/${uploadId}/confirm`);
+      expect(confirmRes.status).toBe(200);
+
       const deleteRes = await req
         .delete(`/api/practice-client-intakes/${intakeId}/files/${uploadId}`)
         .send({ reason: 'Test cleanup' });
 
       expect(deleteRes.status).toBe(200);
       expect(deleteRes.body).toMatchObject({ id: uploadId, status: 'deleted' });
+    });
+
+    it('unauthenticated request returns 401', async () => {
+      const res = await unauthRequest
+        .delete(`/api/practice-client-intakes/${intakeId}/files/${randomUUID()}`)
+        .send({ reason: 'test' });
+
+      expect(res.status).toBe(401);
     });
 
     it('cannot delete upload belonging to different intake', async () => {
