@@ -31,7 +31,13 @@ export const lockInvoiceForSending = async (
       throw new HTTPException(400, { message: 'Cannot send an invoice with zero or negative total' });
     }
 
-    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending', tx);
+    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(
+      id,
+      ctx.organizationId,
+      'draft',
+      'sending',
+      tx
+    );
     if (!lockedInvoice) {
       throw new HTTPException(409, { message: 'Invoice is already being sent by another request' });
     }

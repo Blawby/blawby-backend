@@ -56,7 +56,10 @@ const createEngagementContract = async (
     throw new HTTPException(400, { message: 'Intake must be accepted before creating an engagement contract' });
   }
 
-  const existingContract = await engagementContractsQueries.findAcceptedByIntakeAndOrg(data.intake_id, ctx.organizationId);
+  const existingContract = await engagementContractsQueries.findAcceptedByIntakeAndOrg(
+    data.intake_id,
+    ctx.organizationId
+  );
   if (existingContract?.status === 'accepted') {
     throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this intake' });
   }
