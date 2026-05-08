@@ -2,8 +2,10 @@ import type { Context } from 'hono';
 import type { publicRoutes } from '@/modules/practice-client-intakes/routes/public.routes';
 import type { clientRoutes } from '@/modules/practice-client-intakes/routes/client.routes';
 import type { staffRoutes } from '@/modules/practice-client-intakes/routes/staff.routes';
+import type { intakeFileRoutes } from '@/modules/practice-client-intakes/routes/intake-files.routes';
 import { intakeCheckoutService } from '@/modules/practice-client-intakes/services/intake-checkout.service';
 import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
+import { intakeFilesService } from '@/modules/practice-client-intakes/services/intake-files.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
@@ -137,6 +139,37 @@ const updateIntakeTriageStatusHandler: AppRouteHandler<typeof staffRoutes.update
   return c.json(data, 200);
 };
 
+const presignIntakeFileHandler: AppRouteHandler<typeof intakeFileRoutes.presignIntakeFileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const result = await intakeFilesService.presignFile({ uuid, body }, ctx);
+  return c.json(result, 201);
+};
+
+const confirmIntakeFileHandler: AppRouteHandler<typeof intakeFileRoutes.confirmIntakeFileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid, upload_id: uploadId } = c.req.valid('param');
+  const result = await intakeFilesService.confirmFile({ uuid, uploadId }, ctx);
+  return c.json(result, 200);
+};
+
+const listIntakeFilesHandler: AppRouteHandler<typeof intakeFileRoutes.listIntakeFilesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const result = await intakeFilesService.listFiles({ uuid, query }, ctx);
+  return c.json(result, 200);
+};
+
+const deleteIntakeFileHandler: AppRouteHandler<typeof intakeFileRoutes.deleteIntakeFileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid, upload_id: uploadId } = c.req.valid('param');
+  const { reason } = c.req.valid('json');
+  const result = await intakeFilesService.deleteFile({ uuid, uploadId, reason }, ctx);
+  return c.json(result, 200);
+};
+
 export const handlers = {
   getIntakeSettingsHandler,
   createPracticeClientIntakeHandler,
@@ -149,4 +182,8 @@ export const handlers = {
   getIntakeHandler,
   updateIntakeTriageStatusHandler,
   convertIntakeHandler,
+  presignIntakeFileHandler,
+  confirmIntakeFileHandler,
+  listIntakeFilesHandler,
+  deleteIntakeFileHandler,
 };

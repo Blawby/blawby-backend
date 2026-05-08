@@ -90,7 +90,7 @@ const buildPublicUrl = (storageKey: string): string | null => {
   return `${publicUrlBase}/${storageKey}`;
 };
 
-const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
+export const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
   upload_id: upload.id,
   file_name: upload.file_name,
   file_type: upload.file_type,
