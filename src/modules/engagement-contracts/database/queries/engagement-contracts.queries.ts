@@ -33,6 +33,25 @@ const findByIntakeAndOrg = async (
   return record;
 };
 
+const findAcceptedByIntakeAndOrg = async (
+  intakeId: string,
+  organizationId: string,
+  tx: typeof db = db
+): Promise<SelectEngagementContract | undefined> => {
+  const [record] = await tx
+    .select()
+    .from(engagementContracts)
+    .where(
+      and(
+        eq(engagementContracts.intake_id, intakeId),
+        eq(engagementContracts.organization_id, organizationId),
+        eq(engagementContracts.status, 'accepted')
+      )
+    )
+    .limit(1);
+  return record;
+};
+
 const findByMatterAndOrg = async (
   matterId: string,
   organizationId: string,
@@ -104,6 +123,7 @@ export const engagementContractsQueries = {
   insert,
   findById,
   findByIntakeAndOrg,
+  findAcceptedByIntakeAndOrg,
   findByMatterAndOrg,
   listByOrg,
   update,

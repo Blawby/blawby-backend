@@ -45,7 +45,7 @@ const proposalDataSchema = z.object({
     .object({
       intake_uuid: z.string(),
       conversation_id: z.string(),
-      matter_id: z.string(),
+      matter_id: z.string().optional(),
       practice_area: z.string(),
       urgency: z.string(),
       desired_outcome: z.string(),
