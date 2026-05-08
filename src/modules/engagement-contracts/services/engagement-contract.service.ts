@@ -1,6 +1,5 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
-import { and, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { engagementContractsQueries } from '@/modules/engagement-contracts/database/queries/engagement-contracts.queries';
 import type { SelectEngagementContract } from '@/modules/engagement-contracts/database/schema/engagement-contracts.schema';
@@ -11,7 +10,13 @@ import type {
   ListEngagementContractsQuery,
   UpdateEngagementContractRequest,
 } from '@/modules/engagement-contracts/types/engagement-contract.types';
-import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
+import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
+import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
+import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import {
   EngagementContractAccepted,
   EngagementContractCreated,
@@ -31,67 +36,76 @@ const assertInOrganization = (contract: SelectEngagementContract, organizationId
   }
 };
 
+const loadIntakeForOrg = async (intakeId: string, organizationId: string) => {
+  const intake = await practiceClientIntakesRepository.findById(intakeId);
+  if (!intake || intake.organization_id !== organizationId) {
+    throw new HTTPException(404, { message: 'Intake not found' });
+  }
+  return intake;
+};
+
 const createEngagementContract = async (
   { data }: { data: CreateEngagementContractRequest },
   ctx: ServiceContext
 ): Promise<EngagementContractRecord> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
 
-  const matter = await db.query.matters.findFirst({
-    where: (table, { and: andExpr, eq: eqExpr }) =>
-      andExpr(eqExpr(table.id, data.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-  });
+  const intake = await loadIntakeForOrg(data.intake_id, ctx.organizationId);
 
-  if (!matter) {
-    throw new HTTPException(404, { message: 'Matter not found' });
+  if (intake.triage_status !== 'accepted') {
+    throw new HTTPException(400, { message: 'Intake must be accepted before creating an engagement contract' });
   }
 
-  if (matter.status === 'engagement_accepted' || matter.status === 'active') {
-    throw new HTTPException(409, {
-      message: 'Cannot create engagement contract for a matter that is already engaged or active',
-    });
-  }
-
-  const existingContract = await engagementContractsQueries.findByMatterAndOrg(data.matter_id, ctx.organizationId);
+  const existingContract = await engagementContractsQueries.findAcceptedByIntakeAndOrg(data.intake_id, ctx.organizationId);
   if (existingContract?.status === 'accepted') {
-    throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this matter' });
+    throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this intake' });
   }
+
+  const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
 
   const contract = await db.transaction(async (tx) => {
     let created: SelectEngagementContract;
     try {
       created = await engagementContractsQueries.insert(
         {
-          matter_id: data.matter_id,
+          intake_id: data.intake_id,
           organization_id: ctx.organizationId,
           status: 'draft',
           contract_body: data.contract_body ?? null,
           engagement_notes: data.engagement_notes ?? null,
-          proposal_data: (data.proposal_data as SelectEngagementContract['proposal_data']) ?? null,
+          proposal_data: (data.proposal_data as SelectEngagementContract['proposal_data']) ?? {
+            source_snapshot: {
+              intake_uuid: intake.id,
+              conversation_id: intake.conversation_id ?? '',
+              matter_id: '',
+              practice_area: metadata?.practice_service_name ?? '',
+              urgency: intake.urgency ?? '',
+              desired_outcome: intake.desired_outcome ?? '',
+              opposing_party: metadata?.opposing_party ?? '',
+              court_date: intake.court_date?.toISOString() ?? null,
+            },
+            draft_meta: {
+              generated_at: new Date().toISOString(),
+              generated_by: 'staff',
+              version: 1,
+            },
+          },
           created_by: ctx.userId,
         },
         tx
       );
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
-        throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this matter' });
+        throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this intake' });
       }
       throw error;
     }
-
-    await tx
-      .update(matters)
-      .set({
-        status: 'engagement_draft',
-        updated_at: new Date(),
-      })
-      .where(and(eq(matters.id, data.matter_id), eq(matters.organization_id, ctx.organizationId)));
 
     await ctx.emit(
       EngagementContractCreated,
       {
         contract_id: created.id,
-        matter_id: created.matter_id,
+        intake_id: created.intake_id,
         organization_id: created.organization_id,
       },
       tx
@@ -102,7 +116,7 @@ const createEngagementContract = async (
 
   logger.info('Created engagement contract', {
     contractId: contract.id,
-    matterId: contract.matter_id,
+    intakeId: contract.intake_id,
     organizationId: ctx.organizationId,
   });
 
@@ -160,38 +174,24 @@ const sendEngagementContract = async (
     throw new HTTPException(400, { message: 'Contract body cannot be empty' });
   }
 
-  const matter = await db.query.matters.findFirst({
-    where: (table, { and: andExpr, eq: eqExpr }) =>
-      andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-  });
-
-  if (!matter) {
-    throw new HTTPException(404, { message: 'Associated matter not found' });
-  }
-
-  const clientId = matter.client_id;
-  const [client, organization] = await Promise.all([
-    clientId !== null
-      ? db.query.clients.findFirst({
-          where: (table, { and: andExpr, eq: eqExpr }) =>
-            andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
-        })
-      : Promise.resolve(null),
-    db.query.organizations.findFirst({
-      where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
-    }),
+  const [intake, organization] = await Promise.all([
+    loadIntakeForOrg(contract.intake_id, ctx.organizationId),
+    organizationRepository.findById(ctx.organizationId),
   ]);
 
-  const billingSnapshot = {
-    billing_type: matter.billing_type,
-    total_fixed_price: matter.total_fixed_price,
-    contingency_percentage: matter.contingency_percentage,
-    admin_hourly_rate: matter.admin_hourly_rate,
-    attorney_hourly_rate: matter.attorney_hourly_rate,
-    payment_frequency: matter.payment_frequency,
+  const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
+  const clientName = metadata?.name ?? 'Client';
+  const clientEmail = metadata?.email ?? '';
+
+  const fees = (contract.proposal_data as { fees?: Record<string, unknown> } | null)?.fees;
+  const billingSnapshot = fees ?? {
+    billing_type: 'fixed',
   };
 
   const reviewUrl = `${config.app.appUrl}/client/${organization?.slug ?? ctx.organizationId}/engagement-contracts/${id}/review`;
+  const matterTitle =
+    (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
+      ?.matter_summary ?? `Engagement for ${clientName}`;
 
   const sentContract = await db.transaction(async (tx) => {
     const sent = await engagementContractsQueries.update(
@@ -205,23 +205,15 @@ const sendEngagementContract = async (
       tx
     );
 
-    await tx
-      .update(matters)
-      .set({
-        status: 'engagement_sent',
-        updated_at: new Date(),
-      })
-      .where(and(eq(matters.id, contract.matter_id), eq(matters.organization_id, ctx.organizationId)));
-
     await ctx.emit(
       EngagementContractSent,
       {
         contract_id: sent.id,
-        matter_id: sent.matter_id,
+        intake_id: sent.intake_id,
         organization_id: sent.organization_id,
-        client_email: client?.email ?? '',
-        client_name: client?.name ?? matter.on_behalf_of ?? 'Client',
-        matter_title: matter.title,
+        client_email: clientEmail,
+        client_name: clientName,
+        matter_title: matterTitle,
         practice_name: organization?.name ?? 'Practice',
         review_url: reviewUrl,
       },
@@ -233,10 +225,87 @@ const sendEngagementContract = async (
 
   logger.info('Sent engagement contract', {
     contractId: id,
+    intakeId: contract.intake_id,
     organizationId: ctx.organizationId,
   });
 
   return sentContract;
+};
+
+const createMatterFromAcceptedContract = async (
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  params: {
+    contract: SelectEngagementContract;
+    intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
+    userId: string;
+    acceptedAt: Date;
+  }
+): Promise<string> => {
+  const { contract, intake, userId, acceptedAt } = params;
+  if (!intake) throw new Error('Intake not found');
+
+  const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
+
+  let clientId: string | undefined;
+  if (metadata?.user_id) {
+    const clientRecord = await clientsRepository.findByOrgAndUser(intake.organization_id, metadata.user_id);
+    if (clientRecord) {
+      clientId = clientRecord.id;
+    }
+  }
+
+  const proposalData = contract.proposal_data as {
+    fees?: { billing_type?: string };
+    client_summary?: { matter_summary?: string };
+  } | null;
+
+  const matter = await mattersQueries.createMatter(
+    {
+      organization_id: intake.organization_id,
+      billing_type: (proposalData?.fees?.billing_type as 'hourly' | 'fixed' | 'contingency' | 'pro_bono') ?? 'fixed',
+      client_id: clientId,
+      title: proposalData?.client_summary?.matter_summary ?? `Engagement: ${metadata?.name ?? 'Client'}`,
+      description: intake.desired_outcome ?? undefined,
+      status: 'active',
+      urgency: intake.urgency ?? 'routine',
+      intake_uuid: intake.id,
+      conversation_id: intake.conversation_id ?? undefined,
+      on_behalf_of: metadata?.on_behalf_of,
+      opposing_party: metadata?.opposing_party,
+      opposing_counsel: metadata?.opposing_counsel,
+      open_date: acceptedAt,
+    },
+    tx
+  );
+
+  if (intake.court_date) {
+    await tx.insert(matterMilestones).values({
+      matter_id: matter.id,
+      description: 'Court Date from Intake',
+      amount: 0,
+      due_date: intake.court_date.toISOString().split('T')[0],
+      status: 'pending',
+      order: 999,
+    });
+  }
+
+  if (intake.desired_outcome) {
+    await tx.insert(matterNotes).values({
+      matter_id: matter.id,
+      user_id: userId,
+      content: `Desired outcome: ${intake.desired_outcome}`,
+    });
+  }
+
+  if (typeof intake.case_strength === 'number') {
+    await tx.insert(matterNotes).values({
+      matter_id: matter.id,
+      user_id: userId,
+      content: `Case strength score from intake: ${intake.case_strength}`,
+    });
+  }
+
+  return matter.id;
 };
 
 const acceptEngagementContract = async (
@@ -255,38 +324,24 @@ const acceptEngagementContract = async (
     throw new HTTPException(409, { message: 'Only sent contracts can be accepted' });
   }
 
-  // Load context data outside the transaction to avoid holding DB connections during I/O
-  const matter = await db.query.matters.findFirst({
-    where: (table, { and: andExpr, eq: eqExpr }) =>
-      andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-  });
+  const [intake, organization] = await Promise.all([
+    loadIntakeForOrg(contract.intake_id, ctx.organizationId),
+    organizationRepository.findById(ctx.organizationId),
+  ]);
 
-  if (!matter) {
-    throw new HTTPException(404, { message: 'Associated matter not found' });
-  }
-
-  const clientId = matter.client_id;
-  const client =
-    clientId !== null
-      ? await db.query.clients.findFirst({
-          where: (table, { and: andExpr, eq: eqExpr }) =>
-            andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
-        })
-      : null;
-
-  const organization = await db.query.organizations.findFirst({
-    where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
-  });
-
+  const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
+  const clientName = metadata?.name ?? 'Client';
+  const clientEmail = metadata?.email ?? '';
   const acceptedAt = new Date();
-  const clientName = client?.name ?? matter.on_behalf_of ?? 'Client';
-  const clientEmail = client?.email ?? '';
 
-  // Generate PDF and upload to R2 outside the transaction
+  const matterTitle =
+    (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
+      ?.matter_summary ?? `Engagement: ${clientName}`;
+
   const pdfBuffer = await engagementContractPdfService.generatePdfBuffer(contract, {
     practiceName: organization?.name ?? 'Practice',
     clientName,
-    matterTitle: matter.title,
+    matterTitle,
     acceptedAt,
     clientIp,
   });
@@ -298,10 +353,18 @@ const acceptEngagementContract = async (
   });
 
   const acceptedContract = await db.transaction(async (tx) => {
+    const matterId = await createMatterFromAcceptedContract(tx, {
+      contract,
+      intake,
+      userId: ctx.userId,
+      acceptedAt,
+    });
+
     const accepted = await engagementContractsQueries.update(
       id,
       {
         status: 'accepted',
+        matter_id: matterId,
         accepted_at: acceptedAt,
         signed_pdf_s3_key: s3Key,
         updated_at: new Date(),
@@ -309,24 +372,15 @@ const acceptEngagementContract = async (
       tx
     );
 
-    await tx
-      .update(matters)
-      .set({
-        status: 'active',
-        open_date: matter.open_date ?? acceptedAt,
-        updated_at: new Date(),
-      })
-      .where(and(eq(matters.id, contract.matter_id), eq(matters.organization_id, ctx.organizationId)));
-
     await ctx.emit(
       EngagementContractAccepted,
       {
         contract_id: accepted.id,
-        matter_id: accepted.matter_id,
+        matter_id: matterId,
         organization_id: accepted.organization_id,
         practice_email: organization?.billingEmail ?? '',
         practice_name: organization?.name ?? 'Practice',
-        matter_title: matter.title,
+        matter_title: matterTitle,
         client_name: clientName,
         client_email: clientEmail,
         signed_pdf_s3_key: s3Key,
@@ -339,6 +393,8 @@ const acceptEngagementContract = async (
 
   logger.info('Accepted engagement contract', {
     contractId: id,
+    matterId: acceptedContract.matter_id,
+    intakeId: contract.intake_id,
     organizationId: ctx.organizationId,
   });
 
@@ -361,27 +417,16 @@ const declineEngagementContract = async (
     throw new HTTPException(409, { message: 'Only sent contracts can be declined' });
   }
 
-  const matter = await db.query.matters.findFirst({
-    where: (table, { and: andExpr, eq: eqExpr }) =>
-      andExpr(eqExpr(table.id, contract.matter_id), eqExpr(table.organization_id, ctx.organizationId)),
-  });
-
-  if (!matter) {
-    throw new HTTPException(404, { message: 'Associated matter not found' });
-  }
-
-  const clientId = matter.client_id;
-  const [client, organization] = await Promise.all([
-    clientId !== null
-      ? db.query.clients.findFirst({
-          where: (table, { and: andExpr, eq: eqExpr }) =>
-            andExpr(eqExpr(table.id, clientId), eqExpr(table.organization_id, ctx.organizationId)),
-        })
-      : Promise.resolve(null),
-    db.query.organizations.findFirst({
-      where: (table, { eq: eqExpr }) => eqExpr(table.id, ctx.organizationId),
-    }),
+  const [intake, organization] = await Promise.all([
+    loadIntakeForOrg(contract.intake_id, ctx.organizationId),
+    organizationRepository.findById(ctx.organizationId),
   ]);
+
+  const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
+  const clientName = metadata?.name ?? 'Client';
+  const matterTitle =
+    (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
+      ?.matter_summary ?? `Engagement: ${clientName}`;
 
   const declinedContract = await db.transaction(async (tx) => {
     const declined = await engagementContractsQueries.update(
@@ -398,12 +443,12 @@ const declineEngagementContract = async (
       EngagementContractDeclined,
       {
         contract_id: declined.id,
-        matter_id: declined.matter_id,
+        intake_id: declined.intake_id,
         organization_id: declined.organization_id,
         practice_email: organization?.billingEmail ?? '',
         practice_name: organization?.name ?? 'Practice',
-        matter_title: matter.title,
-        client_name: client?.name ?? matter.on_behalf_of ?? 'Client',
+        matter_title: matterTitle,
+        client_name: clientName,
       },
       tx
     );
@@ -413,6 +458,7 @@ const declineEngagementContract = async (
 
   logger.info('Declined engagement contract', {
     contractId: id,
+    intakeId: contract.intake_id,
     organizationId: ctx.organizationId,
   });
 

@@ -2,7 +2,7 @@ import { BaseEvent } from '@/shared/events/event';
 
 export class EngagementContractCreated extends BaseEvent<{
   contract_id: string;
-  matter_id: string;
+  intake_id: string;
   organization_id: string;
 }> {
   static type = 'engagement_contract.created' as const;
@@ -11,7 +11,7 @@ export class EngagementContractCreated extends BaseEvent<{
 
 export class EngagementContractSent extends BaseEvent<{
   contract_id: string;
-  matter_id: string;
+  intake_id: string;
   organization_id: string;
   client_email: string;
   client_name: string;
@@ -40,7 +40,7 @@ export class EngagementContractAccepted extends BaseEvent<{
 
 export class EngagementContractDeclined extends BaseEvent<{
   contract_id: string;
-  matter_id: string;
+  intake_id: string;
   organization_id: string;
   practice_email: string;
   practice_name: string;
