@@ -56,7 +56,7 @@
     "drizzle-zod": "0.8.3",
     "es-toolkit": "^1.45.1",
     "graphile-worker": "^0.16.6",
-    "hono": "^4.12.14",
+    "hono": "^4.12.18",
     "mjml": "^4.17.2",
     "path-to-regexp": "^8.4.0",
     "pdfkit": "^0.18.0",
