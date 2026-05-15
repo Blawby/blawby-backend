@@ -7,7 +7,7 @@ import { matterTasksService } from '@/modules/matters/services/matter-tasks.serv
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { matterFilesService } from '@/modules/matters/services/matter-files.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
-import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
+import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { createServiceContext, getServiceContext } from '@/shared/types/service-context';
 
@@ -116,6 +116,7 @@ const listTimeEntriesHandler: AppRouteHandler<typeof matterRoutes.listTimeEntrie
     {
       filters: {
         billable: query.billable,
+        invoiced: query.invoiced,
         startDate: query.start_date,
         endDate: query.end_date,
         entryId: query.entry_id,
@@ -341,6 +342,26 @@ const unlinkMatterFileHandler: AppRouteHandler<typeof matterRoutes.unlinkMatterF
   return c.body(null, 204);
 };
 
+const getMattersSummaryByOriginatingAttorneyHandler: AppRouteHandler<
+  typeof matterRoutes.getMattersSummaryByOriginatingAttorneyRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const summary = await mattersService.getMattersSummaryByOriginatingAttorney({}, ctx);
+  return c.json(summary, 200);
+};
+
+const listOrganizationTasksHandler: AppRouteHandler<typeof matterRoutes.listOrganizationTasksRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+  const filters: OrgTaskListFilters = {
+    assigneeId: query.assignee_id,
+    status: query.status,
+    dueBefore: query.due_before,
+  };
+  const tasks = await matterTasksService.listOrganizationTasks({ filters }, ctx);
+  return c.json(tasks, 200);
+};
+
 export const handlers = {
   listMattersHandler,
   getMatterHandler,
@@ -370,6 +391,8 @@ export const handlers = {
   createMatterTaskHandler,
   updateMatterTaskHandler,
   deleteMatterTaskHandler,
+  listOrganizationTasksHandler,
+  getMattersSummaryByOriginatingAttorneyHandler,
   getMatterUnbilledHandler,
   linkMatterFileHandler,
   listMatterFilesHandler,

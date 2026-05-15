@@ -161,6 +161,8 @@ const listMatters = async (
     practiceServiceId: filters.practice_service_id,
     clientId: filters.client_id,
     assigneeId: filters.assignee_id,
+    responsibleAttorneyId: filters.responsible_attorney_id,
+    originatingAttorneyId: filters.originating_attorney_id,
     search: filters.search,
     page: filters.page,
     limit: filters.limit,
@@ -342,6 +344,24 @@ const getMatterCounts = async (ctx: ServiceContext): Promise<Record<string, numb
   }, {});
 };
 
+/**
+ * Get matters summary grouped by originating attorney.
+ */
+const getMattersSummaryByOriginatingAttorney = async (
+  _params: Record<string, never>,
+  ctx: ServiceContext
+): Promise<
+  {
+    originating_attorney_id: string | null;
+    total_matters: number;
+    active_matters: number;
+    closed_matters: number;
+  }[]
+> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  return mattersQueries.getMattersSummaryByOriginatingAttorney(ctx.organizationId);
+};
+
 const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise<UnbilledMatterData> => {
   await verifyMatterAccess(matterId, ctx);
 
@@ -403,5 +423,6 @@ export const mattersService = {
   updateMatter,
   deleteMatter,
   getMatterCounts,
+  getMattersSummaryByOriginatingAttorney,
   getMatterUnbilled,
 };

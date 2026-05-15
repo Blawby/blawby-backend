@@ -4,7 +4,7 @@ import { matterTasksQueries } from '@/modules/matters/database/queries/matter-ta
 import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
-import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
+import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { CreateMatterTaskRequest, UpdateMatterTaskRequest } from '@/modules/matters/types/matter.types';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -153,9 +153,18 @@ const deleteMatterTask = async (params: { matterId: string; taskId: string }, ct
   );
 };
 
+const listOrganizationTasks = async (
+  params: { filters?: OrgTaskListFilters },
+  ctx: ServiceContext
+): Promise<SelectMatterTask[]> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  return matterTasksQueries.listTasksByOrganization(ctx.organizationId, params.filters);
+};
+
 export const matterTasksService = {
   createMatterTask,
   listMatterTasks,
+  listOrganizationTasks,
   updateMatterTask,
   deleteMatterTask,
 };

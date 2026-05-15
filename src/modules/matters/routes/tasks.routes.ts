@@ -5,7 +5,9 @@ import {
   matterTaskResponseSchema,
   listMatterTasksQuerySchema,
 } from '@/modules/matters/types/matter.types';
+import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { uuidValidator } from '@/shared/validations/common';
 
 const tags = ['Matters'];
 
@@ -15,6 +17,16 @@ const matterIdParamSchema = z.object({
 
 const taskIdParamSchema = z.object({
   task_id: z.uuid(),
+});
+
+const practiceIdOnlyParamSchema = z.object({
+  practice_id: z.uuid(),
+});
+
+const listOrganizationTasksQuerySchema = z.object({
+  assignee_id: uuidValidator.optional(),
+  status: matterTaskValidations.taskStatusEnum.optional(),
+  due_before: z.iso.date().optional(),
 });
 
 export const listMatterTasksRoute = routeBuilder.build({
@@ -105,6 +117,29 @@ export const deleteMatterTaskRoute = routeBuilder.build({
   responses: {
     204: {
       description: 'Task deleted successfully',
+    },
+  },
+});
+
+export const listOrganizationTasksRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/tasks',
+  tags,
+  summary: 'List tasks across the organization',
+  description:
+    'Returns tasks across the organization, joined to matters for org scoping. Supports filtering by assignee_id, status, and due_before. due_before semantics: due_date < due_before (excludes tasks with NULL due_date). Ordered by created_at DESC.',
+  request: {
+    params: practiceIdOnlyParamSchema,
+    query: listOrganizationTasksQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'Organization-wide tasks retrieved successfully',
+      content: {
+        'application/json': {
+          schema: z.array(matterTaskResponseSchema),
+        },
+      },
     },
   },
 });

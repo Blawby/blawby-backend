@@ -1,11 +1,12 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, isNull, lt } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterTasks,
   type InsertMatterTask,
   type SelectMatterTask,
 } from '@/modules/matters/database/schema/matter-tasks.schema';
-import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type * as schema from '@/schema';
 import { db } from '@/shared/database';
 
@@ -67,10 +68,41 @@ const deleteMatterTask = async (id: string): Promise<boolean> => {
   return rows.length > 0;
 };
 
+/**
+ * List tasks across an organization, joined to matters for org scoping
+ * and to exclude soft-deleted matters.
+ *
+ * due_before semantics: `due_date < due_before` — excludes tasks with NULL due_date.
+ */
+const listTasksByOrganization = async (
+  organizationId: string,
+  filters?: OrgTaskListFilters
+): Promise<SelectMatterTask[]> => {
+  const conditions = [eq(matters.organization_id, organizationId), isNull(matters.deleted_at)];
+
+  if (filters?.assigneeId) {
+    conditions.push(eq(matterTasks.assignee_id, filters.assigneeId));
+  }
+  if (filters?.status) {
+    conditions.push(eq(matterTasks.status, filters.status));
+  }
+  if (filters?.dueBefore) {
+    conditions.push(lt(matterTasks.due_date, filters.dueBefore));
+  }
+
+  return await db
+    .select(getTableColumns(matterTasks))
+    .from(matterTasks)
+    .innerJoin(matters, eq(matterTasks.matter_id, matters.id))
+    .where(and(...conditions))
+    .orderBy(desc(matterTasks.created_at));
+};
+
 export const matterTasksQueries = {
   createMatterTasks,
   findMatterTaskById,
   listMatterTasks,
+  listTasksByOrganization,
   updateMatterTask,
   deleteMatterTask,
 };

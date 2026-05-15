@@ -10,6 +10,8 @@ export interface MatterListFilters {
   clientId?: string;
   matterId?: string;
   assigneeId?: string;
+  responsibleAttorneyId?: string;
+  originatingAttorneyId?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -23,6 +25,7 @@ export interface MatterNoteListFilters {
 /** Filters for listMatterTimeEntries */
 export interface MatterTimeEntryListFilters {
   billable?: boolean;
+  invoiced?: boolean;
   startDate?: Date;
   endDate?: Date;
   entryId?: string;
@@ -48,6 +51,13 @@ export interface MatterTaskListFilters {
   status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
   priority?: 'low' | 'normal' | 'high' | 'urgent';
   stage?: string;
+}
+
+/** Filters for listTasksByOrganization (org-wide tasks) */
+export interface OrgTaskListFilters {
+  assigneeId?: string;
+  status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
+  dueBefore?: string;
 }
 
 /** Filters for getMatterActivity */

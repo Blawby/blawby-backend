@@ -192,6 +192,17 @@ const getReport = async (params: GetReportParams, ctx: ServiceContext): Promise<
   return trustTransactionsRepository.listByOrg(params);
 };
 
+/**
+ * Get the latest trust balance per client across the organization.
+ */
+const getClientBalances = async (
+  _params: Record<string, never>,
+  ctx: ServiceContext
+): Promise<{ client_id: string; balance: number; as_of_date: Date }[]> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Trust');
+  return trustTransactionsRepository.getLatestBalancePerClient(ctx.organizationId);
+};
+
 interface ManualTrustData {
   matter_id: string;
   client_id: string;
@@ -296,4 +307,5 @@ export const trustService = {
   getBalance,
   getBalanceWithTx,
   getReport,
+  getClientBalances,
 };

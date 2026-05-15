@@ -5,6 +5,7 @@ import {
   getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
+  getMattersSummaryByOriginatingAttorneyRoute,
 } from '@/modules/matters/routes/core.routes';
 import {
   listExpensesRoute,
@@ -30,6 +31,7 @@ import {
   createMatterTaskRoute,
   updateMatterTaskRoute,
   deleteMatterTaskRoute,
+  listOrganizationTasksRoute,
 } from '@/modules/matters/routes/tasks.routes';
 import {
   linkMatterFileRoute,
@@ -52,6 +54,7 @@ export const routes = {
   getMatterRoute,
   updateMatterRoute,
   deleteMatterRoute,
+  getMattersSummaryByOriginatingAttorneyRoute,
   getMatterActivityRoute,
   getTimeEntryStatsRoute,
   listTimeEntriesRoute,
@@ -75,6 +78,7 @@ export const routes = {
   createMatterTaskRoute,
   updateMatterTaskRoute,
   deleteMatterTaskRoute,
+  listOrganizationTasksRoute,
   getMatterUnbilledRoute,
   linkMatterFileRoute,
   listMatterFilesRoute,
