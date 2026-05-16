@@ -53,7 +53,17 @@ const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefi
 };
 
 /**
- * Get all preferences for a user
+ * Get all preferences for a user.
+ *
+ * "User has never set any preferences" is a normal, valid state for any new
+ * user — not an error. Return defaults (with empty per-category objects)
+ * instead of 404 so the frontend can render account/settings pages cleanly.
+ *
+ * Pre-fix, the frontend's AccountPage saw the 404 as a thrown HttpError, and
+ * an effect's dep churn re-fired the GET → re-threw → re-rendered, producing
+ * a 260+ console-error render loop on the Account settings page for any new
+ * user. See blawby-ai-chatbot PR #581 audit (U9) and CLAUDE.md "fix the API
+ * contract / source of truth first".
  */
 const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   // CASL Check — verify the user can read preferences
@@ -62,7 +72,26 @@ const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
 
   if (!prefs) {
-    throw new HTTPException(404, { message: 'Preference not found' });
+    // Synthetic "no row yet" response. `id` is a stable per-call UUID so
+    // the response satisfies the Preferences type without lying about
+    // persistence. Callers should not rely on `id` when there's no row;
+    // they get one once they PUT to any category.
+    const now = new Date();
+    const defaultRow: Preferences = {
+      id: '00000000-0000-0000-0000-000000000000',
+      user_id: ctx.userId,
+      general: {},
+      notifications: applyNotificationDefaults(null),
+      security: {},
+      account: {},
+      onboarding: applyOnboardingDefaults(null),
+      organization_id: null,
+      organization: null,
+      product_usage: null,
+      created_at: now,
+      updated_at: now,
+    };
+    return defaultRow;
   }
 
   // Apply defaults to notifications and onboarding fields
@@ -74,7 +103,11 @@ const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
 };
 
 /**
- * Get preferences by category
+ * Get preferences by category.
+ *
+ * Returns the category's empty/default shape when the user has no preferences
+ * row yet (a valid empty state, not an error). See `getPreferences` above for
+ * the rationale.
  */
 const getPreferencesByCategory = async (
   category: PreferenceCategory,
@@ -97,7 +130,15 @@ const getPreferencesByCategory = async (
     .limit(1);
 
   if (!row) {
-    throw new HTTPException(404, { message: 'Preference not found' });
+    // No preferences row yet for this user. Return defaults so account/
+    // settings UI renders correctly for a brand-new user.
+    if (category === 'notifications') {
+      return applyNotificationDefaults(null);
+    }
+    if (category === 'onboarding') {
+      return applyOnboardingDefaults(null);
+    }
+    return {};
   }
 
   const categoryData = toRecord(row?.[category]);
