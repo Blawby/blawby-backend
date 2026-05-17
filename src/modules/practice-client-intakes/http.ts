@@ -1,6 +1,7 @@
 import { handlers } from '@/modules/practice-client-intakes/handlers';
 import { publicRoutes } from '@/modules/practice-client-intakes/routes/public.routes';
 import { clientRoutes } from '@/modules/practice-client-intakes/routes/client.routes';
+import { intakeFileRoutes } from '@/modules/practice-client-intakes/routes/intake-files.routes';
 import { staffRoutes } from '@/modules/practice-client-intakes/routes/staff.routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
@@ -33,6 +34,10 @@ practiceClientIntakesApp.openapi(
   clientRoutes.getPracticeClientIntakeStatusRoute,
   handlers.getPracticeClientIntakeStatusHandler
 );
+practiceClientIntakesApp.openapi(intakeFileRoutes.presignIntakeFileRoute, handlers.presignIntakeFileHandler);
+practiceClientIntakesApp.openapi(intakeFileRoutes.listIntakeFilesRoute, handlers.listIntakeFilesHandler);
+practiceClientIntakesApp.openapi(intakeFileRoutes.confirmIntakeFileRoute, handlers.confirmIntakeFileHandler);
+practiceClientIntakesApp.openapi(intakeFileRoutes.deleteIntakeFileRoute, handlers.deleteIntakeFileHandler);
 practiceClientIntakesApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
 practiceClientIntakesApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
 practiceClientIntakesApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);

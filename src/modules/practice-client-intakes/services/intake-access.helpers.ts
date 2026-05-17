@@ -27,7 +27,11 @@ export const getActorAccessibleIntake = async (
     return intake;
   }
 
-  if (intake.metadata?.user_id !== ctx.userId) {
+  if (!intake.metadata?.user_id) {
+    throw new HTTPException(403, { message: 'Client user is not linked to this intake' });
+  }
+
+  if (intake.metadata.user_id !== ctx.userId) {
     throw new HTTPException(403, { message: 'Access denied' });
   }
 
