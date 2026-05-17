@@ -20,6 +20,7 @@ import { EMAIL_TEMPLATES } from '@/shared/services/email/email.types';
 import type { PrefillData } from '@/shared/types/prefill';
 import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
+import { multiSession } from 'better-auth/plugins';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
 const authSessionAdditionalFields =
@@ -39,6 +40,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       usePlural: true,
     }),
     plugins: [
+      multiSession(),
       organization({
         ac: organizationAccessController,
         roles: organizationRoles,
