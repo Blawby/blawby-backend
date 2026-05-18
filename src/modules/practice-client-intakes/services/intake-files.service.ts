@@ -97,7 +97,7 @@ export const intakeFilesService = {
     ]);
 
     return {
-      uploads: uploads.map(toUploadDetails),
+      uploads: uploads.map((upload) => toUploadDetails(upload)),
       total,
       page,
       limit,

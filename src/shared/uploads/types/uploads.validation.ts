@@ -65,6 +65,12 @@ const uploadDetailsResponseSchema = z.object({
   created_at: z.date(),
   verified_at: z.date().nullable(),
   uploaded_by: z.uuid().nullable(),
+  uploaded_by_name: z.string().nullable(),
+  uploaded_by_email: z.string().nullable(),
+  scope_label: z.string().nullable(),
+  has_thumbnail: z.boolean(),
+  thumbnail_url: z.string().nullable(),
+  thumbnail_expires_at: z.date().nullable(),
 });
 
 const downloadUrlResponseSchema = z.object({

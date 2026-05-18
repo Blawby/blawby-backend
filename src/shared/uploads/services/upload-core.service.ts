@@ -1,8 +1,12 @@
 import { ForbiddenError } from '@casl/ability';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { config } from '@/shared/config';
 import { toSubject } from '@/shared/auth/subject-helpers';
+import { users } from '@/schema/better-auth-schema';
 import { auditLogsRepository } from '@/shared/uploads/queries/audit-logs.repository';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import { auditService } from '@/shared/uploads/services/audit.service';
@@ -109,24 +113,176 @@ const buildCloudflareResizedUrl = ({
   return `/cdn-cgi/image/${resizeParams}/${sourceUrl}`;
 };
 
-export const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
-  upload_id: upload.id,
-  file_name: upload.file_name,
-  file_type: upload.file_type,
-  file_size: upload.file_size,
-  mime_type: upload.mime_type,
-  storage_provider: upload.storage_provider as 'r2' | 'images',
-  storage_key: upload.storage_key,
-  public_url: upload.public_url,
-  scope_type: (upload.scope_type as UploadDetails['scope_type']) ?? null,
-  scope_id: upload.scope_id,
-  status: upload.status as UploadDetails['status'],
-  is_privileged: upload.is_privileged ?? true,
-  retention_until: upload.retention_until ?? null,
-  created_at: upload.created_at,
-  verified_at: upload.verified_at ?? null,
-  uploaded_by: upload.user_id,
-});
+const buildInlineThumbnail = (
+  upload: SelectUpload
+): { hasThumbnail: boolean; thumbnailUrl: string | null; thumbnailExpiresAt: Date | null } => {
+  if (upload.status !== 'verified' || !isImageMimeType(upload.mime_type)) {
+    return { hasThumbnail: false, thumbnailUrl: null, thumbnailExpiresAt: null };
+  }
+
+  if (upload.storage_provider === 'images') {
+    return {
+      hasThumbnail: true,
+      thumbnailUrl: upload.public_url,
+      thumbnailExpiresAt: null,
+    };
+  }
+
+  const basePublicUrl = upload.public_url ?? buildPublicUrl(upload.storage_key);
+  if (!basePublicUrl) {
+    // Thumbnail endpoint can still return a short-lived presigned URL on demand.
+    return {
+      hasThumbnail: true,
+      thumbnailUrl: null,
+      thumbnailExpiresAt: null,
+    };
+  }
+
+  return {
+    hasThumbnail: true,
+    thumbnailUrl: buildCloudflareResizedUrl({
+      sourceUrl: basePublicUrl,
+      width: 320,
+      height: 320,
+      fit: 'contain',
+    }),
+    thumbnailExpiresAt: null,
+  };
+};
+
+type UploadMetadataEnrichment = {
+  uploadedByName: string | null;
+  uploadedByEmail: string | null;
+  scopeLabel: string | null;
+};
+
+const defaultUploadMetadataEnrichment: UploadMetadataEnrichment = {
+  uploadedByName: null,
+  uploadedByEmail: null,
+  scopeLabel: null,
+};
+
+const getIntakeScopeLabel = (metadata: unknown): string | null => {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const metadataRecord = metadata as Record<string, unknown>;
+  if (typeof metadataRecord.name === 'string' && metadataRecord.name.trim().length > 0) {
+    return metadataRecord.name;
+  }
+  if (typeof metadataRecord.email === 'string' && metadataRecord.email.trim().length > 0) {
+    return metadataRecord.email;
+  }
+
+  return null;
+};
+
+const buildUploadMetadataEnrichment = async (
+  uploads: SelectUpload[],
+  { db, organizationId }: { db: ServiceContext['db']; organizationId: string }
+): Promise<Map<string, UploadMetadataEnrichment>> => {
+  const enrichments = new Map<string, UploadMetadataEnrichment>();
+  if (uploads.length === 0) {
+    return enrichments;
+  }
+
+  const uploaderIds = Array.from(new Set(uploads.map((upload) => upload.user_id).filter((id): id is string => !!id)));
+  const matterScopeIds = Array.from(
+    new Set(
+      uploads
+        .filter((upload) => upload.scope_type === 'matter' && !!upload.scope_id)
+        .map((upload) => upload.scope_id as string)
+    )
+  );
+  const intakeScopeIds = Array.from(
+    new Set(
+      uploads
+        .filter((upload) => upload.scope_type === 'intake' && !!upload.scope_id)
+        .map((upload) => upload.scope_id as string)
+    )
+  );
+
+  const [uploaderRows, matterRows, intakeRows] = await Promise.all([
+    uploaderIds.length
+      ? db
+          .select({ id: users.id, name: users.name, email: users.email })
+          .from(users)
+          .where(inArray(users.id, uploaderIds))
+      : Promise.resolve([]),
+    matterScopeIds.length
+      ? db
+          .select({ id: matters.id, title: matters.title })
+          .from(matters)
+          .where(and(eq(matters.organization_id, organizationId), inArray(matters.id, matterScopeIds)))
+      : Promise.resolve([]),
+    intakeScopeIds.length
+      ? db
+          .select({ id: practiceClientIntakes.id, metadata: practiceClientIntakes.metadata })
+          .from(practiceClientIntakes)
+          .where(
+            and(
+              eq(practiceClientIntakes.organization_id, organizationId),
+              inArray(practiceClientIntakes.id, intakeScopeIds)
+            )
+          )
+      : Promise.resolve([]),
+  ]);
+
+  const uploaderMap = new Map(uploaderRows.map((row) => [row.id, { name: row.name, email: row.email }]));
+  const matterLabelMap = new Map(matterRows.map((row) => [row.id, row.title]));
+  const intakeLabelMap = new Map(intakeRows.map((row) => [row.id, getIntakeScopeLabel(row.metadata)]));
+
+  for (const upload of uploads) {
+    const uploader = upload.user_id ? uploaderMap.get(upload.user_id) : undefined;
+    const scopeLabel =
+      upload.scope_type === 'matter' && upload.scope_id
+        ? (matterLabelMap.get(upload.scope_id) ?? null)
+        : upload.scope_type === 'intake' && upload.scope_id
+          ? (intakeLabelMap.get(upload.scope_id) ?? null)
+          : null;
+
+    enrichments.set(upload.id, {
+      uploadedByName: uploader?.name ?? null,
+      uploadedByEmail: uploader?.email ?? null,
+      scopeLabel,
+    });
+  }
+
+  return enrichments;
+};
+
+export const toUploadDetails = (
+  upload: SelectUpload,
+  enrichment: UploadMetadataEnrichment = defaultUploadMetadataEnrichment
+): UploadDetails => {
+  const thumbnail = buildInlineThumbnail(upload);
+
+  return {
+    upload_id: upload.id,
+    file_name: upload.file_name,
+    file_type: upload.file_type,
+    file_size: upload.file_size,
+    mime_type: upload.mime_type,
+    storage_provider: upload.storage_provider as 'r2' | 'images',
+    storage_key: upload.storage_key,
+    public_url: upload.public_url,
+    scope_type: (upload.scope_type as UploadDetails['scope_type']) ?? null,
+    scope_id: upload.scope_id,
+    status: upload.status as UploadDetails['status'],
+    is_privileged: upload.is_privileged ?? true,
+    retention_until: upload.retention_until ?? null,
+    created_at: upload.created_at,
+    verified_at: upload.verified_at ?? null,
+    uploaded_by: upload.user_id,
+    uploaded_by_name: enrichment.uploadedByName,
+    uploaded_by_email: enrichment.uploadedByEmail,
+    scope_label: enrichment.scopeLabel,
+    has_thumbnail: thumbnail.hasThumbnail,
+    thumbnail_url: thumbnail.thumbnailUrl,
+    thumbnail_expires_at: thumbnail.thumbnailExpiresAt,
+  };
+};
 
 const toAuditLogEntry = (
   log: Awaited<ReturnType<typeof auditLogsRepository.findByUploadId>>[number]
@@ -462,6 +618,16 @@ export const uploadCoreService = {
     const upload = await getUploadOrThrow(id, ctx);
     assertUploadAccess(upload, ctx, 'read');
 
+    const organizationId = upload.organization_id ?? ctx.organizationId;
+    if (!organizationId) {
+      throw new HTTPException(400, { message: 'Organization context required' });
+    }
+
+    const enrichmentMap = await buildUploadMetadataEnrichment([upload], {
+      db: ctx.db,
+      organizationId,
+    });
+
     await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
 
     await auditService.log(
@@ -474,7 +640,7 @@ export const uploadCoreService = {
       ctx.db
     );
 
-    return toUploadDetails(upload);
+    return toUploadDetails(upload, enrichmentMap.get(upload.id) ?? defaultUploadMetadataEnrichment);
   },
 
   async listUploads({ query }: { query: ListUploadsQuery }, ctx: ServiceContext): Promise<ListUploadsResponse> {
@@ -516,8 +682,15 @@ export const uploadCoreService = {
       ),
     ]);
 
+    const enrichmentMap = await buildUploadMetadataEnrichment(results, {
+      db: ctx.db,
+      organizationId: ctx.organizationId,
+    });
+
     return {
-      uploads: results.map(toUploadDetails),
+      uploads: results.map((upload) =>
+        toUploadDetails(upload, enrichmentMap.get(upload.id) ?? defaultUploadMetadataEnrichment)
+      ),
       total,
       page,
       limit,
