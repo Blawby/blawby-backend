@@ -109,8 +109,9 @@ const buildCloudflareResizedUrl = ({
   height: number;
   fit: 'contain' | 'cover' | 'scale-down';
 }): string => {
+  const origin = new URL(sourceUrl).origin;
   const resizeParams = `width=${width},height=${height},fit=${fit},metadata=none`;
-  return `/cdn-cgi/image/${resizeParams}/${sourceUrl}`;
+  return `${origin}/cdn-cgi/image/${resizeParams}/${sourceUrl}`;
 };
 
 const buildInlineThumbnail = (
@@ -122,8 +123,8 @@ const buildInlineThumbnail = (
 
   if (upload.storage_provider === 'images') {
     return {
-      hasThumbnail: true,
-      thumbnailUrl: upload.public_url,
+      hasThumbnail: !!upload.public_url,
+      thumbnailUrl: upload.public_url ?? null,
       thumbnailExpiresAt: null,
     };
   }
