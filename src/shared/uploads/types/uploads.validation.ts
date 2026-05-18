@@ -72,6 +72,17 @@ const downloadUrlResponseSchema = z.object({
   expires_at: z.date().nullable(),
 });
 
+const thumbnailQuerySchema = z.object({
+  width: z.coerce.number().int().min(32).max(2048).optional().default(320),
+  height: z.coerce.number().int().min(32).max(2048).optional().default(320),
+  fit: z.enum(['contain', 'cover', 'scale-down']).optional().default('contain'),
+});
+
+const thumbnailUrlResponseSchema = z.object({
+  thumbnail_url: z.url(),
+  expires_at: z.date().nullable(),
+});
+
 const listUploadsResponseSchema = z.object({
   uploads: z.array(uploadDetailsResponseSchema),
   total: z.number(),
@@ -108,6 +119,8 @@ export const uploadValidations = {
   confirmUploadResponseSchema,
   uploadDetailsResponseSchema,
   downloadUrlResponseSchema,
+  thumbnailQuerySchema,
+  thumbnailUrlResponseSchema,
   listUploadsResponseSchema,
   auditLogEntrySchema,
   auditLogResponseSchema,

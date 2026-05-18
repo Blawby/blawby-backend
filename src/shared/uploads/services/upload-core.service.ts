@@ -19,6 +19,8 @@ import type {
   ListUploadsResponse,
   PresignUploadRequest,
   PresignUploadResponse,
+  ThumbnailQuery,
+  ThumbnailUrlResponse,
   UploadDetails,
 } from '@/shared/uploads/types/uploads.types';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -88,6 +90,23 @@ const buildPublicUrl = (storageKey: string): string | null => {
     return null;
   }
   return `${publicUrlBase}/${storageKey}`;
+};
+
+const isImageMimeType = (mimeType: string): boolean => mimeType.toLowerCase().startsWith('image/');
+
+const buildCloudflareResizedUrl = ({
+  sourceUrl,
+  width,
+  height,
+  fit,
+}: {
+  sourceUrl: string;
+  width: number;
+  height: number;
+  fit: 'contain' | 'cover' | 'scale-down';
+}): string => {
+  const resizeParams = `width=${width},height=${height},fit=${fit},metadata=none`;
+  return `/cdn-cgi/image/${resizeParams}/${sourceUrl}`;
 };
 
 export const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
@@ -363,6 +382,76 @@ export const uploadCoreService = {
 
     return {
       download_url: downloadUrl,
+      expires_at: expiresAt,
+    };
+  },
+
+  async getThumbnailUrl(
+    { id, query, ipAddress, userAgent }: { id: string; query: ThumbnailQuery; ipAddress?: string; userAgent?: string },
+    ctx: ServiceContext
+  ): Promise<ThumbnailUrlResponse> {
+    requireAuth(ctx);
+
+    const upload = await getUploadOrThrow(id, ctx);
+    assertUploadAccess(upload, ctx, 'read');
+
+    if (upload.status !== 'verified') {
+      throw new HTTPException(400, { message: 'Upload must be verified before thumbnail access' });
+    }
+
+    if (!isImageMimeType(upload.mime_type)) {
+      throw new HTTPException(400, { message: 'Thumbnails are only available for image uploads' });
+    }
+
+    const width = query.width ?? 320;
+    const height = query.height ?? 320;
+    const fit = query.fit ?? 'contain';
+
+    let thumbnailUrl: string;
+    let expiresAt: Date | null;
+
+    if (upload.storage_provider === 'images') {
+      if (!upload.public_url) {
+        throw new HTTPException(400, { message: 'Thumbnail URL not available for this image' });
+      }
+      thumbnailUrl = upload.public_url;
+      expiresAt = null;
+    } else {
+      const basePublicUrl = upload.public_url ?? buildPublicUrl(upload.storage_key);
+      if (basePublicUrl) {
+        thumbnailUrl = buildCloudflareResizedUrl({ sourceUrl: basePublicUrl, width, height, fit });
+        expiresAt = null;
+      } else {
+        expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        const url = await r2Service.generatePresignedDownloadUrl({
+          bucket: getBucketOrThrow(),
+          key: upload.storage_key,
+          expiresIn: 15 * 60,
+        });
+        if (!url) {
+          throw new HTTPException(500, { message: 'Failed to generate thumbnail URL' });
+        }
+        thumbnailUrl = url;
+      }
+    }
+
+    await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
+
+    await auditService.log(
+      {
+        upload_id: id,
+        organization_id: upload.organization_id ?? undefined,
+        action: 'viewed',
+        user_id: ctx.userId,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        metadata: { kind: 'thumbnail', width, height, fit },
+      },
+      ctx.db
+    );
+
+    return {
+      thumbnail_url: thumbnailUrl,
       expires_at: expiresAt,
     };
   },
