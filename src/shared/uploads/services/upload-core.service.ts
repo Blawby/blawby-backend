@@ -470,7 +470,18 @@ export const uploadCoreService = {
       if (!upload.public_url) {
         throw new HTTPException(400, { message: 'Thumbnail URL not available for this image' });
       }
-      thumbnailUrl = upload.public_url;
+      const isDefault = width === 320 && height === 320 && fit === 'contain';
+      if (isDefault) {
+        thumbnailUrl = upload.public_url;
+      } else {
+        // Cloudflare Images flexible variant: https://imagedelivery.net/<ACCOUNT_HASH>/<IMAGE_ID>/<variant>
+        const match = upload.public_url.match(/^https:\/\/imagedelivery\.net\/([^/]+)\/([^/]+)/);
+        if (!match) {
+          throw new HTTPException(400, { message: 'Unsupported thumbnail params for this image provider' });
+        }
+        const [, accountHash, imageId] = match;
+        thumbnailUrl = `https://imagedelivery.net/${accountHash}/${imageId}/w=${width},h=${height},fit=${fit}`;
+      }
       expiresAt = null;
     } else {
       const basePublicUrl = upload.public_url ?? buildPublicUrl(upload.storage_key);
