@@ -19,3 +19,9 @@ export type ThumbnailUrlResponse = z.infer<typeof uploadValidations.thumbnailUrl
 export type ListUploadsResponse = z.infer<typeof uploadValidations.listUploadsResponseSchema>;
 export type AuditLogEntry = z.infer<typeof uploadValidations.auditLogEntrySchema>;
 export type AuditLogResponse = z.infer<typeof uploadValidations.auditLogResponseSchema>;
+
+export type UploadMetadataEnrichment = {
+  uploadedByName: string | null;
+  uploadedByEmail: string | null;
+  scopeLabel: string | null;
+};
