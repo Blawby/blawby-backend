@@ -164,7 +164,7 @@ const registerPattern = async (
 ): Promise<void> => {
   const { method, path } = parsePattern(pattern);
 
-  const fullPath = path === WILDCARD ? `${mountPath}/*` : `${mountPath}${path}`;
+  const fullPath = path === WILDCARD ? `${mountPath}/*` : path === '/' ? mountPath : `${mountPath}${path}`;
 
   // Handle empty middleware array
   if (isEmpty(middlewareConfig)) {

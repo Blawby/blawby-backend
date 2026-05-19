@@ -42,8 +42,6 @@ export const practiceManagementService = {
     { data }: CreatePracticeParams,
     ctx: ServiceContext
   ): Promise<{ practice: PracticeWithDetails }> {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
-
     const { user } = ctx;
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
@@ -95,7 +93,12 @@ export const practiceManagementService = {
       if (error instanceof HTTPException) {
         throw error;
       }
-      logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
+      logger.error('Failed to create practice for user {userId}: {error}', {
+        userId: user.id,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        message: error instanceof Error ? error.message : String(error),
+      });
       throw new HTTPException(500, {
         message: getBetterAuthErrorMessage(error, 'Failed to create practice'),
       });
