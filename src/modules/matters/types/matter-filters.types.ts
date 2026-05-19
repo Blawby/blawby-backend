@@ -58,6 +58,8 @@ export interface OrgTaskListFilters {
   assigneeId?: string;
   status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
   dueBefore?: string;
+  page?: number;
+  limit?: number;
 }
 
 /** Filters for getMatterActivity */

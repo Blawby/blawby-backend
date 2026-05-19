@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, isNull, lt } from 'drizzle-orm';
+import { and, asc, count, desc, eq, getTableColumns, isNull, lt } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterTasks,
@@ -77,7 +77,11 @@ const deleteMatterTask = async (id: string): Promise<boolean> => {
 const listTasksByOrganization = async (
   organizationId: string,
   filters?: OrgTaskListFilters
-): Promise<SelectMatterTask[]> => {
+): Promise<{ data: SelectMatterTask[]; total: number; page: number; limit: number }> => {
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
+  const offset = (page - 1) * limit;
+
   const conditions = [eq(matters.organization_id, organizationId), isNull(matters.deleted_at)];
 
   if (filters?.assigneeId) {
@@ -90,12 +94,25 @@ const listTasksByOrganization = async (
     conditions.push(lt(matterTasks.due_date, filters.dueBefore));
   }
 
-  return await db
-    .select(getTableColumns(matterTasks))
-    .from(matterTasks)
-    .innerJoin(matters, eq(matterTasks.matter_id, matters.id))
-    .where(and(...conditions))
-    .orderBy(desc(matterTasks.created_at));
+  const whereClause = and(...conditions);
+
+  const [tasks, [countRow]] = await Promise.all([
+    db
+      .select(getTableColumns(matterTasks))
+      .from(matterTasks)
+      .innerJoin(matters, eq(matterTasks.matter_id, matters.id))
+      .where(whereClause)
+      .orderBy(desc(matterTasks.created_at))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(matterTasks)
+      .innerJoin(matters, eq(matterTasks.matter_id, matters.id))
+      .where(whereClause),
+  ]);
+
+  return { data: tasks, total: Number(countRow?.total ?? 0), page, limit };
 };
 
 export const matterTasksQueries = {

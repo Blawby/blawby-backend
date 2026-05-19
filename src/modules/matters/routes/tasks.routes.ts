@@ -7,7 +7,8 @@ import {
 } from '@/modules/matters/types/matter.types';
 import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
-import { uuidValidator } from '@/shared/validations/common';
+import { uuidValidator, paginationSchema as paginationQuerySchema } from '@/shared/validations/common';
+import { paginationSchema as paginationResponseSchema } from '@/shared/validations/openapi';
 
 const tags = ['Matters'];
 
@@ -27,6 +28,7 @@ const listOrganizationTasksQuerySchema = z.object({
   assignee_id: uuidValidator.optional(),
   status: matterTaskValidations.taskStatusEnum.optional(),
   due_before: z.iso.date().optional(),
+  ...paginationQuerySchema.shape,
 });
 
 export const listMatterTasksRoute = routeBuilder.build({
@@ -137,7 +139,10 @@ export const listOrganizationTasksRoute = routeBuilder.build({
       description: 'Organization-wide tasks retrieved successfully',
       content: {
         'application/json': {
-          schema: z.array(matterTaskResponseSchema),
+          schema: z.object({
+            data: z.array(matterTaskResponseSchema),
+            pagination: paginationResponseSchema,
+          }),
         },
       },
     },

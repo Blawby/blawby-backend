@@ -21,16 +21,27 @@ const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute
 const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-  const page = parseInt(String(query.page ?? '1'), 10);
-  const limit = parseInt(String(query.limit ?? '20'), 10);
-  const data = await mattersService.listMatters({ ...query, page, limit }, ctx);
+  const data = await mattersService.listMatters(
+    {
+      status: query.status,
+      practiceServiceId: query.practice_service_id,
+      clientId: query.client_id,
+      assigneeId: query.assignee_id,
+      responsibleAttorneyId: query.responsible_attorney_id,
+      originatingAttorneyId: query.originating_attorney_id,
+      search: query.search,
+      page: query.page,
+      limit: query.limit,
+    },
+    ctx
+  );
   return c.json(
     {
       matters: data.matters,
       total: data.total,
-      page,
-      limit,
-      totalPages: Math.ceil(data.total / limit),
+      page: query.page,
+      limit: query.limit,
+      totalPages: Math.ceil(data.total / query.limit),
     },
     200
   );
@@ -357,9 +368,11 @@ const listOrganizationTasksHandler: AppRouteHandler<typeof matterRoutes.listOrga
     assigneeId: query.assignee_id,
     status: query.status,
     dueBefore: query.due_before,
+    page: query.page,
+    limit: query.limit,
   };
-  const tasks = await matterTasksService.listOrganizationTasks({ filters }, ctx);
-  return c.json(tasks, 200);
+  const result = await matterTasksService.listOrganizationTasks({ filters }, ctx);
+  return c.json(result, 200);
 };
 
 export const handlers = {

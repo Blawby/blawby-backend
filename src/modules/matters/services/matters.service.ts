@@ -11,10 +11,10 @@ import { matterMilestonesQueries } from '@/modules/matters/database/queries/matt
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterRequest,
   UpdateMatterRequest,
-  ListMattersQuery,
   MatterRecord,
   UnbilledMatterData,
 } from '@/modules/matters/types/matter.types';
@@ -151,22 +151,11 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Mat
  * List matters
  */
 const listMatters = async (
-  filters: ListMattersQuery,
+  filters: MatterListFilters,
   ctx: ServiceContext
 ): Promise<{ matters: MatterRecord[]; total: number }> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
-
-  return mattersQueries.listMattersByOrganization(ctx.organizationId, {
-    status: filters.status,
-    practiceServiceId: filters.practice_service_id,
-    clientId: filters.client_id,
-    assigneeId: filters.assignee_id,
-    responsibleAttorneyId: filters.responsible_attorney_id,
-    originatingAttorneyId: filters.originating_attorney_id,
-    search: filters.search,
-    page: filters.page,
-    limit: filters.limit,
-  });
+  return mattersQueries.listMattersByOrganization(ctx.organizationId, filters);
 };
 
 /**
