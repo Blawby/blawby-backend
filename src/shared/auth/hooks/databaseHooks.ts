@@ -1,11 +1,16 @@
 /**
  * Database Hooks for Better Auth
  *
- * Handles database-level events (user creation, session management)
+ * Handles database-level events (user creation, session management).
+ *
+ * activeOrganizationId is intentionally NOT auto-set on session create.
+ * The client app calls authClient.organization.setActive() after sign-in
+ * per the better-auth organization plugin docs. Auto-setting it caused
+ * inconsistent routing when primary_workspace didn't match the auto-picked org.
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import * as schema from '@/schema';
@@ -22,19 +27,12 @@ interface CheckPendingIntakesParams {
   email: string;
 }
 
-interface GetActiveOrgParams {
-  db: NodePgDatabase<typeof schema>;
-  userId: string;
-  lastActiveOrgId: string | null;
-}
-
 /**
- * Check for pending intakes by email and add user to organization.
- * This handles the case where anonymous session was lost but user authenticates
- * with the same email they used during intake.
+ * When a client completes an intake anonymously then later authenticates with
+ * the same email, enroll them in the org automatically. Sets primary_workspace
+ * to 'client' so routing state is consistent with member.role='client'.
  */
 const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingIntakesParams): Promise<void> => {
-  // Find succeeded intakes matching this email that haven't been processed
   const pendingIntakes = await db
     .select()
     .from(practiceClientIntakes)
@@ -47,12 +45,11 @@ const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingInt
 
   for (const intake of pendingIntakes) {
     try {
-      // Add user to organization as client (Atomic insert using unique constraint)
       const [newMember] = await db
         .insert(schema.members)
         .values({
           organizationId: intake.organization_id,
-          userId: userId,
+          userId,
           role: ROLE_CLIENT,
           createdAt: new Date(),
         })
@@ -60,8 +57,10 @@ const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingInt
         .returning();
 
       if (newMember) {
-        // Mark user as needing onboarding
-        await db.update(schema.users).set({ onboardingComplete: false }).where(eq(schema.users.id, userId));
+        await db
+          .update(schema.users)
+          .set({ onboardingComplete: false, primaryWorkspace: ROLE_CLIENT })
+          .where(eq(schema.users.id, userId));
 
         logger.info('Added user {userId} to organization {orgId} from pending intake {intakeId} (email match)', {
           userId,
@@ -69,27 +68,17 @@ const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingInt
           intakeId: intake.id,
         });
 
-        // Dispatch event with error handling
         try {
           await PracticeMemberJoined.dispatch(
-            {
-              member_id: newMember.id,
-              intake_id: intake.id,
-            },
-            {
-              actorId: userId,
-              organizationId: intake.organization_id,
-            }
+            { member_id: newMember.id, intake_id: intake.id },
+            { actorId: userId, organizationId: intake.organization_id }
           );
         } catch (dispatchError) {
-          logger.error(
-            'Failed to dispatch PracticeMemberJoined event for user {userId} and intake {intakeId}: {error}',
-            {
-              userId,
-              intakeId: intake.id,
-              error: dispatchError,
-            }
-          );
+          logger.error('Failed to dispatch PracticeMemberJoined for user {userId} intake {intakeId}: {error}', {
+            userId,
+            intakeId: intake.id,
+            error: dispatchError,
+          });
         }
       }
     } catch (error) {
@@ -100,35 +89,6 @@ const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingInt
       });
     }
   }
-};
-
-/**
- * Get active organization ID for a user
- * Tries to preserve last active organization, falls back to first organization
- */
-const getActiveOrganizationId = async ({ db, userId, lastActiveOrgId }: GetActiveOrgParams): Promise<string | null> => {
-  // First, try to use the last active organization if it's still valid
-  if (lastActiveOrgId) {
-    const orgValidation = await db
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .innerJoin(schema.members, eq(schema.organizations.id, schema.members.organizationId))
-      .where(and(eq(schema.organizations.id, lastActiveOrgId), eq(schema.members.userId, userId)))
-      .limit(1);
-
-    if (orgValidation.length > 0) {
-      return lastActiveOrgId;
-    }
-  }
-
-  // Fall back to first organization user belongs to
-  const userOrgs = await db
-    .select({ organizationId: schema.members.organizationId })
-    .from(schema.members)
-    .where(eq(schema.members.userId, userId))
-    .limit(1);
-
-  return userOrgs.length > 0 ? userOrgs[0].organizationId : null;
 };
 
 type UserData = Record<string, unknown> & {
@@ -143,9 +103,6 @@ type SessionData = Record<string, unknown> & {
   id: string;
 };
 
-/**
- * Create database hooks configuration
- */
 export const createDatabaseHooks = (
   db: NodePgDatabase<typeof schema>
 ): {
@@ -156,7 +113,7 @@ export const createDatabaseHooks = (
   };
   session: {
     create: {
-      before: (sessionData: SessionData) => Promise<{ data: SessionData & { activeOrganizationId: string | null } }>;
+      before: (sessionData: SessionData) => Promise<{ data: SessionData }>;
       after: (session: SessionData) => Promise<void>;
     };
   };
@@ -180,40 +137,13 @@ export const createDatabaseHooks = (
   },
   session: {
     create: {
-      before: async (
-        sessionData: SessionData
-      ): Promise<{ data: SessionData & { activeOrganizationId: string | null } }> => {
-        // Get last active organization from previous session
-        const lastActiveSession = await db
-          .select({
-            activeOrganizationId: schema.sessions.activeOrganizationId,
-          })
-          .from(schema.sessions)
-          .where(eq(schema.sessions.userId, sessionData.userId))
-          .orderBy(desc(schema.sessions.createdAt))
-          .limit(1);
-
-        // Delete all existing sessions for this user (single session per user)
+      // Enforce one session per user. Do NOT auto-fill activeOrganizationId —
+      // client app calls authClient.organization.setActive() after sign-in.
+      before: async (sessionData: SessionData): Promise<{ data: SessionData }> => {
         await db.delete(schema.sessions).where(eq(schema.sessions.userId, sessionData.userId));
-
-        // Determine active organization
-        let activeOrganizationId: string | null = null;
-        try {
-          activeOrganizationId = await getActiveOrganizationId({
-            db,
-            userId: sessionData.userId,
-            lastActiveOrgId: lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
-          });
-        } catch (error) {
-          logger.warn('Failed to set active organization for user {userId}', { userId: sessionData.userId, error });
-        }
-
-        return {
-          data: { ...sessionData, activeOrganizationId },
-        };
+        return { data: sessionData };
       },
       after: async (session: SessionData): Promise<void> => {
-        // Check for pending intakes by email (handles lost anonymous session case)
         try {
           const [user] = await db
             .select({ email: schema.users.email, isAnonymous: schema.users.isAnonymous })
@@ -221,7 +151,6 @@ export const createDatabaseHooks = (
             .where(eq(schema.users.id, session.userId))
             .limit(1);
 
-          // Only check for non-anonymous users (anonymous users are handled by onLinkAccount)
           if (user && !user.isAnonymous) {
             await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
           }

@@ -136,6 +136,8 @@ const listMattersQuerySchema = z.object({
   practice_service_id: uuidValidator.optional(),
   client_id: uuidValidator.optional(),
   assignee_id: uuidValidator.optional(),
+  responsible_attorney_id: uuidValidator.optional(),
+  originating_attorney_id: uuidValidator.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),

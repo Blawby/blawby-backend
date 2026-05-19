@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte, sql, inArray, isNull } from 'drizzle-orm';
+import { eq, and, desc, gte, lte, sql, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
   matterTimeEntries,
   type InsertMatterTimeEntry,
@@ -32,6 +32,10 @@ const listMatterTimeEntries = async (
 
   if (filters?.billable !== undefined) {
     conditions.push(eq(matterTimeEntries.billable, filters.billable));
+  }
+
+  if (filters?.invoiced !== undefined) {
+    conditions.push(filters.invoiced ? isNotNull(matterTimeEntries.invoice_id) : isNull(matterTimeEntries.invoice_id));
   }
 
   if (filters?.startDate) {

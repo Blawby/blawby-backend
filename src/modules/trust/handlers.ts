@@ -9,6 +9,7 @@ const {
   getTrustReportRoute,
   createDepositRoute,
   createWithdrawalRoute,
+  getTrustClientBalancesRoute,
 } = trustRoutes;
 
 const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
@@ -74,10 +75,17 @@ const getTrustReportHandler: AppRouteHandler<typeof getTrustReportRoute> = async
   return c.json(report, 200);
 };
 
+const getTrustClientBalancesHandler: AppRouteHandler<typeof getTrustClientBalancesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const balances = await trustService.getClientBalances({}, ctx);
+  return c.json(balances, 200);
+};
+
 export const handlers = {
   createDepositHandler,
   createWithdrawalHandler,
   getTrustTransactionsHandler,
   getTrustBalanceHandler,
   getTrustReportHandler,
+  getTrustClientBalancesHandler,
 };
