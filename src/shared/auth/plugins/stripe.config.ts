@@ -50,7 +50,7 @@ const syncSubscriptionToOrg = async (
   let organizationId = referenceId;
 
   if (!organizationId) {
-    logger.debug('[Stripe Plugin] No ReferenceId provided, looking up Org by customerId: {customerId}', { customerId });
+    logger.warn('[Stripe Plugin] No ReferenceId provided, looking up Org by customerId: {customerId}', { customerId });
     const org = await db
       .select({ id: schema.organizations.id })
       .from(schema.organizations)
@@ -182,7 +182,7 @@ const syncSubscriptionToOrg = async (
       throw new Error('Failed to update organization table during sync - organization not found');
     }
 
-    logger.debug('[Stripe Plugin] Successfully updated organizations.activeSubscriptionId for {organizationId}', {
+    logger.warn('[Stripe Plugin] Successfully updated organizations.activeSubscriptionId for {organizationId}', {
       organizationId,
       subscriptionId,
     });
@@ -376,6 +376,12 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
         plan: { name: string };
         stripeSubscription: Stripe.Subscription;
       }) => {
+        logger.warn('[Stripe Plugin] onSubscriptionComplete fired: subscriptionId={subscriptionId} referenceId={referenceId} stripeCustomerId={stripeCustomerId} plan={plan}', {
+          subscriptionId: subscription.id,
+          referenceId: subscription.referenceId,
+          stripeCustomerId: subscription.stripeCustomerId,
+          plan: plan.name,
+        });
         await syncSubscriptionToOrg(db, {
           stripeSubscription,
           subscriptionId: subscription.id,
