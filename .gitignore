@@ -257,3 +257,9 @@ storage/
 #AI/Agents
 .serena
 .qwen
+
+# Cloudflare secrets (never commit)
+.wrangler
+cf-secrets*.json
+!cf-secrets.template.json
+.dev.vars

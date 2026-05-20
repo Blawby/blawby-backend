@@ -1,0 +1,41 @@
+import { Container, getRandom } from '@cloudflare/containers';
+import { env } from 'cloudflare:workers';
+
+export class BackendContainer extends Container {
+  defaultPort = 3000;
+  sleepAfter = '30m';
+
+  envVars = {
+    DATABASE_URL: env.DATABASE_URL,
+    BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_BASE_URL: env.BETTER_AUTH_BASE_URL,
+    BASE_URL: env.BASE_URL,
+    STRIPE_SECRET_KEY: env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: env.STRIPE_WEBHOOK_SECRET,
+    STRIPE_CONNECT_WEBHOOK_SECRET: env.STRIPE_CONNECT_WEBHOOK_SECRET,
+    RESEND_API_KEY: env.RESEND_API_KEY,
+    ALLOWED_ORIGINS: env.ALLOWED_ORIGINS,
+    FRONTEND_URL: env.FRONTEND_URL,
+    GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI: env.GOOGLE_REDIRECT_URI,
+    GOOGLE_REDIRECT_URI_LOCAL: env.GOOGLE_REDIRECT_URI_LOCAL,
+    CLOUDFLARE_ACCOUNT_ID: env.CLOUDFLARE_ACCOUNT_ID,
+    CLOUDFLARE_R2_ACCESS_KEY_ID: env.CLOUDFLARE_R2_ACCESS_KEY_ID,
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
+    CLOUDFLARE_R2_BUCKET_NAME: env.CLOUDFLARE_R2_BUCKET_NAME,
+    CLOUDFLARE_TURNSTILE_SECRET_KEY: env.CLOUDFLARE_TURNSTILE_SECRET_KEY,
+    ENABLE_QUEUE: env.ENABLE_QUEUE ?? 'false',
+    PORT: env.PORT ?? '3000',
+    SERVER_HOSTNAME: env.SERVER_HOSTNAME ?? '0.0.0.0',
+    APP_ENV: env.APP_ENV ?? 'production',
+    SKIP_CAPTCHA: env.SKIP_CAPTCHA ?? 'false',
+    NODE_ENV: 'production',
+  };
+}
+
+export default {
+  async fetch(request, env) {
+    return (await getRandom(env.BACKEND, 1)).fetch(request);
+  },
+};
