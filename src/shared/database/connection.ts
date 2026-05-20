@@ -48,7 +48,8 @@ const initialize = (): void => {
   const ssl =
     process.env.NODE_ENV === 'production'
       ? {
-          rejectUnauthorized: false, // Railway external proxy uses self-signed cert chain
+          // TODO: rejectUnauthorized disabled for Railway self-signed cert — replace with PlanetScale or proper CA cert
+          rejectUnauthorized: false,
           ...(config.database.ssl?.ca ? { ca: config.database.ssl.ca } : {}),
         }
       : false;

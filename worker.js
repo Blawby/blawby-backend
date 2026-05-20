@@ -28,7 +28,7 @@ export class BackendContainer extends Container {
     ENABLE_QUEUE: env.ENABLE_QUEUE ?? 'false',
     PORT: env.PORT ?? '3000',
     SERVER_HOSTNAME: env.SERVER_HOSTNAME ?? '0.0.0.0',
-    APP_ENV: env.APP_ENV ?? 'development',
+    APP_ENV: env.APP_ENV ?? 'production',
     SKIP_CAPTCHA: env.SKIP_CAPTCHA ?? 'false',
     NODE_ENV: 'production',
   };
