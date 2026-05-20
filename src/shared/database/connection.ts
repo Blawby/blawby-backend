@@ -48,7 +48,7 @@ const initialize = (): void => {
   const ssl =
     process.env.NODE_ENV === 'production'
       ? {
-          rejectUnauthorized: true,
+          rejectUnauthorized: false, // Railway external proxy uses self-signed cert chain
           ...(config.database.ssl?.ca ? { ca: config.database.ssl.ca } : {}),
         }
       : false;
@@ -60,6 +60,10 @@ const initialize = (): void => {
     min,
     idleTimeoutMillis,
     connectionTimeoutMillis,
+  });
+
+  _pool.on('error', (err) => {
+    logger.error('PostgreSQL pool error: {error}', { error: err.message });
   });
 
   _db = drizzle(_pool, { schema });

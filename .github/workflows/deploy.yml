@@ -1,15 +1,19 @@
-name: Build
+name: Deploy
 
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [staging]
+    paths-ignore:
+      - '**.md'
+      - '.github/dependabot.yml'
 
 concurrency:
-  group: check-${{ github.ref }}
+  group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Check
+  deploy:
+    name: Deploy to Cloudflare
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '25'
 
       - name: Cache node_modules
         id: cache-node-modules
@@ -37,5 +41,11 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Codegen + Typecheck
-        run: pnpm run codegen && pnpm run typecheck
+      - name: Build
+        run: pnpm run codegen && pnpm run build
+
+      - name: Deploy
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
