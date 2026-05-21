@@ -31,6 +31,8 @@ const envSchema = z
     ALLOWED_ORIGINS: z.string().optional(),
 
     BETTER_AUTH_SECRET: z.string().optional(),
+    BETTER_AUTH_BASE_URL: z.string().optional(),
+
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
@@ -103,6 +105,7 @@ export const config = {
   },
   auth: {
     betterAuthSecret: raw.BETTER_AUTH_SECRET,
+    betterAuthBaseUrl: raw.BETTER_AUTH_BASE_URL,
     googleClientId: raw.GOOGLE_CLIENT_ID,
     googleClientSecret: raw.GOOGLE_CLIENT_SECRET,
     googleRedirectUri: raw.GOOGLE_REDIRECT_URI,

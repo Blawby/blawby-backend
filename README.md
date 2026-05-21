@@ -47,7 +47,8 @@ DATABASE_URL="postgresql://user:password@localhost:5432/blawby"
 
 # Authentication
 BETTER_AUTH_SECRET="your-secret-key"
-BETTER_AUTH_URL="http://localhost:3000"
+BASE_URL="http://localhost:3000"
+BETTER_AUTH_BASE_URL="http://localhost:3000"
 
 # Stripe
 STRIPE_SECRET_KEY="sk_test_..."
@@ -1007,7 +1008,8 @@ export * from '../modules/settings/schemas/settings.schema';
 - `BETTER_AUTH_SECRET`: Authentication secret
 - `DATABASE_URL`: PostgreSQL connection string
 - `STRIPE_SECRET_KEY`: Stripe API key
-- `BETTER_AUTH_URL`: Authentication base URL
+- `BASE_URL`: API server base URL
+- `BETTER_AUTH_BASE_URL`: Authentication base URL
 
 ### Configuration Files
 

@@ -140,7 +140,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       }),
       ...(config.env.isTest ? [testUtils()] : []),
     ],
-    baseURL: config.app.baseUrl || undefined,
+    baseURL: config.auth.betterAuthBaseUrl || undefined,
     basePath: '/api/auth',
     rateLimit: {
       enabled: true,
