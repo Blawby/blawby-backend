@@ -262,4 +262,5 @@ storage/
 .wrangler
 cf-secrets*.json
 !cf-secrets.template.json
+!cf-secrets.production.template.json
 .dev.vars
