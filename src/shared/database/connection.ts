@@ -62,7 +62,7 @@ const initialize = (): void => {
     idleTimeoutMillis,
     connectionTimeoutMillis,
     keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
+    keepAliveInitialDelayMillis: 0,
   });
 
   _pool.on('error', (err) => {

@@ -14,6 +14,7 @@ export const config: Partial<ModuleConfig> = {
   middleware: {
     '*': ['requireAuth', 'requireOrgMembership'], // RateLimit added automatically by default
     'POST /': ['requireAuth'],
+    'GET /list': ['requireAuth'],
     // Specific route middleware
     '/details/:slug': ['public'],
   },

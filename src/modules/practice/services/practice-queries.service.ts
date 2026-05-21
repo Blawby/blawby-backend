@@ -53,8 +53,6 @@ export const practiceQueriesService = {
    * List all practices (organizations) for the current user
    */
   async listPractices(ctx: ServiceContext): Promise<{ practices: Organization[] }> {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Organization');
-
     const result = await organizationService.listOrganizations(ctx);
     return { practices: result };
   },
