@@ -1,12 +1,9 @@
 import type { z } from 'zod';
-import type { BetterAuthInstance } from '@/shared/auth/better-auth';
-import {
-  createSubscriptionSchema,
-  cancelSubscriptionSchema,
-} from '@/modules/subscriptions/validations/subscription.validation';
+import type { subscriptionValidations } from '@/modules/subscriptions/validations/subscription.validation';
 
-export type CreateSubscriptionRequest = z.infer<typeof createSubscriptionSchema>;
-export type CancelSubscriptionRequest = z.infer<typeof cancelSubscriptionSchema>;
+// Inferred from Zod schemas
+export type CreateSubscriptionRequest = z.infer<typeof subscriptionValidations.createSubscriptionSchema>;
+export type CancelSubscriptionRequest = z.infer<typeof subscriptionValidations.cancelSubscriptionSchema>;
 
 // ============================================================================
 // WHY WE CAN'T INFER TYPES (like practice.types.ts does)
@@ -18,20 +15,6 @@ export type CancelSubscriptionRequest = z.infer<typeof cancelSubscriptionSchema>
  * Unlike organization plugin methods (createOrganization, listOrganizations, etc.),
  * the Stripe plugin methods (upgradeSubscription, cancelSubscription, etc.) are NOT
  * automatically typed in BetterAuthInstance['api'].
- *
- * This means we CANNOT do:
- *   type UpgradeSubscriptionBody = z.infer<
- *     BetterAuthInstance['api']['upgradeSubscription']['options']['body']
- *   >
- *
- * Because TypeScript error: Property 'upgradeSubscription' does not exist on type 'InferAPI<...>'
- *
- * REASON: The Stripe plugin adds methods at runtime but doesn't export proper TypeScript types
- * for Better Auth's type inference system. The methods exist at runtime, but TypeScript
- * doesn't know about them.
- *
- * SOLUTION: We define the types manually based on Better Auth documentation.
- * This is why we need `as unknown as SubscriptionAPI` in the service code.
  */
 
 // ============================================================================
@@ -44,58 +27,63 @@ export type CancelSubscriptionRequest = z.infer<typeof cancelSubscriptionSchema>
  */
 
 // Query parameter types
-export type ListSubscriptionsQuery = {
+export interface ListSubscriptionsQuery {
   referenceId?: string;
   customerType?: 'user' | 'organization';
-};
+}
 
 // Request body types
-export type UpgradeSubscriptionBody = {
+export interface UpgradeSubscriptionBody {
   plan: string;
   annual?: boolean;
-  referenceId?: string;
-  subscriptionId?: string;
+  reference_id?: string;
+  subscription_id?: string;
   metadata?: Record<string, unknown>;
-  customerType?: 'user' | 'organization';
+  customer_type?: 'user' | 'organization';
   seats?: number;
   locale?: string;
-  successUrl: string;
-  cancelUrl: string;
-  returnUrl?: string;
-  disableRedirect?: boolean;
-};
+  success_url: string;
+  cancel_url: string;
+  return_url?: string;
+  disable_redirect?: boolean;
+}
 
-export type CancelSubscriptionBody = {
+export interface CancelSubscriptionBody {
   subscriptionId?: string;
   referenceId?: string;
-  customerType?: 'user' | 'organization';
-  returnUrl: string;
-};
+  customerType?: 'organization';
+  returnUrl?: string; // Better Auth expects camelCase
+  immediately?: boolean;
+}
 
-export type RestoreSubscriptionBody = {
-  subscriptionId: string;
-  referenceId?: string;
-  customerType?: 'user' | 'organization';
-};
+export interface RestoreSubscriptionBody {
+  subscription_id: string;
+  reference_id?: string;
+  customer_type?: 'user' | 'organization';
+}
 
-// Response types based on Better Auth documentation
-export type Subscription = {
-  id: string;
-  status: string;
-  planId: string;
-  currentPeriodEnd: number;
-  cancelAtPeriodEnd: boolean;
-  limits?: {
-    projects?: number;
-    [key: string]: unknown;
-  };
-  referenceId?: string | null;
-};
-
-export type UpgradeSubscriptionResponse = {
+export interface UpgradeSubscriptionResponse {
   subscriptionId?: string;
   url?: string;
-};
+}
+
+// Better Auth internal subscription object (camelCase)
+export interface BetterAuthSubscription {
+  id: string;
+  plan: string;
+  referenceId: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  status: string;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  cancelAtPeriodEnd: boolean | null;
+  seats: number | null;
+  trialStart: Date | null;
+  trialEnd: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // ============================================================================
 // API METHOD TYPES
@@ -103,22 +91,12 @@ export type UpgradeSubscriptionResponse = {
 
 /**
  * Subscription API method signatures for Better Auth Stripe plugin
- *
- * These methods exist at runtime (added by the Stripe plugin) but are NOT typed
- * in BetterAuthInstance['api'], which is why we define them manually here.
- *
- * Compare with practice.types.ts which can infer types:
- *   BetterAuthInstance['api']['createOrganization']['options']['body']
- *
- * But we cannot do:
- *   BetterAuthInstance['api']['upgradeSubscription']['options']['body']
- *   ❌ TypeScript error: Property 'upgradeSubscription' does not exist
  */
-export type SubscriptionAPI = {
+export interface SubscriptionAPI {
   listActiveSubscriptions: (args: {
     query: ListSubscriptionsQuery;
     headers: Record<string, string>;
-  }) => Promise<Subscription[]>;
+  }) => Promise<BetterAuthSubscription[]>;
   upgradeSubscription: (args: {
     body: UpgradeSubscriptionBody;
     headers: Record<string, string>;
@@ -126,10 +104,125 @@ export type SubscriptionAPI = {
   cancelSubscription: (args: {
     body: CancelSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<unknown>;
+  }) => Promise<{ url: string; redirect: boolean }>;
   restoreSubscription?: (args: {
     body: RestoreSubscriptionBody;
     headers: Record<string, string>;
-  }) => Promise<unknown>;
+  }) => Promise<BetterAuthSubscription>;
+}
+
+// Response types manually defined to match snake_case DB columns
+export interface SubscriptionPlanResponse {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string | null;
+  stripe_product_id: string;
+  stripe_monthly_price_id?: string | null;
+  stripe_yearly_price_id?: string | null;
+  monthly_price?: number | null;
+  yearly_price?: number | null;
+  currency?: string;
+  metered_items?: { price_id: string; meter_name: string | null; type: string | null }[] | null;
+  features: string[];
+  limits: {
+    users: number;
+    invoices_per_month: number;
+    storage_gb: number;
+  };
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+  metadata?: Record<string, string> | null;
+  image: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Legacy pricing fields (derived from subscription_prices)
+export interface MeteredItem {
+  price_id: string;
+  meter_name: string | null;
+  type: string | null;
+}
+
+export interface LegacyPricingFields {
+  stripe_monthly_price_id: string | null;
+  stripe_yearly_price_id: string | null;
+  monthly_price: string | null;
+  yearly_price: string | null;
+  currency: string;
+  metered_items?: MeteredItem[] | null;
+}
+
+export interface SubscriptionResponse {
+  id: string;
+  plan: string;
+  reference_id: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: string;
+  period_start: Date | null;
+  period_end: Date | null;
+  cancel_at_period_end: boolean | null;
+  seats: number | null;
+  trial_start: Date | null;
+  trial_end: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface LineItemResponse {
+  id: string;
+  subscription_id: string;
+  stripe_subscription_item_id: string;
+  stripe_price_id: string;
+  item_type: string;
+  description: string | null;
+  quantity: number;
+  unit_amount: string | null;
+  metadata?: Record<string, string> | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface EventResponse {
+  id: string;
+  subscription_id: string;
+  plan_id: string | null;
+  event_type: string;
+  from_status: string | null;
+  to_status: string | null;
+  from_plan_id: string | null;
+  to_plan_id: string | null;
+  triggered_by: string | null;
+  triggered_by_type: string | null;
+  metadata?: Record<string, unknown> | null;
+  error_message: string | null;
+  created_at: Date;
+}
+
+export type SubscriptionWithDetailsResponse = Omit<SubscriptionResponse, 'plan'> & {
+  plan: SubscriptionPlanResponse | null;
+  line_items: LineItemResponse[];
+  events: EventResponse[];
 };
 
+export interface ListPlansResponse {
+  plans: SubscriptionPlanResponse[];
+}
+
+export interface GetCurrentSubscriptionResponse {
+  subscription: SubscriptionWithDetailsResponse | null;
+}
+
+export interface CreateSubscriptionResponse {
+  subscription_id?: string;
+  checkout_url?: string;
+  message: string;
+}
+
+export interface CancelSubscriptionResponse {
+  url: string;
+  redirect: boolean;
+}

@@ -1,12 +1,8 @@
-import { eq } from 'drizzle-orm';
-import type Stripe from 'stripe';
+import { eq, and, lte, isNotNull } from 'drizzle-orm';
+import type { Stripe } from 'stripe';
 
 import { db } from '@/shared/database';
-import {
-  webhookEvents,
-  type WebhookEvent,
-  type NewWebhookEvent,
-} from '@/shared/schemas/stripe.webhook-events.schema';
+import { webhookEvents, type WebhookEvent, type NewWebhookEvent } from '@/shared/schemas/stripe.webhook-events.schema';
 
 /**
  * Shared Webhook Events Repository
@@ -14,83 +10,122 @@ import {
  * Provides database operations for webhook events used by both
  * Stripe payment webhooks and Stripe Connect onboarding webhooks.
  */
-export const existsByStripeEventId = async (
-  stripeEventId: string,
-): Promise<WebhookEvent | null> => {
-  const events = await db
-    .select()
-    .from(webhookEvents)
-    .where(eq(webhookEvents.stripeEventId, stripeEventId))
-    .limit(1);
+export const stripeWebhookEventsRepository = {
+  /**
+   * Check if a webhook event exists by its Stripe Event ID.
+   */
+  async existsByStripeEventId(stripeEventId: string): Promise<WebhookEvent | null> {
+    const events = await db.select().from(webhookEvents).where(eq(webhookEvents.stripeEventId, stripeEventId)).limit(1);
 
-  return events[0] || null;
-};
+    return events[0] || null;
+  },
 
-export const createWebhookEvent = async (
-  event: Stripe.Event,
-  headers: Record<string, string>,
-  url: string,
-): Promise<WebhookEvent> => {
-  const newEvent: NewWebhookEvent = {
-    stripeEventId: event.id,
-    eventType: event.type,
-    payload: event,
-    headers,
-    url,
-  };
+  /**
+   * Create a new webhook event.
+   */
+  async create(event: Stripe.Event, headers: Record<string, string>, url: string): Promise<WebhookEvent> {
+    const newEvent: NewWebhookEvent = {
+      stripeEventId: event.id,
+      eventType: event.type,
+      payload: event,
+      headers,
+      url,
+    };
 
-  const [webhookEvent] = await db
-    .insert(webhookEvents)
-    .values(newEvent)
-    .returning();
+    const [webhookEvent] = await db.insert(webhookEvents).values(newEvent).returning();
 
-  return webhookEvent;
-};
+    return webhookEvent;
+  },
 
-export const findWebhookById = async (
-  id: string,
-): Promise<WebhookEvent | null> => {
-  const events = await db
-    .select()
-    .from(webhookEvents)
-    .where(eq(webhookEvents.id, id))
-    .limit(1);
+  /**
+   * Creates a webhook event only if it doesn't exist yet (based on stripeEventId).
+   * Returns the event if created, or null if it already existed.
+   */
+  async createIfNotExists(
+    event: Stripe.Event,
+    headers: Record<string, string>,
+    url: string
+  ): Promise<WebhookEvent | null> {
+    const newEvent: NewWebhookEvent = {
+      stripeEventId: event.id,
+      eventType: event.type,
+      payload: event,
+      headers,
+      url,
+    };
 
-  return events[0] || null;
-};
+    const [webhookEvent] = await db
+      .insert(webhookEvents)
+      .values(newEvent)
+      .onConflictDoNothing({ target: webhookEvents.stripeEventId })
+      .returning();
 
-export const markWebhookProcessed = async (id: string): Promise<void> => {
-  await db
-    .update(webhookEvents)
-    .set({
-      processed: true,
-      processedAt: new Date(),
-    })
-    .where(eq(webhookEvents.id, id));
-};
+    return webhookEvent || null;
+  },
 
-export const markWebhookFailed = async (
-  id: string,
-  error: string,
-  errorStack?: string,
-): Promise<void> => {
-  const event = await findWebhookById(id);
-  if (!event) return;
+  /**
+   * Find a webhook event by its internal database ID.
+   */
+  async findById(id: string): Promise<WebhookEvent | null> {
+    const events = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id)).limit(1);
 
-  const retryCount = event.retryCount + 1;
-  const hasMoreRetries = retryCount < event.maxRetries;
-  const nextRetryAt = hasMoreRetries
-    ? new Date(Date.now() + Math.pow(2, retryCount) * 60 * 1000) // Exponential backoff
-    : null;
+    return events[0] || null;
+  },
 
-  await db
-    .update(webhookEvents)
-    .set({
-      retryCount,
-      error,
-      errorStack,
-      nextRetryAt,
-      processed: false,
-    })
-    .where(eq(webhookEvents.id, id));
+  /**
+   * Mark a webhook event as successfully processed.
+   */
+  async markProcessed(id: string): Promise<void> {
+    await db
+      .update(webhookEvents)
+      .set({
+        processed: true,
+        processedAt: new Date(),
+      })
+      .where(eq(webhookEvents.id, id));
+  },
+
+  /**
+   * Mark a webhook event as failed and schedule a retry.
+   */
+  async markFailed(id: string, error: string, errorStack?: string): Promise<void> {
+    const event = await stripeWebhookEventsRepository.findById(id);
+    if (!event) {
+      return;
+    }
+
+    const retryCount = event.retryCount + 1;
+    const hasMoreRetries = retryCount < event.maxRetries;
+    const nextRetryAt = hasMoreRetries
+      ? new Date(Date.now() + 2 ** retryCount * 60 * 1000) // Exponential backoff
+      : null;
+
+    await db
+      .update(webhookEvents)
+      .set({
+        retryCount,
+        error,
+        errorStack,
+        nextRetryAt,
+        processed: false,
+      })
+      .where(eq(webhookEvents.id, id));
+  },
+
+  /**
+   * Get generic webhook events that need retrying.
+   */
+  async getEventsToRetry(): Promise<WebhookEvent[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(webhookEvents)
+      .where(
+        and(
+          eq(webhookEvents.processed, false),
+          isNotNull(webhookEvents.nextRetryAt),
+          lte(webhookEvents.nextRetryAt, now)
+        )
+      );
+  },
 };

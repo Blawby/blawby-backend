@@ -1,11 +1,13 @@
-/**
- * Preferences Types
- *
- * TypeScript type definitions for user preferences
- */
+import type { z } from 'zod';
+import type { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
 
-// Product usage options enum (kept for backward compatibility during migration)
+// Product usage options enum
 export const PRODUCT_USAGE_OPTIONS = [
+  'messaging',
+  'legal_payments',
+  'matter_management',
+  'intake_forms',
+  'other',
   'personal_legal_issue',
   'business_legal_needs',
   'legal_research',
@@ -13,80 +15,38 @@ export const PRODUCT_USAGE_OPTIONS = [
   'others',
 ] as const;
 
-export type ProductUsage = typeof PRODUCT_USAGE_OPTIONS[number];
+export type ProductUsage = (typeof PRODUCT_USAGE_OPTIONS)[number];
 
 /**
  * Theme options for UI appearance
  */
 export const THEME_OPTIONS = ['light', 'dark', 'system'] as const;
-export type Theme = typeof THEME_OPTIONS[number];
+export type Theme = (typeof THEME_OPTIONS)[number];
 
 /**
  * Date format options
  */
 export const DATE_FORMAT_OPTIONS = ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'] as const;
-export type DateFormat = typeof DATE_FORMAT_OPTIONS[number];
+export type DateFormat = (typeof DATE_FORMAT_OPTIONS)[number];
 
 /**
  * Time format options
  */
 export const TIME_FORMAT_OPTIONS = ['12h', '24h'] as const;
-export type TimeFormat = typeof TIME_FORMAT_OPTIONS[number];
+export type TimeFormat = (typeof TIME_FORMAT_OPTIONS)[number];
 
 /**
  * General user preferences
  */
-export type GeneralPreferences = {
-  /** UI theme preference */
-  theme?: Theme;
-  /** Accent color in hex format */
-  accent_color?: string;
-  /** Language code (e.g., 'en', 'es', 'fr') */
-  language?: string;
-  /** Spoken language for voice/audio features */
-  spoken_language?: string;
-  /** Timezone identifier (e.g., 'America/New_York') */
-  timezone?: string;
-  /** Date format preference */
-  date_format?: DateFormat;
-  /** Time format preference */
-  time_format?: TimeFormat;
-};
+export type GeneralPreferences = z.infer<typeof preferenceValidations.generalPreferencesSchema>;
 
 /**
  * Notification preferences
- * Controls how and when users receive notifications
  */
-export type NotificationPreferences = {
-  /** Enable push notifications for messages */
-  messages_push?: boolean;
-  /** Enable email notifications for messages */
-  messages_email?: boolean;
-  /** Only notify on mentions in messages */
-  messages_mentions_only?: boolean;
-  /** Enable push notifications for payments */
-  payments_push?: boolean;
-  /** Enable email notifications for payments */
-  payments_email?: boolean;
-  /** Enable push notifications for intakes */
-  intakes_push?: boolean;
-  /** Enable email notifications for intakes */
-  intakes_email?: boolean;
-  /** Enable push notifications for matters */
-  matters_push?: boolean;
-  /** Enable email notifications for matters */
-  matters_email?: boolean;
-  /** Enable push notifications for system events (always true) */
-  system_push?: boolean;
-  /** Enable email notifications for system events (always true) */
-  system_email?: boolean;
-  /** Enable desktop push notifications */
-  desktop_push_enabled?: boolean;
-};
+export type NotificationPreferences = z.infer<typeof preferenceValidations.notificationPreferencesSchema>;
 
 /**
  * Default notification preferences
- * Applied when user has no stored preferences
  */
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   messages_push: true,
@@ -106,57 +66,20 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 /**
  * Security preferences
  */
-export type SecurityPreferences = {
-  /** Enable two-factor authentication */
-  two_factor_enabled?: boolean;
-  /** Enable email notifications for security events */
-  email_notifications?: boolean;
-  /** Enable login alerts */
-  login_alerts?: boolean;
-  /** Session timeout in minutes */
-  session_timeout?: number;
-};
+export type SecurityPreferences = z.infer<typeof preferenceValidations.securityPreferencesSchema>;
 
 /**
  * Account preferences
  */
-export type AccountPreferences = {
-  /** Selected domain for the account */
-  selected_domain?: string | null;
-  /** Custom domains associated with the account */
-  custom_domains?: string | null;
-  /** Receive feedback emails */
-  receive_feedback_emails?: boolean;
-  /** Receive marketing emails */
-  marketing_emails?: boolean;
-  /** Receive security alerts */
-  security_alerts?: boolean;
-};
+export type AccountPreferences = z.infer<typeof preferenceValidations.accountPreferencesSchema>;
 
 /**
  * Onboarding preferences
- * Stores user onboarding data and preferences
  */
-export type OnboardingPreferences = {
-  /** User's birthday as ISO date string */
-  birthday?: string;
-  /** Primary use case for the platform */
-  primary_use_case?: string;
-  /** Additional information about use case */
-  use_case_additional_info?: string;
-  /** Whether onboarding is completed */
-  completed?: boolean;
-  /** Product usage categories (migrated from old product_usage column) */
-  product_usage?: ProductUsage[];
-  /** Whether the welcome modal has been shown */
-  welcome_modal_shown?: boolean;
-  /** Whether the practice welcome modal has been shown */
-  practice_welcome_shown?: boolean;
-};
+export type OnboardingPreferences = z.infer<typeof preferenceValidations.onboardingPreferencesSchema>;
 
 /**
  * Default onboarding preferences
- * Applied when user has no stored preferences
  */
 export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
   welcome_modal_shown: false,
@@ -164,8 +87,14 @@ export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
 };
 
 /**
+ * Org-level preferences — shape TBD when org preferences are built
+ */
+export interface OrganizationPreferences {
+  [key: string]: unknown;
+}
+
+/**
  * Preference category options
- * Single source of truth for valid preference categories
  */
 export const PREFERENCE_CATEGORIES = [
   'general',
@@ -176,9 +105,18 @@ export const PREFERENCE_CATEGORIES = [
   'profile',
 ] as const;
 
+export interface UpdateProfileData {
+  phone?: string;
+  phoneCountryCode?: string;
+  dob?: string; // Date string in YYYY-MM-DD format
+}
+
 /**
  * Preference category type
- * Valid categories for preference updates
- * Derived from PREFERENCE_CATEGORIES constant
  */
-export type PreferenceCategory = typeof PREFERENCE_CATEGORIES[number];
+export type PreferenceCategory = (typeof PREFERENCE_CATEGORIES)[number];
+
+// Inferred from Zod schemas
+export type UpdateUserDetailsRequest = z.infer<typeof preferenceValidations.updateUserDetailsSchema>;
+export type PreferencesResponse = z.infer<typeof preferenceValidations.preferencesResponseSchema>;
+export type CategoryPreferencesResponse = z.infer<typeof preferenceValidations.categoryPreferencesResponseSchema>;

@@ -1,37 +1,25 @@
 import { z } from 'zod';
 
-export const emailValidator = z
-  .email('Invalid email format')
-  .min(1, 'Email is required');
+export const emailValidator = z.email('Invalid email format').min(1, 'Email is required');
 
 export const phoneValidator = z
   .string()
   .regex(/^\+?[\d\s-()]+$/, 'Invalid phone format')
   .min(1, 'Phone number is required');
 
-export const urlValidator = z
-  .url('Invalid URL format');
+export const urlValidator = z.url('Invalid URL format');
 
 export const uuidValidator = z.uuid('Invalid UUID format');
 
-
-export const currencyValidator = z
-  .number()
-  .refine((val) => val > 0, 'Currency must be greater than 0');
+export const currencyValidator = z.number().refine((val) => val > 0, 'Currency must be greater than 0');
 
 export const slugValidator = z
   .string()
   .min(1, 'Slug is required')
   .max(50, 'Slug too long')
-  .regex(
-    /^[a-z0-9-]+$/,
-    'Slug must contain only lowercase letters, numbers, and hyphens',
-  );
+  .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens');
 
-export const nameValidator = z
-  .string()
-  .min(1, 'Name is required')
-  .max(100, 'Name too long');
+export const nameValidator = z.string().min(1, 'Name is required').max(100, 'Name too long');
 
 // Common schemas
 export const paginationSchema = z.object({
@@ -50,9 +38,12 @@ export const idParamSchema = z.object({
 });
 
 // Parameter validation schemas
-export const organizationIdParamSchema = z.object({
-  organizationId: uuidValidator,
+export const practiceIdParamSchema = z.object({
+  practice_id: uuidValidator,
 });
+
+// Alias for backwards compatibility
+export const organizationIdParamSchema = practiceIdParamSchema;
 
 export const clientIdParamSchema = z.object({
   id: uuidValidator,
@@ -70,10 +61,6 @@ export const payoutIdParamSchema = z.object({
   id: uuidValidator,
 });
 
-export const practiceIdParamSchema = z.object({
-  id: uuidValidator.refine((val) => val.length > 0, 'Invalid practice ID'),
-});
-
 export const customerIdParamSchema = z.object({
   id: uuidValidator,
 });
@@ -81,7 +68,6 @@ export const customerIdParamSchema = z.object({
 export const subscriptionIdParamSchema = z.object({
   id: uuidValidator,
 });
-
 
 // Combined parameter schemas for routes with multiple parameters
 export const organizationClientParamsSchema = organizationIdParamSchema.and(clientIdParamSchema);
@@ -106,9 +92,6 @@ export const bulkActionSchema = z.object({
 });
 
 // Combined common schemas
-export const paginatedQuerySchema = paginationSchema
-  .and(searchSchema)
-  .and(sortSchema);
+export const paginatedQuerySchema = paginationSchema.and(searchSchema).and(sortSchema);
 
-export const dateFilteredQuerySchema
-  = paginatedQuerySchema.and(dateRangeSchema);
+export const dateFilteredQuerySchema = paginatedQuerySchema.and(dateRangeSchema);

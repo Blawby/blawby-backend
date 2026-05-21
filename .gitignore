@@ -68,9 +68,11 @@ dump.rdb
 .env
 .envrc
 .env.docker
+.env.test
 
-# Eslint cache
+# Linter caches
 .eslintcache
+.oxlintcache
 .tap
 
 # TypeScript
@@ -249,3 +251,16 @@ secrets/
 src/shared/router/modules.generated.ts
 src/shared/router/configs.generated.ts
 src/schema/index.ts
+src/shared/events/bootstrap.ts
+storage/
+
+#AI/Agents
+.serena
+.qwen
+
+# Cloudflare secrets (never commit)
+.wrangler
+cf-secrets*.json
+!cf-secrets.template.json
+!cf-secrets.production.template.json
+.dev.vars

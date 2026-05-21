@@ -2,73 +2,54 @@
  * Price Deleted Webhook Handler
  *
  * Handles Stripe price.deleted webhook events
- * Removes the price from the subscription plan
+ * Removes the price from the database and deactivates plan if no prices remain
  */
 
 import type Stripe from 'stripe';
-
+import { getLogger } from '@logtape/logtape';
 import { db } from '@/shared/database';
-import { findPlanByStripePriceId, upsertPlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'price-deleted']);
 
 /**
  * Handle price.deleted webhook event
  */
-export const handlePriceDeleted = async (price: Stripe.Price): Promise<void> => {
+export const handlePriceDeleted = async (price: Stripe.Price | Stripe.DeletedPrice): Promise<void> => {
   try {
-    console.log(`Processing price.deleted: ${price.id}`);
+    logger.info('Processing price.deleted: {priceId}', { priceId: price.id });
 
-    // Find the plan that uses this price
-    const plan = await findPlanByStripePriceId(db, price.id);
+    // Find the price
+    const existingPrice = await subscriptionRepository.findPriceByStripeId(db, price.id);
 
-    if (!plan) {
-      console.warn(`Plan not found for price.deleted: ${price.id}`);
+    if (!existingPrice) {
+      logger.warn('Price not found for price.deleted: {priceId}', { priceId: price.id });
       return;
     }
 
-    // Remove the price from the plan
-    const updates: Record<string, unknown> = {};
+    // Delete the price
+    await subscriptionRepository.deletePrice(db, price.id);
 
-    if (plan.stripeMonthlyPriceId === price.id) {
-      updates.stripeMonthlyPriceId = null;
-      updates.monthlyPrice = null;
+    // If the price had a plan, check if there are any active prices left
+    if (existingPrice.plan_id) {
+      const remainingActiveCount = await subscriptionRepository.countActivePricesForPlan(db, existingPrice.plan_id);
 
-      // If this was the only price, deactivate the plan
-      if (!plan.stripeYearlyPriceId) {
-        updates.isActive = false;
+      if (remainingActiveCount === 0) {
+        // No active prices left, deactivate the plan
+        logger.info('No active prices remain for plan {planId}, deactivating plan', { planId: existingPrice.plan_id });
+        const plan = await subscriptionRepository.findPlanById(db, existingPrice.plan_id);
+        if (plan) {
+          await subscriptionRepository.deactivatePlan(db, plan.stripe_product_id);
+        }
       }
     }
 
-    if (plan.stripeYearlyPriceId === price.id) {
-      updates.stripeYearlyPriceId = null;
-      updates.yearlyPrice = null;
-
-      // If this was the only price, deactivate the plan
-      if (!plan.stripeMonthlyPriceId) {
-        updates.isActive = false;
-      }
-    }
-
-    // Handle metered items
-    if (plan.meteredItems && Array.isArray(plan.meteredItems)) {
-      const meteredItems = plan.meteredItems.filter((item) => item.priceId !== price.id);
-      if (meteredItems.length !== plan.meteredItems.length) {
-        updates.meteredItems = meteredItems;
-      }
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await upsertPlan(db, {
-        ...plan,
-        ...updates,
-      });
-
-      console.log(`Successfully removed price from plan: ${price.id}`);
-    } else {
-      console.log(`No updates needed for price deletion: ${price.id}`);
-    }
+    logger.info('Successfully deleted price: {priceId}', { priceId: price.id });
   } catch (error) {
-    console.error(`Failed to process price.deleted: ${price.id}`, error);
+    logger.error('Failed to process price.deleted: {priceId}. Error: {error}', {
+      priceId: price.id,
+      error,
+    });
     throw error;
   }
 };
-

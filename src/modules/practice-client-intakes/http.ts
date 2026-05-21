@@ -1,94 +1,47 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-import { zValidator } from '@hono/zod-validator';
+import { handlers } from '@/modules/practice-client-intakes/handlers';
+import { publicRoutes } from '@/modules/practice-client-intakes/routes/public.routes';
+import { clientRoutes } from '@/modules/practice-client-intakes/routes/client.routes';
+import { intakeFileRoutes } from '@/modules/practice-client-intakes/routes/intake-files.routes';
+import { staffRoutes } from '@/modules/practice-client-intakes/routes/staff.routes';
+import { injectAbility } from '@/shared/middleware/inject-ability';
+import { createHonoApp } from '@/shared/router/factory';
 
-import { practiceClientIntakesService } from '@/modules/practice-client-intakes/services/practice-client-intakes.service';
-import * as routes from '@/modules/practice-client-intakes/routes';
-import {
-  createPracticeClientIntakeSchema,
-  updatePracticeClientIntakeSchema,
-  slugParamSchema,
-  uuidParamSchema,
-} from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
-import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
-import type { AppContext } from '@/shared/types/hono';
-import { response } from '@/shared/utils/responseUtils';
+const practiceClientIntakesApp = createHonoApp();
 
-const app = new OpenAPIHono<AppContext>();
+practiceClientIntakesApp.use('*', injectAbility());
 
-// GET /:slug/intake
-// Public intake page - returns organization details and payment settings
-app.get('/:slug/intake', zValidator('param', slugParamSchema), async (c) => {
-  const { slug } = c.req.valid('param');
-  const result = await practiceClientIntakesService.getPracticeClientIntakeSettings(slug);
-
-  if (!result.success) {
-    return response.notFound(c, result.error || 'Organization not found');
-  }
-
-  return response.ok(c, result.data);
-});
-
-
-// POST /create
-// Creates payment intent for practice client intake
-// Will be mounted at /api/practice/client-intakes/create
-app.post('/create', zValidator('json', createPracticeClientIntakeSchema), async (c) => {
-  const body = c.req.valid('json');
-  const clientIp = c.req.header('x-forwarded-for')
-    || c.req.header('cf-connecting-ip')
-    || c.req.header('x-real-ip');
-  const userAgent = c.req.header('user-agent');
-
-  const result = await practiceClientIntakesService.createPracticeClientIntake({
-    ...body,
-    clientIp,
-    userAgent,
-  });
-
-  if (!result.success) {
-    return response.badRequest(c, result.error || 'Failed to create payment');
-  }
-
-  return response.created(c, result.data);
-});
-
-
-// PUT /:uuid
-// Updates payment amount before confirmation
-// Will be mounted at /api/practice/client-intakes/:uuid
-app.put(
-  '/:uuid',
-  zValidator('param', uuidParamSchema),
-  zValidator('json', updatePracticeClientIntakeSchema),
-  async (c) => {
-    const { uuid } = c.req.valid('param');
-    const { amount } = c.req.valid('json');
-
-    const result = await practiceClientIntakesService.updatePracticeClientIntake(uuid, amount);
-
-    if (!result.success) {
-      return response.badRequest(c, result.error || 'Failed to update payment');
-    }
-
-    return response.ok(c, result.data);
-  },
+// ==================== PRACTICE CLIENT INTAKES ====================
+// Static routes must be registered before dynamic routes with path parameters
+practiceClientIntakesApp.openapi(
+  publicRoutes.getPracticeClientIntakePostPayStatusRoute,
+  handlers.getPracticeClientIntakePostPayStatusHandler
 );
+practiceClientIntakesApp.openapi(
+  publicRoutes.createPracticeClientIntakeRoute,
+  handlers.createPracticeClientIntakeHandler
+);
+// Dynamic routes with path parameters
+practiceClientIntakesApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
+practiceClientIntakesApp.openapi(
+  clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
+  handlers.createPracticeClientIntakeCheckoutSessionHandler
+);
+practiceClientIntakesApp.openapi(
+  clientRoutes.updatePracticeClientIntakeRoute,
+  handlers.updatePracticeClientIntakeHandler
+);
+practiceClientIntakesApp.openapi(
+  clientRoutes.getPracticeClientIntakeStatusRoute,
+  handlers.getPracticeClientIntakeStatusHandler
+);
+practiceClientIntakesApp.openapi(intakeFileRoutes.presignIntakeFileRoute, handlers.presignIntakeFileHandler);
+practiceClientIntakesApp.openapi(intakeFileRoutes.listIntakeFilesRoute, handlers.listIntakeFilesHandler);
+practiceClientIntakesApp.openapi(intakeFileRoutes.confirmIntakeFileRoute, handlers.confirmIntakeFileHandler);
+practiceClientIntakesApp.openapi(intakeFileRoutes.deleteIntakeFileRoute, handlers.deleteIntakeFileHandler);
+practiceClientIntakesApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
+practiceClientIntakesApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
+practiceClientIntakesApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);
+practiceClientIntakesApp.openapi(staffRoutes.updateIntakeTriageStatusRoute, handlers.updateIntakeTriageStatusHandler);
+practiceClientIntakesApp.openapi(staffRoutes.convertIntakeRoute, handlers.convertIntakeHandler);
 
-
-// GET /:uuid/status
-// Gets payment status
-// Will be mounted at /api/practice/client-intakes/:uuid/status
-app.get('/:uuid/status', zValidator('param', uuidParamSchema), async (c) => {
-  const { uuid } = c.req.valid('param');
-  const result = await practiceClientIntakesService.getPracticeClientIntakeStatus(uuid);
-
-  if (!result.success) {
-    return response.notFound(c, result.error || 'Payment not found');
-  }
-
-  return response.ok(c, result.data);
-});
-
-registerOpenApiRoutes(app, routes);
-
-export default app;
+export default practiceClientIntakesApp;

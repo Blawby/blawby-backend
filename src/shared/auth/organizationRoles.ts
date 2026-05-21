@@ -16,17 +16,22 @@ const statement = {
 export const organizationAccessController = createAccessControl(statement);
 
 /**
+ * Type alias for organization roles
+ */
+type OrganizationRole = ReturnType<typeof organizationAccessController.newRole>;
+
+/**
  * Default roles from Better Auth
  */
-export const ownerRole = organizationAccessController.newRole({
+export const ownerRole: OrganizationRole = organizationAccessController.newRole({
   ...ownerAc.statements,
 });
 
-export const adminRole = organizationAccessController.newRole({
+export const adminRole: OrganizationRole = organizationAccessController.newRole({
   ...adminAc.statements,
 });
 
-export const memberRole = organizationAccessController.newRole({
+export const memberRole: OrganizationRole = organizationAccessController.newRole({
   ...memberAc.statements,
 });
 
@@ -35,15 +40,20 @@ export const memberRole = organizationAccessController.newRole({
  */
 
 // Attorney role - similar to admin but specific to legal practice
-export const attorneyRole = organizationAccessController.newRole({
+export const attorneyRole: OrganizationRole = organizationAccessController.newRole({
   ...adminAc.statements, // Attorneys have admin-level permissions
 });
 
 // Paralegal role - limited permissions, can manage some resources
-export const paralegalRole = organizationAccessController.newRole({
+export const paralegalRole: OrganizationRole = organizationAccessController.newRole({
   ...memberAc.statements, // Paralegals have member-level permissions by default
   // Can add custom permissions here if needed
   // For example: project: ["create", "update"] if you add project resource
+});
+
+// Client role - same permissions as member per user request
+export const clientRole: OrganizationRole = organizationAccessController.newRole({
+  ...memberAc.statements,
 });
 
 /**
@@ -55,5 +65,5 @@ export const organizationRoles = {
   member: memberRole,
   attorney: attorneyRole,
   paralegal: paralegalRole,
+  client: clientRole,
 };
-

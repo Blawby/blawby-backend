@@ -2,80 +2,38 @@
  * Product Updated Webhook Handler
  *
  * Handles Stripe product.updated webhook events
- * Updates an existing subscription plan in the database
+ * Updates the subscription plan in the database
  */
 
-import type Stripe from 'stripe';
-
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
+import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/meteredProducts';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { upsertPlan, findPlanByName } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/productHelpers';
 
-/**
- * Extract plan limits from product metadata
- */
-const extractLimits = (
-  metadata: Record<string, string>,
-): {
-  users: number;
-  invoices_per_month: number;
-  storage_gb: number;
-} => {
-  // Try to parse limits from JSON metadata
-  if (metadata.limits) {
-    try {
-      const parsed = JSON.parse(metadata.limits);
-      return {
-        users: parsed.users ?? -1,
-        invoices_per_month: parsed.invoices_per_month ?? -1,
-        storage_gb: parsed.storage_gb ?? 10,
-      };
-    } catch {
-      // Fall through to individual fields
-    }
-  }
+const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
 
-  // Extract from individual metadata fields
-  const parseLimit = (value: string | undefined, defaultValue: number): number => {
-    if (!value) return defaultValue;
-    if (value.toLowerCase() === 'unlimited' || value === '-1') return -1;
-    const parsed = parseInt(value, 10);
-    return Number.isNaN(parsed) ? defaultValue : parsed;
-  };
-
-  return {
-    users: parseLimit(metadata.users_limit, -1),
-    invoices_per_month: parseLimit(metadata.invoices_limit, -1),
-    storage_gb: parseLimit(metadata.storage_gb, 10),
-  };
-};
-
-/**
- * Extract features from product metadata
- */
-const extractFeatures = (metadata: Record<string, string>): string[] => {
-  if (metadata.features) {
-    try {
-      return JSON.parse(metadata.features);
-    } catch {
-      // Fall through to comma-separated
-    }
-  }
-
-  // Try comma-separated features
-  if (metadata.features_list) {
-    return metadata.features_list.split(',').map((f) => f.trim());
-  }
-
-  return [];
-};
+// Helper functions: extracted to '@/modules/subscriptions/utils/productHelpers'
 
 /**
  * Handle product.updated webhook event
  */
 export const handleProductUpdated = async (product: Stripe.Product): Promise<void> => {
   try {
-    console.log(`Processing product.updated: ${product.id} - ${product.name}`);
+    logger.info('Processing product.updated: {productId} - {productName}', {
+      productId: product.id,
+      productName: product.name,
+    });
+
+    // Fetch existing plan (if any) — if missing, we'll upsert from payload
+    const existingPlan = await subscriptionRepository.findPlanByStripeProductId(db, product.id);
+    if (!existingPlan) {
+      logger.warn('Plan not found for product.updated: {productId}, will upsert from Stripe payload', {
+        productId: product.id,
+      });
+    }
 
     // Fetch all prices for this product
     const stripe = getStripeInstance();
@@ -85,60 +43,96 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
       limit: 100,
     });
 
-    // Find monthly and yearly prices
-    const monthlyPrice = prices.data.find(
-      (price) => price.recurring?.interval === 'month',
-    );
-    const yearlyPrice = prices.data.find(
-      (price) => price.recurring?.interval === 'year',
-    );
-
-    // Extract metadata
+    // Extract metadata and derived fields
     const metadata = product.metadata || {};
     const limits = extractLimits(metadata);
-    const features = extractFeatures(metadata);
+    const features = extractFeatures(product);
 
-    // Generate plan name - use metadata if provided, otherwise derive from product name
-    let planName = metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_');
-
-    // Check if plan with this name already exists (but different product ID)
-    const existingPlan = await findPlanByName(db, planName);
-    if (existingPlan && existingPlan.stripeProductId !== product.id) {
-      // Append product ID suffix to make it unique
-      planName = `${planName}_${product.id.slice(-8)}`;
-    }
-
-    // Prepare plan data
+    // Update the plan
     const planData = {
-      name: planName,
-      displayName: product.name,
-      description: product.description || null,
-      stripeProductId: product.id,
-      stripeMonthlyPriceId: monthlyPrice?.id || null,
-      stripeYearlyPriceId: yearlyPrice?.id || null,
-      monthlyPrice: monthlyPrice?.unit_amount
-        ? (monthlyPrice.unit_amount / 100).toString()
-        : null,
-      yearlyPrice: yearlyPrice?.unit_amount
-        ? (yearlyPrice.unit_amount / 100).toString()
-        : null,
-      currency: monthlyPrice?.currency || yearlyPrice?.currency || 'usd',
+      name: metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_'),
+      display_name: product.name,
+      description: product.description ?? null,
+      stripe_product_id: product.id,
       features,
       limits,
-      meteredItems: [], // Preserve existing metered items
-      isActive: product.active,
-      isPublic: metadata.is_public !== 'false',
-      sortOrder: parseInt(metadata.sort_order || '0', 10),
+      is_active: product.active,
+      is_public: metadata.is_public !== 'false',
+      sort_order: parseInt(metadata.sort_order || '0', 10),
       metadata,
+      image: product.images?.[0] || null,
     };
 
-    // Upsert plan (will update existing)
-    await upsertPlan(db, planData);
+    const plan = await subscriptionRepository.upsertPlan(db, planData);
 
-    console.log(`Successfully processed product.updated: ${product.id}`);
+    // Upsert each price in parallel to avoid awaiting inside a loop
+    const upsertPricePromises = prices.data.map(async (price) => {
+      let internalType: string | undefined = undefined;
+      let meterName: string | null = null;
+
+      if (price.recurring?.usage_type === 'metered' && price.recurring?.meter) {
+        try {
+          const meter = await stripe.billing.meters.retrieve(price.recurring.meter);
+          internalType = getInternalTypeFromMeterName(meter.event_name) ?? undefined;
+          meterName = meter.event_name;
+        } catch (err) {
+          logger.error('Failed to retrieve meter for price {priceId}: {error}', {
+            priceId: price.id,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
+        }
+      }
+
+      const priceData = {
+        plan_id: plan.id,
+        stripe_price_id: price.id,
+        stripe_product_id: product.id,
+        currency: price.currency,
+        unit_amount: price.unit_amount ?? 0,
+        interval: price.recurring?.interval ?? null,
+        interval_count: price.recurring?.interval_count ?? null,
+        usage_type: price.recurring?.usage_type ?? null,
+        billing_scheme: price.billing_scheme ?? null,
+        meter_id: price.recurring?.meter ?? null,
+        meter_name: meterName,
+        internal_type: internalType,
+        is_active: price.active,
+        metadata: price.metadata ?? {},
+      };
+
+      return subscriptionRepository.upsertPrice(db, priceData);
+    });
+
+    await Promise.allSettled(upsertPricePromises);
+
+    // Reconcile: deactivate any DB prices for this product that are not present in Stripe
+    try {
+      const currentPriceIds = new Set(prices.data.map((p) => p.id));
+      const dbPrices = await subscriptionRepository.findPricesByProductId(db, product.id);
+      const deactivatePromises: Promise<unknown>[] = [];
+      for (const dbPrice of dbPrices) {
+        if (!currentPriceIds.has(dbPrice.stripe_price_id) && dbPrice.is_active) {
+          deactivatePromises.push(subscriptionRepository.upsertPrice(db, { ...dbPrice, is_active: false }));
+        }
+      }
+
+      await Promise.allSettled(deactivatePromises);
+    } catch (err) {
+      logger.error('Failed to reconcile prices for product {productId}: {error}', {
+        productId: product.id,
+        error: err,
+      });
+    }
+
+    logger.info('Successfully processed product.updated: {productId} with {priceCount} prices', {
+      productId: product.id,
+      priceCount: prices.data.length,
+    });
   } catch (error) {
-    console.error(`Failed to process product.updated: ${product.id}`, error);
+    logger.error('Failed to process product.updated: {productId}. Error: {error}', {
+      productId: product.id,
+      error,
+    });
     throw error;
   }
 };
-

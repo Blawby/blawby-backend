@@ -1,0 +1,59 @@
+# staging
+# Deploy with:
+#   wrangler deploy
+# Set runtime values with:
+#   wrangler secret bulk cf-secrets.staging.json
+
+name = "blawby-backend"
+main = "worker.js"
+compatibility_date = "2025-04-01"
+
+[[containers]]
+class_name = "BackendContainer"
+image = "./Dockerfile"
+max_instances = 1
+instance_type = "basic"
+
+[containers.ssh]
+enabled = false
+
+[[durable_objects.bindings]]
+name = "BACKEND"
+class_name = "BackendContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BackendContainer"]
+
+[observability]
+enabled = true
+
+
+# production
+# Deploy with:
+#   wrangler deploy --env production
+# Set runtime values with:
+#   wrangler secret bulk cf-secrets.production.json --env production
+
+[env.production]
+name = "blawby-backend-production"
+
+[[env.production.containers]]
+class_name = "BackendContainer"
+image = "./Dockerfile"
+max_instances = 1
+instance_type = "basic"
+
+[env.production.containers.ssh]
+enabled = false
+
+[[env.production.durable_objects.bindings]]
+name = "BACKEND"
+class_name = "BackendContainer"
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["BackendContainer"]
+
+[env.production.observability]
+enabled = true

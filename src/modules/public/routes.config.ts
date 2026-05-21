@@ -7,6 +7,7 @@ import type { ModuleConfig } from '@/shared/router/module-router';
  * Examples: health checks, public info, contact forms.
  */
 export const config: Partial<ModuleConfig> = {
+  prefix: '/',
   middleware: {
     '*': [], // All routes are public
   },

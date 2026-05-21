@@ -1,8 +1,16 @@
-export const config = {
-  name: 'practice-client-intakes',
-  prefix: '/api/practice/client-intakes', // Full path for API routes
+import type { ModuleConfig } from '@/shared/router/module-router';
+
+export const config: Partial<ModuleConfig> = {
   middleware: {
-    // All practice client intake routes are public (no authentication required)
-    '*': ['public'],
+    '*': ['requireAuth'],
+    '/:slug/intake': ['public'],
+    '/create': ['public'],
+    'GET /post-pay/status': ['public'],
+    // Staff-only routes require org membership
+    'POST /:uuid/invite': ['requireAuth', 'requireOrgMembership'],
+    'GET /:practice_id': ['requireAuth', 'requireOrgMembership'],
+    'GET /:practice_id/:id': ['requireAuth', 'requireOrgMembership'],
+    'PATCH /:uuid/status': ['requireAuth', 'requireOrgMembership'],
+    'PATCH /:uuid/convert': ['requireAuth', 'requireOrgMembership'],
   },
 };

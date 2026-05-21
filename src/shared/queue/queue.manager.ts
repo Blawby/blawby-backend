@@ -9,19 +9,18 @@
  * - PostgreSQL: Job queue storage
  */
 
+import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
-import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 import { getWorkerUtils, closeWorkerUtils } from './graphile-worker.client';
+import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 import { db } from '@/shared/database';
+
+const logger = getLogger(['queue', 'manager']);
 
 /**
  * Add a webhook processing job to the queue
  */
-export const addWebhookJob = async (
-  webhookId: string,
-  eventId: string,
-  eventType: string,
-): Promise<void> => {
+const addWebhookJob = async (webhookId: string, eventId: string, eventType: string): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -35,12 +34,12 @@ export const addWebhookJob = async (
       {
         jobKey: eventId, // Use Stripe event ID for deduplication
         maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
+      }
     );
 
-    console.log(`✅ Webhook job queued: ${eventId} (${eventType})`);
+    logger.info('Webhook job queued: {eventId} ({eventType})', { eventId, eventType });
   } catch (error) {
-    console.error(`❌ Failed to queue webhook job ${eventId}:`, error);
+    logger.error('Failed to queue webhook job {eventId}', { error, eventId });
     throw error;
   }
 };
@@ -48,11 +47,7 @@ export const addWebhookJob = async (
 /**
  * Add an onboarding webhook processing job to the queue
  */
-export const addOnboardingWebhookJob = async (
-  webhookId: string,
-  eventId: string,
-  eventType: string,
-): Promise<void> => {
+const addOnboardingWebhookJob = async (webhookId: string, eventId: string, eventType: string): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -66,29 +61,185 @@ export const addOnboardingWebhookJob = async (
       {
         jobKey: eventId, // Use Stripe event ID for deduplication
         maxAttempts: graphileWorkerConfig.maxAttempts,
-      },
+      }
     );
 
-    console.log(`✅ Onboarding webhook job queued: ${eventId} (${eventType})`);
+    logger.info('Onboarding webhook job queued: {eventId} ({eventType})', { eventId, eventType });
   } catch (error) {
-    console.error(`❌ Failed to queue onboarding webhook job ${eventId}:`, error);
+    logger.error('Failed to queue onboarding webhook job {eventId}', { error, eventId });
     throw error;
   }
 };
 
 /**
+ * Add an email job to the queue
+ */
+const addEmailJob = async (
+  template: string,
+  to: string,
+  subject: string,
+  data: Record<string, unknown>
+): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(
+      TASK_NAMES.SEND_EMAIL,
+      {
+        payload: {
+          template,
+          to,
+          subject,
+          data,
+        },
+      },
+      {
+        maxAttempts: graphileWorkerConfig.maxAttempts,
+      }
+    );
+
+    logger.info('Email job queued: {template} to {to}', { template, to });
+  } catch (error) {
+    logger.error('Failed to queue email job', { error });
+    throw error;
+  }
+};
+
+export const addMeteredUsageJob = async (payload: {
+  organizationId: string;
+  meteredType: string;
+  quantity: number;
+  deduplicationId: string;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_METERED_USAGE, payload, {
+      jobKey: `metered:${payload.organizationId}:${payload.meteredType}:${payload.deduplicationId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Metered usage retry job queued: {meteredType} ({deduplicationId})', {
+      meteredType: payload.meteredType,
+      deduplicationId: payload.deduplicationId,
+      organizationId: payload.organizationId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue metered usage retry job {deduplicationId}', {
+      error,
+      deduplicationId: payload.deduplicationId,
+      meteredType: payload.meteredType,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
+
+export const addInvoicePaymentJob = async (payload: {
+  invoice_id: string;
+  organization_id: string;
+  stripe_invoice_id: string;
+  stripe_amount_paid: number;
+  stripe_amount_remaining: number;
+  stripe_paid_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_on_behalf_of: string | null;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_INVOICE_PAYMENT, payload, {
+      jobKey: `invoice-payment:${payload.organization_id}:${payload.stripe_invoice_id}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Invoice payment job queued: {stripeInvoiceId}', {
+      stripeInvoiceId: payload.stripe_invoice_id,
+      organizationId: payload.organization_id,
+    });
+  } catch (error) {
+    logger.error('Failed to queue invoice payment job {stripeInvoiceId}', {
+      error,
+      stripeInvoiceId: payload.stripe_invoice_id,
+      organizationId: payload.organization_id,
+    });
+    throw error;
+  }
+};
+
+export const addInvoiceVoidReconciliationJob = async (payload: {
+  invoiceId: string;
+  organizationId: string;
+  stripeInvoiceId: string;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_INVOICE_VOID_RECONCILIATION, payload, {
+      jobKey: `invoice-void-reconcile:${payload.organizationId}:${payload.stripeInvoiceId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Invoice void reconciliation job queued: {stripeInvoiceId}', {
+      stripeInvoiceId: payload.stripeInvoiceId,
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue invoice void reconciliation job {stripeInvoiceId}', {
+      error,
+      stripeInvoiceId: payload.stripeInvoiceId,
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
+
+export const addRefundReconciliationJob = async (payload: {
+  organizationId: string;
+  requestId: string;
+  executorUserId: string;
+  stripePaymentIntentId: string;
+  stripeTransferId: string | null;
+  stripeRefundId: string | null;
+  refundedAmount: number;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_REFUND_RECONCILIATION, payload, {
+      jobKey: `refund-reconcile:${payload.organizationId}:${payload.requestId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Refund reconciliation job queued: {requestId}', {
+      requestId: payload.requestId,
+      organizationId: payload.organizationId,
+      stripeRefundId: payload.stripeRefundId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue refund reconciliation job {requestId}', {
+      error,
+      requestId: payload.requestId,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
+/**
  * Get queue statistics for monitoring
  * Queries Graphile Worker's job tables directly
  */
-export const getQueueStats = async (
-  taskName: string,
+const getQueueStats = async (
+  taskName: string
 ): Promise<{
   waiting: number;
   active: number;
   completed: number;
   failed: number;
 }> => {
-  const schema = graphileWorkerConfig.schema;
+  const { schema } = graphileWorkerConfig;
 
   // Query Graphile Worker's jobs table
   // Jobs are stored with their task_identifier matching the task name
@@ -106,7 +257,7 @@ export const getQueueStats = async (
         COUNT(*) FILTER (WHERE attempts >= max_attempts AND locked_at IS NULL) as failed
       FROM "${schemaEscaped}".jobs
       WHERE task_identifier = '${taskNameEscaped}'
-    `),
+    `)
   );
 
   const row = stats.rows[0] as {
@@ -127,54 +278,40 @@ export const getQueueStats = async (
 /**
  * Get webhook queue statistics
  */
-export const getWebhookQueueStats = async (): Promise<{
+const getWebhookQueueStats = async (): Promise<{
   waiting: number;
   active: number;
   completed: number;
   failed: number;
-}> => {
-  return getQueueStats(TASK_NAMES.PROCESS_STRIPE_WEBHOOK);
-};
+}> => getQueueStats(TASK_NAMES.PROCESS_STRIPE_WEBHOOK);
 
 /**
  * Clean up Graphile Worker connection
  */
-export const closeQueues = async (): Promise<void> => {
-  console.log('Closing queue manager...');
+const closeQueues = async (): Promise<void> => {
+  logger.info('Closing queue manager...');
   await closeWorkerUtils();
-  console.log('Queue manager closed');
-};
-
-// Legacy exports for backward compatibility during migration
-// TODO: Remove after full migration
-export const getQueue = (_name: string): never => {
-  throw new Error(
-    'getQueue() is deprecated. Use getWorkerUtils() and addJob() directly.',
-  );
-};
-
-export const getWebhookQueue = (): never => {
-  throw new Error(
-    'getWebhookQueue() is deprecated. Use addWebhookJob() directly.',
-  );
-};
-
-export const getQueueEvents = (_name: string): never => {
-  throw new Error(
-    'getQueueEvents() is not available in Graphile Worker. Query the jobs table directly for monitoring.',
-  );
+  logger.info('Queue manager closed');
 };
 
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
-  console.log('Received SIGINT, closing queue manager...');
+  logger.info('Received SIGINT, closing queue manager...');
   await closeQueues();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('Received SIGTERM, closing queue manager...');
+  logger.info('Received SIGTERM, closing queue manager...');
   await closeQueues();
   process.exit(0);
 });
 
+export const queueManager = {
+  addWebhookJob,
+  addOnboardingWebhookJob,
+  addEmailJob,
+  getQueueStats,
+  getWebhookQueueStats,
+  closeQueues,
+};

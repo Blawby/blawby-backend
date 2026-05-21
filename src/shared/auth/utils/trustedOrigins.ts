@@ -1,3 +1,6 @@
+import { config } from '@/shared/config';
+import { getEnvArray } from '@/shared/utils/env';
+
 /**
  * Trusted Origins Utility
  *
@@ -8,9 +11,7 @@
  * Check if origin matches a pattern (supports wildcards)
  */
 export const matchesPattern = (origin: string, pattern: string): boolean => {
-  const regexPattern = pattern
-    .replace(/\./g, '\\.')
-    .replace(/\*/g, '.*');
+  const regexPattern = pattern.replace(/\./g, '\\.').replace(/\*/g, '.*');
   const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(origin);
 };
@@ -19,7 +20,10 @@ export const matchesPattern = (origin: string, pattern: string): boolean => {
  * Get trusted origins for Better Auth
  * Also validates callbackURLs for OAuth Proxy
  */
-export const getTrustedOrigins = (request: Request): string[] => {
+export const getTrustedOrigins = (request?: Request): string[] => {
+  if (!request) {
+    return [];
+  }
   const origin = request.headers.get('origin');
   const origins: string[] = [];
 
@@ -31,22 +35,18 @@ export const getTrustedOrigins = (request: Request): string[] => {
     origins.push(origin);
   }
 
-
-  if (process.env.BASE_URL) {
-    origins.push(process.env.BASE_URL);
+  if (config.app.baseUrl) {
+    origins.push(config.app.baseUrl);
   }
 
   // 3. Add Custom Origins from Environment
-  // This reuses the same variable as your CORS middleware
-  const envOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? [];
+  const allowedOrigins = getEnvArray('ALLOWED_ORIGINS');
 
-  envOrigins.forEach(o => {
-    const trimmed = o.trim();
-    if (trimmed && !origins.includes(trimmed)) {
-      origins.push(trimmed);
+  [...allowedOrigins].forEach((o) => {
+    if (o && !origins.includes(o)) {
+      origins.push(o);
     }
   });
 
   return origins;
 };
-

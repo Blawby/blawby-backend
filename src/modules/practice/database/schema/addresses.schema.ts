@@ -12,23 +12,20 @@ export const addresses = pgTable(
       onDelete: 'cascade',
     }),
     user_id: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    type: text('type').notNull().default('practice_location'), // e.g., 'practice_location', 'billing', 'home'
+    type: text('type').notNull().default('practice_location'), // E.g., 'practice_location', 'billing', 'home'
     line1: text('line1'),
     line2: text('line2'),
     city: text('city'),
     state: text('state'),
     postal_code: text('postal_code'),
     country: text('country'),
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
     // Ensure at least one owner is present
-    check(
-      'owner_check',
-      sql`(${table.organization_id} IS NOT NULL) OR (${table.user_id} IS NOT NULL)`,
-    ),
-  ],
+    check('owner_check', sql`(${table.organization_id} IS NOT NULL) OR (${table.user_id} IS NOT NULL)`),
+  ]
 );
 
 // Define relations

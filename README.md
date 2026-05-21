@@ -1,4 +1,4 @@
-# Blawby Backend 
+# Blawby Backend
 
 ## Project Overview
 
@@ -69,68 +69,92 @@ PORT=3000
 
 ```
 src/
-├── app.ts                 # Main Fastify application entry point
-├── server.ts              # Server configuration and startup
-├── auth.ts                # Better Auth configuration
-├── database/               # Database connection and migrations
-│   ├── index.ts           # Database client setup
-│   └── migrations/        # Drizzle migration files
-├── shared/                 # Shared utilities and middleware
+├── hono-app.ts            # Main Hono application entry point
+├── hono-server.ts         # Server configuration and startup
+├── shared/                # Shared utilities and middleware
 │   ├── auth/              # Authentication system
 │   │   ├── better-auth.ts # Better Auth configuration
-│   │   └── verify-auth.ts # Auth verification middleware
+│   │   ├── abilities.ts   # CASL ability definitions
+│   │   └── hooks/         # Database hooks
 │   ├── database/          # Database utilities
+│   │   └── index.ts       # Database client setup
 │   ├── queue/             # Job queue system (Graphile Worker)
 │   │   ├── graphile-worker.client.ts # Graphile Worker client
 │   │   ├── queue.manager.ts # Job queue management
 │   │   └── queue.config.ts # Queue configuration
-│   ├── middleware/        # Fastify middleware plugins
-│   │   ├── cors.ts        # CORS configuration
-│   │   ├── helmet.ts      # Security headers
-│   │   ├── rate-limit.ts  # Rate limiting
-│   │   └── sensible.ts    # Error handling
-│   ├── router/            # File-based routing system
+│   ├── middleware/        # Hono middleware functions
+│   │   ├── requireAuth.ts # Authentication middleware
+│   │   ├── inject-ability.ts # CASL ability injection
+│   │   ├── errorHandler.ts # Global error handling
+│   │   └── cors.ts        # CORS configuration
+│   ├── router/            # Module-based routing system
+│   │   ├── module-router.ts # Module route registration
+│   │   ├── route-builder.ts # OpenAPI route builder
+│   │   └── openapi-router.ts # OpenAPI route collection
+│   ├── enums/             # Shared enumerations
+│   ├── events/            # Event system (BaseEvent, outbox)
+│   ├── logging/           # LogTape configuration
+│   ├── config/            # Environment config (Zod-validated)
+│   ├── services/          # Shared services (email, fees)
+│   ├── repositories/      # Shared repository helpers
+│   ├── schemas/           # Shared Zod schemas
 │   ├── types/             # Global TypeScript definitions
+│   │   └── hono.ts        # Hono app context and types
 │   └── utils/             # Utility functions
+│       └── result.ts      # Result pattern helpers (ok, fail, etc.)
 ├── workers/                # Background worker processes
-│   ├── webhook.worker.ts  # Graphile Worker runner for webhooks
-│   └── tasks/             # Graphile Worker task definitions
-│       ├── process-stripe-webhook.ts
-│       ├── process-onboarding-webhook.ts
-│       └── process-event-handler.ts
+│   ├── event.worker.ts    # Event processing worker
+│   └── email.worker.ts    # Email sending worker
+├── boot/                   # Application bootstrapping
+│   ├── index.ts           # Main boot function
+│   ├── env.ts             # Environment setup
+│   ├── services.ts        # Service initialization
+│   ├── event-handlers.ts  # Event handler registration
+│   └── workers.ts         # Worker initialization
 ├── schema/                 # Drizzle schema definitions
 │   ├── index.ts           # Schema exports
 │   └── better-auth-schema.ts # Better Auth schemas
 ├── types/                  # Global TypeScript type definitions
 └── modules/                # Feature-based modules
-    ├── billing/            # Payment and billing features
+    ├── auth/               # Authentication features
+    ├── clients/            # Client management (profiles, memos)
+    ├── invoices/           # Invoice and billing management
+    ├── matters/            # Legal matter management
+    ├── onboarding/         # Stripe Connect onboarding
     ├── practice/           # Practice/organization management
-    ├── settings/           # User and org settings
-    └── health/             # Health check endpoints
+    ├── practice-client-intakes/ # Client intake management
+    ├── preferences/        # User preference management
+    ├── public/             # Public endpoints (health checks)
+    ├── stripe/             # Stripe integration
+    ├── subscriptions/      # Subscription management
+    ├── trust/              # Trust accounting features
+    ├── uploads/            # File upload handling
+    ├── webhooks/           # Webhook handlers
+    └── dev/                # Development utilities
 ```
 
 ### Application Bootstrap Flow
 
 ```mermaid
 graph TD
-    A[server.ts - Entry Point] --> B[Create Fastify Instance]
-    B --> C[Configure Logger]
-    C --> D[Register Main App]
-    D --> E[Start Server on Port 3000]
+    A[hono-server.ts - Entry Point] --> B[Initialize Logging]
+    B --> C[Import Hono App]
+    C --> D[Start Server on Port 3000]
 
-    E --> F[app.ts - Application Setup]
-    F --> G[1. Infrastructure Plugins]
-    G --> H[Sensible - Error Handling]
+    D --> E[hono-app.ts - Application Setup]
+    E --> F[1. Core Middleware]
+    F --> G[requestId - Request ID generation]
+    G --> H[honoLogger - Request logging]
     H --> I[CORS - Cross-Origin]
-    I --> J[Helmet - Security Headers]
-    J --> K[Rate Limit - 100 req/min]
+    I --> J[responseMiddleware - Response handling]
 
-    K --> L[2. Core Services]
-    L --> M[Database Plugin]
-    M --> N[Better Auth Plugin]
-    N --> O[Auth Core Plugin]
+    J --> K[2. Auth Middlewares]
+    K --> L[normalizeAuthResponse]
+    L --> M[sanitizeAuthResponse]
+    M --> N[autoCreateOrgForSubscription]
 
-    O --> P[3. File-Based Routes]
+    N --> O[3. Better Auth Handler]
+    O --> P[4. Module Routes]
     P --> Q[Auto-Discovery Complete]
     Q --> R[Server Ready]
 ```
@@ -162,41 +186,35 @@ modules/{feature-name}/
 └── index.ts                # Feature exports
 ```
 
-### File-Based Routing System
+### Module-Based Routing System
 
-**Implementation**: `src/shared/router/file-router.ts`
+**Implementation**: `src/shared/router/module-router.ts`
 
 ```mermaid
 graph TD
-    A[File Router Plugin] --> B[Scan modules/*/routes/]
-    B --> C[Parse Filename]
-    C --> D{File Pattern?}
+    A[Module Router] --> B[Scan modules/*/routes.ts]
+    B --> C[Load Route Module]
+    C --> D{Route Type?}
 
-    D -->|list.get.ts| E[GET /api/practice/list]
-    D -->|index.post.ts| F[POST /api/practice/]
-    D -->|[id].put.ts| G[PUT /api/practice/:id]
-    D -->|organization/[orgId]/status.get.ts| H[GET /api/practice/organization/:orgId/status]
+    D -->|OpenAPIHono| E[Collect OpenAPI Routes]
+    D -->|Standard Hono| F[Register Direct Routes]
 
-    E --> I[Load Route Config]
-    F --> I
-    G --> I
+    E --> G[Add to OpenAPI Document]
+    F --> H[Mount to Main App]
+
+    G --> I[Routes Available]
     H --> I
 
-    I --> J{Protected Route?}
-    J -->|Yes| K[Add Auth Middleware]
-    J -->|No| L[Register Route]
-    K --> L
-
-    L --> M[Route Active]
+    I --> J[Server Ready]
 ```
 
-**Route Discovery Process**:
+**Route Registration Process**:
 
-1. **Scan**: `src/modules/*/routes/` directories
-2. **Parse**: Filename to determine HTTP method and path
-3. **Configure**: Apply route configuration from `routes.config.ts`
-4. **Register**: With Fastify and proper middleware
-5. **Authenticate**: Apply auth based on configuration
+1. **Scan**: `src/modules/*/http.ts` files
+2. **Load**: Import route modules
+3. **Register**: Mount routes to main Hono app
+4. **Document**: Collect OpenAPI routes for documentation
+5. **Authenticate**: Apply auth middleware based on route configuration
 
 ## Request Flow Architecture
 
@@ -204,11 +222,11 @@ graph TD
 
 ```mermaid
 graph TD
-    A[Client Request] --> B[Fastify Server]
+    A[Client Request] --> B[Hono Server]
     B --> C[Global Middleware]
-    C --> D[Rate Limiting]
-    D --> E[CORS Check]
-    E --> F[Security Headers]
+    C --> D[Request ID]
+    D --> E[Logging]
+    E --> F[CORS Check]
     F --> G[Route Resolution]
     G --> H{Protected Route?}
     H -->|Yes| I[Auth Verification]
@@ -232,7 +250,7 @@ graph TD
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Fastify
+    participant Hono
     participant Middleware
     participant Auth
     participant Route
@@ -240,28 +258,28 @@ sequenceDiagram
     participant Database
     participant Response
 
-    Client->>Fastify: GET /api/practice/list<br/>Authorization: Bearer token
+    Client->>Hono: GET /api/practice/list<br/>Authorization: Bearer token
 
-    Fastify->>Middleware: 1. Rate Limiting Check
-    Middleware-->>Fastify: ✓ Rate limit OK
+    Hono->>Middleware: 1. Request ID Generation
+    Middleware-->>Hono: ✓ Request ID Set
 
-    Fastify->>Middleware: 2. CORS Validation
-    Middleware-->>Fastify: ✓ CORS OK
+    Hono->>Middleware: 2. Logging
+    Middleware-->>Hono: ✓ Request Logged
 
-    Fastify->>Middleware: 3. Security Headers
-    Middleware-->>Fastify: ✓ Headers Applied
+    Hono->>Middleware: 3. CORS Validation
+    Middleware-->>Hono: ✓ CORS OK
 
-    Fastify->>Route: 4. Route Resolution
-    Route-->>Fastify: ✓ Route Found (list.get.ts)
+    Hono->>Route: 4. Route Resolution
+    Route-->>Hono: ✓ Route Found
 
-    Fastify->>Auth: 5. Authentication Check
+    Hono->>Auth: 5. Authentication Check
     Auth->>Auth: Extract Bearer Token
     Auth->>Auth: Call Better Auth getSession
     Auth->>Database: Validate Organization Access
     Database-->>Auth: ✓ Organization Valid
-    Auth-->>Fastify: ✓ User Authenticated
+    Auth-->>Hono: ✓ User Authenticated
 
-    Fastify->>Route: 6. Route Handler Execution
+    Hono->>Route: 6. Route Handler Execution
     Route->>Service: Call listPractices()
 
     Service->>Database: 7. Query Organizations
@@ -320,8 +338,8 @@ graph TD
     J --> K[Add User Context]
     K --> L[Add Stack Trace]
 
-    L --> M[Re-throw to Fastify]
-    M --> N[Fastify Error Response]
+    L --> M[Hono Error Handler]
+    M --> N[Format Error Response]
     N --> O[Client Receives Error]
 ```
 
@@ -345,7 +363,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A[Better Auth Plugin] --> B[Create Auth Instance]
+    A[Better Auth Creation] --> B[Create Auth Instance]
     B --> C[Configure Database Adapter]
     C --> D[Setup Plugins]
     D --> E[JWT Plugin]
@@ -353,12 +371,12 @@ graph TD
     D --> G[Organization Plugin]
     D --> H[Multi-Session Plugin]
 
-    E --> I[Register with Fastify]
+    E --> I[Export to Hono App]
     F --> I
     G --> I
     H --> I
 
-    I --> J[Decorate Fastify Instance]
+    I --> J[Mount Handler in Hono]
     J --> K[Auth Routes Available]
     K --> L[/api/auth/* endpoints]
 ```
@@ -600,182 +618,56 @@ erDiagram
         text metadata
     }
 
+    PRACTICE_DETAILS ||--o{ PRACTICE_SERVICES : provides
     PRACTICE_DETAILS {
         uuid id PK
-        text organization_id FK
-        text practice_type
-        json specialties
-        text description
+        uuid organization_id FK
+        uuid user_id FK
+        uuid address_id FK
+        text business_phone
+        text business_email
         text website
-        text phone
-        json address
+        integer consultation_fee
+        text payment_url
+        text calendly_url
+        text intro_message
+        text overview
+        boolean is_public
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    PRACTICE_SERVICES {
+        uuid id PK
+        text name
+        text key
+        uuid organization_id FK
+        text description
         timestamp created_at
         timestamp updated_at
     }
 ```
 
-### 3. Billing Module
+### 3. Onboarding & Stripe Module
 
-**Location**: `src/modules/billing/`
+**Location**: `src/modules/onboarding/` and `src/modules/stripe/`
 
-#### Billing Service (`billing.service.ts`)
+These modules handle Stripe Connect onboarding (creating connected accounts for law firms) and Stripe payments/sessions. Billing webhooks are processed via `src/modules/webhooks/` and background workers.
 
-**Stripe Hosted Onboarding Flow**:
+#### Key Features
 
-```mermaid
-graph TD
-    A[createConnectedAccount Called] --> B[Validate Organization (Better Auth)]
-    B --> C{Organization Exists?}
-    
-    C -->|No| D[Throw Error]
-    C -->|Yes| E[Check Existing Stripe Account]
-
-    E --> F{Account Found?}
-    F -->|No| G[Create New Stripe Account]
-    F -->|Yes| H[Use Existing Account]
-
-    G --> I[Create Account Link (Hosted Onboarding)]
-    H --> I
-
-    I --> J[Return Onboarding URL]
-    J --> K[Frontend Redirects to Stripe]
-```
-
-**Payment Session Creation Flow**:
-
-```mermaid
-graph TD
-    A[createPaymentsSession Called] --> B[Find Connected Account]
-    B --> C{Account Found?}
-
-    C -->|No| D[Throw Not Found Error]
-    C -->|Yes| E[Create Stripe Payment Session]
-
-    E --> F[Return Client Secret]
-    F --> G[Return Session ID]
-```
-
-**Stripe Integration Flow**:
-
-```mermaid
-graph TD
-    A[Stripe Service] --> B{Service Type?}
-
-    B -->|Account Creation| C[Create Stripe Account]
-    B -->|Session Creation| D[Create Account Session]
-    B -->|Payment Session| E[Create Payment Session]
-    B -->|Login Link| F[Create Login Link]
-
-    C --> G[Return Account Details]
-    D --> H[Return Session Details]
-    E --> I[Return Payment Details]
-    F --> J[Return Login URL]
-```
-
-#### Database Schema (`billing.schema.ts`)
-
-**Billing Database Schema**:
-
-```mermaid
-erDiagram
-    ORGANIZATION ||--o| STRIPE_CONNECTED_ACCOUNTS : has
-    STRIPE_CONNECTED_ACCOUNTS ||--o{ STRIPE_ONBOARDING_SESSIONS : has
-    STRIPE_WEBHOOK_EVENTS {
-        uuid id PK
-        text event_id UK
-        text event_type
-        text account_id
-        boolean processed
-        json data
-        timestamp created_at
-    }
-
-    STRIPE_CONNECTED_ACCOUNTS {
-        uuid id PK
-        text organization_id UK
-        text account_id UK
-        text status
-        text onboarding_status
-        json requirements
-        json capabilities
-        boolean charges_enabled
-        boolean payouts_enabled
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    STRIPE_ONBOARDING_SESSIONS {
-        uuid id PK
-        uuid connected_account_id FK
-        text session_id UK
-        text status
-        timestamp expires_at
-        timestamp completed_at
-        timestamp created_at
-        timestamp updated_at
-    }
-```
+- **Stripe Connect Onboarding**: Creates Stripe connected accounts for law firms, manages hosted onboarding flows
+- **Payment Sessions**: Creates Stripe payment sessions tied to connected accounts
+- **Webhook Processing**: Validates and queues incoming Stripe events via Graphile Worker
+- **Connected Account Status**: Tracks `charges_enabled`, `payouts_enabled`, and `requirements`
 
 #### API Routes
 
-**Billing API Routes Flow**:
-
-```mermaid
-graph TD
-    A[Billing API Routes] --> B{Route Type?}
-
-    B -->|Onboarding| C[POST /api/onboarding/connected-accounts]
-    B -->|Webhook| D[POST /api/webhooks/stripe/connected-accounts]
-    B -->|Login Link| E[POST /api/onboarding/organization/:id/login-link]
-    B -->|Status Check| F[GET /api/onboarding/organization/:id/status]
-
-    C --> G[Create Connected Account & Link]
-    D --> H[Process Connect Webhook]
-    E --> I[Create Login Link]
-    F --> J[Get Onboarding Status]
-
-    G --> K[Return Onboarding URL]
-    D --> L[Enqueued to Graphile Worker]
-    I --> M[Return Login URL]
-    J --> N[Return Status Info]
-```
-
-**Route Configuration Flow**:
-
-```mermaid
-graph TD
-    A[Route Configuration] --> B{Route Type?}
-
-    B -->|Protected| C[Require Authentication]
-    B -->|Public| D[No Authentication]
-    B -->|Admin Only| E[Require Admin Role]
-
-    C --> F[Apply Auth Middleware]
-    D --> G[Skip Auth Middleware]
-    E --> H[Apply Role Check]
-
-    F --> I[Route Active]
-    G --> I
-    H --> I
-```
-
-### 4. Settings Module
-
-**Location**: `src/modules/settings/`
-
-#### Features
-
-- User and organization settings management
-- Settings history tracking
-- Category-based settings organization
-
-### 5. Health Module
-
-**Location**: `src/modules/health/`
-
-#### Features
-
-- Health check endpoint
+- `POST /api/onboarding/connected-accounts` — Create connected account & onboarding link
+- `GET /api/onboarding/organization/:id/status` — Get onboarding status
+- `POST /api/onboarding/organization/:id/login-link` — Create Stripe Express dashboard login link
+- `POST /api/webhooks/stripe/connected-accounts` — Receive & queue Connect webhook events
+- `POST /api/stripe/connect/*` — Stripe Connect component sessions
 - System status monitoring
 
 ## Database Schema & Architecture
@@ -908,16 +800,34 @@ CREATE TABLE "stripe_webhook_events" (
 ```sql
 CREATE TABLE "practice_details" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "organization_id" text NOT NULL REFERENCES "organization"("id"),
-  "practice_type" text,
-  "specialties" json,
-  "description" text,
+  "organization_id" uuid NOT NULL UNIQUE REFERENCES "organization"("id") ON DELETE CASCADE,
+  "user_id" uuid NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+  "address_id" uuid REFERENCES "addresses"("id") ON DELETE SET NULL,
+  "business_phone" text,
+  "business_email" text,
   "website" text,
-  "phone" text,
-  "address" json,
+  "consultation_fee" integer,
+  "payment_url" text,
+  "calendly_url" text,
+  "intro_message" text,
+  "overview" text,
+  "is_public" boolean DEFAULT false NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL
 );
+
+CREATE TABLE "practice_services" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "name" text NOT NULL,
+  "key" text NOT NULL,
+  "organization_id" uuid NOT NULL REFERENCES "organization"("id") ON DELETE CASCADE,
+  "description" text,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE UNIQUE INDEX "practice_services_org_key_idx" ON "practice_services" ("organization_id", "key");
+CREATE INDEX "practice_services_key_idx" ON "practice_services" ("key");
 ```
 
 ### Database Connection & Configuration
@@ -933,7 +843,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl:
     process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
+      ? {
+          rejectUnauthorized: true,
+          ca: process.env.DATABASE_SSL_CA,
+        }
       : false,
 });
 
@@ -1032,9 +945,12 @@ export * from '../modules/settings/schemas/settings.schema';
 
 - **Imports**: Use full path aliases (`@/`, `features/`)
 - **Functions**: Named function expressions for non-trivial functions
-- **Types**: Explicit types, avoid `any`
+- **Types**: Explicit types, avoid `any`. Every service/handler function **must** have an explicit return type.
 - **Naming**: camelCase for variables, kebab-case for files
 - **Architecture**: Feature-based modules with clear separation
+- **One Export Rule**: Every service, repository, and helper file should ideally have a single main export (documented object or default export).
+- **Result Pattern**: Use the unified `Result<T>` pattern for all service and repository operations. Types are in `@/shared/types/result` and creators in `@/shared/utils/result`.
+- **Hono Validation**: Use the canonical `c.req.valid('json')` pattern for request bodies, facilitated by `validateJson` middleware.
 
 ## Planned Features
 
@@ -1066,19 +982,23 @@ export * from '../modules/settings/schemas/settings.schema';
 
 ### Core Dependencies
 
-- **Fastify**: Web framework
+- **Hono**: Lightweight web framework
 - **Better Auth**: Authentication system
 - **Drizzle ORM**: Database ORM
 - **PostgreSQL**: Database
 - **Stripe**: Payment processing
 - **Zod**: Schema validation
+- **Graphile Worker**: Background job processing
+- **Resend**: Email sending
+- **AWS SDK**: S3 file storage
 
 ### Development Dependencies
 
 - **TypeScript**: Type system
-- **ESLint**: Code linting
-- **Prettier**: Code formatting
-- **Jest**: Testing framework
+- **ESLint / Oxlint**: Code linting
+- **Tap**: Testing framework
+- **TSX**: TypeScript execution
+- **Tsup**: Build tooling
 
 ## Configuration Files
 
@@ -1142,9 +1062,9 @@ export * from '../modules/settings/schemas/settings.schema';
 
 ### Application
 
-- Fastify's high-performance architecture
-- Efficient request handling
-- Minimal middleware overhead
+- Hono's lightweight, high-performance architecture
+- Efficient middleware system
+- Minimal overhead with trie-router and regexp-router
 
 ## Background Job Processing (Graphile Worker)
 
@@ -1153,6 +1073,7 @@ export * from '../modules/settings/schemas/settings.schema';
 The project uses **Graphile Worker** for reliable background job processing. Graphile Worker is a PostgreSQL-based job queue that eliminates the need for Redis, simplifying infrastructure while maintaining high reliability.
 
 **Key Benefits:**
+
 - ✅ **No Redis dependency** - Uses PostgreSQL for job storage
 - ✅ **Automatic schema creation** - Schema auto-creates on first worker start
 - ✅ **Built-in retries** - Automatic retry with exponential backoff
@@ -1170,21 +1091,25 @@ Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graph
 ### Components
 
 **1. Queue Manager** (`src/shared/queue/queue.manager.ts`)
+
 - Enqueues jobs using Graphile Worker's `makeWorkerUtils`
-- Provides `addWebhookJob()` and `addOnboardingWebhookJob()` functions
+- Provides `queueManager.addWebhookJob()` and `addOnboardingWebhookJob()` functions
 - Handles job deduplication via `jobKey` parameter
 
 **2. Graphile Worker Client** (`src/shared/queue/graphile-worker.client.ts`)
+
 - Singleton pattern for `makeWorkerUtils`
 - Manages connection lifecycle
 - Auto-initializes on first use
 
 **3. Worker Process** (`src/workers/webhook.worker.ts`)
+
 - Separate Node.js process that consumes jobs from PostgreSQL
 - Runs independently from API server
 - Processes webhooks and event handlers asynchronously
 
 **4. Task Definitions** (`src/workers/tasks/`)
+
 - `process-stripe-webhook.ts` - Processes Stripe webhook events
 - `process-onboarding-webhook.ts` - Processes Stripe Connect onboarding events
 - `process-event-handler.ts` - Processes queued event handlers
@@ -1201,6 +1126,7 @@ Stripe Webhook → API Server → Save to DB → Enqueue to PostgreSQL → Graph
 ### Configuration
 
 **Environment Variables:**
+
 ```env
 DATABASE_URL="postgresql://..."  # Required - PostgreSQL connection
 GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Optional - defaults to 'graphile_worker'
@@ -1209,6 +1135,7 @@ WEBHOOK_MAX_RETRIES=5  # Optional - max retry attempts (default: 5)
 ```
 
 **Package.json Scripts:**
+
 ```bash
 pnpm run worker        # Start worker (production)
 pnpm run worker:dev    # Start worker with watch mode (development)
@@ -1219,11 +1146,13 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 **No Setup Required**: Graphile Worker automatically creates the `graphile_worker` schema on first run.
 
 **Deployment Steps:**
+
 1. Run database migrations: `pnpm run db:migrate`
 2. Start worker process: `pnpm run worker`
 3. Schema auto-creates on first worker start
 
 **Railway/Production:**
+
 - Run worker as separate service/container
 - Worker auto-creates schema on first start
 - No manual schema setup needed
@@ -1231,11 +1160,13 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 ### Monitoring
 
 **Queue Statistics:**
+
 - Query `graphile_worker.jobs` table directly for job status
 - Use `getQueueStats()` function for programmatic access
 - Monitor waiting, active, completed, and failed jobs
 
 **Logging:**
+
 - Connection status logged on worker start
 - Job start/success/error events logged
 - Detailed error messages for failed jobs
@@ -1320,13 +1251,14 @@ pnpm run worker:dev    # Start worker with watch mode (development)
 
 ## Conclusion
 
-The Blawby TypeScript project has evolved into a robust, feature-rich application with:
+The Blawby TypeScript project is a robust, feature-rich application built with:
 
-- **Solid Foundation**: Fastify + Better Auth + Drizzle ORM
+- **Solid Foundation**: Hono + Better Auth + Drizzle ORM
 - **Clean Architecture**: Feature-based modules with clear separation
 - **Security**: Comprehensive authentication and authorization
 - **Scalability**: Designed for growth and expansion
 - **Maintainability**: Clean code with proper error handling
+- **Performance**: Lightweight Hono framework with efficient routing
 
 The project is well-positioned for continued development and feature expansion, with a clear roadmap for implementing team payments and other advanced features.
 

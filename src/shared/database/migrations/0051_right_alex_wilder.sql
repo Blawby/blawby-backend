@@ -1,0 +1,1 @@
+ALTER TABLE "uploads" ALTER COLUMN "scope_type" DROP NOT NULL;

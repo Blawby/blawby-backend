@@ -1,60 +1,101 @@
 /**
  * Database Hooks for Better Auth
  *
- * Handles database-level events (user creation, session management)
+ * Handles database-level events (user creation, session management).
+ *
+ * activeOrganizationId is intentionally NOT auto-set on session create.
+ * The client app calls authClient.organization.setActive() after sign-in
+ * per the better-auth organization plugin docs. Auto-setting it caused
+ * inconsistent routing when primary_workspace didn't match the auto-picked org.
  */
 
-import { eq, and } from 'drizzle-orm';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import * as schema from '@/schema';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
+import { AuthUserSignedUp, PracticeMemberJoined } from '@/shared/events/definitions';
+
+const logger = getLogger(['auth', 'database-hooks']);
+
+const INTAKE_STATUS_SUCCEEDED = 'succeeded';
+const ROLE_CLIENT = 'client';
+
+interface CheckPendingIntakesParams {
+  db: NodePgDatabase<typeof schema>;
+  userId: string;
+  email: string;
+}
 
 /**
- * Get active organization ID for a user
- * Tries to preserve last active organization, falls back to first organization
+ * When a client completes an intake anonymously then later authenticates with
+ * the same email, enroll them in the org automatically. Sets primary_workspace
+ * to 'client' so routing state is consistent with member.role='client'.
  */
-const getActiveOrganizationId = async (
-  db: NodePgDatabase<typeof schema>,
-  userId: string,
-  lastActiveOrgId: string | null,
-): Promise<string | null> => {
-  // First, try to use the last active organization if it's still valid
-  if (lastActiveOrgId) {
-    const orgValidation = await db
-      .select({ id: schema.organizations.id })
-      .from(schema.organizations)
-      .innerJoin(
-        schema.members,
-        eq(schema.organizations.id, schema.members.organizationId),
+const checkPendingIntakesByEmail = async ({ db, userId, email }: CheckPendingIntakesParams): Promise<void> => {
+  const pendingIntakes = await db
+    .select()
+    .from(practiceClientIntakes)
+    .where(
+      and(
+        eq(practiceClientIntakes.status, INTAKE_STATUS_SUCCEEDED),
+        eq(sql<string>`lower(${practiceClientIntakes.metadata} ->> 'email')`, email.toLowerCase())
       )
-      .where(
-        and(
-          eq(schema.organizations.id, lastActiveOrgId),
-          eq(schema.members.userId, userId),
-        ),
-      )
-      .limit(1);
+    );
 
-    if (orgValidation.length > 0) {
-      return lastActiveOrgId;
+  for (const intake of pendingIntakes) {
+    try {
+      const [newMember] = await db
+        .insert(schema.members)
+        .values({
+          organizationId: intake.organization_id,
+          userId,
+          role: ROLE_CLIENT,
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      if (newMember) {
+        await db
+          .update(schema.users)
+          .set({ onboardingComplete: false, primaryWorkspace: ROLE_CLIENT })
+          .where(eq(schema.users.id, userId));
+
+        logger.info('Added user {userId} to organization {orgId} from pending intake {intakeId} (email match)', {
+          userId,
+          orgId: intake.organization_id,
+          intakeId: intake.id,
+        });
+
+        try {
+          await PracticeMemberJoined.dispatch(
+            { member_id: newMember.id, intake_id: intake.id },
+            { actorId: userId, organizationId: intake.organization_id }
+          );
+        } catch (dispatchError) {
+          logger.error('Failed to dispatch PracticeMemberJoined for user {userId} intake {intakeId}: {error}', {
+            userId,
+            intakeId: intake.id,
+            error: dispatchError,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to process pending intake {intakeId} for user {userId}: {error}', {
+        intakeId: intake.id,
+        userId,
+        error,
+      });
     }
   }
-
-  // Fall back to first organization user belongs to
-  const userOrgs = await db
-    .select({ organizationId: schema.members.organizationId })
-    .from(schema.members)
-    .where(eq(schema.members.userId, userId))
-    .limit(1);
-
-  return userOrgs.length > 0 ? userOrgs[0].organizationId : null;
 };
 
 type UserData = Record<string, unknown> & {
   id: string;
   email: string;
   name: string | null;
+  isAnonymous?: boolean;
 };
 
 type SessionData = Record<string, unknown> & {
@@ -62,11 +103,8 @@ type SessionData = Record<string, unknown> & {
   id: string;
 };
 
-/**
- * Create database hooks configuration
- */
 export const createDatabaseHooks = (
-  db: NodePgDatabase<typeof schema>,
+  db: NodePgDatabase<typeof schema>
 ): {
   user: {
     create: {
@@ -75,65 +113,54 @@ export const createDatabaseHooks = (
   };
   session: {
     create: {
-      before: (sessionData: SessionData) => Promise<{ data: SessionData & { activeOrganizationId: string | null } }>;
+      before: (sessionData: SessionData) => Promise<{ data: SessionData }>;
       after: (session: SessionData) => Promise<void>;
     };
   };
-} => {
-  return {
-    user: {
-      create: {
-        after: async (userData: UserData): Promise<void> => {
-          void publishSimpleEvent(EventType.AUTH_USER_SIGNED_UP, userData.id, undefined, {
+} => ({
+  user: {
+    create: {
+      after: async (userData: UserData): Promise<void> => {
+        await AuthUserSignedUp.dispatch(
+          {
             actor_id: userData.id,
             user_id: userData.id,
             email: userData.email,
             name: userData.name,
             signup_method: 'email',
-          });
-        },
+            is_anonymous: userData.isAnonymous ?? false,
+          },
+          { actorId: userData.id, critical: true }
+        );
       },
     },
-    session: {
-      create: {
-        before: async (
-          sessionData: SessionData,
-        ): Promise<{ data: SessionData & { activeOrganizationId: string | null } }> => {
-          // Get last active organization from previous session
-          const lastActiveSession = await db
-            .select({
-              activeOrganizationId: schema.sessions.activeOrganizationId,
-            })
-            .from(schema.sessions)
-            .where(eq(schema.sessions.userId, sessionData.userId))
+  },
+  session: {
+    create: {
+      // Enforce one session per user. Do NOT auto-fill activeOrganizationId —
+      // client app calls authClient.organization.setActive() after sign-in.
+      before: async (sessionData: SessionData): Promise<{ data: SessionData }> => {
+        await db.delete(schema.sessions).where(eq(schema.sessions.userId, sessionData.userId));
+        return { data: sessionData };
+      },
+      after: async (session: SessionData): Promise<void> => {
+        try {
+          const [user] = await db
+            .select({ email: schema.users.email, isAnonymous: schema.users.isAnonymous })
+            .from(schema.users)
+            .where(eq(schema.users.id, session.userId))
             .limit(1);
 
-          // Delete all existing sessions for this user (single session per user)
-          await db
-            .delete(schema.sessions)
-            .where(eq(schema.sessions.userId, sessionData.userId));
-
-          // Determine active organization
-          let activeOrganizationId: string | null = null;
-          try {
-            activeOrganizationId = await getActiveOrganizationId(
-              db,
-              sessionData.userId,
-              lastActiveSession.length > 0 ? lastActiveSession[0].activeOrganizationId : null,
-            );
-          } catch (error) {
-            console.warn('Failed to set active organization:', error);
+          if (user && !user.isAnonymous) {
+            await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
           }
-
-          return {
-            data: { ...sessionData, activeOrganizationId },
-          };
-        },
-        after: async (_session: SessionData): Promise<void> => {
-          // Session created - no event published for login
-        },
+        } catch (error) {
+          logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
+            sessionId: session.id,
+            error,
+          });
+        }
       },
     },
-  };
-};
-
+  },
+});

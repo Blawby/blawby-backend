@@ -8,7 +8,7 @@
  */
 
 import { config } from '@dotenvx/dotenvx';
-import { syncAllPlansFromStripe } from '@/modules/subscriptions/services/syncPlans.service';
+import { syncPlansService } from '@/modules/subscriptions/services/syncPlans.service';
 
 // Load environment variables
 config();
@@ -20,16 +20,17 @@ const main = async (): Promise<void> => {
   try {
     console.log('🚀 Starting subscription plans sync...\n');
 
-    const result = await syncAllPlansFromStripe();
+    const result = await syncPlansService.syncAllPlansFromStripe();
+    const { synced, errors } = result;
 
     console.log('\n✅ Sync completed!');
-    console.log(`   Synced: ${result.synced} plans`);
-    console.log(`   Errors: ${result.errors.length}`);
+    console.log(`   Synced: ${synced} plans`);
+    console.log(`   Errors: ${errors.length}`);
 
-    if (result.errors.length > 0) {
+    if (errors.length > 0) {
       console.log('\n❌ Errors:');
-      result.errors.forEach((error) => {
-        console.log(`   - ${error.productId}: ${error.error}`);
+      errors.forEach((error: { product_id: string; error: string }) => {
+        console.log(`   - ${error.product_id}: ${error.error}`);
       });
       process.exit(1);
     }
@@ -44,4 +45,3 @@ const main = async (): Promise<void> => {
 
 // Run the script
 main();
-

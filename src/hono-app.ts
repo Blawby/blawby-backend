@@ -1,27 +1,24 @@
+import { honoLogger } from '@logtape/hono';
 import { Scalar } from '@scalar/hono-api-reference';
-import { createMarkdownFromOpenApi } from '@scalar/openapi-to-markdown';
 import { Hono } from 'hono';
-import { SmartRouter } from 'hono/router/smart-router';
+import { requestId } from 'hono/request-id';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
+import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
-import { sql } from 'drizzle-orm';
-import {
-  logger,
-  cors,
-  responseMiddleware,
-  notFoundHandler,
-  errorHandler,
-} from '@/shared/middleware';
+import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
+import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
-import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
+import { uploadsHttp } from '@/shared/uploads/http';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { createOpenApiApp } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
-import type { BetterAuthInstance } from '@/shared/auth/better-auth';
+import { createMarkdownFromOpenApi } from '@/shared/utils/openapi';
+import { config } from '@/shared/config';
 
 // Automatically collect OpenAPI routes from all OpenAPIHono modules
 // This iterates through the module registry and mounts any OpenAPIHono instances
@@ -33,10 +30,18 @@ const app = new Hono<AppContext>({
 });
 
 // Lazy initialization - only create when needed (after env vars are loaded)
-const getAuthInstance = (): BetterAuthInstance => createBetterAuthInstance(db);
+// Note: we may create per-redirectURI Better Auth instances when handling auth
+// Requests so that the underlying library uses the correct Google redirect URI
+// For the token exchange.
 
 // Middlewares – order is important!
-app.use('*', logger());
+app.use('*', requestId());
+app.use(
+  '*',
+  honoLogger({
+    skip: (c) => c.req.path === '/api/health',
+  })
+);
 app.use('*', cors());
 app.use('*', responseMiddleware());
 
@@ -47,55 +52,23 @@ app.use('/api/auth/*', autoCreateOrgForSubscription()); // Auto-create org for s
 
 // Mount Better Auth handler
 app.on(['POST', 'GET'], '/api/auth/*', (c) => {
-  const authInstance = getAuthInstance();
+  const host = c.req.header('host');
+  const redirectUri = betterAuthUtils.getGoogleRedirectUriForHost(host);
+  const authInstance = createBetterAuthInstance(db, redirectUri);
   return authInstance.handler(c.req.raw);
-});
-
-// Root route
-app.get('/', (c) => {
-  return c.json({
-    message: 'Hono server is running!',
-    timestamp: new Date().toISOString(),
-    routes: ['/api/health', '/api/session', '/docs'],
-  });
-});
-
-app.get('/api/health', async (c) => {
-  const health = {
-    status: 'ok' as 'ok' | 'degraded',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: {
-      status: 'unknown' as 'connected' | 'disconnected' | 'unknown',
-      latency: null as number | null,
-    }
-  };
-
-  // Check database connection
-  try {
-    const startTime = Date.now();
-    await db.execute(sql`SELECT 1`);
-    const latency = Date.now() - startTime;
-
-    health.database.status = 'connected';
-    health.database.latency = latency;
-  } catch {
-    health.status = 'degraded';
-    health.database.status = 'disconnected';
-    health.database.latency = null;
-  }
-
-  const statusCode = health.status === 'ok' ? 200 : 503;
-  return c.json(health, statusCode);
 });
 
 // Register additional module routes
 await registerModuleRoutes(app);
 
+// Shared upload infrastructure endpoints
+app.route('/api/uploads', uploadsHttp);
+
 // Create OpenAPI app for documentation - collect routes from all OpenAPIHono modules
 const openApiApp = createOpenApiApp();
 
 const buildOpenApiDocument = () => {
+  const baseUrl = config.app.baseUrl || `http://localhost:${config.server.port ?? 3000}`;
   const doc = openApiApp.getOpenAPIDocument({
     openapi: '3.0.0',
     info: {
@@ -103,30 +76,38 @@ const buildOpenApiDocument = () => {
       version: '1.0.0',
       description: 'API documentation for Blawby backend services',
     },
+    servers: [{ url: baseUrl, description: 'API server' }],
   });
 
   // Add security schemes to the document
-  if (!doc.components) {
-    doc.components = {};
-  }
-  if (!doc.components.securitySchemes) {
-    doc.components.securitySchemes = {};
-  }
-  doc.components.securitySchemes.Bearer = {
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'JWT',
-    description: 'Bearer token authentication. Get token from /api/auth/sign-in/email endpoint.',
+  doc.components ??= {};
+  doc.components.securitySchemes ??= {};
+  doc.components.securitySchemes['cookieAuth'] = {
+    type: 'apiKey',
+    in: 'cookie',
+    name: 'better-auth.session-token',
+    description: 'Session cookie for authentication',
   };
+
+  // Add tag groups for better organization in documentation UI
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (doc as any)['x-tag-groups'] = [
+    {
+      name: 'Matters Management',
+      tags: ['Matters: General', 'Matters: Notes', 'Matters: Time Entries', 'Matters: Expenses', 'Matters: Milestones'],
+    },
+    {
+      name: 'Stripe Connect',
+      tags: ['Stripe Connect'],
+    },
+  ];
 
   return doc;
 };
 
 // Serve OpenAPI spec at /doc endpoint (required by Scalar)
 // Scalar needs a URL to fetch the OpenAPI JSON specification
-app.get('/doc', (c) => {
-  return c.json(buildOpenApiDocument());
-});
+app.get('/doc', (c) => c.json(buildOpenApiDocument()));
 
 // Serve LLM-friendly Markdown
 app.get('/llms.txt', async (c) => {

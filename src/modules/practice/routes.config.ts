@@ -12,7 +12,9 @@ import type { ModuleConfig } from '@/shared/router/module-router';
  */
 export const config: Partial<ModuleConfig> = {
   middleware: {
-    '*': ['requireAuth'], // rateLimit added automatically by default
+    '*': ['requireAuth', 'requireOrgMembership'], // RateLimit added automatically by default
+    'POST /': ['requireAuth'],
+    'GET /list': ['requireAuth'],
     // Specific route middleware
     '/details/:slug': ['public'],
   },

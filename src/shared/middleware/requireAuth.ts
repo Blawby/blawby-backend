@@ -1,4 +1,9 @@
+import { getLogger } from '@logtape/logtape';
+import { and, eq } from 'drizzle-orm';
 import type { MiddlewareHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { ADMIN_ROLES } from '@/shared/enums/org-roles';
+import { members } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
@@ -11,66 +16,43 @@ import type { Variables } from '@/shared/types/hono';
  * 2. Sets user data in context
  * 3. Blocks requests if user is not authenticated
  */
-export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => {
-  return async (c, next) => {
-    try {
-      // 🆕 STEP 1: Validate bearer token format
-      const authHeader = c.req.header('Authorization');
+export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
+  try {
+    // STEP 2: Existing session validation
+    const authInstance = createBetterAuthInstance(db);
 
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
+    // Get session from Better Auth
+    const session = await authInstance.api.getSession({
+      headers: c.req.raw.headers,
+    });
 
-        // Validate token format - reject simple session tokens
-        const isValidBearerToken = validateBearerTokenFormat(token);
+    // Set session and user in context
+    if (session?.user) {
+      c.set('session', session);
+      c.set('user', session.user);
+      c.set('userId', session.user.id);
+      const activeOrgId = session.session.activeOrganizationId;
 
-        if (!isValidBearerToken) {
-          console.warn('[Auth] Rejected token: Invalid bearer token format', {
-            tokenLength: token.length,
-            tokenStart: token.substring(0, 10) + '...',
-            endpoint: c.req.path,
-          });
-
-          return c.json({
-            error: 'Unauthorized',
-            message: 'Invalid bearer token format. Please use the token from set-auth-token header.',
-          }, 401);
-        }
-      }
-
-      // STEP 2: Existing session validation
-      const authInstance = createBetterAuthInstance(db);
-
-      // Get session from Better Auth
-      const session = await authInstance.api.getSession({
-        headers: c.req.raw.headers,
-      });
-
-      // Set session and user in context
-      if (session?.user) {
-        c.set('session', session);
-        c.set('user', session.user);
-        c.set('userId', session.user.id);
-        c.set('activeOrganizationId', session.session.activeOrganizationId ?? null);
-      }
-
-      // Block request if no user
-      if (!session?.user) {
-        return c.json({
-          error: 'Unauthorized',
-          message: 'Authentication required',
-        }, 401);
-      }
-
-      return next();
-    } catch (error) {
-      // Log the error and block the request
-      console.error('Error in requireAuth middleware:', error);
-      return c.json({
-        error: 'Unauthorized',
-        message: 'Authentication required',
-      }, 401);
+      c.set('activeOrganizationId', activeOrgId ?? null);
     }
-  };
+
+    // Block request if no user
+    if (!session?.user) {
+      throw new HTTPException(401, {
+        message: 'Authentication required',
+      });
+    }
+
+    return next();
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+
+    const logger = getLogger(['app', 'auth']);
+    logger.error('Error in requireAuth middleware: {error}', { error });
+    throw error;
+  }
 };
 
 /**
@@ -79,17 +61,15 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => {
  * Use this for routes that should only be accessible to non-authenticated users
  * (like login, register pages)
  */
-export const requireGuest = (): MiddlewareHandler<{ Variables: Variables }> => {
-  return async (c, next) => {
-    const user = c.get('user');
+export const requireGuest = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
+  const user = c.get('user');
 
-    if (user) {
-      // User is already authenticated, return error
-      return c.json({ error: 'Bad Request', message: 'Already authenticated' }, 400);
-    }
+  if (user) {
+    // User is already authenticated, return error
+    return c.json({ error: 'Bad Request', message: 'Already authenticated' }, 400);
+  }
 
-    return next();
-  };
+  return next();
 };
 
 /**
@@ -97,58 +77,32 @@ export const requireGuest = (): MiddlewareHandler<{ Variables: Variables }> => {
  *
  * Use this for admin-only routes
  */
-export const requireAdmin = (): MiddlewareHandler<{ Variables: Variables }> => {
-  return async (c, next) => {
-    const user = c.get('user');
+export const requireAdmin = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
+  const user = c.get('user');
+  const userId = c.get('userId');
+  const organizationId = c.get('activeOrganizationId');
 
-    if (!user) {
-      return c.json({ error: 'Unauthorized', message: 'Authentication required' }, 401);
-    }
+  if (!user) {
+    return c.json({ error: 'Unauthorized', message: 'Authentication required' }, 401);
+  }
 
-    // TODO: Check if user has admin role
-    // For now, we'll assume all authenticated users are admins
-    // You can implement role checking here
+  if (!userId || !organizationId) {
+    return c.json({ error: 'Forbidden', message: 'Organization context required' }, 403);
+  }
 
-    return next();
-  };
+  const [membership] = await db
+    .select({ role: members.role })
+    .from(members)
+    .where(and(eq(members.userId, userId), eq(members.organizationId, organizationId)))
+    .limit(1);
+
+  if (!membership) {
+    return c.json({ error: 'Forbidden', message: 'You are not a member of this organization' }, 403);
+  }
+
+  if (!(ADMIN_ROLES as readonly string[]).includes(membership.role)) {
+    return c.json({ error: 'Forbidden', message: 'Admin access required' }, 403);
+  }
+
+  return next();
 };
-
-/**
- * Validate bearer token format
- *
- * Bearer tokens from set-auth-token header are typically:
- * - Longer (usually 100+ characters)
- * - Contain special characters (dots, dashes, underscores)
- * - May be JWT format (xxx.yyy.zzz)
- *
- * Session tokens from database are typically:
- * - Shorter (32-40 characters)
- * - Simple alphanumeric only
- * - No special characters
- */
-function validateBearerTokenFormat(token: string): boolean {
-  // Check 1: Minimum length (bearer tokens are typically longer)
-  if (token.length < 40) {
-    return false;
-  }
-
-  // Check 2: Must contain at least one special character
-  // Bearer tokens typically have dots (JWTs), dashes, or underscores
-  const hasSpecialChar = /[^a-zA-Z0-9]/.test(token);
-
-  if (!hasSpecialChar) {
-    return false;
-  }
-
-  // Check 3: JWT format check (optional but recommended)
-  // JWTs have format: header.payload.signature
-  const isJWT = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/.test(token);
-
-  // If it's a JWT, it's definitely valid
-  if (isJWT) {
-    return true;
-  }
-
-  // For non-JWT bearer tokens, basic checks passed
-  return true;
-}

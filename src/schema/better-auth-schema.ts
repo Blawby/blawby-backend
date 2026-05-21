@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -8,6 +8,9 @@ import {
   date,
   uuid,
   bigint,
+  unique,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -17,12 +20,17 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
   isAnonymous: boolean('is_anonymous').default(false).notNull(),
-  primaryWorkspace: text('primary_workspace'), // 'client' | 'practice'
+  primaryWorkspace: text('primary_workspace'), // 'public' | 'client' | 'practice'
   phone: text('phone'),
-  phoneCountryCode: text('phone_country_code'), // e.g., '+1', '+44'
+  phoneCountryCode: text('phone_country_code'), // E.g., '+1', '+44'
   dob: date('dob'), // Date of birth (date only, no time)
-  stripeCustomerId: text('stripe_customer_id'), // Stripe customer ID for billing
+  role: text('role'), // Admin plugin: user role
+  banned: boolean('banned'), // Admin plugin: banned status
+  banReason: text('ban_reason'), // Admin plugin: reason for ban
+  banExpires: timestamp('ban_expires'), // Admin plugin: ban expiration
+  onboardingComplete: boolean('onboarding_complete').default(false), // Client onboarding status
   createdAt: timestamp('created_at').defaultNow().notNull(),
+
   updatedAt: timestamp('updated_at')
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
@@ -44,6 +52,8 @@ export const sessions = pgTable('sessions', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   activeOrganizationId: uuid('active_organization_id'),
+  impersonatedBy: text('impersonated_by'), // Admin plugin: impersonator ID
+  previousAnonUserId: text('previous_anon_user_id'),
 });
 
 export const accounts = pgTable('accounts', {
@@ -85,10 +95,14 @@ export const organizations = pgTable('organizations', {
   slug: text('slug').notNull().unique(),
   logo: text('logo'),
   createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
   metadata: text('metadata'),
 
   // Billing fields for platform subscription
-  stripeCustomerId: text('stripe_customer_id'), // Platform customer for billing
+  stripeCustomerId: text('stripe_customer_id'), // Platform customer for SaaS subscription billing (Platform account)
   stripePaymentMethodId: text('stripe_payment_method_id'),
   billingEmail: text('billing_email'),
   activeSubscriptionId: uuid('active_subscription_id'),
@@ -96,20 +110,28 @@ export const organizations = pgTable('organizations', {
 
   // Payment Links settings
   paymentLinkEnabled: boolean('payment_link_enabled').default(false),
-  paymentLinkPrefillAmount: integer('payment_link_prefill_amount').default(0),
+  // NOTE: `payment_link_prefill_amount` was removed in migration 0044. Use practice details `consultation_fee` instead.
 });
 
-export const members = pgTable('members', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id')
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  role: text('role').default('member').notNull(),
-  createdAt: timestamp('created_at').notNull(),
-});
+export const members = pgTable(
+  'members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').default('member').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [unique('members_organization_id_user_id_unique').on(table.organizationId, table.userId)]
+);
 
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -123,82 +145,12 @@ export const invitations = pgTable('invitations', {
   inviterId: uuid('inviter_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 });
-
-/**
- * Rate Limits table for Better Auth's built-in rate limiting
- *
- * This table is used by Better Auth when rateLimit.storage is set to 'database'.
- * It uses a different table name (better_auth_rate_limits) to avoid conflicts
- * with the rate_limits table used by rate-limiter-flexible library.
- *
- * Better Auth uses: better_auth_rate_limits (this table)
- * rate-limiter-flexible uses: rate_limits (auto-created, different schema)
- *
- * They can coexist because they use different table names and serve different purposes:
- * - Better Auth: Rate limiting for authentication routes (/api/auth/*)
- * - rate-limiter-flexible: Rate limiting for general API routes
- */
-export const rateLimits = pgTable('better_auth_rate_limits', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  key: text('key').notNull(),
-  count: integer('count').notNull(),
-  lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
-});
-
-
-// Define relations
-export const usersRelations = relations(users, ({ many }) => ({
-  sessions: many(sessions),
-  accounts: many(accounts),
-  members: many(members),
-  invitations: many(invitations),
-}));
-
-export const organizationsRelations = relations(organizations, ({ many }) => ({
-  members: many(members),
-  invitations: many(invitations),
-}));
-
-export const sessionsRelations = relations(sessions, ({ one }) => ({
-  user: one(users, {
-    fields: [sessions.userId],
-    references: [users.id],
-  }),
-}));
-
-export const accountsRelations = relations(accounts, ({ one }) => ({
-  user: one(users, {
-    fields: [accounts.userId],
-    references: [users.id],
-  }),
-}));
-
-export const membersRelations = relations(members, ({ one }) => ({
-  user: one(users, {
-    fields: [members.userId],
-    references: [users.id],
-  }),
-  organization: one(organizations, {
-    fields: [members.organizationId],
-    references: [organizations.id],
-  }),
-}));
-
-export const invitationsRelations = relations(invitations, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [invitations.organizationId],
-    references: [organizations.id],
-  }),
-  inviter: one(users, {
-    fields: [invitations.inviterId],
-    references: [users.id],
-  }),
-}));
-
-// ============================================================================
-// Better Auth Stripe Plugin
-// ============================================================================
 
 /**
  * Subscriptions table for Better Auth Stripe plugin
@@ -223,3 +175,46 @@ export const subscriptions = pgTable('subscriptions', {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+/**
+ * Rate Limits table for Better Auth's built-in rate limiting
+ *
+ * This table is used by Better Auth when rateLimit.storage is set to 'database'.
+ * It uses a different table name (better_auth_rate_limits) to avoid conflicts
+ * with the rate_limits table used by rate-limiter-flexible library.
+ *
+ * Better Auth uses: better_auth_rate_limits (this table)
+ * rate-limiter-flexible uses: rate_limits (auto-created, different schema)
+ *
+ * They can coexist because they use different table names and serve different purposes:
+ * - Better Auth: Rate limiting for authentication routes (/api/auth/*)
+ * - rate-limiter-flexible: Rate limiting for general API routes
+ */
+export const rateLimits = pgTable('better_auth_rate_limits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull(),
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+});
+
+export const identityUpgradeClaims = pgTable(
+  'identity_upgrade_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    anonUserId: uuid('anon_user_id').references(() => users.id, { onDelete: 'set null' }),
+    registeredUserId: uuid('registered_user_id').references(() => users.id, { onDelete: 'set null' }),
+    claimed: boolean('claimed').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('identity_upgrade_claims_anon_user_idx').on(table.anonUserId),
+    index('identity_upgrade_claims_registered_user_idx').on(table.registeredUserId),
+    uniqueIndex('identity_upgrade_claims_anon_registered_unique')
+      .on(table.anonUserId, table.registeredUserId)
+      .where(sql`${table.anonUserId} IS NOT NULL AND ${table.registeredUserId} IS NOT NULL`),
+  ]
+);

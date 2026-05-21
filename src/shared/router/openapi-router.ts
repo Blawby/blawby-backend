@@ -2,8 +2,9 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
-import { MODULE_REGISTRY } from './modules.generated';
 import { CONFIG_REGISTRY } from './configs.generated';
+import { MODULE_REGISTRY } from './modules.generated';
+import { uploadsHttp } from '@/shared/uploads/http';
 import type { AppContext } from '@/shared/types/hono';
 
 /**
@@ -17,7 +18,9 @@ const calculateMountPath = (moduleName: string): string => {
   // If prefix is provided and starts with '/', use it as-is (full path)
   // Otherwise, construct path with module name
   return config?.prefix
-    ? (config.prefix.startsWith('/') ? config.prefix : `/api/${config.prefix}/${moduleName}`)
+    ? config.prefix.startsWith('/')
+      ? config.prefix
+      : `/api/${config.prefix}/${moduleName}`
     : `/api/${moduleName}`;
 };
 
@@ -33,11 +36,11 @@ export const createOpenApiApp = (): OpenAPIHono<AppContext> => {
   });
 
   // Configure OpenAPI security scheme
-  openApiApp.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'JWT',
-    description: 'Bearer token authentication. Get token from /api/auth/sign-in/email endpoint.',
+  openApiApp.openAPIRegistry.registerComponent('securitySchemes', 'cookieAuth', {
+    type: 'apiKey',
+    in: 'cookie',
+    name: 'better-auth.session-token',
+    description: 'Session cookie for authentication',
   });
 
   // Mount all OpenAPIHono modules with correct paths
@@ -46,6 +49,11 @@ export const createOpenApiApp = (): OpenAPIHono<AppContext> => {
       const mountPath = calculateMountPath(module.name);
       openApiApp.route(mountPath, module.http);
     }
+  }
+
+  // Shared infrastructure routes that are mounted directly in hono-app.ts
+  if (uploadsHttp instanceof OpenAPIHono) {
+    openApiApp.route('/api/uploads', uploadsHttp);
   }
 
   return openApiApp;

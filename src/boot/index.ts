@@ -4,11 +4,25 @@
  * Centralized application initialization
  */
 
-import { isProductionLike } from '@/shared/utils/env';
-import { bootEventHandlers } from './event-handlers';
-import { bootServices } from './services';
-import { bootWorkers } from './workers';
-import { initializeRateLimiter } from '@/shared/middleware/rateLimit';
+import { bootEventHandlers } from '@/boot/event-handlers';
+import { bootServices } from '@/boot/services';
+import { bootWorkers } from '@/boot/workers';
+import { rateLimiter } from '@/shared/middleware/rateLimit';
+import { initializeLogging } from '@/shared/logging/config';
+
+/**
+ * Core Boot
+ *
+ * Shared initialization for API, Workers, and CLI scripts.
+ * Use this when you only need services and event handlers.
+ */
+export const bootCore = (): void => {
+  // 1. Initialize external services
+  bootServices();
+
+  // 2. Register event handlers
+  void bootEventHandlers();
+};
 
 /**
  * Boot the application
@@ -17,25 +31,22 @@ import { initializeRateLimiter } from '@/shared/middleware/rateLimit';
 export const bootApplication = async (): Promise<void> => {
   console.info('🚀 Starting application boot sequence...');
 
-  // 1. Initialize external services
-  bootServices();
+  // 0. Initialize logging system
+  await initializeLogging();
+
+  // 1. Core initialization (Services & Events)
+  bootCore();
 
   // 2. Initialize rate limiter (wait for PostgreSQL table to be ready)
   try {
-    await initializeRateLimiter();
+    await rateLimiter.initialize();
   } catch (error) {
     console.error('Failed to initialize rate limiter, continuing without it:', error);
     // Don't fail startup - rate limiting is non-critical
   }
 
-  // 3. Register event handlers
-  bootEventHandlers();
-
-  // 4. Start background workers
-  // Note: Workers run as separate processes, this is just for API compatibility
-  if (isProductionLike()) {
-    bootWorkers();
-  }
+  // 3. Start background workers (API compatibility)
+  bootWorkers();
 
   console.info('✅ Application boot sequence completed');
 };

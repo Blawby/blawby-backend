@@ -1,77 +1,107 @@
-/**
- * Environment Utilities
- *
- * Provides utilities for environment variable handling.
- * Separates APP_ENV (application environment) from NODE_ENV (Node.js runtime environment).
- *
- * - NODE_ENV: Used by Node.js for optimizations ('development' | 'production')
- * - APP_ENV: Used by application logic ('development' | 'staging' | 'production')
- */
+// oxlint-disable import/group-exports
+// oxlint-disable import/no-named-export
+// oxlint-disable no-magic-numbers
 
-type AppEnvironment = 'development' | 'staging' | 'production';
-type NodeEnvironment = 'development' | 'production';
+import { config, type AppEnvironment, type NodeEnvironment } from '@/shared/config';
 
 /**
  * Get the application environment
- * Falls back to NODE_ENV if APP_ENV is not set
  */
-export const getAppEnv = (): AppEnvironment => {
-  const appEnv = process.env.APP_ENV?.toLowerCase();
-  const nodeEnv = process.env.NODE_ENV?.toLowerCase();
-
-  if (appEnv === 'development' || appEnv === 'staging' || appEnv === 'production') {
-    return appEnv;
-  }
-
-  // Fallback to NODE_ENV
-  if (nodeEnv === 'development' || nodeEnv === 'production') {
-    return nodeEnv;
-  }
-
-  // Default to development
-  return 'development';
-};
+export const getAppEnv = (): AppEnvironment => config.env.app;
 
 /**
  * Get the Node.js environment
  */
-export const getNodeEnv = (): NodeEnvironment => {
-  const nodeEnv = process.env.NODE_ENV?.toLowerCase();
-  return nodeEnv === 'production' ? 'production' : 'development';
-};
+export const getNodeEnv = (): NodeEnvironment => (config.env.node === 'production' ? 'production' : 'development');
 
 /**
  * Check if running in development environment
  */
-export const isDevelopment = (): boolean => {
-  return getAppEnv() === 'development';
-};
+export const isDevelopment = (): boolean => config.env.isDevelopment;
+
+/**
+ * Check if running in test environment
+ */
+export const isTest = (): boolean => config.env.isTest;
 
 /**
  * Check if running in staging environment
  */
-export const isStaging = (): boolean => {
-  return getAppEnv() === 'staging';
-};
+export const isStaging = (): boolean => config.env.isStaging;
 
 /**
  * Check if running in production environment
  */
-export const isProduction = (): boolean => {
-  return getAppEnv() === 'production';
-};
+export const isProduction = (): boolean => config.env.isProduction;
 
 /**
  * Check if running in a non-development environment (staging or production)
  */
-export const isNonDevelopment = (): boolean => {
-  return !isDevelopment();
-};
+export const isNonDevelopment = (): boolean => !config.env.isDevelopment;
 
 /**
  * Check if running in a production-like environment (staging or production)
  */
-export const isProductionLike = (): boolean => {
-  const env = getAppEnv();
-  return env === 'staging' || env === 'production';
+export const isProductionLike = (): boolean => config.env.isProductionLike;
+
+/**
+ * Get an environment variable as an array of strings (comma-separated)
+ *
+ * Special-case keys:
+ * - ALLOWED_ORIGINS: returns config.app.allowedOrigins
+ * - FRONTEND_URL: returns config.app.frontendUrls
+ */
+export const getEnvArray = (key: string, defaultValue: string[] = []): string[] => {
+  if (key === 'ALLOWED_ORIGINS') {
+    return config.app.allowedOrigins.length > 0 ? config.app.allowedOrigins : defaultValue;
+  }
+
+  if (key === 'FRONTEND_URL') {
+    return config.app.frontendUrls.length > 0 ? config.app.frontendUrls : defaultValue;
+  }
+
+  const value = config.raw[key];
+  if (!value) {
+    return defaultValue;
+  }
+
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+};
+
+/**
+ * Extract the origin (scheme + host) from a Referer header value.
+ * Returns undefined if the referer is missing or not a valid URL.
+ */
+export const extractOriginFromReferer = (referer?: string | null): string | undefined => {
+  if (!referer) return undefined;
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Get the best matching frontend URL from FRONTEND_URL environment variable
+ * based on the provided origin. Falls back to the first URL if no match is found.
+ */
+export const getMatchingFrontendUrl = (origin?: string | null): string => {
+  const urls = config.app.frontendUrls;
+  if (urls.length === 0) {
+    return config.app.baseUrl;
+  }
+  if (urls.length === 1 || !origin) {
+    return urls[0] ?? '';
+  }
+
+  const normalizedOrigin = origin.toLowerCase().trim().replace(/\/$/, '');
+  const match = urls.find((url) => {
+    const normalizedUrl = url.toLowerCase().trim().replace(/\/$/, '');
+    return normalizedUrl === normalizedOrigin;
+  });
+
+  return match ?? urls[0] ?? '';
 };

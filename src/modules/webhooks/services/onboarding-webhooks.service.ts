@@ -6,319 +6,367 @@
  * Focuses on account updates, capabilities, and external account management.
  */
 
-import Stripe from 'stripe';
-
-import { handleAccountUpdated } from '@/modules/onboarding/handlers/account-updated.handler';
-import { handleCapabilityUpdated } from '@/modules/onboarding/handlers/capability-updated.handler';
-import { handleExternalAccountCreated } from '@/modules/onboarding/handlers/external-account-created.handler';
-import { handleExternalAccountDeleted } from '@/modules/onboarding/handlers/external-account-deleted.handler';
-import { handleExternalAccountUpdated } from '@/modules/onboarding/handlers/external-account-updated.handler';
-import { getEventsToRetry } from '@/modules/onboarding/repositories/onboarding.repository';
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
 import {
-  existsByStripeEventId,
-  createWebhookEvent,
-  markWebhookProcessed,
-  markWebhookFailed,
-} from '@/shared/repositories/stripe.webhook-events.repository';
+  isStripeAccount,
+  isStripeCapability,
+  isStripeEvent,
+  isStripeExternalAccount,
+} from '@/shared/utils/stripeGuards';
+import onboardingHandlers from '@/modules/onboarding/handlers/index';
+import { getEventsToRetry } from '@/modules/onboarding/database/queries/onboarding.repository';
+import { config } from '@/shared/config';
+import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import { stripe } from '@/shared/utils/stripe-client';
-import { addOnboardingWebhookJob } from '@/shared/queue/queue.manager';
+import { queueManager } from '@/shared/queue/queue.manager';
 
-/**
- * Generic webhook verification and storage function
- * Accepts a webhook secret to support different webhook endpoints
- */
-export const verifyAndStoreWithSecret = async (
-  rawBody: string | Buffer,
-  signature: string,
-  headers: Record<string, string>,
-  url: string,
-  webhookSecret: string,
-): Promise<{
+const logger = getLogger(['onboarding', 'webhook-service']);
+
+export class WebhookVerificationError extends Error {
+  constructor(
+    message: string,
+    public readonly status: 400 | 500
+  ) {
+    super(message);
+    this.name = 'WebhookVerificationError';
+  }
+}
+
+export interface StoredWebhookVerificationResult {
   event: Stripe.Event;
   alreadyProcessed: boolean;
   webhookId?: string;
-}> => {
-  if (!webhookSecret) {
-    const error = new Error('Webhook secret is required');
-    (error as any).code = 'STRIPE_SECRET_MISSING';
-    throw error;
-  }
+}
 
-  // Verify signature using Stripe SDK
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      webhookSecret,
-    );
-  } catch {
-    const error = new Error('Invalid signature');
-    (error as any).code = 'INVALID_SIGNATURE';
-    throw error;
-  }
+const {
+  handleAccountUpdated,
+  handleCapabilityUpdated,
+  handleExternalAccountCreated,
+  handleExternalAccountUpdated,
+  handleExternalAccountDeleted,
+} = onboardingHandlers;
 
-  // Check if event already exists (idempotency)
-  const existingEvent = await existsByStripeEventId(event.id);
-
-  if (existingEvent) {
-    return { event, alreadyProcessed: existingEvent.processed };
-  }
-
-  // Store new webhook event
-  const createdWebhook = await createWebhookEvent(event, headers, url);
-
-  return { event, alreadyProcessed: false, webhookId: createdWebhook.id };
-};
-
-/**
- * Verify and store Connect webhook (for onboarding/connected accounts)
- * Uses STRIPE_CONNECT_WEBHOOK_SECRET
- */
-export const verifyAndStore = async (
-  rawBody: string | Buffer,
-  signature: string,
-  headers: Record<string, string>,
-  url: string,
-): Promise<{
-  event: Stripe.Event;
-  alreadyProcessed: boolean;
-  webhookId?: string;
-}> => {
-  const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
-
-  if (!webhookSecret) {
-    const error = new Error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is required for Connect webhooks');
-    (error as any).code = 'STRIPE_SECRET_MISSING';
-    throw error;
-  }
-
-  return verifyAndStoreWithSecret(rawBody, signature, headers, url, webhookSecret);
-};
-
-/**
- * Verify and store main Stripe webhook (for payments, invoices, etc.)
- * Uses STRIPE_WEBHOOK_SECRET
- */
-export const verifyAndStoreAccount = async (
-  rawBody: string | Buffer,
-  signature: string,
-  headers: Record<string, string>,
-  url: string,
-): Promise<{
-  event: Stripe.Event;
-  alreadyProcessed: boolean;
-  webhookId?: string;
-}> => {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!webhookSecret) {
-    const error = new Error('STRIPE_WEBHOOK_SECRET environment variable is required for main webhooks');
-    (error as any).code = 'STRIPE_SECRET_MISSING';
-    throw error;
-  }
-
-  return verifyAndStoreWithSecret(rawBody, signature, headers, url, webhookSecret);
-};
-
-
-export const processEvent = async (eventId: string): Promise<void> => {
-  const webhookEvent = await existsByStripeEventId(eventId);
-
-  if (!webhookEvent) {
-    console.error(`Webhook event not found: ${eventId}`);
-    return;
-  }
-
-  if (webhookEvent.processed) {
-    console.info(`Webhook event already processed: ${eventId}`);
-    return;
-  }
-
-  try {
-    const event = webhookEvent.payload as Stripe.Event;
-
-    // Process based on event type - onboarding related events only
-    switch (event.type) {
-      case 'account.updated':
-        await handleAccountUpdatedWebhook(event);
-        break;
-
-      case 'capability.updated':
-        await handleCapabilityUpdatedWebhook(event);
-        break;
-
-      case 'account.external_account.created':
-        await handleExternalAccountCreatedWebhook(event);
-        break;
-
-      case 'account.external_account.updated':
-        await handleExternalAccountUpdatedWebhook(event);
-        break;
-
-      case 'account.external_account.deleted':
-        await handleExternalAccountDeletedWebhook(event);
-        break;
-
-      default:
-        console.info(`Unhandled onboarding webhook event type: ${event.type}`);
+export const onboardingWebhooksService = {
+  /**
+   * Generic webhook verification and storage function
+   * Accepts a webhook secret to support different webhook endpoints
+   */
+  async verifyAndStoreWithSecret(
+    rawBody: string | Buffer,
+    signature: string,
+    headers: Record<string, string>,
+    url: string,
+    webhookSecret: string
+  ): Promise<StoredWebhookVerificationResult> {
+    if (!webhookSecret) {
+      logger.error('Webhook secret is required but missing');
+      throw new WebhookVerificationError('Webhook secret is required', 500);
     }
 
-    // Mark as processed
-    await markWebhookProcessed(webhookEvent.id);
-    console.info(`Successfully processed webhook event: ${eventId}`);
-  } catch (error) {
-    const errorMessage
-      = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
+    // Verify signature using Stripe SDK
+    let event: Stripe.Event | undefined = undefined;
+    try {
+      logger.info('Verifying webhook signature', {
+        secretPresent: true,
+      });
+      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    } catch (err) {
+      logger.warn('Invalid webhook signature received', { error: err instanceof Error ? err.message : 'Unknown' });
+      throw new WebhookVerificationError('Invalid signature', 400);
+    }
 
-    // Mark as failed (increments retry count, sets next retry time)
-    await markWebhookFailed(webhookEvent.id, errorMessage, errorStack);
+    // Atomic verify and store
+    const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(event, headers, url);
 
-    console.error(
-      {
+    if (!webhookEvent) {
+      // Check if it already exists to determine processing status
+      const existing = await stripeWebhookEventsRepository.existsByStripeEventId(event.id);
+      logger.info('Webhook event already exists, skipping storage', { eventId: event.id });
+      return { event, alreadyProcessed: existing?.processed ?? true };
+    }
+
+    return { event, alreadyProcessed: false, webhookId: webhookEvent.id };
+  },
+
+  /**
+   * Verify and store Connect webhook (for onboarding/connected accounts)
+   * Uses STRIPE_CONNECT_WEBHOOK_SECRET
+   */
+  async verifyAndStore(
+    rawBody: string | Buffer,
+    signature: string,
+    headers: Record<string, string>,
+    url: string
+  ): Promise<StoredWebhookVerificationResult> {
+    const webhookSecret = config.stripe.connectWebhookSecret;
+
+    if (!webhookSecret) {
+      logger.error('STRIPE_CONNECT_WEBHOOK_SECRET environment variable is missing');
+      throw new WebhookVerificationError('Stripe configuration error', 500);
+    }
+
+    return this.verifyAndStoreWithSecret(rawBody, signature, headers, url, webhookSecret);
+  },
+
+  /**
+   * Verify and store main Stripe webhook (for payments, invoices, etc.)
+   * Uses STRIPE_WEBHOOK_SECRET
+   */
+  async verifyAndStoreAccount(
+    rawBody: string | Buffer,
+    signature: string,
+    headers: Record<string, string>,
+    url: string
+  ): Promise<StoredWebhookVerificationResult> {
+    const { webhookSecret } = config.stripe;
+
+    if (!webhookSecret) {
+      logger.error('STRIPE_WEBHOOK_SECRET environment variable is missing');
+      throw new WebhookVerificationError('Stripe configuration error', 500);
+    }
+
+    return this.verifyAndStoreWithSecret(rawBody, signature, headers, url, webhookSecret);
+  },
+
+  /**
+   * Process an onboarding webhook event
+   */
+  async processEvent(eventId: string): Promise<void> {
+    let webhookEvent: Awaited<ReturnType<typeof stripeWebhookEventsRepository.existsByStripeEventId>> | null = null;
+
+    try {
+      webhookEvent = await stripeWebhookEventsRepository.existsByStripeEventId(eventId);
+
+      if (!webhookEvent) {
+        logger.error('Webhook event not found in database: {eventId}', { eventId });
+        return;
+      }
+
+      if (webhookEvent.processed) {
+        logger.info('Webhook event already marked as processed: {eventId}', { eventId });
+        return;
+      }
+
+      const event = webhookEvent.payload;
+
+      if (!isStripeEvent(event)) {
+        await stripeWebhookEventsRepository.markFailed(
+          webhookEvent.id,
+          'Stored webhook payload is not a valid Stripe event'
+        );
+        logger.error('Stored webhook payload is not a valid Stripe event: {eventId}', { eventId: webhookEvent.id });
+        throw new Error('Stored webhook payload is invalid');
+      }
+
+      // Process based on event type - onboarding related events only
+      switch (event.type) {
+        case 'account.updated':
+          await this.handleAccountUpdatedWebhook(event);
+          break;
+
+        case 'capability.updated':
+          await this.handleCapabilityUpdatedWebhook(event);
+          break;
+
+        case 'account.external_account.created':
+          await this.handleExternalAccountCreatedWebhook(event);
+          break;
+
+        case 'account.external_account.updated':
+          await this.handleExternalAccountUpdatedWebhook(event);
+          break;
+
+        case 'account.external_account.deleted':
+          await this.handleExternalAccountDeletedWebhook(event);
+          break;
+
+        default:
+          logger.info('Unhandled onboarding webhook event type: {eventType}', { eventType: event.type });
+      }
+
+      // Mark as processed
+      await stripeWebhookEventsRepository.markProcessed(webhookEvent.id);
+      logger.info('Successfully processed onboarding webhook event: {eventId} ({eventType})', {
+        eventId,
+        eventType: event.type,
+      });
+      return;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      // Mark as failed (increments retry count, sets next retry time)
+      if (webhookEvent) {
+        await stripeWebhookEventsRepository.markFailed(webhookEvent.id, errorMessage, errorStack);
+      }
+
+      logger.error('Failed to process onboarding webhook event {eventId}: {error}', {
         eventId,
         error: errorMessage,
         stack: errorStack,
-      },
-      'Failed to process webhook event',
-    );
+      });
 
-    throw error;
-  }
-};
+      throw error instanceof Error ? error : new Error(errorMessage);
+    }
+  },
 
-const handleAccountUpdatedWebhook = async (
-  event: Stripe.Event,
-): Promise<void> => {
-  const account = event.data.object as Stripe.Account;
+  /**
+   * Handle account.updated event
+   */
+  async handleAccountUpdatedWebhook(event: Stripe.Event): Promise<void> {
+    const account = event.data.object;
 
-  if (!account.id) {
-    console.error('Account ID missing from account.updated event');
-    return;
-  }
-
-  // Use the functional handler directly - no Fastify dependency needed
-  await handleAccountUpdated(account);
-};
-
-const handleCapabilityUpdatedWebhook = async (
-  event: Stripe.Event,
-): Promise<void> => {
-  const capability = event.data.object as Stripe.Capability;
-
-  if (!capability.account) {
-    console.error('Account ID missing from capability.updated event');
-    return;
-  }
-
-  // Use the functional handler directly - no Fastify dependency needed
-  await handleCapabilityUpdated(capability);
-};
-
-const handleExternalAccountCreatedWebhook = async (
-  event: Stripe.Event,
-): Promise<void> => {
-  const externalAccount = event.data.object as Stripe.ExternalAccount;
-
-  if (!externalAccount.account) {
-    console.error(
-      'Account ID missing from account.external_account.created event',
-    );
-    return;
-  }
-
-  // Use the functional handler directly - no Fastify dependency needed
-  await handleExternalAccountCreated(externalAccount);
-};
-
-const handleExternalAccountUpdatedWebhook = async (
-  event: Stripe.Event,
-): Promise<void> => {
-  const externalAccount = event.data.object as Stripe.ExternalAccount;
-
-  if (!externalAccount.account) {
-    console.error(
-      'Account ID missing from account.external_account.updated event',
-    );
-    return;
-  }
-
-  // Use the functional handler directly - no Fastify dependency needed
-  await handleExternalAccountUpdated(externalAccount);
-};
-
-const handleExternalAccountDeletedWebhook = async (
-  event: Stripe.Event,
-): Promise<void> => {
-  const externalAccount = event.data.object as Stripe.ExternalAccount;
-
-  if (!externalAccount.account) {
-    console.error(
-      'Account ID missing from account.external_account.deleted event',
-    );
-    return;
-  }
-
-  // Use the functional handler directly - no Fastify dependency needed
-  await handleExternalAccountDeleted(externalAccount);
-};
-
-export const retryFailedWebhooks = async (): Promise<void> => {
-  const eventsToRetry = await getEventsToRetry();
-
-  console.info(`Found ${eventsToRetry.length} webhook events to retry`);
-
-  for (const event of eventsToRetry) {
-    // Safety check: skip if max retries reached (should be filtered by query but good to be explicit)
-    if (event.retryCount >= event.maxRetries) {
-      continue;
+    if (!isStripeAccount(account)) {
+      logger.error('Invalid account object in account.updated event: {eventId}', { eventId: event.id });
+      throw new Error('Invalid account object in account.updated event');
     }
 
-    try {
-      await processEvent(event.stripeEventId);
-    } catch (error) {
-      console.error(
-        {
-          eventId: event.stripeEventId,
+    if (!account.id) {
+      logger.error('Account ID missing from account.updated event: {eventId}', { eventId: event.id });
+      throw new Error('Account ID missing from account.updated event');
+    }
+
+    await handleAccountUpdated(account);
+  },
+
+  /**
+   * Handle capability.updated event
+   */
+  async handleCapabilityUpdatedWebhook(event: Stripe.Event): Promise<void> {
+    const capability = event.data.object;
+
+    if (!isStripeCapability(capability)) {
+      logger.error('Invalid capability object in capability.updated event: {eventId}', { eventId: event.id });
+      throw new Error('Invalid capability object in capability.updated event');
+    }
+
+    if (!capability.account) {
+      logger.error('Account ID missing from capability.updated event: {eventId}', { eventId: event.id });
+      throw new Error('Account ID missing from capability.updated event');
+    }
+
+    await handleCapabilityUpdated(capability);
+  },
+
+  /**
+   * Handle account.external_account.created event
+   */
+  async handleExternalAccountCreatedWebhook(event: Stripe.Event): Promise<void> {
+    const externalAccount = event.data.object;
+
+    if (!isStripeExternalAccount(externalAccount)) {
+      logger.error('Invalid external account object in account.external_account.created event: {eventId}', {
+        eventId: event.id,
+      });
+      throw new Error('Invalid external account object in account.external_account.created event');
+    }
+
+    if (!externalAccount.account) {
+      logger.error('Account ID missing from account.external_account.created event: {eventId}', { eventId: event.id });
+      throw new Error('Account ID missing from account.external_account.created event');
+    }
+
+    await handleExternalAccountCreated(externalAccount);
+  },
+
+  /**
+   * Handle account.external_account.updated event
+   */
+  async handleExternalAccountUpdatedWebhook(event: Stripe.Event): Promise<void> {
+    const externalAccount = event.data.object;
+
+    if (!isStripeExternalAccount(externalAccount)) {
+      logger.error('Invalid external account object in account.external_account.updated event: {eventId}', {
+        eventId: event.id,
+      });
+      throw new Error('Invalid external account object in account.external_account.updated event');
+    }
+
+    if (!externalAccount.account) {
+      logger.error('Account ID missing from account.external_account.updated event: {eventId}', { eventId: event.id });
+      throw new Error('Account ID missing from account.external_account.updated event');
+    }
+
+    await handleExternalAccountUpdated(externalAccount);
+  },
+
+  /**
+   * Handle account.external_account.deleted event
+   */
+  async handleExternalAccountDeletedWebhook(event: Stripe.Event): Promise<void> {
+    const externalAccount = event.data.object;
+
+    if (!isStripeExternalAccount(externalAccount)) {
+      logger.error('Invalid external account object in account.external_account.deleted event: {eventId}', {
+        eventId: event.id,
+      });
+      throw new Error('Invalid external account object in account.external_account.deleted event');
+    }
+
+    if (!externalAccount.account) {
+      logger.error('Account ID missing from account.external_account.deleted event: {eventId}', { eventId: event.id });
+      throw new Error('Account ID missing from account.external_account.deleted event');
+    }
+
+    await handleExternalAccountDeleted(externalAccount);
+  },
+
+  /**
+   * Retry failed webhooks
+   */
+  async retryFailedWebhooks(): Promise<void> {
+    const eventsToRetry = await getEventsToRetry();
+    const retryableEvents = eventsToRetry.filter((event) => event.retryCount < event.maxRetries);
+
+    if (retryableEvents.length > 0) {
+      logger.info('Found {count} webhook events to retry', { count: retryableEvents.length });
+    }
+
+    for (const event of retryableEvents) {
+      try {
+        await this.processEvent(event.stripeEventId);
+      } catch (error) {
+        logger.error('Failed to retry onboarding webhook event {stripeEventId}: {error}', {
+          stripeEventId: event.stripeEventId,
           retryCount: event.retryCount,
           error: error instanceof Error ? error.message : 'Unknown error',
-        },
-        'Failed to retry webhook event',
-      );
-    }
-  }
-};
-
-export const processWebhookAsync = async (
-  eventId: string,
-  webhookId?: string,
-  eventType?: string,
-): Promise<void> => {
-  // Use Graphile Worker for async processing (Production-grade)
-  // This matches the platform webhook processing flow
-  try {
-    // If webhookId or eventType not provided, try to find them
-    let wId = webhookId;
-    let type = eventType;
-
-    if (!wId || !type) {
-      const webhookEvent = await existsByStripeEventId(eventId);
-      if (webhookEvent) {
-        wId = webhookEvent.id;
-        type = webhookEvent.eventType;
+        });
       }
     }
+  },
 
-    if (wId && type) {
-      await addOnboardingWebhookJob(wId, eventId, type);
-    } else {
-      const errorMsg = `❌ Cannot queue webhook job: Missing metadata for ${eventId}`;
-      console.error(errorMsg);
-      throw new Error(errorMsg);
+  /**
+   * Queue a webhook event for asynchronous processing
+   */
+  async processWebhookAsync(eventId: string, webhookId?: string, eventType?: string): Promise<void> {
+    try {
+      let wId = webhookId;
+      let type = eventType;
+
+      if (!wId || !type) {
+        const webhookEvent = await stripeWebhookEventsRepository.existsByStripeEventId(eventId);
+        if (webhookEvent) {
+          wId = webhookEvent.id;
+          type = webhookEvent.eventType;
+        }
+      }
+
+      if (wId && type) {
+        await queueManager.addOnboardingWebhookJob(wId, eventId, type);
+      } else {
+        logger.error('Cannot queue onboarding webhook job due to missing metadata for {eventId}', {
+          eventId,
+        });
+        return;
+      }
+    } catch (error) {
+      logger.error('Failed to queue onboarding webhook job for {eventId}: {error}', {
+        eventId,
+        error,
+      });
     }
-  } catch (error) {
-    console.error(`❌ Failed to queue onboarding webhook job: ${eventId}`, error);
-    throw error;
-  }
+  },
 };
+
+export default onboardingWebhooksService;

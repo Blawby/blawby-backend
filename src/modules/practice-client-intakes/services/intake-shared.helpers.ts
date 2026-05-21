@@ -1,0 +1,185 @@
+import { getLogger } from '@logtape/logtape';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import {
+  practiceClientIntakesSchema,
+  type PracticeClientIntakeMetadata,
+  type SelectPracticeClientIntake,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import type { TriageStatus } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
+import { stripe } from '@/shared/utils/stripe-client';
+import type { ResolveCheckoutSessionResult } from '@/modules/practice-client-intakes/types/intake-stripe.types';
+import { HTTPException } from 'hono/http-exception';
+
+const { practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
+const logger = getLogger(['practice-client-intakes', 'service']);
+
+const normalizeTriageStatus = (value: string | null | undefined): TriageStatus => {
+  if (value === 'accepted' || value === 'declined') {
+    return value;
+  }
+
+  return 'pending_review';
+};
+
+const parseMetadata = (rawMetadata: unknown): PracticeClientIntakeMetadata | null => {
+  if (!rawMetadata) {
+    return null;
+  }
+
+  try {
+    return practiceClientIntakeMetadataSchema.parse(rawMetadata);
+  } catch {
+    return null;
+  }
+};
+
+const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, isAuthorized: boolean) =>
+  isAuthorized && metadata
+    ? {
+        email: metadata.email,
+        name: metadata.name,
+        phone: metadata.phone ?? undefined,
+        on_behalf_of: metadata.on_behalf_of ?? undefined,
+        opposing_party: metadata.opposing_party ?? undefined,
+        description: metadata.description ?? undefined,
+        custom_fields: metadata.custom_fields ?? undefined,
+      }
+    : { email: '', name: '' };
+
+const isAuthorizedIntakeView = (
+  metadata: PracticeClientIntakeMetadata | null,
+  requestingUserId?: string,
+  isAdmin = false
+) => isAdmin || Boolean(metadata?.user_id && metadata.user_id === requestingUserId);
+
+const isUrgency = (value: string | null | undefined): value is 'routine' | 'time_sensitive' | 'emergency' =>
+  value === 'routine' || value === 'time_sensitive' || value === 'emergency';
+
+const formatIntakeListItem = (
+  intake: SelectPracticeClientIntake,
+  options?: { requestingUserId?: string; isAdmin?: boolean }
+) => {
+  const { requestingUserId, isAdmin = false } = options ?? {};
+  const metadata = parseMetadata(intake.metadata);
+  const isAuthorized = isAuthorizedIntakeView(metadata, requestingUserId, isAdmin);
+
+  return {
+    uuid: intake.id,
+    organization_id: intake.organization_id,
+    amount: intake.amount,
+    currency: intake.currency,
+    status: intake.status,
+    triage_status: normalizeTriageStatus(intake.triage_status),
+    triage_reason: intake.triage_reason ?? null,
+    triage_decided_at: intake.triage_decided_at ?? null,
+    conversation_id: isAuthorized ? (intake.conversation_id ?? null) : null,
+    stripe_charge_id: intake.stripe_charge_id ?? null,
+    metadata: getAuthorizedMetadata(metadata, isAuthorized),
+    succeeded_at: intake.succeeded_at ?? null,
+    created_at: intake.created_at,
+    urgency: isUrgency(intake.urgency) ? intake.urgency : null,
+    desired_outcome: intake.desired_outcome ?? null,
+    court_date: intake.court_date ?? null,
+    has_documents: intake.has_documents ?? null,
+    income: intake.income ?? null,
+    household_size: intake.household_size ?? null,
+    case_strength: intake.case_strength ?? null,
+  };
+};
+
+const formatIntakeStatusResponse = (
+  intake: SelectPracticeClientIntake,
+  options?: { requestingUserId?: string; isAdmin?: boolean }
+) => {
+  const metadata = parseMetadata(intake.metadata);
+  const isAuthorized = isAuthorizedIntakeView(metadata, options?.requestingUserId, options?.isAdmin);
+  const formatted = formatIntakeListItem(intake, options);
+
+  return {
+    ...formatted,
+    address_id: isAuthorized ? (intake.address_id ?? undefined) : undefined,
+    conversation_id: formatted.conversation_id ?? undefined,
+    stripe_charge_id: formatted.stripe_charge_id ?? undefined,
+    urgency: formatted.urgency ?? undefined,
+    desired_outcome: formatted.desired_outcome ?? undefined,
+    has_documents: formatted.has_documents ?? undefined,
+    case_strength: formatted.case_strength ?? undefined,
+  };
+};
+
+const resolvePracticeClientIntakeByCheckoutSessionId = async (
+  sessionId: string,
+  options?: { requireSession?: boolean }
+): Promise<ResolveCheckoutSessionResult> => {
+  const { requireSession = false } = options ?? {};
+  let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
+    await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
+
+  if (intake && !requireSession) {
+    return { intake };
+  }
+
+  if (!sessionId.startsWith('cs_')) {
+    throw new HTTPException(404, { message: 'Checkout session not found' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    let intakeUuid: string | undefined = undefined;
+
+    if (typeof session.metadata?.intake_uuid === 'string') {
+      intakeUuid = session.metadata.intake_uuid;
+    } else if (typeof session.client_reference_id === 'string') {
+      intakeUuid = session.client_reference_id;
+    }
+
+    if (!intakeUuid) {
+      // Payment link sessions don't carry session-level metadata or client_reference_id.
+      // Fall back to matching via the payment_link ID on the session.
+      if (session.payment_link) {
+        const paymentLinkId = typeof session.payment_link === 'string' ? session.payment_link : session.payment_link.id;
+        intake ??= await practiceClientIntakesRepository.findByStripePaymentLinkId(paymentLinkId);
+      }
+
+      if (!intake) {
+        return { session };
+      }
+    }
+
+    if (intakeUuid) {
+      intake ??= await practiceClientIntakesRepository.findById(intakeUuid);
+    }
+
+    if (intake && !intake.stripe_checkout_session_id) {
+      await practiceClientIntakesRepository.update(intake.id, {
+        stripe_checkout_session_id: session.id,
+      });
+    }
+
+    return { intake, session };
+  } catch (error) {
+    logger.error('Failed to resolve checkout session {sessionId}', {
+      sessionId,
+      error,
+    });
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+
+    throw new Error('Failed to resolve checkout session', { cause: error });
+  }
+};
+
+const parseValidDate = (value: string): Date | null => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const intakeSharedHelpers = {
+  normalizeTriageStatus,
+  parseMetadata,
+  resolvePracticeClientIntakeByCheckoutSessionId,
+  parseValidDate,
+  formatIntakeStatusResponse,
+  formatIntakeListItem,
+};

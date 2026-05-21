@@ -34,6 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_limits_expire ON rate_limits(expire);
 ### Table Cleanup
 
 The library automatically:
+
 - **Expires old entries** based on the `expire` timestamp
 - **Cleans up** expired records during normal operations
 - **Manages TTL** without requiring manual intervention

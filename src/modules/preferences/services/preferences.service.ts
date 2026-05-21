@@ -5,39 +5,32 @@
  * Handles category-based preference updates
  */
 
-import { db } from '@/shared/database';
-import { preferences } from '@/modules/preferences/schema/preferences.schema';
-import type { Preferences } from '@/modules/preferences/schema/preferences.schema';
-import type {
-  PreferenceCategory,
-  GeneralPreferences,
-  NotificationPreferences,
-  SecurityPreferences,
-  AccountPreferences,
-  OnboardingPreferences,
-} from '@/modules/preferences/types/preferences.types';
+import { ForbiddenError } from '@casl/ability';
+import { eq } from 'drizzle-orm';
+import { type Preferences, preferences } from '@/modules/preferences/schema/preferences.schema';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
+  type NotificationPreferences,
+  type OnboardingPreferences,
+  type PreferenceCategory,
 } from '@/modules/preferences/types/preferences.types';
-import { eq } from 'drizzle-orm';
+import { preferenceValidations } from '@/modules/preferences/validations/preferences.validation';
+import { db } from '@/shared/database';
+import type { ServiceContext } from '@/shared/types/service-context';
+import { HTTPException } from 'hono/http-exception';
 
-// Profile fields (phone, dob) are now in users table via Better Auth additionalFields
-// This interface kept for backward compatibility
-export interface UpdateProfileData {
-  phone?: string;
-  phoneCountryCode?: string;
-  dob?: string; // Date string in YYYY-MM-DD format
-}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
 /**
  * Apply default values to notification preferences
- * Merges stored preferences with defaults, ensuring all fields are present
  */
-const applyNotificationDefaults = (
-  stored: Record<string, unknown> | null | undefined,
-): NotificationPreferences => {
-  const storedPrefs = (stored as NotificationPreferences) || {};
+const applyNotificationDefaults = (stored: Record<string, unknown> | null | undefined): NotificationPreferences => {
+  const parsed = preferenceValidations.notificationPreferencesSchema.safeParse(stored ?? {});
+  const storedPrefs = parsed.success ? parsed.data : {};
   return {
     ...DEFAULT_NOTIFICATION_PREFERENCES,
     ...storedPrefs,
@@ -49,12 +42,10 @@ const applyNotificationDefaults = (
 
 /**
  * Apply default values to onboarding preferences
- * Merges stored preferences with defaults, ensuring boolean flags default to false
  */
-const applyOnboardingDefaults = (
-  stored: Record<string, unknown> | null | undefined,
-): OnboardingPreferences => {
-  const storedPrefs = (stored as OnboardingPreferences) || {};
+const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefined): OnboardingPreferences => {
+  const parsed = preferenceValidations.onboardingPreferencesSchema.safeParse(stored ?? {});
+  const storedPrefs = parsed.success ? parsed.data : {};
   return {
     ...DEFAULT_ONBOARDING_PREFERENCES,
     ...storedPrefs,
@@ -64,19 +55,17 @@ const applyOnboardingDefaults = (
 /**
  * Get all preferences for a user
  */
-export const getPreferences = async (userId: string): Promise<Preferences | undefined> => {
-  const result = await db
-    .select()
-    .from(preferences)
-    .where(eq(preferences.userId, userId))
-    .limit(1);
+const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
+  // CASL Check — verify the user can read preferences
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
-  if (!result[0]) {
-    return undefined;
+  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
+
+  if (!prefs) {
+    throw new HTTPException(404, { message: 'Preference not found' });
   }
 
   // Apply defaults to notifications and onboarding fields
-  const prefs = result[0];
   return {
     ...prefs,
     notifications: applyNotificationDefaults(prefs.notifications),
@@ -87,29 +76,38 @@ export const getPreferences = async (userId: string): Promise<Preferences | unde
 /**
  * Get preferences by category
  */
-export const getPreferencesByCategory = async (
-  userId: string,
+const getPreferencesByCategory = async (
   category: PreferenceCategory,
+  ctx: ServiceContext
 ): Promise<Record<string, unknown>> => {
+  // CASL Check — verify the user can read preferences
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
+
   if (category === 'profile') {
-    // Profile fields are now in users table via Better Auth
-    // Return empty object - profile should be fetched from session/user
     return {};
   }
 
-  const result = await db
+  const [row] = await db
     .select({
       [category]: preferences[category],
+      user_id: preferences.user_id,
     })
     .from(preferences)
-    .where(eq(preferences.userId, userId))
+    .where(eq(preferences.user_id, ctx.userId))
     .limit(1);
 
-  const categoryData = (result[0]?.[category] as Record<string, unknown>) || {};
+  if (!row) {
+    throw new HTTPException(404, { message: 'Preference not found' });
+  }
 
-  // Apply defaults for notifications category
+  const categoryData = toRecord(row?.[category]);
+
+  // Apply defaults for specific categories
   if (category === 'notifications') {
     return applyNotificationDefaults(categoryData);
+  }
+  if (category === 'onboarding') {
+    return applyOnboardingDefaults(categoryData);
   }
 
   return categoryData;
@@ -118,49 +116,58 @@ export const getPreferencesByCategory = async (
 /**
  * Update preferences by category
  */
-export const updatePreferencesByCategory = async (
-  userId: string,
+const updatePreferencesByCategory = async (
   category: PreferenceCategory,
   data: Record<string, unknown>,
+  ctx: ServiceContext
 ): Promise<Record<string, unknown>> => {
   if (category === 'profile') {
-    // Profile fields are now in users table via Better Auth
-    // Updates should go through Better Auth updateUser endpoint
-    throw new Error('Profile fields should be updated via Better Auth updateUser endpoint');
+    throw new HTTPException(400, { message: 'Profile fields should be updated via Better Auth updateUser endpoint' });
+  }
+
+  // 1. CASL Check — verify the user can update preferences before any DB access
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserPreferences');
+
+  // 2. Fetch current preferences for ownership verification
+  const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
+
+  if (!current) {
+    throw new HTTPException(404, { message: 'Preference not found' });
   }
 
   // Handle notifications category with special logic
+  let dataToUpdate = data;
   if (category === 'notifications') {
-    // Get existing notifications preferences
-    const existing = await getPreferencesByCategory(userId, 'notifications');
+    const existingData = toRecord(current.notifications);
     // Merge with incoming data (partial update)
-    const merged = { ...existing, ...data };
+    const merged = { ...existingData, ...data };
     // Force system fields always true
     merged.system_push = true;
     merged.system_email = true;
-    // Use merged data for update
-    data = merged;
+    dataToUpdate = merged;
   }
 
   const result = await db
     .update(preferences)
     .set({
-      [category]: data,
-      updatedAt: new Date(),
+      [category]: dataToUpdate,
+      updated_at: new Date(),
     })
-    .where(eq(preferences.userId, userId))
+    .where(eq(preferences.user_id, ctx.userId))
     .returning({
       [category]: preferences[category],
     });
 
-  const updatedData = (result[0]?.[category] as Record<string, unknown>) || {};
+  if (!result[0]) {
+    throw new HTTPException(404, { message: 'Preference not found' });
+  }
 
-  // Apply defaults for notifications category in response
+  const updatedData = toRecord(result[0][category]);
+
+  // Apply defaults in response
   if (category === 'notifications') {
     return applyNotificationDefaults(updatedData);
   }
-
-  // Apply defaults for onboarding category in response
   if (category === 'onboarding') {
     return applyOnboardingDefaults(updatedData);
   }
@@ -169,39 +176,19 @@ export const updatePreferencesByCategory = async (
 };
 
 /**
- * Update profile fields (phone, dob)
- * Legacy function - profile fields are now in users table via Better Auth
- * This function is kept for backward compatibility but should not be used
- * @deprecated Use Better Auth updateUser endpoint instead
+ * Initialize preferences for a new user
  */
-export const updateProfileFields = async (
-  userId: string,
-  data: UpdateProfileData,
-): Promise<Preferences> => {
-  // Profile fields are now managed by Better Auth
-  // Return preferences without updating profile fields
-  const prefs = await getPreferences(userId);
-  if (!prefs) {
-    throw new Error('Preferences not found');
-  }
-  return prefs;
-};
+const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
+  const existing = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
 
-/**
- * Initialize preferences for a new user (invoked via AUTH_USER_SIGNED_UP event).
- * Creates a preferences row with default notification and onboarding settings
- * (e.g. welcome_modal_shown: false, practice_welcome_shown: false).
- */
-export const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
-  const existing = await getPreferences(userId);
-  if (existing) {
-    return existing;
+  if (existing[0]) {
+    return existing[0];
   }
 
-  const result = await db
+  const [inserted] = await db
     .insert(preferences)
     .values({
-      userId,
+      user_id: userId,
       notifications: DEFAULT_NOTIFICATION_PREFERENCES,
       general: {},
       security: {},
@@ -210,16 +197,19 @@ export const initializeUserPreferences = async (userId: string): Promise<Prefere
     })
     .returning();
 
-  const inserted = result[0];
   if (!inserted) {
-    throw new Error(`Failed to create preferences for user ${userId}`);
+    throw new HTTPException(500, { message: 'Failed to create preferences' });
   }
+
   return inserted;
 };
 
 /**
- * Legacy function names for backward compatibility
+ * Preferences Service
  */
-export const getUserDetails = getPreferences;
-export const updateUserDetails = updateProfileFields;
-
+export const preferencesService = {
+  getPreferences,
+  getPreferencesByCategory,
+  updatePreferencesByCategory,
+  initializeUserPreferences,
+};

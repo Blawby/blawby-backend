@@ -4,14 +4,19 @@
  * Handles onboarding completion events
  */
 
+import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { organizations } from '@/schema/better-auth-schema';
+import { config } from '@/shared/config';
 import { db } from '@/shared/database';
-import { EventType } from '@/shared/events/enums/event-types';
-import { publishSimpleEvent } from '@/shared/events/event-publisher';
-import type { BaseEvent } from '@/shared/events/schemas/events.schema';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
-import { logError } from '@/shared/middleware/logger';
+import { OnboardingCompletedProcessed, PracticeUpdated } from '@/shared/events/definitions';
+import type { BaseEvent } from '@/shared/events/schemas/events.schema';
+import { queueManager } from '@/shared/queue/queue.manager';
+import { EMAIL_TEMPLATES } from '@/shared/services/email';
+
+const logger = getLogger(['onboarding', 'handler', 'onboarding-completed']);
+const APP_URL = config.app.appUrl;
 
 /**
  * Handle onboarding completion
@@ -20,32 +25,18 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
   const { organizationId } = event;
 
   if (!organizationId) {
-    logError(new Error('No organization ID in onboarding completed event'), {
-      method: 'EVENT_HANDLER',
-      url: 'onboarding-completed',
-      statusCode: 400,
-      errorType: 'ValidationError',
-      errorMessage: 'Missing organization ID',
+    logger.error('No organization ID in onboarding completed event', {
+      event,
     });
     return;
   }
 
   try {
     // Get organization details for event context
-    const orgResults = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
+    const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
 
-    const org = orgResults[0];
     if (!org) {
-      logError(new Error(`Organization not found: ${organizationId}`), {
-        method: 'EVENT_HANDLER',
-        url: 'onboarding-completed',
-        statusCode: 404,
-        errorType: 'NotFoundError',
-        errorMessage: 'Organization not found',
+      logger.error('Organization not found for onboarding completion: {organizationId}', {
         organizationId,
       });
       return;
@@ -53,34 +44,70 @@ export const handleOnboardingCompleted = async (event: BaseEvent): Promise<void>
 
     // Note: This handler processes events, so we can't use transactions
     // Event is written directly to database for guaranteed persistence
-    void publishSimpleEvent(EventType.ONBOARDING_COMPLETED, organizationId, organizationId, {
-      organization_id: organizationId,
-      organization_name: org.name,
-      billing_email: org.billingEmail,
-      stripe_customer_id: org.stripeCustomerId,
-      onboarding_completed_at: new Date().toISOString(),
-    }).catch((error) => {
-      console.error('Failed to publish ONBOARDING_COMPLETED event:', error);
-    });
+    void OnboardingCompletedProcessed.dispatch(
+      {
+        organization_id: organizationId,
+        organization_name: org.name,
+        billing_email: org.billingEmail,
+        stripe_customer_id: org.stripeCustomerId,
+        onboarding_completed_at: new Date().toISOString(),
+      },
+      {
+        actorId: organizationId,
+        organizationId,
+      }
+    );
 
-    // Event is written directly to database for guaranteed persistence
-    void publishSimpleEvent(EventType.PRACTICE_UPDATED, SYSTEM_ACTOR_UUID, organizationId, {
-      organization_id: organizationId,
-      organization_name: org.name,
-      update_type: 'onboarding_completed',
-      updated_at: new Date().toISOString(),
-    }).catch((error) => {
-      console.error('Failed to publish PRACTICE_UPDATED event:', error);
-    });
+    void PracticeUpdated.dispatch(
+      {
+        organization_id: organizationId,
+        organization_name: org.name,
+        update_type: 'onboarding_completed',
+        updated_at: new Date().toISOString(),
+      },
+      {
+        actorId: SYSTEM_ACTOR_UUID,
+        organizationId,
+      }
+    );
+
+    // Send Stripe Connect welcome email (fire and forget)
+    const { payload } = event;
+    const email =
+      typeof payload['billing_email'] === 'string' ? payload['billing_email'] : (org.billingEmail ?? undefined);
+    const name = typeof payload['organization_name'] === 'string' ? payload['organization_name'] : org.name;
+
+    if (email) {
+      const practiceDashboardUrl = org.slug ? `${APP_URL}/practice/${org.slug}` : `${APP_URL}/dashboard`;
+      const payoutsUrl = org.slug
+        ? `${APP_URL}/practice/${org.slug}/settings/payouts`
+        : `${APP_URL}/dashboard/settings/billing`;
+
+      void queueManager
+        .addEmailJob(EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME, email, 'Your Stripe account is connected!', {
+          recipientEmail: email,
+          recipientName: name,
+          dashboardUrl: practiceDashboardUrl,
+          tutorialUrl: `${APP_URL}/docs/payments`,
+          supportUrl: 'https://blawby.com/help',
+          practiceDashboardUrl,
+          payoutsUrl, // Add practice-specific payouts URL
+        })
+        .catch((error: unknown) => {
+          logger.error('Failed to queue Connect welcome email for {organizationId}: {error}', {
+            organizationId,
+            error,
+          });
+        });
+    } else {
+      logger.warn('Skipping Connect welcome email: missing billing_email for {organizationId}', {
+        organizationId,
+      });
+    }
   } catch (error) {
-    logError(error, {
-      method: 'EVENT_HANDLER',
-      url: 'onboarding-completed',
-      statusCode: 500,
-      errorType: 'OnboardingHandlerError',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    logger.error('Failed to handle onboarding completion for {organizationId}: {error}', {
       organizationId,
+      error,
     });
   }
 };
-

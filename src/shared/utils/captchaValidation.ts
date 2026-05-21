@@ -5,6 +5,7 @@
  * Can be extended to support other providers in the future.
  */
 
+import { config } from '@/shared/config';
 import { isDevelopment } from '@/shared/utils/env';
 
 interface TurnstileVerifyResponse {
@@ -21,9 +22,7 @@ interface TurnstileVerifyResponse {
  */
 export const validateCaptchaToken = async (token?: string, ip?: string): Promise<boolean> => {
   // Use test key in development, real key in staging/production
-  const secretKey = isDevelopment()
-    ? '1x0000000000000000000000000000000AA'
-    : process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+  const secretKey = isDevelopment() ? '1x0000000000000000000000000000000AA' : config.cloudflare.turnstileSecretKey;
 
   if (!secretKey) {
     console.warn('⚠️  CLOUDFLARE_TURNSTILE_SECRET_KEY is not set. Captcha validation will fail.');
@@ -47,7 +46,7 @@ export const validateCaptchaToken = async (token?: string, ip?: string): Promise
       method: 'POST',
     });
 
-    const outcome = await result.json() as TurnstileVerifyResponse;
+    const outcome = (await result.json()) as TurnstileVerifyResponse;
 
     if (!outcome.success) {
       console.warn('Captcha validation failed:', outcome['error-codes']);

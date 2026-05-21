@@ -1,43 +1,24 @@
-import { createRoute, z } from '@hono/zod-openapi';
-
-import {
-  createSubscriptionSchema,
-  cancelSubscriptionSchema,
-  subscriptionPlanResponseSchema,
-  subscriptionResponseSchema,
-  errorResponseSchema,
-  notFoundResponseSchema,
-  internalServerErrorResponseSchema,
-} from './validations/subscription.validation';
+import { subscriptionValidations } from './validations/subscription.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
 
 /**
  * GET /api/subscriptions/plans
  * List all available subscription plans
  */
-export const listPlansRoute = createRoute({
+const listPlansRoute = routeBuilder.build({
   method: 'get',
   path: '/plans',
   tags: ['Subscriptions'],
   summary: 'List subscription plans',
-  description: 'Get all available subscription plans (public endpoint)',
+  description: 'Get all available subscription plans. Requires authentication but no active organization.',
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            plans: z.array(subscriptionPlanResponseSchema),
-          }),
+          schema: subscriptionValidations.listPlansResponseSchema,
         },
       },
       description: 'Plans retrieved successfully',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
     },
   },
 });
@@ -46,87 +27,21 @@ export const listPlansRoute = createRoute({
  * GET /api/subscriptions/current
  * Get current organization's subscription
  */
-export const getCurrentSubscriptionRoute = createRoute({
+const getCurrentSubscriptionRoute = routeBuilder.build({
   method: 'get',
   path: '/current',
   tags: ['Subscriptions'],
   summary: 'Get current subscription',
-  description: 'Get the current organization\'s active subscription',
+  description: "Get the current organization's active subscription",
   security: [{ Bearer: [] }],
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: z.object({
-            subscription: subscriptionResponseSchema.nullable(),
-          }),
+          schema: subscriptionValidations.getCurrentSubscriptionResponseSchema,
         },
       },
       description: 'Subscription retrieved successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
-    },
-  },
-});
-
-/**
- * POST /api/subscriptions/create
- * Create/upgrade subscription
- */
-export const createSubscriptionRoute = createRoute({
-  method: 'post',
-  path: '/create',
-  tags: ['Subscriptions'],
-  summary: 'Create subscription',
-  description: 'Create or upgrade a subscription for the current organization',
-  security: [{ Bearer: [] }],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: createSubscriptionSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      content: {
-        'application/json': {
-          schema: subscriptionResponseSchema,
-        },
-      },
-      description: 'Subscription created successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
     },
   },
 });
@@ -135,18 +50,19 @@ export const createSubscriptionRoute = createRoute({
  * POST /api/subscriptions/cancel
  * Cancel subscription
  */
-export const cancelSubscriptionRoute = createRoute({
+const cancelSubscriptionRoute = routeBuilder.build({
   method: 'post',
   path: '/cancel',
   tags: ['Subscriptions'],
   summary: 'Cancel subscription',
-  description: 'Cancel the current organization\'s subscription',
+  description:
+    "Cancel the current organization's subscription. Returns a Stripe Billing Portal URL for the user to confirm cancellation.",
   security: [{ Bearer: [] }],
   request: {
     body: {
       content: {
         'application/json': {
-          schema: cancelSubscriptionSchema,
+          schema: subscriptionValidations.cancelSubscriptionSchema,
         },
       },
     },
@@ -155,35 +71,16 @@ export const cancelSubscriptionRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: subscriptionResponseSchema,
+          schema: subscriptionValidations.cancelSubscriptionResponseSchema,
         },
       },
-      description: 'Subscription cancelled successfully',
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: errorResponseSchema,
-        },
-      },
-      description: 'Bad request',
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: notFoundResponseSchema,
-        },
-      },
-      description: 'Subscription not found',
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: internalServerErrorResponseSchema,
-        },
-      },
-      description: 'Internal server error',
+      description: 'Cancellation portal URL returned successfully',
     },
   },
 });
 
+export const routes = {
+  listPlansRoute,
+  getCurrentSubscriptionRoute,
+  cancelSubscriptionRoute,
+};

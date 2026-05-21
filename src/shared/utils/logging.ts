@@ -4,14 +4,11 @@
  */
 
 import { createHash } from 'node:crypto';
-import { consola } from 'consola';
+import { getLogger } from '@logtape/logtape';
 
-const SENSITIVE_HEADERS = [
-  'authorization',
-  'cookie',
-  'x-api-key',
-  'x-auth-token',
-];
+const loggerInstance = getLogger(['app', 'utils']);
+
+const SENSITIVE_HEADERS = ['authorization', 'cookie', 'x-api-key', 'x-auth-token'];
 
 const SENSITIVE_BODY_FIELDS = [
   'password',
@@ -28,9 +25,7 @@ const SENSITIVE_BODY_FIELDS = [
  * Sanitize request headers to hide sensitive data
  * Shows only first 20 characters of sensitive headers
  */
-export const sanitizeHeaders = <T extends Record<string, unknown>>(
-  headers: T,
-): T => {
+export const sanitizeHeaders = <T extends Record<string, unknown>>(headers: T): T => {
   const sanitized = {} as Record<string, unknown>;
 
   for (const [key, value] of Object.entries(headers)) {
@@ -142,31 +137,27 @@ export const categorizeError = (error: unknown): string => {
 
   // Authentication errors
   if (
-    errorName.includes('auth')
-    || errorName.includes('unauthorized')
-    || errorMessage.includes('authentication')
-    || errorMessage.includes('unauthorized')
+    errorName.includes('auth') ||
+    errorName.includes('unauthorized') ||
+    errorMessage.includes('authentication') ||
+    errorMessage.includes('unauthorized')
   ) {
     return 'authentication';
   }
 
   // Validation errors
-  if (
-    errorName.includes('validation')
-    || errorName.includes('zod')
-    || errorMessage.includes('validation')
-  ) {
+  if (errorName.includes('validation') || errorName.includes('zod') || errorMessage.includes('validation')) {
     return 'validation';
   }
 
   // Database errors
   if (
-    errorName.includes('database')
-    || errorName.includes('postgres')
-    || errorName.includes('drizzle')
-    || errorMessage.includes('relation')
-    || errorMessage.includes('table')
-    || errorMessage.includes('column')
+    errorName.includes('database') ||
+    errorName.includes('postgres') ||
+    errorName.includes('drizzle') ||
+    errorMessage.includes('relation') ||
+    errorMessage.includes('table') ||
+    errorMessage.includes('column')
   ) {
     return 'database';
   }
@@ -202,36 +193,44 @@ export const formatResponseTime = (milliseconds: number): string => {
  * Stripe errors have 'type' and 'code' properties
  */
 export const isStripeError = (
-  error: unknown,
-): error is { type?: string; code?: string; decline_code?: string; message?: string } => {
-  return (
-    error !== null
-    && typeof error === 'object'
-    && 'type' in error
-    && 'code' in error
-  );
+  error: unknown
+): error is { type: string; code: string; decline_code?: string; message?: string } => {
+  if (error === null || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+
+  if (typeof candidate.type !== 'string' || typeof candidate.code !== 'string') {
+    return false;
+  }
+
+  if (candidate.decline_code !== undefined && typeof candidate.decline_code !== 'string') {
+    return false;
+  }
+
+  if (candidate.message !== undefined && typeof candidate.message !== 'string') {
+    return false;
+  }
+
+  return true;
 };
 
 /**
  * Hash an email address for logging purposes (non-identifying)
  * Uses SHA-256 to create a deterministic hash
  */
-export const hashEmail = (email: string): string => {
-  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').substring(0, 16);
-};
+export const hashEmail = (email: string): string =>
+  createHash('sha256').update(email.toLowerCase().trim()).digest('hex').substring(0, 16);
 
 /**
  * Log error with appropriate prefix based on error type
  * Stripe errors are prefixed with [STRIPE ERROR] and include additional Stripe-specific fields
  * Application errors are prefixed with [APP ERROR]
  */
-export const logError = (
-  message: string,
-  error: unknown,
-  context: Record<string, unknown> = {},
-): void => {
+export const logError = (message: string, error: unknown, context: Record<string, unknown> = {}): void => {
   if (isStripeError(error)) {
-    consola.error(`[STRIPE ERROR] ${message}`, {
+    loggerInstance.error(`[STRIPE ERROR] ${message}: {error}`, {
       error: sanitizeError(error),
       stripeErrorType: error.type,
       stripeErrorCode: error.code,
@@ -239,7 +238,7 @@ export const logError = (
       ...context,
     });
   } else {
-    consola.error(`[APP ERROR] ${message}`, {
+    loggerInstance.error(`[APP ERROR] ${message}: {error}`, {
       error: sanitizeError(error),
       ...context,
     });

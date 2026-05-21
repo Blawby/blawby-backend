@@ -1,63 +1,32 @@
-import { createRoute, z } from '@hono/zod-openapi';
-
-import {
-  createConnectedAccountSchema,
-  createConnectedAccountResponseSchema,
-  errorResponseSchema,
-  internalServerErrorResponseSchema,
-  notFoundResponseSchema,
-  onboardingStatusResponseSchema,
-} from '@/modules/onboarding/validations/onboarding.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
+import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 
 /**
- * OpenAPI param schema with metadata
- */
-const organizationIdParamOpenAPISchema = z.object({
-  organizationId: z
-    .uuid()
-    .openapi({
-      param: {
-        name: 'organizationId',
-        in: 'path',
-      },
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
-});
-
-/**
- * GET /api/onboarding/organization/:organizationId/status
+ * GET /api/onboarding/organization/:practice_id/status
  * Get onboarding status for organization
  */
-export const getOnboardingStatusRoute = createRoute({
+export const getOnboardingStatusRoute = routeBuilder.build({
   method: 'get',
-  path: '/organization/{organizationId}/status',
+  path: '/organization/{practice_id}/status',
   tags: ['Onboarding'],
   summary: 'Get onboarding status',
   description: 'Retrieve the onboarding status for a specific organization',
   request: {
-    params: organizationIdParamOpenAPISchema,
+    params: onboardingValidations.practiceIdParamSchema,
   },
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: onboardingStatusResponseSchema,
+          schema: onboardingValidations.onboardingStatusResponseSchema,
         },
       },
       description: 'Onboarding status retrieved successfully',
     },
-    404: {
-      content: {
-        'application/json': {
-          schema: notFoundResponseSchema,
-        },
-      },
-      description: 'Onboarding status not found',
-    },
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: onboardingValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request parameters',
@@ -69,17 +38,18 @@ export const getOnboardingStatusRoute = createRoute({
  * POST /api/onboarding/connected-accounts
  * Create connected account for organization (includes session creation)
  */
-export const createConnectedAccountRoute = createRoute({
+export const createConnectedAccountRoute = routeBuilder.build({
   method: 'post',
   path: '/connected-accounts',
   tags: ['Onboarding'],
   summary: 'Initialize Hosted Onboarding Flow',
-  description: 'Creates a Stripe connected account (if needed) and returns a hosted onboarding URL for the organization',
+  description:
+    'Creates a Stripe connected account (if needed) and returns a hosted onboarding URL for the organization',
   request: {
     body: {
       content: {
         'application/json': {
-          schema: createConnectedAccountSchema,
+          schema: onboardingValidations.createConnectedAccountSchema,
         },
       },
       description: 'Connected account creation data',
@@ -89,7 +59,7 @@ export const createConnectedAccountRoute = createRoute({
     201: {
       content: {
         'application/json': {
-          schema: createConnectedAccountResponseSchema,
+          schema: onboardingValidations.createConnectedAccountResponseSchema,
         },
       },
       description: 'Connected account created successfully',
@@ -97,7 +67,7 @@ export const createConnectedAccountRoute = createRoute({
     400: {
       content: {
         'application/json': {
-          schema: errorResponseSchema,
+          schema: onboardingValidations.errorResponseSchema,
         },
       },
       description: 'Invalid request data',
@@ -105,7 +75,7 @@ export const createConnectedAccountRoute = createRoute({
     500: {
       content: {
         'application/json': {
-          schema: internalServerErrorResponseSchema,
+          schema: onboardingValidations.internalServerErrorResponseSchema,
         },
       },
       description: 'Failed to create connected account',
@@ -113,3 +83,7 @@ export const createConnectedAccountRoute = createRoute({
   },
 });
 
+export const routes = {
+  getOnboardingStatusRoute,
+  createConnectedAccountRoute,
+};

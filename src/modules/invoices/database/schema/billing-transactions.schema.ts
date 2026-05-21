@@ -1,0 +1,49 @@
+import { pgTable, uuid, text, integer, timestamp, index, jsonb } from 'drizzle-orm/pg-core';
+import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { organizations } from '@/schema/better-auth-schema';
+
+export const billingTransactions = pgTable(
+  'billing_transactions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organization_id: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    invoice_id: uuid('invoice_id').references(() => invoices.id, {
+      onDelete: 'set null',
+    }),
+    matter_id: uuid('matter_id').references(() => matters.id, {
+      onDelete: 'set null',
+    }),
+    stripe_transfer_id: text('stripe_transfer_id').unique(),
+    destination_account_id: text('destination_account_id').notNull(),
+    amount: integer('amount').notNull(), // in cents
+    metered_fee_cents: integer('metered_fee_cents').notNull().default(0),
+    type: text('type', { enum: ['payout', 'retainer_draw', 'refund'] }).notNull(),
+    status: text('status', {
+      enum: ['pending', 'queued', 'completed', 'failed'],
+    })
+      .notNull()
+      .default('pending'),
+    retry_count: integer('retry_count').notNull().default(0),
+    last_error: text('last_error'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    completed_at: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    index('billing_transactions_organization_idx').on(table.organization_id),
+    index('billing_transactions_invoice_idx').on(table.invoice_id),
+    index('billing_transactions_matter_idx').on(table.matter_id),
+    index('billing_transactions_stripe_transfer_idx').on(table.stripe_transfer_id),
+    index('billing_transactions_status_idx').on(table.status),
+  ]
+);
+
+export const billingTransactionsSchema = {
+  billingTransactions,
+};
+
+export type InsertBillingTransaction = typeof billingTransactions.$inferInsert;
+export type SelectBillingTransaction = typeof billingTransactions.$inferSelect;

@@ -4,7 +4,8 @@
  * Provides a lazily-initialized Stripe client instance
  */
 
-import Stripe from 'stripe';
+import { Stripe } from 'stripe';
+import { config } from '@/shared/config';
 
 // Lazy initialization of Stripe client
 let _stripeInstance: Stripe | null = null;
@@ -14,13 +15,13 @@ let _stripeInstance: Stripe | null = null;
  */
 const initStripe = (): Stripe => {
   if (!_stripeInstance) {
-    const apiKey = process.env.STRIPE_SECRET_KEY;
+    const apiKey = config.stripe.secretKey;
     if (!apiKey) {
       throw new Error('STRIPE_SECRET_KEY environment variable is required');
     }
 
     _stripeInstance = new Stripe(apiKey, {
-      apiVersion: '2025-09-30.clover',
+      apiVersion: '2026-02-25.clover',
     });
   }
 
@@ -33,8 +34,7 @@ const initStripe = (): Stripe => {
  *        stripe.customers.list(...)
  */
 export const stripe = new Proxy({} as Stripe, {
-  // oxlint-disable-next-line explicit-function-return-type
-  get(_, prop) {
+  get(_, prop): unknown {
     const client = initStripe();
     const value = client[prop as keyof Stripe];
 
@@ -49,6 +49,4 @@ export const stripe = new Proxy({} as Stripe, {
  * Usage: import { getStripeInstance } from './stripe-client'
  *        const stripeClient = getStripeInstance()
  */
-export const getStripeInstance = (): Stripe => {
-  return initStripe();
-};
+export const getStripeInstance = (): Stripe => initStripe();

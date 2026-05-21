@@ -6,38 +6,29 @@
  */
 
 import { relations } from 'drizzle-orm';
-import {
-  pgTable,
-  text,
-  timestamp,
-  date,
-  index,
-  uuid,
-  jsonb,
-} from 'drizzle-orm/pg-core';
+import { pgTable, timestamp, index, uuid, jsonb } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-import { users } from '@/schema/better-auth-schema';
 import type {
   GeneralPreferences,
   NotificationPreferences,
   SecurityPreferences,
   AccountPreferences,
   OnboardingPreferences,
+  OrganizationPreferences,
   ProductUsage,
 } from '@/modules/preferences/types/preferences.types';
 import { PRODUCT_USAGE_OPTIONS } from '@/modules/preferences/types/preferences.types';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 // Zod schema for product usage validation
-const productUsageSchema = z.array(
-  z.enum(PRODUCT_USAGE_OPTIONS),
-).max(5);
+const productUsageSchema = z.array(z.enum(PRODUCT_USAGE_OPTIONS)).max(5);
 
 export const preferences = pgTable(
   'preferences',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    user_id: uuid('user_id')
       .notNull()
       .unique()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -49,46 +40,52 @@ export const preferences = pgTable(
     account: jsonb('account').$type<AccountPreferences>().default({}),
     onboarding: jsonb('onboarding').$type<OnboardingPreferences>().default({}),
 
+    // Org-level context - nullable until org preferences are built
+    organization_id: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
+    organization: jsonb('organization').$type<OrganizationPreferences>(),
+
     // Old field (temporary - will be removed after data migration)
-    productUsage: jsonb('product_usage').$type<ProductUsage[]>(),
+    product_usage: jsonb('product_usage').$type<ProductUsage[]>(),
 
     // Metadata
-    createdAt: timestamp('created_at')
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at')
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('preferences_user_idx').on(table.userId),
-    index('preferences_created_at_idx').on(table.createdAt),
-  ],
+    index('preferences_user_idx').on(table.user_id),
+    index('preferences_created_at_idx').on(table.created_at),
+    index('preferences_organization_idx').on(table.organization_id),
+  ]
 );
 
 // Define relations
-export const preferencesRelations = relations(
-  preferences,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [preferences.userId],
-      references: [users.id],
-    }),
+export const preferencesRelations = relations(preferences, ({ one }) => ({
+  user: one(users, {
+    fields: [preferences.user_id],
+    references: [users.id],
   }),
-);
+  organizationRef: one(organizations, {
+    fields: [preferences.organization_id],
+    references: [organizations.id],
+  }),
+}));
 
 // Zod schemas for validation
-export const insertPreferencesSchema = createInsertSchema(preferences).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-}).extend({
-  productUsage: productUsageSchema.optional(),
-});
+export const insertPreferencesSchema = createInsertSchema(preferences)
+  .omit({
+    id: true,
+    created_at: true,
+    updated_at: true,
+  })
+  .extend({
+    product_usage: productUsageSchema.optional(),
+  });
 
 export const selectPreferencesSchema = createSelectSchema(preferences).extend({
-  productUsage: productUsageSchema.optional(),
+  product_usage: productUsageSchema.optional(),
 });
 
 // Update schema (all fields optional except id)
@@ -98,4 +95,3 @@ export const updatePreferencesSchema = insertPreferencesSchema.partial();
 export type Preferences = typeof preferences.$inferSelect;
 export type InsertPreferences = typeof preferences.$inferInsert;
 export type UpdatePreferences = z.infer<typeof updatePreferencesSchema>;
-

@@ -1,56 +1,81 @@
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
 import type { ErrorHandler } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { HTTPException } from 'hono/http-exception';
 
-import { logError } from './logger';
+const logger = getLogger(['app', 'error-handler']);
 
 /**
- * Simple Error Handler for Hono Applications
+ * Global Error Handler for Hono Application
  *
- * Handles errors directly and returns JSON responses.
+ * Handles native Hono exceptions (HTTPException), CASL authorization errors,
+ * and unexpected exceptions, formatting them for the client.
  */
 export const errorHandler: ErrorHandler = (error, c) => {
   const requestId = c.get('requestId') || crypto.randomUUID();
-  const startTime = c.get('startTime') || Date.now();
+  // oxlint-disable-next-line typescript/no-unsafe-assignment
+  const startTime = c.get('startTime') ?? Date.now();
   const responseTime = Date.now() - startTime;
 
-  // Handle custom errors with status property
-  if (error instanceof Error && 'status' in error) {
-    const status = error.status;
-
-    logError(error, {
+  // 1. Hono HTTPException — clean path for middleware/service errors
+  if (error instanceof HTTPException) {
+    logger.info('HTTP Exception: {status} {message}', {
+      status: error.status,
+      message: error.message,
+      requestId,
+      responseTime,
       method: c.req.method,
       url: c.req.url,
-      statusCode: Number(status),
+    });
+    return c.json(
+      {
+        error: 'HTTP_ERROR',
+        message: error.message,
+        request_id: requestId,
+      },
+      error.status
+    );
+  }
+
+  // 2. CASL authorization errors
+  if (error instanceof ForbiddenError) {
+    logger.warn('Access forbidden: {message}', {
+      message: error.message,
       userId: c.get('userId'),
       organizationId: c.get('activeOrganizationId'),
       requestId,
       responseTime,
-      errorType: 'CustomError',
-      errorMessage: error.message,
     });
-
-    return c.json({
-      error: error.message,
-      message: error.message,
-    }, status as ContentfulStatusCode);
+    return c.json(
+      {
+        error: 'FORBIDDEN',
+        message: error.message,
+        request_id: requestId,
+      },
+      403
+    );
   }
 
-  // Default error handling
-  logError(error, {
+  // 3. Unexpected errors — always 500
+  logger.error('Unhandled exception: {message} [{method} {url}]', {
+    message: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined,
+    cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
     method: c.req.method,
     url: c.req.url,
-    statusCode: 500,
-    userId: c.get('userId'),
-    organizationId: c.get('activeOrganizationId'),
     requestId,
     responseTime,
-    errorType: error?.constructor?.name,
-    errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    stack: error instanceof Error ? error.stack : undefined,
+    error,
+    userId: c.get('userId'),
+    organizationId: c.get('activeOrganizationId'),
   });
 
-  return c.json({
-    error: 'Internal Server Error',
-    message: 'An unexpected error occurred',
-  }, 500);
+  return c.json(
+    {
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'An unexpected error occurred',
+      request_id: requestId,
+    },
+    500
+  );
 };

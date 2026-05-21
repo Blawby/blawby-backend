@@ -5,18 +5,22 @@
  * Used for initial data load and manual sync
  */
 
+import { getLogger } from '@logtape/logtape';
+import { handleProductCreated } from '@/modules/subscriptions/handlers/productCreated.handler';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { handleProductCreated } from '../handlers/productCreated.handler';
 
-export interface SyncResult {
+const logger = getLogger(['subscriptions', 'services', 'sync-plans']);
+
+interface SyncResult {
   synced: number;
-  errors: Array<{ productId: string; error: string }>;
+  errors: { product_id: string; error: string }[];
 }
 
 /**
  * Sync all subscription plans from Stripe to database
+ * Uses the product.created handler to ensure consistent logic
  */
-export const syncAllPlansFromStripe = async (): Promise<SyncResult> => {
+const syncAllPlansFromStripe = async (): Promise<SyncResult> => {
   const stripe = getStripeInstance();
   const result: SyncResult = {
     synced: 0,
@@ -24,52 +28,54 @@ export const syncAllPlansFromStripe = async (): Promise<SyncResult> => {
   };
 
   try {
-    console.log('Starting sync of subscription plans from Stripe...');
+    logger.info('Starting sync of subscription plans from Stripe...');
 
-    // Fetch all active products
-    const products = await stripe.products.list({
-      active: true,
-      limit: 100,
-    });
+    let productCount = 0;
+    await stripe.products.list({ active: true, limit: 100 }).autoPagingEach(async (product) => {
+      productCount += 1;
 
-    console.log(`Found ${products.data.length} products to sync`);
-
-    // Process each product
-    for (const product of products.data) {
       try {
         // Check if product has recurring prices (subscription product)
-        const prices = await stripe.prices.list({
-          product: product.id,
-          active: true,
-          limit: 10,
+        let hasRecurring = false;
+        await stripe.prices.list({ product: product.id, active: true, limit: 100 }).autoPagingEach((price) => {
+          if (price.recurring) {
+            hasRecurring = true;
+          }
         });
 
-        const hasRecurring = prices.data.some((price) => price.recurring !== null);
         if (!hasRecurring) {
-          console.log(`Skipping product ${product.id} - no recurring prices`);
-          continue;
+          logger.debug('Skipping product {productId} - no recurring prices', { productId: product.id });
+          return;
         }
 
-        // Use the product-created handler to sync
+        // Use the product.created handler to ensure consistent sync logic
         await handleProductCreated(product);
         result.synced += 1;
-        console.log(`Synced product: ${product.id} - ${product.name}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        result.errors.push({
+        result.errors.push({ product_id: product.id, error: errorMessage });
+        logger.error('Failed to sync product {productId}: {error}', {
           productId: product.id,
           error: errorMessage,
         });
-        console.error(`Failed to sync product ${product.id}:`, errorMessage);
       }
-    }
+    });
 
-    console.log(`Sync completed: ${result.synced} products synced, ${result.errors.length} errors`);
+    logger.info('Found {productCount} products, synced {synced} with {errorCount} errors', {
+      productCount,
+      synced: result.synced,
+      errorCount: result.errors.length,
+    });
+
     return result;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Failed to sync plans from Stripe:', errorMessage);
-    throw error;
+    logger.error('Failed to sync plans from Stripe: {error}', { error });
+    throw new Error('Failed to sync plans from Stripe', { cause: error });
   }
 };
 
+export const syncPlansService = {
+  syncAllPlansFromStripe,
+};
+
+export default syncPlansService;

@@ -5,29 +5,40 @@
  * Deactivates the subscription plan (soft delete)
  */
 
-import type Stripe from 'stripe';
+import type { Stripe } from 'stripe';
+import { getLogger } from '@logtape/logtape';
 
 import { db } from '@/shared/database';
-import { deactivatePlan } from '@/modules/subscriptions/database/queries/subscriptionPlans.repository';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+
+const logger = getLogger(['subscriptions', 'handlers', 'product-deleted']);
 
 /**
  * Handle product.deleted webhook event
  */
-export const handleProductDeleted = async (product: Stripe.Product): Promise<void> => {
+export const handleProductDeleted = async (product: Stripe.Product | Stripe.DeletedProduct): Promise<void> => {
   try {
-    console.log(`Processing product.deleted: ${product.id} - ${product.name}`);
+    logger.info('Processing product.deleted: {productId} - {productName}', {
+      productId: product.id,
+      productName: 'name' in product ? product.name : undefined,
+    });
 
-    // Deactivate the plan instead of hard delete
-    const deactivated = await deactivatePlan(db, product.id);
+    // Deactivate all prices for this product
+    await subscriptionRepository.deactivatePricesByProductId(db, product.id);
+    logger.info('Deactivated prices for product: {productId}', { productId: product.id });
 
-    if (deactivated) {
-      console.log(`Successfully deactivated plan: ${product.id}`);
+    // Also deactivate the plan (soft) so product is not visible
+    const deactivatedPlan = await subscriptionRepository.deactivatePlan(db, product.id);
+    if (deactivatedPlan) {
+      logger.info('Deactivated plan for product: {productId}', { productId: product.id });
     } else {
-      console.warn(`Plan not found for deactivation: ${product.id}`);
+      logger.warn('No plan found to deactivate for product: {productId}', { productId: product.id });
     }
   } catch (error) {
-    console.error(`Failed to process product.deleted: ${product.id}`, error);
+    logger.error('Failed to process product.deleted: {productId}. Error: {error}', {
+      productId: product.id,
+      error,
+    });
     throw error;
   }
 };
-

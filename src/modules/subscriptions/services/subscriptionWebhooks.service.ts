@@ -1,11 +1,5 @@
-/**
- * Subscription Webhooks Service
- *
- * Processes Stripe webhook events for subscription products and prices
- */
-
+import { getLogger } from '@logtape/logtape';
 import type Stripe from 'stripe';
-
 import {
   handleProductCreated,
   handleProductUpdated,
@@ -13,60 +7,73 @@ import {
   handlePriceCreated,
   handlePriceUpdated,
   handlePriceDeleted,
-} from '../handlers';
+} from '@/modules/subscriptions/handlers/index';
+import { isProductEvent, isPriceEvent } from '@/shared/utils/stripeGuards';
+
+const logger = getLogger(['subscriptions', 'webhook-service']);
 
 /**
  * Process a Stripe webhook event for subscriptions
  */
-export const processSubscriptionWebhookEvent = async (
-  event: Stripe.Event,
-): Promise<void> => {
+const processSubscriptionWebhookEvent = async (event: Stripe.Event): Promise<void> => {
   try {
-    console.log(`Processing subscription webhook event: ${event.type}`);
+    logger.info('Processing subscription webhook event: {eventType}', { eventType: event.type });
 
     switch (event.type) {
       case 'product.created':
-        await handleProductCreated(event.data.object as Stripe.Product);
-        break;
-
       case 'product.updated':
-        await handleProductUpdated(event.data.object as Stripe.Product);
-        break;
-
       case 'product.deleted':
-        await handleProductDeleted(event.data.object as Stripe.Product);
+        if (!isProductEvent(event)) {
+          throw new Error('Unexpected payload for product event');
+        }
+        if (event.type === 'product.created') {
+          await handleProductCreated(event.data.object);
+        } else if (event.type === 'product.updated') {
+          await handleProductUpdated(event.data.object);
+        } else {
+          await handleProductDeleted(event.data.object);
+        }
         break;
 
       case 'price.created':
-        await handlePriceCreated(event.data.object as Stripe.Price);
-        break;
-
       case 'price.updated':
-        await handlePriceUpdated(event.data.object as Stripe.Price);
-        break;
-
       case 'price.deleted':
-        await handlePriceDeleted(event.data.object as Stripe.Price);
+        if (!isPriceEvent(event)) {
+          throw new Error('Unexpected payload for price event');
+        }
+        if (event.type === 'price.created') {
+          await handlePriceCreated(event.data.object);
+        } else if (event.type === 'price.updated') {
+          await handlePriceUpdated(event.data.object);
+        } else {
+          await handlePriceDeleted(event.data.object);
+        }
         break;
 
       default:
-        console.log(`Unhandled subscription webhook event type: ${event.type}`);
+        logger.info('Unhandled subscription webhook event type: {eventType}', { eventType: event.type });
     }
 
-    console.log(`Successfully processed subscription webhook event: ${event.type}`);
+    logger.info('Successfully processed subscription webhook event: {eventType}', { eventType: event.type });
   } catch (error) {
-    console.error(
-      `Failed to process subscription webhook event: ${event.type}`,
-      error,
-    );
-    throw error;
+    logger.error('Failed to process subscription webhook event {eventType}: {error}', {
+      eventType: event.type,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw error instanceof Error ? error : new Error('Failed to process subscription webhook');
   }
 };
 
 /**
  * Check if an event type should be processed by subscription webhooks
  */
-export const isSubscriptionWebhookEvent = (eventType: string): boolean => {
-  return eventType.startsWith('product.') || eventType.startsWith('price.');
+const isSubscriptionWebhookEvent = (eventType: string): boolean =>
+  eventType.startsWith('product.') || eventType.startsWith('price.');
+
+export const subscriptionWebhooksService = {
+  processSubscriptionWebhookEvent,
+  isSubscriptionWebhookEvent,
 };
 
+export default subscriptionWebhooksService;
