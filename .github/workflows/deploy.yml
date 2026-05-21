@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [staging]
+    branches: [main, staging]
     paths-ignore:
       - '**.md'
       - '.github/dependabot.yml'
@@ -15,6 +15,7 @@ jobs:
   deploy:
     name: Deploy to Cloudflare
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
 
     steps:
       - name: Checkout
@@ -44,8 +45,28 @@ jobs:
       - name: Build
         run: pnpm run codegen && pnpm run build
 
-      - name: Deploy
+      - name: Migrate staging database
+        if: github.ref == 'refs/heads/staging'
+        run: pnpm exec drizzle-kit migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Migrate production database
+        if: github.ref == 'refs/heads/main'
+        run: pnpm exec drizzle-kit migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Deploy staging
+        if: github.ref == 'refs/heads/staging'
         run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy production
+        if: github.ref == 'refs/heads/main'
+        run: npx wrangler deploy --env production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
