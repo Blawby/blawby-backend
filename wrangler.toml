@@ -22,5 +22,9 @@ class_name = "BackendContainer"
 tag = "v1"
 new_sqlite_classes = ["BackendContainer"]
 
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "91cecf65fad243c6836231e95b992855"
+
 [observability]
 enabled = true
