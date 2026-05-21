@@ -47,13 +47,13 @@ jobs:
 
       - name: Migrate staging database
         if: github.ref == 'refs/heads/staging'
-        run: pnpm exec drizzle-kit migrate
+        run: pnpm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Migrate production database
         if: github.ref == 'refs/heads/main'
-        run: pnpm exec drizzle-kit migrate
+        run: pnpm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 

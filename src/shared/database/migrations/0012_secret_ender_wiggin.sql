@@ -39,6 +39,9 @@ CREATE TABLE "uploads" (
 	"expires_at" timestamp with time zone
 );
 --> statement-breakpoint
+ALTER TABLE "practice_client_intakes" DROP CONSTRAINT IF EXISTS "practice_client_intakes_stripe_payment_intent_id_unique";--> statement-breakpoint
+ALTER TABLE "practice_client_intakes" ALTER COLUMN "stripe_payment_intent_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "practice_client_intakes" ADD COLUMN IF NOT EXISTS "stripe_payment_link_id" text;--> statement-breakpoint
 ALTER TABLE "events" DROP CONSTRAINT IF EXISTS "events_event_id_unique";--> statement-breakpoint
 ALTER TABLE "events" DROP CONSTRAINT IF EXISTS "events_pkey";--> statement-breakpoint
 ALTER TABLE "events" DROP COLUMN IF EXISTS "id";--> statement-breakpoint
@@ -93,6 +96,7 @@ CREATE INDEX "uploads_retention_idx" ON "uploads" USING btree ("retention_until"
 CREATE INDEX "uploads_status_idx" ON "uploads" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "uploads_matter_id_idx" ON "uploads" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "uploads_created_at_idx" ON "uploads" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "practice_client_intakes_stripe_link_idx" ON "practice_client_intakes" USING btree ("stripe_payment_link_id");--> statement-breakpoint
 -- Create NOTIFY function for event bridge (future use)
 CREATE OR REPLACE FUNCTION notify_new_event()
 RETURNS TRIGGER AS $$

@@ -20,7 +20,7 @@
     "email-worker": "node dist/workers/email.worker.js",
     "email-worker:dev": "tsx watch src/workers/email.worker.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/migrate.ts",
     "db:migrate:staging": "tsx scripts/migrate-from-secrets.ts cf-secrets.staging.json",
     "db:migrate:prod": "tsx scripts/migrate-from-secrets.ts cf-secrets.production.json",
     "db:studio": "drizzle-kit studio",

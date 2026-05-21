@@ -33,7 +33,7 @@ if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
 let result: ReturnType<typeof spawnSync>;
 
 try {
-  result = spawnSync('pnpm', ['exec', 'drizzle-kit', 'migrate'], {
+  result = spawnSync('pnpm', ['run', 'db:migrate'], {
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
@@ -42,7 +42,7 @@ try {
     encoding: 'utf8',
   });
 } catch (error) {
-  console.error('Failed to start drizzle-kit migrate:', error);
+  console.error('Failed to start database migration:', error);
   process.exit(1);
 }
 
@@ -55,16 +55,16 @@ if (result.stderr) {
 }
 
 if (result.error) {
-  console.error('Failed to run drizzle-kit migrate:', result.error);
+  console.error('Failed to run database migration:', result.error);
   process.exit(1);
 }
 
 if (result.signal) {
-  console.error(`drizzle-kit migrate exited with signal ${result.signal}`);
+  console.error(`Database migration exited with signal ${result.signal}`);
   process.exit(1);
 }
 
 if (result.status !== 0) {
-  console.error(`drizzle-kit migrate failed with exit code ${result.status ?? 'unknown'}`);
+  console.error(`Database migration failed with exit code ${result.status ?? 'unknown'}`);
   process.exit(result.status ?? 1);
 }
