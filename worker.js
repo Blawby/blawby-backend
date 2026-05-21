@@ -1,6 +1,9 @@
 import { Container, getRandom } from '@cloudflare/containers';
 import { env } from 'cloudflare:workers';
 
+const PORT_READY_TIMEOUT_MS = 120_000;
+const INSTANCE_GET_TIMEOUT_MS = 30_000;
+
 export class BackendContainer extends Container {
   defaultPort = 3000;
   sleepAfter = '30m';
@@ -32,6 +35,29 @@ export class BackendContainer extends Container {
     SKIP_CAPTCHA: env.SKIP_CAPTCHA ?? 'false',
     NODE_ENV: 'production',
   };
+
+  async fetch(request) {
+    const port = this.defaultPort;
+    const state = await this.getState();
+
+    if (state.status !== 'healthy') {
+      try {
+        await this.startAndWaitForPorts({
+          ports: port,
+          cancellationOptions: {
+            instanceGetTimeoutMS: INSTANCE_GET_TIMEOUT_MS,
+            portReadyTimeoutMS: PORT_READY_TIMEOUT_MS,
+          },
+        });
+      } catch (error) {
+        return new Response(`Failed to start container: ${error instanceof Error ? error.message : String(error)}`, {
+          status: 500,
+        });
+      }
+    }
+
+    return this.containerFetch(request, port);
+  }
 }
 
 export default {

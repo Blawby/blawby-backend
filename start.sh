@@ -1,8 +1,26 @@
 #!/bin/sh
 set -e
 
+node dist/hono-server.js &
+API_PID=$!
+
+wait_for_api() {
+  for i in $(seq 1 60); do
+    if wget -q -O - "http://127.0.0.1:${PORT:-3000}/" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "API server did not become ready on port ${PORT:-3000}" >&2
+  kill "$API_PID" 2>/dev/null
+  exit 1
+}
+
 # Start background workers (only if queue enabled)
 if [ "$ENABLE_QUEUE" = "true" ]; then
+  wait_for_api
+
   node dist/workers/event.worker.js &
   EVENT_WORKER_PID=$!
   node dist/workers/email.worker.js &
@@ -19,4 +37,4 @@ if [ "$ENABLE_QUEUE" = "true" ]; then
 fi
 
 # Run API server as main process (PID 1 signal target)
-exec node dist/hono-server.js
+wait "$API_PID"
