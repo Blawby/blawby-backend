@@ -6,7 +6,7 @@ export class BackendContainer extends Container {
   sleepAfter = '30m';
 
   envVars = {
-    DATABASE_URL: env.HYPERDRIVE.connectionString,
+    DATABASE_URL: env.DATABASE_URL,
     BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
     BETTER_AUTH_BASE_URL: env.BETTER_AUTH_BASE_URL,
     BASE_URL: env.BASE_URL,
