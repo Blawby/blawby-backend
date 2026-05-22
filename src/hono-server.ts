@@ -24,9 +24,12 @@ const server = serve(
   },
   (info) => {
     const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+    console.info(`🔥 Hono server running on http://${displayHost}:${info.port}`);
+    console.info(`📚 API Docs: http://${displayHost}:${info.port}/docs`);
     logger.info('Hono server running on http://{displayHost}:{port}', { displayHost, port: info.port });
     logger.info('API docs available at http://{displayHost}:{port}/docs', { displayHost, port: info.port });
     if (host === '0.0.0.0') {
+      console.info('🌐 Server listening on all interfaces');
       logger.info('Server listening on all interfaces');
     }
   }

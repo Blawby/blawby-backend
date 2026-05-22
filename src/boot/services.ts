@@ -13,6 +13,7 @@ const logger = getLogger(['app', 'boot', 'services']);
  * Initialize external services
  */
 export const bootServices = (): void => {
+  console.info('🚀 Booting external services...');
   logger.info('Booting external services...');
 
   // Stripe client is lazy-initialized via Proxy, no explicit initialization needed
@@ -27,5 +28,6 @@ export const bootServices = (): void => {
     });
   }
 
+  console.info('✅ External services initialized successfully');
   logger.info('External services initialized successfully');
 };

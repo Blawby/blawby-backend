@@ -106,6 +106,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
   const { schema } = graphileWorkerConfig;
   const workerConcurrency = concurrency ?? graphileWorkerConfig.concurrency;
 
+  console.info(`[${name}] Starting worker with schema=${schema} concurrency=${workerConcurrency}`);
   logger.info('Starting worker {name}', { name, schema, concurrency: workerConcurrency });
 
   let listenClient: PgClient | null = null;
@@ -125,6 +126,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
       crontab: options.crontab,
     });
 
+    console.info(`[${name}] Worker is ready and processing jobs`);
     logger.info('{name} is ready and processing jobs', { name });
 
     // Setup LISTEN/NOTIFY for instant event pickup (best-effort)
@@ -144,10 +146,12 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
 
     // Handle graceful shutdown
     const shutdown = async (): Promise<void> => {
+      console.info(`[${name}] Shutting down...`);
       logger.info('Shutting down {name}...', { name });
       if (listenClient) {
         try {
           await listenClient.end();
+          console.info(`[${name}] LISTEN client closed`);
           logger.info('LISTEN client closed');
         } catch (err) {
           logger.error('Error closing LISTEN client: {error}', {
@@ -156,6 +160,7 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
         }
       }
       await runner.stop();
+      console.info(`[${name}] Worker stopped`);
       logger.info('{name} stopped', { name });
       process.exit(0);
     };

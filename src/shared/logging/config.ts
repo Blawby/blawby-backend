@@ -1,23 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { Writable } from 'node:stream';
 import { getFileSink } from '@logtape/file';
-import { configure, getConsoleSink, getTextFormatter, type Sink } from '@logtape/logtape';
+import { configure, getStreamSink, getTextFormatter, type Sink } from '@logtape/logtape';
 import { config } from '@/shared/config';
 
 const LOGS_DIR_NAME = 'logs';
 let isInitialized = false;
-
-const consoleFormatter = getTextFormatter({
-  timestamp: 'disabled',
-  format: ({ category, message }) => {
-    const prefix = category ? `[${category}] ` : '';
-    return `${prefix}${message}`;
-  },
-});
-
-const shouldWriteFileLogs = () =>
-  process.env.LOG_TO_FILE === 'true' ||
-  (process.env.RUNNING_IN_CLOUDFLARE_CONTAINER !== 'true' && !config.env.isProductionLike);
 
 /**
  * Configure LogTape for structured logging across the application.
@@ -28,21 +17,18 @@ export const initializeLogging = async () => {
   }
   isInitialized = true;
 
-  const sinks: Record<string, Sink> = {
-    console: getConsoleSink({
-      formatter: consoleFormatter,
-    }),
-  };
-  const rootSinks = ['console'];
-
-  if (shouldWriteFileLogs()) {
-    const logDir: string = path.join(process.cwd(), LOGS_DIR_NAME);
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
-    }
-    sinks.file = getFileSink(path.join(logDir, 'app.log'));
-    rootSinks.push('file');
+  const logDir: string = path.join(process.cwd(), LOGS_DIR_NAME);
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
   }
+
+  const sinks: Record<string, Sink> = {
+    console: getStreamSink(Writable.toWeb(process.stdout), {
+      formatter: getTextFormatter(),
+    }),
+    file: getFileSink(path.join(logDir, 'app.log')),
+  };
+  const rootSinks = ['console', 'file'];
 
   await configure({
     sinks,

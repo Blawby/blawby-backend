@@ -34,6 +34,7 @@ export const bootCore = (): void => {
 export const bootApplication = async (): Promise<void> => {
   // 0. Initialize logging system
   await initializeLogging();
+  console.info('🚀 Starting application boot sequence...');
   logger.info('Starting application boot sequence...');
 
   // 1. Core initialization (Services & Events)
@@ -50,5 +51,6 @@ export const bootApplication = async (): Promise<void> => {
   // 3. Start background workers (API compatibility)
   bootWorkers();
 
+  console.info('✅ Application boot sequence completed');
   logger.info('Application boot sequence completed');
 };

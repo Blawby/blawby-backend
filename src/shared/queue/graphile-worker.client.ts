@@ -25,13 +25,21 @@ export const getWorkerUtils = async (): Promise<WorkerUtils> => {
 
   if (!workerUtilsPromise) {
     const { schema } = appConfig.queue;
+    const connectionInfo = appConfig.database.url?.replace(/:[^:@]+@/, ':****@') ?? 'pgPool';
+
+    console.info('🔌 Connecting to Graphile Worker...');
+    console.info(`   Database: ${connectionInfo}`);
+    console.info(`   Schema: ${schema}`);
+
     workerUtilsPromise = makeWorkerUtils({ pgPool: getPool(), schema }).then(
       (utils) => {
         workerUtils = utils;
+        console.info('✅ Graphile Worker connected and ready');
         return utils;
       },
       (err: unknown) => {
         workerUtilsPromise = null;
+        console.error('❌ Graphile Worker connection error:', err);
         throw err;
       },
     );
@@ -50,7 +58,9 @@ export const closeWorkerUtils = async (): Promise<void> => {
   workerUtilsPromise = null;
 
   if (pending) {
+    console.info('🔌 Closing Graphile Worker connection...');
     const utils = await pending.catch(() => null);
     await utils?.release();
+    console.info('✅ Graphile Worker connection closed');
   }
 };
