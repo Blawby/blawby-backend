@@ -25,6 +25,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
+const getOrInitializePreferences = async (userId: string): Promise<Preferences> => {
+  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
+
+  return prefs ?? initializeUserPreferences(userId);
+};
+
 /**
  * Apply default values to notification preferences
  */
@@ -59,11 +65,7 @@ const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   // CASL Check — verify the user can read preferences
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
-  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
-
-  if (!prefs) {
-    throw new HTTPException(404, { message: 'Preference not found' });
-  }
+  const prefs = await getOrInitializePreferences(ctx.userId);
 
   // Apply defaults to notifications and onboarding fields
   return {
@@ -87,20 +89,8 @@ const getPreferencesByCategory = async (
     return {};
   }
 
-  const [row] = await db
-    .select({
-      [category]: preferences[category],
-      user_id: preferences.user_id,
-    })
-    .from(preferences)
-    .where(eq(preferences.user_id, ctx.userId))
-    .limit(1);
-
-  if (!row) {
-    throw new HTTPException(404, { message: 'Preference not found' });
-  }
-
-  const categoryData = toRecord(row?.[category]);
+  const prefs = await getOrInitializePreferences(ctx.userId);
+  const categoryData = toRecord(prefs[category]);
 
   // Apply defaults for specific categories
   if (category === 'notifications') {
@@ -129,11 +119,7 @@ const updatePreferencesByCategory = async (
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserPreferences');
 
   // 2. Fetch current preferences for ownership verification
-  const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
-
-  if (!current) {
-    throw new HTTPException(404, { message: 'Preference not found' });
-  }
+  const current = await getOrInitializePreferences(ctx.userId);
 
   // Handle notifications category with special logic
   let dataToUpdate = data;
