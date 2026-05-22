@@ -34,6 +34,7 @@ export class BackendContainer extends Container {
     SERVER_HOSTNAME: env.SERVER_HOSTNAME ?? '0.0.0.0',
     APP_ENV: env.APP_ENV ?? 'production',
     SKIP_CAPTCHA: env.SKIP_CAPTCHA ?? 'false',
+    RUNNING_IN_CLOUDFLARE_CONTAINER: 'true',
     NODE_ENV: 'production',
   };
 

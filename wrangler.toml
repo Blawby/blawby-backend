@@ -17,6 +17,13 @@ image = "./Dockerfile"
 max_instances = 1
 instance_type = "basic"
 
+[containers.ssh]
+enabled = true
+
+[[containers.authorized_keys]]
+name = "giteshkhurani"
+public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINSzqmvLwr88IpqWXk/la/qJeW0uyJ/wp4a94RjzNscY writemail2gitesh@gmail.com"
+
 [[durable_objects.bindings]]
 name = "BACKEND"
 class_name = "BackendContainer"
@@ -46,6 +53,13 @@ class_name = "BackendContainer"
 image = "./Dockerfile"
 max_instances = 2
 instance_type = "basic"
+
+[env.production.containers.ssh]
+enabled = true
+
+[[env.production.containers.authorized_keys]]
+name = "giteshkhurani"
+public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINSzqmvLwr88IpqWXk/la/qJeW0uyJ/wp4a94RjzNscY writemail2gitesh@gmail.com"
 
 [[env.production.durable_objects.bindings]]
 name = "BACKEND"
