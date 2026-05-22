@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Writable } from 'node:stream';
 import { getFileSink } from '@logtape/file';
-import { configure, getStreamSink, getTextFormatter, type Sink } from '@logtape/logtape';
+import { configure, getConsoleSink } from '@logtape/logtape';
 import { config } from '@/shared/config';
 
 const LOGS_DIR_NAME = 'logs';
@@ -22,25 +21,20 @@ export const initializeLogging = async () => {
     fs.mkdirSync(logDir, { recursive: true });
   }
 
-  const sinks: Record<string, Sink> = {
-    console: getStreamSink(Writable.toWeb(process.stdout), {
-      formatter: getTextFormatter(),
-    }),
-    file: getFileSink(path.join(logDir, 'app.log')),
-  };
-  const rootSinks = ['console', 'file'];
-
   await configure({
-    sinks,
+    sinks: {
+      console: getConsoleSink(),
+      file: getFileSink(path.join(logDir, 'app.log')),
+    },
     loggers: [
       {
         category: ['logtape', 'meta'],
-        sinks: rootSinks,
+        sinks: ['console', 'file'],
         lowestLevel: 'warning',
       },
       {
         category: [], // Root logger catch-all for the entire application
-        sinks: rootSinks,
+        sinks: ['console', 'file'],
         lowestLevel: config.env.node === 'production' ? 'info' : 'debug',
       },
     ],

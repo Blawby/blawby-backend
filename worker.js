@@ -7,7 +7,6 @@ const INSTANCE_GET_TIMEOUT_MS = 30_000;
 export class BackendContainer extends Container {
   defaultPort = 3000;
   sleepAfter = '30m';
-  pingEndpoint = 'localhost:3000/api/health';
 
   envVars = {
     DATABASE_URL: env.DATABASE_URL,
