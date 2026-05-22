@@ -4,13 +4,16 @@
  * Initialize external services and connections
  */
 
+import { getLogger } from '@logtape/logtape';
 import { stripeRetriesService } from '@/modules/webhooks/services/stripe-retries.service';
+
+const logger = getLogger(['app', 'boot', 'services']);
 
 /**
  * Initialize external services
  */
 export const bootServices = (): void => {
-  console.info('🚀 Booting external services...');
+  logger.info('Booting external services...');
 
   // Stripe client is lazy-initialized via Proxy, no explicit initialization needed
   // Future service initializations can be added here:
@@ -19,8 +22,10 @@ export const bootServices = (): void => {
 
   // Only retry when workers are running — no point queuing jobs if ENABLE_QUEUE=false
   if (process.env.ENABLE_QUEUE === 'true') {
-    void stripeRetriesService.retryFailedWebhooks();
+    stripeRetriesService.retryFailedWebhooks().catch((err: unknown) => {
+      logger.error('retryFailedWebhooks failed: {err}', { err });
+    });
   }
 
-  console.info('✅ External services initialized successfully');
+  logger.info('External services initialized successfully');
 };

@@ -50,6 +50,7 @@ export class BackendContainer extends Container {
       '[container] error:',
       error instanceof Error ? error.message : String(error),
     );
+    throw error;
   }
 
   async fetch(request) {
@@ -78,7 +79,8 @@ export class BackendContainer extends Container {
 
 export default {
   async fetch(request, env) {
-    const instances = parseInt(env.CONTAINER_INSTANCES ?? '1', 10);
+    const parsed = parseInt(env.CONTAINER_INSTANCES ?? '1', 10);
+    const instances = isNaN(parsed) || parsed < 1 ? 1 : parsed;
     return (await getRandom(env.BACKEND, instances)).fetch(request);
   },
 };

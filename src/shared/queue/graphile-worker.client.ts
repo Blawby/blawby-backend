@@ -14,22 +14,24 @@ import { getPool } from '@/shared/database/connection';
 config();
 
 let workerUtils: WorkerUtils | null = null;
+let workerUtilsPromise: Promise<WorkerUtils> | null = null;
 
 /**
  * Get or create Graphile Worker utils singleton.
  * Used for enqueueing jobs from the API server and workers.
  */
 export const getWorkerUtils = async (): Promise<WorkerUtils> => {
-  if (!workerUtils) {
-    const { schema } = appConfig.queue;
+  if (workerUtils) return workerUtils;
 
-    workerUtils = await makeWorkerUtils({
-      pgPool: getPool(),
-      schema,
+  if (!workerUtilsPromise) {
+    const { schema } = appConfig.queue;
+    workerUtilsPromise = makeWorkerUtils({ pgPool: getPool(), schema }).then((utils) => {
+      workerUtils = utils;
+      return utils;
     });
   }
 
-  return workerUtils;
+  return workerUtilsPromise;
 };
 
 /**
@@ -40,5 +42,6 @@ export const closeWorkerUtils = async (): Promise<void> => {
   if (workerUtils) {
     await workerUtils.release();
     workerUtils = null;
+    workerUtilsPromise = null;
   }
 };
