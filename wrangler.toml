@@ -14,10 +14,6 @@ image = "./Dockerfile"
 max_instances = 1
 instance_type = "basic"
 
-[[containers.authorized_keys]]
-name = "gitesh's key"
-public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINSzqmvLwr88IpqWXk/la/qJeW0uyJ/wp4a94RjzNscY writemail2gitesh@gmail.com"
-
 [[durable_objects.bindings]]
 name = "BACKEND"
 class_name = "BackendContainer"
