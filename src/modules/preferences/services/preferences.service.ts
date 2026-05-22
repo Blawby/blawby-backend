@@ -25,8 +25,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
-const getOrInitializePreferences = async (userId: string): Promise<Preferences> => {
+const findPreferencesByUserId = async (userId: string): Promise<Preferences | undefined> => {
   const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
+  return prefs;
+};
+
+const getOrInitializePreferences = async (userId: string): Promise<Preferences> => {
+  const prefs = await findPreferencesByUserId(userId);
 
   return prefs ?? initializeUserPreferences(userId);
 };
@@ -165,13 +170,7 @@ const updatePreferencesByCategory = async (
  * Initialize preferences for a new user
  */
 const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
-  const existing = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
-
-  if (existing[0]) {
-    return existing[0];
-  }
-
-  const [inserted] = await db
+  await db
     .insert(preferences)
     .values({
       user_id: userId,
@@ -181,13 +180,15 @@ const initializeUserPreferences = async (userId: string): Promise<Preferences> =
       account: {},
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     })
-    .returning();
+    .onConflictDoNothing();
 
-  if (!inserted) {
+  const prefs = await findPreferencesByUserId(userId);
+
+  if (!prefs) {
     throw new HTTPException(500, { message: 'Failed to create preferences' });
   }
 
-  return inserted;
+  return prefs;
 };
 
 /**
