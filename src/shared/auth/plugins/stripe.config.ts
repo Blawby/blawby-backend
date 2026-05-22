@@ -376,12 +376,15 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
         plan: { name: string };
         stripeSubscription: Stripe.Subscription;
       }) => {
-        logger.warn('[Stripe Plugin] onSubscriptionComplete fired: subscriptionId={subscriptionId} referenceId={referenceId} stripeCustomerId={stripeCustomerId} plan={plan}', {
-          subscriptionId: subscription.id,
-          referenceId: subscription.referenceId,
-          stripeCustomerId: subscription.stripeCustomerId,
-          plan: plan.name,
-        });
+        logger.warn(
+          '[Stripe Plugin] onSubscriptionComplete fired: subscriptionId={subscriptionId} referenceId={referenceId} stripeCustomerId={stripeCustomerId} plan={plan}',
+          {
+            subscriptionId: subscription.id,
+            referenceId: subscription.referenceId,
+            stripeCustomerId: subscription.stripeCustomerId,
+            plan: plan.name,
+          }
+        );
         await syncSubscriptionToOrg(db, {
           stripeSubscription,
           subscriptionId: subscription.id,

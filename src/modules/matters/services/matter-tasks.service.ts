@@ -159,7 +159,10 @@ const listOrganizationTasks = async (
   ctx: ServiceContext
 ): Promise<OffsetPaginatedResponse<SelectMatterTask>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
-  const { data, total, page, limit } = await matterTasksQueries.listTasksByOrganization(ctx.organizationId, params.filters);
+  const { data, total, page, limit } = await matterTasksQueries.listTasksByOrganization(
+    ctx.organizationId,
+    params.filters
+  );
   return { data, pagination: { page, limit, total } };
 };
 
