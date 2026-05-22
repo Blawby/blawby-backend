@@ -1,11 +1,6 @@
 name: Build
 
 on:
-  push:
-    branches: [main, staging]
-    paths-ignore:
-      - '**.md'
-      - '.github/dependabot.yml'
   pull_request:
     branches: [main, staging]
     paths-ignore:
