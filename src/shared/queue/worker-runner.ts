@@ -117,11 +117,9 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
       schema,
       taskList,
       concurrency: workerConcurrency,
-      logger: new GraphileLogger((_scope) => (level, message, meta) => {
-        if (level === 'error') logger.error(message, meta ?? {});
-        else if (level === 'warning') logger.warn(message, meta ?? {});
-        else if (level === 'debug') logger.debug(message, meta ?? {});
-        else logger.info(message, meta ?? {});
+      logger: new GraphileLogger((scope) => (level, message) => {
+        const prefix = scope.label ? `[${scope.label}]` : '[graphile-worker]';
+        console.log(`${prefix} ${level.toUpperCase()}: ${message}`);
       }),
       pollInterval: 1000, // Fallback polling (LISTEN/NOTIFY is primary)
       crontab: options.crontab,
