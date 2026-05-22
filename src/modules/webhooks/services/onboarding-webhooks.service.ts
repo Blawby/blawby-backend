@@ -80,10 +80,13 @@ export const onboardingWebhooksService = {
     const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(event, headers, url);
 
     if (!webhookEvent) {
-      // Check if it already exists to determine processing status
       const existing = await stripeWebhookEventsRepository.existsByStripeEventId(event.id);
       logger.info('Webhook event already exists, skipping storage', { eventId: event.id });
-      return { event, alreadyProcessed: existing?.processed ?? true };
+      if (existing?.processed) {
+        return { event, alreadyProcessed: true };
+      }
+      // Event exists but unprocessed — return its ID so it can be queued
+      return { event, alreadyProcessed: false, webhookId: existing?.id };
     }
 
     return { event, alreadyProcessed: false, webhookId: webhookEvent.id };
