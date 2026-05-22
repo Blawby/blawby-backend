@@ -3,10 +3,8 @@
  *
  * Handles database-level events (user creation, session management).
  *
- * activeOrganizationId is intentionally NOT auto-set on session create.
- * The client app calls authClient.organization.setActive() after sign-in
- * per the better-auth organization plugin docs. Auto-setting it caused
- * inconsistent routing when primary_workspace didn't match the auto-picked org.
+ * activeOrganizationId is auto-set on session create by reusing a valid previous
+ * active org, or falling back to the user's first organization membership.
  */
 
 import { getLogger } from '@logtape/logtape';
@@ -15,6 +13,8 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import * as schema from '@/schema';
 import { AuthUserSignedUp, PracticeMemberJoined } from '@/shared/events/definitions';
+import { membersRepository } from '@/shared/repositories/members.repository';
+import { sessionsRepository } from '@/shared/repositories/sessions.repository';
 
 const logger = getLogger(['auth', 'database-hooks']);
 
@@ -101,6 +101,23 @@ type UserData = Record<string, unknown> & {
 type SessionData = Record<string, unknown> & {
   userId: string;
   id: string;
+  activeOrganizationId?: string | null;
+};
+
+const resolveActiveOrganizationIdForSession = async (
+  db: NodePgDatabase<typeof schema>,
+  userId: string
+): Promise<string | null> => {
+  const previousActiveOrganizationId = await sessionsRepository.findPreviousActiveOrganizationId(userId, db);
+  const previousActiveMembership = previousActiveOrganizationId
+    ? await membersRepository.findByOrgAndUser({ userId, organizationId: previousActiveOrganizationId }, db)
+    : null;
+
+  if (previousActiveOrganizationId && previousActiveMembership) {
+    return previousActiveOrganizationId;
+  }
+
+  return membersRepository.findFirstOrganizationIdByUser(userId, db);
 };
 
 export const createDatabaseHooks = (
@@ -137,11 +154,12 @@ export const createDatabaseHooks = (
   },
   session: {
     create: {
-      // Enforce one session per user. Do NOT auto-fill activeOrganizationId —
-      // client app calls authClient.organization.setActive() after sign-in.
+      // Enforce one session per user. Preserve a valid previous active org when possible;
+      // otherwise fall back to the user's first org membership.
       before: async (sessionData: SessionData): Promise<{ data: SessionData }> => {
-        await db.delete(schema.sessions).where(eq(schema.sessions.userId, sessionData.userId));
-        return { data: sessionData };
+        const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, sessionData.userId);
+        await sessionsRepository.deleteByUserId(sessionData.userId, db);
+        return { data: { ...sessionData, activeOrganizationId } };
       },
       after: async (session: SessionData): Promise<void> => {
         try {
@@ -153,6 +171,14 @@ export const createDatabaseHooks = (
 
           if (user && !user.isAnonymous) {
             await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
+          }
+
+          if (!session.activeOrganizationId) {
+            const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, session.userId);
+
+            if (activeOrganizationId) {
+              await sessionsRepository.setActiveOrganizationId(session.id, activeOrganizationId, db);
+            }
           }
         } catch (error) {
           logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
