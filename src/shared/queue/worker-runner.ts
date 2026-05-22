@@ -9,7 +9,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { run, type TaskList } from 'graphile-worker';
+import { Logger as GraphileLogger, run, type TaskList } from 'graphile-worker';
 import pg, { type Client as PgClient } from 'pg';
 import { bootCore } from '@/boot';
 import { bootServices } from '@/boot/services';
@@ -117,6 +117,12 @@ export const runWorker = async (options: WorkerOptions): Promise<void> => {
       schema,
       taskList,
       concurrency: workerConcurrency,
+      logger: new GraphileLogger((_scope) => (level, message, meta) => {
+        if (level === 'error') logger.error(message, meta ?? {});
+        else if (level === 'warning') logger.warn(message, meta ?? {});
+        else if (level === 'debug') logger.debug(message, meta ?? {});
+        else logger.info(message, meta ?? {});
+      }),
       pollInterval: 1000, // Fallback polling (LISTEN/NOTIFY is primary)
       crontab: options.crontab,
     });
