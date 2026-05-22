@@ -25,10 +25,16 @@ export const getWorkerUtils = async (): Promise<WorkerUtils> => {
 
   if (!workerUtilsPromise) {
     const { schema } = appConfig.queue;
-    workerUtilsPromise = makeWorkerUtils({ pgPool: getPool(), schema }).then((utils) => {
-      workerUtils = utils;
-      return utils;
-    });
+    workerUtilsPromise = makeWorkerUtils({ pgPool: getPool(), schema }).then(
+      (utils) => {
+        workerUtils = utils;
+        return utils;
+      },
+      (err: unknown) => {
+        workerUtilsPromise = null;
+        throw err;
+      },
+    );
   }
 
   return workerUtilsPromise;
@@ -39,9 +45,12 @@ export const getWorkerUtils = async (): Promise<WorkerUtils> => {
  * Call this during graceful shutdown.
  */
 export const closeWorkerUtils = async (): Promise<void> => {
-  if (workerUtils) {
-    await workerUtils.release();
-    workerUtils = null;
-    workerUtilsPromise = null;
+  const pending = workerUtilsPromise;
+  workerUtils = null;
+  workerUtilsPromise = null;
+
+  if (pending) {
+    const utils = await pending.catch(() => null);
+    await utils?.release();
   }
 };
