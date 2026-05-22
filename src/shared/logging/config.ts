@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { getFileSink } from '@logtape/file';
-import { configure, getJsonLinesFormatter, getStreamSink } from '@logtape/logtape';
+import { configure, getStreamSink, getTextFormatter } from '@logtape/logtape';
 import { config } from '@/shared/config';
 
 const LOGS_DIR_NAME = 'logs';
@@ -24,7 +24,7 @@ export const initializeLogging = async () => {
   await configure({
     sinks: {
       console: getStreamSink(Writable.toWeb(process.stdout), {
-        formatter: getJsonLinesFormatter(),
+        formatter: getTextFormatter(),
       }),
       file: getFileSink(path.join(logDir, 'app.log')),
     },
