@@ -8,6 +8,9 @@ name = "blawby-backend"
 main = "worker.js"
 compatibility_date = "2025-04-01"
 
+[vars]
+CONTAINER_INSTANCES = "1"
+
 [[containers]]
 class_name = "BackendContainer"
 image = "./Dockerfile"
@@ -35,10 +38,13 @@ enabled = true
 [env.production]
 name = "blawby-backend-production"
 
+[env.production.vars]
+CONTAINER_INSTANCES = "2"
+
 [[env.production.containers]]
 class_name = "BackendContainer"
 image = "./Dockerfile"
-max_instances = 1
+max_instances = 2
 instance_type = "basic"
 
 [[env.production.durable_objects.bindings]]

@@ -7,6 +7,7 @@ const INSTANCE_GET_TIMEOUT_MS = 30_000;
 export class BackendContainer extends Container {
   defaultPort = 3000;
   sleepAfter = '30m';
+  pingEndpoint = 'localhost:3000/api/health';
 
   envVars = {
     DATABASE_URL: env.DATABASE_URL,
@@ -36,6 +37,22 @@ export class BackendContainer extends Container {
     NODE_ENV: 'production',
   };
 
+  async onStart() {
+    console.log('[container] started and healthy');
+  }
+
+  async onStop({ exitCode, reason }) {
+    console.log('[container] stopped', { exitCode, reason });
+  }
+
+  onError(error) {
+    console.error(
+      '[container] error:',
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
+
   async fetch(request) {
     const port = this.defaultPort;
     const state = await this.getState();
@@ -62,6 +79,8 @@ export class BackendContainer extends Container {
 
 export default {
   async fetch(request, env) {
-    return (await getRandom(env.BACKEND, 1)).fetch(request);
+    const parsed = parseInt(env.CONTAINER_INSTANCES ?? '1', 10);
+    const instances = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    return (await getRandom(env.BACKEND, instances)).fetch(request);
   },
 };
