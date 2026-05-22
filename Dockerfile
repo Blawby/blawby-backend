@@ -1,5 +1,6 @@
 FROM node:25-alpine
 
+RUN apk add --no-cache tini curl
 RUN npm install -g pnpm@10
 
 WORKDIR /app
@@ -15,4 +16,5 @@ USER node
 
 EXPOSE 3000
 
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["./start.sh"]

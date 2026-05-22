@@ -32,7 +32,7 @@ const server = serve(
 );
 
 // Graceful shutdown
-closeWithGrace({ delay: 500 }, async ({ signal, err, manual }) => {
+closeWithGrace({ delay: 30_000 }, async ({ signal, err, manual }) => {
   if (err) {
     logger.error('Server error: {error}', { error: err });
   }
@@ -42,7 +42,9 @@ closeWithGrace({ delay: 500 }, async ({ signal, err, manual }) => {
   });
 
   try {
-    void server.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((closeErr) => (closeErr ? reject(closeErr) : resolve()));
+    });
     logger.info('✅ Server closed successfully');
     process.exit(0);
   } catch (error) {

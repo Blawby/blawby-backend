@@ -17,9 +17,10 @@ export const bootServices = (): void => {
   // - initializeEmailService()
   // - initializeAnalytics()
 
-  // Retry any failed/stuck webhooks on boot
-  // This recovers events lost during server restarts (common in dev/staging)
-  void stripeRetriesService.retryFailedWebhooks();
+  // Only retry when workers are running — no point queuing jobs if ENABLE_QUEUE=false
+  if (process.env.ENABLE_QUEUE === 'true') {
+    void stripeRetriesService.retryFailedWebhooks();
+  }
 
   console.info('✅ External services initialized successfully');
 };
