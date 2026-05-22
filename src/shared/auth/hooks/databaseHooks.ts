@@ -163,6 +163,21 @@ export const createDatabaseHooks = (
       },
       after: async (session: SessionData): Promise<void> => {
         try {
+          if (!session.activeOrganizationId) {
+            const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, session.userId);
+
+            if (activeOrganizationId) {
+              await sessionsRepository.setActiveOrganizationId(session.id, activeOrganizationId, db);
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to set active organization for session {sessionId}: {error}', {
+            sessionId: session.id,
+            error,
+          });
+        }
+
+        try {
           const [user] = await db
             .select({ email: schema.users.email, isAnonymous: schema.users.isAnonymous })
             .from(schema.users)
@@ -171,14 +186,6 @@ export const createDatabaseHooks = (
 
           if (user && !user.isAnonymous) {
             await checkPendingIntakesByEmail({ db, userId: session.userId, email: user.email });
-          }
-
-          if (!session.activeOrganizationId) {
-            const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, session.userId);
-
-            if (activeOrganizationId) {
-              await sessionsRepository.setActiveOrganizationId(session.id, activeOrganizationId, db);
-            }
           }
         } catch (error) {
           logger.error('Failed to check pending intakes for session {sessionId}: {error}', {
