@@ -1,22 +1,34 @@
 import { eq, and } from 'drizzle-orm';
 import { members } from '@/schema/better-auth-schema';
-import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import usersRepository from '@/shared/repositories/users.repository';
 
-// Better Auth instance created with the global DB connection
-const auth = createBetterAuthInstance(db);
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-const findByOrgAndUser = async (params: {
-  organizationId: string;
-  userId: string;
-}): Promise<SelectMember | undefined> => {
-  const [member] = await db
+const findByOrgAndUser = async (
+  params: {
+    organizationId: string;
+    userId: string;
+  },
+  tx: DbOrTx = db
+): Promise<SelectMember | undefined> => {
+  const [member] = await tx
     .select()
     .from(members)
     .where(and(eq(members.organizationId, params.organizationId), eq(members.userId, params.userId)))
     .limit(1);
   return member;
+};
+
+const findFirstOrganizationIdByUser = async (userId: string, tx: DbOrTx = db): Promise<string | null> => {
+  const [membership] = await tx
+    .select({ organizationId: members.organizationId })
+    .from(members)
+    .where(eq(members.userId, userId))
+    .orderBy(members.createdAt)
+    .limit(1);
+
+  return membership?.organizationId ?? null;
 };
 
 /**
@@ -39,6 +51,9 @@ const create = async (data: {
   userId: string;
   role: OrganizationRole;
 }): Promise<SelectMember> => {
+  const { createBetterAuthInstance } = await import('@/shared/auth/better-auth');
+  const auth = createBetterAuthInstance(db);
+
   const result = await auth.api.addMember({
     headers: new Headers(),
     body: {
@@ -67,6 +82,7 @@ const create = async (data: {
 
 export const membersRepository = {
   findByOrgAndUser,
+  findFirstOrganizationIdByUser,
   create,
 };
 
