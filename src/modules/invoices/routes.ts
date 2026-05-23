@@ -5,6 +5,7 @@ import {
   errorResponseSchema,
   forbiddenResponseSchema,
   notFoundResponseSchema,
+  paginationSchema,
   practiceIdParamSchema,
   unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
@@ -46,6 +47,11 @@ const createInvoiceRoute = routeBuilder.build({
       description: 'Invoice created successfully',
     },
     400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Bad request' },
+    // Release note: duplicate invoice numbers now return 409 instead of 400.
+    409: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Invoice number already exists',
+    },
     401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
     403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
   },
@@ -66,8 +72,8 @@ const listInvoicesRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            invoices: z.array(invoiceValidations.invoiceSchema),
-            total: z.number(),
+            data: z.array(invoiceValidations.invoiceSummarySchema),
+            pagination: paginationSchema,
           }),
         },
       },
@@ -203,12 +209,8 @@ const getClientInvoicesRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            invoices: z.array(invoiceValidations.invoiceSummarySchema),
-            pagination: z.object({
-              page: z.number().int(),
-              limit: z.number().int(),
-              total: z.number().int(),
-            }),
+            data: z.array(invoiceValidations.invoiceSummarySchema),
+            pagination: paginationSchema,
           }),
         },
       },

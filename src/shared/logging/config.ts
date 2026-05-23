@@ -15,6 +15,7 @@ export const initializeLogging = async () => {
     return;
   }
   isInitialized = true;
+
   const logDir: string = path.join(process.cwd(), LOGS_DIR_NAME);
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
@@ -27,9 +28,14 @@ export const initializeLogging = async () => {
     },
     loggers: [
       {
+        category: ['logtape', 'meta'],
+        sinks: ['console', 'file'],
+        lowestLevel: 'warning',
+      },
+      {
         category: [], // Root logger catch-all for the entire application
         sinks: ['console', 'file'],
-        lowestLevel: config.env.isProduction ? 'info' : 'debug',
+        lowestLevel: config.env.node === 'production' ? 'info' : 'debug',
       },
     ],
   });

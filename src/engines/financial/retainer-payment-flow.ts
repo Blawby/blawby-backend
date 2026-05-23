@@ -31,7 +31,7 @@ const recordDeposit = async (opts: RecordDepositOpts, tx?: NodePgDatabase<typeof
     invoiceId,
   });
 
-  const depositResult = await trustService.recordDeposit(
+  await trustService.recordDeposit(
     {
       organizationId,
       clientId,
@@ -45,18 +45,9 @@ const recordDeposit = async (opts: RecordDepositOpts, tx?: NodePgDatabase<typeof
     tx
   );
 
-  if (!depositResult.success) {
-    throw new Error(depositResult.error?.message || 'Failed to record retainer deposit');
-  }
-
   // Update matter's retainer_balance cache
-  const balanceResult = await trustService.getBalanceWithTx({ organizationId, clientId }, tx);
-
-  if (!balanceResult.success) {
-    throw new Error('Failed to retrieve trust balance after deposit');
-  }
-
-  const matterBalance = balanceResult.data.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
+  const balance = await trustService.getBalanceWithTx({ organizationId, clientId }, tx);
+  const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
 
   await mattersQueries.updateRetainerBalance(matterId, matterBalance, tx);
 
@@ -72,7 +63,7 @@ const recordWithdrawal = async (opts: RecordWithdrawalOpts, tx?: NodePgDatabase<
     reason,
   });
 
-  const withdrawalResult = await trustService.recordWithdrawal(
+  await trustService.recordWithdrawal(
     {
       organizationId,
       clientId,
@@ -85,18 +76,9 @@ const recordWithdrawal = async (opts: RecordWithdrawalOpts, tx?: NodePgDatabase<
     tx
   );
 
-  if (!withdrawalResult.success) {
-    throw new Error(withdrawalResult.error?.message || 'Failed to record retainer withdrawal');
-  }
-
   // Update matter's retainer_balance cache
-  const balanceResult = await trustService.getBalanceWithTx({ organizationId, clientId }, tx);
-
-  if (!balanceResult.success) {
-    throw new Error('Failed to retrieve trust balance after withdrawal');
-  }
-
-  const matterBalance = balanceResult.data.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
+  const balance = await trustService.getBalanceWithTx({ organizationId, clientId }, tx);
+  const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
 
   await mattersQueries.updateRetainerBalance(matterId, matterBalance, tx);
 
@@ -113,7 +95,7 @@ const revertRefund = async (
   },
   tx?: NodePgDatabase<typeof schema>
 ): Promise<void> => {
-  const { organizationId, clientId, matterId, amount, refundRequestId } = opts;
+  const { organizationId, clientId, matterId, amount } = opts;
 
   logger.info('Reverting refund to retainer: {matterId} {amount}', { matterId, amount });
 

@@ -20,6 +20,7 @@ import { config } from '@/shared/config';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import { stripe } from '@/shared/utils/stripe-client';
 import { queueManager } from '@/shared/queue/queue.manager';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['onboarding', 'webhook-service']);
 
@@ -80,10 +81,16 @@ export const onboardingWebhooksService = {
     const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(event, headers, url);
 
     if (!webhookEvent) {
-      // Check if it already exists to determine processing status
       const existing = await stripeWebhookEventsRepository.existsByStripeEventId(event.id);
       logger.info('Webhook event already exists, skipping storage', { eventId: event.id });
-      return { event, alreadyProcessed: existing?.processed ?? true };
+      if (!existing) {
+        logger.error('Webhook event not found after conflict on insert: {eventId}', { eventId: event.id });
+        throw new HTTPException(500, { message: 'Failed to retrieve existing webhook event' });
+      }
+      if (existing.processed) {
+        return { event, alreadyProcessed: true };
+      }
+      return { event, alreadyProcessed: false, webhookId: existing.id };
     }
 
     return { event, alreadyProcessed: false, webhookId: webhookEvent.id };

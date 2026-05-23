@@ -103,10 +103,18 @@ const createTestContext = async (role: MemberRole = 'owner') => {
   return { org, session, sessionToken };
 };
 
+const createNonOrgUserSession = async (): Promise<{ user: TestUser; sessionToken: string }> => {
+  const test = await getTest();
+  const user = await createTestUser();
+  const headers = await test.getAuthHeaders({ userId: user.id });
+  return { user, sessionToken: headers.get('cookie') ?? '' };
+};
+
 export const authHelpers = {
   createTestUser,
   createAnonymousUser,
   createTestOrganization,
   addUserToOrganization,
   createTestContext,
+  createNonOrgUserSession,
 };

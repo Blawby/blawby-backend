@@ -167,6 +167,35 @@ export const addInvoicePaymentJob = async (payload: {
   }
 };
 
+export const addInvoiceVoidReconciliationJob = async (payload: {
+  invoiceId: string;
+  organizationId: string;
+  stripeInvoiceId: string;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(TASK_NAMES.PROCESS_INVOICE_VOID_RECONCILIATION, payload, {
+      jobKey: `invoice-void-reconcile:${payload.organizationId}:${payload.stripeInvoiceId}`,
+      maxAttempts: graphileWorkerConfig.maxAttempts,
+    });
+
+    logger.info('Invoice void reconciliation job queued: {stripeInvoiceId}', {
+      stripeInvoiceId: payload.stripeInvoiceId,
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+    });
+  } catch (error) {
+    logger.error('Failed to queue invoice void reconciliation job {stripeInvoiceId}', {
+      error,
+      stripeInvoiceId: payload.stripeInvoiceId,
+      invoiceId: payload.invoiceId,
+      organizationId: payload.organizationId,
+    });
+    throw error;
+  }
+};
+
 export const addRefundReconciliationJob = async (payload: {
   organizationId: string;
   requestId: string;
@@ -265,22 +294,6 @@ const closeQueues = async (): Promise<void> => {
   logger.info('Queue manager closed');
 };
 
-// Legacy exports for backward compatibility during migration
-// TODO: Remove after full migration
-const getQueue = (_name: string): never => {
-  throw new Error('getQueue() is deprecated. Use getWorkerUtils() and addJob() directly.');
-};
-
-const getWebhookQueue = (): never => {
-  throw new Error('getWebhookQueue() is deprecated. Use queueManager.addWebhookJob() instead.');
-};
-
-const getQueueEvents = (_name: string): never => {
-  throw new Error(
-    'getQueueEvents() is not available in Graphile Worker. Query the jobs table directly for monitoring.'
-  );
-};
-
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
   logger.info('Received SIGINT, closing queue manager...');
@@ -301,7 +314,4 @@ export const queueManager = {
   getQueueStats,
   getWebhookQueueStats,
   closeQueues,
-  getQueue,
-  getWebhookQueue,
-  getQueueEvents,
 };

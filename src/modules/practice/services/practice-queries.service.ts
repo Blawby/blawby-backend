@@ -53,8 +53,6 @@ export const practiceQueriesService = {
    * List all practices (organizations) for the current user
    */
   async listPractices(ctx: ServiceContext): Promise<{ practices: Organization[] }> {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Organization');
-
     const result = await organizationService.listOrganizations(ctx);
     return { practices: result };
   },
@@ -120,7 +118,32 @@ export const practiceQueriesService = {
       ]);
 
       if (!fetchedDetails) {
-        throw new HTTPException(404, { message: `Practice details not found for organization '${organizationId}'` });
+        return {
+          id: null,
+          user_id: null,
+          address_id: null,
+          business_phone: null,
+          business_email: null,
+          consultation_fee: null,
+          payment_url: null,
+          calendly_url: null,
+          website: null,
+          intro_message: null,
+          overview: null,
+          accent_color: null,
+          is_public: false,
+          organization_id: organizationId,
+          services: [],
+          address: null,
+          name: organization.name,
+          logo: organization.logo ?? null,
+          payment_link_enabled: organization.paymentLinkEnabled ?? false,
+          billing_increment_minutes: 1,
+          created_at: null,
+          updated_at: undefined,
+          supported_states: null,
+          service_states: null,
+        };
       }
 
       // 3. Fetch address if linked
@@ -156,7 +179,7 @@ export const practiceQueriesService = {
       const slugResult = await organizationRepository.findBySlug(slug);
 
       if (!slugResult) {
-        throw new HTTPException(404, { message: `Organization with slug '${slug}' not found` });
+        throw new HTTPException(404, { message: 'Practice not found' });
       }
       const organization = slugResult;
 
@@ -166,11 +189,8 @@ export const practiceQueriesService = {
         practiceServicesRepository.findServicesByOrganization(organization.id),
       ]);
 
-      if (!fetchedDetails) {
-        throw new HTTPException(404, { message: `Practice details not found for organization '${slug}'` });
-      }
-      if (!fetchedDetails.is_public) {
-        throw new HTTPException(404, { message: `Practice details not found for organization '${slug}'` });
+      if (!fetchedDetails || !fetchedDetails.is_public) {
+        throw new HTTPException(404, { message: 'Practice not found' });
       }
 
       // 3. Fetch address if linked

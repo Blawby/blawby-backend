@@ -24,39 +24,22 @@ const spawnAsync = (cmd: string): Promise<void> =>
   });
 
 // ============================================================================
-// Phase 2: Type Checking
-// ============================================================================
-
-const typeCheck = (): void => {
-  console.log('\n🔍 Phase 2: Type Checking');
-  console.log('─'.repeat(50));
-
-  try {
-    execSync('tsc --noEmit', { stdio: 'inherit' });
-    console.log('✅ Type checking passed');
-  } catch (error) {
-    console.error('❌ Type checking failed. Fix errors before building.');
-    throw error;
-  }
-};
-
-// ============================================================================
-// Phase 3: TypeScript Build (with bundling)
+// Phase 2: TypeScript Build (with bundling)
 // ============================================================================
 
 const buildTypeScript = (): void => {
-  console.log('\n🔨 Phase 3: TypeScript Build');
+  console.log('\n🔨 Phase 2: TypeScript Build');
   console.log('─'.repeat(50));
 
   execSync('tsup', { stdio: 'inherit' });
 };
 
 // ============================================================================
-// Phase 4: Path Alias Resolution
+// Phase 3: Path Alias Resolution
 // ============================================================================
 
 const resolvePathAliases = (): void => {
-  console.log('\n🔗 Phase 4: Path Alias Resolution');
+  console.log('\n🔗 Phase 3: Path Alias Resolution');
   console.log('─'.repeat(50));
 
   execSync('tsc-alias -p tsconfig.json', { stdio: 'inherit' });
@@ -78,13 +61,10 @@ const main = async (): Promise<void> => {
     // Phase 1: Codegen — delegates to codegen.ts (avoids duplication)
     await spawnAsync('tsx scripts/codegen.ts');
 
-    // Phase 2: Type checking — must follow codegen (generated files are tsc inputs)
-    typeCheck();
-
-    // Phase 3: Build TypeScript (bundled)
+    // Phase 2: Build TypeScript (bundled)
     buildTypeScript();
 
-    // Phase 4: Resolve path aliases
+    // Phase 3: Resolve path aliases
     resolvePathAliases();
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);

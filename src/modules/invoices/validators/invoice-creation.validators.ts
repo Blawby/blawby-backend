@@ -1,46 +1,40 @@
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
 import { db } from '@/shared/database';
-import type { Result } from '@/shared/types/result';
-import { result } from '@/shared/utils/result';
+import { HTTPException } from 'hono/http-exception';
 
 /**
  * Validates that a Stripe connected account is ready for charges and payouts
  */
-export const validateConnectedAccount = (account: StripeConnectedAccount | null | undefined): Result<void> => {
+export const validateConnectedAccount = (account: StripeConnectedAccount | null | undefined): void => {
   if (!account) {
-    return result.badRequest('Invalid connected account ID');
+    throw new HTTPException(400, { message: 'Invalid connected account ID' });
   }
 
   if (!account.charges_enabled) {
-    return result.badRequest('Stripe Connect account is not enabled for charges. Please complete onboarding first.');
+    throw new HTTPException(400, {
+      message: 'Stripe Connect account is not enabled for charges. Please complete onboarding first.',
+    });
   }
 
   if (!account.payouts_enabled) {
-    return result.badRequest(
-      'Stripe Connect account is not enabled for payouts. Please complete onboarding and add a bank account.'
-    );
+    throw new HTTPException(400, {
+      message: 'Stripe Connect account is not enabled for payouts. Please complete onboarding and add a bank account.',
+    });
   }
-
-  return result.ok(undefined);
 };
 
 /**
  * Validates that a matter belongs to the specified client
  */
-export const validateMatterBelongsToClient = (
-  matter: SelectMatter | null | undefined,
-  clientId: string
-): Result<void> => {
+export const validateMatterBelongsToClient = (matter: SelectMatter | null | undefined, clientId: string): void => {
   if (!matter) {
-    return result.notFound('Matter not found');
+    throw new HTTPException(404, { message: 'Matter not found' });
   }
 
   if (matter.client_id !== clientId) {
-    return result.badRequest('Matter does not belong to the selected client');
+    throw new HTTPException(400, { message: 'Matter does not belong to the selected client' });
   }
-
-  return result.ok(undefined);
 };
 
 /**
@@ -49,11 +43,11 @@ export const validateMatterBelongsToClient = (
 export const validateInvoiceNumberUnique = async (
   organizationId: string,
   invoiceNumber: string | undefined | null
-): Promise<Result<void>> => {
+): Promise<void> => {
   const normalizedInvoiceNumber = invoiceNumber?.trim();
   // If no invoice number provided, skip uniqueness check (Stripe will assign one)
   if (!normalizedInvoiceNumber) {
-    return result.ok(undefined);
+    return;
   }
 
   const existingInvoice = await db.query.invoices.findFirst({
@@ -62,10 +56,8 @@ export const validateInvoiceNumberUnique = async (
   });
 
   if (existingInvoice) {
-    return result.badRequest(`Invoice number '${invoiceNumber}' already exists`);
+    throw new HTTPException(409, { message: `Invoice number '${invoiceNumber}' already exists` });
   }
-
-  return result.ok(undefined);
 };
 
 export const invoiceValidators = {

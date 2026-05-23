@@ -77,8 +77,6 @@ export interface InvoiceListResponse {
 export type CreateInvoiceRequest = z.infer<typeof invoiceValidations.createInvoiceSchema>;
 export type UpdateInvoiceRequest = z.infer<typeof invoiceValidations.updateInvoiceSchema>;
 export type ListInvoicesQuery = z.infer<typeof invoiceValidations.listInvoicesQuerySchema>;
-export type InvoiceResponse = z.infer<typeof invoiceValidations.invoiceSchema>;
-export type InvoiceSummaryResponse = z.infer<typeof invoiceValidations.invoiceSummarySchema>;
 export type InvoiceLineItemResponse = z.infer<typeof invoiceValidations.lineItemSchema>;
 
 /**

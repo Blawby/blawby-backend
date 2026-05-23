@@ -25,6 +25,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
+const findPreferencesByUserId = async (userId: string): Promise<Preferences | undefined> => {
+  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
+  return prefs;
+};
+
+const getOrInitializePreferences = async (userId: string): Promise<Preferences> => {
+  const prefs = await findPreferencesByUserId(userId);
+
+  return prefs ?? initializeUserPreferences(userId);
+};
+
 /**
  * Apply default values to notification preferences
  */
@@ -57,13 +68,9 @@ const applyOnboardingDefaults = (stored: Record<string, unknown> | null | undefi
  */
 const getPreferences = async (ctx: ServiceContext): Promise<Preferences> => {
   // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
-  const [prefs] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
-
-  if (!prefs) {
-    throw new HTTPException(404, { message: 'Preference not found' });
-  }
+  const prefs = await getOrInitializePreferences(ctx.userId);
 
   // Apply defaults to notifications and onboarding fields
   return {
@@ -81,26 +88,14 @@ const getPreferencesByCategory = async (
   ctx: ServiceContext
 ): Promise<Record<string, unknown>> => {
   // CASL Check — verify the user can read preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'OrganizationPreferences');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'UserPreferences');
 
   if (category === 'profile') {
     return {};
   }
 
-  const [row] = await db
-    .select({
-      [category]: preferences[category],
-      user_id: preferences.user_id,
-    })
-    .from(preferences)
-    .where(eq(preferences.user_id, ctx.userId))
-    .limit(1);
-
-  if (!row) {
-    throw new HTTPException(404, { message: 'Preference not found' });
-  }
-
-  const categoryData = toRecord(row?.[category]);
+  const prefs = await getOrInitializePreferences(ctx.userId);
+  const categoryData = toRecord(prefs[category]);
 
   // Apply defaults for specific categories
   if (category === 'notifications') {
@@ -125,15 +120,11 @@ const updatePreferencesByCategory = async (
     throw new HTTPException(400, { message: 'Profile fields should be updated via Better Auth updateUser endpoint' });
   }
 
-  // 1. Fetch current preferences for ownership verification
-  const [current] = await db.select().from(preferences).where(eq(preferences.user_id, ctx.userId)).limit(1);
+  // 1. CASL Check — verify the user can update preferences before any DB access
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'UserPreferences');
 
-  if (!current) {
-    throw new HTTPException(404, { message: 'Preference not found' });
-  }
-
-  // 2. CASL Check — verify the user can update preferences
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'OrganizationPreferences');
+  // 2. Fetch current preferences for ownership verification
+  const current = await getOrInitializePreferences(ctx.userId);
 
   // Handle notifications category with special logic
   let dataToUpdate = data;
@@ -179,13 +170,7 @@ const updatePreferencesByCategory = async (
  * Initialize preferences for a new user
  */
 const initializeUserPreferences = async (userId: string): Promise<Preferences> => {
-  const existing = await db.select().from(preferences).where(eq(preferences.user_id, userId)).limit(1);
-
-  if (existing[0]) {
-    return existing[0];
-  }
-
-  const [inserted] = await db
+  await db
     .insert(preferences)
     .values({
       user_id: userId,
@@ -195,13 +180,15 @@ const initializeUserPreferences = async (userId: string): Promise<Preferences> =
       account: {},
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     })
-    .returning();
+    .onConflictDoNothing();
 
-  if (!inserted) {
+  const prefs = await findPreferencesByUserId(userId);
+
+  if (!prefs) {
     throw new HTTPException(500, { message: 'Failed to create preferences' });
   }
 
-  return inserted;
+  return prefs;
 };
 
 /**

@@ -12,6 +12,7 @@ app.openapi(routes.createWithdrawalRoute, handlers.createWithdrawalHandler);
 app.openapi(routes.getTrustTransactionsRoute, handlers.getTrustTransactionsHandler);
 app.openapi(routes.getTrustBalanceRoute, handlers.getTrustBalanceHandler);
 app.openapi(routes.getTrustReportRoute, handlers.getTrustReportHandler);
+app.openapi(routes.getTrustClientBalancesRoute, handlers.getTrustClientBalancesHandler);
 
 registerOpenApiRoutes(app, { ...routes });
 

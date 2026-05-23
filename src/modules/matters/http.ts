@@ -14,6 +14,17 @@ app.use('*', injectAbility());
 // Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
 app.openapi(matterRoutes.listMattersRoute, matterHandlers.listMattersHandler);
+
+// Org-scoped sub-resources — MUST be registered BEFORE the `/:practice_id` sub-router
+// so Hono's matcher prefers these literal paths over the wildcard `/:practice_id/:id/*`
+// that requireMatterAccess() guards (which would reject literals like "tasks" / "summary"
+// as invalid matter UUIDs).
+app.openapi(
+  matterRoutes.getMattersSummaryByOriginatingAttorneyRoute,
+  matterHandlers.getMattersSummaryByOriginatingAttorneyHandler
+);
+app.openapi(matterRoutes.listOrganizationTasksRoute, matterHandlers.listOrganizationTasksHandler);
+
 app.openapi(matterRoutes.getMatterRoute, matterHandlers.getMatterHandler);
 app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
@@ -30,6 +41,9 @@ matterSubResources.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.g
 
 // Tasks
 matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
+matterSubResources.openapi(matterRoutes.createMatterTaskRoute, matterHandlers.createMatterTaskHandler);
+matterSubResources.openapi(matterRoutes.updateMatterTaskRoute, matterHandlers.updateMatterTaskHandler);
+matterSubResources.openapi(matterRoutes.deleteMatterTaskRoute, matterHandlers.deleteMatterTaskHandler);
 
 // Unbilled
 matterSubResources.openapi(matterRoutes.getMatterUnbilledRoute, matterHandlers.getMatterUnbilledHandler);
@@ -59,6 +73,11 @@ matterSubResources.openapi(matterRoutes.createMilestoneRoute, matterHandlers.cre
 matterSubResources.openapi(matterRoutes.updateMilestoneRoute, matterHandlers.updateMilestoneHandler);
 matterSubResources.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.deleteMilestoneHandler);
 matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
+
+// Files
+matterSubResources.openapi(matterRoutes.linkMatterFileRoute, matterHandlers.linkMatterFileHandler);
+matterSubResources.openapi(matterRoutes.listMatterFilesRoute, matterHandlers.listMatterFilesHandler);
+matterSubResources.openapi(matterRoutes.unlinkMatterFileRoute, matterHandlers.unlinkMatterFileHandler);
 
 // Mount sub-router with prefix
 app.route('/:practice_id', matterSubResources);

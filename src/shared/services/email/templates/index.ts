@@ -14,7 +14,6 @@ import {
   type StripeConnectWelcomeData,
   type StripeConnectStatusData,
   type PayoutSentData,
-  type ScheduledEventData,
   type MagicLinkData,
   type PasswordResetData,
   type EmailVerificationData,
@@ -26,6 +25,11 @@ import {
   type IntakeDeclinedData,
   type MatterOpenedData,
   type MatterClosedData,
+  type EngagementContractSentData,
+  type EngagementContractAcceptedData,
+  type EngagementContractSignedCopyData,
+  type EngagementContractDeclinedData,
+  type ConflictCheckReviewRequiredData,
 } from '@/shared/services/email/email.types';
 
 // Auth templates
@@ -47,9 +51,6 @@ import { stripeConnectStatus } from '@/shared/services/email/templates/onboardin
 import { stripeConnectWelcome } from '@/shared/services/email/templates/onboarding/stripe-connect-welcome';
 import { welcomeEmail } from '@/shared/services/email/templates/onboarding/welcome';
 
-// Event templates
-import { scheduledEventTemplate } from '@/shared/services/email/templates/scheduled-event';
-
 // Team templates
 import { teamPaymentReceipt } from '@/shared/services/email/templates/team/payment-receipt';
 import { teamPaymentRefundRequest } from '@/shared/services/email/templates/team/payment-refund-request';
@@ -65,6 +66,11 @@ import { intakeDeclined } from '@/shared/services/email/templates/intake/intake-
 // Matter templates
 import { matterOpened } from '@/shared/services/email/templates/matter/matter-opened';
 import { matterClosed } from '@/shared/services/email/templates/matter/matter-closed';
+import { engagementContractSent } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-sent';
+import { engagementContractAccepted } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-accepted';
+import { engagementContractSignedCopy } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-signed-copy';
+import { engagementContractDeclined } from '@/shared/services/email/templates/engagement-contracts/engagement-contract-declined';
+import { conflictCheckReviewRequired } from '@/shared/services/email/templates/engagement-contracts/conflict-check-review-required';
 
 /**
  * Mapping of email templates to their specific data types
@@ -85,7 +91,6 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
   [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
-  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: ScheduledEventData;
   [EMAIL_TEMPLATES.MAGIC_LINK]: MagicLinkData;
   [EMAIL_TEMPLATES.PASSWORD_RESET]: PasswordResetData;
   [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: EmailVerificationData;
@@ -96,6 +101,11 @@ export interface TemplateDataMap {
   [EMAIL_TEMPLATES.INTAKE_DECLINED]: IntakeDeclinedData;
   [EMAIL_TEMPLATES.MATTER_OPENED]: MatterOpenedData;
   [EMAIL_TEMPLATES.MATTER_CLOSED]: MatterClosedData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SENT]: EngagementContractSentData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_ACCEPTED]: EngagementContractAcceptedData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY]: EngagementContractSignedCopyData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_DECLINED]: EngagementContractDeclinedData;
+  [EMAIL_TEMPLATES.CONFLICT_CHECK_REVIEW_REQUIRED]: ConflictCheckReviewRequiredData;
 }
 
 // Template registry with explicit mapping
@@ -122,7 +132,6 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: stripeConnectWelcome,
   [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: stripeConnectStatus,
   [EMAIL_TEMPLATES.PAYOUT_SENT]: payoutSent,
-  [EMAIL_TEMPLATES.SCHEDULED_EVENT]: scheduledEventTemplate,
   [EMAIL_TEMPLATES.MAGIC_LINK]: magicLinkTemplate,
   [EMAIL_TEMPLATES.PASSWORD_RESET]: passwordResetTemplate,
   [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: emailVerificationTemplate,
@@ -137,6 +146,11 @@ const templateRegistry = {
   // Matter templates
   [EMAIL_TEMPLATES.MATTER_OPENED]: matterOpened,
   [EMAIL_TEMPLATES.MATTER_CLOSED]: matterClosed,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SENT]: engagementContractSent,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_ACCEPTED]: engagementContractAccepted,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY]: engagementContractSignedCopy,
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_DECLINED]: engagementContractDeclined,
+  [EMAIL_TEMPLATES.CONFLICT_CHECK_REVIEW_REQUIRED]: conflictCheckReviewRequired,
 } as const;
 
 /**
@@ -162,7 +176,6 @@ export {
   stripeConnectWelcome,
   stripeConnectStatus,
   payoutSent,
-  scheduledEventTemplate,
   magicLinkTemplate,
   passwordResetTemplate,
   emailVerificationTemplate,
@@ -173,4 +186,9 @@ export {
   intakeDeclined,
   matterOpened,
   matterClosed,
+  engagementContractSent,
+  engagementContractAccepted,
+  engagementContractSignedCopy,
+  engagementContractDeclined,
+  conflictCheckReviewRequired,
 };

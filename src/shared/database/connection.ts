@@ -48,7 +48,8 @@ const initialize = (): void => {
   const ssl =
     process.env.NODE_ENV === 'production'
       ? {
-          rejectUnauthorized: true,
+          // TODO: rejectUnauthorized disabled for Railway self-signed cert — replace with PlanetScale or proper CA cert
+          rejectUnauthorized: false,
           ...(config.database.ssl?.ca ? { ca: config.database.ssl.ca } : {}),
         }
       : false;
@@ -60,6 +61,12 @@ const initialize = (): void => {
     min,
     idleTimeoutMillis,
     connectionTimeoutMillis,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 0,
+  });
+
+  _pool.on('error', (err) => {
+    logger.error('PostgreSQL pool error: {error}', { error: err.message });
   });
 
   _db = drizzle(_pool, { schema });

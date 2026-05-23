@@ -64,6 +64,6 @@ export type ClaimPracticeClientIntakeResponse = z.infer<
 >;
 export type UpdateIntakeTriageStatusResponse = z.infer<typeof intakeValidations.updateIntakeTriageStatusResponseSchema>;
 export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesResponseSchema>;
-export type ListIntakeItem = NonNullable<ListIntakesResponse['data']>['intakes'][number];
+export type ListIntakeItem = ListIntakesResponse['intakes'][number];
 export type TriggerIntakeInvitationResponse = z.infer<typeof intakeValidations.triggerIntakeInvitationResponseSchema>;
 export type ConvertIntakeResponse = z.infer<typeof intakeValidations.convertIntakeResponseSchema>;

@@ -7,7 +7,7 @@
 
 **Blawby** is a legal practice management SaaS backend. It manages matters (cases), clients, billing, invoices, subscriptions, and practice administration for law firms.
 
-- **Runtime**: Node.js (>=18.17.0) with TypeScript 5.9
+- **Runtime**: Node.js (>=18.17.0) with TypeScript 6.0
 - **Framework**: [Hono](https://hono.dev) with OpenAPI (`@hono/zod-openapi`)
 - **Database**: PostgreSQL via [Drizzle ORM](https://orm.drizzle.team) (0.45.x)
 - **Auth**: [Better Auth](https://www.better-auth.com/) with session cookies
@@ -23,7 +23,7 @@
 
 1. **NEVER use relative imports** — Always use `@/` path aliases (`@/shared/...`, `@/modules/...`, `@/schema`)
 2. **NEVER use `console.log`** — Use LogTape: `getLogger(['module', 'context'])`
-3. **NEVER use `z` from `zod` directly** — Import from `@hono/zod-openapi`
+3. **NEVER use `z` from `zod` directly** — Import from `@hono/zod-openapi` for routes and validations
 4. **NEVER use `z.string().uuid()`** — Use `z.uuid()` (Zod v4)
 5. **Use throw-based error handling** — Services throw `HTTPException` for expected failures (404, 400, 401, 409, 422) and raw `Error` for 500s. Never return `Result<T>` from services.
 6. **NEVER use `any`** — ESLint enforces `@typescript-eslint/no-explicit-any: error`
@@ -116,7 +116,9 @@ src/
 ## Architecture Patterns
 
 ### Module Registration
+
 Modules are auto-discovered at build time via generated registries:
+
 - `src/shared/router/modules.generated.ts` — Module HTTP exports
 - `src/shared/router/configs.generated.ts` — Module middleware configs
 - Mounted at `/api/<module-name>` automatically by `registerModuleRoutes()`
@@ -137,6 +139,7 @@ const createThingHandler: AppRouteHandler<typeof routes.createThingRoute> = asyn
 ```
 
 **Rules:**
+
 - Always use `getServiceContext(c)` — never extract `user`, `orgId`, `headers` manually
 - Never write `if (!user) return ...` — middleware handles auth checks
 - Use Hono `c.json(...)` for all JSON responses
@@ -166,6 +169,7 @@ const createThing = async (
 ```
 
 **Rules:**
+
 - Max 2 parameters: `(params, ctx)` — params is an object, ctx is ServiceContext
 - Return data directly — do **not** return `Result<T>` objects
 - Throw `HTTPException` for expected failures (404, 400, 401, 409, 422)
@@ -177,15 +181,15 @@ const createThing = async (
 
 Services use throw-based error handling instead of `Result<T>`:
 
-| Situation              | Pattern                                    | Status |
-| ---------------------- | ------------------------------------------ | ------ |
-| Not found              | `throw new HTTPException(404, { message })` | 404    |
-| Bad input              | `throw new HTTPException(400, { message })` | 400    |
-| Unauthorized           | `throw new HTTPException(401, { message })` | 401    |
-| Access denied (CASL)   | `ForbiddenError.from(ctx.ability).throwUnlessCan(...)` | 403 |
-| Conflict               | `throw new HTTPException(409, { message })` | 409    |
-| Unprocessable          | `throw new HTTPException(422, { message })` | 422    |
-| Server error           | `throw new Error(msg)` (caught as 500)    | 500    |
+| Situation            | Pattern                                                | Status |
+| -------------------- | ------------------------------------------------------ | ------ |
+| Not found            | `throw new HTTPException(404, { message })`            | 404    |
+| Bad input            | `throw new HTTPException(400, { message })`            | 400    |
+| Unauthorized         | `throw new HTTPException(401, { message })`            | 401    |
+| Access denied (CASL) | `ForbiddenError.from(ctx.ability).throwUnlessCan(...)` | 403    |
+| Conflict             | `throw new HTTPException(409, { message })`            | 409    |
+| Unprocessable        | `throw new HTTPException(422, { message })`            | 422    |
+| Server error         | `throw new Error(msg)` (caught as 500)                 | 500    |
 
 ### Paginated Response Pattern
 
@@ -203,6 +207,7 @@ const listThingsHandler: AppRouteHandler<typeof routes.listThingsRoute> = async 
 ```
 
 **Rules:**
+
 - Use `OffsetPaginatedResponse<T>` or `CursorPaginatedResponse<T>` from `@/shared/types/pagination`
 - Response must have `data` array at the root (not module-specific names)
 - Service returns complete pagination metadata via `pagination` or `page_info`
@@ -210,12 +215,14 @@ const listThingsHandler: AppRouteHandler<typeof routes.listThingsRoute> = async 
 ### ServiceContext
 
 Every handler extracts context via `getServiceContext(c)`:
+
 ```typescript
 const ctx = getServiceContext(c);
 // ctx.userId, ctx.organizationId, ctx.ability, ctx.memberRole, ctx.matterId, ctx.emit()
 ```
 
 ### Event System
+
 Laravel-inspired: define event classes extending `BaseEvent<T>`, dispatch via `ctx.emit()` in services, listen via `Event.listen()` in `listeners.ts` files.
 
 ## Before Completing Any Task
@@ -224,3 +231,74 @@ Laravel-inspired: define event classes extending `BaseEvent<T>`, dispatch via `c
 2. Run `pnpm run format:check` to verify formatting
 3. If you created a new schema, run `pnpm run db:generate`
 4. Check for dead imports and unused code
+
+## Behavioral Guidelines
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```text
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

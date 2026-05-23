@@ -42,8 +42,6 @@ export const practiceManagementService = {
     { data }: CreatePracticeParams,
     ctx: ServiceContext
   ): Promise<{ practice: PracticeWithDetails }> {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
-
     const { user } = ctx;
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
@@ -52,28 +50,30 @@ export const practiceManagementService = {
 
       let practiceDetails: PracticeDetails | null = null;
 
-      if (practiceValidations.hasPracticeDetails(data)) {
-        try {
-          practiceDetails = await db.transaction(async (tx) => {
-            const { details } = await upsertDetailsTransaction(tx, ctx, {
-              organizationId: organization.id,
-              userId: user.id,
-              data,
-              isCreate: true,
-            });
-            return details;
+      try {
+        practiceDetails = await db.transaction(async (tx) => {
+          const { details } = await upsertDetailsTransaction(tx, ctx, {
+            organizationId: organization.id,
+            userId: user.id,
+            data: practiceValidations.hasPracticeDetails(data) ? data : {},
+            isCreate: true,
           });
-        } catch (detailsError) {
-          try {
-            await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
-          } catch (rollbackError) {
-            logger.error('Create practice compensation failed for organization {organizationId}: {error}', {
+          return details;
+        });
+      } catch (detailsError) {
+        try {
+          await organizationService.deleteOrganization({ organizationId: organization.id }, ctx);
+        } catch (rollbackError) {
+          logger.error(
+            'Create practice compensation failed for organization {organizationId}: {rollbackError} (original: {detailsError})',
+            {
               organizationId: organization.id,
-              error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
-            });
-          }
-          throw detailsError;
+              rollbackError: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+              detailsError: detailsError instanceof Error ? detailsError.message : String(detailsError),
+            }
+          );
         }
+        throw detailsError;
       }
 
       await ctx.emit(PracticeCreated, {
@@ -93,7 +93,12 @@ export const practiceManagementService = {
       if (error instanceof HTTPException) {
         throw error;
       }
-      logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
+      logger.error('Failed to create practice for user {userId}: {error}', {
+        userId: user.id,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        message: error instanceof Error ? error.message : String(error),
+      });
       throw new HTTPException(500, {
         message: getBetterAuthErrorMessage(error, 'Failed to create practice'),
       });

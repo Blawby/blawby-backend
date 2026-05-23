@@ -106,6 +106,26 @@ const getLatestBalanceByClient = async (
 };
 
 /**
+ * Get the latest balance_after per client across the entire organization.
+ * Returns one row per client with their most recent trust_transactions row.
+ */
+const getLatestBalancePerClient = async (
+  organizationId: string
+): Promise<{ client_id: string; balance: number; as_of_date: Date }[]> => {
+  const rows = await db
+    .selectDistinctOn([trustTransactions.client_id], {
+      client_id: trustTransactions.client_id,
+      balance: trustTransactions.balance_after,
+      as_of_date: trustTransactions.created_at,
+    })
+    .from(trustTransactions)
+    .where(eq(trustTransactions.organization_id, organizationId))
+    .orderBy(trustTransactions.client_id, desc(trustTransactions.created_at));
+
+  return rows.map((r) => ({ client_id: r.client_id, balance: Number(r.balance), as_of_date: r.as_of_date }));
+};
+
+/**
  * Get the latest balance_after for a specific client/matter and lock the row
  */
 const getLatestBalanceForMatter = async (
@@ -144,5 +164,6 @@ export const trustTransactionsRepository = {
   listByClient,
   listByOrg,
   getLatestBalanceByClient,
+  getLatestBalancePerClient,
   getLatestBalanceForMatter,
 };

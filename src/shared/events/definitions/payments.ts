@@ -49,6 +49,7 @@ export class IntakePaymentSucceeded extends BaseEvent<{
   event_id?: string;
   organization_id: string;
   organization_name: string;
+  organization_slug?: string;
   billing_email: string | null;
   stripe_payment_intent_id: string;
   intake_payment_id: string;
@@ -57,6 +58,15 @@ export class IntakePaymentSucceeded extends BaseEvent<{
   currency: string;
   client_email?: string;
   client_name?: string;
+  practice_service_name?: string;
+  jurisdiction?: string;
+  court_date?: string;
+  has_documents?: boolean;
+  case_strength?: number;
+  desired_outcome?: string;
+  opposing_party?: string;
+  description?: string;
+  submitted_at?: string;
   user_id?: string;
   stripe_charge_id?: string;
   succeeded_at: string;

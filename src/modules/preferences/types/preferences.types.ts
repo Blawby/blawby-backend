@@ -87,6 +87,13 @@ export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
 };
 
 /**
+ * Org-level preferences — shape TBD when org preferences are built
+ */
+export interface OrganizationPreferences {
+  [key: string]: unknown;
+}
+
+/**
  * Preference category options
  */
 export const PREFERENCE_CATEGORIES = [

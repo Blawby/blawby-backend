@@ -1,20 +1,5 @@
 version: 2
 updates:
-  # 1. Maintain Node.js dependencies (npm/pnpm/yarn)
-  - package-ecosystem: 'npm'
-    directory: '/'
-    schedule:
-      interval: 'weekly'
-    # Groups small updates together to avoid PR spam
-    # Only update direct dependencies (skip transitive/indirect deps)
-    allow:
-      - dependency-type: 'direct'
-    groups:
-      dependencies:
-        patterns:
-          - '*'
-    open-pull-requests-limit: 10
-
   # 2. Keep your GitHub Actions up to date
   - package-ecosystem: 'github-actions'
     directory: '/'

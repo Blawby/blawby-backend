@@ -14,10 +14,12 @@ import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/share
 import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
+import { uploadsHttp } from '@/shared/uploads/http';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { createOpenApiApp } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
 import { createMarkdownFromOpenApi } from '@/shared/utils/openapi';
+import { config } from '@/shared/config';
 
 // Automatically collect OpenAPI routes from all OpenAPIHono modules
 // This iterates through the module registry and mounts any OpenAPIHono instances
@@ -86,10 +88,14 @@ app.on(['POST', 'GET'], '/oauth2/*', (c) => {
 // Register additional module routes
 await registerModuleRoutes(app);
 
+// Shared upload infrastructure endpoints
+app.route('/api/uploads', uploadsHttp);
+
 // Create OpenAPI app for documentation - collect routes from all OpenAPIHono modules
 const openApiApp = createOpenApiApp();
 
 const buildOpenApiDocument = () => {
+  const baseUrl = config.app.baseUrl || `http://localhost:${config.server.port ?? 3000}`;
   const doc = openApiApp.getOpenAPIDocument({
     openapi: '3.0.0',
     info: {
@@ -97,6 +103,7 @@ const buildOpenApiDocument = () => {
       version: '1.0.0',
       description: 'API documentation for Blawby backend services',
     },
+    servers: [{ url: baseUrl, description: 'API server' }],
   });
 
   // Add security schemes to the document

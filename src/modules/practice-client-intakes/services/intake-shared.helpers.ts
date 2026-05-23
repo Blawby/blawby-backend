@@ -6,10 +6,9 @@ import {
   type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { TriageStatus } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import type { Result } from '@/shared/types/result';
-import { result } from '@/shared/utils/result';
 import { stripe } from '@/shared/utils/stripe-client';
 import type { ResolveCheckoutSessionResult } from '@/modules/practice-client-intakes/types/intake-stripe.types';
+import { HTTPException } from 'hono/http-exception';
 
 const { practiceClientIntakeMetadataSchema } = practiceClientIntakesSchema;
 const logger = getLogger(['practice-client-intakes', 'service']);
@@ -43,6 +42,7 @@ const getAuthorizedMetadata = (metadata: PracticeClientIntakeMetadata | null, is
         on_behalf_of: metadata.on_behalf_of ?? undefined,
         opposing_party: metadata.opposing_party ?? undefined,
         description: metadata.description ?? undefined,
+        custom_fields: metadata.custom_fields ?? undefined,
       }
     : { email: '', name: '' };
 
@@ -110,17 +110,17 @@ const formatIntakeStatusResponse = (
 const resolvePracticeClientIntakeByCheckoutSessionId = async (
   sessionId: string,
   options?: { requireSession?: boolean }
-): Promise<Result<ResolveCheckoutSessionResult>> => {
+): Promise<ResolveCheckoutSessionResult> => {
   const { requireSession = false } = options ?? {};
   let intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>> | undefined =
     await practiceClientIntakesRepository.findByStripeCheckoutSessionId(sessionId);
 
   if (intake && !requireSession) {
-    return result.ok({ intake });
+    return { intake };
   }
 
   if (!sessionId.startsWith('cs_')) {
-    return result.notFound('Checkout session not found');
+    throw new HTTPException(404, { message: 'Checkout session not found' });
   }
 
   try {
@@ -142,7 +142,7 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async (
       }
 
       if (!intake) {
-        return result.ok({ session });
+        return { session };
       }
     }
 
@@ -156,13 +156,17 @@ const resolvePracticeClientIntakeByCheckoutSessionId = async (
       });
     }
 
-    return result.ok({ intake, session });
+    return { intake, session };
   } catch (error) {
     logger.error('Failed to resolve checkout session {sessionId}', {
       sessionId,
       error,
     });
-    return result.internalError('Failed to resolve checkout session');
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+
+    throw new Error('Failed to resolve checkout session', { cause: error });
   }
 };
 

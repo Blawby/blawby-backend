@@ -74,6 +74,12 @@ practiceApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDe
  */
 practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDetailsBySlugHandler);
 
+/**
+ * POST /api/practice/:practice_id/conflict-check
+ * Run fuzzy conflict check against existing matters and clients
+ */
+practiceApp.openapi(routes.conflictCheckRoute, handlers.conflictCheckHandler);
+
 registerOpenApiRoutes(practiceApp, routes);
 
 export default practiceApp;

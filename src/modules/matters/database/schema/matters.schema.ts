@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, real, timestamp, index, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, real, timestamp, index, check, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
@@ -78,6 +78,10 @@ export const matters = pgTable(
 
     // Retainer settings
     retainer_low_balance_threshold: integer('retainer_low_balance_threshold'), // In cents, NULL = no warning
+
+    // Conflict check
+    last_conflict_check_at: timestamp('last_conflict_check_at', { withTimezone: true, mode: 'date' }),
+    last_conflict_check_result: jsonb('last_conflict_check_result'),
 
     // Timestamps
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),

@@ -2,27 +2,20 @@ import type { createConnectedAccountRoute, getOnboardingStatusRoute } from '@/mo
 import { onboardingService } from '@/modules/onboarding/services/onboarding.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
-import { sendResult } from '@/shared/utils/responseUtils';
 
 const getOnboardingStatusHandler: AppRouteHandler<typeof getOnboardingStatusRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { practice_id: organizationId } = c.req.valid('param');
 
-  const result = await onboardingService.getOnboardingStatus(
-    {
-      organizationId,
-    },
-    ctx
-  );
-
-  return sendResult(c, result);
+  const data = await onboardingService.getOnboardingStatus({ organizationId }, ctx);
+  return c.json(data, 200);
 };
 
 const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccountRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const validatedBody = c.req.valid('json');
 
-  const result = await onboardingService.createConnectedAccount(
+  const data = await onboardingService.createConnectedAccount(
     {
       email: validatedBody.practice_email,
       organizationId: validatedBody.practice_uuid,
@@ -32,7 +25,7 @@ const createConnectedAccountHandler: AppRouteHandler<typeof createConnectedAccou
     ctx
   );
 
-  return sendResult(c, result, 201);
+  return c.json(data, 201);
 };
 
 export const handlers = {

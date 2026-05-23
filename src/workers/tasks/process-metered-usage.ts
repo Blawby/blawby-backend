@@ -29,17 +29,7 @@ export const processMeteredUsage: Task = async (payload): Promise<void> => {
     throw new Error('Invalid metered usage retry payload');
   }
 
-  const res = await meteredProductsService.reportMeteredUsage(
-    db,
-    organizationId,
-    meteredType,
-    quantity,
-    deduplicationId
-  );
-
-  if (!res.success) {
-    throw new Error(res.error.message);
-  }
+  await meteredProductsService.reportMeteredUsage(db, organizationId, meteredType, quantity, deduplicationId);
 
   logger.info('Processed metered usage retry job {deduplicationId}', {
     organizationId,

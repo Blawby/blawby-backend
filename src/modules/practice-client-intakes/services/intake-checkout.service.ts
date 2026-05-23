@@ -1,5 +1,5 @@
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
-import { isAccountActive } from '@/modules/onboarding/services/connected-accounts.service';
+import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
@@ -11,9 +11,8 @@ import type {
   IntakePostPayStatusResponse,
   IntakeStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import type { Result } from '@/shared/types/result';
 import type { ServiceContext } from '@/shared/types/service-context';
-import { result } from '@/shared/utils/result';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
@@ -31,30 +30,25 @@ const buildUpdatedMetadata = (ctx: ServiceContext, practiceClientIntake: { metad
 const createCheckoutSession = async (
   params: { uuid: string; origin?: string | null },
   ctx: ServiceContext
-): Promise<Result<CreateCheckoutSessionResponse>> => {
+): Promise<CreateCheckoutSessionResponse> => {
   try {
-    const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'update');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
-
-    const practiceClientIntake = intakeResult.data;
+    const practiceClientIntake = await getActorAccessibleIntake(params.uuid, ctx, 'update');
     if (practiceClientIntake.status !== 'open') {
-      return result.badRequest('Intake is not eligible for checkout session creation');
+      throw new HTTPException(400, { message: 'Intake is not eligible for checkout session creation' });
     }
 
     const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
     if (!organization) {
-      return result.notFound('Organization not found');
+      throw new HTTPException(404, { message: 'Organization not found' });
     }
 
     const connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
     if (!connectedAccount) {
-      return result.fail('Connected account not found');
+      throw new Error('Connected account not found');
     }
 
-    if (!(await isAccountActive(connectedAccount))) {
-      return result.forbidden('Connected account is not ready to accept payments');
+    if (!(await connectedAccountsService.isAccountActive(connectedAccount))) {
+      throw new HTTPException(403, { message: 'Connected account is not ready to accept payments' });
     }
 
     if (practiceClientIntake.stripe_checkout_session_id) {
@@ -64,18 +58,15 @@ const createCheckoutSession = async (
           { requireSession: true }
         );
 
-        const existingSession = resolveResult.success ? resolveResult.data.session : undefined;
+        const existingSession = resolveResult.session;
 
         const isReusable = existingSession?.status === 'open' && existingSession.payment_status !== 'paid';
 
         if (isReusable && existingSession.url) {
-          return result.ok({
-            success: true,
-            data: {
-              url: existingSession.url,
-              session_id: existingSession.id,
-            },
-          });
+          return {
+            url: existingSession.url,
+            session_id: existingSession.id,
+          };
         }
       } catch (error) {
         logger.error('Failed to retrieve checkout session for intake {uuid}: {error}', {
@@ -107,7 +98,7 @@ const createCheckoutSession = async (
     });
 
     if (!session.url) {
-      return result.internalError('Stripe Checkout Session URL missing');
+      throw new HTTPException(500, { message: 'Stripe Checkout Session URL missing' });
     }
 
     const updatedMetadata = buildUpdatedMetadata(ctx, practiceClientIntake);
@@ -117,82 +108,60 @@ const createCheckoutSession = async (
       metadata: updatedMetadata,
     });
 
-    return result.ok({
-      success: true,
-      data: {
-        url: session.url,
-        session_id: session.id,
-      },
-    });
+    return {
+      url: session.url,
+      session_id: session.id,
+    };
   } catch (error) {
     logger.error('Failed to create checkout session for intake {uuid}: {error}', {
       uuid: params.uuid,
       error,
     });
-    return result.internalError('Failed to create checkout session');
+    throw error;
   }
 };
 
-const getIntakeStatus = async (
-  params: { uuid: string },
-  ctx: ServiceContext
-): Promise<Result<IntakeStatusResponse>> => {
+const getIntakeStatus = async (params: { uuid: string }, ctx: ServiceContext): Promise<IntakeStatusResponse> => {
   try {
-    const intakeResult = await getActorAccessibleIntake(params.uuid, ctx, 'read');
-    if (!intakeResult.success) {
-      return intakeResult;
-    }
+    const intake = await getActorAccessibleIntake(params.uuid, ctx, 'read');
 
-    return result.ok({
-      success: true,
-      data: intakeSharedHelpers.formatIntakeStatusResponse(intakeResult.data, {
-        requestingUserId: ctx.userId,
-        isAdmin: Boolean(ctx.memberRole),
-      }),
+    return intakeSharedHelpers.formatIntakeStatusResponse(intake, {
+      requestingUserId: ctx.userId,
+      isAdmin: Boolean(ctx.memberRole),
     });
   } catch (error) {
     logger.error('Failed to get practice client intake status for {uuid}: {error}', {
       uuid: params.uuid,
       error,
     });
-    return result.internalError('Failed to get practice client intake status');
+    throw error;
   }
 };
 
-const getPostPayStatus = async (params: { sessionId: string }): Promise<Result<IntakePostPayStatusResponse>> => {
+const getPostPayStatus = async (params: { sessionId: string }): Promise<IntakePostPayStatusResponse> => {
   try {
-    const resolveResult = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
-    if (!resolveResult.success) {
-      return resolveResult;
-    }
-    const { intake } = resolveResult.data;
+    const { intake } = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
     if (!intake) {
-      return result.notFound('Checkout session not found');
+      throw new HTTPException(404, { message: 'Checkout session not found' });
     }
 
     if (intake.status !== 'succeeded') {
-      return result.ok({
-        success: true,
-        data: {
-          paid: false,
-        },
-      });
+      return {
+        paid: false,
+      };
     }
 
-    return result.ok({
-      success: true,
-      data: {
-        paid: true,
-        intake_uuid: intake.id,
-        organization_id: intake.organization_id,
-      },
-    });
+    return {
+      paid: true,
+      intake_uuid: intake.id,
+      organization_id: intake.organization_id,
+    };
   } catch (error) {
     logger.error('Failed to get post-pay status for session {sessionId}: {error}', {
       sessionId: params.sessionId,
       error,
     });
-    return result.internalError('Failed to get post-pay status');
+    throw error;
   }
 };
 

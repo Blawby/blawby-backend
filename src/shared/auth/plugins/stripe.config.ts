@@ -11,7 +11,7 @@ import { db } from '@/shared/database';
 import { fetchStripePlans } from '@/shared/auth/plugins/fetchStripePlans';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
-import { createWebhookEventIfNotExists } from '@/shared/repositories/stripe.webhook-events.repository';
+import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
 
@@ -50,7 +50,7 @@ const syncSubscriptionToOrg = async (
   let organizationId = referenceId;
 
   if (!organizationId) {
-    logger.debug('[Stripe Plugin] No ReferenceId provided, looking up Org by customerId: {customerId}', { customerId });
+    logger.warn('[Stripe Plugin] No ReferenceId provided, looking up Org by customerId: {customerId}', { customerId });
     const org = await db
       .select({ id: schema.organizations.id })
       .from(schema.organizations)
@@ -182,7 +182,7 @@ const syncSubscriptionToOrg = async (
       throw new Error('Failed to update organization table during sync - organization not found');
     }
 
-    logger.debug('[Stripe Plugin] Successfully updated organizations.activeSubscriptionId for {organizationId}', {
+    logger.warn('[Stripe Plugin] Successfully updated organizations.activeSubscriptionId for {organizationId}', {
       organizationId,
       subscriptionId,
     });
@@ -298,7 +298,7 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
     // Opt: Centralized Webhook Handling
     onEvent: async (event) => {
       try {
-        const webhookEvent = await createWebhookEventIfNotExists(
+        const webhookEvent = await stripeWebhookEventsRepository.createIfNotExists(
           event,
           { 'stripe-event-id': event.id, 'stripe-event-type': event.type },
           '/api/auth/stripe/webhook'
@@ -376,6 +376,15 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
         plan: { name: string };
         stripeSubscription: Stripe.Subscription;
       }) => {
+        logger.warn(
+          '[Stripe Plugin] onSubscriptionComplete fired: subscriptionId={subscriptionId} referenceId={referenceId} stripeCustomerId={stripeCustomerId} plan={plan}',
+          {
+            subscriptionId: subscription.id,
+            referenceId: subscription.referenceId,
+            stripeCustomerId: subscription.stripeCustomerId,
+            plan: plan.name,
+          }
+        );
         await syncSubscriptionToOrg(db, {
           stripeSubscription,
           subscriptionId: subscription.id,
@@ -410,6 +419,10 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
           eventType: 'created',
           trigger: 'webhook',
         });
+
+        // Attach metered prices to the subscription without showing them as checkout line items.
+        // We do this post-creation so the Stripe Checkout UI only displays the flat-rate plan.
+        await attachMeteredPricesToSubscription(stripeSubscription);
       },
 
       onSubscriptionUpdate: async ({
@@ -525,17 +538,74 @@ const createStripePlugin = (db: NodePgDatabase<typeof schema>): ReturnType<typeo
 };
 
 /**
+ * Attaches active metered prices for each product in a subscription without adding them as
+ * checkout line items. Called from onSubscriptionCreated so Stripe Checkout only shows the
+ * flat-rate plan while metered billing is still wired up on the resulting subscription.
+ */
+const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subscription): Promise<void> => {
+  const stripe = getStripeInstance();
+
+  // Fetch the live subscription so retries don't re-add prices from a prior attempt.
+  const liveSub = await stripe.subscriptions.retrieve(stripeSubscription.id);
+  const existingPriceIds = new Set(liveSub.items.data.map((i) => i.price.id));
+
+  const productIds = Array.from(
+    new Set(
+      liveSub.items.data
+        .map((i) =>
+          typeof i.price.product === 'string' ? i.price.product : (i.price.product as { id: string } | null)?.id
+        )
+        .filter(Boolean)
+    )
+  ) as string[];
+
+  if (productIds.length === 0) return;
+
+  const meteredPrices = await db
+    .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+    .from(subscriptionPrices)
+    .where(
+      and(
+        eq(subscriptionPrices.usage_type, 'metered'),
+        eq(subscriptionPrices.is_active, true),
+        inArray(subscriptionPrices.stripe_product_id, productIds)
+      )
+    );
+
+  const toAdd = meteredPrices
+    .map((p) => p.stripe_price_id)
+    .filter((id) => !existingPriceIds.has(id))
+    .sort();
+
+  if (toAdd.length === 0) return;
+
+  // Deterministic idempotency key: same subscription + same price set → same key,
+  // so Stripe deduplicates repeated calls within its idempotency window.
+  const idempotencyKey = `attach-metered-${stripeSubscription.id}-${toAdd.join(',')}`;
+
+  await stripe.subscriptions.update(
+    stripeSubscription.id,
+    { items: toAdd.map((price) => ({ price })), proration_behavior: 'none' },
+    { idempotencyKey }
+  );
+
+  logger.info('[Subscription] Attached {count} metered price(s) to subscription {id}', {
+    count: toAdd.length,
+    id: stripeSubscription.id,
+  });
+};
+
+/**
  * Type guards for Stripe Params
  */
-const isCheckoutSessionCreateParams = (params: unknown): params is Stripe.Checkout.SessionCreateParams =>
-  typeof params === 'object' && params !== null && 'line_items' in params;
-
 const isBillingPortalSessionCreateParams = (params: unknown): params is Stripe.BillingPortal.SessionCreateParams =>
   typeof params === 'object' && params !== null && 'flow_data' in params;
 
 /**
  * Creates a proxied Stripe client that recursively wraps the SDK
- * and intercepts session creation to inject metered items.
+ * and intercepts billing portal session creation to carry metered items through plan upgrades.
+ * Metered prices are NOT injected at checkout time — they are attached to the subscription
+ * after creation in onSubscriptionCreated so they never appear as checkout line items.
  */
 const createProxiedStripeClient = (stripe: Stripe): Stripe => {
   const wrap = (obj: object, path: string): unknown =>
@@ -550,81 +620,73 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
         const currentPath = path ? `${path}.${propName}` : propName;
 
         if (typeof val === 'function') {
-          const needsInterception =
-            currentPath === 'checkout.sessions.create' || currentPath === 'billingPortal.sessions.create';
+          const needsInterception = currentPath === 'billingPortal.sessions.create';
 
           if (needsInterception) {
             return async (...args: unknown[]) => {
               const currentArgs = [...args];
               try {
-                if (currentPath === 'checkout.sessions.create') {
-                  const params = currentArgs[0];
-                  if (isCheckoutSessionCreateParams(params)) {
-                    const injected = await injectMeteredItems(params.line_items);
-                    if (injected !== undefined) {
-                      params.line_items = injected;
-                    }
-                  }
-                } else if (currentPath === 'billingPortal.sessions.create') {
-                  const params = currentArgs[0];
-                  if (
-                    isBillingPortalSessionCreateParams(params) &&
-                    params.flow_data?.type === 'subscription_update_confirm' &&
-                    params.flow_data.subscription_update_confirm
-                  ) {
-                    // To inject items here, we must have existing subscription item IDs.
-                    // We look them up from the subscription being updated.
-                    const flow = params.flow_data.subscription_update_confirm;
-                    const items = flow.items || [];
-                    const subscriptionId = params.flow_data.subscription_update_confirm.subscription;
+                const params = currentArgs[0];
+                if (
+                  isBillingPortalSessionCreateParams(params) &&
+                  params.flow_data?.type === 'subscription_update_confirm' &&
+                  params.flow_data.subscription_update_confirm
+                ) {
+                  // To inject items here, we must have existing subscription item IDs.
+                  // We look them up from the subscription being updated.
+                  const flow = params.flow_data.subscription_update_confirm;
+                  const items = flow.items || [];
+                  const subscriptionId = params.flow_data.subscription_update_confirm.subscription;
 
-                    if (subscriptionId) {
-                      const stripeClient = getStripeInstance();
-                      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+                  if (subscriptionId) {
+                    const stripeClient = getStripeInstance();
+                    const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
 
-                      // Resolve product IDs from subscription items and fetch only metered prices for those products
-                      const productIds = Array.from(
-                        new Set(
-                          subscription.items.data
-                            .map((i) =>
-                              typeof i.price === 'object' ? (i.price.product as string | undefined) : undefined
-                            )
-                            .filter(Boolean)
-                        )
-                      ) as string[];
+                    // Resolve product IDs from subscription items and fetch only metered prices for those products
+                    const productIds = Array.from(
+                      new Set(
+                        subscription.items.data
+                          .map((i) =>
+                            typeof i.price.product === 'string'
+                              ? i.price.product
+                              : (i.price.product as { id: string } | null)?.id
+                          )
+                          .filter(Boolean)
+                      )
+                    ) as string[];
 
-                      let meteredIds: string[] = [];
-                      if (productIds.length > 0) {
-                        const meteredPrices = await db
-                          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-                          .from(subscriptionPrices)
-                          .where(
-                            and(
-                              eq(subscriptionPrices.usage_type, 'metered'),
-                              eq(subscriptionPrices.is_active, true),
-                              inArray(subscriptionPrices.stripe_product_id, productIds)
-                            )
-                          );
-
-                        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
-                      } else {
-                        // No product context could be resolved from the subscription items.
-                        // Avoid a global query that would pull unrelated metered prices.
-                        logger.warn(
-                          '[Stripe Proxy] No product context found for subscription items; skipping metered item injection to avoid unrelated global matches.'
+                    let meteredIds: string[] = [];
+                    if (productIds.length > 0) {
+                      const meteredPrices = await db
+                        .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
+                        .from(subscriptionPrices)
+                        .where(
+                          and(
+                            eq(subscriptionPrices.usage_type, 'metered'),
+                            eq(subscriptionPrices.is_active, true),
+                            inArray(subscriptionPrices.stripe_product_id, productIds)
+                          )
                         );
-                        meteredIds = [];
-                      }
-                      const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
-                      const injectedItems = meteredIds
-                        .filter((id) => existingMap.has(id))
-                        .map((id) => ({ id: existingMap.get(id)! }));
+                      meteredIds = meteredPrices.map((p) => p.stripe_price_id);
+                    } else {
+                      // No product context could be resolved from the subscription items.
+                      // Avoid a global query that would pull unrelated metered prices.
+                      logger.warn(
+                        '[Stripe Proxy] No product context found for subscription items; skipping metered item injection to avoid unrelated global matches.'
+                      );
+                      meteredIds = [];
+                    }
+                    const existingMap = new Map(subscription.items.data.map((i) => [i.price.id, i.id]));
 
-                      if (injectedItems.length > 0) {
-                        flow.items = [...items, ...injectedItems];
-                        logger.info('[Stripe Proxy] Bundled {count} metered items into portal session', {
-                          count: injectedItems.length,
+                    // Stripe's subscription_update_confirm allows at most one item in flow.items.
+                    // Only inject if the caller supplied no items; pick the first matching metered item.
+                    if (items.length === 0) {
+                      const firstMeteredPriceId = meteredIds.find((id) => existingMap.has(id));
+                      if (firstMeteredPriceId) {
+                        flow.items = [{ id: existingMap.get(firstMeteredPriceId)! }];
+                        logger.info('[Stripe Proxy] Injected single metered item into portal session', {
+                          priceId: firstMeteredPriceId,
                         });
                       }
                     }
@@ -651,69 +713,6 @@ const createProxiedStripeClient = (stripe: Stripe): Stripe => {
       },
     });
   return wrap(stripe, '') as Stripe;
-};
-
-/**
- * Injects active metered price IDs from subscription_prices table into a list of Stripe items.
- * Fetches all prices where usage_type = 'metered' and is_active = true.
- * returns a new array with metered items injected.
- */
-const injectMeteredItems = async <T extends { price?: string }>(
-  items: T[] | undefined
-): Promise<(T | { price: string })[] | undefined> => {
-  try {
-    // Try to resolve the product context from provided items and only fetch metered prices for those products when possible
-    const providedPriceIds = (items?.map((it) => it.price).filter(Boolean) ?? []) as string[];
-    let meteredIds: string[] = [];
-
-    if (providedPriceIds.length > 0) {
-      const productRows = await db
-        .select({ stripe_product_id: subscriptionPrices.stripe_product_id })
-        .from(subscriptionPrices)
-        .where(inArray(subscriptionPrices.stripe_price_id, providedPriceIds));
-
-      const productIds = Array.from(new Set(productRows.map((r) => r.stripe_product_id).filter(Boolean)));
-
-      if (productIds.length > 0) {
-        const meteredPrices = await db
-          .select({ stripe_price_id: subscriptionPrices.stripe_price_id })
-          .from(subscriptionPrices)
-          .where(
-            and(
-              eq(subscriptionPrices.usage_type, 'metered'),
-              eq(subscriptionPrices.is_active, true),
-              inArray(subscriptionPrices.stripe_product_id, productIds)
-            )
-          );
-
-        meteredIds = meteredPrices.map((p) => p.stripe_price_id);
-      }
-    }
-
-    // If we couldn't resolve any metered prices scoped to the provided context, do not fall back to a global query.
-    // Returning undefined avoids injecting unrelated metered prices into the session.
-    if (meteredIds.length === 0) {
-      logger.debug('[Stripe Proxy] No scoped metered prices found; skipping metered injection for session.');
-      return undefined;
-    }
-
-    const existingPrices = new Set(items?.map((item) => item.price).filter(Boolean) ?? []);
-
-    const newEntries = meteredIds.filter((id) => !existingPrices.has(id)).map((id) => ({ price: id }));
-
-    if (newEntries.length === 0) {
-      return undefined;
-    }
-
-    const addedCount = newEntries.length;
-    logger.info('[Stripe Proxy] Bundled {count} metered prices into session', { count: addedCount });
-
-    return [...(items ?? []), ...newEntries];
-  } catch (error) {
-    logger.error('[Stripe Proxy] Failed to fetch metered prices from database: {error}', { error });
-    // Return undefined on error to avoid breaking checkout
-    return undefined;
-  }
 };
 
 export { createStripePlugin };

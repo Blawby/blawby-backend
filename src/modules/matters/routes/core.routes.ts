@@ -157,21 +157,49 @@ export const deleteMatterRoute = routeBuilder.build({
     }),
   },
   responses: {
-    200: {
+    204: {
       description: 'Matter deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-          }),
-        },
-      },
     },
     404: {
       description: 'Matter not found',
       content: {
         'application/json': {
           schema: errorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+const mattersSummaryByOriginatingAttorneyItemSchema = z
+  .object({
+    originating_attorney_id: z.uuid().nullable(),
+    total_matters: z.number().int().min(0),
+    active_matters: z.number().int().min(0),
+    closed_matters: z.number().int().min(0),
+  })
+  .openapi('MattersSummaryByOriginatingAttorney', {
+    description: 'Aggregate matter counts grouped by originating attorney',
+  });
+
+export const getMattersSummaryByOriginatingAttorneyRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/summary/by-originating-attorney',
+  tags,
+  summary: 'Matters summary by originating attorney',
+  description:
+    'Returns aggregate counts of total, active (status <> closed), and closed (status = closed) matters grouped by originating_attorney_id. Excludes soft-deleted matters.',
+  request: {
+    params: z.object({
+      practice_id: z.uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Matters summary retrieved successfully',
+      content: {
+        'application/json': {
+          schema: z.array(mattersSummaryByOriginatingAttorneyItemSchema),
         },
       },
     },
