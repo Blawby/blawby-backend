@@ -89,6 +89,14 @@ export const verifications = pgTable('verifications', {
     .notNull(),
 });
 
+export const jwkss = pgTable('jwkss', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at').notNull(),
+  expiresAt: timestamp('expires_at'),
+});
+
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

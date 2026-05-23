@@ -2,7 +2,7 @@ import { pgTable, uuid, text, boolean, timestamp, jsonb } from 'drizzle-orm/pg-c
 import { users, sessions } from '@/schema/better-auth-schema';
 
 export const oauthClients = pgTable('oauth_clients', {
-  id: uuid('id').primaryKey().notNull(),
+  id: uuid('id').primaryKey().defaultRandom(),
   clientId: text('client_id').notNull().unique(),
   clientSecret: text('client_secret'),
   disabled: boolean('disabled').default(false),
@@ -35,11 +35,13 @@ export const oauthClients = pgTable('oauth_clients', {
 });
 
 export const oauthAccessTokens = pgTable('oauth_access_tokens', {
-  id: uuid('id').primaryKey().notNull(),
+  id: uuid('id').primaryKey().defaultRandom(),
   token: text('token').notNull().unique(),
-  clientId: text('client_id').notNull(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => oauthClients.clientId),
   sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }),
-  refreshId: text('refresh_id'),
+  refreshId: uuid('refresh_id').references(() => oauthRefreshTokens.id),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
   referenceId: text('reference_id'),
   scopes: text('scopes').array().notNull(),
@@ -48,9 +50,11 @@ export const oauthAccessTokens = pgTable('oauth_access_tokens', {
 });
 
 export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
-  id: uuid('id').primaryKey().notNull(),
+  id: uuid('id').primaryKey().defaultRandom(),
   token: text('token').notNull().unique(),
-  clientId: text('client_id').notNull(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => oauthClients.clientId),
   sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'set null' }),
   userId: uuid('user_id')
     .notNull()
@@ -64,11 +68,13 @@ export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
 });
 
 export const oauthConsents = pgTable('oauth_consents', {
-  id: uuid('id').primaryKey().notNull(),
+  id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  clientId: text('client_id').notNull(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => oauthClients.clientId),
   referenceId: text('reference_id'),
   scopes: text('scopes').array().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

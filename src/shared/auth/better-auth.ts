@@ -54,6 +54,7 @@ export async function checkClientIsOwner(
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
   betterAuth({
     secret: config.auth.betterAuthSecret,
+    disabledPaths: ['/token'],
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
@@ -130,8 +131,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       createStripePlugin(db),
       jwt(),
       oauthProvider({
-        loginPage: '/login',
-        consentPage: '/oauth/consent',
+        loginPage: `${getMatchingFrontendUrl()}/login`,
+        consentPage: `${getMatchingFrontendUrl()}/oauth/consent`,
         allowDynamicClientRegistration: false,
         clientReference: ({ session }) => {
           const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];

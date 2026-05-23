@@ -17,8 +17,6 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
   app.use('/api/auth/*', normalizeAuthResponse());
   app.use('/api/auth/*', sanitizeAuthResponse());
   app.use('/api/auth/*', autoCreateOrgForSubscription());
-  app.use('/oauth2/*', normalizeAuthResponse());
-  app.use('/oauth2/*', sanitizeAuthResponse());
 
   // RFC 8414 AS metadata — path-aware issuer requires suffix
   app.get('/.well-known/oauth-authorization-server/api/auth', (c) =>
@@ -35,9 +33,12 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
     oauthProviderOpenIdConfigMetadata(getAuthInstance(c.req.header('host')))(c.req.raw)
   );
 
-  app.on(['POST', 'GET'], '/api/auth/*', (c) => getAuthInstance(c.req.header('host')).handler(c.req.raw));
+  // Fallback for clients that incorrectly ignore the path-qualified issuer.
+  app.get('/.well-known/openid-configuration', (c) =>
+    oauthProviderOpenIdConfigMetadata(getAuthInstance(c.req.header('host')))(c.req.raw)
+  );
 
-  app.on(['POST', 'GET'], '/oauth2/*', (c) => getAuthInstance(c.req.header('host')).handler(c.req.raw));
+  app.on(['POST', 'GET'], '/api/auth/*', (c) => getAuthInstance(c.req.header('host')).handler(c.req.raw));
 };
 
 export { registerAuthRoutes };
