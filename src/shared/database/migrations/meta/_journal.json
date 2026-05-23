@@ -379,6 +379,13 @@
       "when": 1779519220435,
       "tag": "0053_spooky_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1779520261695,
+      "tag": "0054_right_bastion",
+      "breakpoints": true
     }
   ]
 }

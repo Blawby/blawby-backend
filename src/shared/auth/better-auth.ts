@@ -4,7 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for drizzle adapter
 // oxlint-disable-next-line no-namespace
@@ -33,16 +33,22 @@ const authSessionAdditionalFields =
  * Internal factory to define the Better Auth configuration.
  * Used for type inference without executing betterAuth() at import time.
  */
-// ---
-// Top-level helper to break circular type inference in betterAuthConfig
 export async function checkClientIsOwner(
-  { headers, session }: { headers: Headers; session?: any },
-  db: NodePgDatabase<typeof schema>,
+  { user, session }: { headers: Headers; user?: { id: string }; session?: Record<string, unknown> },
+  db: NodePgDatabase<typeof schema>
 ): Promise<boolean> {
-  if (!session?.activeOrganizationId) return false;
-  const authInstance = createBetterAuthInstance(db);
-  const member = await authInstance.api.getActiveMember({ headers });
-  return member?.role === 'owner';
+  const orgId = session?.['activeOrganizationId'];
+  if (!orgId || typeof orgId !== 'string' || !user?.id) return false;
+  try {
+    const [member] = await db
+      .select({ role: schema.members.role })
+      .from(schema.members)
+      .where(and(eq(schema.members.organizationId, orgId), eq(schema.members.userId, user.id)))
+      .limit(1);
+    return member?.role === 'owner';
+  } catch {
+    return false;
+  }
 }
 
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
@@ -128,10 +134,10 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         consentPage: '/oauth/consent',
         allowDynamicClientRegistration: false,
         clientReference: ({ session }) => {
-          return (session?.activeOrganizationId as string | undefined) ?? undefined;
+          const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
+          return typeof orgId === 'string' ? orgId : undefined;
         },
-         clientPrivileges: async (params) =>
-           await checkClientIsOwner(params, db),
+        clientPrivileges: (params) => checkClientIsOwner(params, db),
       }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
@@ -214,6 +220,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
     databaseHooks: createDatabaseHooks(db),
     session: {
       ...AUTH_CONFIG.session,
+      storeSessionInDatabase: true,
       additionalFields: {
         ...authSessionAdditionalFields,
         previousAnonUserId: {
