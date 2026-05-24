@@ -1,19 +1,9 @@
-/**
- * Subscription Prices Schema
- *
- * Normalized table storing every Stripe Price for subscription products.
- * Links to subscription_plans via plan_id FK.
- */
-
 import { pgTable, text, timestamp, integer, uuid, boolean, jsonb, index } from 'drizzle-orm/pg-core';
 
-export const subscriptionPrices = pgTable(
-  'subscription_prices',
+export const stripePrices = pgTable(
+  'stripe_prices',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-
-    // Link to subscription plan
-    plan_id: uuid('plan_id'),
 
     // Stripe identifiers
     stripe_price_id: text('stripe_price_id').notNull().unique(),
@@ -36,6 +26,16 @@ export const subscriptionPrices = pgTable(
     meter_name: text('meter_name'),
     internal_type: text('internal_type'), // our internal metered type constant
 
+    // Denormalized product display data (absorbed from subscription_plans)
+    name: text('name'), // plan tier key e.g. "starter"; null for metered prices
+    display_name: text('display_name'),
+    description: text('description'),
+    features: jsonb('features').$type<string[]>(),
+    limits: jsonb('limits').$type<{ users: number; invoices_per_month: number; storage_gb: number }>(),
+    is_public: boolean('is_public').default(true),
+    sort_order: integer('sort_order').default(0),
+    image: text('image'),
+
     // Our own control flag (independent from Stripe)
     is_active: boolean('is_active').default(true).notNull(),
 
@@ -50,12 +50,12 @@ export const subscriptionPrices = pgTable(
       .notNull(),
   },
   (table) => [
-    index('subscription_prices_plan_idx').on(table.plan_id),
-    index('subscription_prices_stripe_price_idx').on(table.stripe_price_id),
-    index('subscription_prices_product_idx').on(table.stripe_product_id),
+    index('stripe_prices_stripe_price_idx').on(table.stripe_price_id),
+    index('stripe_prices_product_idx').on(table.stripe_product_id),
+    index('stripe_prices_name_idx').on(table.name),
+    index('stripe_prices_active_sort_idx').on(table.is_active, table.sort_order),
   ]
 );
 
-// Type exports
-export type SubscriptionPrice = typeof subscriptionPrices.$inferSelect;
-export type NewSubscriptionPrice = typeof subscriptionPrices.$inferInsert;
+export type StripePrice = typeof stripePrices.$inferSelect;
+export type NewStripePrice = typeof stripePrices.$inferInsert;

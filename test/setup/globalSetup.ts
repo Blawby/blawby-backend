@@ -47,7 +47,7 @@ export default async function globalSetup() {
   console.log('  → Syncing database schema...');
 
   try {
-    execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit push --force`, {
+    execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit migrate`, {
       stdio: 'inherit',
       shell: '/bin/bash',
     });

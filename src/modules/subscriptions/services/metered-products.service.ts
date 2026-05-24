@@ -10,7 +10,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
-import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
+import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
 import { organizations, subscriptionLineItems, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
 import { db as appDb } from '@/shared/database';

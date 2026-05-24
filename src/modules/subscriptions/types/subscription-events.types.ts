@@ -1,4 +1,4 @@
-import type { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
+import type { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscription-events.schema';
 export const SUBSCRIPTION_EVENT_TYPES = [
   'created',
   'plan_changed',

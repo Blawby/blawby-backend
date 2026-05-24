@@ -6,7 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { handleProductCreated } from '@/modules/subscriptions/handlers/productCreated.handler';
+import { handleProductCreated } from '@/modules/subscriptions/handlers/product-created.handler';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 
 const logger = getLogger(['subscriptions', 'services', 'sync-plans']);

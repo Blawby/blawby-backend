@@ -8,7 +8,7 @@
  */
 
 import { config } from '@dotenvx/dotenvx';
-import { syncPlansService } from '@/modules/subscriptions/services/syncPlans.service';
+import { syncPlansService } from '@/modules/subscriptions/services/sync-plans.service';
 
 // Load environment variables
 config();

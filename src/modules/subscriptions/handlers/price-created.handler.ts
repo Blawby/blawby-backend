@@ -1,51 +1,31 @@
-/**
- * Price Created Webhook Handler
- *
- * Handles Stripe price.created webhook events
- * Creates a new price linked to a subscription plan
- */
-
 import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/meteredProducts';
+import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/metered-products';
+import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/product-helpers';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
 
-/**
- * Handle price.created webhook event
- */
 export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => {
   try {
+    const productId = typeof price.product === 'string' ? price.product : price.product.id;
+
     logger.info('Processing price.created: {priceId} for product {productId}', {
       priceId: price.id,
-      productId: typeof price.product === 'string' ? price.product : price.product.id,
+      productId,
     });
 
-    // Find the plan for this product
-    const productId = typeof price.product === 'string' ? price.product : price.product.id;
-    const plan = await subscriptionRepository.findPlanByStripeProductId(db, productId);
+    let internalType: string | undefined = undefined;
+    let meterName: string | null = null;
 
-    if (!plan) {
-      logger.warn('Plan not found for price.created: {priceId}, product: {productId}', {
-        priceId: price.id,
-        productId,
-      });
-      return;
-    }
-
-    let internal_type: string | undefined = undefined;
-    let meter_name: string | null = null;
-
-    // For metered prices, fetch meter once and derive both fields
     if (price.recurring?.usage_type === 'metered' && price.recurring?.meter) {
       try {
         const stripe = getStripeInstance();
         const meter = await stripe.billing.meters.retrieve(price.recurring.meter);
-        internal_type = getInternalTypeFromMeterName(meter.event_name) ?? undefined;
-        meter_name = meter.event_name;
+        internalType = getInternalTypeFromMeterName(meter.event_name) ?? undefined;
+        meterName = meter.event_name;
       } catch (err) {
         logger.error('Failed to retrieve meter for price {priceId}: {error}', {
           priceId: price.id,
@@ -54,8 +34,32 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       }
     }
 
-    const priceData = {
-      plan_id: plan.id,
+    // For licensed prices, pull product display data from Stripe
+    let displayData: Record<string, unknown> = {};
+    if (price.recurring?.usage_type !== 'metered') {
+      try {
+        const stripe = getStripeInstance();
+        const product = await stripe.products.retrieve(productId);
+        const metadata = product.metadata || {};
+        displayData = {
+          name: metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_'),
+          display_name: product.name,
+          description: product.description ?? null,
+          features: extractFeatures(product),
+          limits: extractLimits(metadata),
+          is_public: metadata.is_public !== 'false',
+          sort_order: parseInt(metadata.sort_order || '0', 10),
+          image: product.images?.[0] ?? null,
+        };
+      } catch (err) {
+        logger.warn('Failed to fetch product display data for price {priceId}: {error}', {
+          priceId: price.id,
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+
+    await subscriptionRepository.upsertPrice(db, {
       stripe_price_id: price.id,
       stripe_product_id: productId,
       currency: price.currency,
@@ -65,22 +69,12 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       usage_type: price.recurring?.usage_type ?? null,
       billing_scheme: price.billing_scheme ?? null,
       meter_id: price.recurring?.meter ?? null,
-      meter_name,
-      internal_type,
+      meter_name: meterName,
+      internal_type: internalType,
       is_active: price.active,
       metadata: price.metadata ?? {},
-    };
-
-    await subscriptionRepository.upsertPrice(db, priceData);
-    // Ensure the plan is active when a new price is added (reversible deactivation)
-    try {
-      await subscriptionRepository.activatePlan(db, productId);
-    } catch (err) {
-      logger.error('Failed to activate plan after price.created: {priceId}: {error}', {
-        priceId: price.id,
-        error: err,
-      });
-    }
+      ...displayData,
+    });
 
     logger.info('Successfully created price: {priceId}', { priceId: price.id });
   } catch (error) {

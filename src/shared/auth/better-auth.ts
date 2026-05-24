@@ -13,7 +13,6 @@ import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { config } from '@/shared/config';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
-import { createStripePlugin } from '@/shared/auth/plugins/stripe.config';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
@@ -128,7 +127,6 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           );
         },
       }),
-      createStripePlugin(db),
       jwt(),
       oauthProvider({
         loginPage: `${getMatchingFrontendUrl()}/login`,

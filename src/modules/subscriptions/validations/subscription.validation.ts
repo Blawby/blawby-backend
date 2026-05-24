@@ -110,6 +110,7 @@ const subscriptionResponseSchema = z.object({
   period_start: z.date().nullable(),
   period_end: z.date().nullable(),
   cancel_at_period_end: z.boolean().nullable(),
+  cancel_at: z.date().nullable(),
   seats: z.number().nullable(),
   trial_start: z.date().nullable(),
   trial_end: z.date().nullable(),
@@ -200,6 +201,65 @@ const cancelSubscriptionResponseSchema = z.object({
 });
 
 /**
+ * POST /checkout request schema
+ */
+const checkoutRequestSchema = z.object({
+  stripe_price_id: z.string().min(1).openapi({
+    description: 'Stripe Price ID to subscribe to',
+    example: 'price_xxx',
+  }),
+  success_url: z.url().openapi({
+    description: 'URL to redirect after successful payment',
+    example: 'https://app.example.com/dashboard',
+  }),
+  cancel_url: z.url().openapi({
+    description: 'URL to redirect if the user cancels',
+    example: 'https://app.example.com/pricing',
+  }),
+  disable_redirect: z.boolean().optional().default(false).openapi({
+    description: 'Return checkout URL instead of redirecting',
+    example: false,
+  }),
+  organization_id: z.uuid().optional().openapi({
+    description: 'Org to subscribe (optional — auto-resolved if omitted)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+});
+
+/**
+ * POST /checkout response schema
+ */
+const checkoutResponseSchema = z.object({
+  subscription_id: z.uuid(),
+  url: z.string().nullable(),
+});
+
+/**
+ * POST /billing-portal request schema
+ */
+const billingPortalRequestSchema = z.object({
+  return_url: z.string().openapi({
+    description: 'URL to return to after portal session',
+    example: '/dashboard',
+  }),
+  immediately: z.boolean().optional().default(false).openapi({
+    description: 'Cancel/update immediately instead of at period end',
+    example: false,
+  }),
+});
+
+/**
+ * GET /list response schema
+ */
+const listSubscriptionsResponseSchema = z.object({
+  subscriptions: z.array(subscriptionResponseSchema),
+});
+
+const webhookResponseSchema = z.object({
+  received: z.boolean(),
+});
+
+/**
  * Common error response schemas
  */
 const errorResponseSchema = z
@@ -249,6 +309,11 @@ export const subscriptionValidations = {
   getCurrentSubscriptionResponseSchema,
   createSubscriptionResponseSchema,
   cancelSubscriptionResponseSchema,
+  checkoutRequestSchema,
+  checkoutResponseSchema,
+  billingPortalRequestSchema,
+  listSubscriptionsResponseSchema,
+  webhookResponseSchema,
   errorResponseSchema,
   notFoundResponseSchema,
   internalServerErrorResponseSchema,

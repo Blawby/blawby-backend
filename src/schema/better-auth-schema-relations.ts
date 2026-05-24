@@ -7,9 +7,9 @@ import {
   invitations,
   accounts,
   organizations,
-  subscriptions,
 } from '@/schema/better-auth-schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),

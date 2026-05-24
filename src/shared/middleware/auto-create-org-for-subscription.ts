@@ -4,11 +4,14 @@
  * if referenceId is not provided, before the request reaches Better Auth
  */
 
+import { getLogger } from '@logtape/logtape';
 import { eq, inArray } from 'drizzle-orm';
 import type { MiddlewareHandler } from 'hono';
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+
+const logger = getLogger(['shared', 'middleware', 'auto-create-org']);
 
 const generateSlug = (name: string): string =>
   name
@@ -212,7 +215,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
             })
             .where(eq(schema.organizations.id, organizationId));
         } catch (error) {
-          console.error('Error syncing customer ID:', error);
+          logger.error('Error syncing customer ID: {error}', { error });
         }
       };
       void syncCustomerId();
@@ -220,7 +223,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
 
     return response;
   } catch (error) {
-    console.error('Error in autoCreateOrgForSubscription:', error);
-    return next(); // Continue on error - let Better Auth handle it
+    logger.error('Error in autoCreateOrgForSubscription: {error}', { error });
+    return next();
   }
 };
