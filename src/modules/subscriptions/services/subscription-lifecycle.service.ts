@@ -4,6 +4,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { stripePrices } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
+import type { SubscriptionItemType } from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
 import { PRACTICE_ENTITLED_STATUSES } from '@/modules/subscriptions/constants/subscription-statuses';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
@@ -146,13 +147,22 @@ export const syncSubscriptionToOrg = async (
 
     // Sync line items
     if (stripeSubscription.items?.data) {
+      // Batch-fetch DB prices to resolve internal_type without N+1 queries
+      const stripePriceIds = stripeSubscription.items.data.map((item) => item.price.id);
+      const dbPrices = stripePriceIds.length
+        ? await tx.select({ stripe_price_id: stripePrices.stripe_price_id, internal_type: stripePrices.internal_type })
+            .from(stripePrices)
+            .where(inArray(stripePrices.stripe_price_id, stripePriceIds))
+        : [];
+      const priceTypeMap = new Map(dbPrices.map((p) => [p.stripe_price_id, p.internal_type]));
+
       await Promise.all(
         stripeSubscription.items.data.map((item) =>
           subscriptionRepository.upsertLineItem(tx, {
             subscription_id: subscriptionId,
             stripe_subscription_item_id: item.id,
             stripe_price_id: item.price.id,
-            item_type: 'base_fee',
+            item_type: (priceTypeMap.get(item.price.id) ?? 'base_fee') as SubscriptionItemType,
             description: item.price.nickname ?? item.price.product?.toString(),
             quantity: item.quantity ?? 1,
             unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
@@ -460,7 +470,12 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
           await tx
             .update(schema.organizations)
             .set({ activeSubscriptionId: null })
-            .where(eq(schema.organizations.id, localSub.referenceId));
+            .where(
+              and(
+                eq(schema.organizations.id, localSub.referenceId),
+                eq(schema.organizations.activeSubscriptionId, localSub.id)
+              )
+            );
         }
 
         await tx

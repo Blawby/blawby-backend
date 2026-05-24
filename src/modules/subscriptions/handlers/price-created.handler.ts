@@ -52,10 +52,11 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
           image: product.images?.[0] ?? null,
         };
       } catch (err) {
-        logger.warn('Failed to fetch product display data for price {priceId}: {error}', {
+        logger.error('Failed to fetch product display data for price {priceId}: {error}', {
           priceId: price.id,
           error: err instanceof Error ? err.message : 'Unknown error',
         });
+        throw err;
       }
     }
 

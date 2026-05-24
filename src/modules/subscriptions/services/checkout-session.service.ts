@@ -111,7 +111,7 @@ export const createCheckoutSession = async (
     successUrl,
     cancelUrl,
     organizationId: explicitOrgId,
-    requireManagementAccess = false,
+    requireManagementAccess = true,
   } = params;
 
   // 1. Resolve price — must exist and be active
@@ -221,16 +221,19 @@ export const createCheckoutSession = async (
   let checkoutUrl: string | null = null;
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: stripeCustomerId,
-      line_items: [{ price: stripePriceId, ...(price.usage_type !== 'metered' ? { quantity: 1 } : {}) }],
-      subscription_data: {
-        metadata: { organization_id: organizationId, subscription_id: subscriptionId },
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'subscription',
+        customer: stripeCustomerId,
+        line_items: [{ price: stripePriceId, ...(price.usage_type !== 'metered' ? { quantity: 1 } : {}) }],
+        subscription_data: {
+          metadata: { organization_id: organizationId, subscription_id: subscriptionId },
+        },
+        success_url: successUrl,
+        cancel_url: cancelUrl,
       },
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-    });
+      { idempotencyKey: `checkout_create:${organizationId}` }
+    );
     checkoutUrl = session.url;
   } catch (err) {
     // Roll back the local subscription row since no checkout was created

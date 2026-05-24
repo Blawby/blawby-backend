@@ -182,6 +182,7 @@ const compatCancelHandler = async (c: Context<AppContext>) => {
 const compatListHandler = async (c: Context<AppContext>) => {
   const referenceId = c.req.query('referenceId');
   const ctx = await buildCompatContext(c, referenceId);
+  assertCompatSubscriptionManager(ctx.memberRole);
   const orgId = ctx.organizationId;
 
   if (!orgId) {

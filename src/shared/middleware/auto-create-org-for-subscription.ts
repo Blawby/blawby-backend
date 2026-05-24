@@ -98,20 +98,22 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
           orgSlug = `${orgSlug}-${crypto.randomUUID().substring(0, 8)}`;
         }
 
-        organizationId = crypto.randomUUID();
-        await db.insert(schema.organizations).values({
-          id: organizationId,
-          name: orgName,
-          slug: orgSlug,
-          createdAt: new Date(),
-        });
-
-        await db.insert(schema.members).values({
-          id: crypto.randomUUID(),
-          userId,
-          organizationId,
-          role: 'owner',
-          createdAt: new Date(),
+        const newOrgId = crypto.randomUUID();
+        organizationId = newOrgId;
+        await db.transaction(async (tx) => {
+          await tx.insert(schema.organizations).values({
+            id: newOrgId,
+            name: orgName,
+            slug: orgSlug,
+            createdAt: new Date(),
+          });
+          await tx.insert(schema.members).values({
+            id: crypto.randomUUID(),
+            userId,
+            organizationId: newOrgId,
+            role: 'owner',
+            createdAt: new Date(),
+          });
         });
       }
     } else {
