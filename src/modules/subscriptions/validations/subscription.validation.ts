@@ -231,7 +231,7 @@ const checkoutRequestSchema = z.object({
  */
 const checkoutResponseSchema = z.object({
   subscription_id: z.uuid(),
-  url: z.string().nullable(),
+  url: z.url().nullable(),
 });
 
 /**

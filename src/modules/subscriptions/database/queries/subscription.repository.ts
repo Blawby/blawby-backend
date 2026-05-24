@@ -24,7 +24,11 @@ const findPriceByStripeId = async (db: DbOrTx, stripePriceId: string): Promise<S
 };
 
 const findPriceByName = async (db: DbOrTx, name: string): Promise<StripePrice | undefined> => {
-  const [price] = await db.select().from(stripePrices).where(eq(stripePrices.name, name)).limit(1);
+  const [price] = await db
+    .select()
+    .from(stripePrices)
+    .where(and(eq(stripePrices.name, name), eq(stripePrices.is_active, true)))
+    .limit(1);
   return price;
 };
 

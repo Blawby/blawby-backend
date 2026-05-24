@@ -2,6 +2,7 @@ import type Stripe from 'stripe';
 import { getLogger } from '@logtape/logtape';
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-deleted']);
 
@@ -21,7 +22,7 @@ export const handlePriceDeleted = async (price: Stripe.Price | Stripe.DeletedPri
   } catch (error) {
     logger.error('Failed to process price.deleted: {priceId}. Error: {error}', {
       priceId: price.id,
-      error,
+      error: sanitizeError(error),
     });
     throw error;
   }

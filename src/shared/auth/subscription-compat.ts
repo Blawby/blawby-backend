@@ -88,14 +88,23 @@ const compatUpgradeHandler = async (c: Context<AppContext>) => {
   const planName = typeof body.plan === 'string' ? body.plan : null;
   const annual = body.annual === true;
   const referenceId =
-    typeof body.referenceId === 'string' ? body.referenceId :
-    typeof body.reference_id === 'string' ? body.reference_id : undefined;
+    typeof body.referenceId === 'string'
+      ? body.referenceId
+      : typeof body.reference_id === 'string'
+        ? body.reference_id
+        : undefined;
   const successUrl =
-    typeof body.successUrl === 'string' ? body.successUrl :
-    typeof body.success_url === 'string' ? body.success_url : undefined;
+    typeof body.successUrl === 'string'
+      ? body.successUrl
+      : typeof body.success_url === 'string'
+        ? body.success_url
+        : undefined;
   const cancelUrl =
-    typeof body.cancelUrl === 'string' ? body.cancelUrl :
-    typeof body.cancel_url === 'string' ? body.cancel_url : undefined;
+    typeof body.cancelUrl === 'string'
+      ? body.cancelUrl
+      : typeof body.cancel_url === 'string'
+        ? body.cancel_url
+        : undefined;
   const disableRedirect = body.disableRedirect === true || body.disable_redirect === true;
 
   if (!successUrl) {

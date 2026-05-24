@@ -427,10 +427,15 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
           ? await subscriptionRepository.findPriceByStripeId(tx, licensedItem.price.id)
           : null;
         if (newDbPrice?.id !== oldDbPrice?.id) {
+          if (!newDbPrice) {
+            logger.warn('Plan changed but new price not found in DB: {priceId}', {
+              priceId: licensedItem?.price.id,
+            });
+          }
           await subscriptionRepository.createEvent(tx, {
             subscription_id: localSub.id,
             plan_id: oldDbPrice?.id,
-            to_plan_id: newDbPrice?.id ?? oldDbPrice?.id,
+            to_plan_id: newDbPrice?.id ?? null,
             event_type: 'plan_changed',
             triggered_by_type: 'webhook',
             metadata: { from_plan_name: localSub.plan, to_plan_name: newDbPrice?.name ?? localSub.plan },

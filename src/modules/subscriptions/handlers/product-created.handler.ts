@@ -16,7 +16,9 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
     });
 
     const stripe = getStripeInstance();
-    const allPrices = await stripe.prices.list({ product: product.id, active: true, limit: 100 }).autoPagingToArray({ limit: 10000 });
+    const allPrices = await stripe.prices
+      .list({ product: product.id, active: true, limit: 100 })
+      .autoPagingToArray({ limit: 10000 });
 
     const metadata = product.metadata || {};
     const displayData = {

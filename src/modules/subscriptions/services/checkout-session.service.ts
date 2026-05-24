@@ -59,12 +59,14 @@ const getOrCreateOrg = async (
     }
 
     const organizationId = crypto.randomUUID();
-    await db
-      .insert(schema.organizations)
-      .values({ id: organizationId, name: orgName, slug: orgSlug, createdAt: new Date() });
-    await db
-      .insert(schema.members)
-      .values({ id: crypto.randomUUID(), userId, organizationId, role: 'owner', createdAt: new Date() });
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(schema.organizations)
+        .values({ id: organizationId, name: orgName, slug: orgSlug, createdAt: new Date() });
+      await tx
+        .insert(schema.members)
+        .values({ id: crypto.randomUUID(), userId, organizationId, role: 'owner', createdAt: new Date() });
+    });
 
     await createBetterAuthInstance(db).api.setActiveOrganization({
       body: { organizationId },
@@ -104,7 +106,13 @@ export const createCheckoutSession = async (
   params: CheckoutSessionRequest,
   ctx: ServiceContext
 ): Promise<{ subscriptionId: string; url: string | null }> => {
-  const { stripePriceId, successUrl, cancelUrl, organizationId: explicitOrgId, requireManagementAccess = false } = params;
+  const {
+    stripePriceId,
+    successUrl,
+    cancelUrl,
+    organizationId: explicitOrgId,
+    requireManagementAccess = false,
+  } = params;
 
   // 1. Resolve price — must exist and be active
   const price = await subscriptionRepository.findPriceByStripeId(db, stripePriceId);

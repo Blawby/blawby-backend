@@ -168,10 +168,13 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
     body.referenceId = organizationId;
 
     // Create new request with updated body
+    const newBody = JSON.stringify(body);
+    const newHeaders = new Headers(c.req.raw.headers);
+    newHeaders.set('content-length', String(new TextEncoder().encode(newBody).byteLength));
     const newRequest = new Request(c.req.raw.url, {
       method: 'POST',
-      headers: c.req.raw.headers,
-      body: JSON.stringify(body),
+      headers: newHeaders,
+      body: newBody,
     });
 
     // Replace request
