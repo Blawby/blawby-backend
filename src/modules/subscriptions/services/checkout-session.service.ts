@@ -125,6 +125,7 @@ export const createCheckoutSession = async (
 
   // 2. Resolve org
   let organizationId: string;
+  let resolvedMember: { role: string | null } | undefined;
   if (explicitOrgId) {
     const [org] = await db
       .select({ id: schema.organizations.id })
@@ -146,18 +147,23 @@ export const createCheckoutSession = async (
       throw new HTTPException(403, { message: 'Not a member of this organization' });
     }
 
+    resolvedMember = member;
     organizationId = explicitOrgId;
   } else {
-    const resolved = await getOrCreateOrg(ctx.userId, ctx.requestHeaders as unknown as Headers);
+    const resolved = await getOrCreateOrg(ctx.userId, new Headers(ctx.requestHeaders as Record<string, string>));
     organizationId = resolved.organizationId;
   }
 
   if (requireManagementAccess) {
-    const [member] = await db
-      .select({ role: schema.members.role })
-      .from(schema.members)
-      .where(and(eq(schema.members.userId, ctx.userId), eq(schema.members.organizationId, organizationId)))
-      .limit(1);
+    const member =
+      resolvedMember ??
+      (
+        await db
+          .select({ role: schema.members.role })
+          .from(schema.members)
+          .where(and(eq(schema.members.userId, ctx.userId), eq(schema.members.organizationId, organizationId)))
+          .limit(1)
+      )[0];
 
     if (!member || !['owner', 'admin'].includes(member.role ?? '')) {
       throw new HTTPException(403, { message: 'Not permitted to manage subscriptions for this organization' });
@@ -205,16 +211,37 @@ export const createCheckoutSession = async (
     await stripe.customers.update(stripeCustomerId, { email: ctx.user.email });
   }
 
-  // 5. Insert local subscription row (status: 'incomplete' until webhook confirms)
-  const subscriptionId = crypto.randomUUID();
-  await db.insert(schema.subscriptions).values({
-    id: subscriptionId,
-    plan: price.name ?? stripePriceId,
-    referenceId: organizationId,
-    stripeCustomerId,
-    status: 'incomplete',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+  // 5. Atomically find-or-create the incomplete subscription row so retries share
+  // the same subscriptionId and thus the same Stripe idempotency key.
+  const planName = price.name ?? stripePriceId;
+  const { subscriptionId, isNew } = await db.transaction(async (tx) => {
+    const [existingIncomplete] = await tx
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.referenceId, organizationId),
+          eq(schema.subscriptions.status, 'incomplete'),
+          eq(schema.subscriptions.plan, planName)
+        )
+      )
+      .limit(1);
+
+    if (existingIncomplete) {
+      return { subscriptionId: existingIncomplete.id, isNew: false };
+    }
+
+    const newId = crypto.randomUUID();
+    await tx.insert(schema.subscriptions).values({
+      id: newId,
+      plan: planName,
+      referenceId: organizationId,
+      stripeCustomerId,
+      status: 'incomplete',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return { subscriptionId: newId, isNew: true };
   });
 
   // 6. Create Stripe Checkout Session
@@ -236,8 +263,10 @@ export const createCheckoutSession = async (
     );
     checkoutUrl = session.url;
   } catch (err) {
-    // Roll back the local subscription row since no checkout was created
-    await db.delete(schema.subscriptions).where(eq(schema.subscriptions.id, subscriptionId));
+    // Roll back the local subscription row only if we just created it
+    if (isNew) {
+      await db.delete(schema.subscriptions).where(eq(schema.subscriptions.id, subscriptionId));
+    }
     logger.error('Failed to create Stripe checkout session: {error}', { error: err });
     throw new HTTPException(500, { message: 'Failed to create checkout session' });
   }

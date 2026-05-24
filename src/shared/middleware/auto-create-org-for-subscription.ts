@@ -10,6 +10,7 @@ import type { MiddlewareHandler } from 'hono';
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['shared', 'middleware', 'auto-create-org']);
 
@@ -224,7 +225,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
             })
             .where(eq(schema.organizations.id, organizationId));
         } catch (error) {
-          logger.error('Error syncing customer ID: {error}', { error });
+          logger.error('Error syncing customer ID: {error}', { error: sanitizeError(error) });
         }
       };
       void syncCustomerId();
@@ -232,7 +233,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
 
     return response;
   } catch (error) {
-    logger.error('Error in autoCreateOrgForSubscription: {error}', { error });
+    logger.error('Error in autoCreateOrgForSubscription: {error}', { error: sanitizeError(error) });
     return next();
   }
 };

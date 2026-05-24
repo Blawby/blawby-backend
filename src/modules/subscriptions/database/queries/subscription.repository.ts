@@ -28,6 +28,7 @@ const findPriceByName = async (db: DbOrTx, name: string): Promise<StripePrice | 
     .select()
     .from(stripePrices)
     .where(and(eq(stripePrices.name, name), eq(stripePrices.is_active, true)))
+    .orderBy(desc(stripePrices.created_at))
     .limit(1);
   return price;
 };
@@ -41,6 +42,7 @@ const findPriceByNameAndInterval = async (
     .select()
     .from(stripePrices)
     .where(and(eq(stripePrices.name, name), eq(stripePrices.interval, interval), eq(stripePrices.is_active, true)))
+    .orderBy(desc(stripePrices.created_at))
     .limit(1);
   return price;
 };

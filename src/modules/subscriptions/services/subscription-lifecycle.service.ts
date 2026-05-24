@@ -150,7 +150,8 @@ export const syncSubscriptionToOrg = async (
       // Batch-fetch DB prices to resolve internal_type without N+1 queries
       const stripePriceIds = stripeSubscription.items.data.map((item) => item.price.id);
       const dbPrices = stripePriceIds.length
-        ? await tx.select({ stripe_price_id: stripePrices.stripe_price_id, internal_type: stripePrices.internal_type })
+        ? await tx
+            .select({ stripe_price_id: stripePrices.stripe_price_id, internal_type: stripePrices.internal_type })
             .from(stripePrices)
             .where(inArray(stripePrices.stripe_price_id, stripePriceIds))
         : [];
@@ -413,13 +414,22 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
 
         // Sync line items
         if (stripeSub.items?.data) {
+          const updatedPriceIds = stripeSub.items.data.map((item) => item.price.id);
+          const updatedDbPrices = updatedPriceIds.length
+            ? await tx
+                .select({ stripe_price_id: stripePrices.stripe_price_id, internal_type: stripePrices.internal_type })
+                .from(stripePrices)
+                .where(inArray(stripePrices.stripe_price_id, updatedPriceIds))
+            : [];
+          const updatedPriceTypeMap = new Map(updatedDbPrices.map((p) => [p.stripe_price_id, p.internal_type]));
+
           await Promise.all(
             stripeSub.items.data.map((item) =>
               subscriptionRepository.upsertLineItem(tx, {
                 subscription_id: localSub.id,
                 stripe_subscription_item_id: item.id,
                 stripe_price_id: item.price.id,
-                item_type: 'base_fee',
+                item_type: (updatedPriceTypeMap.get(item.price.id) ?? 'base_fee') as SubscriptionItemType,
                 description: item.price.nickname ?? item.price.product?.toString(),
                 quantity: item.quantity ?? 1,
                 unit_amount: item.price.unit_amount ? (item.price.unit_amount / 100).toString() : null,
@@ -450,6 +460,12 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
             triggered_by_type: 'webhook',
             metadata: { from_plan_name: localSub.plan, to_plan_name: newDbPrice?.name ?? localSub.plan },
           });
+          if (newDbPrice?.name) {
+            await tx
+              .update(schema.subscriptions)
+              .set({ plan: newDbPrice.name, updatedAt: new Date() })
+              .where(eq(schema.subscriptions.id, localSub.id));
+          }
         }
       });
       break;

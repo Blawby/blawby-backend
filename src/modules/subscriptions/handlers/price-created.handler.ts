@@ -31,6 +31,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
           priceId: price.id,
           error: err instanceof Error ? err.message : 'Unknown error',
         });
+        throw err;
       }
     }
 

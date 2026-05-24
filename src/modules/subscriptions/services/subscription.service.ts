@@ -1,6 +1,4 @@
 import { getLogger } from '@logtape/logtape';
-
-const DEFAULT_PLAN_LIMITS = { users: -1, invoices_per_month: -1, storage_gb: 10 };
 import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
 import { asc, eq } from 'drizzle-orm';
@@ -20,6 +18,8 @@ import { organizations } from '@/schema/better-auth-schema';
 import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
+
+const DEFAULT_PLAN_LIMITS = { users: -1, invoices_per_month: -1, storage_gb: 10 };
 
 const logger = getLogger(['subscriptions', 'services', 'subscription']);
 
