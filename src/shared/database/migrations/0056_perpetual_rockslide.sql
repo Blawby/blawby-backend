@@ -38,7 +38,7 @@ CREATE INDEX IF NOT EXISTS "stripe_prices_name_idx" ON "stripe_prices" USING btr
 CREATE INDEX IF NOT EXISTS "stripe_prices_active_sort_idx" ON "stripe_prices" USING btree ("is_active","sort_order");--> statement-breakpoint
 
 -- Step 7: Drop subscription_plans (data already backfilled)
-DROP TABLE IF EXISTS "subscription_plans" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "subscription_plans";--> statement-breakpoint
 
 -- Step 8: Add cancel_at to subscriptions
 ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "cancel_at" timestamp;

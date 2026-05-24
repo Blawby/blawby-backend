@@ -22,7 +22,7 @@ const generateSlug = (name: string): string =>
 
 export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, next) => {
   // Only handle subscription upgrade requests
-  if (c.req.method !== 'POST' || !c.req.path.includes('/api/auth/subscription/upgrade')) {
+  if (c.req.method !== 'POST' || c.req.path !== '/api/auth/subscription/upgrade') {
     return next();
   }
 
@@ -92,6 +92,10 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
           }
           attemptCount++;
           slugAttempt = `${orgSlug}-${attemptCount}`;
+        }
+
+        if (attemptCount >= 10) {
+          orgSlug = `${orgSlug}-${crypto.randomUUID().substring(0, 8)}`;
         }
 
         organizationId = crypto.randomUUID();

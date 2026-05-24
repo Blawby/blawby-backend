@@ -18,9 +18,9 @@ export const extractLimits = (
     try {
       const parsed = JSON.parse(metadata.limits);
       return {
-        users: parsed.users ?? -1,
-        invoices_per_month: parsed.invoices_per_month ?? -1,
-        storage_gb: parsed.storage_gb ?? 10,
+        users: typeof parsed.users === 'number' ? parsed.users : -1,
+        invoices_per_month: typeof parsed.invoices_per_month === 'number' ? parsed.invoices_per_month : -1,
+        storage_gb: typeof parsed.storage_gb === 'number' ? parsed.storage_gb : 10,
       };
     } catch {
       // Fall through
@@ -43,7 +43,10 @@ export const extractFeatures = (product: Stripe.Product): string[] => {
 
   if (metadata.features) {
     try {
-      return JSON.parse(metadata.features);
+      const parsed = JSON.parse(metadata.features);
+      if (Array.isArray(parsed) && parsed.every((f) => typeof f === 'string')) {
+        return parsed;
+      }
     } catch {
       // Fall through
     }

@@ -44,4 +44,7 @@ const main = async (): Promise<void> => {
 };
 
 // Run the script
-main();
+main().catch((error) => {
+  console.error('Unhandled error:', error);
+  process.exit(1);
+});

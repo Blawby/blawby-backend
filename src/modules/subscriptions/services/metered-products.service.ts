@@ -76,7 +76,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
 
   // 3. Report usage to Stripe Billing Meters API
   const stripe = getStripeInstance();
-  const dedupeSuffix = deduplicationId ?? Date.now().toString();
+  const dedupeSuffix = deduplicationId ?? crypto.randomUUID();
 
   // Use Stripe v2 Billing Meters API for synchronous validation and deduplication
   await stripe.v2.billing.meterEvents.create({

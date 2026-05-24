@@ -4,6 +4,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { stripePrices } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
+import { PRACTICE_ENTITLED_STATUSES } from '@/modules/subscriptions/constants/subscription-statuses';
 import * as schema from '@/schema';
 import { db } from '@/shared/database';
 import { SubscriptionCreated } from '@/shared/events/definitions';
@@ -354,9 +355,10 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
 
       await db.transaction(async (tx) => {
         if (localSub.referenceId) {
+          const isEntitled = (PRACTICE_ENTITLED_STATUSES as readonly string[]).includes(stripeSub.status);
           await tx
             .update(schema.organizations)
-            .set({ activeSubscriptionId: localSub.id })
+            .set({ activeSubscriptionId: isEntitled ? localSub.id : null })
             .where(eq(schema.organizations.id, localSub.referenceId));
         }
 

@@ -96,7 +96,7 @@ const listPlans = async (): Promise<{ plans: SubscriptionPlanResponse[] }> => {
       yearly_price: yearlyPrice?.unit_amount ?? null,
       currency,
       features: rep.features ?? [],
-      limits: rep.limits ?? { users: 0, invoices_per_month: 0, storage_gb: 0 },
+      limits: rep.limits ?? { users: -1, invoices_per_month: -1, storage_gb: 10 },
       metered_items: meteredPrices.length
         ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
         : null,
