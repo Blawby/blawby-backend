@@ -52,6 +52,9 @@ const billingPortalHandler: AppRouteHandler<typeof routes.billingPortalRoute> = 
 
 const listSubscriptionsHandler: AppRouteHandler<typeof routes.listSubscriptionsRoute> = async (c) => {
   const ctx = getServiceContext(c);
+  if (!ctx.organizationId) {
+    return c.json({ subscriptions: [] }, 200);
+  }
   const subs = await db.select().from(subscriptions).where(eq(subscriptions.referenceId, ctx.organizationId));
   return c.json({ subscriptions: subs }, 200);
 };
