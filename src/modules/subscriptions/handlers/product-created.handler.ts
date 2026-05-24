@@ -16,7 +16,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
     });
 
     const stripe = getStripeInstance();
-    const prices = await stripe.prices.list({ product: product.id, active: true, limit: 100 });
+    const allPrices = await stripe.prices.list({ product: product.id, active: true, limit: 100 }).autoPagingToArray({ limit: 10000 });
 
     const metadata = product.metadata || {};
     const displayData = {
@@ -30,7 +30,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
       image: product.images?.[0] ?? null,
     };
 
-    for (const price of prices.data) {
+    for (const price of allPrices) {
       let internalType: string | undefined = undefined;
       let meterName: string | null = null;
 
@@ -68,7 +68,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
 
     logger.info('Successfully processed product.created: {productId} with {priceCount} prices', {
       productId: product.id,
-      priceCount: prices.data.length,
+      priceCount: allPrices.length,
     });
   } catch (error) {
     logger.error('Failed to process product.created: {productId}. Error: {error}', {

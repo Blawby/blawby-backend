@@ -40,6 +40,7 @@ const getOrCreateOrg = async (
     const orgName = `${userData.name}'s org`;
     let orgSlug = generateSlug(userData.name);
 
+    let slugFound = false;
     for (let i = 0; i < 10; i++) {
       const candidate = i === 0 ? orgSlug : `${orgSlug}-${i}`;
       const [existing] = await db
@@ -49,8 +50,12 @@ const getOrCreateOrg = async (
         .limit(1);
       if (!existing) {
         orgSlug = candidate;
+        slugFound = true;
         break;
       }
+    }
+    if (!slugFound) {
+      throw new HTTPException(500, { message: 'Unable to generate unique organization slug' });
     }
 
     const organizationId = crypto.randomUUID();

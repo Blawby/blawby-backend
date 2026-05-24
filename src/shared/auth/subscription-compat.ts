@@ -109,18 +109,16 @@ const compatUpgradeHandler = async (c: Context<AppContext>) => {
   // Resolve stripe_price_id from plan name + interval
   const interval = annual ? 'year' : 'month';
   const price = await subscriptionRepository.findPriceByNameAndInterval(db, planName, interval);
-
+  let fallback = null;
   if (!price) {
-    // Fall back to any active price with this name
-    const fallback = await subscriptionRepository.findPriceByName(db, planName);
+    fallback = await subscriptionRepository.findPriceByName(db, planName);
     if (!fallback) {
       throw new HTTPException(400, { message: `Plan not found: ${planName}` });
     }
     logger.warn('No {interval} price found for plan {planName}, using fallback', { interval, planName });
   }
 
-  const stripePriceId =
-    price?.stripe_price_id ?? (await subscriptionRepository.findPriceByName(db, planName))?.stripe_price_id;
+  const stripePriceId = price?.stripe_price_id ?? fallback?.stripe_price_id;
   if (!stripePriceId) {
     throw new HTTPException(400, { message: `No active price found for plan: ${planName}` });
   }
@@ -212,8 +210,19 @@ const compatListHandler = async (c: Context<AppContext>) => {
 const compatWebhookHandler = async (c: Context<AppContext>) => {
   const rawBody = await c.req.raw.text();
   const signature = c.req.header('stripe-signature') ?? null;
-  await processWebhookRequest(rawBody, signature, '/api/auth/stripe/webhook');
-  return c.json({ received: true }, 200);
+  try {
+    await processWebhookRequest(rawBody, signature, '/api/auth/stripe/webhook');
+    return c.json({ received: true }, 200);
+  } catch (err) {
+    // Signature verification failures return 200 to prevent Stripe retry storms
+    if (err instanceof HTTPException && err.status === 400) {
+      logger.warn('Webhook signature verification failed: {error}', {
+        error: err.message,
+      });
+      return c.json({ received: true }, 200);
+    }
+    throw err;
+  }
 };
 
 export const subscriptionCompatHandlers = {

@@ -16,7 +16,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     });
 
     const stripe = getStripeInstance();
-    const prices = await stripe.prices.list({ product: product.id, active: true, limit: 100 });
+    const allPrices = await stripe.prices.list({ product: product.id, active: true, limit: 100 }).autoPagingToArray({ limit: 10000 });
 
     const metadata = product.metadata || {};
     const displayData = {
@@ -34,7 +34,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     await subscriptionRepository.upsertProductDisplayData(db, product.id, displayData);
 
     // Upsert individual prices (meter data, active status, etc.)
-    const upsertPricePromises = prices.data.map(async (price) => {
+    const upsertPricePromises = allPrices.map(async (price) => {
       let internalType: string | undefined = undefined;
       let meterName: string | null = null;
 
@@ -69,11 +69,20 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
       });
     });
 
-    await Promise.allSettled(upsertPricePromises);
+    const upsertResults = await Promise.allSettled(upsertPricePromises);
+    for (let i = 0; i < upsertResults.length; i++) {
+      const result = upsertResults[i];
+      if (result.status === 'rejected') {
+        logger.error('Failed to upsert price {priceId}: {error}', {
+          priceId: allPrices[i]?.id,
+          error: result.reason,
+        });
+      }
+    }
 
     // Deactivate DB prices not in current Stripe response
     try {
-      const currentPriceIds = new Set(prices.data.map((p) => p.id));
+      const currentPriceIds = new Set(allPrices.map((p) => p.id));
       const dbPrices = await subscriptionRepository.findPricesByProductId(db, product.id);
       const deactivatePromises: Promise<unknown>[] = [];
       for (const dbPrice of dbPrices) {
@@ -91,7 +100,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
 
     logger.info('Successfully processed product.updated: {productId} with {priceCount} prices', {
       productId: product.id,
-      priceCount: prices.data.length,
+      priceCount: allPrices.length,
     });
   } catch (error) {
     logger.error('Failed to process product.updated: {productId}. Error: {error}', {

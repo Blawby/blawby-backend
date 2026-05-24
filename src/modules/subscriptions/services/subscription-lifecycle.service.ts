@@ -424,7 +424,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
         await subscriptionRepository.createEvent(tx, {
           subscription_id: localSub.id,
           event_type: 'canceled',
-          from_status: 'active',
+          from_status: localSub.status,
           to_status: 'canceled',
           triggered_by_type: 'webhook',
           metadata: { plan_name: localSub.plan },

@@ -12,6 +12,7 @@ import { handleSubscriptionEvent } from '@/modules/subscriptions/services/subscr
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
+import type Stripe from 'stripe';
 import { isPaymentIntentEvent, isStripeEvent, isSubscriptionEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['app', 'worker', 'stripe-webhook']);
@@ -100,7 +101,7 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
       await invoiceWebhookService.processEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as { mode?: string };
+      const session = event.data.object as Stripe.Checkout.Session;
       if (session.mode === 'subscription') {
         await handleSubscriptionEvent(event);
         await stripeWebhookEventsRepository.markProcessed(webhookId);

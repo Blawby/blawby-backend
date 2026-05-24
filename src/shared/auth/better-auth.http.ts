@@ -41,6 +41,7 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
   app.post('/api/auth/subscription/upgrade', subscriptionCompatHandlers.compatUpgradeHandler);
   app.post('/api/auth/subscription/cancel', subscriptionCompatHandlers.compatCancelHandler);
   app.get('/api/auth/subscription/list', subscriptionCompatHandlers.compatListHandler);
+  // /cancel and /billing-portal both open the Stripe billing portal (cancel-at-period-end handled inside portal)
   app.post('/api/auth/subscription/billing-portal', subscriptionCompatHandlers.compatCancelHandler);
   app.post('/api/auth/stripe/webhook', subscriptionCompatHandlers.compatWebhookHandler);
 
