@@ -2,6 +2,7 @@ import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
 import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-deleted']);
 
@@ -15,7 +16,7 @@ export const handleProductDeleted = async (product: Stripe.Product | Stripe.Dele
   } catch (error) {
     logger.error('Failed to process product.deleted: {productId}. Error: {error}', {
       productId: product.id,
-      error,
+      error: sanitizeError(error),
     });
     throw error;
   }

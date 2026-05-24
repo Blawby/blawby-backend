@@ -62,8 +62,14 @@ export const processWebhookRequest = async (
     try {
       await queueManager.addWebhookJob(webhookEvent.id, event.id, event.type);
     } catch (err) {
-      logger.error('Failed to queue webhook job for {eventId}: {error}', { eventId: event.id, error: err });
-      // Don't rethrow — Stripe only retries on non-2xx. We've stored the event; queue can be re-triggered.
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to queue webhook job for {eventId}: {error}', { eventId: event.id, error: errorMessage });
+      // Mark failed so getEventsToRetry() can re-queue via nextRetryAt. Don't rethrow — Stripe only retries on non-2xx.
+      try {
+        await stripeWebhookEventsRepository.markFailed(webhookEvent.id, errorMessage);
+      } catch (markErr) {
+        logger.error('Failed to mark webhook as failed: {eventId}', { eventId: event.id });
+      }
     }
   }
 };

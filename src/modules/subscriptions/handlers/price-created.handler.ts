@@ -48,7 +48,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
           features: extractFeatures(product),
           limits: extractLimits(metadata),
           is_public: metadata.is_public !== 'false',
-          sort_order: parseInt(metadata.sort_order || '0', 10),
+          sort_order: parseInt(metadata.sort_order || '0', 10) || 0,
           image: product.images?.[0] ?? null,
         };
       } catch (err) {

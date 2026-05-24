@@ -395,14 +395,18 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
           );
         }
 
-        const dbPrice = await subscriptionRepository.findPriceByName(tx, localSub.plan);
+        const oldDbPrice = await subscriptionRepository.findPriceByName(tx, localSub.plan);
+        const newStripePriceId = stripeSub.items.data[0]?.price?.id;
+        const newDbPrice = newStripePriceId
+          ? await subscriptionRepository.findPriceByStripeId(tx, newStripePriceId)
+          : null;
         await subscriptionRepository.createEvent(tx, {
           subscription_id: localSub.id,
-          plan_id: dbPrice?.id,
-          to_plan_id: dbPrice?.id,
+          plan_id: oldDbPrice?.id,
+          to_plan_id: newDbPrice?.id ?? oldDbPrice?.id,
           event_type: 'plan_changed',
           triggered_by_type: 'webhook',
-          metadata: { plan_name: localSub.plan },
+          metadata: { from_plan_name: localSub.plan, to_plan_name: newDbPrice?.name ?? localSub.plan },
         });
       });
       break;

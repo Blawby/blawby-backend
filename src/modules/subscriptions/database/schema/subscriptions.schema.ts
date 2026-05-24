@@ -9,7 +9,7 @@ export const subscriptions = pgTable('subscriptions', {
   status: text('status').default('incomplete').notNull(),
   periodStart: timestamp('period_start'),
   periodEnd: timestamp('period_end'),
-  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false).notNull(),
   cancelAt: timestamp('cancel_at'),
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),

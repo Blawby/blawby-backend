@@ -1,3 +1,4 @@
+import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
 import { eq } from 'drizzle-orm';
 import * as schema from '@/schema';
@@ -16,6 +17,8 @@ export const createBillingPortalSession = async (
 ): Promise<{ url: string; redirect: boolean }> => {
   const { returnUrl, immediately = false } = params;
   const { organizationId } = ctx;
+
+  ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Subscription');
 
   if (!organizationId) {
     throw new HTTPException(400, { message: 'No active organization' });
