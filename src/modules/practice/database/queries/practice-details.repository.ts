@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   practiceDetails,
@@ -23,6 +23,11 @@ export const findPracticeDetailsByOrganization = async (
       services: true,
     },
   });
+
+export const findPracticeDetailsByOrganizations = async (organizationIds: string[]): Promise<PracticeDetails[]> =>
+  organizationIds.length === 0
+    ? []
+    : await db.select().from(practiceDetails).where(inArray(practiceDetails.organization_id, organizationIds));
 
 export const findPracticeWithOrganization = async (
   organizationId: string
