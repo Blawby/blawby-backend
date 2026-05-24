@@ -232,7 +232,7 @@ export const createCheckoutSession = async (
         success_url: successUrl,
         cancel_url: cancelUrl,
       },
-      { idempotencyKey: `checkout_create:${organizationId}` }
+      { idempotencyKey: `checkout_create:${organizationId}:${subscriptionId}` }
     );
     checkoutUrl = session.url;
   } catch (err) {
