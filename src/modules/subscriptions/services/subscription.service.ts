@@ -1,4 +1,6 @@
 import { getLogger } from '@logtape/logtape';
+
+const DEFAULT_PLAN_LIMITS = { users: -1, invoices_per_month: -1, storage_gb: 10 };
 import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
 import { asc, eq } from 'drizzle-orm';
@@ -96,7 +98,7 @@ const listPlans = async (): Promise<{ plans: SubscriptionPlanResponse[] }> => {
       yearly_price: yearlyPrice?.unit_amount ?? null,
       currency,
       features: rep.features ?? [],
-      limits: rep.limits ?? { users: -1, invoices_per_month: -1, storage_gb: 10 },
+      limits: rep.limits ?? DEFAULT_PLAN_LIMITS,
       metered_items: meteredPrices.length
         ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
         : null,
@@ -229,7 +231,7 @@ const getCurrentSubscription = async (
         yearly_price: yearlyPrice?.unit_amount ?? null,
         currency,
         features: repPrice.features ?? [],
-        limits: repPrice.limits ?? { users: 0, invoices_per_month: 0, storage_gb: 0 },
+        limits: repPrice.limits ?? DEFAULT_PLAN_LIMITS,
         metered_items: meteredPrices.length
           ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
           : null,

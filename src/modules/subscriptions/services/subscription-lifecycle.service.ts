@@ -1,5 +1,5 @@
 import { getLogger } from '@logtape/logtape';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, or, isNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Stripe } from 'stripe';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
@@ -356,10 +356,32 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
       await db.transaction(async (tx) => {
         if (localSub.referenceId) {
           const isEntitled = (PRACTICE_ENTITLED_STATUSES as readonly string[]).includes(stripeSub.status);
-          await tx
-            .update(schema.organizations)
-            .set({ activeSubscriptionId: isEntitled ? localSub.id : null })
-            .where(eq(schema.organizations.id, localSub.referenceId));
+          if (isEntitled) {
+            // Only claim pointer if not already owned by a different subscription
+            await tx
+              .update(schema.organizations)
+              .set({ activeSubscriptionId: localSub.id })
+              .where(
+                and(
+                  eq(schema.organizations.id, localSub.referenceId),
+                  or(
+                    isNull(schema.organizations.activeSubscriptionId),
+                    eq(schema.organizations.activeSubscriptionId, localSub.id)
+                  )
+                )
+              );
+          } else {
+            // Only clear pointer if it still points to this subscription
+            await tx
+              .update(schema.organizations)
+              .set({ activeSubscriptionId: null })
+              .where(
+                and(
+                  eq(schema.organizations.id, localSub.referenceId),
+                  eq(schema.organizations.activeSubscriptionId, localSub.id)
+                )
+              );
+          }
         }
 
         // Update subscription row
@@ -398,18 +420,22 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
         }
 
         const oldDbPrice = await subscriptionRepository.findPriceByName(tx, localSub.plan);
-        const newStripePriceId = stripeSub.items.data[0]?.price?.id;
-        const newDbPrice = newStripePriceId
-          ? await subscriptionRepository.findPriceByStripeId(tx, newStripePriceId)
+        const licensedItem = stripeSub.items.data.find(
+          (item) => item.price.recurring && item.price.recurring.usage_type !== 'metered'
+        );
+        const newDbPrice = licensedItem
+          ? await subscriptionRepository.findPriceByStripeId(tx, licensedItem.price.id)
           : null;
-        await subscriptionRepository.createEvent(tx, {
-          subscription_id: localSub.id,
-          plan_id: oldDbPrice?.id,
-          to_plan_id: newDbPrice?.id ?? oldDbPrice?.id,
-          event_type: 'plan_changed',
-          triggered_by_type: 'webhook',
-          metadata: { from_plan_name: localSub.plan, to_plan_name: newDbPrice?.name ?? localSub.plan },
-        });
+        if (newDbPrice?.id !== oldDbPrice?.id) {
+          await subscriptionRepository.createEvent(tx, {
+            subscription_id: localSub.id,
+            plan_id: oldDbPrice?.id,
+            to_plan_id: newDbPrice?.id ?? oldDbPrice?.id,
+            event_type: 'plan_changed',
+            triggered_by_type: 'webhook',
+            metadata: { from_plan_name: localSub.plan, to_plan_name: newDbPrice?.name ?? localSub.plan },
+          });
+        }
       });
       break;
     }

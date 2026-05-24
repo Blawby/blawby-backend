@@ -41,4 +41,9 @@ CREATE INDEX IF NOT EXISTS "stripe_prices_active_sort_idx" ON "stripe_prices" US
 DROP TABLE IF EXISTS "subscription_plans";--> statement-breakpoint
 
 -- Step 8: Add cancel_at to subscriptions
-ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "cancel_at" timestamp;
+ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "cancel_at" timestamp;--> statement-breakpoint
+
+-- Step 9: Make cancel_at_period_end NOT NULL (backfill NULLs first)
+UPDATE "subscriptions" SET "cancel_at_period_end" = false WHERE "cancel_at_period_end" IS NULL;--> statement-breakpoint
+ALTER TABLE "subscriptions" ALTER COLUMN "cancel_at_period_end" SET DEFAULT false;--> statement-breakpoint
+ALTER TABLE "subscriptions" ALTER COLUMN "cancel_at_period_end" SET NOT NULL;
