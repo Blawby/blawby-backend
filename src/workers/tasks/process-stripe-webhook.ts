@@ -7,10 +7,12 @@
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import { invoiceWebhookService } from '@/modules/invoices/services/invoice.webhook.service';
-import { subscriptionWebhooksService } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
+import { subscriptionWebhooksService } from '@/modules/subscriptions/services/subscription-webhooks.service';
+import { handleSubscriptionEvent } from '@/modules/subscriptions/services/subscription-lifecycle.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
+import type Stripe from 'stripe';
 import { isPaymentIntentEvent, isStripeEvent, isSubscriptionEvent } from '@/shared/utils/stripeGuards';
 
 const logger = getLogger(['app', 'worker', 'stripe-webhook']);
@@ -89,7 +91,8 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
       await subscriptionWebhooksService.processSubscriptionWebhookEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (isSubscriptionEvent(event)) {
-      logger.info('Subscription lifecycle event handled by Better Auth: {eventType}', { eventType: event.type });
+      // customer.subscription.* — owned by subscription lifecycle service (not Better Auth)
+      await handleSubscriptionEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (isOnboardingEvent(event.type)) {
       await onboardingWebhooksService.processEvent(eventId);
@@ -97,11 +100,16 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
     } else if (isInvoiceEvent(event.type)) {
       await invoiceWebhookService.processEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
-    } else if (
-      isPaymentIntentEvent(event) ||
-      event.type === 'charge.succeeded' ||
-      event.type === 'checkout.session.completed'
-    ) {
+    } else if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.mode === 'subscription') {
+        await handleSubscriptionEvent(event);
+        await stripeWebhookEventsRepository.markProcessed(webhookId);
+      } else {
+        await practiceClientIntakesWebhooksService.processEvent(eventId);
+        // Service marks as processed internally
+      }
+    } else if (isPaymentIntentEvent(event) || event.type === 'charge.succeeded') {
       await practiceClientIntakesWebhooksService.processEvent(eventId);
       // Service marks as processed internally
     } else {

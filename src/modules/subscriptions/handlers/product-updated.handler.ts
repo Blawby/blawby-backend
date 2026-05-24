@@ -1,25 +1,13 @@
-/**
- * Product Updated Webhook Handler
- *
- * Handles Stripe product.updated webhook events
- * Updates the subscription plan in the database
- */
-
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
-import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/meteredProducts';
+import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/metered-products';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/productHelpers';
+import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/product-helpers';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
 
-// Helper functions: extracted to '@/modules/subscriptions/utils/productHelpers'
-
-/**
- * Handle product.updated webhook event
- */
 export const handleProductUpdated = async (product: Stripe.Product): Promise<void> => {
   try {
     logger.info('Processing product.updated: {productId} - {productName}', {
@@ -27,46 +15,28 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
       productName: product.name,
     });
 
-    // Fetch existing plan (if any) — if missing, we'll upsert from payload
-    const existingPlan = await subscriptionRepository.findPlanByStripeProductId(db, product.id);
-    if (!existingPlan) {
-      logger.warn('Plan not found for product.updated: {productId}, will upsert from Stripe payload', {
-        productId: product.id,
-      });
-    }
-
-    // Fetch all prices for this product
     const stripe = getStripeInstance();
-    const prices = await stripe.prices.list({
-      product: product.id,
-      active: true,
-      limit: 100,
-    });
+    const allPrices = await stripe.prices
+      .list({ product: product.id, active: true, limit: 100 })
+      .autoPagingToArray({ limit: 10000 });
 
-    // Extract metadata and derived fields
     const metadata = product.metadata || {};
-    const limits = extractLimits(metadata);
-    const features = extractFeatures(product);
-
-    // Update the plan
-    const planData = {
+    const displayData = {
       name: metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_'),
       display_name: product.name,
       description: product.description ?? null,
-      stripe_product_id: product.id,
-      features,
-      limits,
-      is_active: product.active,
+      features: extractFeatures(product),
+      limits: extractLimits(metadata),
       is_public: metadata.is_public !== 'false',
-      sort_order: parseInt(metadata.sort_order || '0', 10),
-      metadata,
-      image: product.images?.[0] || null,
+      sort_order: parseInt(metadata.sort_order || '0', 10) || 0,
+      image: product.images?.[0] ?? null,
     };
 
-    const plan = await subscriptionRepository.upsertPlan(db, planData);
+    // Push display data to all licensed prices for this product
+    await subscriptionRepository.upsertProductDisplayData(db, product.id, displayData);
 
-    // Upsert each price in parallel to avoid awaiting inside a loop
-    const upsertPricePromises = prices.data.map(async (price) => {
+    // Upsert individual prices (meter data, active status, etc.)
+    const upsertPricePromises = allPrices.map(async (price) => {
       let internalType: string | undefined = undefined;
       let meterName: string | null = null;
 
@@ -83,8 +53,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
         }
       }
 
-      const priceData = {
-        plan_id: plan.id,
+      return subscriptionRepository.upsertPrice(db, {
         stripe_price_id: price.id,
         stripe_product_id: product.id,
         currency: price.currency,
@@ -98,16 +67,24 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
         internal_type: internalType,
         is_active: price.active,
         metadata: price.metadata ?? {},
-      };
-
-      return subscriptionRepository.upsertPrice(db, priceData);
+        ...(price.recurring?.usage_type !== 'metered' ? displayData : {}),
+      });
     });
 
-    await Promise.allSettled(upsertPricePromises);
+    const upsertResults = await Promise.allSettled(upsertPricePromises);
+    for (let i = 0; i < upsertResults.length; i++) {
+      const result = upsertResults[i];
+      if (result.status === 'rejected') {
+        logger.error('Failed to upsert price {priceId}: {error}', {
+          priceId: allPrices[i]?.id,
+          error: result.reason,
+        });
+      }
+    }
 
-    // Reconcile: deactivate any DB prices for this product that are not present in Stripe
+    // Deactivate DB prices not in current Stripe response
     try {
-      const currentPriceIds = new Set(prices.data.map((p) => p.id));
+      const currentPriceIds = new Set(allPrices.map((p) => p.id));
       const dbPrices = await subscriptionRepository.findPricesByProductId(db, product.id);
       const deactivatePromises: Promise<unknown>[] = [];
       for (const dbPrice of dbPrices) {
@@ -115,7 +92,6 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
           deactivatePromises.push(subscriptionRepository.upsertPrice(db, { ...dbPrice, is_active: false }));
         }
       }
-
       await Promise.allSettled(deactivatePromises);
     } catch (err) {
       logger.error('Failed to reconcile prices for product {productId}: {error}', {
@@ -126,7 +102,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
 
     logger.info('Successfully processed product.updated: {productId} with {priceCount} prices', {
       productId: product.id,
-      priceCount: prices.data.length,
+      priceCount: allPrices.length,
     });
   } catch (error) {
     logger.error('Failed to process product.updated: {productId}. Error: {error}', {

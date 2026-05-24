@@ -1,25 +1,13 @@
-/**
- * Product Created Webhook Handler
- *
- * Handles Stripe product.created webhook events
- * Creates a new subscription plan and its prices in the database
- */
-
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
-import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/meteredProducts';
+import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/metered-products';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { db } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/productHelpers';
+import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/product-helpers';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-created']);
 
-// Helper implementations moved to '@/modules/subscriptions/utils/productHelpers'
-
-/**
- * Handle product.created webhook event
- */
 export const handleProductCreated = async (product: Stripe.Product): Promise<void> => {
   try {
     logger.info('Processing product.created: {productId} - {productName}', {
@@ -27,42 +15,27 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
       productName: product.name,
     });
 
-    // Fetch all prices for this product
     const stripe = getStripeInstance();
-    const prices = await stripe.prices.list({
-      product: product.id,
-      active: true,
-      limit: 100,
-    });
+    const allPrices = await stripe.prices
+      .list({ product: product.id, active: true, limit: 100 })
+      .autoPagingToArray({ limit: 10000 });
 
-    // Extract metadata and derived fields
     const metadata = product.metadata || {};
-    const limits = extractLimits(metadata);
-    const features = extractFeatures(product);
-
-    // Upsert the plan (product-level data)
-    const planData = {
+    const displayData = {
       name: metadata.plan_name || product.name.toLowerCase().replace(/\s+/g, '_'),
       display_name: product.name,
       description: product.description ?? null,
-      stripe_product_id: product.id,
-      features,
-      limits,
-      is_active: product.active,
+      features: extractFeatures(product),
+      limits: extractLimits(metadata),
       is_public: metadata.is_public !== 'false',
-      sort_order: parseInt(metadata.sort_order || '0', 10),
-      metadata,
-      image: product.images?.[0] || null,
+      sort_order: parseInt(metadata.sort_order || '0', 10) || 0,
+      image: product.images?.[0] ?? null,
     };
 
-    const plan = await subscriptionRepository.upsertPlan(db, planData);
-
-    // Upsert each price
-    for (const price of prices.data) {
+    for (const price of allPrices) {
       let internalType: string | undefined = undefined;
       let meterName: string | null = null;
 
-      // For metered prices, fetch meter and get internal type
       if (price.recurring?.usage_type === 'metered' && price.recurring?.meter) {
         try {
           const meter = await stripe.billing.meters.retrieve(price.recurring.meter);
@@ -76,8 +49,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
         }
       }
 
-      const priceData = {
-        plan_id: plan.id,
+      await subscriptionRepository.upsertPrice(db, {
         stripe_price_id: price.id,
         stripe_product_id: product.id,
         currency: price.currency,
@@ -91,14 +63,14 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
         internal_type: internalType,
         is_active: price.active,
         metadata: price.metadata ?? {},
-      };
-
-      await subscriptionRepository.upsertPrice(db, priceData);
+        // Denormalized product display — only for non-metered (licensed) prices
+        ...(price.recurring?.usage_type !== 'metered' ? displayData : {}),
+      });
     }
 
     logger.info('Successfully processed product.created: {productId} with {priceCount} prices', {
       productId: product.id,
-      priceCount: prices.data.length,
+      priceCount: allPrices.length,
     });
   } catch (error) {
     logger.error('Failed to process product.created: {productId}. Error: {error}', {

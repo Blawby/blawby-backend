@@ -393,6 +393,13 @@
       "when": 1779564232419,
       "tag": "0055_slimy_ravenous",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1779603220988,
+      "tag": "0056_perpetual_rockslide",
+      "breakpoints": true
     }
   ]
 }

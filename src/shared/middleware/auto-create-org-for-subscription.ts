@@ -4,11 +4,15 @@
  * if referenceId is not provided, before the request reaches Better Auth
  */
 
+import { getLogger } from '@logtape/logtape';
 import { eq, inArray } from 'drizzle-orm';
 import type { MiddlewareHandler } from 'hono';
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { sanitizeError } from '@/shared/utils/logging';
+
+const logger = getLogger(['shared', 'middleware', 'auto-create-org']);
 
 const generateSlug = (name: string): string =>
   name
@@ -19,7 +23,7 @@ const generateSlug = (name: string): string =>
 
 export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, next) => {
   // Only handle subscription upgrade requests
-  if (c.req.method !== 'POST' || !c.req.path.includes('/api/auth/subscription/upgrade')) {
+  if (c.req.method !== 'POST' || c.req.path !== '/api/auth/subscription/upgrade') {
     return next();
   }
 
@@ -91,20 +95,26 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
           slugAttempt = `${orgSlug}-${attemptCount}`;
         }
 
-        organizationId = crypto.randomUUID();
-        await db.insert(schema.organizations).values({
-          id: organizationId,
-          name: orgName,
-          slug: orgSlug,
-          createdAt: new Date(),
-        });
+        if (attemptCount >= 10) {
+          orgSlug = `${orgSlug}-${crypto.randomUUID().substring(0, 8)}`;
+        }
 
-        await db.insert(schema.members).values({
-          id: crypto.randomUUID(),
-          userId,
-          organizationId,
-          role: 'owner',
-          createdAt: new Date(),
+        const newOrgId = crypto.randomUUID();
+        organizationId = newOrgId;
+        await db.transaction(async (tx) => {
+          await tx.insert(schema.organizations).values({
+            id: newOrgId,
+            name: orgName,
+            slug: orgSlug,
+            createdAt: new Date(),
+          });
+          await tx.insert(schema.members).values({
+            id: crypto.randomUUID(),
+            userId,
+            organizationId: newOrgId,
+            role: 'owner',
+            createdAt: new Date(),
+          });
         });
       }
     } else {
@@ -161,10 +171,13 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
     body.referenceId = organizationId;
 
     // Create new request with updated body
+    const newBody = JSON.stringify(body);
+    const newHeaders = new Headers(c.req.raw.headers);
+    newHeaders.set('content-length', String(new TextEncoder().encode(newBody).byteLength));
     const newRequest = new Request(c.req.raw.url, {
       method: 'POST',
-      headers: c.req.raw.headers,
-      body: JSON.stringify(body),
+      headers: newHeaders,
+      body: newBody,
     });
 
     // Replace request
@@ -212,7 +225,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
             })
             .where(eq(schema.organizations.id, organizationId));
         } catch (error) {
-          console.error('Error syncing customer ID:', error);
+          logger.error('Error syncing customer ID: {error}', { error: sanitizeError(error) });
         }
       };
       void syncCustomerId();
@@ -220,7 +233,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
 
     return response;
   } catch (error) {
-    console.error('Error in autoCreateOrgForSubscription:', error);
-    return next(); // Continue on error - let Better Auth handle it
+    logger.error('Error in autoCreateOrgForSubscription: {error}', { error: sanitizeError(error) });
+    return next();
   }
 };

@@ -1,160 +1,105 @@
-/**
- * Subscription Repository
- *
- * Data access layer for subscription-related entities:
- * - Subscription Plans (normalized product metadata)
- * - Subscription Prices (individual Stripe prices)
- * - Subscription Line Items (user subscription line items)
- * - Subscription Events (audit trail)
- */
-
-import { eq, and, desc, count, inArray } from 'drizzle-orm';
+import { eq, and, desc, asc } from 'drizzle-orm';
 import type {
   NewSubscriptionEvent,
   SubscriptionEvent,
   SubscriptionEventType,
-} from '@/modules/subscriptions/types/SubscriptionEvents';
+} from '@/modules/subscriptions/types/subscription-events.types';
 import type {
   NewSubscriptionLineItem,
   SubscriptionLineItem,
-} from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
-import type {
-  NewSubscriptionPrice,
-  SubscriptionPrice,
-} from '@/modules/subscriptions/database/schema/subscriptionPrices.schema';
-import type {
-  NewSubscriptionPlan,
-  SubscriptionPlan,
-} from '@/modules/subscriptions/database/schema/subscriptionPlans.schema';
-import {
-  subscriptionEvents,
-  subscriptionLineItems,
-  subscriptionPrices,
-  subscriptionPlans,
-} from '@/modules/subscriptions/database/schema';
+} from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
+import type { NewStripePrice, StripePrice } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
+import { subscriptionEvents, subscriptionLineItems, stripePrices } from '@/modules/subscriptions/database/schema';
 import type { db } from '@/shared/database';
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * --- Subscription Plans Operations ---
+ * --- Stripe Prices Operations ---
  */
 
-const findPlanById = async (db: DbOrTx, planId: string): Promise<SubscriptionPlan | undefined> => {
-  const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId)).limit(1);
-  return plan;
+const findPriceByStripeId = async (db: DbOrTx, stripePriceId: string): Promise<StripePrice | undefined> => {
+  const [price] = await db.select().from(stripePrices).where(eq(stripePrices.stripe_price_id, stripePriceId)).limit(1);
+  return price;
 };
 
-const findPlanByName = async (db: DbOrTx, name: string): Promise<SubscriptionPlan | undefined> => {
-  const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.name, name)).limit(1);
-  return plan;
-};
-
-const findPlanByStripeProductId = async (
-  db: DbOrTx,
-  stripeProductId: string
-): Promise<SubscriptionPlan | undefined> => {
-  const [plan] = await db
-    .select()
-    .from(subscriptionPlans)
-    .where(eq(subscriptionPlans.stripe_product_id, stripeProductId))
-    .limit(1);
-  return plan;
-};
-
-const findAllActivePlans = async (db: DbOrTx): Promise<SubscriptionPlan[]> =>
-  await db
-    .select()
-    .from(subscriptionPlans)
-    .where(eq(subscriptionPlans.is_active, true))
-    .orderBy(subscriptionPlans.sort_order);
-
-const upsertPlan = async (db: DbOrTx, planData: NewSubscriptionPlan): Promise<SubscriptionPlan> => {
-  // Perform an atomic upsert based on stripe_product_id to avoid race conditions
-  const [row] = await db
-    .insert(subscriptionPlans)
-    .values(planData)
-    .onConflictDoUpdate({
-      target: subscriptionPlans.stripe_product_id,
-      set: { ...planData, updated_at: new Date() },
-    })
-    .returning();
-
-  return row;
-};
-
-const deactivatePlan = async (db: DbOrTx, stripeProductId: string): Promise<SubscriptionPlan | undefined> => {
-  const [updated] = await db
-    .update(subscriptionPlans)
-    .set({ is_active: false, updated_at: new Date() })
-    .where(eq(subscriptionPlans.stripe_product_id, stripeProductId))
-    .returning();
-  return updated;
-};
-
-const activatePlan = async (db: DbOrTx, stripeProductId: string): Promise<SubscriptionPlan | undefined> => {
-  const [updated] = await db
-    .update(subscriptionPlans)
-    .set({ is_active: true, updated_at: new Date() })
-    .where(eq(subscriptionPlans.stripe_product_id, stripeProductId))
-    .returning();
-  return updated;
-};
-
-/**
- * --- Subscription Prices Operations ---
- */
-
-const findPriceByStripeId = async (db: DbOrTx, stripePriceId: string): Promise<SubscriptionPrice | undefined> => {
+const findPriceByName = async (db: DbOrTx, name: string): Promise<StripePrice | undefined> => {
   const [price] = await db
     .select()
-    .from(subscriptionPrices)
-    .where(eq(subscriptionPrices.stripe_price_id, stripePriceId))
+    .from(stripePrices)
+    .where(and(eq(stripePrices.name, name), eq(stripePrices.is_active, true)))
+    .orderBy(desc(stripePrices.created_at))
     .limit(1);
   return price;
 };
 
-const findPricesByPlanId = async (db: DbOrTx, planId: string): Promise<SubscriptionPrice[]> =>
-  await db.select().from(subscriptionPrices).where(eq(subscriptionPrices.plan_id, planId));
+const findPriceByNameAndInterval = async (
+  db: DbOrTx,
+  name: string,
+  interval: 'month' | 'year'
+): Promise<StripePrice | undefined> => {
+  const [price] = await db
+    .select()
+    .from(stripePrices)
+    .where(and(eq(stripePrices.name, name), eq(stripePrices.interval, interval), eq(stripePrices.is_active, true)))
+    .orderBy(desc(stripePrices.created_at))
+    .limit(1);
+  return price;
+};
 
-const findPricesByProductId = async (db: DbOrTx, stripeProductId: string): Promise<SubscriptionPrice[]> =>
-  await db.select().from(subscriptionPrices).where(eq(subscriptionPrices.stripe_product_id, stripeProductId));
+const findPricesByProductId = async (db: DbOrTx, stripeProductId: string): Promise<StripePrice[]> =>
+  await db.select().from(stripePrices).where(eq(stripePrices.stripe_product_id, stripeProductId));
 
-const upsertPrice = async (db: DbOrTx, priceData: NewSubscriptionPrice): Promise<SubscriptionPrice> => {
-  // Atomic upsert on stripe_price_id to avoid races
+/** Returns all active licensed (non-metered) prices, sorted by sort_order for plan catalog display. */
+const findAllActiveBasePrices = async (db: DbOrTx): Promise<StripePrice[]> =>
+  await db
+    .select()
+    .from(stripePrices)
+    .where(and(eq(stripePrices.usage_type, 'licensed'), eq(stripePrices.is_active, true)))
+    .orderBy(asc(stripePrices.sort_order));
+
+const upsertPrice = async (db: DbOrTx, priceData: NewStripePrice): Promise<StripePrice> => {
   const [row] = await db
-    .insert(subscriptionPrices)
+    .insert(stripePrices)
     .values(priceData)
     .onConflictDoUpdate({
-      target: subscriptionPrices.stripe_price_id,
+      target: stripePrices.stripe_price_id,
       set: { ...priceData, updated_at: new Date() },
     })
     .returning();
-
   return row;
 };
 
-const findPricesByPlanIds = async (db: DbOrTx, planIds: string[]): Promise<SubscriptionPrice[]> =>
-  await db.select().from(subscriptionPrices).where(inArray(subscriptionPrices.plan_id, planIds));
-
-const deletePrice = async (db: DbOrTx, stripePriceId: string): Promise<void> => {
-  await db.delete(subscriptionPrices).where(eq(subscriptionPrices.stripe_price_id, stripePriceId));
+/** Update denormalized product display columns on all prices sharing a stripe_product_id. */
+const upsertProductDisplayData = async (
+  db: DbOrTx,
+  stripeProductId: string,
+  displayData: {
+    name?: string | null;
+    display_name?: string | null;
+    description?: string | null;
+    features?: string[] | null;
+    limits?: { users: number; invoices_per_month: number; storage_gb: number } | null;
+    is_public?: boolean;
+    sort_order?: number;
+    image?: string | null;
+  }
+): Promise<void> => {
+  await db
+    .update(stripePrices)
+    .set({ ...displayData, updated_at: new Date() })
+    .where(eq(stripePrices.stripe_product_id, stripeProductId));
 };
 
 const deactivatePricesByProductId = async (db: DbOrTx, stripeProductId: string): Promise<void> => {
   await db
-    .update(subscriptionPrices)
+    .update(stripePrices)
     .set({ is_active: false, updated_at: new Date() })
-    .where(eq(subscriptionPrices.stripe_product_id, stripeProductId));
+    .where(eq(stripePrices.stripe_product_id, stripeProductId));
 };
 
-const countActivePricesForPlan = async (db: DbOrTx, planId: string): Promise<number> => {
-  const [row] = await db
-    .select({ count: count() })
-    .from(subscriptionPrices)
-    .where(and(eq(subscriptionPrices.plan_id, planId), eq(subscriptionPrices.is_active, true)));
-
-  return Number(row?.count ?? 0);
+const deletePrice = async (db: DbOrTx, stripePriceId: string): Promise<void> => {
+  await db.delete(stripePrices).where(eq(stripePrices.stripe_price_id, stripePriceId));
 };
 
 /**
@@ -202,23 +147,16 @@ const findEventsBySubscriptionIdAndType = async (
     .orderBy(desc(subscriptionEvents.created_at));
 
 export const subscriptionRepository = {
-  // Plans
-  findPlanById,
-  findPlanByName,
-  findPlanByStripeProductId,
-  findAllActivePlans,
-  upsertPlan,
-  deactivatePlan,
-  activatePlan,
   // Prices
   findPriceByStripeId,
-  findPricesByPlanId,
-  findPricesByPlanIds,
+  findPriceByName,
   findPricesByProductId,
+  findAllActiveBasePrices,
+  findPriceByNameAndInterval,
   upsertPrice,
-  deletePrice,
+  upsertProductDisplayData,
   deactivatePricesByProductId,
-  countActivePricesForPlan,
+  deletePrice,
   // Line Items
   upsertLineItem,
   // Events

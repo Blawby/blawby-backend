@@ -24,7 +24,7 @@
     "db:migrate:staging": "tsx scripts/migrate-from-secrets.ts cf-secrets.staging.json",
     "db:migrate:prod": "tsx scripts/migrate-from-secrets.ts cf-secrets.production.json",
     "db:studio": "drizzle-kit studio",
-    "sync:plans": "tsx src/scripts/syncSubscriptionPlans.ts",
+    "sync:plans": "tsx src/scripts/sync-subscription-plans.ts",
     "sync:schemas": "tsx scripts/sync-schemas.ts",
     "sync:listeners": "tsx scripts/sync-listeners.ts",
     "init:preferences": "tsx scripts/initialize-user-preferences.ts",

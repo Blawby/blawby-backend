@@ -1,9 +1,9 @@
 import { oauthProviderOpenIdConfigMetadata, oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import type { Hono } from 'hono';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { subscriptionCompatHandlers } from '@/shared/auth/subscription-compat';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
-import { autoCreateOrgForSubscription } from '@/shared/middleware/autoCreateOrgForSubscription';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
 import type { AppContext } from '@/shared/types/hono';
@@ -16,7 +16,6 @@ const getAuthInstance = (host: string | undefined) => {
 const registerAuthRoutes = (app: Hono<AppContext>): void => {
   app.use('/api/auth/*', normalizeAuthResponse());
   app.use('/api/auth/*', sanitizeAuthResponse());
-  app.use('/api/auth/*', autoCreateOrgForSubscription());
 
   // RFC 8414 AS metadata — path-aware issuer requires suffix
   app.get('/.well-known/oauth-authorization-server/api/auth', (c) =>
@@ -37,6 +36,14 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
   app.get('/.well-known/openid-configuration', (c) =>
     oauthProviderOpenIdConfigMetadata(getAuthInstance(c.req.header('host')))(c.req.raw)
   );
+
+  // Compat aliases — must be registered BEFORE the Better Auth catch-all
+  app.post('/api/auth/subscription/upgrade', subscriptionCompatHandlers.compatUpgradeHandler);
+  app.post('/api/auth/subscription/cancel', subscriptionCompatHandlers.compatCancelHandler);
+  app.get('/api/auth/subscription/list', subscriptionCompatHandlers.compatListHandler);
+  // /cancel and /billing-portal both open the Stripe billing portal (cancel-at-period-end handled inside portal)
+  app.post('/api/auth/subscription/billing-portal', subscriptionCompatHandlers.compatCancelHandler);
+  app.post('/api/auth/stripe/webhook', subscriptionCompatHandlers.compatWebhookHandler);
 
   app.on(['POST', 'GET'], '/api/auth/*', (c) => getAuthInstance(c.req.header('host')).handler(c.req.raw));
 };

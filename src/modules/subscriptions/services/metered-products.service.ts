@@ -10,7 +10,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
-import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/meteredProducts';
+import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
 import { organizations, subscriptionLineItems, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
 import { db as appDb } from '@/shared/database';
@@ -76,7 +76,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
 
   // 3. Report usage to Stripe Billing Meters API
   const stripe = getStripeInstance();
-  const dedupeSuffix = deduplicationId ?? Date.now().toString();
+  const dedupeSuffix = deduplicationId ?? crypto.randomUUID();
 
   // Use Stripe v2 Billing Meters API for synchronous validation and deduplication
   await stripe.v2.billing.meterEvents.create({

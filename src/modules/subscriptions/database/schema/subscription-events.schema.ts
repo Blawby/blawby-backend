@@ -5,11 +5,11 @@
  */
 
 import { pgTable, text, timestamp, uuid, jsonb, index } from 'drizzle-orm/pg-core';
-import { subscriptions } from '@/schema/better-auth-schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 import type {
   SubscriptionEventType,
   SubscriptionTriggeredByType,
-} from '@/modules/subscriptions/types/SubscriptionEvents';
+} from '@/modules/subscriptions/types/subscription-events.types';
 
 export const subscriptionEvents = pgTable(
   'subscription_events',

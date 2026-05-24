@@ -3,8 +3,8 @@
  *
  * Single source of truth for subscription status values used across the codebase.
  *
- * NOTE: These statuses are based on current Better Auth Stripe plugin usage.
- * If the plugin adds more statuses that grant access, update PRACTICE_ENTITLED_STATUSES accordingly.
+ * NOTE: These statuses determine which Stripe subscription states grant practice access.
+ * If Stripe adds more statuses that should grant access, update PRACTICE_ENTITLED_STATUSES accordingly.
  */
 
 // Stripe subscription statuses that grant practice access
@@ -19,6 +19,7 @@ export const SUBSCRIPTION_STATUSES = {
   UNPAID: 'unpaid',
   INCOMPLETE: 'incomplete',
   INCOMPLETE_EXPIRED: 'incomplete_expired',
+  PAUSED: 'paused',
 } as const;
 
 // Status types for better type safety

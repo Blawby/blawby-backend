@@ -8,7 +8,7 @@
  */
 
 import { config } from '@dotenvx/dotenvx';
-import { syncPlansService } from '@/modules/subscriptions/services/syncPlans.service';
+import { syncPlansService } from '@/modules/subscriptions/services/sync-plans.service';
 
 // Load environment variables
 config();
@@ -44,4 +44,7 @@ const main = async (): Promise<void> => {
 };
 
 // Run the script
-main();
+main().catch((error) => {
+  console.error('Unhandled error:', error);
+  process.exit(1);
+});

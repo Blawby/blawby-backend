@@ -41,7 +41,7 @@ export const getWorkerUtils = async (): Promise<WorkerUtils> => {
         workerUtilsPromise = null;
         console.error('❌ Graphile Worker connection error:', err);
         throw err;
-      },
+      }
     );
   }
 

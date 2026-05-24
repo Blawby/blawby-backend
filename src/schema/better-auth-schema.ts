@@ -161,30 +161,6 @@ export const invitations = pgTable('invitations', {
 });
 
 /**
- * Subscriptions table for Better Auth Stripe plugin
- * This table stores subscription data managed by Better Auth
- */
-export const subscriptions = pgTable('subscriptions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  plan: text('plan').notNull(),
-  referenceId: uuid('reference_id'), // Organization ID or User ID
-  stripeCustomerId: text('stripe_customer_id'),
-  stripeSubscriptionId: text('stripe_subscription_id'),
-  status: text('status').default('incomplete').notNull(),
-  periodStart: timestamp('period_start'),
-  periodEnd: timestamp('period_end'),
-  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false),
-  seats: integer('seats'),
-  trialStart: timestamp('trial_start'),
-  trialEnd: timestamp('trial_end'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
-
-/**
  * Rate Limits table for Better Auth's built-in rate limiting
  *
  * This table is used by Better Auth when rateLimit.storage is set to 'database'.
