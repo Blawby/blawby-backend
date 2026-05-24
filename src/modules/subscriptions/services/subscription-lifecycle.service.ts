@@ -62,6 +62,8 @@ export const syncSubscriptionToOrg = async (
   const hadCreatedEvent =
     (await subscriptionRepository.findEventsBySubscriptionIdAndType(dbOrTx, subscriptionId, 'created')).length > 0;
   let subscriptionSynced = false;
+  const stripeIdsToCancel: string[] = [];
+  let cancelIncomingAndStop = false;
 
   await dbOrTx.transaction(async (tx) => {
     const [existingOrg] = await tx
@@ -86,32 +88,25 @@ export const syncSubscriptionToOrg = async (
             'Race condition: incoming subscription {incomingId} is OLDER than active {existingId}. Canceling incoming.',
             { incomingId: subscriptionId, existingId: oldSub.id }
           );
-          try {
-            await getStripeInstance().subscriptions.cancel(stripeSubscription.id);
-          } catch (err) {
-            logger.error('Failed to cancel stale incoming subscription in Stripe: {error}', { error: err });
-          }
           await tx
             .update(schema.subscriptions)
             .set({ status: 'canceled', updatedAt: new Date() })
             .where(eq(schema.subscriptions.id, subscriptionId));
+          stripeIdsToCancel.push(stripeSubscription.id);
+          cancelIncomingAndStop = true;
           return;
         } else {
           logger.warn(
             'Race condition: incoming subscription {incomingId} is NEWER than active {existingId}. Canceling existing.',
             { incomingId: subscriptionId, existingId: oldSub.id }
           );
-          if (oldSub.stripeSubscriptionId) {
-            try {
-              await getStripeInstance().subscriptions.cancel(oldSub.stripeSubscriptionId);
-            } catch (err) {
-              logger.error('Failed to cancel stale existing subscription in Stripe: {error}', { error: err });
-            }
-          }
           await tx
             .update(schema.subscriptions)
             .set({ status: 'canceled', updatedAt: new Date() })
             .where(eq(schema.subscriptions.id, oldSub.id));
+          if (oldSub.stripeSubscriptionId) {
+            stripeIdsToCancel.push(oldSub.stripeSubscriptionId);
+          }
         }
       }
     }
@@ -178,6 +173,21 @@ export const syncSubscriptionToOrg = async (
     });
     subscriptionSynced = true;
   });
+
+  // Cancel stale Stripe subscriptions after the transaction commits — keeps
+  // lock duration short and avoids partial rollback leaving Stripe inconsistent.
+  for (const stripeId of stripeIdsToCancel) {
+    try {
+      await getStripeInstance().subscriptions.cancel(stripeId);
+    } catch (err) {
+      logger.error('Failed to cancel stale subscription in Stripe after commit: {stripeId} - {error}', {
+        stripeId,
+        error: err,
+      });
+    }
+  }
+
+  if (cancelIncomingAndStop) return;
 
   // Idempotent SubscriptionCreated dispatch
   if (subscriptionSynced && !hadCreatedEvent) {
