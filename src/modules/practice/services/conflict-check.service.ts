@@ -4,6 +4,7 @@ import { and, eq, gt, isNull, isNotNull, sql } from 'drizzle-orm';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { db } from '@/shared/database';
 import { ConflictCheckCompleted } from '@/shared/events/definitions/engagement-contracts';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -11,6 +12,7 @@ import type {
   ConflictCheckInput,
   ConflictCheckResult,
   ConflictCheckStatus,
+  ConflictCheckWarning,
 } from '@/modules/practice/types/conflict-check.types';
 
 const logger = getLogger(['practice', 'conflict-check-service']);
@@ -37,6 +39,49 @@ const getSuggestedAction = (status: ConflictCheckStatus): string => {
   return suggestedActions[status];
 };
 
+const buildWarnings = async (organizationId: string, input: ConflictCheckInput): Promise<ConflictCheckWarning[]> => {
+  if (!input.state && !input.practice_service_key) {
+    return [];
+  }
+
+  const details = await findPracticeDetailsByOrganization(organizationId);
+  if (!details) {
+    return [];
+  }
+
+  const warnings: ConflictCheckWarning[] = [];
+
+  if (input.state) {
+    const state = input.state.toUpperCase();
+    const supported = details.supported_states ?? [];
+    const serviceStates = details.service_states ?? [];
+
+    const inSupportedStates = supported.some((entry) => !entry.states || entry.states.includes(state));
+    const inServiceStates = serviceStates.includes(state);
+
+    if (supported.length > 0 && !inSupportedStates && !inServiceStates) {
+      warnings.push({
+        type: 'unsupported_state',
+        message: `Practice does not serve clients in ${state}.`,
+      });
+    }
+  }
+
+  if (input.practice_service_key) {
+    const services = details.services ?? [];
+    const offered = services.some((s) => s.key === input.practice_service_key);
+
+    if (services.length > 0 && !offered) {
+      warnings.push({
+        type: 'unsupported_service',
+        message: `Practice does not offer the requested service (${input.practice_service_key}).`,
+      });
+    }
+  }
+
+  return warnings;
+};
+
 const runConflictCheck = async (
   { data }: { data: ConflictCheckInput },
   ctx: ServiceContext
@@ -49,6 +94,7 @@ const runConflictCheck = async (
       status: 'insufficient_data',
       conflicting_matters: [],
       conflicting_contacts: [],
+      warnings: [],
       suggested_next_action: getSuggestedAction('insufficient_data'),
     };
   }
@@ -69,6 +115,7 @@ const runConflictCheck = async (
       client_id: string;
       name: string;
       similarity_score: number;
+      date_of_birth: string | null;
     }
   >();
 
@@ -111,6 +158,7 @@ const runConflictCheck = async (
           client_id: clients.id,
           name: clients.name,
           similarity_score: sql<number>`similarity(${clients.name}, ${term})`,
+          date_of_birth: clients.date_of_birth,
         })
         .from(clients)
         .where(
@@ -155,13 +203,20 @@ const runConflictCheck = async (
           client_id: row.client_id,
           name: row.name ?? 'Unknown',
           similarity_score: row.similarity_score,
+          date_of_birth: row.date_of_birth,
         });
       }
     }
   }
 
   const conflicting_matters = [...matterMatches.values()].sort((a, b) => b.similarity_score - a.similarity_score);
-  const conflicting_contacts = [...contactMatches.values()].sort((a, b) => b.similarity_score - a.similarity_score);
+
+  const conflicting_contacts = [...contactMatches.values()]
+    .sort((a, b) => b.similarity_score - a.similarity_score)
+    .map(({ date_of_birth, ...rest }) => ({
+      ...rest,
+      dob_match: data.date_of_birth && date_of_birth ? data.date_of_birth === date_of_birth : null,
+    }));
 
   const highestScore = Math.max(
     ...conflicting_matters.map((item) => item.similarity_score),
@@ -174,10 +229,13 @@ const runConflictCheck = async (
     status = highestScore >= CONFLICT_THRESHOLD ? 'conflicted' : 'review_required';
   }
 
+  const warnings = await buildWarnings(ctx.organizationId, data);
+
   const result: ConflictCheckResult = {
     status,
     conflicting_matters,
     conflicting_contacts,
+    warnings,
     suggested_next_action: getSuggestedAction(status),
   };
 
@@ -195,6 +253,7 @@ const runConflictCheck = async (
             status: result.status,
             conflicting_matters: result.conflicting_matters,
             conflicting_contacts: result.conflicting_contacts,
+            warnings: result.warnings,
             suggested_next_action: result.suggested_next_action,
             checked_at: new Date().toISOString(),
           },
@@ -228,6 +287,7 @@ const runConflictCheck = async (
     status: result.status,
     matterCount: result.conflicting_matters.length,
     contactCount: result.conflicting_contacts.length,
+    warningCount: result.warnings.length,
   });
 
   return result;
