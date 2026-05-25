@@ -8,6 +8,11 @@ import { db } from '@/shared/database';
 const findServicesByOrganization = async (organizationId: string): Promise<PracticeService[]> =>
   await db.select().from(practiceServices).where(eq(practiceServices.organization_id, organizationId));
 
+const findServicesByOrganizations = async (organizationIds: string[]): Promise<PracticeService[]> =>
+  organizationIds.length === 0
+    ? []
+    : await db.select().from(practiceServices).where(inArray(practiceServices.organization_id, organizationIds));
+
 /**
  * Upsert services for an organization within a transaction
  * Handles creating new ones, updating existing ones, and deleting removed ones.
@@ -87,6 +92,7 @@ const findById = async (id: string): Promise<PracticeService | undefined> => {
 
 export const practiceServicesRepository = {
   findServicesByOrganization,
+  findServicesByOrganizations,
   syncServicesTx,
   findById,
 };
