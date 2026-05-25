@@ -28,9 +28,8 @@ Goal: expose Blawby data to Claude Desktop and other MCP clients via authenticat
 ### What to build
 
 **1. MCP auth middleware** in `src/shared/auth/better-auth.http.ts`
-- Add `mcpAuthHono` from `better-auth/plugins/mcp/client/adapters`
-- Mount `/.well-known/oauth-protected-resource` discovery endpoint
-- Apply Bearer token validation middleware to all `/mcp/*` routes
+- Mount `/.well-known/oauth-protected-resource/mcp` discovery endpoint (RFC 9728)
+- Use `mcpHandler` from `@better-auth/oauth-provider` (not `mcpAuthHono`) for Bearer token validation
 
 **2. Custom scopes** in `src/shared/auth/better-auth.ts`
 ```

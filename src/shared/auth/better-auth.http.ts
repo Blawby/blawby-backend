@@ -51,7 +51,10 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
 
   // RFC 9728 Protected Resource Metadata for MCP server
   app.get('/.well-known/oauth-protected-resource/mcp', (c) => {
-    const baseUrl = config.app.baseUrl ?? '';
+    const baseUrl = config.app.baseUrl;
+    if (!baseUrl) {
+      return c.json({ error: 'Server misconfigured: baseUrl not set' }, 500);
+    }
     return c.json({
       resource: `${baseUrl}/mcp`,
       authorization_servers: [baseUrl],

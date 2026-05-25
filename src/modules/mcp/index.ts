@@ -4,7 +4,10 @@ import { mcpHandler } from '@better-auth/oauth-provider';
 import { config } from '@/shared/config';
 import { handleMcpRequest } from '@/modules/mcp/server';
 
-const baseUrl = config.app.baseUrl ?? '';
+const baseUrl = config.app.baseUrl;
+if (!baseUrl) {
+  throw new Error('config.app.baseUrl is required for MCP authentication');
+}
 
 const mcpRequestHandler = mcpHandler(
   {
