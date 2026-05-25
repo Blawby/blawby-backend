@@ -1,7 +1,6 @@
-import { eq, asc, and } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import {
   matterDeadlines,
-  serializeAlertDays,
   type InsertMatterDeadline,
   type SelectMatterDeadline,
 } from '@/modules/matters/database/schema/matter-deadlines.schema';
@@ -26,20 +25,18 @@ const listMatterDeadlines = async (matterId: string): Promise<SelectMatterDeadli
 
 const updateMatterDeadline = async (
   id: string,
-  data: Partial<InsertMatterDeadline> & { alert_days_before_arr?: number[] }
+  data: Partial<InsertMatterDeadline>
 ): Promise<SelectMatterDeadline | undefined> => {
-  const { alert_days_before_arr, ...rest } = data;
-  const patch: Partial<InsertMatterDeadline> = { ...rest, updated_at: new Date() };
-  if (alert_days_before_arr !== undefined) {
-    patch.alert_days_before = serializeAlertDays(alert_days_before_arr);
-  }
-
-  const [updated] = await db.update(matterDeadlines).set(patch).where(eq(matterDeadlines.id, id)).returning();
+  const [updated] = await db
+    .update(matterDeadlines)
+    .set({ ...data, updated_at: new Date() })
+    .where(eq(matterDeadlines.id, id))
+    .returning();
   return updated;
 };
 
 const deleteMatterDeadline = async (id: string): Promise<void> => {
-  await db.delete(matterDeadlines).where(and(eq(matterDeadlines.id, id)));
+  await db.delete(matterDeadlines).where(eq(matterDeadlines.id, id));
 };
 
 export const matterDeadlinesQueries = {

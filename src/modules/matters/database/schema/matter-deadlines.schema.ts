@@ -17,8 +17,7 @@ export const matterDeadlines = pgTable(
     date: date('date').notNull(),
     type: varchar('type', { length: 20 }).$type<DeadlineType>().notNull(),
     source: text('source'),
-    // Stored as comma-separated integers; parsed in application layer
-    alert_days_before: varchar('alert_days_before', { length: 255 }),
+    alert_days_before: integer('alert_days_before').array().notNull().default([]),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
@@ -38,13 +37,3 @@ export const matterDeadlinesRelations = relations(matterDeadlines, ({ one }) => 
 
 export type InsertMatterDeadline = typeof matterDeadlines.$inferInsert;
 export type SelectMatterDeadline = typeof matterDeadlines.$inferSelect;
-
-export const serializeAlertDays = (days: number[]): string => [...new Set(days)].sort((a, b) => a - b).join(',');
-
-export const parseAlertDays = (raw: string | null): number[] => {
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map(Number)
-    .filter((n) => !isNaN(n) && n > 0);
-};
