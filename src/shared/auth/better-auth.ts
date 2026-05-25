@@ -137,6 +137,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           return typeof orgId === 'string' ? orgId : undefined;
         },
         clientPrivileges: (params) => checkClientIsOwner(params, db),
+        customAccessTokenClaims: ({ referenceId }) => ({
+          organization_id: referenceId,
+        }),
       }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
