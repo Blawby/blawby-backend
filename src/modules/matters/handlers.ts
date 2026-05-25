@@ -1,4 +1,5 @@
 import type { routes as matterRoutes } from '@/modules/matters/routes';
+import { matterDeadlinesService } from '@/modules/matters/services/matter-deadlines.service';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
@@ -375,6 +376,34 @@ const listOrganizationTasksHandler: AppRouteHandler<typeof matterRoutes.listOrga
   return c.json(result, 200);
 };
 
+const listDeadlinesHandler: AppRouteHandler<typeof matterRoutes.listDeadlinesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const deadlines = await matterDeadlinesService.listDeadlines({}, ctx);
+  return c.json(deadlines, 200);
+};
+
+const createDeadlineHandler: AppRouteHandler<typeof matterRoutes.createDeadlineRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const deadline = await matterDeadlinesService.createDeadline({ data: body }, ctx);
+  return c.json(deadline, 201);
+};
+
+const updateDeadlineHandler: AppRouteHandler<typeof matterRoutes.updateDeadlineRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { deadline_id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const deadline = await matterDeadlinesService.updateDeadline({ deadlineId: deadline_id, data: body }, ctx);
+  return c.json(deadline, 200);
+};
+
+const deleteDeadlineHandler: AppRouteHandler<typeof matterRoutes.deleteDeadlineRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { deadline_id } = c.req.valid('param');
+  await matterDeadlinesService.deleteDeadline({ deadlineId: deadline_id }, ctx);
+  return c.body(null, 204);
+};
+
 export const handlers = {
   listMattersHandler,
   getMatterHandler,
@@ -410,4 +439,8 @@ export const handlers = {
   linkMatterFileHandler,
   listMatterFilesHandler,
   unlinkMatterFileHandler,
+  listDeadlinesHandler,
+  createDeadlineHandler,
+  updateDeadlineHandler,
+  deleteDeadlineHandler,
 };

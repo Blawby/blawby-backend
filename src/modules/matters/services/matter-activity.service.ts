@@ -122,6 +122,9 @@ const ActivityAction = {
   MILESTONE_UPDATED: 'milestone_updated',
   MILESTONE_DELETED: 'milestone_deleted',
   MILESTONE_COMPLETED: 'milestone_completed',
+  DEADLINE_CREATED: 'deadline_created',
+  DEADLINE_UPDATED: 'deadline_updated',
+  DEADLINE_DELETED: 'deadline_deleted',
   ASSIGNEE_ADDED: 'assignee_added',
   ASSIGNEE_REMOVED: 'assignee_removed',
 } as const;
