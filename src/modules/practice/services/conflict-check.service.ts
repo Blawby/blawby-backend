@@ -59,7 +59,7 @@ const buildWarnings = async (organizationId: string, input: ConflictCheckInput):
     const inSupportedStates = supported.some((entry) => !entry.states || entry.states.includes(state));
     const inServiceStates = serviceStates.includes(state);
 
-    if (supported.length > 0 && !inSupportedStates && !inServiceStates) {
+    if (!inSupportedStates && !inServiceStates) {
       warnings.push({
         type: 'unsupported_state',
         message: `Practice does not serve clients in ${state}.`,

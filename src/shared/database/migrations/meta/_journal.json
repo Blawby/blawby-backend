@@ -400,6 +400,13 @@
       "when": 1779603220988,
       "tag": "0056_perpetual_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1779695803287,
+      "tag": "0057_glamorous_siren",
+      "breakpoints": true
     }
   ]
 }
