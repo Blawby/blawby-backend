@@ -99,10 +99,10 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
       const bodyShape = ((bodySchema?.['schema'] as ZodObject<ZodRawShape> | undefined)?.shape as ZodRawShape | undefined) ?? {};
 
       // Path params — exclude org-scoping fields (practice_id, organization_id)
-      const ORG_PARAMS = new Set(['practice_id', 'organization_id']);
+      const orgParams = new Set(['practice_id', 'organization_id']);
       const paramsShape = (req?.['params'] as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
       const filteredParams = Object.fromEntries(
-        Object.entries(paramsShape).filter(([k]) => !ORG_PARAMS.has(k)),
+        Object.entries(paramsShape).filter(([k]) => !orgParams.has(k)),
       );
 
       // Query params
