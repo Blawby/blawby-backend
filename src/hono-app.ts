@@ -9,6 +9,7 @@ import { bootApplication } from '@/boot';
 import { registerAuthRoutes } from '@/shared/auth/better-auth.http';
 import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
 import { uploadsHttp } from '@/shared/uploads/http';
+import { mcpHttp } from '@/modules/mcp';
 import { registerModuleRoutes } from '@/shared/router/module-router';
 import { createOpenApiApp, buildOpenApiDocument } from '@/shared/router/openapi-router';
 import type { AppContext } from '@/shared/types/hono';
@@ -38,6 +39,9 @@ await registerModuleRoutes(app);
 
 // Shared upload infrastructure endpoints
 app.route('/api/uploads', uploadsHttp);
+
+// MCP server — Bearer token auth handled inside mcpHttp
+app.route('/mcp', mcpHttp);
 
 const openApiApp = createOpenApiApp();
 

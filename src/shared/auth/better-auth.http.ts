@@ -6,6 +6,8 @@ import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import { normalizeAuthResponse } from '@/shared/middleware/normalizeAuthResponse';
 import { sanitizeAuthResponse } from '@/shared/middleware/sanitizeAuthResponse';
+
+import { config } from '@/shared/config';
 import type { AppContext } from '@/shared/types/hono';
 
 const getAuthInstance = (host: string | undefined) => {
@@ -46,6 +48,20 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
   app.post('/api/auth/stripe/webhook', subscriptionCompatHandlers.compatWebhookHandler);
 
   app.on(['POST', 'GET'], '/api/auth/*', (c) => getAuthInstance(c.req.header('host')).handler(c.req.raw));
+
+  // RFC 9728 Protected Resource Metadata for MCP server
+  app.get('/.well-known/oauth-protected-resource/mcp', (c) => {
+    const baseUrl = config.app.baseUrl;
+    if (!baseUrl) {
+      return c.json({ error: 'Server misconfigured: baseUrl not set' }, 500);
+    }
+    return c.json({
+      resource: `${baseUrl}/mcp`,
+      authorization_servers: [baseUrl],
+      scopes_supported: ['matters:read', 'matters:write', 'clients:read', 'invoices:read', 'invoices:write'],
+      resource_name: 'Blawby MCP API',
+    });
+  });
 };
 
 export { registerAuthRoutes };
