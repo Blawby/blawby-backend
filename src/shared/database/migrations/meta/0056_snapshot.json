@@ -777,8 +777,14 @@
           "name": "cancel_at_period_end",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": false
+        },
+        "cancel_at": {
+          "name": "cancel_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "seats": {
           "name": "seats",

@@ -50,6 +50,7 @@ export const stripePrices = pgTable(
       .notNull(),
   },
   (table) => [
+    index('stripe_prices_stripe_price_idx').on(table.stripe_price_id),
     index('stripe_prices_product_idx').on(table.stripe_product_id),
     index('stripe_prices_name_idx').on(table.name),
     index('stripe_prices_active_sort_idx').on(table.is_active, table.sort_order),

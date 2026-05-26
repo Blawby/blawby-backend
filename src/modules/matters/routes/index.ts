@@ -47,6 +47,7 @@ import {
 } from '@/modules/matters/routes/time-entries.routes';
 
 import { getMatterUnbilledRoute } from '@/modules/matters/routes/unbilled.routes';
+import { mattersDeadlinesRoutes } from '@/modules/matters/routes/deadlines.routes';
 
 export const routes = {
   createMatterRoute,
@@ -83,4 +84,5 @@ export const routes = {
   linkMatterFileRoute,
   listMatterFilesRoute,
   unlinkMatterFileRoute,
+  ...mattersDeadlinesRoutes,
 };
