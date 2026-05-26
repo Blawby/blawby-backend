@@ -3,7 +3,7 @@ import { mcpContext } from '@/modules/mcp/mcp-context';
 import type { McpJwt } from '@/modules/mcp/types';
 import type { AnyToolDef } from '@/modules/mcp/types';
 import { z } from '@hono/zod-openapi';
-import { ZodRawShape } from 'zod';
+import type { ZodRawShape } from 'zod';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const defineTool = <S extends ZodRawShape>(def: {
