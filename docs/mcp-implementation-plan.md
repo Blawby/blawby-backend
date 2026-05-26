@@ -16,14 +16,14 @@ Goal: expose Blawby data to Claude Desktop and other MCP clients via authenticat
 | File | Change |
 |------|--------|
 | `package.json` | add `@modelcontextprotocol/sdk` |
-| `src/shared/auth/better-auth.ts` | add scopes array to `oauthProvider` config |
-| `src/shared/auth/better-auth.http.ts` | add `mcpAuthHono` middleware + discovery routes |
-| `src/modules/mcp/index.ts` | new — registers MCP HTTP handler |
-| `src/modules/mcp/server.ts` | new — McpServer instance + tool registration |
-| `src/modules/mcp/tools/matters.ts` | new — matters tools + scope checks |
-| `src/modules/mcp/tools/clients.ts` | new — clients tools + scope checks |
-| `src/modules/mcp/tools/invoices.ts` | new — invoices tools + scope checks |
-| `hono-app.ts` | register mcp module |
+| `src/shared/auth/better-auth.http.ts` | mount `/.well-known/oauth-protected-resource/mcp` (RFC 9728); scopes are per-client on the `oauthClient` DB record, not in server config |
+| `src/modules/mcp/index.ts` | new — Hono sub-app; uses `mcpHandler` from `@better-auth/oauth-provider` for Bearer validation |
+| `src/modules/mcp/server.ts` | new — `McpServer` instance + `registerTools` call |
+| `src/modules/mcp/tool-registry.ts` | new — `defineTool()`, `registerTools()`, `AnyToolDef` |
+| `src/modules/mcp/mcp-context.ts` | new — JWT → `ServiceContext` (DB members lookup, CASL ability) |
+| `src/modules/mcp/types.ts` | new — local `McpJwt` interface (avoids direct `jose` dep) |
+| `src/modules/mcp/mcp.tools.ts` | new — placeholder empty array; replaced by codegen in follow-up PR |
+| `src/hono-app.ts` | mount `/mcp` directly (not via auto-discovery) |
 
 ### What to build
 
@@ -32,7 +32,7 @@ Goal: expose Blawby data to Claude Desktop and other MCP clients via authenticat
 - Use `mcpHandler` from `@better-auth/oauth-provider` (not `mcpAuthHono`) for Bearer token validation
 
 **2. Custom scopes** in `src/shared/auth/better-auth.ts`
-```
+```text
 matters:read, matters:write
 clients:read
 invoices:read, invoices:write
@@ -42,7 +42,7 @@ invoices:read, invoices:write
 
 Tool registry abstraction (`defineTool` + `registerTools`) centralises scope checks, `ServiceContext` construction, and error handling. Individual tool files are pure business logic. Module-local `mcp.tools.ts` files are auto-discovered by codegen in a follow-up PR.
 
-```
+```text
 src/modules/mcp/
   index.ts            — registers MCP HTTP handler at /mcp (Bearer via mcpHandler)
   server.ts           — McpServer instance + registerTools call
@@ -52,8 +52,8 @@ src/modules/mcp/
   types.ts            — local McpJwt interface (avoids direct jose dep)
 ```
 
-Future module tools live co-located:
-```
+Future module tools live co-located (replaced by route annotation + codegen in follow-up PR):
+```text
 src/modules/matters/mcp.tools.ts
 src/modules/clients/mcp.tools.ts
 src/modules/invoices/mcp.tools.ts

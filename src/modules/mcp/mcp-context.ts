@@ -12,13 +12,13 @@ import type { User } from '@/shared/types/BetterAuth';
 
 const logger = getLogger(['mcp', 'context']);
 
-export const getMcpScopes = (jwt: JWTPayload): string[] => {
+const getMcpScopes = (jwt: JWTPayload): string[] => {
   const scope = jwt['scope'];
   if (typeof scope !== 'string' || !scope.trim()) return [];
   return scope.trim().split(/\s+/);
 };
 
-export const buildMcpServiceContext = async (jwt: JWTPayload): Promise<ServiceContext> => {
+const buildMcpServiceContext = async (jwt: JWTPayload): Promise<ServiceContext> => {
   const userId = jwt.sub;
   const organizationId = jwt['organization_id'];
 
@@ -42,6 +42,7 @@ export const buildMcpServiceContext = async (jwt: JWTPayload): Promise<ServiceCo
 
   const ability = defineAbilityFor(member.role, { userId, organizationId });
 
+  // MCP context has no session — stub non-identity fields. Tool handlers must not rely on ctx.user.email/name.
   const user = { id: userId, email: '', name: '' } as unknown as User;
 
   return createServiceContext({
@@ -52,4 +53,9 @@ export const buildMcpServiceContext = async (jwt: JWTPayload): Promise<ServiceCo
     ability,
     requestHeaders: {},
   });
+};
+
+export const mcpContext = {
+  getMcpScopes,
+  buildMcpServiceContext,
 };
