@@ -4,7 +4,7 @@ import { routeBuilder } from '@/shared/router/route-builder';
 
 const tags = ['Matters'];
 
-export const listDeadlinesRoute = routeBuilder.build({
+const listDeadlinesRoute = routeBuilder.build({
   method: 'get',
   path: '/{matter_id}/deadlines',
   tags,
@@ -24,7 +24,7 @@ export const listDeadlinesRoute = routeBuilder.build({
   },
 });
 
-export const createDeadlineRoute = routeBuilder.build({
+const createDeadlineRoute = routeBuilder.build({
   method: 'post',
   path: '/{matter_id}/deadlines',
   tags,
@@ -51,7 +51,7 @@ export const createDeadlineRoute = routeBuilder.build({
   },
 });
 
-export const updateDeadlineRoute = routeBuilder.build({
+const updateDeadlineRoute = routeBuilder.build({
   method: 'patch',
   path: '/{matter_id}/deadlines/{deadline_id}',
   tags,
@@ -78,7 +78,7 @@ export const updateDeadlineRoute = routeBuilder.build({
   },
 });
 
-export const deleteDeadlineRoute = routeBuilder.build({
+const deleteDeadlineRoute = routeBuilder.build({
   method: 'delete',
   path: '/{matter_id}/deadlines/{deadline_id}',
   tags,
@@ -92,3 +92,10 @@ export const deleteDeadlineRoute = routeBuilder.build({
     },
   },
 });
+
+export const mattersDeadlinesRoutes = {
+  listDeadlinesRoute,
+  createDeadlineRoute,
+  updateDeadlineRoute,
+  deleteDeadlineRoute,
+};

@@ -5,22 +5,7 @@ import { matterActivityService } from '@/modules/matters/services/matter-activit
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { SelectMatterDeadline } from '@/modules/matters/database/schema/matter-deadlines.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
-
-type CreateDeadlineInput = {
-  name: string;
-  date: string;
-  type: 'court' | 'statutory' | 'internal' | 'reminder';
-  source?: string;
-  alert_days_before?: number[];
-};
-
-type UpdateDeadlineInput = {
-  name?: string;
-  date?: string;
-  type?: 'court' | 'statutory' | 'internal' | 'reminder';
-  source?: string | null;
-  alert_days_before?: number[];
-};
+import type { CreateDeadlineInput, UpdateDeadlineInput } from '@/modules/matters/types/matters-deadlines.types.ts';
 
 const listDeadlines = async (_params: Record<string, never>, ctx: ServiceContext): Promise<SelectMatterDeadline[]> => {
   const { matterId } = ctx;
