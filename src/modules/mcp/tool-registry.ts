@@ -37,21 +37,34 @@ const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): voi
   }
 };
 
-const deriveToolName = (method: string, path: string): string => {
+const exportKeyToModName = (exportKey: string): string =>
+  exportKey
+    .replace(/^(list|get|create|update|patch|delete)/, '')
+    .replace(/Route$/, '')
+    .replace(/([A-Z])/g, '_$1')
+    .toLowerCase()
+    .replace(/^_/, '');
+
+const deriveToolName = (method: string, path: string, exportKey?: string): string => {
   // Strip leading /{practice_id} prefix — it's just org scoping
   const normalized = path.replace(/^\/\{practice_id\}/, '').replace(/^\//, '');
   const segments = normalized.split('/').filter(Boolean);
-  const modName = segments[0]?.replace(/-/g, '_') ?? 'resource';
+  // Fall back to export key when path gives no stable resource name
+  const pathModName = segments.find((s) => !s.startsWith('{'))?.replace(/-/g, '_');
+  const modName = pathModName ?? (exportKey ? exportKeyToModName(exportKey) : 'resource');
   const hasIdSegment = segments.some((s) => s.startsWith('{') && s.endsWith('}'));
   const m = method.toLowerCase();
 
   if (!hasIdSegment) {
     if (m === 'get') return `list_${modName}`;
     if (m === 'post') return `create_${modName}`;
-  } else if (segments.length === 2) {
-    if (m === 'get') return `get_${modName}`;
-    if (m === 'patch' || m === 'put') return `update_${modName}`;
-    if (m === 'delete') return `delete_${modName}`;
+  } else {
+    // First non-id segment is the resource name; fall back to modName (from export key or path)
+    const resourceSeg = segments.find((s) => !s.startsWith('{'));
+    const resourceName = (resourceSeg?.replace(/-/g, '_') ?? modName).replace(/[{}]/g, '');
+    if (m === 'get') return `get_${resourceName}`;
+    if (m === 'patch' || m === 'put') return `update_${resourceName}`;
+    if (m === 'delete') return `delete_${resourceName}`;
   }
 
   return `${m}_${path.replace(/[^\w]/g, '_')}`;
@@ -59,10 +72,10 @@ const deriveToolName = (method: string, path: string): string => {
 
 export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): AnyToolDef[] => {
   const exportsValue = routeExports['routes'] as Record<string, unknown> | undefined;
-  const allRoutes = Object.values(exportsValue ?? routeExports);
+  const routeMap = exportsValue ?? routeExports;
   const tools: AnyToolDef[] = [];
 
-  for (const route of allRoutes) {
+  for (const [exportKey, route] of Object.entries(routeMap)) {
     if (typeof route !== 'object' || route === null) continue;
     const r = route as Record<string, unknown>;
     if (!r['mcp']) continue;
@@ -70,7 +83,7 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
     const mcp = r['mcp'] as McpRouteAnnotation;
     const method = typeof r['method'] === 'string' ? r['method'] : 'get';
     const path = typeof r['path'] === 'string' ? r['path'] : '';
-    const name = mcp.name ?? deriveToolName(method, path);
+    const name = mcp.name ?? deriveToolName(method, path, exportKey);
     const description = mcp.description ?? (typeof r['summary'] === 'string' ? r['summary'] : name);
 
     let schema: ZodRawShape = mcp.schema ?? {};

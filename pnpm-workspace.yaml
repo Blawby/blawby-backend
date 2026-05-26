@@ -1,6 +1,6 @@
 allowBuilds:
   esbuild: true
-  msw: set this to true or false
+  msw: false
   sharp: false
   vue-demi: false
   workerd: false
