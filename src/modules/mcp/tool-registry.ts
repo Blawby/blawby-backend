@@ -88,12 +88,27 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
 
     let schema: ZodRawShape = mcp.schema ?? {};
     if (!mcp.schema) {
-      const bodyContent = (r['request'] as Record<string, unknown> | undefined)?.['body'];
+      const req = r['request'] as Record<string, unknown> | undefined;
+
+      // Body schema
+      const bodyContent = req?.['body'];
       const jsonSchema = (bodyContent as Record<string, unknown> | undefined)?.['content'] as
         | Record<string, unknown>
         | undefined;
       const bodySchema = jsonSchema?.['application/json'] as Record<string, unknown> | undefined;
-      schema = ((bodySchema?.['schema'] as ZodObject<ZodRawShape> | undefined)?.shape as ZodRawShape | undefined) ?? {};
+      const bodyShape = ((bodySchema?.['schema'] as ZodObject<ZodRawShape> | undefined)?.shape as ZodRawShape | undefined) ?? {};
+
+      // Path params — exclude org-scoping fields (practice_id, organization_id)
+      const ORG_PARAMS = new Set(['practice_id', 'organization_id']);
+      const paramsShape = (req?.['params'] as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
+      const filteredParams = Object.fromEntries(
+        Object.entries(paramsShape).filter(([k]) => !ORG_PARAMS.has(k)),
+      );
+
+      // Query params
+      const queryShape = (req?.['query'] as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
+
+      schema = { ...queryShape, ...filteredParams, ...bodyShape };
     }
 
     tools.push({ name, description, scope: mcp.scope, schema, handler: mcp.handler });
