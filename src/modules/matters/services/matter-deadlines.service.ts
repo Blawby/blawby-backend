@@ -24,7 +24,7 @@ type UpdateDeadlineInput = {
 
 const listDeadlines = async (_params: Record<string, never>, ctx: ServiceContext): Promise<SelectMatterDeadline[]> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -37,7 +37,7 @@ const createDeadline = async (
   ctx: ServiceContext
 ): Promise<SelectMatterDeadline> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -69,7 +69,7 @@ const updateDeadline = async (
   ctx: ServiceContext
 ): Promise<SelectMatterDeadline> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
@@ -80,7 +80,7 @@ const updateDeadline = async (
   }
 
   const updated = await matterDeadlinesQueries.updateMatterDeadline(deadlineId, data);
-  if (!updated) throw new HTTPException(500, { message: 'Failed to update deadline' });
+  if (!updated) throw new Error('Failed to update deadline');
 
   const userName = ctx.user?.name ?? ctx.user?.email ?? 'Unknown User';
   await matterActivityService.logMatterActivity(
@@ -97,7 +97,7 @@ const updateDeadline = async (
 
 const deleteDeadline = async ({ deadlineId }: { deadlineId: string }, ctx: ServiceContext): Promise<void> => {
   const { matterId } = ctx;
-  if (!matterId) throw new Error('Matter ID not found in context');
+  if (!matterId) throw new HTTPException(400, { message: 'Matter ID not found in context' });
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Matter');
   await mattersService.verifyMatterAccess(matterId, ctx);
