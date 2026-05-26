@@ -5,8 +5,11 @@ import {
   listMattersQuerySchema,
   matterResponseSchema,
 } from '@/modules/matters/types/matter.types';
+import type { CreateMatterRequest, UpdateMatterRequest } from '@/modules/matters/types/matter.types';
+import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { errorResponseSchema } from '@/shared/validations/openapi';
+import { mattersService } from '@/modules/matters/services/matters.service';
 
 const tags = ['Matters'];
 
@@ -15,6 +18,10 @@ export const createMatterRoute = routeBuilder.build({
   path: '/{practice_id}',
   tags,
   summary: 'Create a new matter',
+  mcp: {
+    scope: 'matters:write',
+    handler: async (args, ctx) => mattersService.createMatter(args as CreateMatterRequest, ctx),
+  },
   request: {
     params: z.object({
       practice_id: z.uuid(),
@@ -46,6 +53,10 @@ export const listMattersRoute = routeBuilder.build({
   path: '/{practice_id}',
   tags,
   summary: 'List matters',
+  mcp: {
+    scope: 'matters:read',
+    handler: async (args, ctx) => mattersService.listMatters(args as MatterListFilters, ctx),
+  },
   description: 'Returns a paginated list of matters for the practice.',
   request: {
     params: z.object({
@@ -76,6 +87,11 @@ export const getMatterRoute = routeBuilder.build({
   path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Get a matter',
+  mcp: {
+    scope: 'matters:read',
+    schema: { matter_id: z.uuid() },
+    handler: async (args, ctx) => mattersService.getMatterById(args['matter_id'] as string, ctx),
+  },
   description: 'Returns a single matter by ID.',
   request: {
     params: z.object({
@@ -110,6 +126,14 @@ export const updateMatterRoute = routeBuilder.build({
   path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Update a matter',
+  mcp: {
+    scope: 'matters:write',
+    schema: { matter_id: z.uuid(), ...updateMatterRequestSchema.shape },
+    handler: async (args, ctx) => {
+      const { matter_id, ...data } = args;
+      return mattersService.updateMatter(matter_id as string, data as UpdateMatterRequest, ctx);
+    },
+  },
   request: {
     params: z.object({
       practice_id: z.uuid(),
