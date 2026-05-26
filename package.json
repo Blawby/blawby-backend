@@ -54,6 +54,7 @@
     "@logtape/file": "^2.0.4",
     "@logtape/hono": "^2.0.4",
     "@logtape/logtape": "^2.0.4",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@scalar/hono-api-reference": "^0.10.4",
     "@scalar/openapi-to-markdown": "^0.4.12",
     "better-auth": "1.5.5",
