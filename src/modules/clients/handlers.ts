@@ -7,7 +7,10 @@ import type {
   createClientMemoRoute,
   updateClientMemoRoute,
   deleteClientMemoRoute,
+  getClientIntakeProfileRoute,
+  updateClientIntakeProfileRoute,
 } from '@/modules/clients/routes';
+import { clientIntakeProfilesService } from '@/modules/clients/services/client-intake-profiles.service';
 import { clientMemosService } from '@/modules/clients/services/client-memos.service';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
@@ -99,4 +102,23 @@ export const deleteClientMemoHandler: AppRouteHandler<typeof deleteClientMemoRou
 
   await clientMemosService.deleteMemo({ id, clientId }, ctx);
   return c.body(null, 204);
+};
+
+// ==================== INTAKE PROFILE ====================
+
+export const getClientIntakeProfileHandler: AppRouteHandler<typeof getClientIntakeProfileRoute> = async (c) => {
+  const { client_id: clientId } = c.req.valid('param');
+  const ctx = getServiceContext(c);
+
+  const result = await clientIntakeProfilesService.getProfile({ clientId }, ctx);
+  return c.json(result);
+};
+
+export const updateClientIntakeProfileHandler: AppRouteHandler<typeof updateClientIntakeProfileRoute> = async (c) => {
+  const { client_id: clientId } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const ctx = getServiceContext(c);
+
+  const result = await clientIntakeProfilesService.upsertProfile({ clientId, data: body }, ctx);
+  return c.json(result);
 };

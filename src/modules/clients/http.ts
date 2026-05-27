@@ -20,6 +20,10 @@ clientsApp.openapi(routes.createClientMemoRoute, handlers.createClientMemoHandle
 clientsApp.openapi(routes.updateClientMemoRoute, handlers.updateClientMemoHandler);
 clientsApp.openapi(routes.deleteClientMemoRoute, handlers.deleteClientMemoHandler);
 
+// Intake profile
+clientsApp.openapi(routes.getClientIntakeProfileRoute, handlers.getClientIntakeProfileHandler);
+clientsApp.openapi(routes.updateClientIntakeProfileRoute, handlers.updateClientIntakeProfileHandler);
+
 // Register routes for OpenAPI documentation extraction
 registerOpenApiRoutes(clientsApp, routes);
 
