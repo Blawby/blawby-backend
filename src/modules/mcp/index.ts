@@ -13,7 +13,7 @@ const mcpRequestHandler = mcpHandler(
   {
     jwksUrl: `${baseUrl}/api/auth/jwks`,
     verifyOptions: {
-      issuer: baseUrl,
+      issuer: `${baseUrl}/api/auth`,
       audience: `${baseUrl}/mcp`,
     },
   },
