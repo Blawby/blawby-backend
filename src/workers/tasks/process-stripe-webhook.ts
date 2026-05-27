@@ -7,6 +7,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import { invoiceWebhookService } from '@/modules/invoices/services/invoice.webhook.service';
+import { payoutsWebhookService } from '@/modules/payouts/services/payouts.webhook.service';
 import { subscriptionWebhooksService } from '@/modules/subscriptions/services/subscriptionWebhooks.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
 import { practiceClientIntakesWebhooksService } from '@/modules/webhooks/services/practice-client-intakes-webhooks.service';
@@ -48,6 +49,11 @@ const isOnboardingEvent = (eventType: string): boolean =>
  * Checks if the event belongs to the invoice flow
  */
 const isInvoiceEvent = (eventType: string): boolean => eventType.startsWith('invoice.');
+
+/**
+ * Checks if the event belongs to the payout (settlement) flow
+ */
+const isPayoutEvent = (eventType: string): boolean => eventType.startsWith('payout.');
 
 // --- MAIN TASK ---
 
@@ -96,6 +102,9 @@ export const processStripeWebhook: Task = async (payload, _helpers) => {
       // Service marks as processed internally
     } else if (isInvoiceEvent(event.type)) {
       await invoiceWebhookService.processEvent(event);
+      await stripeWebhookEventsRepository.markProcessed(webhookId);
+    } else if (isPayoutEvent(event.type)) {
+      await payoutsWebhookService.processEvent(event);
       await stripeWebhookEventsRepository.markProcessed(webhookId);
     } else if (
       isPaymentIntentEvent(event) ||

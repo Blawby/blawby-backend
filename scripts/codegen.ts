@@ -37,7 +37,6 @@ const EXCLUDED_MODULES = [
   'customers',
   'events',
   'health',
-  'payouts',
   'settings',
 ];
 
