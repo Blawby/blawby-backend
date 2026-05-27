@@ -1,5 +1,6 @@
 import type { routes } from '@/modules/practice/routes';
 import { conflictCheckService } from '@/modules/practice/services/conflict-check.service';
+import { memberProfilesService } from '@/modules/practice/services/member-profiles.service';
 import { practiceDetailsManagementService } from '@/modules/practice/services/practice-details-management.service';
 import { practiceManagementService } from '@/modules/practice/services/practice-management.service';
 import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
@@ -114,5 +115,20 @@ export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof routes.getP
   const ctx = getServiceContext(c);
   const { slug } = c.req.valid('param');
   const result = await practiceQueriesService.getPracticeBySlug({ slug }, ctx);
+  return c.json(result);
+};
+
+export const getMemberProfileHandler: AppRouteHandler<typeof routes.getMemberProfileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { user_id } = c.req.valid('param');
+  const result = await memberProfilesService.getProfile({ userId: user_id }, ctx);
+  return c.json(result);
+};
+
+export const updateMemberProfileHandler: AppRouteHandler<typeof routes.updateMemberProfileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { user_id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const result = await memberProfilesService.upsertProfile({ userId: user_id, data: body }, ctx);
   return c.json(result);
 };

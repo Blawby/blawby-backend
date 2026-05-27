@@ -80,6 +80,18 @@ practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDe
  */
 practiceApp.openapi(routes.conflictCheckRoute, handlers.conflictCheckHandler);
 
+/**
+ * GET /api/practice/:practice_id/members/:user_id/profile
+ * Get a member's routing/capacity metadata
+ */
+practiceApp.openapi(routes.getMemberProfileRoute, handlers.getMemberProfileHandler);
+
+/**
+ * PUT /api/practice/:practice_id/members/:user_id/profile
+ * Upsert a member's routing/capacity metadata
+ */
+practiceApp.openapi(routes.updateMemberProfileRoute, handlers.updateMemberProfileHandler);
+
 registerOpenApiRoutes(practiceApp, routes);
 
 export default practiceApp;

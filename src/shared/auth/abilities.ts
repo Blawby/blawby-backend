@@ -25,7 +25,8 @@ export type SubjectName =
   | 'Invoice'
   | 'RefundRequest'
   | 'Client'
-  | 'ClientMemo';
+  | 'ClientMemo'
+  | 'MemberProfile';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
