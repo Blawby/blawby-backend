@@ -4,9 +4,21 @@ import {
   notFoundResponseSchema,
   internalServerErrorResponseSchema,
 } from '@/shared/validations/openapi';
+import type { ServiceContext } from '@/shared/types/service-context';
 
 type RouteConfig = Parameters<typeof createRoute>[0];
 type Responses = RouteConfig['responses'];
+
+export interface McpRouteAnnotation {
+  scope: string;
+  name?: string;
+  description?: string;
+  schema?: import('zod').ZodRawShape;
+  handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
+}
+
+type WithMcp = { mcp: McpRouteAnnotation };
+type WithoutMcp = Record<string, never>;
 
 /**
  * Enhanced Route Builder to reduce OpenAPI boilerplate
@@ -18,7 +30,11 @@ export const routeBuilder = {
    * @param config - Route configuration
    * @returns Hono route object
    */
-  build: <P extends string, R extends RouteConfig & { path: P }>(config: R) => {
+  build: <P extends string, M extends McpRouteAnnotation | undefined, R extends RouteConfig & { path: P; mcp?: M }>(
+    config: R,
+  ) => {
+    const { mcp, ...routeConfig } = config;
+
     // Standard error responses (400, 401, 403, 404, 500)
     const standardResponses: Responses = {
       400: {
@@ -66,12 +82,18 @@ export const routeBuilder = {
     // Merge standard responses with configuration (config takes precedence)
     const responses: Responses = {
       ...standardResponses,
-      ...config.responses,
+      ...routeConfig.responses,
     };
 
-    return createRoute({
-      ...config,
+    const route = createRoute({
+      ...routeConfig,
       responses,
     });
+
+    if (mcp !== undefined) {
+      return Object.assign(route, { mcp }) as typeof route & WithMcp;
+    }
+
+    return route as typeof route & WithoutMcp;
   },
 };

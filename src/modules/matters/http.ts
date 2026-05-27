@@ -14,6 +14,17 @@ app.use('*', injectAbility());
 // Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
 app.openapi(matterRoutes.listMattersRoute, matterHandlers.listMattersHandler);
+
+// Org-scoped sub-resources — MUST be registered BEFORE the `/:practice_id` sub-router
+// so Hono's matcher prefers these literal paths over the wildcard `/:practice_id/:id/*`
+// that requireMatterAccess() guards (which would reject literals like "tasks" / "summary"
+// as invalid matter UUIDs).
+app.openapi(
+  matterRoutes.getMattersSummaryByOriginatingAttorneyRoute,
+  matterHandlers.getMattersSummaryByOriginatingAttorneyHandler
+);
+app.openapi(matterRoutes.listOrganizationTasksRoute, matterHandlers.listOrganizationTasksHandler);
+
 app.openapi(matterRoutes.getMatterRoute, matterHandlers.getMatterHandler);
 app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
@@ -67,6 +78,12 @@ matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.r
 matterSubResources.openapi(matterRoutes.linkMatterFileRoute, matterHandlers.linkMatterFileHandler);
 matterSubResources.openapi(matterRoutes.listMatterFilesRoute, matterHandlers.listMatterFilesHandler);
 matterSubResources.openapi(matterRoutes.unlinkMatterFileRoute, matterHandlers.unlinkMatterFileHandler);
+
+// Deadlines
+matterSubResources.openapi(matterRoutes.listDeadlinesRoute, matterHandlers.listDeadlinesHandler);
+matterSubResources.openapi(matterRoutes.createDeadlineRoute, matterHandlers.createDeadlineHandler);
+matterSubResources.openapi(matterRoutes.updateDeadlineRoute, matterHandlers.updateDeadlineHandler);
+matterSubResources.openapi(matterRoutes.deleteDeadlineRoute, matterHandlers.deleteDeadlineHandler);
 
 // Mount sub-router with prefix
 app.route('/:practice_id', matterSubResources);

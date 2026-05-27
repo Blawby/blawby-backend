@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, date, index, unique } from 'drizzle-orm/pg-core';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
@@ -15,6 +15,7 @@ export const clients = pgTable(
     // Direct identity fields - client record is self-contained
     name: varchar('name', { length: 255 }),
     email: varchar('email', { length: 255 }),
+    date_of_birth: date('date_of_birth'),
 
     address_id: uuid('address_id').references(() => addresses.id, { onDelete: 'set null' }),
 

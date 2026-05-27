@@ -78,6 +78,7 @@ export interface BetterAuthSubscription {
   periodStart: Date | null;
   periodEnd: Date | null;
   cancelAtPeriodEnd: boolean | null;
+  cancelAt: Date | null;
   seats: number | null;
   trialStart: Date | null;
   trialEnd: Date | null;
@@ -165,6 +166,7 @@ export interface SubscriptionResponse {
   period_start: Date | null;
   period_end: Date | null;
   cancel_at_period_end: boolean | null;
+  cancel_at: Date | null;
   seats: number | null;
   trial_start: Date | null;
   trial_end: Date | null;

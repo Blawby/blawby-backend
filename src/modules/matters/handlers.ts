@@ -1,4 +1,5 @@
 import type { routes as matterRoutes } from '@/modules/matters/routes';
+import { matterDeadlinesService } from '@/modules/matters/services/matter-deadlines.service';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
@@ -7,7 +8,7 @@ import { matterTasksService } from '@/modules/matters/services/matter-tasks.serv
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { matterFilesService } from '@/modules/matters/services/matter-files.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
-import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
+import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { createServiceContext, getServiceContext } from '@/shared/types/service-context';
 
@@ -21,16 +22,27 @@ const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute
 const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-  const page = parseInt(String(query.page ?? '1'), 10);
-  const limit = parseInt(String(query.limit ?? '20'), 10);
-  const data = await mattersService.listMatters({ ...query, page, limit }, ctx);
+  const data = await mattersService.listMatters(
+    {
+      status: query.status,
+      practiceServiceId: query.practice_service_id,
+      clientId: query.client_id,
+      assigneeId: query.assignee_id,
+      responsibleAttorneyId: query.responsible_attorney_id,
+      originatingAttorneyId: query.originating_attorney_id,
+      search: query.search,
+      page: query.page,
+      limit: query.limit,
+    },
+    ctx
+  );
   return c.json(
     {
       matters: data.matters,
       total: data.total,
-      page,
-      limit,
-      totalPages: Math.ceil(data.total / limit),
+      page: query.page,
+      limit: query.limit,
+      totalPages: Math.ceil(data.total / query.limit),
     },
     200
   );
@@ -116,6 +128,7 @@ const listTimeEntriesHandler: AppRouteHandler<typeof matterRoutes.listTimeEntrie
     {
       filters: {
         billable: query.billable,
+        invoiced: query.invoiced,
         startDate: query.start_date,
         endDate: query.end_date,
         entryId: query.entry_id,
@@ -341,6 +354,56 @@ const unlinkMatterFileHandler: AppRouteHandler<typeof matterRoutes.unlinkMatterF
   return c.body(null, 204);
 };
 
+const getMattersSummaryByOriginatingAttorneyHandler: AppRouteHandler<
+  typeof matterRoutes.getMattersSummaryByOriginatingAttorneyRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const summary = await mattersService.getMattersSummaryByOriginatingAttorney({}, ctx);
+  return c.json(summary, 200);
+};
+
+const listOrganizationTasksHandler: AppRouteHandler<typeof matterRoutes.listOrganizationTasksRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+  const filters: OrgTaskListFilters = {
+    assigneeId: query.assignee_id,
+    status: query.status,
+    dueBefore: query.due_before,
+    page: query.page,
+    limit: query.limit,
+  };
+  const result = await matterTasksService.listOrganizationTasks({ filters }, ctx);
+  return c.json(result, 200);
+};
+
+const listDeadlinesHandler: AppRouteHandler<typeof matterRoutes.listDeadlinesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const deadlines = await matterDeadlinesService.listDeadlines({}, ctx);
+  return c.json(deadlines, 200);
+};
+
+const createDeadlineHandler: AppRouteHandler<typeof matterRoutes.createDeadlineRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const body = c.req.valid('json');
+  const deadline = await matterDeadlinesService.createDeadline({ data: body }, ctx);
+  return c.json(deadline, 201);
+};
+
+const updateDeadlineHandler: AppRouteHandler<typeof matterRoutes.updateDeadlineRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { deadline_id } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const deadline = await matterDeadlinesService.updateDeadline({ deadlineId: deadline_id, data: body }, ctx);
+  return c.json(deadline, 200);
+};
+
+const deleteDeadlineHandler: AppRouteHandler<typeof matterRoutes.deleteDeadlineRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { deadline_id } = c.req.valid('param');
+  await matterDeadlinesService.deleteDeadline({ deadlineId: deadline_id }, ctx);
+  return c.body(null, 204);
+};
+
 export const handlers = {
   listMattersHandler,
   getMatterHandler,
@@ -370,8 +433,14 @@ export const handlers = {
   createMatterTaskHandler,
   updateMatterTaskHandler,
   deleteMatterTaskHandler,
+  listOrganizationTasksHandler,
+  getMattersSummaryByOriginatingAttorneyHandler,
   getMatterUnbilledHandler,
   linkMatterFileHandler,
   listMatterFilesHandler,
   unlinkMatterFileHandler,
+  listDeadlinesHandler,
+  createDeadlineHandler,
+  updateDeadlineHandler,
+  deleteDeadlineHandler,
 };

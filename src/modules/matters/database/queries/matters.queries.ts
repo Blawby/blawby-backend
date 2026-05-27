@@ -102,6 +102,14 @@ const listMattersByOrganization = async (
     conditions.push(eq(matters.id, filters.matterId));
   }
 
+  if (filters?.responsibleAttorneyId) {
+    conditions.push(eq(matters.responsible_attorney_id, filters.responsibleAttorneyId));
+  }
+
+  if (filters?.originatingAttorneyId) {
+    conditions.push(eq(matters.originating_attorney_id, filters.originatingAttorneyId));
+  }
+
   if (filters?.search) {
     conditions.push(like(matters.title, `%${filters.search}%`));
   }
@@ -195,6 +203,36 @@ const getMatterCountsByStatus = async (organizationId: string): Promise<{ status
     .where(and(eq(matters.organization_id, organizationId), isNull(matters.deleted_at)))
     .groupBy(matters.status);
 
+// Get matters summary grouped by originating attorney
+const getMattersSummaryByOriginatingAttorney = async (
+  organizationId: string
+): Promise<
+  {
+    originating_attorney_id: string | null;
+    total_matters: number;
+    active_matters: number;
+    closed_matters: number;
+  }[]
+> => {
+  const rows = await db
+    .select({
+      originating_attorney_id: matters.originating_attorney_id,
+      total_matters: sql<number>`count(*)::int`,
+      active_matters: sql<number>`count(*) FILTER (WHERE ${matters.status} <> 'closed')::int`,
+      closed_matters: sql<number>`count(*) FILTER (WHERE ${matters.status} = 'closed')::int`,
+    })
+    .from(matters)
+    .where(and(eq(matters.organization_id, organizationId), isNull(matters.deleted_at)))
+    .groupBy(matters.originating_attorney_id);
+
+  return rows.map((r) => ({
+    originating_attorney_id: r.originating_attorney_id,
+    total_matters: Number(r.total_matters),
+    active_matters: Number(r.active_matters),
+    closed_matters: Number(r.closed_matters),
+  }));
+};
+
 // Add assignees to matter
 const addMatterAssignees = async (matterId: string, userIds: string[], tx?: typeof db): Promise<void> => {
   if (userIds.length === 0) {
@@ -272,6 +310,7 @@ export const mattersQueries = {
   softDeleteMatter,
   deleteMatter,
   getMatterCountsByStatus,
+  getMattersSummaryByOriginatingAttorney,
   findMatterByIdWithRelations,
   findMatterByIdWithDeleted,
   listMattersByOrganization,

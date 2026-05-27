@@ -11,10 +11,10 @@ import { matterMilestonesQueries } from '@/modules/matters/database/queries/matt
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterRequest,
   UpdateMatterRequest,
-  ListMattersQuery,
   MatterRecord,
   UnbilledMatterData,
 } from '@/modules/matters/types/matter.types';
@@ -151,20 +151,11 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Mat
  * List matters
  */
 const listMatters = async (
-  filters: ListMattersQuery,
+  filters: MatterListFilters,
   ctx: ServiceContext
 ): Promise<{ matters: MatterRecord[]; total: number }> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
-
-  return mattersQueries.listMattersByOrganization(ctx.organizationId, {
-    status: filters.status,
-    practiceServiceId: filters.practice_service_id,
-    clientId: filters.client_id,
-    assigneeId: filters.assignee_id,
-    search: filters.search,
-    page: filters.page,
-    limit: filters.limit,
-  });
+  return mattersQueries.listMattersByOrganization(ctx.organizationId, filters);
 };
 
 /**
@@ -342,6 +333,24 @@ const getMatterCounts = async (ctx: ServiceContext): Promise<Record<string, numb
   }, {});
 };
 
+/**
+ * Get matters summary grouped by originating attorney.
+ */
+const getMattersSummaryByOriginatingAttorney = async (
+  _params: Record<string, never>,
+  ctx: ServiceContext
+): Promise<
+  {
+    originating_attorney_id: string | null;
+    total_matters: number;
+    active_matters: number;
+    closed_matters: number;
+  }[]
+> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  return mattersQueries.getMattersSummaryByOriginatingAttorney(ctx.organizationId);
+};
+
 const getMatterUnbilled = async (matterId: string, ctx: ServiceContext): Promise<UnbilledMatterData> => {
   await verifyMatterAccess(matterId, ctx);
 
@@ -403,5 +412,6 @@ export const mattersService = {
   updateMatter,
   deleteMatter,
   getMatterCounts,
+  getMattersSummaryByOriginatingAttorney,
   getMatterUnbilled,
 };

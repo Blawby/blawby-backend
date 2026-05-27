@@ -22,6 +22,26 @@ subscriptionsApp.openapi(routes.getCurrentSubscriptionRoute, handlers.getCurrent
  */
 subscriptionsApp.openapi(routes.cancelSubscriptionRoute, handlers.cancelSubscriptionHandler);
 
+/**
+ * POST /api/subscriptions/checkout
+ */
+subscriptionsApp.openapi(routes.checkoutRoute, handlers.checkoutHandler);
+
+/**
+ * POST /api/subscriptions/billing-portal
+ */
+subscriptionsApp.openapi(routes.billingPortalRoute, handlers.billingPortalHandler);
+
+/**
+ * GET /api/subscriptions/list
+ */
+subscriptionsApp.openapi(routes.listSubscriptionsRoute, handlers.listSubscriptionsHandler);
+
+/**
+ * POST /api/subscriptions/webhook (no auth middleware — signature verified in service)
+ */
+subscriptionsApp.openapi(routes.webhookRoute, handlers.webhookHandler);
+
 registerOpenApiRoutes(subscriptionsApp, routes);
 
 export default subscriptionsApp;

@@ -33,7 +33,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
     return authErrorResponder(c, HTTP_UNAUTHORIZED, 'Unauthorized', 'Authentication required');
   }
 
-  const orgId = c.get('activeOrganizationId');
+  const orgId = c.req.param('organization_id') ?? c.req.param('practice_id') ?? c.get('activeOrganizationId');
 
   if (!orgId) {
     logger.warn('No active organization in session for user {userId}', { userId });

@@ -59,6 +59,7 @@ export const errorHandler: ErrorHandler = (error, c) => {
   // 3. Unexpected errors — always 500
   logger.error('Unhandled exception: {message} [{method} {url}]', {
     message: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined,
     cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
     method: c.req.method,
     url: c.req.url,
