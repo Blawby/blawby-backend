@@ -65,7 +65,8 @@ const listByOrganization = async (
     .select()
     .from(payouts)
     .where(where)
-    .orderBy(desc(payouts.stripe_created_at))
+    // Tie-break on id so equal timestamps yield a stable, deterministic page order.
+    .orderBy(desc(payouts.stripe_created_at), desc(payouts.id))
     .limit(filters.limit)
     .offset(offset);
 

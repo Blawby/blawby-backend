@@ -56,6 +56,8 @@ const getPayoutRoute = routeBuilder.build({
       content: { 'application/json': { schema: payoutValidations.payoutDetailSchema } },
       description: 'Payout retrieved successfully',
     },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Payout not found' },
   },
 });

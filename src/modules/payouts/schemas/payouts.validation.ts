@@ -1,5 +1,4 @@
 import { z } from '@hono/zod-openapi';
-import { uuidValidator } from '@/shared/validations/common';
 
 const payoutStatusValues = ['paid', 'pending', 'in_transit', 'canceled', 'failed'] as const;
 
