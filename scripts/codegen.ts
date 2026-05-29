@@ -40,7 +40,6 @@ const EXCLUDED_MODULES = [
   'events',
   'health',
   'mcp',
-  'payouts',
   'settings',
 ];
 
