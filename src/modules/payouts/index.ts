@@ -7,7 +7,7 @@
  * the batch (fetched live from Stripe).
  */
 
-export { default as payoutsApp } from './http';
-export { payoutsService } from './services/payouts.service';
-export { payoutsWebhookService } from './services/payouts.webhook.service';
-export { payoutValidations } from './schemas/payouts.validation';
+export { default as payoutsApp } from '@/modules/payouts/http';
+export { payoutsService } from '@/modules/payouts/services/payouts.service';
+export { payoutsWebhookService } from '@/modules/payouts/services/payouts.webhook.service';
+export { payoutValidations } from '@/modules/payouts/schemas/payouts.validation';

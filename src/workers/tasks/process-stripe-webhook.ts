@@ -7,7 +7,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import { invoiceWebhookService } from '@/modules/invoices/services/invoice.webhook.service';
-import { payoutsWebhookService } from '@/modules/payouts/services/payouts.webhook.service';
+import { HANDLED_PAYOUT_EVENTS, payoutsWebhookService } from '@/modules/payouts/services/payouts.webhook.service';
 import { subscriptionWebhooksService } from '@/modules/subscriptions/services/subscription-webhooks.service';
 import { handleSubscriptionEvent } from '@/modules/subscriptions/services/subscription-lifecycle.service';
 import { onboardingWebhooksService } from '@/modules/webhooks/services/onboarding-webhooks.service';
@@ -55,7 +55,7 @@ const isInvoiceEvent = (eventType: string): boolean => eventType.startsWith('inv
 /**
  * Checks if the event belongs to the payout (settlement) flow
  */
-const isPayoutEvent = (eventType: string): boolean => eventType.startsWith('payout.');
+const isPayoutEvent = (eventType: string): boolean => HANDLED_PAYOUT_EVENTS.has(eventType);
 
 // --- MAIN TASK ---
 

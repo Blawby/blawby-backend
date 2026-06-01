@@ -11,8 +11,11 @@ interface ListPayoutsFilters {
 /**
  * Insert a payout, or update it in place when the Stripe payout already exists.
  * Webhooks for the same payout (created → updated → paid/failed) all funnel here.
+ *
+ * Returns undefined when the incoming event is older than the stored event
+ * (out-of-order delivery); the row is left unchanged in that case.
  */
-const upsertByStripePayoutId = async (data: InsertPayout, tx?: typeof db): Promise<SelectPayout> => {
+const upsertByStripePayoutId = async (data: InsertPayout, tx?: typeof db): Promise<SelectPayout | undefined> => {
   const client = tx ?? db;
   const [payout] = await client
     .insert(payouts)
@@ -34,14 +37,14 @@ const upsertByStripePayoutId = async (data: InsertPayout, tx?: typeof db): Promi
         automatic: data.automatic,
         arrival_date: data.arrival_date,
         metadata: data.metadata,
+        last_stripe_event_created_at: data.last_stripe_event_created_at,
         updated_at: new Date(),
       },
+      // Only apply the update when the incoming webhook is at least as recent as
+      // the last event we persisted — guards against out-of-order Stripe delivery.
+      setWhere: sql`excluded.last_stripe_event_created_at >= ${payouts.last_stripe_event_created_at}`,
     })
     .returning();
-
-  if (!payout) {
-    throw new Error(`Failed to upsert payout ${data.stripe_payout_id}`);
-  }
 
   return payout;
 };

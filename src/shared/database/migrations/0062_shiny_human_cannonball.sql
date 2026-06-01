@@ -1,0 +1,1 @@
+CREATE INDEX "payouts_org_status_created_at_id_idx" ON "payouts" USING btree ("organization_id","status","stripe_created_at","id");

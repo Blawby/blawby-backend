@@ -52,6 +52,7 @@ const makePayoutRow = (overrides: Partial<SelectPayout> = {}): SelectPayout => (
   arrival_date: new Date('2026-05-01T00:00:00.000Z'),
   stripe_created_at: new Date('2026-04-30T00:00:00.000Z'),
   metadata: { foo: 'bar' },
+  last_stripe_event_created_at: new Date('2026-04-30T00:00:00.000Z'),
   created_at: new Date('2026-04-30T01:00:00.000Z'),
   updated_at: new Date('2026-04-30T02:00:00.000Z'),
   ...overrides,
@@ -79,7 +80,7 @@ const mockBalanceTransactions = (data: Stripe.BalanceTransaction[], hasMore = fa
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe('payoutsService.listPayouts', () => {

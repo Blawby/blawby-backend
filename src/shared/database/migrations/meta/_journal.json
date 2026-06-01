@@ -428,6 +428,20 @@
       "when": 1780318521320,
       "tag": "0060_worthless_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1780320709263,
+      "tag": "0061_familiar_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1780321090486,
+      "tag": "0062_shiny_human_cannonball",
+      "breakpoints": true
     }
   ]
 }

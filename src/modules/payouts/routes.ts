@@ -2,6 +2,7 @@ import { z } from '@hono/zod-openapi';
 import { payoutValidations } from '@/modules/payouts/schemas/payouts.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
+  badGatewayResponseSchema,
   forbiddenResponseSchema,
   notFoundResponseSchema,
   paginationSchema,
@@ -59,6 +60,7 @@ const getPayoutRoute = routeBuilder.build({
     401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
     403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Payout not found' },
+    502: { content: { 'application/json': { schema: badGatewayResponseSchema } }, description: 'Bad Gateway' },
   },
 });
 

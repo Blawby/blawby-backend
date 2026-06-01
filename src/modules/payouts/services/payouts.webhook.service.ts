@@ -6,7 +6,7 @@ import type { InsertPayout } from '@/modules/payouts/database/schema/payouts.sch
 
 const logger = getLogger(['payouts', 'webhook-service']);
 
-const HANDLED_PAYOUT_EVENTS = new Set<string>([
+export const HANDLED_PAYOUT_EVENTS = new Set<string>([
   'payout.created',
   'payout.updated',
   'payout.paid',
@@ -20,7 +20,12 @@ const isStripePayout = (obj: unknown): obj is Stripe.Payout =>
 const idOrNull = (value: string | { id: string } | null): string | null =>
   typeof value === 'string' ? value : (value?.id ?? null);
 
-const mapPayoutToRecord = (payout: Stripe.Payout, organizationId: string, stripeAccountId: string): InsertPayout => ({
+const mapPayoutToRecord = (
+  payout: Stripe.Payout,
+  organizationId: string,
+  stripeAccountId: string,
+  eventCreated: number,
+): InsertPayout => ({
   organization_id: organizationId,
   stripe_account_id: stripeAccountId,
   stripe_payout_id: payout.id,
@@ -39,6 +44,7 @@ const mapPayoutToRecord = (payout: Stripe.Payout, organizationId: string, stripe
   arrival_date: payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
   stripe_created_at: new Date(payout.created * 1000),
   metadata: payout.metadata,
+  last_stripe_event_created_at: new Date(eventCreated * 1000),
 });
 
 /**
@@ -75,9 +81,13 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
     return;
   }
 
-  await payoutsRepository.upsertByStripePayoutId(
-    mapPayoutToRecord(payout, connectedAccount.organization_id, stripeAccountId)
-  );
+  const record = mapPayoutToRecord(payout, connectedAccount.organization_id, stripeAccountId, event.created);
+  const result = await payoutsRepository.upsertByStripePayoutId(record);
+
+  if (!result) {
+    logger.info('Skipping stale payout event {payoutId}: event older than stored state', { payoutId: payout.id });
+    return;
+  }
 
   logger.info('Recorded payout {payoutId} ({status}) for organization {organizationId}', {
     payoutId: payout.id,
