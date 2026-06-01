@@ -84,6 +84,15 @@ const getMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getMatterAct
   return c.json({ activities }, 200);
 };
 
+const getMatterActivityCountHandler: AppRouteHandler<typeof matterRoutes.getMatterActivityCountRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId } = c.req.valid('param');
+  const scopedCtx = { ...ctx, matterId };
+  const query = c.req.valid('query');
+  const count = await matterActivityService.getMatterActivityCount({ since: query.since }, scopedCtx);
+  return c.json({ count }, 200);
+};
+
 const listMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listMatterNotesRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
@@ -415,6 +424,7 @@ export const handlers = {
   updateTimeEntryHandler,
   deleteTimeEntryHandler,
   getMatterActivityHandler,
+  getMatterActivityCountHandler,
   getTimeEntryStatsHandler,
   listExpensesHandler,
   createExpenseHandler,
