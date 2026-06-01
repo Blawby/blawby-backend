@@ -51,7 +51,7 @@ const makePayout = (overrides: Partial<Stripe.Payout> = {}): Stripe.Payout =>
 // `account` defaults to a connected account; pass `null` to simulate a platform
 // payout with no connected account (Stripe omits `event.account` in that case).
 const makeEvent = (type: string, object: unknown, account: string | null = ACCOUNT_ID): Stripe.Event =>
-  ({ id: 'evt_test_1', type, account: account ?? undefined, data: { object } }) as unknown as Stripe.Event;
+  ({ id: 'evt_test_1', type, account: account ?? undefined, created: 1_699_800_000, data: { object } }) as unknown as Stripe.Event;
 
 describe('payoutsWebhookService.processEvent', () => {
   beforeEach(() => {
@@ -113,6 +113,8 @@ describe('payoutsWebhookService.processEvent', () => {
       arrival_date: new Date(1_700_000_000 * 1000),
       stripe_created_at: new Date(1_699_900_000 * 1000),
       metadata: { foo: 'bar' },
+      last_stripe_event_created_at: new Date(1_699_800_000 * 1000),
+      last_stripe_event_id: 'evt_test_1',
     });
   });
 

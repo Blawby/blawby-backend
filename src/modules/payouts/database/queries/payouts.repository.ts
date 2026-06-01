@@ -41,15 +41,10 @@ const upsertByStripePayoutId = async (data: InsertPayout, tx?: typeof db): Promi
         last_stripe_event_id: data.last_stripe_event_id,
         updated_at: new Date(),
       },
-      // Apply update only when the incoming event is strictly newer, or same-second
-      // with a greater event id (Stripe event ids are lexicographically time-ordered).
-      setWhere: sql`
-        excluded.last_stripe_event_created_at > ${payouts.last_stripe_event_created_at}
-        OR (
-          excluded.last_stripe_event_created_at = ${payouts.last_stripe_event_created_at}
-          AND excluded.last_stripe_event_id > ${payouts.last_stripe_event_id}
-        )
-      `,
+      // Apply update only when the incoming event is strictly newer than the last
+      // persisted event. Same-second events are rejected (can't determine order
+      // — Stripe event IDs are not guaranteed time-ordered).
+      setWhere: sql`excluded.last_stripe_event_created_at > ${payouts.last_stripe_event_created_at}`,
     })
     .returning();
 

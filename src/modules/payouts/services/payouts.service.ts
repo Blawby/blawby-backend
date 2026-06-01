@@ -6,10 +6,9 @@ import { payoutsRepository } from '@/modules/payouts/database/queries/payouts.re
 import type { SelectPayout } from '@/modules/payouts/database/schema/payouts.schema';
 import type {
   ListPayoutsQuery,
-  PayoutDetailResponse,
   PayoutTransactionResponse,
 } from '@/modules/payouts/schemas/payouts.validation';
-import { serializePayout } from '@/modules/payouts/serializers/payout.serializer';
+import type { PayoutDetailServiceResult } from '@/modules/payouts/serializers/payout.serializer';
 import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { stripe } from '@/shared/utils/stripe-client';
@@ -54,7 +53,7 @@ const listPayouts = async (
  * The payout record is stored locally (via webhooks); the line items are fetched
  * live from Stripe since they are not delivered in the webhook payload.
  */
-const getPayoutDetail = async ({ id }: { id: string }, ctx: ServiceContext): Promise<PayoutDetailResponse> => {
+const getPayoutDetail = async ({ id }: { id: string }, ctx: ServiceContext): Promise<PayoutDetailServiceResult> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Payout');
 
   const payout = await payoutsRepository.findByIdAndOrganization(id, ctx.organizationId);
@@ -81,13 +80,7 @@ const getPayoutDetail = async ({ id }: { id: string }, ctx: ServiceContext): Pro
     throw new HTTPException(502, { message: 'Failed to retrieve payout transactions from Stripe' });
   }
 
-  return {
-    ...serializePayout(payout),
-    balance_transaction_id: payout.balance_transaction_id,
-    metadata: payout.metadata ?? null,
-    transactions,
-    transactions_has_more: transactionsHasMore,
-  };
+  return { payout, transactions, transactions_has_more: transactionsHasMore };
 };
 
 export const payoutsService = {

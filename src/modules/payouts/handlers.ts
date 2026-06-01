@@ -1,5 +1,5 @@
 import type { routes } from '@/modules/payouts/routes';
-import { serializePaginatedPayouts } from '@/modules/payouts/serializers/payout.serializer';
+import { serializePaginatedPayouts, serializePayoutDetail } from '@/modules/payouts/serializers/payout.serializer';
 import { payoutsService } from '@/modules/payouts/services/payouts.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
@@ -20,7 +20,7 @@ const getPayoutHandler: AppRouteHandler<typeof routes.getPayoutRoute> = async (c
 
   const result = await payoutsService.getPayoutDetail({ id }, ctx);
 
-  return c.json(result, 200);
+  return c.json(serializePayoutDetail(result), 200);
 };
 
 export const handlers = {
