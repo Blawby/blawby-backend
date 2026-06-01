@@ -25,6 +25,7 @@ const mapPayoutToRecord = (
   organizationId: string,
   stripeAccountId: string,
   eventCreated: number,
+  eventId: string,
 ): InsertPayout => ({
   organization_id: organizationId,
   stripe_account_id: stripeAccountId,
@@ -45,6 +46,7 @@ const mapPayoutToRecord = (
   stripe_created_at: new Date(payout.created * 1000),
   metadata: payout.metadata,
   last_stripe_event_created_at: new Date(eventCreated * 1000),
+  last_stripe_event_id: eventId,
 });
 
 /**
@@ -81,7 +83,7 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
     return;
   }
 
-  const record = mapPayoutToRecord(payout, connectedAccount.organization_id, stripeAccountId, event.created);
+  const record = mapPayoutToRecord(payout, connectedAccount.organization_id, stripeAccountId, event.created, event.id);
   const result = await payoutsRepository.upsertByStripePayoutId(record);
 
   if (!result) {

@@ -38,11 +38,18 @@ const upsertByStripePayoutId = async (data: InsertPayout, tx?: typeof db): Promi
         arrival_date: data.arrival_date,
         metadata: data.metadata,
         last_stripe_event_created_at: data.last_stripe_event_created_at,
+        last_stripe_event_id: data.last_stripe_event_id,
         updated_at: new Date(),
       },
-      // Only apply the update when the incoming webhook is at least as recent as
-      // the last event we persisted — guards against out-of-order Stripe delivery.
-      setWhere: sql`excluded.last_stripe_event_created_at >= ${payouts.last_stripe_event_created_at}`,
+      // Apply update only when the incoming event is strictly newer, or same-second
+      // with a greater event id (Stripe event ids are lexicographically time-ordered).
+      setWhere: sql`
+        excluded.last_stripe_event_created_at > ${payouts.last_stripe_event_created_at}
+        OR (
+          excluded.last_stripe_event_created_at = ${payouts.last_stripe_event_created_at}
+          AND excluded.last_stripe_event_id > ${payouts.last_stripe_event_id}
+        )
+      `,
     })
     .returning();
 

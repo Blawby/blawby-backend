@@ -53,6 +53,7 @@ const makePayoutRow = (overrides: Partial<SelectPayout> = {}): SelectPayout => (
   stripe_created_at: new Date('2026-04-30T00:00:00.000Z'),
   metadata: { foo: 'bar' },
   last_stripe_event_created_at: new Date('2026-04-30T00:00:00.000Z'),
+  last_stripe_event_id: 'evt_test_123',
   created_at: new Date('2026-04-30T01:00:00.000Z'),
   updated_at: new Date('2026-04-30T02:00:00.000Z'),
   ...overrides,
