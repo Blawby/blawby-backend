@@ -67,4 +67,5 @@ export interface MatterActivityListFilters {
   limit?: number;
   offset?: number;
   activityId?: string;
+  since?: Date;
 }

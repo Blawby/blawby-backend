@@ -55,6 +55,7 @@ const createMatterSchema = z
     open_date: z.iso.date().optional(),
     close_date: z.iso.date().optional(),
     assignee_ids: z.array(uuidValidator).optional(), // User IDs to assign
+    retainer_cap: z.number().int().min(0).optional(), // Agreed/quoted retainer cap in cents
     retainer_low_balance_threshold: z.number().int().min(0).optional(), // Low balance threshold in cents
     milestones: z
       .array(
@@ -120,6 +121,7 @@ const updateMatterSchema = z
     open_date: z.iso.date().optional(),
     close_date: z.iso.date().optional(),
     assignee_ids: z.array(uuidValidator).optional(),
+    retainer_cap: z.number().int().min(0).nullable().optional(), // Agreed/quoted retainer cap in cents
     retainer_low_balance_threshold: z.number().int().min(0).nullable().optional(), // Low balance threshold in cents
   })
   .strict();
@@ -147,6 +149,10 @@ const getActivityLogQuerySchema = z.object({
   activity_id: uuidValidator.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+});
+
+const getActivityCountQuerySchema = z.object({
+  since: z.coerce.date(),
 });
 
 const matterSchema = z
@@ -183,6 +189,8 @@ const matterSchema = z
     deleted_by: z.uuid().nullable(),
     created_at: z.date(),
     updated_at: z.date(),
+    retainer_balance: z.number(),
+    retainer_cap: z.number().nullable(),
     retainer_low_balance_threshold: z.number().nullable(),
     last_conflict_check_at: z.date().nullable(),
     last_conflict_check_result: z.record(z.string(), z.unknown()).nullable(),
@@ -216,6 +224,7 @@ export const matterValidations = {
   matterIdParamSchema,
   listMattersQuerySchema,
   getActivityLogQuerySchema,
+  getActivityCountQuerySchema,
   matterSchema,
   activityLogSchema,
 };

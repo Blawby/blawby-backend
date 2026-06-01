@@ -421,6 +421,13 @@
       "when": 1779851323009,
       "tag": "0059_redundant_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1780318521320,
+      "tag": "0060_worthless_shockwave",
+      "breakpoints": true
     }
   ]
 }

@@ -77,6 +77,7 @@ export const matters = pgTable(
     on_behalf_of: text('on_behalf_of'),
 
     // Retainer settings
+    retainer_cap: integer('retainer_cap'), // In cents, NULL = no cap; the agreed/quoted retainer amount
     retainer_low_balance_threshold: integer('retainer_low_balance_threshold'), // In cents, NULL = no warning
 
     // Conflict check
@@ -101,6 +102,7 @@ export const matters = pgTable(
       .on(table.retainer_low_balance_threshold)
       .where(sql`${table.retainer_low_balance_threshold} IS NOT NULL`),
     check('matters_retainer_threshold_non_negative', sql`${table.retainer_low_balance_threshold} >= 0`),
+    check('matters_retainer_cap_non_negative', sql`${table.retainer_cap} >= 0`),
   ]
 );
 

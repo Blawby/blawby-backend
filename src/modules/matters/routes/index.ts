@@ -1,4 +1,4 @@
-import { getMatterActivityRoute } from './activity.routes';
+import { getMatterActivityCountRoute, getMatterActivityRoute } from './activity.routes';
 import {
   createMatterRoute,
   listMattersRoute,
@@ -57,6 +57,7 @@ export const routes = {
   deleteMatterRoute,
   getMattersSummaryByOriginatingAttorneyRoute,
   getMatterActivityRoute,
+  getMatterActivityCountRoute,
   getTimeEntryStatsRoute,
   listTimeEntriesRoute,
   createTimeEntryRoute,
