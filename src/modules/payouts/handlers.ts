@@ -5,8 +5,7 @@ import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 
 const listPayoutsHandler: AppRouteHandler<typeof routes.listPayoutsRoute> = async (c) => {
-  const { practice_id: organizationId } = c.req.valid('param');
-  const ctx = { ...getServiceContext(c), organizationId };
+  const ctx = getServiceContext(c);
   const query = c.req.valid('query');
 
   const result = await payoutsService.listPayouts({ filters: query }, ctx);
@@ -15,8 +14,8 @@ const listPayoutsHandler: AppRouteHandler<typeof routes.listPayoutsRoute> = asyn
 };
 
 const getPayoutHandler: AppRouteHandler<typeof routes.getPayoutRoute> = async (c) => {
-  const { payout_id: id, practice_id: organizationId } = c.req.valid('param');
-  const ctx = { ...getServiceContext(c), organizationId };
+  const { payout_id: id } = c.req.valid('param');
+  const ctx = getServiceContext(c);
 
   const result = await payoutsService.getPayoutDetail({ id }, ctx);
 
