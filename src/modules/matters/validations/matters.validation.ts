@@ -149,6 +149,10 @@ const getActivityLogQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+const getActivityCountQuerySchema = z.object({
+  since: z.coerce.date(),
+});
+
 const matterSchema = z
   .object({
     id: z.uuid(),
@@ -216,6 +220,7 @@ export const matterValidations = {
   matterIdParamSchema,
   listMattersQuerySchema,
   getActivityLogQuerySchema,
+  getActivityCountQuerySchema,
   matterSchema,
   activityLogSchema,
 };
