@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, gte, count } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { HTTPException } from 'hono/http-exception';
 import {
@@ -96,6 +96,23 @@ const getMatterActivity = async (
     .offset(offset);
 };
 
+const getMatterActivityCount = async (options: { since: Date }, ctx: ServiceContext): Promise<number> => {
+  const { matterId } = ctx;
+  if (!matterId) {
+    throw new HTTPException(400, { message: 'Matter ID not found in context' });
+  }
+
+  const { mattersService } = await import('@/modules/matters/services/matters.service');
+  await mattersService.verifyMatterAccess(matterId, ctx);
+
+  const [result] = await db
+    .select({ count: count() })
+    .from(matterActivityLog)
+    .where(and(eq(matterActivityLog.matter_id, matterId), gte(matterActivityLog.created_at, options.since)));
+
+  return result?.count ?? 0;
+};
+
 /**
  * Activity action types
  */
@@ -132,5 +149,6 @@ const ActivityAction = {
 export const matterActivityService = {
   logMatterActivity,
   getMatterActivity,
+  getMatterActivityCount,
   ActivityAction,
 };

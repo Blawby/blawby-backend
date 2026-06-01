@@ -38,6 +38,7 @@ matterSubResources.use('/:id/*', requireMatterAccess());
 
 // Activity
 matterSubResources.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
+matterSubResources.openapi(matterRoutes.getMatterActivityCountRoute, matterHandlers.getMatterActivityCountHandler);
 
 // Tasks
 matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
