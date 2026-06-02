@@ -1,6 +1,6 @@
 {
-  "id": "e05f62ee-831a-4d8a-bf5f-feaac30e09f5",
-  "prevId": "c544921c-7cc3-4f2b-8d47-f9353650d4eb",
+  "id": "c544921c-7cc3-4f2b-8d47-f9353650d4eb",
+  "prevId": "5881a587-2763-4ba4-a958-a3b3adce9f10",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8851,39 +8851,6 @@
           "columns": [
             {
               "expression": "stripe_created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "payouts_org_status_created_at_id_idx": {
-          "name": "payouts_org_status_created_at_id_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "stripe_created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

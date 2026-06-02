@@ -1,6 +1,6 @@
 {
-  "id": "c544921c-7cc3-4f2b-8d47-f9353650d4eb",
-  "prevId": "5881a587-2763-4ba4-a958-a3b3adce9f10",
+  "id": "5881a587-2763-4ba4-a958-a3b3adce9f10",
+  "prevId": "71a53e1d-5328-48bd-9052-e69d51e77499",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8762,13 +8762,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "last_stripe_event_created_at": {
-          "name": "last_stripe_event_created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         },
         "created_at": {
           "name": "created_at",
