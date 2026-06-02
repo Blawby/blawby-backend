@@ -81,11 +81,12 @@ describe('payoutsWebhookService.processEvent', () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  it('skips when no connected account is found for the Stripe account', async () => {
+  it('throws (for worker retry) when no connected account is found for the Stripe account', async () => {
     findAccountMock.mockResolvedValue(null);
 
-    await payoutsWebhookService.processEvent(makeEvent('payout.created', makePayout()));
-
+    await expect(
+      payoutsWebhookService.processEvent(makeEvent('payout.created', makePayout()))
+    ).rejects.toThrow(/No connected account found/);
     expect(findAccountMock).toHaveBeenCalledWith(ACCOUNT_ID);
     expect(upsertMock).not.toHaveBeenCalled();
   });
@@ -116,6 +117,15 @@ describe('payoutsWebhookService.processEvent', () => {
       last_stripe_event_created_at: new Date(1_699_800_000 * 1000),
       last_stripe_event_id: 'evt_test_1',
     });
+  });
+
+  it('treats a stale event (upsert returns undefined) as a no-op without throwing', async () => {
+    upsertMock.mockResolvedValue(undefined);
+
+    await expect(
+      payoutsWebhookService.processEvent(makeEvent('payout.paid', makePayout()))
+    ).resolves.toBeUndefined();
+    expect(upsertMock).toHaveBeenCalledTimes(1);
   });
 
   it('records failure details and status for a failed payout', async () => {

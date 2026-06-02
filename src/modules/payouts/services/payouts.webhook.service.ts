@@ -76,11 +76,10 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
 
   const connectedAccount = await onboardingRepository.findByStripeAccountId(stripeAccountId);
   if (!connectedAccount) {
-    logger.warn('Skipping payout {payoutId}: no connected account found for {stripeAccountId}', {
-      payoutId: payout.id,
-      stripeAccountId,
-    });
-    return;
+    // Throw so the worker retries — account may not be onboarded yet (transient miss).
+    throw new Error(
+      `No connected account found for Stripe account ${stripeAccountId} (payout ${payout.id})`
+    );
   }
 
   const record = mapPayoutToRecord(payout, connectedAccount.organization_id, stripeAccountId, event.created, event.id);

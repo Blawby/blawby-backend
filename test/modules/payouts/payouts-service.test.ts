@@ -129,9 +129,9 @@ describe('payoutsService.getPayoutDetail', () => {
       { payout: 'po_test_123', limit: 100 },
       { stripeAccount: 'acct_test_123' }
     );
-    expect(result.id).toBe('pay_row_1');
-    expect(result.balance_transaction_id).toBe('txn_test_123');
-    expect(result.metadata).toEqual({ foo: 'bar' });
+    expect(result.payout.id).toBe('pay_row_1');
+    expect(result.payout.balance_transaction_id).toBe('txn_test_123');
+    expect(result.payout.metadata).toEqual({ foo: 'bar' });
     expect(result.transactions_has_more).toBe(true);
     expect(result.transactions).toHaveLength(2);
     expect(result.transactions[0]).toEqual({
@@ -155,6 +155,18 @@ describe('payoutsService.getPayoutDetail', () => {
     const result = await payoutsService.getPayoutDetail({ id: 'pay_row_1' }, makeCtx('member'));
 
     expect(result.transactions[0]?.source).toBe('ch_expanded');
+  });
+
+  it('returns payout id on the payout sub-object (service returns PayoutDetailServiceResult shape)', async () => {
+    findByIdMock.mockResolvedValue(makePayoutRow());
+    mockBalanceTransactions([]);
+
+    const result = await payoutsService.getPayoutDetail({ id: 'pay_row_1' }, makeCtx('member'));
+
+    // Ensures callers use result.payout.* not result.* (flat shape was removed).
+    expect(result.payout).toBeDefined();
+    expect(result.payout.id).toBe('pay_row_1');
+  });
   });
 
   it('throws 404 when the payout does not exist for the practice', async () => {
