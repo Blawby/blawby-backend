@@ -47,7 +47,18 @@ jobs:
 
       - name: Migrate staging database
         if: github.ref == 'refs/heads/staging'
-        run: pnpm exec drizzle-kit migrate
+        run: |
+          node -e "
+            const { Client } = require('pg');
+            const c = new Client({ connectionString: process.env.DATABASE_URL });
+            c.connect()
+              .then(() => c.query('SELECT tag FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 10'))
+              .then(r => { console.log('Last 10 applied migrations:'); r.rows.forEach(row => console.log(' -', row.tag)); })
+              .catch(e => console.error('DB check error:', e.message))
+              .finally(() => c.end());
+          "
+          pnpm exec drizzle-kit migrate 2>&1
+          echo "Exit code: $?"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
