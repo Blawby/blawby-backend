@@ -58,7 +58,6 @@ const registerAuthRoutes = (app: Hono<AppContext>): void => {
     return c.json({
       resource: `${baseUrl}/mcp`,
       authorization_servers: [baseUrl],
-      scopes_supported: ['matters:read', 'matters:write', 'clients:read', 'invoices:read', 'invoices:write'],
       resource_name: 'Blawby MCP API',
     });
   });
