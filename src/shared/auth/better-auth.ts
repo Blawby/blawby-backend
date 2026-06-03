@@ -138,6 +138,14 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
           return typeof orgId === 'string' ? orgId : undefined;
         },
+        postLogin: {
+          page: `${getMatchingFrontendUrl()}/oauth/select-org`,
+          shouldRedirect: () => false,
+          consentReferenceId: ({ session }) => {
+            const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
+            return typeof orgId === 'string' ? orgId : undefined;
+          },
+        },
         clientPrivileges: (params) => checkClientIsOwner(params, db),
         customAccessTokenClaims: ({ referenceId }) => ({
           organization_id: referenceId,
