@@ -1,4 +1,4 @@
-import { eq, and, desc, count } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { engagementTemplates } from '@/modules/engagement-templates/database/schema/engagement-templates.schema';
 import type {
   InsertEngagementTemplate,
@@ -22,15 +22,12 @@ const findById = async (id: string, tx: typeof db = db): Promise<SelectEngagemen
 const listByPractice = async (
   practiceId: string,
   tx: typeof db = db
-): Promise<{ data: SelectEngagementTemplate[]; total: number }> => {
-  const condition = eq(engagementTemplates.practice_id, practiceId);
-
-  const [countResult, data] = await Promise.all([
-    tx.select({ total: count() }).from(engagementTemplates).where(condition),
-    tx.select().from(engagementTemplates).where(condition).orderBy(desc(engagementTemplates.created_at)),
-  ]);
-
-  return { data, total: Number(countResult[0]?.total ?? 0) };
+): Promise<SelectEngagementTemplate[]> => {
+  return tx
+    .select()
+    .from(engagementTemplates)
+    .where(eq(engagementTemplates.practice_id, practiceId))
+    .orderBy(desc(engagementTemplates.created_at));
 };
 
 const update = async (

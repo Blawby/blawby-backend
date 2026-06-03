@@ -23,8 +23,7 @@ const listEngagementTemplates = async (
 ): Promise<EngagementTemplateRecord[]> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Organization');
 
-  const { data } = await engagementTemplatesQueries.listByPractice(practiceId);
-  return data;
+  return engagementTemplatesQueries.listByPractice(practiceId);
 };
 
 const createEngagementTemplate = async (

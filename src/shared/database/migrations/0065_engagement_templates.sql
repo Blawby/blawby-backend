@@ -24,3 +24,9 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "engagement_templates_practice_id_idx" ON "engagement_templates" USING btree ("practice_id");
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "engagement_templates" ADD CONSTRAINT "engagement_templates_fee_type_check" CHECK (fee_type IN ('hourly', 'flat', 'contingency', 'pro_bono'));
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;

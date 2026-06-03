@@ -34,7 +34,7 @@ const createEngagementTemplateSchema = z
     retainer_cents: z.number().int().nullable().optional(),
     scope_template: z.string().optional(),
     body: z.string().optional(),
-    last_reviewed_at: z.string().datetime().nullable().optional(),
+    last_reviewed_at: z.iso.datetime({ offset: true }).nullable().optional(),
   })
   .strict();
 
@@ -49,7 +49,7 @@ const updateEngagementTemplateSchema = z
     retainer_cents: z.number().int().nullable().optional(),
     scope_template: z.string().optional(),
     body: z.string().optional(),
-    last_reviewed_at: z.string().datetime().nullable().optional(),
+    last_reviewed_at: z.iso.datetime({ offset: true }).nullable().optional(),
   })
   .strict();
 

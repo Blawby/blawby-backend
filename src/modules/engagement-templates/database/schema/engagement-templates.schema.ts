@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, numeric, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, numeric, timestamp, index, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { organizations } from '@/schema/better-auth-schema';
 
 export const engagementTemplates = pgTable(
@@ -23,7 +24,13 @@ export const engagementTemplates = pgTable(
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
-  (table) => [index('engagement_templates_practice_id_idx').on(table.practice_id)]
+  (table) => [
+    index('engagement_templates_practice_id_idx').on(table.practice_id),
+    check(
+      'engagement_templates_fee_type_check',
+      sql`${table.fee_type} IN ('hourly', 'flat', 'contingency', 'pro_bono')`
+    ),
+  ]
 );
 
 export type InsertEngagementTemplate = typeof engagementTemplates.$inferInsert;
