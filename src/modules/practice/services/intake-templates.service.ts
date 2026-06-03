@@ -141,13 +141,13 @@ const updateTemplate = async (
       {
         slug: data.slug,
         name: data.name,
-        description: data.description ?? undefined,
+        description: data.description,
         status: data.status,
         is_default: data.is_default,
-        intro_message: data.intro_message ?? undefined,
-        legal_disclaimer: data.legal_disclaimer ?? undefined,
+        intro_message: data.intro_message,
+        legal_disclaimer: data.legal_disclaimer,
         payment_link_enabled: data.payment_link_enabled,
-        consultation_fee: data.consultation_fee ?? undefined,
+        consultation_fee: data.consultation_fee,
         archived_at: data.status === 'archived' ? new Date() : undefined,
       },
       fields

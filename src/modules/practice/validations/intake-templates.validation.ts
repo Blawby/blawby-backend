@@ -61,7 +61,7 @@ const createIntakeTemplateFieldSchema = z.object({
   field_type: intakeFieldTypeSchema,
   phase: intakeFieldPhaseSchema.default('required'),
   required: z.boolean().default(false),
-  order_index: z.number().int().min(0).default(0),
+  order_index: z.number().int().min(0).optional(),
   placeholder: z.string().optional(),
   help_text: z.string().optional(),
   prompt_hint: z.string().optional(),

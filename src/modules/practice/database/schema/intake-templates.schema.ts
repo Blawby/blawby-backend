@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { pgTable, uuid, text, boolean, integer, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { organizations } from '@/schema/better-auth-schema';
 
@@ -39,7 +39,9 @@ export const intakeTemplates = pgTable(
     uniqueIndex('intake_templates_org_slug_idx').on(table.organization_id, table.slug),
     index('intake_templates_org_idx').on(table.organization_id),
     index('intake_templates_status_idx').on(table.status),
-    index('intake_templates_is_default_idx').on(table.organization_id, table.is_default),
+    uniqueIndex('intake_templates_one_default_idx')
+      .on(table.organization_id)
+      .where(sql`${table.is_default} = true`),
   ]
 );
 

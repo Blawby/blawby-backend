@@ -1,4 +1,4 @@
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, inArray } from 'drizzle-orm';
 import {
   intakeTemplates,
   intakeTemplateFields,
@@ -28,7 +28,27 @@ const findById = async (id: string): Promise<TemplateWithFields | undefined> => 
 
 const findByOrganization = async (organizationId: string): Promise<TemplateWithFields[]> => {
   const templates = await db.select().from(intakeTemplates).where(eq(intakeTemplates.organization_id, organizationId));
-  return Promise.all(templates.map(withFields));
+  if (templates.length === 0) return [];
+
+  const allFields = await db
+    .select()
+    .from(intakeTemplateFields)
+    .where(
+      inArray(
+        intakeTemplateFields.template_id,
+        templates.map((t) => t.id)
+      )
+    )
+    .orderBy(asc(intakeTemplateFields.order_index));
+
+  const fieldsByTemplateId = new Map<string, IntakeTemplateField[]>();
+  for (const field of allFields) {
+    const existing = fieldsByTemplateId.get(field.template_id) ?? [];
+    existing.push(field);
+    fieldsByTemplateId.set(field.template_id, existing);
+  }
+
+  return templates.map((t) => ({ ...t, fields: fieldsByTemplateId.get(t.id) ?? [] }));
 };
 
 const findDefaultByOrganization = async (organizationId: string): Promise<TemplateWithFields | undefined> => {
