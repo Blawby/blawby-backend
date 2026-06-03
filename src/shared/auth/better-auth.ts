@@ -132,6 +132,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         loginPage: `${getMatchingFrontendUrl()}/login`,
         consentPage: `${getMatchingFrontendUrl()}/oauth/consent`,
         allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
         validAudiences: [`${config.app.baseUrl}/mcp`],
         clientReference: ({ session }) => {
           const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
