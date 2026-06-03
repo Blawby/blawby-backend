@@ -4,6 +4,7 @@ import { fundManagement } from '@/engines/financial';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -53,7 +54,11 @@ const getIntakeSettings = async (params: {
     throw new HTTPException(403, { message: 'Connected account is not ready to accept payments' });
   }
 
-  const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+  const [practiceDetails, defaultTemplate] = await Promise.all([
+    findPracticeDetailsByOrganization(organization.id),
+    intakeTemplatesRepository.findPublishedDefaultByOrganization(organization.id),
+  ]);
+
   const consultationFee = practiceDetails?.consultation_fee ?? 0;
   const serviceArea = (practiceDetails?.services ?? []).map((service) => ({
     id: service.id,
@@ -78,6 +83,31 @@ const getIntakeSettings = async (params: {
       id: connectedAccount.id,
       charges_enabled: connectedAccount.charges_enabled,
     },
+    intake_template: defaultTemplate
+      ? {
+          id: defaultTemplate.id,
+          slug: defaultTemplate.slug,
+          name: defaultTemplate.name,
+          intro_message: defaultTemplate.intro_message ?? null,
+          legal_disclaimer: defaultTemplate.legal_disclaimer ?? null,
+          payment_link_enabled: defaultTemplate.payment_link_enabled,
+          consultation_fee: defaultTemplate.consultation_fee ?? null,
+          fields: defaultTemplate.fields.map((f) => ({
+            id: f.id,
+            key: f.key,
+            label: f.label,
+            field_type: f.field_type,
+            phase: f.phase,
+            required: f.required,
+            order_index: f.order_index,
+            placeholder: f.placeholder ?? null,
+            help_text: f.help_text ?? null,
+            prompt_hint: f.prompt_hint ?? null,
+            is_standard: f.is_standard,
+            options: f.options ?? null,
+          })),
+        }
+      : null,
   };
 };
 

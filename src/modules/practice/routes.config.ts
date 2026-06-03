@@ -17,5 +17,10 @@ export const config: Partial<ModuleConfig> = {
     'GET /list': ['requireAuth'],
     // Specific route middleware
     '/details/:slug': ['public'],
+    'GET /:practice_id/intake-templates': ['requireAuth', 'requireOrgMembership'],
+    'POST /:practice_id/intake-templates': ['requireAuth', 'requireOrgMembership'],
+    'GET /:practice_id/intake-templates/:id': ['requireAuth', 'requireOrgMembership'],
+    'PUT /:practice_id/intake-templates/:id': ['requireAuth', 'requireOrgMembership'],
+    'DELETE /:practice_id/intake-templates/:id': ['requireAuth', 'requireOrgMembership'],
   },
 };
