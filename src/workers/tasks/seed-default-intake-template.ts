@@ -9,6 +9,13 @@ interface SeedDefaultIntakeTemplatePayload {
 }
 
 export const seedDefaultIntakeTemplate: Task = async (payload: unknown) => {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    typeof (payload as Record<string, unknown>).organization_id !== 'string'
+  ) {
+    throw new Error(`Invalid payload: expected { organization_id: string }, got ${JSON.stringify(payload)}`);
+  }
   const { organization_id } = payload as SeedDefaultIntakeTemplatePayload;
 
   logger.info('Seeding default intake template for {organizationId}', { organizationId: organization_id });

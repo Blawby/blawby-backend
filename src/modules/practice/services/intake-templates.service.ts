@@ -156,7 +156,11 @@ const updateTemplate = async (
         legal_disclaimer: data.legal_disclaimer,
         payment_link_enabled: data.payment_link_enabled,
         consultation_fee: data.consultation_fee,
-        archived_at: data.status === 'archived' ? new Date() : null,
+        ...(data.status === 'archived'
+          ? { archived_at: new Date() }
+          : data.status !== undefined
+          ? { archived_at: null }
+          : {}),
       },
       fields
     );
@@ -172,20 +176,27 @@ const deleteTemplate = async (
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'IntakeTemplate');
 
   await db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select()
-      .from(intakeTemplates)
-      .where(and(eq(intakeTemplates.id, id), eq(intakeTemplates.organization_id, organizationId)))
-      .limit(1);
+    const deleted = await tx
+      .delete(intakeTemplates)
+      .where(
+        and(
+          eq(intakeTemplates.id, id),
+          eq(intakeTemplates.organization_id, organizationId),
+          eq(intakeTemplates.is_default, false)
+        )
+      )
+      .returning({ id: intakeTemplates.id });
 
-    if (!existing) {
-      throw new HTTPException(404, { message: 'Intake template not found' });
-    }
-    if (existing.is_default) {
+    if (deleted.length === 0) {
+      const [existing] = await tx
+        .select({ id: intakeTemplates.id })
+        .from(intakeTemplates)
+        .where(and(eq(intakeTemplates.id, id), eq(intakeTemplates.organization_id, organizationId)))
+        .limit(1);
+
+      if (!existing) throw new HTTPException(404, { message: 'Intake template not found' });
       throw new HTTPException(409, { message: 'Cannot delete the default intake template' });
     }
-
-    await tx.delete(intakeTemplates).where(eq(intakeTemplates.id, id));
   });
 };
 
