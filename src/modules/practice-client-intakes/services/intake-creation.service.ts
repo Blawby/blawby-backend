@@ -4,6 +4,9 @@ import { fundManagement } from '@/engines/financial';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
+import { mapIntakeTemplateFieldToPublicSettings } from '@/modules/practice/utils/intake-template.utils';
+import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -53,7 +56,16 @@ const getIntakeSettings = async (params: {
     throw new HTTPException(403, { message: 'Connected account is not ready to accept payments' });
   }
 
-  const practiceDetails = await findPracticeDetailsByOrganization(organization.id);
+  const [practiceDetails, defaultTemplate] = await Promise.all([
+    findPracticeDetailsByOrganization(organization.id),
+    intakeTemplatesRepository.findPublishedDefaultByOrganization(organization.id),
+  ]);
+
+  if (!defaultTemplate) {
+    void addSeedDefaultIntakeTemplateJob(organization.id).catch(() => {});
+    throw new HTTPException(503, { message: 'Intake configuration is being set up, please try again shortly' });
+  }
+
   const consultationFee = practiceDetails?.consultation_fee ?? 0;
   const serviceArea = (practiceDetails?.services ?? []).map((service) => ({
     id: service.id,
@@ -77,6 +89,16 @@ const getIntakeSettings = async (params: {
     connected_account: {
       id: connectedAccount.id,
       charges_enabled: connectedAccount.charges_enabled,
+    },
+    intake_template: {
+      id: defaultTemplate.id,
+      slug: defaultTemplate.slug,
+      name: defaultTemplate.name,
+      intro_message: defaultTemplate.intro_message,
+      legal_disclaimer: defaultTemplate.legal_disclaimer,
+      payment_link_enabled: defaultTemplate.payment_link_enabled,
+      consultation_fee: defaultTemplate.consultation_fee,
+      fields: defaultTemplate.fields.map(mapIntakeTemplateFieldToPublicSettings),
     },
   };
 };

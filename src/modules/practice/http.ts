@@ -80,6 +80,13 @@ practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDe
  */
 practiceApp.openapi(routes.conflictCheckRoute, handlers.conflictCheckHandler);
 
+// ==================== INTAKE TEMPLATES ====================
+practiceApp.openapi(routes.listIntakeTemplatesRoute, handlers.listIntakeTemplatesHandler);
+practiceApp.openapi(routes.createIntakeTemplateRoute, handlers.createIntakeTemplateHandler);
+practiceApp.openapi(routes.getIntakeTemplateRoute, handlers.getIntakeTemplateHandler);
+practiceApp.openapi(routes.updateIntakeTemplateRoute, handlers.updateIntakeTemplateHandler);
+practiceApp.openapi(routes.deleteIntakeTemplateRoute, handlers.deleteIntakeTemplateHandler);
+
 registerOpenApiRoutes(practiceApp, routes);
 
 export default practiceApp;
