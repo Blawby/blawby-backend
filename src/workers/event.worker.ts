@@ -10,6 +10,7 @@ import { processRefundReconciliation } from '@/workers/tasks/process-refund-reco
 import { processStripeWebhook } from '@/workers/tasks/process-stripe-webhook';
 import { processInvoicePayment } from '@/workers/tasks/process-invoice-payment';
 import { processInvoiceVoidReconciliation } from '@/workers/tasks/process-invoice-void-reconciliation';
+import { seedDefaultIntakeTemplate } from '@/workers/tasks/seed-default-intake-template';
 
 config();
 
@@ -25,6 +26,7 @@ void runWorker({
     [TASK_NAMES.PROCESS_METERED_USAGE]: processMeteredUsage,
     [TASK_NAMES.PROCESS_REFUND_RECONCILIATION]: processRefundReconciliation,
     [TASK_NAMES.CLEANUP_EMAIL_LOGS]: cleanupEmailLogs,
+    [TASK_NAMES.SEED_DEFAULT_INTAKE_TEMPLATE]: seedDefaultIntakeTemplate,
   },
   // Run outbox processing every minute to catch any missed events
   crontab: `

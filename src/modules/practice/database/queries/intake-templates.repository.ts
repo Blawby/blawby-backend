@@ -51,16 +51,6 @@ const findByOrganization = async (organizationId: string): Promise<TemplateWithF
   return templates.map((t) => ({ ...t, fields: fieldsByTemplateId.get(t.id) ?? [] }));
 };
 
-const findDefaultByOrganization = async (organizationId: string): Promise<TemplateWithFields | undefined> => {
-  const [template] = await db
-    .select()
-    .from(intakeTemplates)
-    .where(and(eq(intakeTemplates.organization_id, organizationId), eq(intakeTemplates.is_default, true)))
-    .limit(1);
-  if (!template) return undefined;
-  return withFields(template);
-};
-
 const findPublishedDefaultByOrganization = async (organizationId: string): Promise<TemplateWithFields | undefined> => {
   const [template] = await db
     .select()
@@ -121,7 +111,7 @@ const update = async (
     return { ...template, fields: insertedFields };
   }
 
-  const existingFields = await db
+  const existingFields = await tx
     .select()
     .from(intakeTemplateFields)
     .where(eq(intakeTemplateFields.template_id, id))
@@ -143,7 +133,6 @@ const remove = async (id: string): Promise<void> => {
 export const intakeTemplatesRepository = {
   findById,
   findByOrganization,
-  findDefaultByOrganization,
   findPublishedDefaultByOrganization,
   create,
   update,

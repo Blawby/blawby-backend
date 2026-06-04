@@ -135,9 +135,8 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
       consultation_fee: z.number().int().nullable(),
       fields: z.array(intakeTemplateFieldSettingsSchema),
     })
-    .nullable()
     .openapi({
-      description: 'Resolved default intake template for this practice. Null if no published default exists.',
+      description: 'Resolved default intake template for this practice.',
     }),
 });
 

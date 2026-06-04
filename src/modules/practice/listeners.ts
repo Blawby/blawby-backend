@@ -18,10 +18,10 @@ import {
 } from '@/shared/events/definitions';
 import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
-import { intakeTemplatesService } from '@/modules/practice/services/intake-templates.service';
+import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError, hashEmail } from '@/shared/utils/logging';
+import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -32,18 +32,10 @@ const APP_URL = config.app.appUrl;
 const registerPracticeListeners = (): void => {
   logger.info('Registering practice event listeners...');
 
-  // Practice created — seed the default intake template
+  // Practice created — queue seeding of the default intake template
   Event.listen(PracticeCreated, async (payload) => {
     logger.info('Practice created', { organizationId: payload.organization_id });
-    try {
-      await intakeTemplatesService.seedDefaultTemplate(payload.organization_id);
-      logger.info('Seeded default intake template', { organizationId: payload.organization_id });
-    } catch (error) {
-      logger.error('Failed to seed default intake template for {organizationId}: {error}', {
-        organizationId: payload.organization_id,
-        error,
-      });
-    }
+    await addSeedDefaultIntakeTemplateJob(payload.organization_id);
   });
 
   // Practice updated

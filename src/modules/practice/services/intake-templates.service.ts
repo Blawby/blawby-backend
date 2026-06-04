@@ -1,6 +1,11 @@
 import { ForbiddenError } from '@casl/ability';
+import { and, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
+import {
+  intakeTemplates,
+  type InsertIntakeTemplateField,
+} from '@/modules/practice/database/schema/intake-templates.schema';
 import type {
   CreateIntakeTemplateRequest,
   UpdateIntakeTemplateRequest,
@@ -8,7 +13,7 @@ import type {
 } from '@/modules/practice/validations/intake-templates.validation';
 import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
-import type { InsertIntakeTemplateField } from '@/modules/practice/database/schema/intake-templates.schema';
+import { wrapDbError } from '@/shared/utils/db-error';
 
 const toResponse = (
   template: Awaited<ReturnType<typeof intakeTemplatesRepository.findById>>
@@ -79,29 +84,32 @@ const createTemplate = async (
     template_id: '',
   }));
 
-  const template = await db.transaction(async (tx) => {
-    if (data.is_default) {
-      await intakeTemplatesRepository.clearDefaultForOrganization(tx, organizationId);
-    }
-    return intakeTemplatesRepository.create(
-      tx,
-      {
-        organization_id: organizationId,
-        slug: data.slug,
-        name: data.name,
-        description: data.description,
-        status: data.status,
-        is_default: data.is_default,
-        intro_message: data.intro_message,
-        legal_disclaimer: data.legal_disclaimer,
-        payment_link_enabled: data.payment_link_enabled,
-        consultation_fee: data.consultation_fee,
-      },
-      fields
-    );
-  });
-
-  return toResponse(template);
+  try {
+    const template = await db.transaction(async (tx) => {
+      if (data.is_default) {
+        await intakeTemplatesRepository.clearDefaultForOrganization(tx, organizationId);
+      }
+      return intakeTemplatesRepository.create(
+        tx,
+        {
+          organization_id: organizationId,
+          slug: data.slug,
+          name: data.name,
+          description: data.description,
+          status: data.status,
+          is_default: data.is_default,
+          intro_message: data.intro_message,
+          legal_disclaimer: data.legal_disclaimer,
+          payment_link_enabled: data.payment_link_enabled,
+          consultation_fee: data.consultation_fee,
+        },
+        fields
+      );
+    });
+    return toResponse(template);
+  } catch (err) {
+    return wrapDbError(err);
+  }
 };
 
 const updateTemplate = async (
@@ -148,7 +156,7 @@ const updateTemplate = async (
         legal_disclaimer: data.legal_disclaimer,
         payment_link_enabled: data.payment_link_enabled,
         consultation_fee: data.consultation_fee,
-        archived_at: data.status === 'archived' ? new Date() : undefined,
+        archived_at: data.status === 'archived' ? new Date() : null,
       },
       fields
     );
@@ -163,15 +171,22 @@ const deleteTemplate = async (
 ): Promise<void> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'IntakeTemplate');
 
-  const existing = await intakeTemplatesRepository.findById(id);
-  if (!existing || existing.organization_id !== organizationId) {
-    throw new HTTPException(404, { message: 'Intake template not found' });
-  }
-  if (existing.is_default) {
-    throw new HTTPException(409, { message: 'Cannot delete the default intake template' });
-  }
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(intakeTemplates)
+      .where(and(eq(intakeTemplates.id, id), eq(intakeTemplates.organization_id, organizationId)))
+      .limit(1);
 
-  await intakeTemplatesRepository.remove(id);
+    if (!existing) {
+      throw new HTTPException(404, { message: 'Intake template not found' });
+    }
+    if (existing.is_default) {
+      throw new HTTPException(409, { message: 'Cannot delete the default intake template' });
+    }
+
+    await tx.delete(intakeTemplates).where(eq(intakeTemplates.id, id));
+  });
 };
 
 const seedDefaultTemplate = async (organizationId: string): Promise<void> => {

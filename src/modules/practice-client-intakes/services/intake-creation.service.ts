@@ -5,6 +5,7 @@ import { onboardingRepository } from '@/modules/onboarding/database/queries/onbo
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
 import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
+import { mapIntakeTemplateFieldToPublicSettings } from '@/modules/practice/utils/intake-template.utils';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -59,6 +60,10 @@ const getIntakeSettings = async (params: {
     intakeTemplatesRepository.findPublishedDefaultByOrganization(organization.id),
   ]);
 
+  if (!defaultTemplate) {
+    throw new HTTPException(500, { message: 'Default intake template not configured for this practice' });
+  }
+
   const consultationFee = practiceDetails?.consultation_fee ?? 0;
   const serviceArea = (practiceDetails?.services ?? []).map((service) => ({
     id: service.id,
@@ -83,31 +88,16 @@ const getIntakeSettings = async (params: {
       id: connectedAccount.id,
       charges_enabled: connectedAccount.charges_enabled,
     },
-    intake_template: defaultTemplate
-      ? {
-          id: defaultTemplate.id,
-          slug: defaultTemplate.slug,
-          name: defaultTemplate.name,
-          intro_message: defaultTemplate.intro_message ?? null,
-          legal_disclaimer: defaultTemplate.legal_disclaimer ?? null,
-          payment_link_enabled: defaultTemplate.payment_link_enabled,
-          consultation_fee: defaultTemplate.consultation_fee ?? null,
-          fields: defaultTemplate.fields.map((f) => ({
-            id: f.id,
-            key: f.key,
-            label: f.label,
-            field_type: f.field_type,
-            phase: f.phase,
-            required: f.required,
-            order_index: f.order_index,
-            placeholder: f.placeholder ?? null,
-            help_text: f.help_text ?? null,
-            prompt_hint: f.prompt_hint ?? null,
-            is_standard: f.is_standard,
-            options: f.options ?? null,
-          })),
-        }
-      : null,
+    intake_template: {
+      id: defaultTemplate.id,
+      slug: defaultTemplate.slug,
+      name: defaultTemplate.name,
+      intro_message: defaultTemplate.intro_message,
+      legal_disclaimer: defaultTemplate.legal_disclaimer,
+      payment_link_enabled: defaultTemplate.payment_link_enabled,
+      consultation_fee: defaultTemplate.consultation_fee,
+      fields: defaultTemplate.fields.map(mapIntakeTemplateFieldToPublicSettings),
+    },
   };
 };
 
