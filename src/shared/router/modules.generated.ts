@@ -11,7 +11,7 @@ import payoutsHttp from '@/modules/payouts/http';
 import practiceHttp from '@/modules/practice/http';
 import practiceClientIntakesHttp from '@/modules/practice-client-intakes/http';
 import preferencesHttp from '@/modules/preferences/http';
-import publicHttp from '@/modules/public/http';
+import publicHttp, { mountPath as publicMountPath } from '@/modules/public/http';
 import stripeHttp from '@/modules/stripe/http';
 import subscriptionsHttp from '@/modules/subscriptions/http';
 import trustHttp from '@/modules/trust/http';
@@ -19,22 +19,22 @@ import webhooksHttp from '@/modules/webhooks/http';
 import workerEventsHttp from '@/modules/worker-events/http';
 
 export const MODULE_REGISTRY = [
-  { name: 'clients', http: clientsHttp },
-  { name: 'dev', http: devHttp },
-  { name: 'engagement-contracts', http: engagementContractsHttp },
-  { name: 'invoices', http: invoicesHttp },
-  { name: 'matters', http: mattersHttp },
-  { name: 'onboarding', http: onboardingHttp },
-  { name: 'payouts', http: payoutsHttp },
-  { name: 'practice', http: practiceHttp },
-  { name: 'practice-client-intakes', http: practiceClientIntakesHttp },
-  { name: 'preferences', http: preferencesHttp },
-  { name: 'public', http: publicHttp },
-  { name: 'stripe', http: stripeHttp },
-  { name: 'subscriptions', http: subscriptionsHttp },
-  { name: 'trust', http: trustHttp },
-  { name: 'webhooks', http: webhooksHttp },
-  { name: 'worker-events', http: workerEventsHttp }
+  { name: 'clients', http: clientsHttp, mountPath: '/api/clients' },
+  { name: 'dev', http: devHttp, mountPath: '/api/dev' },
+  { name: 'engagement-contracts', http: engagementContractsHttp, mountPath: '/api/engagement-contracts' },
+  { name: 'invoices', http: invoicesHttp, mountPath: '/api/invoices' },
+  { name: 'matters', http: mattersHttp, mountPath: '/api/matters' },
+  { name: 'onboarding', http: onboardingHttp, mountPath: '/api/onboarding' },
+  { name: 'payouts', http: payoutsHttp, mountPath: '/api/payouts' },
+  { name: 'practice', http: practiceHttp, mountPath: '/api/practice' },
+  { name: 'practice-client-intakes', http: practiceClientIntakesHttp, mountPath: '/api/practice-client-intakes' },
+  { name: 'preferences', http: preferencesHttp, mountPath: '/api/preferences' },
+  { name: 'public', http: publicHttp, mountPath: publicMountPath },
+  { name: 'stripe', http: stripeHttp, mountPath: '/api/stripe' },
+  { name: 'subscriptions', http: subscriptionsHttp, mountPath: '/api/subscriptions' },
+  { name: 'trust', http: trustHttp, mountPath: '/api/trust' },
+  { name: 'webhooks', http: webhooksHttp, mountPath: '/api/webhooks' },
+  { name: 'worker-events', http: workerEventsHttp, mountPath: '/api/worker-events' }
 ] as const;
 
 export type ModuleName = typeof MODULE_REGISTRY[number]['name'];

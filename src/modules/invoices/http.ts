@@ -1,13 +1,15 @@
 import { handlers } from '@/modules/invoices/handlers';
 import { routes } from '@/modules/invoices/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 import { refundRequestHandlers } from '@/modules/invoices/refund-requests.handlers';
 import { refundRequestRoutes } from '@/modules/invoices/refund-requests.routes';
 
 const app = createHonoApp();
-app.use('*', injectAbility());
+app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 // ==================== PRACTICE-SIDE INVOICES ====================
 app.openapi(routes.createInvoiceRoute, handlers.createInvoiceHandler);

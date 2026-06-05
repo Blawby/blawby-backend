@@ -12,9 +12,8 @@ import { createHonoApp } from '@/shared/router/factory';
 
 const app = createHonoApp();
 
-// Apply Auth and CASL Ability Injection to all routes in this module
-app.use('*', requireAuth());
-app.use('*', injectAbility());
+// Apply auth and CASL ability injection to all routes in this module.
+app.use('*', requireAuth(), injectAbility());
 
 /**
  * Preferences Routes

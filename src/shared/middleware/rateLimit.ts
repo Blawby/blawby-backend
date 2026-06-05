@@ -17,6 +17,8 @@ const DEFAULT_RATE_LIMIT_DURATION_SECONDS = 60;
 
 const limiters = new Map<string, RateLimiterPostgres>();
 
+type Scope = 'auto' | 'ip' | 'user';
+
 // Track if rate limiter has been initialized
 let initialized = false;
 
@@ -95,13 +97,15 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
 };
 
 export const rateLimit =
-  (options?: { points?: number; duration?: number; routeKey?: string }): MiddlewareHandler =>
+  (options?: { points?: number; duration?: number; routeKey?: string; scope?: Scope }): MiddlewareHandler =>
   async (c, next) => {
     const userId = c.get('userId');
 
     const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
 
-    const identifier = userId ? `user:${userId}` : `ip:${ip}`;
+    const scope = options?.scope ?? 'auto';
+    const identifier =
+      scope === 'user' && userId ? `user:${userId}` : scope === 'auto' && userId ? `user:${userId}` : `ip:${ip}`;
 
     const routeKey = options?.routeKey ?? 'global';
     const key = `${routeKey}:${identifier}`;
