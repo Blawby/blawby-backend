@@ -8,7 +8,7 @@ import { TrieRouter } from 'hono/router/trie-router';
 import { bootApplication } from '@/boot';
 import { registerAuthRoutes } from '@/shared/auth/better-auth.http';
 import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
-import { rateLimit } from '@/shared/middleware/rateLimit';
+import { rateLimit, rateLimiter } from '@/shared/middleware/rateLimit';
 import { uploadsHttp } from '@/shared/uploads/http';
 import { mcpHttp } from '@/modules/mcp';
 import { registerModuleRoutes } from '@/shared/router/module-router';
@@ -32,7 +32,7 @@ app.use(
 );
 app.use('*', cors());
 app.use('*', responseMiddleware());
-app.use('/api/*', rateLimit({ scope: 'ip' }));
+app.use('/api/*', rateLimit({ scope: rateLimiter.getApiRateLimitIdentifier }));
 
 registerAuthRoutes(app);
 

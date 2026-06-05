@@ -9,15 +9,17 @@
  */
 
 import { RateLimiterPostgres } from 'rate-limiter-flexible';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { getPool } from '@/shared/database/connection';
+import type { AppContext } from '@/shared/types/hono';
 
 const DEFAULT_RATE_LIMIT_POINTS = 60;
 const DEFAULT_RATE_LIMIT_DURATION_SECONDS = 60;
 
 const limiters = new Map<string, RateLimiterPostgres>();
 
-type Scope = 'auto' | 'ip' | 'user';
+type ScopeResolver = (c: Context<AppContext>) => string | null | undefined | Promise<string | null | undefined>;
+type Scope = 'auto' | 'ip' | 'user' | ScopeResolver;
 
 // Track if rate limiter has been initialized
 let initialized = false;
@@ -96,8 +98,28 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
   return limiters.get(key)!;
 };
 
+const getApiRateLimitIdentifier: ScopeResolver = (c) => {
+  const userId = c.get('userId');
+  if (userId) {
+    return `user:${userId}`;
+  }
+
+  const authorization = c.req.header('authorization');
+  if (authorization) {
+    return `auth:${authorization}`;
+  }
+
+  const apiKey = c.req.header('x-api-key');
+  if (apiKey) {
+    return `api-key:${apiKey}`;
+  }
+
+  const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  return `ip:${ip}`;
+};
+
 export const rateLimit =
-  (options?: { points?: number; duration?: number; routeKey?: string; scope?: Scope }): MiddlewareHandler =>
+  (options?: { points?: number; duration?: number; routeKey?: string; scope?: Scope }): MiddlewareHandler<AppContext> =>
   async (c, next) => {
     const userId = c.get('userId');
 
@@ -105,7 +127,13 @@ export const rateLimit =
 
     const scope = options?.scope ?? 'auto';
     const identifier =
-      scope === 'user' && userId ? `user:${userId}` : scope === 'auto' && userId ? `user:${userId}` : `ip:${ip}`;
+      typeof scope === 'function'
+        ? ((await scope(c)) ?? `ip:${ip}`)
+        : scope === 'user' && userId
+          ? `user:${userId}`
+          : scope === 'auto' && userId
+            ? `user:${userId}`
+            : `ip:${ip}`;
 
     const routeKey = options?.routeKey ?? 'global';
     const key = `${routeKey}:${identifier}`;
@@ -150,5 +178,6 @@ export const rateLimit =
   };
 
 export const rateLimiter = {
+  getApiRateLimitIdentifier,
   initialize: initializeRateLimiter,
 };
