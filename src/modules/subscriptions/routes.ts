@@ -79,8 +79,109 @@ const cancelSubscriptionRoute = routeBuilder.build({
   },
 });
 
+/**
+ * POST /api/subscriptions/checkout
+ * Create a Stripe checkout session (auth required, no org needed — auto-creates if absent)
+ */
+const checkoutRoute = routeBuilder.build({
+  method: 'post',
+  path: '/checkout',
+  tags: ['Subscriptions'],
+  summary: 'Create checkout session',
+  description: 'Create a Stripe Checkout Session for a given price. Auto-creates an org if the user has none.',
+  security: [{ Bearer: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: subscriptionValidations.checkoutRequestSchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': { schema: subscriptionValidations.checkoutResponseSchema },
+      },
+      description: 'Checkout session created',
+    },
+  },
+});
+
+/**
+ * POST /api/subscriptions/billing-portal
+ * Create a Stripe Billing Portal session
+ */
+const billingPortalRoute = routeBuilder.build({
+  method: 'post',
+  path: '/billing-portal',
+  tags: ['Subscriptions'],
+  summary: 'Create billing portal session',
+  description: 'Create a Stripe Billing Portal session to manage or cancel the active subscription.',
+  security: [{ Bearer: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: subscriptionValidations.billingPortalRequestSchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': { schema: subscriptionValidations.cancelSubscriptionResponseSchema },
+      },
+      description: 'Billing portal URL returned',
+    },
+  },
+});
+
+/**
+ * GET /api/subscriptions/list
+ * List subscriptions for active org
+ */
+const listSubscriptionsRoute = routeBuilder.build({
+  method: 'get',
+  path: '/list',
+  tags: ['Subscriptions'],
+  summary: 'List subscriptions',
+  description: "List active organization's subscriptions.",
+  security: [{ Bearer: [] }],
+  responses: {
+    200: {
+      content: {
+        'application/json': { schema: subscriptionValidations.listSubscriptionsResponseSchema },
+      },
+      description: 'Subscriptions listed',
+    },
+  },
+});
+
+/**
+ * POST /api/subscriptions/webhook
+ * Stripe webhook endpoint (no auth — signature verified by service)
+ */
+const webhookRoute = routeBuilder.build({
+  method: 'post',
+  path: '/webhook',
+  tags: ['Subscriptions'],
+  summary: 'Stripe webhook',
+  description: 'Receives and processes Stripe webhook events. Signature is verified internally.',
+  responses: {
+    200: {
+      content: {
+        'application/json': { schema: subscriptionValidations.webhookResponseSchema },
+      },
+      description: 'Webhook received',
+    },
+  },
+});
+
 export const routes = {
   listPlansRoute,
   getCurrentSubscriptionRoute,
   cancelSubscriptionRoute,
+  checkoutRoute,
+  billingPortalRoute,
+  listSubscriptionsRoute,
+  webhookRoute,
 };

@@ -1,5 +1,6 @@
 FROM node:25-alpine
 
+RUN apk add --no-cache curl
 RUN npm install -g pnpm@10
 
 WORKDIR /app

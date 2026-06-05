@@ -24,7 +24,7 @@
     "db:migrate:staging": "tsx scripts/migrate-from-secrets.ts cf-secrets.staging.json",
     "db:migrate:prod": "tsx scripts/migrate-from-secrets.ts cf-secrets.production.json",
     "db:studio": "drizzle-kit studio",
-    "sync:plans": "tsx src/scripts/syncSubscriptionPlans.ts",
+    "sync:plans": "tsx src/scripts/sync-subscription-plans.ts",
     "sync:schemas": "tsx scripts/sync-schemas.ts",
     "sync:listeners": "tsx scripts/sync-listeners.ts",
     "init:preferences": "tsx scripts/initialize-user-preferences.ts",
@@ -45,7 +45,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
     "@aws-sdk/s3-request-presigner": "^3.1014.0",
-    "@better-auth/stripe": "^1.5.5",
+    "@better-auth/oauth-provider": "1.5.5",
+    "@better-auth/stripe": "1.5.5",
     "@casl/ability": "^6.8.0",
     "@dotenvx/dotenvx": "^1.57.0",
     "@hono/node-server": "^1.19.13",
@@ -53,6 +54,7 @@
     "@logtape/file": "^2.0.4",
     "@logtape/hono": "^2.0.4",
     "@logtape/logtape": "^2.0.4",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@scalar/hono-api-reference": "^0.10.4",
     "@scalar/openapi-to-markdown": "^0.4.12",
     "better-auth": "1.5.5",
@@ -110,7 +112,7 @@
       "tsx"
     ]
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.3.0",
   "engines": {
     "node": ">=25.8.1"
   }

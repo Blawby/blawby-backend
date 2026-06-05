@@ -9,6 +9,8 @@ const conflictCheckRequestSchema = z
     opposing_party: z.string().optional(),
     aliases: z.array(z.string()).optional(),
     matter_id: uuidValidator.optional(),
+    state: z.string().max(10).optional(),
+    practice_service_key: z.string().optional(),
   })
   .strict();
 
@@ -28,6 +30,13 @@ const conflictCheckResultSchema = z
         client_id: z.uuid(),
         name: z.string(),
         similarity_score: z.number(),
+        dob_match: z.boolean().nullable(),
+      })
+    ),
+    warnings: z.array(
+      z.object({
+        type: z.enum(['unsupported_service', 'unsupported_state']),
+        message: z.string(),
       })
     ),
     suggested_next_action: z.string(),

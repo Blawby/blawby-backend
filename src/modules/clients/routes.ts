@@ -13,6 +13,7 @@ import {
   clientSchema,
 } from '@/modules/clients/validations/clients.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { clientsService } from '@/modules/clients/services/clients-crud.service';
 
 // ==================== CLIENTS ====================
 
@@ -22,6 +23,10 @@ export const listClientsRoute = routeBuilder.build({
   tags: ['Clients'],
   summary: 'List clients',
   description: 'Get all clients for an organization.',
+  mcp: {
+    scope: 'clients:read',
+    handler: async (args, ctx) => clientsService.listClients(args as Parameters<typeof clientsService.listClients>[0], ctx),
+  },
   request: {
     params: practiceParamsSchema,
     query: listClientsSchema,
@@ -40,6 +45,11 @@ export const getClientRoute = routeBuilder.build({
   tags: ['Clients'],
   summary: 'Get client',
   description: 'Get a specific client by ID.',
+  mcp: {
+    scope: 'clients:read',
+    schema: { client_id: z.uuid() },
+    handler: async (args, ctx) => clientsService.getClient({ id: args['client_id'] as string }, ctx),
+  },
   request: {
     params: clientParamsSchema,
   },

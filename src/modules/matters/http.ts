@@ -38,6 +38,7 @@ matterSubResources.use('/:id/*', requireMatterAccess());
 
 // Activity
 matterSubResources.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
+matterSubResources.openapi(matterRoutes.getMatterActivityCountRoute, matterHandlers.getMatterActivityCountHandler);
 
 // Tasks
 matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
@@ -78,6 +79,12 @@ matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.r
 matterSubResources.openapi(matterRoutes.linkMatterFileRoute, matterHandlers.linkMatterFileHandler);
 matterSubResources.openapi(matterRoutes.listMatterFilesRoute, matterHandlers.listMatterFilesHandler);
 matterSubResources.openapi(matterRoutes.unlinkMatterFileRoute, matterHandlers.unlinkMatterFileHandler);
+
+// Deadlines
+matterSubResources.openapi(matterRoutes.listDeadlinesRoute, matterHandlers.listDeadlinesHandler);
+matterSubResources.openapi(matterRoutes.createDeadlineRoute, matterHandlers.createDeadlineHandler);
+matterSubResources.openapi(matterRoutes.updateDeadlineRoute, matterHandlers.updateDeadlineHandler);
+matterSubResources.openapi(matterRoutes.deleteDeadlineRoute, matterHandlers.deleteDeadlineHandler);
 
 // Mount sub-router with prefix
 app.route('/:practice_id', matterSubResources);

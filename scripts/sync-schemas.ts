@@ -141,6 +141,9 @@ ${tablePaths.map((p) => `export * from './${p}';`).join('\n')}
 
 // Auto-discovered RELATIONS files — exported after tables to avoid TDZ issues
 ${allRelationPaths.map((p) => `export * from './${p}';`).join('\n')}
+
+// Singular aliases required by @better-auth/drizzle-adapter — getSchema() uses exact model name (not usePlural)
+export { oauthClients as oauthClient, oauthAccessTokens as oauthAccessToken, oauthRefreshTokens as oauthRefreshToken, oauthConsents as oauthConsent } from './oauth.schema';
 `;
 
   writeFileSync(OUTPUT_FILE, content, 'utf-8');

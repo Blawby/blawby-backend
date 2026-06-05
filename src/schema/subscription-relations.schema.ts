@@ -1,7 +1,8 @@
 import { relations } from 'drizzle-orm';
-import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
-import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
-import { subscriptions, organizations } from '@/schema/better-auth-schema';
+import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscription-events.schema';
+import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
+import { organizations } from '@/schema/better-auth-schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 
 export const subscriptionsRelations = relations(subscriptions, ({ many, one }) => ({
   events: many(subscriptionEvents),

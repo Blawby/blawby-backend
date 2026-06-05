@@ -1,7 +1,10 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import type { AddressData } from '@/modules/practice/types/addresses.types';
-import type { db } from '@/shared/database';
+import { db } from '@/shared/database';
+
+export const findAddressesByIds = async (addressIds: string[]): Promise<(typeof addresses.$inferSelect)[]> =>
+  addressIds.length === 0 ? [] : await db.select().from(addresses).where(inArray(addresses.id, addressIds));
 
 /**
  * Upsert an address within a transaction.

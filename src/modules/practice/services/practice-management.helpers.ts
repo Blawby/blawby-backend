@@ -10,13 +10,9 @@ import type {
   DetailsFieldKeys,
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
-import type { OrganizationApiShape, PracticeWithDetails } from '@/modules/practice/types/practice.types';
-import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { db } from '@/shared/database';
 import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
-
-const { parseBetterAuthMetadata } = betterAuthUtils;
 
 export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'business_phone',
@@ -35,22 +31,6 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'address',
   'accent_color',
 ];
-
-export const buildPracticeWithDetails = (
-  organization: OrganizationApiShape,
-  practiceDetails: PracticeDetails | null
-): PracticeWithDetails => {
-  const { paymentLinkEnabled, createdAt, updatedAt, ...rest } = organization;
-
-  return {
-    ...practiceDetails,
-    ...rest,
-    metadata: parseBetterAuthMetadata(organization.metadata),
-    payment_link_enabled: paymentLinkEnabled ?? null,
-    created_at: createdAt ?? new Date(),
-    updated_at: updatedAt ?? undefined,
-  };
-};
 
 export const upsertDetailsTransaction = async (
   tx: typeof db,

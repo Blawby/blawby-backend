@@ -4,12 +4,14 @@ import type { ModuleConfig } from '@/shared/router/module-router';
  * Subscription Module Route Configuration
  *
  * Configures middleware and routing for subscription endpoints
- * All routes require authentication
+ * Routes require authentication unless explicitly marked public.
  */
 export const config: Partial<ModuleConfig> = {
   middleware: {
-    '*': ['requireAuth', 'requireOrgMembership'], // RateLimit added automatically by default
-    '/plans': ['requireAuth'], // Plans are org-independent; no org context needed
+    '*': ['requireAuth', 'requireOrgMembership'],
+    '/plans': ['requireAuth'],
+    '/checkout': ['requireAuth'], // Auth but no org — checkout service handles org resolution
+    '/webhook': ['public'], // No auth - Stripe signature verified inside the service
   },
   prefix: undefined, // Mount at /api/subscriptions
 };

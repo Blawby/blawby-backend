@@ -22,6 +22,7 @@ export const matterActivityLog = pgTable(
   },
   (table) => [
     index('matter_activity_log_matter_idx').on(table.matter_id),
+    index('matter_activity_log_matter_created_at_idx').on(table.matter_id, table.created_at),
     index('matter_activity_log_user_idx').on(table.user_id),
     index('matter_activity_log_action_idx').on(table.action),
     index('matter_activity_log_created_at_idx').on(table.created_at),

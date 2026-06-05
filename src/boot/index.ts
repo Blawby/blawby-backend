@@ -7,8 +7,11 @@
 import { bootEventHandlers } from '@/boot/event-handlers';
 import { bootServices } from '@/boot/services';
 import { bootWorkers } from '@/boot/workers';
+import { getLogger } from '@logtape/logtape';
 import { rateLimiter } from '@/shared/middleware/rateLimit';
 import { initializeLogging } from '@/shared/logging/config';
+
+const logger = getLogger(['app', 'boot']);
 
 /**
  * Core Boot
@@ -29,10 +32,10 @@ export const bootCore = (): void => {
  * Call this after all modules are loaded but before starting the server
  */
 export const bootApplication = async (): Promise<void> => {
-  console.info('🚀 Starting application boot sequence...');
-
   // 0. Initialize logging system
   await initializeLogging();
+  console.info('🚀 Starting application boot sequence...');
+  logger.info('Starting application boot sequence...');
 
   // 1. Core initialization (Services & Events)
   bootCore();
@@ -49,4 +52,5 @@ export const bootApplication = async (): Promise<void> => {
   bootWorkers();
 
   console.info('✅ Application boot sequence completed');
+  logger.info('Application boot sequence completed');
 };

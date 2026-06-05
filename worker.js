@@ -33,8 +33,25 @@ export class BackendContainer extends Container {
     SERVER_HOSTNAME: env.SERVER_HOSTNAME ?? '0.0.0.0',
     APP_ENV: env.APP_ENV ?? 'production',
     SKIP_CAPTCHA: env.SKIP_CAPTCHA ?? 'false',
+    RUNNING_IN_CLOUDFLARE_CONTAINER: 'true',
     NODE_ENV: 'production',
   };
+
+  async onStart() {
+    console.log('[container] started and healthy');
+  }
+
+  async onStop({ exitCode, reason }) {
+    console.log('[container] stopped', { exitCode, reason });
+  }
+
+  onError(error) {
+    console.error(
+      '[container] error:',
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
 
   async fetch(request) {
     const port = this.defaultPort;
@@ -62,6 +79,8 @@ export class BackendContainer extends Container {
 
 export default {
   async fetch(request, env) {
-    return (await getRandom(env.BACKEND, 1)).fetch(request);
+    const parsed = parseInt(env.CONTAINER_INSTANCES ?? '1', 10);
+    const instances = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    return (await getRandom(env.BACKEND, instances)).fetch(request);
   },
 };

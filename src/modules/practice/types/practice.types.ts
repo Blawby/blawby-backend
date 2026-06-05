@@ -36,18 +36,8 @@ export type OrganizationApiShape = Organization & {
   updatedAt?: Date | null;
 };
 
-type OrganizationWithoutCamelCase = Omit<OrganizationApiShape, 'paymentLinkEnabled' | 'createdAt' | 'updatedAt'>;
-
-export type NormalizedOrganization = OrganizationWithoutCamelCase & {
-  payment_link_enabled: boolean | null;
-  created_at: Date;
-  updated_at: Date | undefined;
-};
-
-export type PracticeWithDetails = NormalizedOrganization & Partial<PracticeDetails>;
-
 export interface PracticeWithUser {
-  practice: NormalizedOrganization;
+  practice: PracticeResponse;
   user: User;
   practice_details: Partial<PracticeDetails> | null;
 }
@@ -70,6 +60,6 @@ export type UpdatePracticeDetailsRequest = z.infer<typeof practiceValidations.up
 
 export type PracticeResponse = z.infer<typeof practiceValidations.practiceResponseSchema>;
 export type PracticeListResponse = z.infer<typeof practiceValidations.practiceListResponseSchema>;
-export type PracticeDetailsResponse = z.infer<typeof practiceValidations.practiceDetailsResponseSchema>;
+export type PracticeDetailsResponse = PracticeResponse;
 export type MemberListItem = z.infer<typeof practiceValidations.memberListItemSchema>;
 export type InvitationListItem = z.infer<typeof practiceValidations.invitationListItemSchema>;

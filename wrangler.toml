@@ -8,6 +8,9 @@ name = "blawby-backend"
 main = "worker.js"
 compatibility_date = "2025-04-01"
 
+[vars]
+CONTAINER_INSTANCES = "1"
+
 [[containers]]
 class_name = "BackendContainer"
 image = "./Dockerfile"
@@ -15,7 +18,11 @@ max_instances = 1
 instance_type = "basic"
 
 [containers.ssh]
-enabled = false
+enabled = true
+
+[[containers.authorized_keys]]
+name = "giteshkhurani"
+public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINSzqmvLwr88IpqWXk/la/qJeW0uyJ/wp4a94RjzNscY writemail2gitesh@gmail.com"
 
 [[durable_objects.bindings]]
 name = "BACKEND"
@@ -38,14 +45,21 @@ enabled = true
 [env.production]
 name = "blawby-backend-production"
 
+[env.production.vars]
+CONTAINER_INSTANCES = "2"
+
 [[env.production.containers]]
 class_name = "BackendContainer"
 image = "./Dockerfile"
-max_instances = 1
+max_instances = 2
 instance_type = "basic"
 
 [env.production.containers.ssh]
-enabled = false
+enabled = true
+
+[[env.production.containers.authorized_keys]]
+name = "giteshkhurani"
+public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINSzqmvLwr88IpqWXk/la/qJeW0uyJ/wp4a94RjzNscY writemail2gitesh@gmail.com"
 
 [[env.production.durable_objects.bindings]]
 name = "BACKEND"
