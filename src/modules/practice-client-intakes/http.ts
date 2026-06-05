@@ -50,6 +50,7 @@ staffApp.openapi(staffRoutes.convertIntakeRoute, handlers.convertIntakeHandler);
 
 practiceClientIntakesApp.route('/', publicApp);
 practiceClientIntakesApp.route('/', clientApp);
+practiceClientIntakesApp.route('/', staffApp);
 practiceClientIntakesApp.route('/staff', staffApp);
 
 export default practiceClientIntakesApp;
