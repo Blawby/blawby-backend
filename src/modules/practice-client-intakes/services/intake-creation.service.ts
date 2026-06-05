@@ -20,7 +20,7 @@ import type {
   IntakeSettingsResponse,
   UpdatePracticeClientIntakeRequest,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { uow, getActiveTx } from '@/shared/database/uow';
+import { uow, type Tx } from '@/shared/database/uow';
 import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -113,10 +113,12 @@ const insertIntakeRecord = async (params: {
   stripePaymentLinkId: string | null;
   shouldBypassPayment: boolean;
   validatedUserId?: string;
+  tx: Tx;
+  practiceClientIntakesRepository: typeof practiceClientIntakesRepository;
 }): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined = undefined;
   if (params.request.address) {
-    const addressRecord = await upsertAddressTx(getActiveTx(), {
+    const addressRecord = await upsertAddressTx(params.tx, {
       addressData: params.request.address,
       organizationId: params.organizationId,
       userId: params.validatedUserId,
@@ -163,7 +165,7 @@ const insertIntakeRecord = async (params: {
     ...(params.shouldBypassPayment && { succeeded_at: new Date() }),
   };
 
-  return practiceClientIntakesRepository.create(intakeData);
+  return params.practiceClientIntakesRepository.create(intakeData);
 };
 
 const createIntake = async (params: { data: IntakeCreationRequest }): Promise<CreateIntakeResponse> => {
@@ -234,7 +236,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
       });
     }
 
-    const intake = await uow.transaction(async () =>
+    const intake = await uow.transaction(async ({ tx, repositories }) =>
       insertIntakeRecord({
         request,
         resolvedAmount,
@@ -245,6 +247,8 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
         stripePaymentLinkId: stripePaymentLink?.id ?? null,
         shouldBypassPayment,
         validatedUserId,
+        tx,
+        practiceClientIntakesRepository: repositories.practiceClientIntakesRepository,
       })
     );
 

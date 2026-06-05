@@ -18,7 +18,7 @@ import type { intakeValidations } from '@/modules/practice-client-intakes/valida
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { uow, getActiveTx } from '@/shared/database/uow';
+import { uow, type Tx } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
@@ -158,8 +158,9 @@ const createMatterFromIntakeTx = async (params: {
   intake: Awaited<ReturnType<typeof getStaffAccessibleIntake>>;
   metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
   userId: string;
+  tx: Tx;
+  practiceClientIntakesRepository: typeof practiceClientIntakesRepository;
 }): Promise<string> => {
-  const tx = getActiveTx();
   let clientId: string | undefined = undefined;
   if (params.metadata.user_id) {
     const clientRecord = await clientsRepository.findByOrgAndUser(
@@ -194,12 +195,11 @@ const createMatterFromIntakeTx = async (params: {
       responsible_attorney_id: params.data.responsible_attorney_id,
       practice_service_id: params.data.practice_service_id,
       open_date: params.data.open_date ? new Date(params.data.open_date) : undefined,
-    },
-    tx
+    }
   );
 
   if (params.intake.court_date) {
-    await tx.insert(matterMilestones).values({
+    await params.tx.insert(matterMilestones).values({
       matter_id: matter.id,
       description: 'Court Date from Intake',
       amount: 0,
@@ -210,7 +210,7 @@ const createMatterFromIntakeTx = async (params: {
   }
 
   if (params.intake.desired_outcome) {
-    await tx.insert(matterNotes).values({
+    await params.tx.insert(matterNotes).values({
       matter_id: matter.id,
       user_id: params.userId,
       content: `Desired outcome: ${params.intake.desired_outcome}`,
@@ -218,14 +218,14 @@ const createMatterFromIntakeTx = async (params: {
   }
 
   if (typeof params.intake.case_strength === 'number') {
-    await tx.insert(matterNotes).values({
+    await params.tx.insert(matterNotes).values({
       matter_id: matter.id,
       user_id: params.userId,
       content: `Case strength score from intake: ${params.intake.case_strength}`,
     });
   }
 
-  await practiceClientIntakesRepository.updateStatus(params.uuid, 'converted');
+  await params.practiceClientIntakesRepository.updateStatus(params.uuid, 'converted');
 
   return matter.id;
 };
@@ -285,13 +285,15 @@ const convertIntake = async (
       throw new HTTPException(400, { message: 'Intake metadata is missing' });
     }
 
-    const matterId = await uow.transaction(async () =>
+    const matterId = await uow.transaction(async ({ tx, repositories }) =>
       createMatterFromIntakeTx({
         uuid: params.uuid,
         data: params.data,
         intake,
         metadata,
         userId: ctx.userId,
+        tx,
+        practiceClientIntakesRepository: repositories.practiceClientIntakesRepository,
       })
     );
 
