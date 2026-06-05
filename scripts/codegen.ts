@@ -109,7 +109,7 @@ const generateUowRegistry = async (): Promise<void> => {
       if (!content.includes("from '@/shared/database/uow'")) continue;
 
       // Find the exported object name: `export const xyzRepository = {`
-      const exportMatch = content.match(/export const (\w+)\s*=/);
+      const exportMatch = content.match(/export const (\w+Repository)\s*=\s*\{/);
       if (!exportMatch) continue;
       const exportName = exportMatch[1];
 

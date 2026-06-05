@@ -75,13 +75,13 @@ At MVP scale (no users), the right approach is the simplest one: one new Postgre
 - R7. A new `activity_log` table is created as a Postgres range-partitioned table, partitioned by `created_at` (yearly). The partition key is included in the primary key: `PRIMARY KEY (id, created_at)`.
 - R8. Three yearly partitions are pre-created (2026, 2027, 2028) via raw SQL migration. Drizzle schema definition is not used for this table — partitioned table DDL requires raw SQL.
 - R9. `activity_log` columns: `id UUID`, `tenant_id UUID`, `actor_id UUID`, `actor_type TEXT`, `action TEXT`, `resource_type TEXT`, `resource_id UUID`, `trace_id TEXT`, `source_event_id UUID` (soft reference — no FK constraint), `metadata JSONB`, `created_at TIMESTAMPTZ`.
-- R10. Indexes: `(tenant_id, created_at DESC)` for client-facing audit queries; `(trace_id)` for engineer debug correlation; `(resource_type, resource_id, created_at DESC)` for resource-scoped history.
+- R10. Indexes: `(tenant_id, created_at DESC)` for client-facing audit queries; `(trace_id)` for engineer debug correlation; `(resource_type, resource_id, created_at DESC)` for resource-scoped history. All indexes on `activity_log` **must** be created with `CREATE INDEX CONCURRENTLY` in a separate migration step (not inside a transactional migration), to avoid write-blocking on this high-write table. Plain `CREATE INDEX` (without `CONCURRENTLY`) is unacceptable here.
 - R11. `activity_log` records are never deleted. GDPR anonymization sets `actor_id` to null; the row is retained.
 
 **Centralized audit listener**
 
 - R12. A new `src/shared/events/listeners/activity.listeners.ts` file registers `Event.listen()` handlers for all auditable events. This file is the single place to see which events write to `activity_log`.
-- R13. Each handler in `activity.listeners.ts` writes exactly one row to `activity_log` and does nothing else. No emails, no notifications — those are separate listeners in module-specific `listeners.ts` files.
+- R13. Each handler in `activity.listeners.ts` writes one row to `activity_log` and does nothing else. No emails, no notifications — those are separate listeners in module-specific `listeners.ts` files. Duplicate rows caused by event retries are acceptable; `source_event_id` exists to correlate retries and enable downstream deduplication if needed.
 - R14. Auditable events (initial list): `MatterCreated`, `MatterUpdated`, `MatterDeleted`, `ClientCreated`, `ClientUpdated`, `ClientDeleted`, `InvoiceCreated`, `InvoiceSent`, `InvoicePaid`, `InvoiceVoided`, `InvoiceDeleted`, `AuthUserSignedUp`, `PracticeCreated`, and practice settings changes.
 - R15. Non-auditable events (never write to `activity_log`): Stripe reconciliation events, `SystemHealthCheckPerformed`, `SessionCreated`, `SessionExpired`, `SessionInvalidated`, worker retry events.
 - R16. `action` values are defined as `as const` string constants in each event definition file. No DB enum. Convention: `'resource.verb'` (e.g., `'matter.created'`, `'invoice.sent'`).
@@ -109,9 +109,11 @@ At MVP scale (no users), the right approach is the simplest one: one new Postgre
 
 - AE3. **Covers R11.** Given a client cancels their account, when GDPR deletion is requested, `activity_log` rows for that tenant have `actor_id` set to `null` but the rows are not deleted.
 
-- AE4. **Covers R13.** Given `InvoiceSent` fires and both an email listener and the audit listener are registered, if the audit write fails and Graphile Worker retries the event, the email listener runs again. Both listeners are independent `Event.listen()` registrations in separate files.
+- AE4. **Covers R13.** Given an event is retried and the same `source_event_id` is processed more than once, duplicate `activity_log` rows may exist, but each row retains the same `source_event_id` for audit correlation and any downstream deduplication.
 
-- AE5. **Covers R7, R8.** Given an `activity_log` row is inserted with `created_at = '2027-06-15'`, it lands in the `activity_log_2027` partition. Queries scoped to `tenant_id` against recent data scan only the relevant partition.
+- AE5. **Covers R13.** Given `InvoiceSent` fires and both an email listener and the audit listener are registered, if the audit write fails and Graphile Worker retries the event, the email listener runs again. Both listeners are independent `Event.listen()` registrations in separate files.
+
+- AE6. **Covers R7, R8.** Given an `activity_log` row is inserted with `created_at = '2027-06-15'`, it lands in the `activity_log_2027` partition. Queries scoped to `tenant_id` against recent data scan only the relevant partition.
 
 ---
 

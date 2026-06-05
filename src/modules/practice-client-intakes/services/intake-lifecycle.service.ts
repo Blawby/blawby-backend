@@ -18,6 +18,7 @@ import type { intakeValidations } from '@/modules/practice-client-intakes/valida
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { uow, getActiveTx } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
@@ -151,16 +152,14 @@ const updateTriageStatus = async (
   }
 };
 
-const createMatterFromIntakeTx = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  params: {
-    uuid: string;
-    data: z.infer<typeof intakeValidations.convertIntakeSchema>;
-    intake: Awaited<ReturnType<typeof getStaffAccessibleIntake>>;
-    metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
-    userId: string;
-  }
-): Promise<string> => {
+const createMatterFromIntakeTx = async (params: {
+  uuid: string;
+  data: z.infer<typeof intakeValidations.convertIntakeSchema>;
+  intake: Awaited<ReturnType<typeof getStaffAccessibleIntake>>;
+  metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
+  userId: string;
+}): Promise<string> => {
+  const tx = getActiveTx();
   let clientId: string | undefined = undefined;
   if (params.metadata.user_id) {
     const clientRecord = await clientsRepository.findByOrgAndUser(
@@ -286,8 +285,8 @@ const convertIntake = async (
       throw new HTTPException(400, { message: 'Intake metadata is missing' });
     }
 
-    const matterId = await db.transaction((tx) =>
-      createMatterFromIntakeTx(tx, {
+    const matterId = await uow.transaction(async () =>
+      createMatterFromIntakeTx({
         uuid: params.uuid,
         data: params.data,
         intake,

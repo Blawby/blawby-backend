@@ -20,7 +20,7 @@ import type {
   IntakeSettingsResponse,
   UpdatePracticeClientIntakeRequest,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { db } from '@/shared/database';
+import { uow, getActiveTx } from '@/shared/database/uow';
 import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -103,23 +103,20 @@ const getIntakeSettings = async (params: {
   };
 };
 
-const insertIntakeRecordTx = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  params: {
-    request: IntakeCreationRequest;
-    resolvedAmount: number;
-    organizationId: string;
-    intakeId: string;
-    practiceServiceName?: string;
-    connectedAccountId?: string;
-    stripePaymentLinkId: string | null;
-    shouldBypassPayment: boolean;
-    validatedUserId?: string;
-  }
-): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
+const insertIntakeRecord = async (params: {
+  request: IntakeCreationRequest;
+  resolvedAmount: number;
+  organizationId: string;
+  intakeId: string;
+  practiceServiceName?: string;
+  connectedAccountId?: string;
+  stripePaymentLinkId: string | null;
+  shouldBypassPayment: boolean;
+  validatedUserId?: string;
+}): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined = undefined;
   if (params.request.address) {
-    const addressRecord = await upsertAddressTx(tx, {
+    const addressRecord = await upsertAddressTx(getActiveTx(), {
       addressData: params.request.address,
       organizationId: params.organizationId,
       userId: params.validatedUserId,
@@ -237,8 +234,8 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
       });
     }
 
-    const intake = await db.transaction(async (tx) =>
-      insertIntakeRecordTx(tx, {
+    const intake = await uow.transaction(async () =>
+      insertIntakeRecord({
         request,
         resolvedAmount,
         organizationId: organization.id,
