@@ -9,6 +9,7 @@ import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 
 const practiceClientIntakesApp = createHonoApp();
+const uuidPath = ':uuid{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}';
 
 // Public routes — no auth required
 const publicApp = createHonoApp();
@@ -22,7 +23,11 @@ publicApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSetting
 
 // Client routes — authenticated but no org membership required
 const clientApp = createHonoApp();
-clientApp.use('*', requireAuth(), injectAbility());
+clientApp.use(`/${uuidPath}`, requireAuth(), injectAbility());
+clientApp.use(`/${uuidPath}/checkout-session`, requireAuth(), injectAbility());
+clientApp.use(`/${uuidPath}/status`, requireAuth(), injectAbility());
+clientApp.use(`/${uuidPath}/files`, requireAuth(), injectAbility());
+clientApp.use(`/${uuidPath}/files/*`, requireAuth(), injectAbility());
 clientApp.openapi(
   clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
   handlers.createPracticeClientIntakeCheckoutSessionHandler

@@ -9,11 +9,20 @@ import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 const app = createHonoApp();
 
 const clientApp = createHonoApp();
-clientApp.use('*', requireAuth(), injectAbility());
+clientApp.use('/:practice_id/:contract_id', async (c, next) => {
+  if (c.req.method !== 'GET') {
+    return next();
+  }
+  return requireAuth()(c, async () => {
+    await injectAbility()(c, next);
+  });
+});
 clientApp.openapi(routes.getEngagementContractRoute, handlers.getEngagementContractHandler);
 
 const staffApp = createHonoApp();
-staffApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
+staffApp.use('/:practice_id', requireAuth(), requireOrgMembership(), injectAbility());
+staffApp.use('/:practice_id/:contract_id', requireAuth(), requireOrgMembership(), injectAbility());
+staffApp.use('/:practice_id/:contract_id/status', requireAuth(), requireOrgMembership(), injectAbility());
 staffApp.openapi(routes.createEngagementContractRoute, handlers.createEngagementContractHandler);
 staffApp.openapi(routes.listEngagementContractsRoute, handlers.listEngagementContractsHandler);
 staffApp.openapi(routes.updateEngagementContractRoute, handlers.updateEngagementContractHandler);

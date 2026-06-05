@@ -98,7 +98,14 @@ const getLimiter = (points: number, duration: number): RateLimiterPostgres => {
   return limiters.get(key)!;
 };
 
-const getApiRateLimitIdentifier: ScopeResolver = (c) => {
+const sha256Hex = async (value: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+export const getApiRateLimitIdentifier: ScopeResolver = async (c) => {
   const userId = c.get('userId');
   if (userId) {
     return `user:${userId}`;
@@ -106,12 +113,12 @@ const getApiRateLimitIdentifier: ScopeResolver = (c) => {
 
   const authorization = c.req.header('authorization');
   if (authorization) {
-    return `auth:${authorization}`;
+    return `auth-hash:${await sha256Hex(authorization)}`;
   }
 
   const apiKey = c.req.header('x-api-key');
   if (apiKey) {
-    return `api-key:${apiKey}`;
+    return `api-key-hash:${await sha256Hex(apiKey)}`;
   }
 
   const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
