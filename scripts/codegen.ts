@@ -113,7 +113,7 @@ const generateUowRegistry = async (): Promise<void> => {
       if (!exportMatch) continue;
       const exportName = exportMatch[1];
 
-      const propName = toCamelCase(mod);
+      const propName = exportName;
       const importPath = `@/modules/${mod}/database/queries/${file.replace('.ts', '')}`;
 
       imports.push(`import { ${exportName} } from '${importPath}';`);

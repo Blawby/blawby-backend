@@ -33,7 +33,7 @@ Already done:
 
 ## High-Level Design
 
-```
+```text
 Service
   └─ uow.transaction(async () => {
        await uow.matters.create({...})     // ambient tx ✅
@@ -350,7 +350,7 @@ Convert `practiceClientIntakesRepository` to class `PracticeClientIntakeReposito
 
 ## Migration Order
 
-```
+```text
 U1 (ALS foundation) → U2 (engagement-contracts — canonical pattern)
                     → U3 (intake revision)
                     → U4 (clients)

@@ -160,6 +160,6 @@ At MVP scale (no users), the right approach is the simplest one: one new Postgre
 
 ### Deferred to Planning
 
-- [Affects R14][Technical] Confirm `AuthUserSignedUp` payload includes sufficient data to populate `actor_id` and `tenant_id` on `activity_log` — the user may not yet have an organization at signup time.
-- [Affects R8][Technical] Confirm Cloudflare Containers + Railway Postgres supports raw SQL DDL migrations for partitioned tables without special configuration.
-- [Affects R17][Technical] Identify the correct Graphile Worker cron task pattern for the 30-day events pruning job — reference `src/workers/tasks/cleanup-email-logs.ts`.
+- [Affects R14] (Technical) Confirm `AuthUserSignedUp` payload includes sufficient data to populate `actor_id` and `tenant_id` on `activity_log` — the user may not yet have an organization at signup time.
+- [Affects R8] (Technical) Confirm Cloudflare Containers + Railway Postgres supports raw SQL DDL migrations for partitioned tables without special configuration.
+- [Affects R17] (Technical) Identify the correct Graphile Worker cron task pattern for the 30-day events pruning job — reference `src/workers/tasks/cleanup-email-logs.ts`.
