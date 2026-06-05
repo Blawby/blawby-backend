@@ -9,14 +9,6 @@ import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 const app = createHonoApp();
 
 const clientApp = createHonoApp();
-clientApp.use('/:practice_id/:contract_id', async (c, next) => {
-  if (c.req.method !== 'GET') {
-    return next();
-  }
-  return requireAuth()(c, async () => {
-    await injectAbility()(c, next);
-  });
-});
 clientApp.openapi(routes.getEngagementContractRoute, handlers.getEngagementContractHandler);
 
 const staffApp = createHonoApp();
