@@ -5,7 +5,7 @@ import { routeBuilder } from '@/shared/router/route-builder';
 
 const triggerIntakeInvitationRoute = routeBuilder.build({
   method: 'post',
-  path: '/{uuid}/invite',
+  path: '/staff/{uuid}/invite',
   tags: ['Practice Client Intakes'],
   summary: 'Trigger intake invitation',
   description: 'Triggers a manual organization invitation for the client associated with a successful intake.',
@@ -50,7 +50,7 @@ const triggerIntakeInvitationRoute = routeBuilder.build({
 
 const listIntakesRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}',
+  path: '/staff/{practice_id}',
   tags: ['Practice Client Intakes'],
   summary: 'List practice client intakes',
   description: 'Retrieves a paginated list of client intakes for a specific practice.',
@@ -88,7 +88,7 @@ const listIntakesRoute = routeBuilder.build({
 
 const getIntakeRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/{id}',
+  path: '/staff/{practice_id}/{id}',
   tags: ['Practice Client Intakes'],
   summary: 'Get a practice client intake',
   description: 'Retrieves a single client intake by ID.',
@@ -136,7 +136,7 @@ const getIntakeRoute = routeBuilder.build({
 
 const updateIntakeTriageStatusRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{uuid}/status',
+  path: '/staff/{uuid}/status',
   tags: ['Practice Client Intakes'],
   summary: 'Update intake triage status',
   description: 'Sets practice triage decision for an intake.',
@@ -196,7 +196,7 @@ const updateIntakeTriageStatusRoute = routeBuilder.build({
 
 const convertIntakeRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{uuid}/convert',
+  path: '/staff/{uuid}/convert',
   tags: ['Practice Client Intakes'],
   summary: 'Convert intake to matter',
   description: 'Converts a successful client intake into a formal matter.',
