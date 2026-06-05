@@ -226,7 +226,7 @@ const createMatterFromIntakeTx = async (
     });
   }
 
-  await practiceClientIntakesRepository.updateStatus(params.uuid, 'converted', tx);
+  await practiceClientIntakesRepository.updateStatus(params.uuid, 'converted');
 
   return matter.id;
 };

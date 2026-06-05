@@ -166,7 +166,7 @@ const insertIntakeRecordTx = async (
     ...(params.shouldBypassPayment && { succeeded_at: new Date() }),
   };
 
-  return practiceClientIntakesRepository.create(intakeData, tx);
+  return practiceClientIntakesRepository.create(intakeData);
 };
 
 const createIntake = async (params: { data: IntakeCreationRequest }): Promise<CreateIntakeResponse> => {

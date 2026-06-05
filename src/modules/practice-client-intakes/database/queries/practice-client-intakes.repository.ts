@@ -4,8 +4,8 @@ import {
   type InsertPracticeClientIntake,
   type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { db } from '@/shared/database';
 import { escapeLikeWildcards } from '@/shared/utils/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 const { practiceClientIntakes } = practiceClientIntakesSchema;
 
@@ -55,57 +55,59 @@ const buildIntakeConditions = ({
   return and(...conditions.filter((c): c is NonNullable<typeof c> => c !== undefined));
 };
 
-const create = async (data: InsertPracticeClientIntake, tx: typeof db = db): Promise<SelectPracticeClientIntake> => {
-  const [practiceClientIntake] = await tx.insert(practiceClientIntakes).values(data).returning();
-  return practiceClientIntake;
+const create = async (data: InsertPracticeClientIntake): Promise<SelectPracticeClientIntake> => {
+  const [row] = await getActiveTx().insert(practiceClientIntakes).values(data).returning();
+  return row;
 };
 
 const findById = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {
-  const [result] = await db.select().from(practiceClientIntakes).where(eq(practiceClientIntakes.id, id)).limit(1);
-  return result;
+  const [row] = await getActiveTx()
+    .select()
+    .from(practiceClientIntakes)
+    .where(eq(practiceClientIntakes.id, id))
+    .limit(1);
+  return row;
 };
 
 const findByStripePaymentLinkId = async (linkId: string): Promise<SelectPracticeClientIntake | undefined> => {
-  const [result] = await db
+  const [row] = await getActiveTx()
     .select()
     .from(practiceClientIntakes)
     .where(eq(practiceClientIntakes.stripe_payment_link_id, linkId))
     .limit(1);
-  return result;
+  return row;
 };
 
 const findByStripePaymentIntentId = async (intentId: string): Promise<SelectPracticeClientIntake | undefined> => {
-  const [result] = await db
+  const [row] = await getActiveTx()
     .select()
     .from(practiceClientIntakes)
     .where(eq(practiceClientIntakes.stripe_payment_intent_id, intentId))
     .limit(1);
-  return result;
+  return row;
 };
 
 const findByStripeCheckoutSessionId = async (sessionId: string): Promise<SelectPracticeClientIntake | undefined> => {
-  const [result] = await db
+  const [row] = await getActiveTx()
     .select()
     .from(practiceClientIntakes)
     .where(eq(practiceClientIntakes.stripe_checkout_session_id, sessionId))
     .limit(1);
-  return result;
+  return row;
 };
 
 const update = async (id: string, data: Partial<SelectPracticeClientIntake>): Promise<SelectPracticeClientIntake> => {
-  const [updated] = await db
+  const [updated] = await getActiveTx()
     .update(practiceClientIntakes)
     .set({ ...data, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
     .returning();
-  if (!updated) {
-    throw new Error(`PracticeClientIntake not found for id: ${id}`);
-  }
+  if (!updated) throw new Error(`PracticeClientIntake not found for id: ${id}`);
   return updated;
 };
 
-const updateStatus = async (id: string, status: string, tx: typeof db = db): Promise<SelectPracticeClientIntake> => {
-  const [updated] = await tx
+const updateStatus = async (id: string, status: string): Promise<SelectPracticeClientIntake> => {
+  const [updated] = await getActiveTx()
     .update(practiceClientIntakes)
     .set({ status, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
@@ -133,22 +135,17 @@ const findByOrganizationId = async ({
   page?: number;
   limit?: number;
 }): Promise<{ intakes: SelectPracticeClientIntake[]; total: number }> => {
-  const whereClause = buildIntakeConditions({
-    organizationId,
-    status,
-    search,
-    from,
-    to,
-  });
+  const whereClause = buildIntakeConditions({ organizationId, status, search, from, to });
+  const executor = getActiveTx();
 
-  const [totalResult] = await db
+  const [totalResult] = await executor
     .select({ count: sql<number>`count(*)` })
     .from(practiceClientIntakes)
     .where(whereClause);
 
   const total = Number(totalResult?.count ?? 0);
 
-  const intakes = await db
+  const intakes = await executor
     .select()
     .from(practiceClientIntakes)
     .where(whereClause)
@@ -163,22 +160,11 @@ const getStats = async (
   organizationId: string,
   startDate?: Date,
   endDate?: Date
-): Promise<{
-  totalAmount: number;
-  count: number;
-  succeededCount: number;
-}> => {
-  const whereClause = buildIntakeConditions({
-    organizationId,
-    from: startDate,
-    to: endDate,
-  });
+): Promise<{ totalAmount: number; count: number; succeededCount: number }> => {
+  const whereClause = buildIntakeConditions({ organizationId, from: startDate, to: endDate });
 
-  const results = await db
-    .select({
-      totalAmount: practiceClientIntakes.amount,
-      status: practiceClientIntakes.status,
-    })
+  const results = await getActiveTx()
+    .select({ totalAmount: practiceClientIntakes.amount, status: practiceClientIntakes.status })
     .from(practiceClientIntakes)
     .where(whereClause);
 
