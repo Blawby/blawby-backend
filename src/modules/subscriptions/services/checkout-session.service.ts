@@ -17,6 +17,37 @@ const generateSlug = (name: string): string =>
     .replace(/^-|-$/g, '')
     .substring(0, 50);
 
+const isMissingStripeCustomerError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const stripeError = error as { code?: unknown; param?: unknown; message?: unknown };
+  return (
+    stripeError.code === 'resource_missing' &&
+    stripeError.param === 'customer' &&
+    typeof stripeError.message === 'string' &&
+    stripeError.message.includes('No such customer')
+  );
+};
+
+const createStripeCustomerForOrganization = async (
+  organizationId: string,
+  email: string | undefined
+): Promise<string> => {
+  const stripe = getStripeInstance();
+  const customer = await stripe.customers.create({
+    email,
+    metadata: { organization_id: organizationId },
+  });
+
+  await db
+    .update(schema.organizations)
+    .set({ stripeCustomerId: customer.id })
+    .where(eq(schema.organizations.id, organizationId));
+  return customer.id;
+};
+
 const getOrCreateOrg = async (
   userId: string,
   requestHeaders: Headers
@@ -200,15 +231,25 @@ export const createCheckoutSession = async (
 
   const stripe = getStripeInstance();
   if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({
-      email: ctx.user?.email ?? undefined,
-      metadata: { organization_id: organizationId },
-    });
-    stripeCustomerId = customer.id;
-    await db.update(schema.organizations).set({ stripeCustomerId }).where(eq(schema.organizations.id, organizationId));
+    stripeCustomerId = await createStripeCustomerForOrganization(organizationId, ctx.user?.email ?? undefined);
   } else if (ctx.user?.email) {
-    // Ensure existing customers have email set for checkout prefill
-    await stripe.customers.update(stripeCustomerId, { email: ctx.user.email });
+    try {
+      // Ensure existing customers have email set for checkout prefill
+      await stripe.customers.update(stripeCustomerId, { email: ctx.user.email });
+    } catch (error) {
+      if (!isMissingStripeCustomerError(error)) {
+        throw error;
+      }
+
+      logger.warn(
+        'Stored Stripe customer {stripeCustomerId} was missing; creating replacement for org {organizationId}',
+        {
+          stripeCustomerId,
+          organizationId,
+        }
+      );
+      stripeCustomerId = await createStripeCustomerForOrganization(organizationId, ctx.user.email);
+    }
   }
 
   // 5. Atomically find-or-create the incomplete subscription row so retries share
@@ -228,6 +269,10 @@ export const createCheckoutSession = async (
       .limit(1);
 
     if (existingIncomplete) {
+      await tx
+        .update(schema.subscriptions)
+        .set({ stripeCustomerId, updatedAt: new Date() })
+        .where(eq(schema.subscriptions.id, existingIncomplete.id));
       return { subscriptionId: existingIncomplete.id, isNew: false };
     }
 
