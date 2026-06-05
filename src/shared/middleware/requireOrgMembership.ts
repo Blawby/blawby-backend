@@ -53,6 +53,7 @@ export const requireOrgMembership = (): MiddlewareHandler<{ Variables: Variables
     }
 
     c.set('memberRole', membership.role);
+    c.set('activeOrganizationId', orgId);
 
     return next();
   } catch (error) {

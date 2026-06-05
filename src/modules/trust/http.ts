@@ -1,11 +1,13 @@
 import { handlers } from '@/modules/trust/handlers';
 import { trustRoutes as routes } from '@/modules/trust/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const app = createHonoApp();
-app.use('*', injectAbility());
+app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 app.openapi(routes.createDepositRoute, handlers.createDepositHandler);
 app.openapi(routes.createWithdrawalRoute, handlers.createWithdrawalHandler);

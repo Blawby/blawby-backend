@@ -2,14 +2,16 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
 import { routes as matterRoutes } from '@/modules/matters/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
 import { requireMatterAccess } from '@/shared/middleware/requireMatterAccess';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import type { AppContext } from '@/shared/types/hono';
 
 const app = createHonoApp();
 
 // Middleware
-app.use('*', injectAbility());
+app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 // Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
