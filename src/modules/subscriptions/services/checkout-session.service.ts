@@ -22,10 +22,9 @@ const isMissingStripeCustomerError = (error: unknown): boolean => {
     return false;
   }
 
-  const stripeError = error as { code?: unknown; param?: unknown; message?: unknown };
+  const stripeError = error as { code?: unknown; message?: unknown };
   return (
     stripeError.code === 'resource_missing' &&
-    stripeError.param === 'customer' &&
     typeof stripeError.message === 'string' &&
     stripeError.message.includes('No such customer')
   );
@@ -46,6 +45,13 @@ const createStripeCustomerForOrganization = async (
     .set({ stripeCustomerId: customer.id })
     .where(eq(schema.organizations.id, organizationId));
   return customer.id;
+};
+
+const updateLocalSubscriptionCustomer = async (subscriptionId: string, stripeCustomerId: string): Promise<void> => {
+  await db
+    .update(schema.subscriptions)
+    .set({ stripeCustomerId, updatedAt: new Date() })
+    .where(eq(schema.subscriptions.id, subscriptionId));
 };
 
 const getOrCreateOrg = async (
@@ -292,11 +298,11 @@ export const createCheckoutSession = async (
   // 6. Create Stripe Checkout Session
   let checkoutUrl: string | null = null;
 
-  try {
-    const session = await stripe.checkout.sessions.create(
+  const createStripeCheckoutSession = async (customerId: string) =>
+    await stripe.checkout.sessions.create(
       {
         mode: 'subscription',
-        customer: stripeCustomerId,
+        customer: customerId,
         line_items: [{ price: stripePriceId, ...(price.usage_type !== 'metered' ? { quantity: 1 } : {}) }],
         subscription_data: {
           metadata: { organization_id: organizationId, subscription_id: subscriptionId },
@@ -304,15 +310,52 @@ export const createCheckoutSession = async (
         success_url: successUrl,
         cancel_url: cancelUrl,
       },
-      { idempotencyKey: `checkout_create:${organizationId}:${subscriptionId}` }
+      { idempotencyKey: `checkout_create:${organizationId}:${subscriptionId}:${customerId}` }
     );
+
+  try {
+    const session = await createStripeCheckoutSession(stripeCustomerId);
     checkoutUrl = session.url;
   } catch (err) {
+    if (isMissingStripeCustomerError(err)) {
+      logger.warn(
+        'Stripe customer {stripeCustomerId} was missing while creating checkout; creating replacement for org {organizationId}',
+        {
+          stripeCustomerId,
+          organizationId,
+        }
+      );
+
+      stripeCustomerId = await createStripeCustomerForOrganization(organizationId, ctx.user?.email ?? undefined);
+      await updateLocalSubscriptionCustomer(subscriptionId, stripeCustomerId);
+
+      try {
+        const session = await createStripeCheckoutSession(stripeCustomerId);
+        checkoutUrl = session.url;
+      } catch (retryErr) {
+        if (isNew) {
+          await db.delete(schema.subscriptions).where(eq(schema.subscriptions.id, subscriptionId));
+        }
+        logger.error('Failed to create Stripe checkout session after customer replacement: {error}', {
+          error: retryErr,
+        });
+        throw new HTTPException(500, { message: 'Failed to create checkout session' });
+      }
+    } else {
+      // Roll back the local subscription row only if we just created it
+      if (isNew) {
+        await db.delete(schema.subscriptions).where(eq(schema.subscriptions.id, subscriptionId));
+      }
+      logger.error('Failed to create Stripe checkout session: {error}', { error: err });
+      throw new HTTPException(500, { message: 'Failed to create checkout session' });
+    }
+  }
+
+  if (!checkoutUrl) {
     // Roll back the local subscription row only if we just created it
     if (isNew) {
       await db.delete(schema.subscriptions).where(eq(schema.subscriptions.id, subscriptionId));
     }
-    logger.error('Failed to create Stripe checkout session: {error}', { error: err });
     throw new HTTPException(500, { message: 'Failed to create checkout session' });
   }
 
