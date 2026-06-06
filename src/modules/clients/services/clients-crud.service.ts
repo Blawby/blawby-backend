@@ -471,12 +471,16 @@ const createClientFromIntake = async (
     const existingDetail = await clientsRepository.findByOrgAndUser(ctx.organizationId, user.id);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
-        const updatedDetail = await clientsRepository.update(existingDetail.id, {
-          intake_id: intakeId,
-          status: 'active',
-        });
+        const updatedDetail = await clientsRepository.updateIntakeIfNull(existingDetail.id, intakeId);
         if (!updatedDetail) {
-          throw new HTTPException(500, { message: 'Failed to update existing client from intake' });
+          const currentDetail = await clientsRepository.findById(existingDetail.id);
+          if (!currentDetail) {
+            throw new HTTPException(404, { message: 'Client not found' });
+          }
+          if (currentDetail.intake_id === intakeId) {
+            return currentDetail;
+          }
+          throw new HTTPException(409, { message: `Client already linked for intake '${currentDetail.intake_id}'` });
         }
         void ClientUpdated.dispatch(
           {

@@ -48,6 +48,15 @@ const update = async (id: string, data: Partial<SelectClient>): Promise<SelectCl
   return updated;
 };
 
+const updateIntakeIfNull = async (id: string, intakeId: string): Promise<SelectClient | undefined> => {
+  const [updated] = await getActiveTx()
+    .update(clients)
+    .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
+    .where(and(eq(clients.id, id), isNull(clients.deleted_at), isNull(clients.intake_id)))
+    .returning();
+  return updated;
+};
+
 const softDelete = async (id: string, deletedBy: string): Promise<SelectClient | undefined> => {
   const [updated] = await getActiveTx()
     .update(clients)
@@ -140,6 +149,7 @@ export const clientsRepository = {
   findByOrgAndUser,
   findByStripeCustomerId,
   update,
+  updateIntakeIfNull,
   softDelete,
   listClients,
 };

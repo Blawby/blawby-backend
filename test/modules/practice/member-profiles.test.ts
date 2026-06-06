@@ -34,7 +34,10 @@ describe('member routing profile endpoints', () => {
     const ctx = await createTestContext('owner');
     org = ctx.org;
     sessionToken = ctx.sessionToken;
-    userId = ctx.session?.user.id ?? '';
+    if (!ctx.session?.user?.id) {
+      throw new Error('missing test session user');
+    }
+    userId = ctx.session.user.id;
   });
 
   it('requires authentication', async () => {
