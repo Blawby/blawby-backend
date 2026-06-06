@@ -1,6 +1,6 @@
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
 import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
@@ -12,7 +12,7 @@ import { clients, type SelectClient } from '@/modules/clients/database/schema/cl
 import type { AddressInput } from '@/modules/clients/types';
 import type { users } from '@/schema/better-auth-schema';
 import { toSubject } from '@/shared/auth/subject-helpers';
-import { db } from '@/shared/database';
+import { uow } from '@/shared/database/uow';
 import { ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
@@ -65,7 +65,7 @@ const createClient = async (
       });
     }
 
-    const createdDetail = await db.transaction(async (tx) => {
+    const createdDetail = await uow.transaction(async ({ tx }) => {
       let addressId: string | undefined = undefined;
       if (data.address) {
         const address = await upsertAddressTx(tx, {
@@ -83,19 +83,16 @@ const createClient = async (
         addressId = address?.id;
       }
 
-      const [detail] = await tx
-        .insert(clients)
-        .values({
-          organization_id: ctx.organizationId,
-          user_id: user.id,
-          name: data.name,
-          email: data.email,
-          stripe_customer_id: null,
-          address_id: addressId,
-          status: data.status ?? 'lead',
-          currency: data.currency ?? 'usd',
-        })
-        .returning();
+      const detail = await clientsRepository.create({
+        organization_id: ctx.organizationId,
+        user_id: user.id,
+        name: data.name,
+        email: data.email,
+        stripe_customer_id: null,
+        address_id: addressId,
+        status: data.status ?? 'lead',
+        currency: data.currency ?? 'usd',
+      });
 
       return { ...detail, user };
     });
@@ -143,7 +140,7 @@ const updateClient = async (
 
   let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
 
-  const updated = await db.transaction(async (tx): Promise<SelectClient> => {
+  const updated = await uow.transaction(async ({ tx }): Promise<SelectClient> => {
     try {
       const detailWithUser = await clientsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
@@ -207,15 +204,11 @@ const updateClient = async (
         addressId = address?.id ?? addressId;
       }
 
-      const updatedResult = await clientsRepository.update(
-        id,
-        {
-          address_id: addressId,
-          status: data.status,
-          currency: data.currency,
-        },
-        tx
-      );
+      const updatedResult = await clientsRepository.update(id, {
+        address_id: addressId,
+        status: data.status,
+        currency: data.currency,
+      });
       if (!updatedResult) {
         throw new HTTPException(500, { message: 'Failed to update client' });
       }
@@ -475,20 +468,16 @@ const createClientFromIntake = async (
     }
 
     // Check for existing client (read-only query before transaction)
-    const [existingDetail] = await db
-      .select()
-      .from(clients)
-      .where(
-        and(eq(clients.organization_id, ctx.organizationId), eq(clients.user_id, user.id), isNull(clients.deleted_at))
-      )
-      .limit(1);
+    const existingDetail = await clientsRepository.findByOrgAndUser(ctx.organizationId, user.id);
     if (existingDetail) {
       if (!existingDetail.intake_id) {
-        const [updatedDetail] = await db
-          .update(clients)
-          .set({ intake_id: intakeId, status: 'active', updated_at: new Date() })
-          .where(eq(clients.id, existingDetail.id))
-          .returning();
+        const updatedDetail = await clientsRepository.update(existingDetail.id, {
+          intake_id: intakeId,
+          status: 'active',
+        });
+        if (!updatedDetail) {
+          throw new HTTPException(500, { message: 'Failed to update existing client from intake' });
+        }
         void ClientUpdated.dispatch(
           {
             client_id: updatedDetail.id,
@@ -502,24 +491,19 @@ const createClientFromIntake = async (
     }
 
     // Transaction only for database operations
-    const detail = await db.transaction(async (tx) => {
-      const [createdDetail] = await tx
-        .insert(clients)
-        .values({
-          organization_id: ctx.organizationId,
-          user_id: user.id,
-          name: user.name,
-          email: user.email,
-          intake_id: intakeId,
-          address_id: intake.address_id ?? undefined,
-          stripe_customer_id: null,
-          status: 'active',
-          event_name: 'client_intake_success',
-        })
-        .returning();
-
-      return createdDetail;
-    });
+    const detail = await uow.transaction(async () =>
+      clientsRepository.create({
+        organization_id: ctx.organizationId,
+        user_id: user.id,
+        name: user.name,
+        email: user.email,
+        intake_id: intakeId,
+        address_id: intake.address_id ?? undefined,
+        stripe_customer_id: null,
+        status: 'active',
+        event_name: 'client_intake_success',
+      })
+    );
 
     // Event dispatch happens AFTER transaction completes
     void ClientCreated.dispatch(

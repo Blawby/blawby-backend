@@ -132,6 +132,8 @@ export const updateMemberProfileHandler: AppRouteHandler<typeof routes.updateMem
   const body = c.req.valid('json');
   const result = await memberProfilesService.upsertProfile({ userId: user_id, data: body }, ctx);
   return c.json(result);
+};
+
 export const listIntakeTemplatesHandler: AppRouteHandler<typeof routes.listIntakeTemplatesRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { practice_id } = c.req.valid('param');

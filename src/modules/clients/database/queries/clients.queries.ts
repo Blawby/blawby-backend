@@ -2,19 +2,17 @@ import { eq, desc, and, ilike, or, sql, isNull, type SQL } from 'drizzle-orm';
 import { addresses, type Address } from '@/modules/practice/database/schema/addresses.schema';
 import { clientsSchema, type InsertClient, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
 import { users } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
-
-type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { getActiveTx } from '@/shared/database/uow';
 
 const { clients } = clientsSchema;
 
 const create = async (data: InsertClient): Promise<SelectClient> => {
-  const [client] = await db.insert(clients).values(data).returning();
+  const [client] = await getActiveTx().insert(clients).values(data).returning();
   return client;
 };
 
 const findById = async (id: string): Promise<(SelectClient & { user: typeof users.$inferSelect | null }) | undefined> =>
-  await db.query.clients.findFirst({
+  await getActiveTx().query.clients.findFirst({
     where: and(eq(clients.id, id), sql`${clients.deleted_at} IS NULL`),
     with: {
       user: true,
@@ -22,7 +20,7 @@ const findById = async (id: string): Promise<(SelectClient & { user: typeof user
   });
 
 const findByOrgAndUser = async (organizationId: string, userId: string): Promise<SelectClient | undefined> => {
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select()
     .from(clients)
     .where(
@@ -33,7 +31,7 @@ const findByOrgAndUser = async (organizationId: string, userId: string): Promise
 };
 
 const findByStripeCustomerId = async (stripeCustomerId: string): Promise<SelectClient | undefined> => {
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select()
     .from(clients)
     .where(and(eq(clients.stripe_customer_id, stripeCustomerId), sql`${clients.deleted_at} IS NULL`))
@@ -41,8 +39,8 @@ const findByStripeCustomerId = async (stripeCustomerId: string): Promise<SelectC
   return result;
 };
 
-const update = async (id: string, data: Partial<SelectClient>, tx: DbOrTx = db): Promise<SelectClient | undefined> => {
-  const [updated] = await tx
+const update = async (id: string, data: Partial<SelectClient>): Promise<SelectClient | undefined> => {
+  const [updated] = await getActiveTx()
     .update(clients)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(clients.id, id), isNull(clients.deleted_at)))
@@ -51,7 +49,7 @@ const update = async (id: string, data: Partial<SelectClient>, tx: DbOrTx = db):
 };
 
 const softDelete = async (id: string, deletedBy: string): Promise<SelectClient | undefined> => {
-  const [updated] = await db
+  const [updated] = await getActiveTx()
     .update(clients)
     .set({
       deleted_at: new Date(),
@@ -100,14 +98,14 @@ const listClients = async (params: {
   const whereClause = and(...conditions);
 
   // Use consistent query approach for both count and data
-  const [totalResult] = await db
+  const [totalResult] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(clients)
     .leftJoin(users, eq(clients.user_id, users.id))
     .where(whereClause);
 
   // Use select-based query with explicit joins to match count query behavior
-  const rows = await db
+  const rows = await getActiveTx()
     .select({
       client: clients,
       user: users,
