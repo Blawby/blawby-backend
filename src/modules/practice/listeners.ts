@@ -18,9 +18,10 @@ import {
 } from '@/shared/events/definitions';
 import { config } from '@/shared/config';
 import { Event } from '@/shared/events/event';
+import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
-import { logError, hashEmail } from '@/shared/utils/logging';
+import { logError } from '@/shared/utils/logging';
 
 const logger = getLogger(['practice', 'listeners']);
 const APP_URL = config.app.appUrl;
@@ -31,10 +32,10 @@ const APP_URL = config.app.appUrl;
 const registerPracticeListeners = (): void => {
   logger.info('Registering practice event listeners...');
 
-  // Practice created
+  // Practice created — queue seeding of the default intake template
   Event.listen(PracticeCreated, async (payload) => {
     logger.info('Practice created', { organizationId: payload.organization_id });
-    // Future: Send welcome email, analytics tracking, etc.
+    await addSeedDefaultIntakeTemplateJob(payload.organization_id);
   });
 
   // Practice updated

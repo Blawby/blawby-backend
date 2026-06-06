@@ -151,7 +151,7 @@ const updatePracticeSchema = updatePracticeSchemaBase.refine(
 const practiceResponseSchema = z
   .object({
     id: z.uuid().openapi({
-      description: 'Organization ID (UUID)',
+      description: 'Organization ID (the canonical practice identifier)',
       example: '123e4567-e89b-12d3-a456-426614174000',
     }),
     name: z.string().openapi({
@@ -163,12 +163,6 @@ const practiceResponseSchema = z
     logo: z.string().nullable().openapi({
       example: 'https://example.com/logo.png',
     }),
-    metadata: z
-      .record(z.string(), z.unknown())
-      .nullable()
-      .openapi({
-        example: { key: 'value' },
-      }),
     business_phone: z.string().nullable().openapi({
       description: 'Business phone number',
       example: '+1234567890',
@@ -217,15 +211,27 @@ const practiceResponseSchema = z
       description: 'Billing increment in minutes for time entry dropdowns',
       example: 15,
     }),
-    created_at: z.date().openapi({
-      format: 'date-time',
-      description: 'Organization creation timestamp',
-      example: '2024-01-01T00:00:00Z',
+    services: z
+      .array(z.object({ id: z.string(), name: z.string(), key: z.string() }))
+      .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
+    service_states: z
+      .array(z.string())
+      .nullable()
+      .openapi({ example: ['NC', 'SC'] }),
+    supported_states: z
+      .array(supportedStatesItemSchema)
+      .nullable()
+      .openapi({ example: [{ country: 'US', states: ['NY', 'NJ'] }] }),
+    address: addressSchema.nullable().openapi({
+      example: { line1: '123 Main St', city: 'Austin', state: 'TX', postal_code: '78701', country: 'US' },
     }),
-    updated_at: z.date().optional().openapi({
-      format: 'date-time',
-      description: 'Organization last update timestamp',
-      example: '2024-01-01T00:00:00Z',
+    created_at: z.string().datetime().openapi({
+      description: 'Organization creation timestamp (ISO 8601)',
+      example: '2024-01-01T00:00:00.000Z',
+    }),
+    updated_at: z.string().datetime().openapi({
+      description: 'Latest organization or practice details update timestamp (ISO 8601)',
+      example: '2024-01-01T00:00:00.000Z',
     }),
   })
   .openapi('PracticeResponse');
@@ -414,111 +420,10 @@ const createPracticeDetailsSchema = practiceDetailsValidationSchema.refine(
 
 const updatePracticeDetailsSchema = practiceDetailsValidationSchema;
 
-const practiceDetailsResponseSchema = z
-  .object({
-    id: z.uuid().nullable().openapi({
-      description: 'Practice Details ID',
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
-    user_id: z.uuid().nullable().openapi({
-      description: 'User ID of the creator',
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
-    address_id: z.uuid().nullable().openapi({
-      description: 'Linked Address ID',
-      example: '123e4567-e89b-12d3-a456-426614174000',
-    }),
-    business_phone: z.string().nullable().openapi({
-      example: '+1234567890',
-    }),
-    business_email: z.email().nullable().openapi({
-      example: 'contact@example.com',
-    }),
-    consultation_fee: z.number().nullable().openapi({
-      example: 100.0,
-    }),
-    payment_url: z.url().nullable().openapi({
-      example: 'https://payment.example.com',
-    }),
-    calendly_url: z.url().nullable().openapi({
-      example: 'https://calendly.com/example',
-    }),
-    website: z.string().nullable().openapi({ example: 'https://example.com' }),
-    intro_message: z.string().nullable().openapi({ example: 'Welcome' }),
-    overview: z.string().nullable().openapi({ example: 'Overview text' }),
-    accent_color: z.string().nullable().openapi({ example: '#3B82F6' }),
-    is_public: z.boolean().openapi({ example: true }),
-    organization_id: z.uuid().openapi({
-      description: 'Organization UUID for the practice',
-      example: '9f7a2c1f-8e5c-4b8a-9d7f-1234567890ab',
-    }),
-    services: z
-      .array(z.object({ id: z.string(), name: z.string(), key: z.string() }))
-      .nullable()
-      .openapi({ example: [{ id: '1', name: 'Service 1', key: 'SERVICE_1' }] }),
-    address: addressSchema.nullable().openapi({
-      description: 'Practice or organizational address',
-      example: {
-        line1: '123 Business Way',
-        city: 'San Francisco',
-        state: 'CA',
-        postal_code: '94105',
-        country: 'US',
-      },
-    }),
-    name: z.string().openapi({
-      example: 'My Practice',
-    }),
-    logo: z.url().nullable().openapi({
-      example: 'https://example.com/logo.png',
-    }),
-    payment_link_enabled: z.boolean().openapi({
-      example: true,
-    }),
-    billing_increment_minutes: billingIncrementMinutesSchema.openapi({
-      description: 'Billing increment in minutes for time entry dropdowns',
-      example: 15,
-    }),
-    created_at: z.date().nullable().openapi({
-      description: 'Practice details creation timestamp',
-      format: 'date-time',
-      example: '2024-01-01T00:00:00Z',
-    }),
-    updated_at: z.date().optional().openapi({
-      format: 'date-time',
-      description: 'Practice details last update timestamp',
-      example: '2024-01-01T00:00:00Z',
-    }),
-    supported_states: z
-      .array(
-        z.object({
-          country: z.string().openapi({ example: 'US' }),
-          states: z
-            .array(z.string())
-            .optional()
-            .openapi({ example: ['NY', 'NJ'] }),
-        })
-      )
-      .nullable()
-      .openapi({
-        description: 'List of supported countries and states',
-        example: [{ country: 'US', states: ['NY', 'NJ'] }, { country: 'CA', states: ['ON'] }, { country: 'GB' }],
-      }),
-    service_states: z
-      .array(z.string())
-      .nullable()
-      .openapi({
-        description: 'US states where the practice is licensed to practice (2-letter codes)',
-        example: ['NC', 'SC', 'VA'],
-      }),
-  })
-  .openapi('PracticeDetailsResponse');
-
-const practiceDetailsSingleResponseSchema = practiceDetailsResponseSchema;
-
-const practiceDetailsCreateResponseSchema = practiceDetailsResponseSchema;
-
-const practiceDetailsUpdateResponseSchema = practiceDetailsResponseSchema;
+const practiceDetailsResponseSchema = practiceResponseSchema;
+const practiceDetailsSingleResponseSchema = practiceResponseSchema;
+const practiceDetailsCreateResponseSchema = practiceResponseSchema;
+const practiceDetailsUpdateResponseSchema = practiceResponseSchema;
 
 const slugParamSchema = z.object({
   slug: z.string(),

@@ -73,6 +73,21 @@ const claimPracticeClientIntakeSchema = z.object({
   session_id: stripeCheckoutSessionIdSchema,
 });
 
+const intakeTemplateFieldSettingsSchema = z.object({
+  id: z.uuid(),
+  key: z.string(),
+  label: z.string(),
+  field_type: z.enum(['text', 'textarea', 'email', 'phone', 'select', 'multiselect', 'date', 'boolean', 'number']),
+  phase: z.enum(['required', 'enrichment']),
+  required: z.boolean(),
+  order_index: z.number().int(),
+  placeholder: z.string().nullable(),
+  help_text: z.string().nullable(),
+  prompt_hint: z.string().nullable(),
+  is_standard: z.boolean(),
+  options: z.array(z.object({ value: z.string(), label: z.string() })).nullable(),
+});
+
 const practiceClientIntakeSettingsResponseSchema = z.object({
   organization: z.object({
     id: z.uuid(),
@@ -109,6 +124,20 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
     id: z.uuid(),
     charges_enabled: z.boolean(),
   }),
+  intake_template: z
+    .object({
+      id: z.uuid(),
+      slug: z.string(),
+      name: z.string(),
+      intro_message: z.string().nullable(),
+      legal_disclaimer: z.string().nullable(),
+      payment_link_enabled: z.boolean(),
+      consultation_fee: z.number().int().nullable(),
+      fields: z.array(intakeTemplateFieldSettingsSchema),
+    })
+    .openapi({
+      description: 'Resolved default intake template for this practice.',
+    }),
 });
 
 const createPracticeClientIntakeResponseSchema = z.object({

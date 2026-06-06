@@ -1,31 +1,25 @@
-/**
- * Subscription Service
- *
- * Business logic for subscription management
- * Integrates with Better Auth Stripe plugin for subscription operations
- */
-
 import { getLogger } from '@logtape/logtape';
 import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
-import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscriptionEvents.schema';
-import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscriptionLineItems.schema';
-import type { SubscriptionPrice } from '@/modules/subscriptions/database/schema/subscriptionPrices.schema';
+import { stripePrices } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
+import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscription-events.schema';
+import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
+import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
 import type {
   CancelSubscriptionRequest,
-  SubscriptionAPI,
-  CreateSubscriptionRequest,
   GetCurrentSubscriptionResponse,
   SubscriptionPlanResponse,
   LineItemResponse,
   EventResponse,
 } from '@/modules/subscriptions/types/subscription.types';
-import { organizations, subscriptions } from '@/schema/better-auth-schema';
-import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { organizations } from '@/schema/better-auth-schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
+
+const DEFAULT_PLAN_LIMITS = { users: -1, invoices_per_month: -1, storage_gb: 10 };
 
 const logger = getLogger(['subscriptions', 'services', 'subscription']);
 
@@ -33,29 +27,14 @@ const shouldLogSubscriptionError = (error: unknown): boolean => {
   if (!(error instanceof HTTPException)) {
     return true;
   }
-
   return error.status >= 500;
 };
 
-/**
- * Helper to safely cast authed API to SubscriptionAPI
- */
-const getSubscriptionApi = (authInstance: ReturnType<typeof createBetterAuthInstance>): SubscriptionAPI =>
-  authInstance.api as unknown as SubscriptionAPI;
-
-/**
- * Type guard for Record<string, string>
- */
 const isRecordStringString = (obj: unknown): obj is Record<string, string> => {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
+  if (typeof obj !== 'object' || obj === null) return false;
   return Object.values(obj).every((val) => typeof val === 'string');
 };
 
-/**
- * Type guard for Record<string, unknown>
- */
 const isRecordStringUnknown = (obj: unknown): obj is Record<string, unknown> => typeof obj === 'object' && obj !== null;
 
 const assertSubscriptionReadAccess = (ctx: ServiceContext): void => {
@@ -66,14 +45,8 @@ const assertSubscriptionManageAccess = (ctx: ServiceContext): void => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Subscription');
 };
 
-/**
- * Helper to safely parse and validate metadata
- */
 const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T | null => {
-  if (data === null || data === undefined) {
-    return null;
-  }
-
+  if (data === null || data === undefined) return null;
   let parsed = data;
   if (typeof data === 'string') {
     try {
@@ -82,68 +55,64 @@ const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T |
       return null;
     }
   }
-
   return guard(parsed) ? parsed : null;
 };
 
 /**
- * List all available subscription plans
+ * List all available subscription plans.
+ * Groups active stripe_prices by stripe_product_id; each product becomes one "plan" entry.
  */
 const listPlans = async (): Promise<{ plans: SubscriptionPlanResponse[] }> => {
-  const plans = await subscriptionRepository.findAllActivePlans(db);
+  const allPrices = await db
+    .select()
+    .from(stripePrices)
+    .where(eq(stripePrices.is_active, true))
+    .orderBy(asc(stripePrices.sort_order));
 
-  // Fetch prices for all plans in a single query to derive legacy pricing fields
-  const planIds = plans.map((plan) => plan.id);
-  const prices: SubscriptionPrice[] =
-    planIds.length > 0 ? await subscriptionRepository.findPricesByPlanIds(db, planIds) : [];
+  const productMap = new Map<string, typeof allPrices>();
+  for (const price of allPrices) {
+    const list = productMap.get(price.stripe_product_id) ?? [];
+    list.push(price);
+    productMap.set(price.stripe_product_id, list);
+  }
 
-  const pricesByPlan = prices.reduce<Record<string, SubscriptionPrice[]>>((planPriceMap, price) => {
-    const planId = price.plan_id;
-    if (!planId) {
-      return planPriceMap;
-    }
-    planPriceMap[planId] ??= [];
-    planPriceMap[planId].push(price);
-    return planPriceMap;
-  }, {});
+  const response: SubscriptionPlanResponse[] = [];
+  for (const prices of productMap.values()) {
+    const rep = prices.find((p) => p.usage_type === 'licensed') ?? prices[0];
+    if (!rep?.name) continue;
 
-  const response: SubscriptionPlanResponse[] = plans.map((plan) => {
-    const planPrices = pricesByPlan[plan.id] ?? [];
-    const currency = planPrices[0]?.currency ?? '';
-    const monthlyPrice = planPrices.find((price) => price.interval === 'month');
-    const yearlyPrice = planPrices.find((price) => price.interval === 'year');
-    const meteredPrices = planPrices.filter((price) => price.usage_type === 'metered');
+    const monthlyPrice = prices.find((p) => p.usage_type === 'licensed' && p.interval === 'month');
+    const yearlyPrice = prices.find((p) => p.usage_type === 'licensed' && p.interval === 'year');
+    const meteredPrices = prices.filter((p) => p.usage_type === 'metered');
+    const currency = monthlyPrice?.currency ?? yearlyPrice?.currency ?? '';
 
-    return {
-      id: plan.id,
-      name: plan.name,
-      display_name: plan.display_name,
-      description: plan.description,
-      stripe_product_id: plan.stripe_product_id,
+    response.push({
+      id: rep.id,
+      name: rep.name,
+      display_name: rep.display_name ?? rep.name,
+      description: rep.description ?? null,
+      stripe_product_id: rep.stripe_product_id,
       stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
       stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
-      monthly_price: monthlyPrice ? monthlyPrice.unit_amount : null,
-      yearly_price: yearlyPrice ? yearlyPrice.unit_amount : null,
+      monthly_price: monthlyPrice?.unit_amount ?? null,
+      yearly_price: yearlyPrice?.unit_amount ?? null,
       currency,
-      features: plan.features,
-      limits: plan.limits,
+      features: rep.features ?? [],
+      limits: rep.limits ?? DEFAULT_PLAN_LIMITS,
       metered_items: meteredPrices.length
-        ? meteredPrices.map((meteredPrice) => ({
-            price_id: meteredPrice.stripe_price_id,
-            meter_name: meteredPrice.meter_name,
-            type: meteredPrice.internal_type,
-          }))
+        ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
         : null,
-      is_active: plan.is_active,
-      is_public: plan.is_public,
-      sort_order: plan.sort_order,
-      metadata: plan.metadata,
-      image: plan.image,
-      created_at: plan.created_at,
-      updated_at: plan.updated_at,
-    };
-  });
+      is_active: rep.is_active,
+      is_public: rep.is_public ?? true,
+      sort_order: rep.sort_order ?? 0,
+      metadata: rep.metadata ?? null,
+      image: rep.image ?? null,
+      created_at: rep.created_at,
+      updated_at: rep.updated_at,
+    });
+  }
 
+  response.sort((a, b) => a.sort_order - b.sort_order);
   return { plans: response };
 };
 
@@ -162,9 +131,6 @@ const getCurrentSubscription = async (
       throw new HTTPException(400, { message: 'No active organization. Please select an organization first.' });
     }
 
-    // Manual query to handle text vs uuid type mismatch in database
-    // We fetch the organization and join with subscription using explicit casting
-    // Select all fields with explicit snake_case aliases to match our custom types
     const result = await db
       .select({
         activeSubscriptionId: organizations.activeSubscriptionId,
@@ -178,6 +144,7 @@ const getCurrentSubscription = async (
           period_start: subscriptions.periodStart,
           period_end: subscriptions.periodEnd,
           cancel_at_period_end: subscriptions.cancelAtPeriodEnd,
+          cancel_at: subscriptions.cancelAt,
           seats: subscriptions.seats,
           trial_start: subscriptions.trialStart,
           trial_end: subscriptions.trialEnd,
@@ -196,29 +163,24 @@ const getCurrentSubscription = async (
       throw new HTTPException(404, { message: 'Organization not found' });
     }
 
-    // If no active subscription, return null
     if (!organizationData.subscription) {
-      return {
-        subscription: null,
-      };
+      return { subscription: null };
     }
 
     const subscriptionRecord = organizationData.subscription;
 
-    // Fetch line items, events, and plan details
-    const [lineItems, events, planResult] = await Promise.all([
+    const [lineItems, events, repPrice] = await Promise.all([
       db.query.subscriptionLineItems.findMany({
         where: eq(subscriptionLineItems.subscription_id, subscriptionRecord.id),
       }),
       db.query.subscriptionEvents.findMany({
         where: eq(subscriptionEvents.subscription_id, subscriptionRecord.id),
       }),
-      subscriptionRepository.findPlanByName(db, subscriptionRecord.plan),
+      subscriptionRepository.findPriceByName(db, subscriptionRecord.plan),
     ]);
 
     const { plan: _plan, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
 
-    // Map DB rows to response types to avoid unsafe casts
     const mappedLineItems: LineItemResponse[] = lineItems.map((lineItem) => ({
       id: lineItem.id,
       subscription_id: lineItem.subscription_id,
@@ -249,46 +211,40 @@ const getCurrentSubscription = async (
       created_at: subscriptionEvent.created_at,
     }));
 
-    // Map plan to response format
     let planResponse: SubscriptionPlanResponse | null = null;
-    if (planResult) {
-      const planPrices = await subscriptionRepository.findPricesByPlanId(db, planResult.id);
-      const currency = planPrices[0]?.currency ?? '';
-      const monthlyPrice = planPrices.find((price) => price.interval === 'month');
-      const yearlyPrice = planPrices.find((price) => price.interval === 'year');
-      const meteredPrices = planPrices.filter((price) => price.usage_type === 'metered');
+    if (repPrice) {
+      const allPrices = await subscriptionRepository.findPricesByProductId(db, repPrice.stripe_product_id);
+      const monthlyPrice = allPrices.find((p) => p.usage_type === 'licensed' && p.interval === 'month');
+      const yearlyPrice = allPrices.find((p) => p.usage_type === 'licensed' && p.interval === 'year');
+      const meteredPrices = allPrices.filter((p) => p.usage_type === 'metered');
+      const currency = monthlyPrice?.currency ?? yearlyPrice?.currency ?? '';
 
       planResponse = {
-        id: planResult.id,
-        name: planResult.name,
-        display_name: planResult.display_name,
-        description: planResult.description,
-        stripe_product_id: planResult.stripe_product_id,
+        id: repPrice.id,
+        name: repPrice.name ?? subscriptionRecord.plan,
+        display_name: repPrice.display_name ?? repPrice.name ?? subscriptionRecord.plan,
+        description: repPrice.description ?? null,
+        stripe_product_id: repPrice.stripe_product_id,
         stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
         stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
-        monthly_price: monthlyPrice ? monthlyPrice.unit_amount : null,
-        yearly_price: yearlyPrice ? yearlyPrice.unit_amount : null,
+        monthly_price: monthlyPrice?.unit_amount ?? null,
+        yearly_price: yearlyPrice?.unit_amount ?? null,
         currency,
-        features: planResult.features,
-        limits: planResult.limits,
+        features: repPrice.features ?? [],
+        limits: repPrice.limits ?? DEFAULT_PLAN_LIMITS,
         metered_items: meteredPrices.length
-          ? meteredPrices.map((meteredPrice) => ({
-              price_id: meteredPrice.stripe_price_id,
-              meter_name: meteredPrice.meter_name,
-              type: meteredPrice.internal_type,
-            }))
+          ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
           : null,
-        is_active: planResult.is_active,
-        is_public: planResult.is_public,
-        sort_order: planResult.sort_order,
-        metadata: planResult.metadata ?? null,
-        image: planResult.image,
-        created_at: planResult.created_at,
-        updated_at: planResult.updated_at,
+        is_active: repPrice.is_active,
+        is_public: repPrice.is_public ?? true,
+        sort_order: repPrice.sort_order ?? 0,
+        metadata: repPrice.metadata ?? null,
+        image: repPrice.image ?? null,
+        created_at: repPrice.created_at,
+        updated_at: repPrice.updated_at,
       };
     }
 
-    // Construct the response
     return {
       subscription: {
         ...subscriptionRecordWithoutPlanName,
@@ -299,139 +255,33 @@ const getCurrentSubscription = async (
     };
   } catch (error) {
     if (shouldLogSubscriptionError(error)) {
-      logger.error('Failed to get current subscription for org {organizationId}: {error}', {
-        organizationId,
-        error,
-      });
+      logger.error('Failed to get current subscription for org {organizationId}: {error}', { organizationId, error });
     }
     throw error;
   }
 };
 
 /**
- * Create a new subscription for an organization
- */
-const createSubscription = async (
-  { organizationId, data }: { organizationId: string; data: CreateSubscriptionRequest },
-  ctx: ServiceContext
-): Promise<{
-  subscription_id?: string;
-  checkout_url?: string;
-  message: string;
-}> => {
-  assertSubscriptionManageAccess(ctx);
-
-  try {
-    const authInstance = createBetterAuthInstance(db);
-
-    // Verify organization exists
-    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-
-    if (!organization) {
-      throw new HTTPException(404, { message: 'Organization not found' });
-    }
-
-    // Fetch plan from database using plan_id
-    const plan = await subscriptionRepository.findPlanById(db, data.plan_id);
-
-    if (!plan) {
-      throw new HTTPException(400, { message: `Plan not found with ID: ${data.plan_id}` });
-    }
-
-    if (!plan.is_active) {
-      throw new HTTPException(400, { message: `Plan is not active: ${plan.name}` });
-    }
-
-    // Use plan name for Better Auth (Better Auth expects plan name, not UUID)
-    const planName = plan.name;
-
-    // Check if organization already has an active subscription
-    if (organization.activeSubscriptionId) {
-      throw new HTTPException(400, {
-        message: 'Organization already has an active subscription. Please manage your existing subscription.',
-      });
-    }
-
-    // Create subscription via Better Auth
-    const api = getSubscriptionApi(authInstance);
-    const result = await api.upgradeSubscription({
-      body: {
-        plan: planName,
-        reference_id: organizationId,
-        customer_type: 'organization',
-        success_url: data.success_url ?? '/dashboard',
-        cancel_url: data.cancel_url ?? '/pricing',
-        disable_redirect: data.disable_redirect || false,
-      },
-      headers: ctx.requestHeaders,
-    });
-
-    return {
-      subscription_id: result.subscriptionId,
-      checkout_url: result.url,
-      message: 'Subscription created successfully',
-    };
-  } catch (error) {
-    if (shouldLogSubscriptionError(error)) {
-      logger.error('Failed to create subscription for org {organizationId}: {error}', {
-        organizationId,
-        error,
-      });
-    }
-    throw error;
-  }
-};
-
-/**
- * Cancel a subscription
- *
- * If subscriptionId is not provided, it cancels the organization's active subscription.
+ * Cancel a subscription — delegates to billing portal service.
  */
 const cancelSubscription = async (
   { data }: { data: CancelSubscriptionRequest },
   ctx: ServiceContext
 ): Promise<{ url: string; redirect: boolean }> => {
   assertSubscriptionManageAccess(ctx);
-  const { organizationId } = ctx;
 
   try {
-    if (!organizationId) {
+    if (!ctx.organizationId) {
       throw new HTTPException(400, { message: 'No active organization. Please select an organization first.' });
     }
-
-    const authInstance = createBetterAuthInstance(db);
-
-    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
-
-    if (!organization) {
-      throw new HTTPException(404, { message: 'Organization not found' });
-    }
-
-    if (!organization.activeSubscriptionId) {
-      throw new HTTPException(400, { message: 'No active subscription found for this organization' });
-    }
-
-    // Cancel subscription via Better Auth
-    const subscriptionAPI = getSubscriptionApi(authInstance);
-    // Better Auth expects camelCase body parameters
-    const result = await subscriptionAPI.cancelSubscription({
-      body: {
-        referenceId: organizationId,
-        customerType: 'organization',
-        returnUrl: data.return_url || '/dashboard',
-        immediately: data.immediately ?? false,
-      },
-      headers: ctx.requestHeaders,
-    });
-
-    return {
-      url: result.url,
-      redirect: result.redirect,
-    };
+    return await createBillingPortalSession(
+      { returnUrl: data.return_url || '/dashboard', immediately: data.immediately ?? false },
+      ctx
+    );
   } catch (error) {
     if (shouldLogSubscriptionError(error)) {
       logger.error('Failed to cancel subscription for org {organizationId}: {error}', {
-        organizationId,
+        organizationId: ctx.organizationId,
         error,
       });
     }
@@ -442,6 +292,5 @@ const cancelSubscription = async (
 export const subscriptionService = {
   listPlans,
   getCurrentSubscription,
-  createSubscription,
   cancelSubscription,
 };

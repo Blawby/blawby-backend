@@ -1,6 +1,6 @@
 import { test } from 'tap';
 
-import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
 import { reportMeteredUsageWithRetry } from '@/modules/invoices/listeners';
 import { internalError, ok } from '@/shared/utils/result';
 

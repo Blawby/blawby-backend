@@ -107,6 +107,28 @@ const getDownloadUrlRoute = routeBuilder.build({
   },
 });
 
+const getThumbnailUrlRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{id}/thumbnail',
+  tags: ['Uploads'],
+  summary: 'Get thumbnail URL for an image upload',
+  security: [{ Bearer: [] }],
+  request: {
+    params: uploadIdParamOpenAPISchema,
+    query: uploadValidations.thumbnailQuerySchema,
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: uploadValidations.thumbnailUrlResponseSchema,
+        },
+      },
+      description: 'Thumbnail URL generated successfully',
+    },
+  },
+});
+
 const deleteUploadRoute = routeBuilder.build({
   method: 'delete',
   path: '/{id}',
@@ -237,6 +259,22 @@ uploadsHttp.openapi(getDownloadUrlRoute, async (c) => {
   const result = await uploadCoreService.getDownloadUrl(
     {
       id,
+      ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('cf-connecting-ip'),
+      userAgent: c.req.header('user-agent'),
+    },
+    ctx
+  );
+  return c.json(result, 200);
+});
+
+uploadsHttp.openapi(getThumbnailUrlRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const ctx = getServiceContext(c);
+  const result = await uploadCoreService.getThumbnailUrl(
+    {
+      id,
+      query,
       ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('cf-connecting-ip'),
       userAgent: c.req.header('user-agent'),
     },

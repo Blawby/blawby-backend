@@ -4,6 +4,11 @@ import { HTTPException } from 'hono/http-exception';
 import { config } from '@/shared/config';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { auditLogsRepository } from '@/shared/uploads/queries/audit-logs.repository';
+import {
+  buildUploadMetadataEnrichment,
+  defaultUploadMetadataEnrichment,
+  type UploadMetadataEnrichment,
+} from '@/shared/uploads/services/upload-enrichment.service';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import { auditService } from '@/shared/uploads/services/audit.service';
 import { keyGeneratorService } from '@/shared/uploads/services/key-generator.service';
@@ -19,6 +24,8 @@ import type {
   ListUploadsResponse,
   PresignUploadRequest,
   PresignUploadResponse,
+  ThumbnailQuery,
+  ThumbnailUrlResponse,
   UploadDetails,
 } from '@/shared/uploads/types/uploads.types';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -90,24 +97,92 @@ const buildPublicUrl = (storageKey: string): string | null => {
   return `${publicUrlBase}/${storageKey}`;
 };
 
-export const toUploadDetails = (upload: SelectUpload): UploadDetails => ({
-  upload_id: upload.id,
-  file_name: upload.file_name,
-  file_type: upload.file_type,
-  file_size: upload.file_size,
-  mime_type: upload.mime_type,
-  storage_provider: upload.storage_provider as 'r2' | 'images',
-  storage_key: upload.storage_key,
-  public_url: upload.public_url,
-  scope_type: (upload.scope_type as UploadDetails['scope_type']) ?? null,
-  scope_id: upload.scope_id,
-  status: upload.status as UploadDetails['status'],
-  is_privileged: upload.is_privileged ?? true,
-  retention_until: upload.retention_until ?? null,
-  created_at: upload.created_at,
-  verified_at: upload.verified_at ?? null,
-  uploaded_by: upload.user_id,
-});
+const isImageMimeType = (mimeType: string): boolean => mimeType.toLowerCase().startsWith('image/');
+
+const buildCloudflareResizedUrl = ({
+  sourceUrl,
+  width,
+  height,
+  fit,
+}: {
+  sourceUrl: string;
+  width: number;
+  height: number;
+  fit: 'contain' | 'cover' | 'scale-down';
+}): string => {
+  const origin = new URL(sourceUrl).origin;
+  const resizeParams = `width=${width},height=${height},fit=${fit},metadata=none`;
+  return `${origin}/cdn-cgi/image/${resizeParams}/${sourceUrl}`;
+};
+
+const buildInlineThumbnail = (
+  upload: SelectUpload
+): { hasThumbnail: boolean; thumbnailUrl: string | null; thumbnailExpiresAt: Date | null } => {
+  if (upload.status !== 'verified' || !isImageMimeType(upload.mime_type)) {
+    return { hasThumbnail: false, thumbnailUrl: null, thumbnailExpiresAt: null };
+  }
+
+  if (upload.storage_provider === 'images') {
+    return {
+      hasThumbnail: !!upload.public_url,
+      thumbnailUrl: upload.public_url ?? null,
+      thumbnailExpiresAt: null,
+    };
+  }
+
+  const basePublicUrl = upload.public_url ?? buildPublicUrl(upload.storage_key);
+  if (!basePublicUrl) {
+    // Thumbnail endpoint can still return a short-lived presigned URL on demand.
+    return {
+      hasThumbnail: true,
+      thumbnailUrl: null,
+      thumbnailExpiresAt: null,
+    };
+  }
+
+  return {
+    hasThumbnail: true,
+    thumbnailUrl: buildCloudflareResizedUrl({
+      sourceUrl: basePublicUrl,
+      width: 320,
+      height: 320,
+      fit: 'contain',
+    }),
+    thumbnailExpiresAt: null,
+  };
+};
+
+export const toUploadDetails = (
+  upload: SelectUpload,
+  enrichment: UploadMetadataEnrichment = defaultUploadMetadataEnrichment
+): UploadDetails => {
+  const thumbnail = buildInlineThumbnail(upload);
+
+  return {
+    upload_id: upload.id,
+    file_name: upload.file_name,
+    file_type: upload.file_type,
+    file_size: upload.file_size,
+    mime_type: upload.mime_type,
+    storage_provider: upload.storage_provider as 'r2' | 'images',
+    storage_key: upload.storage_key,
+    public_url: upload.public_url,
+    scope_type: (upload.scope_type as UploadDetails['scope_type']) ?? null,
+    scope_id: upload.scope_id,
+    status: upload.status as UploadDetails['status'],
+    is_privileged: upload.is_privileged ?? true,
+    retention_until: upload.retention_until ?? null,
+    created_at: upload.created_at,
+    verified_at: upload.verified_at ?? null,
+    uploaded_by: upload.user_id,
+    uploaded_by_name: enrichment.uploadedByName,
+    uploaded_by_email: enrichment.uploadedByEmail,
+    scope_label: enrichment.scopeLabel,
+    has_thumbnail: thumbnail.hasThumbnail,
+    thumbnail_url: thumbnail.thumbnailUrl,
+    thumbnail_expires_at: thumbnail.thumbnailExpiresAt,
+  };
+};
 
 const toAuditLogEntry = (
   log: Awaited<ReturnType<typeof auditLogsRepository.findByUploadId>>[number]
@@ -367,11 +442,102 @@ export const uploadCoreService = {
     };
   },
 
+  async getThumbnailUrl(
+    { id, query, ipAddress, userAgent }: { id: string; query: ThumbnailQuery; ipAddress?: string; userAgent?: string },
+    ctx: ServiceContext
+  ): Promise<ThumbnailUrlResponse> {
+    requireAuth(ctx);
+
+    const upload = await getUploadOrThrow(id, ctx);
+    assertUploadAccess(upload, ctx, 'read');
+
+    if (upload.status !== 'verified') {
+      throw new HTTPException(400, { message: 'Upload must be verified before thumbnail access' });
+    }
+
+    if (!isImageMimeType(upload.mime_type)) {
+      throw new HTTPException(400, { message: 'Thumbnails are only available for image uploads' });
+    }
+
+    const width = query.width ?? 320;
+    const height = query.height ?? 320;
+    const fit = query.fit ?? 'contain';
+
+    let thumbnailUrl: string;
+    let expiresAt: Date | null;
+
+    if (upload.storage_provider === 'images') {
+      if (!upload.public_url) {
+        throw new HTTPException(400, { message: 'Thumbnail URL not available for this image' });
+      }
+      const isDefault = width === 320 && height === 320 && fit === 'contain';
+      if (isDefault) {
+        thumbnailUrl = upload.public_url;
+      } else {
+        // Cloudflare Images flexible variant: https://imagedelivery.net/<ACCOUNT_HASH>/<IMAGE_ID>/<variant>
+        const match = upload.public_url.match(/^https:\/\/imagedelivery\.net\/([^/]+)\/([^/]+)/);
+        if (!match) {
+          throw new HTTPException(400, { message: 'Unsupported thumbnail params for this image provider' });
+        }
+        const [, accountHash, imageId] = match;
+        thumbnailUrl = `https://imagedelivery.net/${accountHash}/${imageId}/w=${width},h=${height},fit=${fit}`;
+      }
+      expiresAt = null;
+    } else {
+      const basePublicUrl = upload.public_url ?? buildPublicUrl(upload.storage_key);
+      if (basePublicUrl) {
+        thumbnailUrl = buildCloudflareResizedUrl({ sourceUrl: basePublicUrl, width, height, fit });
+        expiresAt = null;
+      } else {
+        expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        const url = await r2Service.generatePresignedDownloadUrl({
+          bucket: getBucketOrThrow(),
+          key: upload.storage_key,
+          expiresIn: 15 * 60,
+        });
+        if (!url) {
+          throw new HTTPException(500, { message: 'Failed to generate thumbnail URL' });
+        }
+        thumbnailUrl = url;
+      }
+    }
+
+    await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
+
+    await auditService.log(
+      {
+        upload_id: id,
+        organization_id: upload.organization_id ?? undefined,
+        action: 'viewed',
+        user_id: ctx.userId,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        metadata: { kind: 'thumbnail', width, height, fit },
+      },
+      ctx.db
+    );
+
+    return {
+      thumbnail_url: thumbnailUrl,
+      expires_at: expiresAt,
+    };
+  },
+
   async getUpload({ id }: { id: string }, ctx: ServiceContext): Promise<UploadDetails> {
     requireAuth(ctx);
 
     const upload = await getUploadOrThrow(id, ctx);
     assertUploadAccess(upload, ctx, 'read');
+
+    const organizationId = upload.organization_id ?? ctx.organizationId;
+    if (!organizationId) {
+      throw new HTTPException(400, { message: 'Organization context required' });
+    }
+
+    const enrichmentMap = await buildUploadMetadataEnrichment([upload], {
+      db: ctx.db,
+      organizationId,
+    });
 
     await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
 
@@ -385,7 +551,7 @@ export const uploadCoreService = {
       ctx.db
     );
 
-    return toUploadDetails(upload);
+    return toUploadDetails(upload, enrichmentMap.get(upload.id) ?? defaultUploadMetadataEnrichment);
   },
 
   async listUploads({ query }: { query: ListUploadsQuery }, ctx: ServiceContext): Promise<ListUploadsResponse> {
@@ -427,8 +593,15 @@ export const uploadCoreService = {
       ),
     ]);
 
+    const enrichmentMap = await buildUploadMetadataEnrichment(results, {
+      db: ctx.db,
+      organizationId: ctx.organizationId,
+    });
+
     return {
-      uploads: results.map(toUploadDetails),
+      uploads: results.map((upload) =>
+        toUploadDetails(upload, enrichmentMap.get(upload.id) ?? defaultUploadMetadataEnrichment)
+      ),
       total,
       page,
       limit,

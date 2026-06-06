@@ -15,6 +15,7 @@ export type SubjectName =
   | 'UserPreferences'
   | 'UserDetails'
   | 'PracticeClientIntake'
+  | 'IntakeTemplate'
   | 'Upload'
   | 'Trust'
   | 'User'
@@ -23,6 +24,7 @@ export type SubjectName =
   | 'Subscription'
   | 'Matter'
   | 'Invoice'
+  | 'Payout'
   | 'RefundRequest'
   | 'Client'
   | 'ClientMemo'
@@ -73,6 +75,7 @@ export const defineAbilityFor = (
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');
+    can('read', 'Payout');
     can('read', 'Subscription');
     can('read', 'Trust');
     can('read', 'RefundRequest');

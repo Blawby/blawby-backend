@@ -43,11 +43,11 @@ export default async function globalSetup() {
     await managementClient.end();
   }
 
-  // Use drizzle-kit push to sync schema directly (bypasses migrations)
+  // Use drizzle-kit migrate to apply pending migrations
   console.log('  → Syncing database schema...');
 
   try {
-    execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit push --force`, {
+    execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit migrate`, {
       stdio: 'inherit',
       shell: '/bin/bash',
     });

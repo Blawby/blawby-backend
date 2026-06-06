@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import type { ListInvoicesQuery } from '@/modules/invoices/types/invoices.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
   errorResponseSchema,
@@ -9,6 +10,7 @@ import {
   practiceIdParamSchema,
   unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
+import { invoiceService } from '@/modules/invoices/services/invoice.service';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
   invoice_id: z.uuid().openapi({
@@ -63,6 +65,10 @@ const listInvoicesRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'List invoices',
   description: 'Get all invoices for a practice.',
+  mcp: {
+    scope: 'invoices:read',
+    handler: async (args, ctx) => invoiceService.listInvoices({ filters: args as ListInvoicesQuery }, ctx),
+  },
   request: {
     params: practiceIdParamSchema,
     query: invoiceValidations.listInvoicesQuerySchema,
@@ -88,6 +94,11 @@ const getInvoiceRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'Get invoice',
   description: 'Get a single invoice by ID.',
+  mcp: {
+    scope: 'invoices:read',
+    schema: { invoice_id: z.uuid() },
+    handler: async (args, ctx) => invoiceService.getInvoiceById({ id: args['invoice_id'] as string }, ctx),
+  },
   request: {
     params: invoiceParamSchema,
   },

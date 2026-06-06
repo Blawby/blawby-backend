@@ -11,8 +11,8 @@
 
 import { getLogger } from '@logtape/logtape';
 import { loadRequiredPayoutMeteredFeeCents } from '@/modules/invoices/services/invoice.utils';
-import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
-import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
+import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
 import { db } from '@/shared/database';
 import { InvoicePaid, InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';

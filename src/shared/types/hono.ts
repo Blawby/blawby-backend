@@ -8,6 +8,7 @@ export interface Variables {
   user: User | null;
   session: Session | null;
   userId: string | null;
+  apiKeyId: string | null;
   activeOrganizationId: string | null;
   memberRole: string | null;
   ability: AppAbility;

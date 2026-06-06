@@ -7,6 +7,8 @@ import { createHonoApp } from '@/shared/router/factory';
 
 const logger = getLogger(['app', 'public', 'health']);
 
+export const mountPath = '/';
+
 interface HealthStatus {
   status: 'ok' | 'degraded';
   timestamp: string;
@@ -63,9 +65,6 @@ publicApp.openapi(routes.healthRoute, async (c) => {
   }
   return c.json(health, 200);
 });
-
-// Note: This module is configured as prefix: '/' in routes.config.ts
-// All paths are relative to root.
 
 // API Info
 publicApp.openapi(routes.infoRoute, async (c) =>

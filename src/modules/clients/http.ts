@@ -1,12 +1,14 @@
 import * as handlers from '@/modules/clients/handlers';
 import * as routes from '@/modules/clients/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const clientsApp = createHonoApp();
 
-clientsApp.use('*', injectAbility());
+clientsApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 // Clients (Note: No POST/create - clients are created via intake or invitation flows)
 clientsApp.openapi(routes.listClientsRoute, handlers.listClientsHandler);

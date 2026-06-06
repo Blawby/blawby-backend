@@ -376,8 +376,106 @@
     {
       "idx": 53,
       "version": "7",
-      "when": 1779854471619,
-      "tag": "0053_robust_charles_xavier",
+      "when": 1779519220435,
+      "tag": "0053_spooky_skin",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1779520261695,
+      "tag": "0054_right_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1779564232419,
+      "tag": "0055_slimy_ravenous",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1779603220988,
+      "tag": "0056_perpetual_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1779695803287,
+      "tag": "0057_glamorous_siren",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1779800227612,
+      "tag": "0058_quick_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1780317403347,
+      "tag": "0059_real_shocker",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1780318403347,
+      "tag": "0060_redundant_silver_surfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1780319403347,
+      "tag": "0061_worthless_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1780320403347,
+      "tag": "0062_familiar_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1780321403347,
+      "tag": "0063_shiny_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1780322403347,
+      "tag": "0064_clever_vanisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1780461212529,
+      "tag": "0065_far_screwball",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1780463023265,
+      "tag": "0066_opposite_krista_starr",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1780718044625,
+      "tag": "0067_red_moondragon",
       "breakpoints": true
     }
   ]

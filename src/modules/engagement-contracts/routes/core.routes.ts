@@ -1,5 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { engagementContractValidations } from '@/modules/engagement-contracts/validations/engagement-contract.validation';
+import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
   errorResponseSchema,
@@ -84,6 +86,7 @@ const listEngagementContractsRoute = routeBuilder.build({
 const getEngagementContractRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/{contract_id}',
+  middleware: [requireAuth(), injectAbility()] as const,
   tags: ['Engagement Contracts'],
   summary: 'Get an engagement contract by ID',
   request: {

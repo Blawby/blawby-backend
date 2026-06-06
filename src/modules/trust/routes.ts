@@ -71,7 +71,8 @@ const getTrustTransactionsRoute = routeBuilder.build({
   path: '/{practice_id}/transactions',
   tags: ['Trust'],
   summary: 'List trust transactions',
-  description: 'List trust transactions for a client, optionally filtered by matter.',
+  description:
+    'List trust transactions for the organization, ordered by created_at DESC. When client_id is omitted, returns org-wide transactions; when provided, scopes to that client. Optionally filterable by matter_id and date range.',
   request: {
     params: practiceIdParamSchema,
     query: z.object({
@@ -135,10 +136,37 @@ const getTrustReportRoute = routeBuilder.build({
   },
 });
 
+const clientBalanceSchema = z
+  .object({
+    client_id: z.uuid(),
+    balance: z.number().describe('Balance in cents'),
+    as_of_date: z.iso.datetime({ offset: true }),
+  })
+  .openapi('TrustClientBalance', { description: 'Latest trust balance for a client' });
+
+const getTrustClientBalancesRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/client-balances',
+  tags: ['Trust'],
+  summary: 'List latest trust balance per client',
+  description:
+    'Returns the latest trust balance_after per client across the organization, one row per client with the timestamp of the underlying transaction.',
+  request: {
+    params: practiceIdParamSchema,
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.array(clientBalanceSchema) } },
+      description: 'Latest trust balance per client retrieved',
+    },
+  },
+});
+
 export const trustRoutes = {
   createDepositRoute,
   createWithdrawalRoute,
   getTrustTransactionsRoute,
   getTrustBalanceRoute,
   getTrustReportRoute,
+  getTrustClientBalancesRoute,
 };

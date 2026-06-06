@@ -4,7 +4,9 @@ ALTER TABLE "stripe_connected_accounts" ALTER COLUMN "created_at" SET DATA TYPE 
 ALTER TABLE "stripe_connected_accounts" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
 ALTER TABLE "stripe_connected_accounts" ALTER COLUMN "updated_at" SET DATA TYPE timestamp with time zone USING "updated_at" AT TIME ZONE 'UTC';--> statement-breakpoint
 ALTER TABLE "stripe_connected_accounts" ALTER COLUMN "updated_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "practice_client_intakes" ADD COLUMN IF NOT EXISTS "connected_account_id" text;--> statement-breakpoint
 ALTER TABLE "practice_client_intakes" ALTER COLUMN "connected_account_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "practice_client_intakes" ADD COLUMN IF NOT EXISTS "stripe_payment_link_id" text;--> statement-breakpoint
 ALTER TABLE "practice_client_intakes" ALTER COLUMN "stripe_payment_link_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "addresses" ALTER COLUMN "created_at" SET DATA TYPE timestamp with time zone USING "created_at" AT TIME ZONE 'UTC';--> statement-breakpoint
 ALTER TABLE "addresses" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
