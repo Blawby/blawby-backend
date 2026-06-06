@@ -7,6 +7,7 @@ import { practiceManagementService } from '@/modules/practice/services/practice-
 import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
+import { HTTPException } from 'hono/http-exception';
 
 export const listPracticesHandler: AppRouteHandler<typeof routes.listPracticesRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -121,14 +122,20 @@ export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof routes.getP
 
 export const getMemberProfileHandler: AppRouteHandler<typeof routes.getMemberProfileRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { user_id } = c.req.valid('param');
+  const { practice_id, user_id } = c.req.valid('param');
+  if (practice_id !== ctx.organizationId) {
+    throw new HTTPException(400, { message: 'practice_id must match your current organization' });
+  }
   const result = await memberProfilesService.getProfile({ userId: user_id }, ctx);
   return c.json(result);
 };
 
 export const updateMemberProfileHandler: AppRouteHandler<typeof routes.updateMemberProfileRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { user_id } = c.req.valid('param');
+  const { practice_id, user_id } = c.req.valid('param');
+  if (practice_id !== ctx.organizationId) {
+    throw new HTTPException(400, { message: 'practice_id must match your current organization' });
+  }
   const body = c.req.valid('json');
   const result = await memberProfilesService.upsertProfile({ userId: user_id, data: body }, ctx);
   return c.json(result);

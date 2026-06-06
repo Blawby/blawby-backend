@@ -10,6 +10,7 @@ import type {
   MemberProfileResponse,
   UpdateMemberProfileInput,
 } from '@/modules/practice/validations/member-profiles.validation';
+import { toSubject } from '@/shared/auth/subject-helpers';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -79,7 +80,7 @@ const upsertProfile = async (
   params: { userId: string; data: UpdateMemberProfileInput },
   ctx: ServiceContext
 ): Promise<MemberProfileResponse> => {
-  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'MemberProfile');
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', toSubject('MemberProfile', { user_id: params.userId }));
 
   const { userId, data } = params;
 

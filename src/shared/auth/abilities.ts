@@ -87,6 +87,7 @@ export const defineAbilityFor = (
     cannot('read', 'UserDetails');
     if (metadata.userId) {
       canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
+      canWithConditions('update', 'MemberProfile', { user_id: metadata.userId });
     }
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
