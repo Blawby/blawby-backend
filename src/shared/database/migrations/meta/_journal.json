@@ -484,6 +484,13 @@
       "when": 1780725182553,
       "tag": "0068_unusual_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1780728956178,
+      "tag": "0069_illegal_warbird",
+      "breakpoints": true
     }
   ]
 }

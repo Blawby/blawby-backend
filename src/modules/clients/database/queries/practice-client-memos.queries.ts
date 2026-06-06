@@ -4,22 +4,20 @@ import {
   type InsertPracticeClientMemo,
   type SelectPracticeClientMemo,
 } from '@/modules/clients/database/schema/practice-client-memos.schema';
-import { db } from '@/shared/database';
-
-type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { getActiveTx } from '@/shared/database/uow';
 
 const create = async (data: InsertPracticeClientMemo): Promise<SelectPracticeClientMemo> => {
-  const [memo] = await db.insert(practiceClientMemos).values(data).returning();
+  const [memo] = await getActiveTx().insert(practiceClientMemos).values(data).returning();
   return memo;
 };
 
 const findById = async (id: string): Promise<SelectPracticeClientMemo | undefined> =>
-  await db.query.practiceClientMemos.findFirst({
+  await getActiveTx().query.practiceClientMemos.findFirst({
     where: eq(practiceClientMemos.id, id),
   });
 
 const findByClientId = async (clientId: string): Promise<SelectPracticeClientMemo[]> =>
-  await db
+  await getActiveTx()
     .select()
     .from(practiceClientMemos)
     .where(eq(practiceClientMemos.client_id, clientId))
@@ -27,10 +25,9 @@ const findByClientId = async (clientId: string): Promise<SelectPracticeClientMem
 
 const update = async (
   id: string,
-  data: Partial<SelectPracticeClientMemo>,
-  tx: DbOrTx = db
+  data: Partial<SelectPracticeClientMemo>
 ): Promise<SelectPracticeClientMemo | undefined> => {
-  const [updated] = await tx
+  const [updated] = await getActiveTx()
     .update(practiceClientMemos)
     .set({ ...data, updated_at: new Date() })
     .where(eq(practiceClientMemos.id, id))
@@ -39,7 +36,7 @@ const update = async (
 };
 
 const deleteMemo = async (id: string): Promise<SelectPracticeClientMemo | undefined> => {
-  const [deleted] = await db.delete(practiceClientMemos).where(eq(practiceClientMemos.id, id)).returning();
+  const [deleted] = await getActiveTx().delete(practiceClientMemos).where(eq(practiceClientMemos.id, id)).returning();
   return deleted;
 };
 
@@ -56,12 +53,12 @@ const listMemos = async (params: {
   const conditions: SQL[] = [eq(practiceClientMemos.client_id, clientId)];
   const whereClause = and(...conditions);
 
-  const [totalResult] = await db
+  const [totalResult] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(practiceClientMemos)
     .where(whereClause);
 
-  const data = await db
+  const data = await getActiveTx()
     .select()
     .from(practiceClientMemos)
     .where(whereClause)

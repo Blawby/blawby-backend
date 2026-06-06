@@ -91,6 +91,18 @@ staffApp.openapi(routes.getIntakeTemplateRoute, handlers.getIntakeTemplateHandle
 staffApp.openapi(routes.updateIntakeTemplateRoute, handlers.updateIntakeTemplateHandler);
 staffApp.openapi(routes.deleteIntakeTemplateRoute, handlers.deleteIntakeTemplateHandler);
 
+/**
+ * GET /api/practice/:practice_id/members/:user_id/profile
+ * Get a member's routing/capacity metadata
+ */
+staffApp.openapi(routes.getMemberProfileRoute, handlers.getMemberProfileHandler);
+
+/**
+ * PUT /api/practice/:practice_id/members/:user_id/profile
+ * Upsert a member's routing/capacity metadata
+ */
+staffApp.openapi(routes.updateMemberProfileRoute, handlers.updateMemberProfileHandler);
+
 practiceApp.route('/', publicApp);
 practiceApp.route('/', authApp);
 practiceApp.route('/', staffApp);

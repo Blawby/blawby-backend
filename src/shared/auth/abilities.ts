@@ -28,6 +28,7 @@ export type SubjectName =
   | 'RefundRequest'
   | 'Client'
   | 'ClientMemo'
+  | 'MemberProfile'
   | 'ClientIntakeProfile';
 
 /**
