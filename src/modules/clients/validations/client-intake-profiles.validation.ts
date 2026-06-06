@@ -25,9 +25,15 @@ export const updateIntakeProfileSchema = z
     percent_off: z.number().gt(0).max(100).nullable().optional().openapi({
       description: 'Stripe percent_off: percentage discount, 0 < value <= 100. Mutually exclusive with amount_off.',
     }),
-    currency: z.string().length(3).nullable().optional().openapi({
-      description: 'Stripe currency: 3-letter ISO code. Required with amount_off, and must be omitted for percent_off.',
-    }),
+    currency: z
+      .string()
+      .regex(/^[A-Za-z]{3}$/, 'currency must be a 3-letter ISO code')
+      .transform((v) => v.toLowerCase())
+      .nullable()
+      .optional()
+      .openapi({
+        description: 'Stripe currency: 3-letter ISO code. Required with amount_off, and must be omitted for percent_off.',
+      }),
     discount_note: z.string().max(1000).nullable().optional(),
   })
   .superRefine((data, ctx) => {
@@ -89,7 +95,7 @@ export const clientIntakeProfileSchema = z
     eligibility_status: eligibilityStatusSchema,
     amount_off: z.number().int().nullable(),
     percent_off: z.number().nullable(),
-    currency: z.string().nullable(),
+    currency: z.string().regex(/^[a-z]{3}$/).nullable(),
     discount_note: z.string().nullable(),
     created_at: z.iso.datetime({ offset: true }),
     updated_at: z.iso.datetime({ offset: true }),

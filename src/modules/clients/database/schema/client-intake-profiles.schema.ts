@@ -1,4 +1,5 @@
-import { relations, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm';
+import { and, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { pgTable, uuid, varchar, text, date, integer, numeric, timestamp, check, unique } from 'drizzle-orm/pg-core';
 
 import { clients } from '@/modules/clients/database/schema/clients.schema';
@@ -11,6 +12,9 @@ import { clients } from '@/modules/clients/database/schema/clients.schema';
  * Coupon model exactly (same field names and meaning): a discount is either
  * `amount_off` (in the minor currency unit, e.g. cents, paired with `currency`)
  * or `percent_off` (0 < value <= 100) — never both.
+ *
+ * Enum-like fields (`preferred_contact_method`, `eligibility_status`) are enforced
+ * at the TypeScript / Zod layer, not at the DB level.
  */
 export const clientIntakeProfiles = pgTable(
   'client_intake_profiles',
@@ -26,8 +30,8 @@ export const clientIntakeProfiles = pgTable(
     referral_source: varchar('referral_source', { length: 255 }),
     intake_date: date('intake_date'),
 
-    // Eligibility
-    eligibility_status: varchar('eligibility_status', { length: 20 }).notNull().default('pending'), // 'pending' | 'eligible' | 'ineligible' | 'referred'
+    // Eligibility — validated via Zod: 'pending' | 'eligible' | 'ineligible' | 'referred'
+    eligibility_status: varchar('eligibility_status', { length: 20 }).notNull().default('pending'),
 
     // Discount — mirrors Stripe's Coupon fields exactly (see table doc comment)
     amount_off: integer('amount_off'), // Stripe amount_off: discount in the currency's minor unit; requires currency
@@ -42,11 +46,11 @@ export const clientIntakeProfiles = pgTable(
     unique('client_intake_profiles_client_unique').on(table.client_id),
     check(
       'client_intake_profiles_discount_check',
-      sql`(
-        (${table.amount_off} IS NULL AND ${table.percent_off} IS NULL AND ${table.currency} IS NULL)
-        OR (${table.amount_off} > 0 AND ${table.currency} IS NOT NULL AND ${table.percent_off} IS NULL)
-        OR (${table.percent_off} > 0 AND ${table.percent_off} <= 100 AND ${table.amount_off} IS NULL AND ${table.currency} IS NULL)
-      )`
+      or(
+        and(isNull(table.amount_off), isNull(table.percent_off), isNull(table.currency)),
+        and(gt(table.amount_off, 0), isNotNull(table.currency), isNull(table.percent_off)),
+        and(gt(table.percent_off, 0), lte(table.percent_off, 100), isNull(table.amount_off), isNull(table.currency))
+      )!
     ),
   ]
 );
