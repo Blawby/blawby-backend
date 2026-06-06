@@ -15,6 +15,7 @@ export type SubjectName =
   | 'UserPreferences'
   | 'UserDetails'
   | 'PracticeClientIntake'
+  | 'IntakeTemplate'
   | 'Upload'
   | 'Trust'
   | 'User'

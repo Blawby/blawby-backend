@@ -131,11 +131,20 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       oauthProvider({
         loginPage: `${getMatchingFrontendUrl()}/login`,
         consentPage: `${getMatchingFrontendUrl()}/oauth/consent`,
-        allowDynamicClientRegistration: false,
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
         validAudiences: [`${config.app.baseUrl}/mcp`],
         clientReference: ({ session }) => {
           const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
           return typeof orgId === 'string' ? orgId : undefined;
+        },
+        postLogin: {
+          page: `${getMatchingFrontendUrl()}/oauth/select-org`,
+          shouldRedirect: () => false,
+          consentReferenceId: ({ session }) => {
+            const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
+            return typeof orgId === 'string' ? orgId : undefined;
+          },
         },
         clientPrivileges: (params) => checkClientIsOwner(params, db),
         customAccessTokenClaims: ({ referenceId }) => ({

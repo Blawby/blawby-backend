@@ -19,12 +19,6 @@ const defineTool = <S extends ZodRawShape>(def: {
 const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): void => {
   for (const tool of tools) {
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.schema }, async (args) => {
-      if (!mcpContext.getMcpScopes(jwt).includes(tool.scope)) {
-        return {
-          content: [{ type: 'text' as const, text: `Forbidden: missing scope ${tool.scope}` }],
-          isError: true,
-        };
-      }
       try {
         const ctx = await mcpContext.buildMcpServiceContext(jwt);
         const result = await tool.handler(args as Record<string, unknown>, ctx);

@@ -196,6 +196,26 @@ export const addInvoiceVoidReconciliationJob = async (payload: {
   }
 };
 
+export const addSeedDefaultIntakeTemplateJob = async (organizationId: string): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+
+  try {
+    await workerUtils.addJob(
+      TASK_NAMES.SEED_DEFAULT_INTAKE_TEMPLATE,
+      { organization_id: organizationId },
+      {
+        jobKey: `seed-intake-template:${organizationId}`,
+        maxAttempts: graphileWorkerConfig.maxAttempts,
+      }
+    );
+
+    logger.info('Seed default intake template job queued for {organizationId}', { organizationId });
+  } catch (error) {
+    logger.error('Failed to queue seed default intake template job for {organizationId}', { error, organizationId });
+    throw error;
+  }
+};
+
 export const addRefundReconciliationJob = async (payload: {
   organizationId: string;
   requestId: string;
