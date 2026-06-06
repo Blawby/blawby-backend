@@ -16,6 +16,7 @@ export const TASK_NAMES = {
   PROCESS_REFUND_RECONCILIATION: 'process-refund-reconciliation',
   CLEANUP_EMAIL_LOGS: 'cleanup-email-logs',
   SEND_EMAIL: 'send-email',
+  SEED_DEFAULT_INTAKE_TEMPLATE: 'seed-default-intake-template',
 } as const;
 
 /**

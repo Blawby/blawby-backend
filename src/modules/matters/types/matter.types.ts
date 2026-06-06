@@ -23,6 +23,7 @@ export const matterExpenseResponseSchema = matterExpenseValidations.expenseSchem
 export const listMatterExpensesQuerySchema = matterExpenseValidations.listExpensesQuerySchema;
 
 export const { getActivityLogQuerySchema } = matterValidations;
+export const { getActivityCountQuerySchema } = matterValidations;
 
 export const createMatterMilestoneRequestSchema = matterMilestoneValidations.createMatterMilestoneSchema;
 export const updateMatterMilestoneRequestSchema = matterMilestoneValidations.updateMatterMilestoneSchema;

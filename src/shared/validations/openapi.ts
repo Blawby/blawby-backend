@@ -42,6 +42,13 @@ export const internalServerErrorResponseSchema = z
   })
   .openapi('InternalServerErrorResponse');
 
+export const badGatewayResponseSchema = z
+  .object({
+    error: z.string().openapi({ example: 'Bad Gateway' }),
+    message: z.string().openapi({ example: 'Upstream service error' }),
+  })
+  .openapi('BadGatewayResponse');
+
 export const paginationSchema = z
   .object({
     page: z.number().int().min(1),

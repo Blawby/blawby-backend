@@ -12,14 +12,17 @@ export { default as clientsHttp } from './http';
 export { clientsCrudService, clientsService } from './services/clients-crud.service';
 export { clientsStripeService } from './services/clients-stripe.service';
 export { clientMemosService } from './services/client-memos.service';
+export { clientIntakeProfilesService } from './services/client-intake-profiles.service';
 
 // Repository
 export { clientsRepository } from './database/queries/clients.queries';
 export { practiceClientMemosRepository } from './database/queries/practice-client-memos.queries';
+export { clientIntakeProfilesRepository } from './database/queries/client-intake-profiles.queries';
 
 // Schema
 export * from './database/schema/clients.schema';
 export * from './database/schema/practice-client-memos.schema';
+export * from './database/schema/client-intake-profiles.schema';
 
 // Types
 export type { AddressInput } from './types';

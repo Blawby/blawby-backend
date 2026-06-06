@@ -4,8 +4,9 @@ import { matterTasksQueries } from '@/modules/matters/database/queries/matter-ta
 import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
-import type { MatterTaskListFilters } from '@/modules/matters/types/matter-filters.types';
+import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { CreateMatterTaskRequest, UpdateMatterTaskRequest } from '@/modules/matters/types/matter.types';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const createMatterTask = async (
@@ -153,9 +154,22 @@ const deleteMatterTask = async (params: { matterId: string; taskId: string }, ct
   );
 };
 
+const listOrganizationTasks = async (
+  params: { filters?: OrgTaskListFilters },
+  ctx: ServiceContext
+): Promise<OffsetPaginatedResponse<SelectMatterTask>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
+  const { data, total, page, limit } = await matterTasksQueries.listTasksByOrganization(
+    ctx.organizationId,
+    params.filters
+  );
+  return { data, pagination: { page, limit, total } };
+};
+
 export const matterTasksService = {
   createMatterTask,
   listMatterTasks,
+  listOrganizationTasks,
   updateMatterTask,
   deleteMatterTask,
 };

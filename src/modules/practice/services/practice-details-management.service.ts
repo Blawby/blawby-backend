@@ -5,14 +5,14 @@ import { ForbiddenError } from '@casl/ability';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { organizationService } from '@/modules/practice/services/organization.service';
+import { loadPracticeResponseById } from '@/modules/practice/services/practice-response.loader';
 import {
   buildPracticeDetailsDeletedPayload,
   findAndDeletePracticeDetails,
   upsertDetailsTransaction,
 } from '@/modules/practice/services/practice-management.helpers';
-import type { PracticeDetailsResponse } from '@/modules/practice/types/practice-details.types';
 import type { UpsertPracticeDetailsParams } from '@/modules/practice/types/practice-management.types';
-import type { OrganizationRequestParams } from '@/modules/practice/types/practice.types';
+import type { OrganizationRequestParams, PracticeResponse } from '@/modules/practice/types/practice.types';
 import { db } from '@/shared/database';
 import { PracticeDeleted, PracticeDetailsDeleted, PracticeSwitched } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -31,7 +31,7 @@ export const practiceDetailsManagementService = {
   async upsertPracticeDetails(
     { organizationId, data }: UpsertPracticeDetailsParams,
     ctx: ServiceContext
-  ): Promise<PracticeDetailsResponse> {
+  ): Promise<PracticeResponse> {
     ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
 
     const { user } = ctx;
@@ -43,7 +43,7 @@ export const practiceDetailsManagementService = {
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
-      const result = await db.transaction(async (tx) =>
+      await db.transaction(async (tx) =>
         upsertDetailsTransaction(tx, ctx, {
           organizationId,
           userId: user.id,
@@ -53,26 +53,12 @@ export const practiceDetailsManagementService = {
         })
       );
 
-      const responseData: PracticeDetailsResponse = {
-        ...result.details,
-        organization_id: organizationId,
-        address: result.addressResult
-          ? {
-              line1: result.addressResult.line1 ?? undefined,
-              line2: result.addressResult.line2 ?? undefined,
-              city: result.addressResult.city ?? undefined,
-              state: result.addressResult.state ?? undefined,
-              postal_code: result.addressResult.postal_code ?? undefined,
-              country: result.addressResult.country ?? undefined,
-            }
-          : null,
-        services: result.syncedServices.map((s) => ({ id: s.id, name: s.name, key: s.key })),
-        name: organization.name,
-        logo: organization.logo ?? null,
-        payment_link_enabled: organization?.paymentLinkEnabled ?? false,
-      };
+      const practice = await loadPracticeResponseById(organizationId);
+      if (!practice) {
+        throw new HTTPException(500, { message: 'Failed to load saved practice details' });
+      }
 
-      return responseData;
+      return practice;
     } catch (error) {
       if (error instanceof HTTPException) {
         throw error;

@@ -11,8 +11,8 @@ import {
   practiceClientIntakes,
   type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { METERED_TYPES } from '@/modules/subscriptions/constants/meteredProducts';
-import { meteredProductsService } from '@/modules/subscriptions/services/meteredProducts.service';
+import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
+import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
 import { db } from '@/shared/database';
 import { IntakePaymentSucceeded, IntakePaymentFailed, IntakePaymentCanceled } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';

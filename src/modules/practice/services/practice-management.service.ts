@@ -6,15 +6,12 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import type { PracticeDetails } from '@/modules/practice/database/schema/practice.schema';
 import { organizationService } from '@/modules/practice/services/organization.service';
-import {
-  DETAILS_FIELD_KEYS,
-  buildPracticeWithDetails,
-  upsertDetailsTransaction,
-} from '@/modules/practice/services/practice-management.helpers';
+import { DETAILS_FIELD_KEYS, upsertDetailsTransaction } from '@/modules/practice/services/practice-management.helpers';
+import { loadPracticeResponseById } from '@/modules/practice/services/practice-response.loader';
 import type { CreatePracticeParams, UpdatePracticeParams } from '@/modules/practice/types/practice-management.types';
 import type {
   UpdatePracticeRequest,
-  PracticeWithDetails,
+  PracticeResponse,
   OrganizationApiShape,
 } from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
@@ -38,12 +35,7 @@ export const practiceManagementService = {
   /**
    * Create a new practice
    */
-  async createPractice(
-    { data }: CreatePracticeParams,
-    ctx: ServiceContext
-  ): Promise<{ practice: PracticeWithDetails }> {
-    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
-
+  async createPractice({ data }: CreatePracticeParams, ctx: ServiceContext): Promise<{ practice: PracticeResponse }> {
     const { user } = ctx;
     try {
       const organizationData = omit(data, DETAILS_FIELD_KEYS);
@@ -88,14 +80,22 @@ export const practiceManagementService = {
         user_email: user.email,
       });
 
-      return {
-        practice: buildPracticeWithDetails(organization, practiceDetails),
-      };
+      const practice = await loadPracticeResponseById(organization.id);
+      if (!practice) {
+        throw new HTTPException(500, { message: 'Failed to load saved practice' });
+      }
+
+      return { practice };
     } catch (error) {
       if (error instanceof HTTPException) {
         throw error;
       }
-      logger.error('Failed to create practice for user {userId}: {error}', { userId: user.id, error });
+      logger.error('Failed to create practice for user {userId}: {error}', {
+        userId: user.id,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        message: error instanceof Error ? error.message : String(error),
+      });
       throw new HTTPException(500, {
         message: getBetterAuthErrorMessage(error, 'Failed to create practice'),
       });
@@ -108,7 +108,7 @@ export const practiceManagementService = {
   async updatePractice(
     { organizationId, data }: UpdatePracticeParams,
     ctx: ServiceContext
-  ): Promise<{ practice: PracticeWithDetails }> {
+  ): Promise<{ practice: PracticeResponse }> {
     ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
 
     const { user } = ctx;
@@ -198,9 +198,12 @@ export const practiceManagementService = {
         user_email: user.email,
       });
 
-      return {
-        practice: buildPracticeWithDetails(organization, practiceDetails),
-      };
+      const practice = await loadPracticeResponseById(organizationId);
+      if (!practice) {
+        throw new HTTPException(500, { message: 'Failed to load saved practice' });
+      }
+
+      return { practice };
     } catch (error) {
       if (error instanceof HTTPException) {
         throw error;

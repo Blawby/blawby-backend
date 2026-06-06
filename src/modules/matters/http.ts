@@ -2,18 +2,31 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
 import { routes as matterRoutes } from '@/modules/matters/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
 import { requireMatterAccess } from '@/shared/middleware/requireMatterAccess';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import type { AppContext } from '@/shared/types/hono';
 
 const app = createHonoApp();
 
 // Middleware
-app.use('*', injectAbility());
+app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 // Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
 app.openapi(matterRoutes.listMattersRoute, matterHandlers.listMattersHandler);
+
+// Org-scoped sub-resources — MUST be registered BEFORE the `/:practice_id` sub-router
+// so Hono's matcher prefers these literal paths over the wildcard `/:practice_id/:id/*`
+// that requireMatterAccess() guards (which would reject literals like "tasks" / "summary"
+// as invalid matter UUIDs).
+app.openapi(
+  matterRoutes.getMattersSummaryByOriginatingAttorneyRoute,
+  matterHandlers.getMattersSummaryByOriginatingAttorneyHandler
+);
+app.openapi(matterRoutes.listOrganizationTasksRoute, matterHandlers.listOrganizationTasksHandler);
+
 app.openapi(matterRoutes.getMatterRoute, matterHandlers.getMatterHandler);
 app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
@@ -27,6 +40,7 @@ matterSubResources.use('/:id/*', requireMatterAccess());
 
 // Activity
 matterSubResources.openapi(matterRoutes.getMatterActivityRoute, matterHandlers.getMatterActivityHandler);
+matterSubResources.openapi(matterRoutes.getMatterActivityCountRoute, matterHandlers.getMatterActivityCountHandler);
 
 // Tasks
 matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
@@ -67,6 +81,12 @@ matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.r
 matterSubResources.openapi(matterRoutes.linkMatterFileRoute, matterHandlers.linkMatterFileHandler);
 matterSubResources.openapi(matterRoutes.listMatterFilesRoute, matterHandlers.listMatterFilesHandler);
 matterSubResources.openapi(matterRoutes.unlinkMatterFileRoute, matterHandlers.unlinkMatterFileHandler);
+
+// Deadlines
+matterSubResources.openapi(matterRoutes.listDeadlinesRoute, matterHandlers.listDeadlinesHandler);
+matterSubResources.openapi(matterRoutes.createDeadlineRoute, matterHandlers.createDeadlineHandler);
+matterSubResources.openapi(matterRoutes.updateDeadlineRoute, matterHandlers.updateDeadlineHandler);
+matterSubResources.openapi(matterRoutes.deleteDeadlineRoute, matterHandlers.deleteDeadlineHandler);
 
 // Mount sub-router with prefix
 app.route('/:practice_id', matterSubResources);

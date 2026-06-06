@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Organization, NewOrganization } from '@/modules/practice/types/organization.types';
 import { organizations } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
@@ -20,6 +20,9 @@ const findBySlug = async (slug: string): Promise<Organization | null> => {
   return organization || null;
 };
 
+const findByIds = async (ids: string[]): Promise<Organization[]> =>
+  ids.length === 0 ? [] : await db.select().from(organizations).where(inArray(organizations.id, ids));
+
 const update = async (id: string, data: Partial<Omit<NewOrganization, 'id'>>): Promise<Organization | null> => {
   const [organization] = await db.update(organizations).set(data).where(eq(organizations.id, id)).returning();
 
@@ -31,6 +34,7 @@ const update = async (id: string, data: Partial<Omit<NewOrganization, 'id'>>): P
  */
 export const organizationRepository = {
   findById,
+  findByIds,
   findBySlug,
   update,
 };

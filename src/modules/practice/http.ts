@@ -1,84 +1,99 @@
 import * as handlers from '@/modules/practice/handlers';
 import { routes } from '@/modules/practice/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const practiceApp = createHonoApp();
 
-practiceApp.use('*', injectAbility());
+const publicApp = createHonoApp();
+publicApp.use('*', injectAbility());
+publicApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDetailsBySlugHandler);
+
+const authApp = createHonoApp();
+authApp.use('*', requireAuth(), injectAbility());
 
 /**
  * GET /api/practice/list
  * List all practices for the authenticated user
  */
-practiceApp.openapi(routes.listPracticesRoute, handlers.listPracticesHandler);
+authApp.openapi(routes.listPracticesRoute, handlers.listPracticesHandler);
 
 /**
  * POST /api/practice
  * Create a new practice
  */
-practiceApp.openapi(routes.createPracticeRoute, handlers.createPracticeHandler);
+authApp.openapi(routes.createPracticeRoute, handlers.createPracticeHandler);
+
+const staffApp = createHonoApp();
+staffApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 /**
  * GET /api/practice/:uuid
  * Get practice by ID
  */
-practiceApp.openapi(routes.getPracticeByIdRoute, handlers.getPracticeHandler);
+staffApp.openapi(routes.getPracticeByIdRoute, handlers.getPracticeHandler);
 
 /**
  * PUT /api/practice/:uuid
  * Update practice
  */
-practiceApp.openapi(routes.updatePracticeRoute, handlers.updatePracticeHandler);
+staffApp.openapi(routes.updatePracticeRoute, handlers.updatePracticeHandler);
 
 /**
  * DELETE /api/practice/:uuid
  * Delete practice
  */
-practiceApp.openapi(routes.deletePracticeRoute, handlers.deletePracticeHandler);
+staffApp.openapi(routes.deletePracticeRoute, handlers.deletePracticeHandler);
 
 /**
  * PUT /api/practice/:uuid/active
  * Set practice as active
  */
-practiceApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHandler);
+staffApp.openapi(routes.setActivePracticeRoute, handlers.setActivePracticeHandler);
 
 /**
  * GET /api/practice/:uuid/details
  * Get practice details
  */
-practiceApp.openapi(routes.getPracticeDetailsRoute, handlers.getPracticeDetailsHandler);
+staffApp.openapi(routes.getPracticeDetailsRoute, handlers.getPracticeDetailsHandler);
 
 /**
  * POST /api/practice/:uuid/details
  * Create practice details
  */
-practiceApp.openapi(routes.createPracticeDetailsRoute, handlers.createPracticeDetailsHandler);
+staffApp.openapi(routes.createPracticeDetailsRoute, handlers.createPracticeDetailsHandler);
 
 /**
  * PUT /api/practice/:uuid/details
  * Update practice details
  */
-practiceApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDetailsHandler);
+staffApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDetailsHandler);
 
 /**
  * DELETE /api/practice/:uuid/details
  * Delete practice details
  */
-practiceApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDetailsHandler);
-
-/**
- * GET /api/practice/details/:slug
- * Get practice details by slug
- */
-practiceApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDetailsBySlugHandler);
+staffApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDetailsHandler);
 
 /**
  * POST /api/practice/:practice_id/conflict-check
  * Run fuzzy conflict check against existing matters and clients
  */
-practiceApp.openapi(routes.conflictCheckRoute, handlers.conflictCheckHandler);
+staffApp.openapi(routes.conflictCheckRoute, handlers.conflictCheckHandler);
+
+// ==================== INTAKE TEMPLATES ====================
+staffApp.openapi(routes.listIntakeTemplatesRoute, handlers.listIntakeTemplatesHandler);
+staffApp.openapi(routes.createIntakeTemplateRoute, handlers.createIntakeTemplateHandler);
+staffApp.openapi(routes.getIntakeTemplateRoute, handlers.getIntakeTemplateHandler);
+staffApp.openapi(routes.updateIntakeTemplateRoute, handlers.updateIntakeTemplateHandler);
+staffApp.openapi(routes.deleteIntakeTemplateRoute, handlers.deleteIntakeTemplateHandler);
+
+practiceApp.route('/', publicApp);
+practiceApp.route('/', authApp);
+practiceApp.route('/', staffApp);
 
 /**
  * GET /api/practice/:practice_id/members/:user_id/profile
