@@ -57,7 +57,7 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "@scalar/hono-api-reference": "^0.10.4",
     "@scalar/openapi-to-markdown": "^0.4.12",
-    "better-auth": "1.5.5",
+    "better-auth": "1.6.2",
     "close-with-grace": "2.5.0",
     "drizzle-orm": "0.45.2",
     "drizzle-zod": "0.8.3",
