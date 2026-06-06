@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { memberProfilesValidations } from '@/modules/practice/validations/member-profiles.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { notFoundResponseSchema } from '@/shared/validations/openapi';
 
 const memberProfileParamsSchema = z.object({
   practice_id: z.uuid().openapi({
@@ -28,6 +29,10 @@ export const getMemberProfileRoute = routeBuilder.build({
       content: { 'application/json': { schema: memberProfilesValidations.memberProfileSchema } },
       description: 'Member profile retrieved',
     },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Member profile not found',
+    },
   },
 });
 
@@ -46,6 +51,10 @@ export const updateMemberProfileRoute = routeBuilder.build({
     200: {
       content: { 'application/json': { schema: memberProfilesValidations.memberProfileSchema } },
       description: 'Member profile saved',
+    },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Member profile not found',
     },
   },
 });

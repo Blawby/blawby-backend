@@ -52,4 +52,14 @@ describe('updateMemberProfileSchema', () => {
     const tooMany = Array.from({ length: 51 }, (_, i) => `Area ${i}`);
     expect(updateMemberProfileSchema.safeParse({ practice_areas: tooMany }).success).toBe(false);
   });
+
+  it('accepts exactly 100 service_counties', () => {
+    const counties = Array.from({ length: 100 }, (_, i) => `County ${i}`);
+    expect(updateMemberProfileSchema.safeParse({ service_counties: counties }).success).toBe(true);
+  });
+
+  it('rejects too many service_counties', () => {
+    const tooMany = Array.from({ length: 101 }, (_, i) => `County ${i}`);
+    expect(updateMemberProfileSchema.safeParse({ service_counties: tooMany }).success).toBe(false);
+  });
 });
