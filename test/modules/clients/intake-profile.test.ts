@@ -6,20 +6,16 @@ import { createAuthenticatedRequest, createRequest } from '@/test/helpers/reques
 import type { TestOrganization } from '@/test/types/shared';
 import clientsApp from '@/modules/clients/http';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
-import { requireAuth } from '@/shared/middleware/requireAuth';
-import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 
 const { createTestContext, createTestOrganization } = authHelpers;
 
-// Mirror the clients module middleware (routes.config: requireAuth + requireOrgMembership).
-const orgProtectedApp = new Hono();
-orgProtectedApp.use('/api/*', requireAuth());
-orgProtectedApp.use('/api/*', requireOrgMembership());
-orgProtectedApp.route('/api/clients', clientsApp);
+// clientsApp handles auth internally via sub-app middleware
+const testApp = new Hono();
+testApp.route('/api/clients', clientsApp);
 
 const authedRequest = (sessionToken: string): ReturnType<typeof createAuthenticatedRequest> =>
-  createAuthenticatedRequest(orgProtectedApp.fetch, sessionToken);
-const anonRequest = createRequest(orgProtectedApp.fetch);
+  createAuthenticatedRequest(testApp.fetch, sessionToken);
+const anonRequest = createRequest(testApp.fetch);
 
 describe('client intake profile endpoints', () => {
   const db = getTestDb();
@@ -27,7 +23,7 @@ describe('client intake profile endpoints', () => {
   let sessionToken = '';
   let clientId = '';
 
-  const profilePath = (): string => `/api/clients/${org.id}/${clientId}/intake-profile`;
+  const profilePath = (): string => `/api/clients/intake-profile/${org.id}/${clientId}`;
 
   beforeAll(async () => {
     ({ org, sessionToken } = await createTestContext('owner'));
@@ -44,8 +40,8 @@ describe('client intake profile endpoints', () => {
     expect(res.status).toBe(404);
   });
 
-  it('creates the profile on PUT with a percent_off discount', async () => {
-    const res = await authedRequest(sessionToken).put(profilePath()).send({
+  it('creates the profile on PATCH with a percent_off discount', async () => {
+    const res = await authedRequest(sessionToken).patch(profilePath()).send({
       date_of_birth: '1990-04-15',
       preferred_contact_method: 'text',
       referral_source: 'Google',
@@ -72,7 +68,7 @@ describe('client intake profile endpoints', () => {
   });
 
   it('partial-merges: updating eligibility leaves the discount and other fields intact', async () => {
-    const res = await authedRequest(sessionToken).put(profilePath()).send({ eligibility_status: 'ineligible' });
+    const res = await authedRequest(sessionToken).patch(profilePath()).send({ eligibility_status: 'ineligible' });
     expect(res.status).toBe(200);
     expect(res.body.eligibility_status).toBe('ineligible');
     expect(res.body.percent_off).toBe(12.5);
@@ -80,7 +76,7 @@ describe('client intake profile endpoints', () => {
   });
 
   it('switches the discount to amount_off and clears percent_off', async () => {
-    const res = await authedRequest(sessionToken).put(profilePath()).send({ amount_off: 5000, currency: 'usd' });
+    const res = await authedRequest(sessionToken).patch(profilePath()).send({ amount_off: 5000, currency: 'usd' });
     expect(res.status).toBe(200);
     expect(res.body.amount_off).toBe(5000);
     expect(res.body.currency).toBe('usd');
@@ -89,7 +85,7 @@ describe('client intake profile endpoints', () => {
 
   it('clears the discount when all discount fields are null', async () => {
     const res = await authedRequest(sessionToken)
-      .put(profilePath())
+      .patch(profilePath())
       .send({ amount_off: null, percent_off: null, currency: null });
     expect(res.status).toBe(200);
     expect(res.body.amount_off).toBeNull();
@@ -98,13 +94,13 @@ describe('client intake profile endpoints', () => {
   });
 
   it('rejects amount_off without currency', async () => {
-    const res = await authedRequest(sessionToken).put(profilePath()).send({ amount_off: 5000 });
+    const res = await authedRequest(sessionToken).patch(profilePath()).send({ amount_off: 5000 });
     expect(res.status).toBe(400);
   });
 
   it('rejects setting both amount_off and percent_off', async () => {
     const res = await authedRequest(sessionToken)
-      .put(profilePath())
+      .patch(profilePath())
       .send({ amount_off: 5000, currency: 'usd', percent_off: 10 });
     expect(res.status).toBe(400);
   });
@@ -117,7 +113,7 @@ describe('client intake profile endpoints', () => {
       .returning();
 
     const res = await authedRequest(sessionToken).get(
-      `/api/clients/${otherOrg.id}/${otherClient.id}/intake-profile`
+      `/api/clients/intake-profile/${otherOrg.id}/${otherClient.id}`
     );
     expect(res.status).toBe(404);
   });
