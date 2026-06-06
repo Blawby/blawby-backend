@@ -27,7 +27,8 @@ export type SubjectName =
   | 'Payout'
   | 'RefundRequest'
   | 'Client'
-  | 'ClientMemo';
+  | 'ClientMemo'
+  | 'ClientIntakeProfile';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
@@ -81,6 +82,7 @@ export const defineAbilityFor = (
     can('update', 'RefundRequest');
     can('manage', 'Client');
     can('manage', 'ClientMemo');
+    can('manage', 'ClientIntakeProfile');
     cannot('read', 'UserDetails');
     if (metadata.userId) {
       canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
