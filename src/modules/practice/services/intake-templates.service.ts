@@ -8,7 +8,7 @@ import type {
   IntakeTemplateResponse,
   UpdateIntakeTemplateRequest,
 } from '@/modules/practice/validations/intake-templates.validation';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { wrapDbError } from '@/shared/utils/db-error';
 import { ForbiddenError } from '@casl/ability';
@@ -87,9 +87,9 @@ const createTemplate = async (
   }));
 
   try {
-    const template = await db.transaction(async (tx) => {
+    const template = await uow.transaction(async () => {
       if (data.is_default) {
-        await intakeTemplatesRepository.clearDefaultForOrganization(tx, organizationId);
+        await intakeTemplatesRepository.clearDefaultForOrganization(organizationId);
       }
       return intakeTemplatesRepository.create(
         {
@@ -140,9 +140,9 @@ const updateTemplate = async (
     template_id: id,
   }));
 
-  const template = await db.transaction(async (tx) => {
+  const template = await uow.transaction(async () => {
     if (data.is_default) {
-      await intakeTemplatesRepository.clearDefaultForOrganization(tx, organizationId);
+      await intakeTemplatesRepository.clearDefaultForOrganization(organizationId);
     }
     return intakeTemplatesRepository.update(
       id,
@@ -175,8 +175,8 @@ const deleteTemplate = async (
 ): Promise<void> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'IntakeTemplate');
 
-  await db.transaction(async (tx) => {
-    const deleted = await tx
+  await uow.transaction(async () => {
+    const deleted = await getActiveTx()
       .delete(intakeTemplates)
       .where(
         and(
@@ -188,7 +188,7 @@ const deleteTemplate = async (
       .returning({ id: intakeTemplates.id });
 
     if (deleted.length === 0) {
-      const [existing] = await tx
+      const [existing] = await getActiveTx()
         .select({ id: intakeTemplates.id })
         .from(intakeTemplates)
         .where(and(eq(intakeTemplates.id, id), eq(intakeTemplates.organization_id, organizationId)))
@@ -203,7 +203,7 @@ const deleteTemplate = async (
 };
 
 const seedDefaultTemplate = async (organizationId: string): Promise<void> => {
-  await db.transaction(async () => {
+  await uow.transaction(async () => {
     await intakeTemplatesRepository.create(
       {
         organization_id: organizationId,

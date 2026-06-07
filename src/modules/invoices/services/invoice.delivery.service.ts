@@ -9,7 +9,7 @@ import {
 import { syncStripeState } from '@/modules/invoices/services/invoice.delivery.recovery';
 import { voidInvoice } from '@/modules/invoices/services/invoice.voiding.service';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { db } from '@/shared/database';
+import { uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
@@ -28,7 +28,7 @@ const rollbackSendingTransaction = async ({
   stripeInvoiceId: string | null;
   stripeAccountId: string | null;
 }): Promise<void> => {
-  await db.transaction(async () => {
+  await uow.transaction(async () => {
     const rolledBack = await invoicesRepository.transitionInvoiceStatus(id, organizationId, 'sending', 'draft');
     if (!rolledBack) {
       logger.warn('Invoice was no longer in sending state during rollback', {

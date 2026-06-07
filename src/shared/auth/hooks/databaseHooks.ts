@@ -105,10 +105,7 @@ type SessionData = Record<string, unknown> & {
   activeOrganizationId?: string | null;
 };
 
-const resolveActiveOrganizationIdForSession = async (
-  _db: NodePgDatabase<typeof schema>,
-  userId: string
-): Promise<string | null> => {
+const resolveActiveOrganizationIdForSession = async (userId: string): Promise<string | null> => {
   const previousActiveOrganizationId = await sessionsRepository.findPreviousActiveOrganizationId(userId);
   const previousActiveMembership = previousActiveOrganizationId
     ? await membersRepository.findByOrgAndUser({ userId, organizationId: previousActiveOrganizationId })
@@ -158,14 +155,14 @@ export const createDatabaseHooks = (
       // Enforce one session per user. Preserve a valid previous active org when possible;
       // Otherwise fall back to the user's first org membership.
       before: async (sessionData: SessionData): Promise<{ data: SessionData }> => {
-        const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, sessionData.userId);
+        const activeOrganizationId = await resolveActiveOrganizationIdForSession(sessionData.userId);
         await sessionsRepository.deleteByUserId(sessionData.userId);
         return { data: { ...sessionData, activeOrganizationId } };
       },
       after: async (session: SessionData): Promise<void> => {
         try {
           if (!session.activeOrganizationId) {
-            const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, session.userId);
+            const activeOrganizationId = await resolveActiveOrganizationIdForSession(session.userId);
 
             if (activeOrganizationId) {
               await sessionsRepository.setActiveOrganizationId(session.id, activeOrganizationId);

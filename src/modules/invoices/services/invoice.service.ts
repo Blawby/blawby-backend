@@ -9,6 +9,7 @@ import type {
   ListInvoicesQuery,
   UpdateInvoiceRequest,
 } from '@/modules/invoices/types/invoices.types';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceDeleted } from '@/shared/events/definitions';
 import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -156,7 +157,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
       throw new HTTPException(400, { message: 'Only draft invoices can be deleted' });
     }
 
-    await ctx.db.transaction(async (tx) => {
+    await uow.transaction(async () => {
       await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId);
       await InvoiceDeleted.dispatch(
         {
@@ -168,7 +169,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     });

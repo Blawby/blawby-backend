@@ -56,8 +56,7 @@ const syncSubscriptionToOrg = async (params: {
     return;
   }
 
-  const hadCreatedEvent =
-    (await subscriptionRepository.findEventsBySubscriptionIdAndType(subscriptionId, 'created')).length > 0;
+  let createdEventInserted = false;
   let subscriptionSynced = false;
   const stripeIdsToCancel: string[] = [];
   let cancelIncomingAndStop = false;
@@ -170,11 +169,16 @@ const syncSubscriptionToOrg = async (params: {
 
     // Audit log
     const dbPrice = await subscriptionRepository.findPriceByName(planName);
+    const isCreatedEvent = eventType === 'created';
+    if (isCreatedEvent) {
+      const existing = await subscriptionRepository.findEventsBySubscriptionIdAndType(subscriptionId, 'created');
+      createdEventInserted = existing.length === 0;
+    }
     await subscriptionRepository.createEvent({
       subscription_id: subscriptionId,
       plan_id: dbPrice?.id,
-      event_type: eventType === 'created' ? 'created' : 'status_changed',
-      to_status: 'active',
+      event_type: isCreatedEvent ? 'created' : 'status_changed',
+      to_status: stripeSubscription.status,
       triggered_by_type: trigger,
       metadata: { plan_name: planName, stripe_subscription_id: stripeSubscription.id },
     });
@@ -199,7 +203,7 @@ const syncSubscriptionToOrg = async (params: {
   }
 
   // Idempotent SubscriptionCreated dispatch
-  if (subscriptionSynced && !hadCreatedEvent) {
+  if (subscriptionSynced && createdEventInserted) {
     await SubscriptionCreated.dispatch(
       {
         subscription_id: subscriptionId,
