@@ -11,6 +11,7 @@ import type {
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
 import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -143,8 +144,8 @@ export const findAndDeletePracticeDetails = async (
   ctx: ServiceContext,
   organizationId: string
 ): Promise<PracticeDetails | null> =>
-  await db.transaction(async (tx) => {
-    const [deleted] = await tx
+  await uow.transaction(async () => {
+    const [deleted] = await getActiveTx()
       .delete(practiceDetailsTable)
       .where(eq(practiceDetailsTable.organization_id, organizationId))
       .returning();

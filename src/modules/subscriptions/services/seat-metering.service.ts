@@ -22,7 +22,6 @@ const logger = getLogger(['subscriptions', 'seat-metering']);
 /**
  * Get the current member count for an organization
  *
- * @param db - Database instance or transaction
  * @param organizationId - Organization UUID
  * @returns Current total count of members (billable seats)
  */
@@ -48,7 +47,6 @@ const getMemberCountForOrganization = async (organizationId: string): Promise<nu
  *
  * Throws on error — caller (syncSeatCountOnInvoice) handles non-blocking error handling.
  *
- * @param db - Database instance or transaction
  * @param organizationId - Organization UUID
  * @param idempotencyIdentifier - Stable idempotency identifier for invoice event
  * @param stripeCustomerId - Stripe Customer ID for the organization
@@ -112,7 +110,6 @@ const buildSeatSyncIdentifier = (invoice: Stripe.Invoice, organizationId: string
  *
  * Returns boolean indicating success/failure for caller visibility.
  *
- * @param db - Database instance or transaction
  * @param invoice - Stripe Invoice object
  * @param organizationId - Organization UUID
  * @param stripeCustomerId - Stripe Customer ID

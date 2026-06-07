@@ -12,7 +12,7 @@ import type { SelectRefundRequest } from '@/modules/invoices/database/schema/ref
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { refundEngine } from '@/engines/financial/refund-engine';
 import type { Action, Subject } from '@/shared/auth/abilities';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -116,8 +116,8 @@ const createRequest = async (
   }
   const clientUserDetailsId = clientResult;
 
-  return await db.transaction(async (tx) => {
-    await tx
+  return await uow.transaction(async () => {
+    await getActiveTx()
       .select({ id: invoices.id })
       .from(invoices)
       .where(and(eq(invoices.id, opts.invoiceId), eq(invoices.organization_id, ctx.organizationId)))
@@ -298,8 +298,8 @@ const executeRefund = async (
     stripeTransferId ??=
       invoiceTxs.find((tx) => tx.type === 'payout' && Boolean(tx.stripe_transfer_id))?.stripe_transfer_id ?? null;
 
-    refundableBalanceCheck = await db.transaction(async (tx) => {
-      await tx
+    refundableBalanceCheck = await uow.transaction(async () => {
+      await getActiveTx()
         .select({ id: invoices.id })
         .from(invoices)
         .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, ctx.organizationId)))

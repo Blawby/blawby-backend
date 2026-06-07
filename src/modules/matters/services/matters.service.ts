@@ -22,7 +22,7 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { toSubject } from '@/shared/auth/subject-helpers';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
@@ -53,14 +53,14 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
     }
   }
 
-  return db.transaction(async (tx) => {
+  return uow.transaction(async () => {
     const dbData = {
       ...matterData,
       open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
       close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
     };
 
-    const [newMatter] = await tx
+    const [newMatter] = await getActiveTx()
       .insert(matters)
       .values({ organization_id: ctx.organizationId, ...dbData })
       .returning();
@@ -211,7 +211,7 @@ const updateMatter = async (
       ? ((await organizationRepository.findById(ctx.organizationId))?.name ?? 'Your Legal Team')
       : null;
 
-  const updated = await db.transaction(async (tx) => {
+  const updated = await uow.transaction(async () => {
     const dbData = {
       ...matterData,
       open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
@@ -292,7 +292,7 @@ const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<void
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Matter', existing));
 
-  await db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     const deleted = await mattersQueries.softDeleteMatter(matterId, ctx.userId);
     if (!deleted) {
       throw new HTTPException(500, { message: 'Failed to delete matter' });

@@ -23,7 +23,7 @@ import {
   EngagementContractDeclined,
   EngagementContractSent,
 } from '@/shared/events/definitions/engagement-contracts';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { config } from '@/shared/config';
 import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -66,7 +66,7 @@ const createEngagementContract = async (
 
   const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
 
-  const contract = await db.transaction(async () => {
+  const contract = await uow.transaction(async () => {
     let created: SelectEngagementContract;
     try {
       created = await engagementContractsQueries.insert({
@@ -189,7 +189,7 @@ const sendEngagementContract = async (
     (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
       ?.matter_summary ?? `Engagement for ${clientName}`;
 
-  const sentContract = await db.transaction(async () => {
+  const sentContract = await uow.transaction(async () => {
     const sent = await engagementContractsQueries.update(id, {
       status: 'sent',
       sent_at: new Date(),
@@ -220,9 +220,7 @@ const sendEngagementContract = async (
   return sentContract;
 };
 
-const createMatterFromAcceptedContract = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  params: {
+const createMatterFromAcceptedContract = async (params: {
     contract: SelectEngagementContract;
     intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
     userId: string;
@@ -264,7 +262,7 @@ const createMatterFromAcceptedContract = async (
   });
 
   if (intake.court_date) {
-    await tx.insert(matterMilestones).values({
+    await getActiveTx().insert(matterMilestones).values({
       matter_id: matter.id,
       description: 'Court Date from Intake',
       amount: 0,
@@ -275,7 +273,7 @@ const createMatterFromAcceptedContract = async (
   }
 
   if (intake.desired_outcome) {
-    await tx.insert(matterNotes).values({
+    await getActiveTx().insert(matterNotes).values({
       matter_id: matter.id,
       user_id: userId,
       content: `Desired outcome: ${intake.desired_outcome}`,
@@ -283,7 +281,7 @@ const createMatterFromAcceptedContract = async (
   }
 
   if (typeof intake.case_strength === 'number') {
-    await tx.insert(matterNotes).values({
+    await getActiveTx().insert(matterNotes).values({
       matter_id: matter.id,
       user_id: userId,
       content: `Case strength score from intake: ${intake.case_strength}`,
@@ -337,8 +335,8 @@ const acceptEngagementContract = async (
     pdfBuffer,
   });
 
-  const acceptedContract = await db.transaction(async (tx) => {
-    const matterId = await createMatterFromAcceptedContract(tx, {
+  const acceptedContract = await uow.transaction(async () => {
+    const matterId = await createMatterFromAcceptedContract({
       contract,
       intake,
       userId: ctx.userId,
@@ -405,7 +403,7 @@ const declineEngagementContract = async (
     (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
       ?.matter_summary ?? `Engagement: ${clientName}`;
 
-  const declinedContract = await db.transaction(async () => {
+  const declinedContract = await uow.transaction(async () => {
     const declined = await engagementContractsQueries.update(id, {
       status: 'declined',
       declined_at: new Date(),

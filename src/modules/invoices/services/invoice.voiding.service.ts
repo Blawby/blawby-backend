@@ -26,7 +26,6 @@ export const attemptStripeVoidWithRecovery = async ({
   organizationId: string;
   stripeInvoiceId: string;
   stripeAccountId: string;
-  ctx: ServiceContext;
 }): Promise<void> => {
   try {
     await stripeApiAdapter.voidInvoice(stripeInvoiceId, stripeAccountId);
@@ -115,7 +114,6 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
       organizationId: ctx.organizationId,
       stripeInvoiceId,
       stripeAccountId: invoice.connectedAccount.stripe_account_id,
-      ctx,
     });
     stripeVoidSucceeded = true;
 

@@ -2,7 +2,6 @@ import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
 import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
-import { db } from '@/shared/database';
 
 const logger = getLogger(['workers', 'process-metered-usage']);
 

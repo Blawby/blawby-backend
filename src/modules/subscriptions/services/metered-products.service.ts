@@ -37,7 +37,6 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * promises if they do not want Stripe outages or invalid `meteredType` inputs
  * to break the caller flow.
  *
- * @param db - Database instance
  * @param organizationId - Organization UUID
  * @param meteredType - Standardized metered type (see METERED_TYPES)
  * @param quantity - Amount to report
