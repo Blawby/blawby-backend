@@ -9,6 +9,7 @@ import { matters } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type * as schema from '@/schema';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 const createMatterTasks = async (
   data: InsertMatterTask | InsertMatterTask[],
@@ -19,8 +20,7 @@ const createMatterTasks = async (
     return [];
   }
 
-  const client = tx ?? db;
-  return await client.insert(matterTasks).values(items).returning();
+  return await getActiveTx().insert(matterTasks).values(items).returning();
 };
 
 const findMatterTaskById = async (id: string): Promise<SelectMatterTask | undefined> => {

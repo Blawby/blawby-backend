@@ -1,31 +1,34 @@
 import { eq, and, desc, count } from 'drizzle-orm';
-import { engagementContracts } from '@/modules/engagement-contracts/database/schema/engagement-contracts.schema';
-import type {
-  InsertEngagementContract,
-  SelectEngagementContract,
+import {
+  engagementContracts,
+  type InsertEngagementContract,
+  type SelectEngagementContract,
 } from '@/modules/engagement-contracts/database/schema/engagement-contracts.schema';
 import type { EngagementContractStatus } from '@/modules/engagement-contracts/types/proposal-data.types';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
-const insert = async (data: InsertEngagementContract, tx: typeof db = db): Promise<SelectEngagementContract> => {
-  const [record] = await tx.insert(engagementContracts).values(data).returning();
+const insert = async (data: InsertEngagementContract): Promise<SelectEngagementContract> => {
+  const [record] = await getActiveTx().insert(engagementContracts).values(data).returning();
   if (!record) {
     throw new Error('Failed to insert engagement contract');
   }
   return record;
 };
 
-const findById = async (id: string, tx: typeof db = db): Promise<SelectEngagementContract | undefined> => {
-  const [record] = await tx.select().from(engagementContracts).where(eq(engagementContracts.id, id)).limit(1);
+const findById = async (id: string): Promise<SelectEngagementContract | undefined> => {
+  const [record] = await getActiveTx()
+    .select()
+    .from(engagementContracts)
+    .where(eq(engagementContracts.id, id))
+    .limit(1);
   return record;
 };
 
 const findByIntakeAndOrg = async (
   intakeId: string,
-  organizationId: string,
-  tx: typeof db = db
+  organizationId: string
 ): Promise<SelectEngagementContract | undefined> => {
-  const [record] = await tx
+  const [record] = await getActiveTx()
     .select()
     .from(engagementContracts)
     .where(and(eq(engagementContracts.intake_id, intakeId), eq(engagementContracts.organization_id, organizationId)))
@@ -35,10 +38,9 @@ const findByIntakeAndOrg = async (
 
 const findAcceptedByIntakeAndOrg = async (
   intakeId: string,
-  organizationId: string,
-  tx: typeof db = db
+  organizationId: string
 ): Promise<SelectEngagementContract | undefined> => {
-  const [record] = await tx
+  const [record] = await getActiveTx()
     .select()
     .from(engagementContracts)
     .where(
@@ -54,10 +56,9 @@ const findAcceptedByIntakeAndOrg = async (
 
 const findByMatterAndOrg = async (
   matterId: string,
-  organizationId: string,
-  tx: typeof db = db
+  organizationId: string
 ): Promise<SelectEngagementContract | undefined> => {
-  const [record] = await tx
+  const [record] = await getActiveTx()
     .select()
     .from(engagementContracts)
     .where(and(eq(engagementContracts.matter_id, matterId), eq(engagementContracts.organization_id, organizationId)))
@@ -73,8 +74,7 @@ const listByOrg = async (
     status?: EngagementContractStatus;
     limit?: number;
     offset?: number;
-  },
-  tx: typeof db = db
+  }
 ): Promise<{ data: SelectEngagementContract[]; total: number }> => {
   const conditions = [eq(engagementContracts.organization_id, organizationId)];
 
@@ -91,11 +91,11 @@ const listByOrg = async (
   }
 
   const [countResult, data] = await Promise.all([
-    tx
+    getActiveTx()
       .select({ total: count() })
       .from(engagementContracts)
       .where(and(...conditions)),
-    tx
+    getActiveTx()
       .select()
       .from(engagementContracts)
       .where(and(...conditions))
@@ -104,15 +104,15 @@ const listByOrg = async (
       .offset(filters?.offset ?? 0),
   ]);
 
-  return { data, total: Number(countResult[0]?.total ?? 0) };
+  return { data, total: countResult[0]?.total ?? 0 };
 };
 
-const update = async (
-  id: string,
-  data: Partial<InsertEngagementContract>,
-  tx: typeof db = db
-): Promise<SelectEngagementContract> => {
-  const [record] = await tx.update(engagementContracts).set(data).where(eq(engagementContracts.id, id)).returning();
+const update = async (id: string, data: Partial<InsertEngagementContract>): Promise<SelectEngagementContract> => {
+  const [record] = await getActiveTx()
+    .update(engagementContracts)
+    .set(data)
+    .where(eq(engagementContracts.id, id))
+    .returning();
   if (!record) {
     throw new Error('Failed to update engagement contract');
   }

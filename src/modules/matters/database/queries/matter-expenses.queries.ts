@@ -6,6 +6,7 @@ import {
 } from '@/modules/matters/database/schema/matter-expenses.schema';
 import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter expense
 const createMatterExpense = async (data: InsertMatterExpense): Promise<SelectMatterExpense> => {
@@ -109,14 +110,12 @@ const getTotalExpenses = async (matterId: string): Promise<number> => {
 const markAsInvoiced = async (
   expenseIds: string[],
   invoiceId: string,
-  matterId: string,
-  tx?: typeof db
+  matterId: string
 ): Promise<void> => {
   if (expenseIds.length === 0) {
     return;
   }
-  const client = tx ?? db;
-  await client
+  await getActiveTx()
     .update(matterExpenses)
     .set({
       invoice_id: invoiceId,
@@ -129,9 +128,8 @@ const markAsInvoiced = async (
 /**
  * Unmark expenses as invoiced. Resets invoice_id and invoiced_at for expenses linked to the given invoice.
  */
-const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const unmarkInvoiced = async (invoiceId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterExpenses)
     .set({
       invoice_id: null,

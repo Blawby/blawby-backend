@@ -25,7 +25,6 @@
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| Track 1 last item: `practice_id` URL param not validated against session org | `docs/superpowers/TRACKING.md` Track 1 | 🔄 | Small fix. Closes Track 1 entirely. |
 | UoW U2: engagement-contracts class-based repository | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🔄 | Canonical pattern for U4–U7. |
 
 ---

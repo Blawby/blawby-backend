@@ -1,15 +1,14 @@
 import { and, eq } from 'drizzle-orm';
 
-import { db } from '@/shared/database';
+;
 import { uploads } from '@/shared/uploads/schema/uploads.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { matterFiles, type InsertMatterFile } from '@/modules/matters/database/schema/matter-files.schema';
-
-type DbExecutor = ServiceContext['db'];
+import { getActiveTx } from '@/shared/database/uow';
 
 export const matterFilesQueries = {
-  createLink: async (data: InsertMatterFile, executor: DbExecutor = db) => {
-    const [row] = await executor
+  createLink: async (data: InsertMatterFile) => {
+    const [row] = await getActiveTx()
       .insert(matterFiles)
       .values(data)
       .onConflictDoNothing({ target: [matterFiles.matter_id, matterFiles.upload_id] })
@@ -18,8 +17,8 @@ export const matterFilesQueries = {
     return row;
   },
 
-  findLink: async (matterId: string, uploadId: string, executor: DbExecutor = db) => {
-    const [row] = await executor
+  findLink: async (matterId: string, uploadId: string) => {
+    const [row] = await getActiveTx()
       .select()
       .from(matterFiles)
       .where(and(eq(matterFiles.matter_id, matterId), eq(matterFiles.upload_id, uploadId)))
@@ -28,8 +27,8 @@ export const matterFilesQueries = {
     return row;
   },
 
-  listByMatter: async (matterId: string, executor: DbExecutor = db) =>
-    executor
+  listByMatter: async (matterId: string) =>
+    getActiveTx()
       .select({
         link_id: matterFiles.id,
         linked_at: matterFiles.linked_at,
@@ -40,8 +39,8 @@ export const matterFilesQueries = {
       .innerJoin(uploads, eq(matterFiles.upload_id, uploads.id))
       .where(eq(matterFiles.matter_id, matterId)),
 
-  deleteLink: async (matterId: string, uploadId: string, executor: DbExecutor = db) => {
-    const [row] = await executor
+  deleteLink: async (matterId: string, uploadId: string) => {
+    const [row] = await getActiveTx()
       .delete(matterFiles)
       .where(and(eq(matterFiles.matter_id, matterId), eq(matterFiles.upload_id, uploadId)))
       .returning();

@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { payouts, type InsertPayout, type SelectPayout } from '@/modules/payouts/database/schema/payouts.schema';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 interface ListPayoutsFilters {
   status?: string;
@@ -15,9 +16,8 @@ interface ListPayoutsFilters {
  * Returns undefined when the incoming event is older than the stored event
  * (out-of-order delivery); the row is left unchanged in that case.
  */
-const upsertByStripePayoutId = async (data: InsertPayout, tx?: typeof db): Promise<SelectPayout | undefined> => {
-  const client = tx ?? db;
-  const [payout] = await client
+const upsertByStripePayoutId = async (data: InsertPayout): Promise<SelectPayout | undefined> => {
+  const [payout] = await getActiveTx()
     .insert(payouts)
     .values(data)
     .onConflictDoUpdate({

@@ -6,6 +6,7 @@ import {
 } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter time entry
 const createMatterTimeEntry = async (data: InsertMatterTimeEntry): Promise<SelectMatterTimeEntry> => {
@@ -101,14 +102,12 @@ const getTotalTime = async (matterId: string): Promise<number> => {
 const markAsInvoiced = async (
   timeEntryIds: string[],
   invoiceId: string,
-  matterId: string,
-  tx?: typeof db
+  matterId: string
 ): Promise<void> => {
   if (timeEntryIds.length === 0) {
     return;
   }
-  const client = tx ?? db;
-  await client
+  await getActiveTx()
     .update(matterTimeEntries)
     .set({
       invoice_id: invoiceId,
@@ -121,9 +120,8 @@ const markAsInvoiced = async (
 /**
  * Unmark time entries as invoiced. Resets invoice_id and invoiced_at for entries linked to the given invoice.
  */
-const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const unmarkInvoiced = async (invoiceId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterTimeEntries)
     .set({
       invoice_id: null,

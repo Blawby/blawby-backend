@@ -1,15 +1,14 @@
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { sessions } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
+;
+import { getActiveTx } from '@/shared/database/uow';
 
-type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-const deleteByUserId = async (userId: string, tx: DbOrTx = db): Promise<void> => {
-  await tx.delete(sessions).where(eq(sessions.userId, userId));
+const deleteByUserId = async (userId: string): Promise<void> => {
+  await getActiveTx().delete(sessions).where(eq(sessions.userId, userId));
 };
 
-const findPreviousActiveOrganizationId = async (userId: string, tx: DbOrTx = db): Promise<string | null> => {
-  const [previousSession] = await tx
+const findPreviousActiveOrganizationId = async (userId: string): Promise<string | null> => {
+  const [previousSession] = await getActiveTx()
     .select({ activeOrganizationId: sessions.activeOrganizationId })
     .from(sessions)
     .where(and(eq(sessions.userId, userId), isNotNull(sessions.activeOrganizationId)))
@@ -21,10 +20,9 @@ const findPreviousActiveOrganizationId = async (userId: string, tx: DbOrTx = db)
 
 const setActiveOrganizationId = async (
   sessionId: string,
-  activeOrganizationId: string,
-  tx: DbOrTx = db
+  activeOrganizationId: string
 ): Promise<void> => {
-  await tx.update(sessions).set({ activeOrganizationId }).where(eq(sessions.id, sessionId));
+  await getActiveTx().update(sessions).set({ activeOrganizationId }).where(eq(sessions.id, sessionId));
 };
 
 export const sessionsRepository = {

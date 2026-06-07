@@ -5,21 +5,17 @@ import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters
 import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
 import { db } from '@/shared/database';
-import { getActiveTx, type Tx } from '@/shared/database/uow';
-
-type DbExecutor = typeof db | Tx;
+import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter
-const createMatter = async (data: InsertMatter, tx?: DbExecutor): Promise<SelectMatter> => {
-  const client = tx ?? getActiveTx();
-  const [matter] = await client.insert(matters).values(data).returning();
+const createMatter = async (data: InsertMatter): Promise<SelectMatter> => {
+  const [matter] = await getActiveTx().insert(matters).values(data).returning();
   return matter;
 };
 
 // Find matter by ID (excluding soft deleted)
-const findMatterById = async (id: string, tx?: DbExecutor): Promise<SelectMatter | undefined> => {
-  const client = tx ?? getActiveTx();
-  const [matter] = await client
+const findMatterById = async (id: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .select()
     .from(matters)
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -30,9 +26,8 @@ const findMatterById = async (id: string, tx?: DbExecutor): Promise<SelectMatter
 /**
  * Find matter by ID with relations (optimized)
  */
-const findMatterByIdWithRelations = async (id: string, tx?: DbExecutor): Promise<MatterWithRelations | undefined> => {
-  const client = tx ?? getActiveTx();
-  return await client.query.matters.findFirst({
+const findMatterByIdWithRelations = async (id: string): Promise<MatterWithRelations | undefined> => {
+  return await getActiveTx().query.matters.findFirst({
     where: and(eq(matters.id, id), isNull(matters.deleted_at)),
     with: {
       assignees: {
@@ -63,16 +58,14 @@ const findMatterByIdWithRelations = async (id: string, tx?: DbExecutor): Promise
 };
 
 // Find matter by ID (including soft deleted)
-const findMatterByIdWithDeleted = async (id: string, tx?: DbExecutor): Promise<SelectMatter | undefined> => {
-  const client = tx ?? getActiveTx();
-  const [matter] = await client.select().from(matters).where(eq(matters.id, id)).limit(1);
+const findMatterByIdWithDeleted = async (id: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx().select().from(matters).where(eq(matters.id, id)).limit(1);
   return matter;
 };
 
 // Find matter by intake UUID
-const findByIntakeUuid = async (intakeUuid: string, tx?: DbExecutor): Promise<SelectMatter | undefined> => {
-  const client = tx ?? getActiveTx();
-  const [matter] = await client
+const findByIntakeUuid = async (intakeUuid: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .select()
     .from(matters)
     .where(and(eq(matters.intake_uuid, intakeUuid), isNull(matters.deleted_at)))
@@ -165,11 +158,9 @@ const listMattersByOrganization = async (
 // Update matter
 const updateMatter = async (
   id: string,
-  data: Partial<InsertMatter>,
-  tx?: DbExecutor
+  data: Partial<InsertMatter>
 ): Promise<SelectMatter | undefined> => {
-  const client = tx ?? getActiveTx();
-  const [matter] = await client
+  const [matter] = await getActiveTx()
     .update(matters)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -178,9 +169,8 @@ const updateMatter = async (
 };
 
 // Soft delete matter
-const softDeleteMatter = async (id: string, deletedBy: string, tx?: DbExecutor): Promise<SelectMatter | undefined> => {
-  const client = tx ?? getActiveTx();
-  const [matter] = await client
+const softDeleteMatter = async (id: string, deletedBy: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .update(matters)
     .set({
       deleted_at: new Date(),
@@ -239,13 +229,12 @@ const getMattersSummaryByOriginatingAttorney = async (
 };
 
 // Add assignees to matter
-const addMatterAssignees = async (matterId: string, userIds: string[], tx?: DbExecutor): Promise<void> => {
+const addMatterAssignees = async (matterId: string, userIds: string[]): Promise<void> => {
   if (userIds.length === 0) {
     return;
   }
 
-  const client = tx ?? getActiveTx();
-  await client
+  await getActiveTx()
     .insert(matterAssignees)
     .values(
       userIds.map((userId) => ({
@@ -257,13 +246,12 @@ const addMatterAssignees = async (matterId: string, userIds: string[], tx?: DbEx
 };
 
 // Remove assignees from matter
-const removeMatterAssignees = async (matterId: string, userIds: string[], tx?: DbExecutor): Promise<void> => {
+const removeMatterAssignees = async (matterId: string, userIds: string[]): Promise<void> => {
   if (userIds.length === 0) {
     return;
   }
 
-  const client = tx ?? getActiveTx();
-  await client
+  await getActiveTx()
     .delete(matterAssignees)
     .where(and(eq(matterAssignees.matter_id, matterId), inArray(matterAssignees.user_id, userIds)));
 };
@@ -289,17 +277,15 @@ const getMatterAssignees = async (matterId: string): Promise<MatterAssignee[]> =
     .where(eq(matterAssignees.matter_id, matterId));
 
 // Clear all assignees from matter
-const clearMatterAssignees = async (matterId: string, tx?: DbExecutor): Promise<void> => {
-  const client = tx ?? getActiveTx();
-  await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
+const clearMatterAssignees = async (matterId: string): Promise<void> => {
+  await getActiveTx().delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
 
 /**
  * Update matter retainer balance
  */
-const updateRetainerBalance = async (matterId: string, newBalance: number, tx?: DbExecutor): Promise<void> => {
-  const client = tx ?? getActiveTx();
-  await client
+const updateRetainerBalance = async (matterId: string, newBalance: number): Promise<void> => {
+  await getActiveTx()
     .update(matters)
     .set({
       retainer_balance: newBalance,

@@ -1,15 +1,15 @@
-import { eq, and, desc } from 'drizzle-orm';
 import {
   type InsertRefundRequest,
   type SelectRefundRequest,
   refundRequests,
 } from '@/modules/invoices/database/schema/refund-requests.schema';
-import { db } from '@/shared/database';
 import type { RefundRequestUpdatePatch } from '@/modules/invoices/types/refund-request';
+import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq } from 'drizzle-orm';
 
-const create = async (data: InsertRefundRequest, tx?: typeof db): Promise<SelectRefundRequest> => {
-  const client = tx ?? db;
-  const [req] = await client.insert(refundRequests).values(data).returning();
+const create = async (data: InsertRefundRequest): Promise<SelectRefundRequest> => {
+  const [req] = await getActiveTx().insert(refundRequests).values(data).returning();
   return req;
 };
 
@@ -43,11 +43,9 @@ const findByIdAndClient = async (
 
 const listByOrganization = async (
   organizationId: string,
-  filters?: { status?: string; invoice_id?: string; client_user_details_id?: string },
-  tx?: typeof db
-): Promise<SelectRefundRequest[]> => {
-  const client = tx ?? db;
-  return client.query.refundRequests.findMany({
+  filters?: { status?: string; invoice_id?: string; client_user_details_id?: string }
+): Promise<SelectRefundRequest[]> =>
+  getActiveTx().query.refundRequests.findMany({
     where: (rr, { and: a, eq: e }) =>
       a(
         e(rr.organization_id, organizationId),
@@ -57,7 +55,6 @@ const listByOrganization = async (
       ),
     orderBy: (rr, { desc: d }) => [d(rr.created_at)],
   });
-};
 
 const listByClient = async (organizationId: string, clientUserDetailsId: string): Promise<SelectRefundRequest[]> =>
   db
@@ -74,11 +71,9 @@ const listByClient = async (organizationId: string, clientUserDetailsId: string)
 const update = async (
   id: string,
   organizationId: string,
-  patch: RefundRequestUpdatePatch,
-  tx?: typeof db
+  patch: RefundRequestUpdatePatch
 ): Promise<SelectRefundRequest | undefined> => {
-  const client = tx ?? db;
-  const [updated] = await client
+  const [updated] = await getActiveTx()
     .update(refundRequests)
     .set({ ...patch, updated_at: new Date() })
     .where(and(eq(refundRequests.id, id), eq(refundRequests.organization_id, organizationId)))
@@ -90,11 +85,9 @@ const transitionStatus = async (
   id: string,
   organizationId: string,
   fromStatus: string,
-  patch: RefundRequestUpdatePatch,
-  tx?: typeof db
+  patch: RefundRequestUpdatePatch
 ): Promise<SelectRefundRequest | undefined> => {
-  const client = tx ?? db;
-  const [updated] = await client
+  const [updated] = await getActiveTx()
     .update(refundRequests)
     .set({ ...patch, updated_at: new Date() })
     .where(
@@ -113,11 +106,9 @@ const transitionStatusForClient = async (
   organizationId: string,
   clientUserDetailsId: string,
   fromStatus: string,
-  patch: RefundRequestUpdatePatch,
-  tx?: typeof db
+  patch: RefundRequestUpdatePatch
 ): Promise<SelectRefundRequest | undefined> => {
-  const client = tx ?? db;
-  const [updated] = await client
+  const [updated] = await getActiveTx()
     .update(refundRequests)
     .set({ ...patch, updated_at: new Date() })
     .where(

@@ -1,7 +1,6 @@
-import { eq, and, isNull, sql, desc } from 'drizzle-orm';
 import {
-  invoicesSchema,
   invoiceLineItemsSchema,
+  invoicesSchema,
   type InsertInvoice,
   type InsertInvoiceLineItem,
   type SelectInvoice,
@@ -9,6 +8,8 @@ import {
 } from '@/modules/invoices/database/schema';
 import type { InvoiceListFilters, InvoiceSummary, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 const { invoices } = invoicesSchema;
 const { invoiceLineItems } = invoiceLineItemsSchema;
@@ -16,9 +17,8 @@ const { invoiceLineItems } = invoiceLineItemsSchema;
 /**
  * Create a new invoice
  */
-const createInvoice = async (data: InsertInvoice, tx?: typeof db): Promise<SelectInvoice> => {
-  const client = tx ?? db;
-  const [invoice] = await client.insert(invoices).values(data).returning();
+const createInvoice = async (data: InsertInvoice): Promise<SelectInvoice> => {
+  const [invoice] = await getActiveTx().insert(invoices).values(data).returning();
 
   if (!invoice) {
     throw new Error('Failed to create invoice');
@@ -30,13 +30,8 @@ const createInvoice = async (data: InsertInvoice, tx?: typeof db): Promise<Selec
 /**
  * Find invoice by ID with line items
  */
-const findInvoiceById = async (
-  id: string,
-  organizationId: string,
-  tx?: typeof db
-): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx ?? db;
-  return await client.query.invoices.findFirst({
+const findInvoiceById = async (id: string, organizationId: string): Promise<InvoiceWithRelations | undefined> =>
+  await getActiveTx().query.invoices.findFirst({
     where: and(eq(invoices.id, id), eq(invoices.organization_id, organizationId), isNull(invoices.deleted_at)),
     with: {
       lineItems: {
@@ -51,17 +46,12 @@ const findInvoiceById = async (
       connectedAccount: true,
     },
   });
-};
 
 /**
  * Find invoice by Stripe Invoice ID
  */
-const findInvoiceByStripeId = async (
-  stripeInvoiceId: string,
-  tx?: typeof db
-): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx ?? db;
-  return await client.query.invoices.findFirst({
+const findInvoiceByStripeId = async (stripeInvoiceId: string): Promise<InvoiceWithRelations | undefined> =>
+  await getActiveTx().query.invoices.findFirst({
     where: and(eq(invoices.stripe_invoice_id, stripeInvoiceId), isNull(invoices.deleted_at)),
     with: {
       lineItems: true,
@@ -72,17 +62,15 @@ const findInvoiceByStripeId = async (
       connectedAccount: true,
     },
   });
-};
 
 /**
  * Find invoice by Stripe Invoice ID with row locking (FOR UPDATE)
  * Use this inside transactions to prevent race conditions
  */
 const findInvoiceByStripeIdWithLock = async (
-  stripeInvoiceId: string,
-  tx: typeof db
+  stripeInvoiceId: string
 ): Promise<{ id: string; status: string; organization_id: string } | undefined> => {
-  const [row] = await tx
+  const [row] = await getActiveTx()
     .select({
       id: invoices.id,
       status: invoices.status,
@@ -139,7 +127,7 @@ const listInvoicesByOrganization = async (
 
   return {
     invoices: results,
-    total: Number(countResult?.count ?? 0),
+    total: countResult?.count ?? 0,
   };
 };
 
@@ -149,11 +137,9 @@ const listInvoicesByOrganization = async (
 const updateInvoice = async (
   id: string,
   organizationId: string,
-  data: Partial<InsertInvoice>,
-  tx?: typeof db
+  data: Partial<InsertInvoice>
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx ?? db;
-  const [invoice] = await client
+  const [invoice] = await getActiveTx()
     .update(invoices)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId)))
@@ -168,11 +154,9 @@ const transitionInvoiceStatus = async (
   id: string,
   organizationId: string,
   fromStatus: string,
-  toStatus: string,
-  tx?: typeof db
+  toStatus: string
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx ?? db;
-  const [invoice] = await client
+  const [invoice] = await getActiveTx()
     .update(invoices)
     .set({
       status: toStatus,
@@ -194,15 +178,13 @@ const transitionInvoiceStatus = async (
 const persistStripeInvoiceId = async (
   id: string,
   organizationId: string,
-  stripeInvoiceId: string,
-  tx?: typeof db
+  stripeInvoiceId: string
 ): Promise<
   | { status: 'linked'; invoice: SelectInvoice }
   | { status: 'already-linked'; invoice: SelectInvoice }
   | { status: 'missing' }
 > => {
-  const client = tx ?? db;
-  const [invoice] = await client
+  const [invoice] = await getActiveTx()
     .update(invoices)
     .set({
       stripe_invoice_id: stripeInvoiceId,
@@ -222,7 +204,7 @@ const persistStripeInvoiceId = async (
     return { status: 'linked', invoice };
   }
 
-  const [existingInvoice] = await client
+  const [existingInvoice] = await getActiveTx()
     .select()
     .from(invoices)
     .where(and(eq(invoices.id, id), eq(invoices.organization_id, organizationId)))
@@ -241,11 +223,9 @@ const persistStripeInvoiceId = async (
 const softDeleteInvoice = async (
   id: string,
   organizationId: string,
-  deletedBy: string | null,
-  tx?: typeof db
+  deletedBy: string | null
 ): Promise<SelectInvoice | undefined> => {
-  const client = tx ?? db;
-  const [invoice] = await client
+  const [invoice] = await getActiveTx()
     .update(invoices)
     .set({
       deleted_at: new Date(),
@@ -260,20 +240,14 @@ const softDeleteInvoice = async (
 /**
  * Create line items for an invoice
  */
-const createInvoiceLineItems = async (
-  items: InsertInvoiceLineItem[],
-  tx?: typeof db
-): Promise<SelectInvoiceLineItem[]> => {
-  const client = tx ?? db;
-  return await client.insert(invoiceLineItems).values(items).returning();
-};
+const createInvoiceLineItems = async (items: InsertInvoiceLineItem[]): Promise<SelectInvoiceLineItem[]> =>
+  await getActiveTx().insert(invoiceLineItems).values(items).returning();
 
 /**
  * Delete line items for an invoice
  */
-const deleteInvoiceLineItems = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client.delete(invoiceLineItems).where(eq(invoiceLineItems.invoice_id, invoiceId));
+const deleteInvoiceLineItems = async (invoiceId: string): Promise<void> => {
+  await getActiveTx().delete(invoiceLineItems).where(eq(invoiceLineItems.invoice_id, invoiceId));
 };
 
 /**
@@ -282,10 +256,8 @@ const deleteInvoiceLineItems = async (invoiceId: string, tx?: typeof db): Promis
 const findManyByClientId = async (
   organizationId: string,
   userDetailId: string,
-  filters?: { status?: string; page?: number; limit?: number },
-  tx?: typeof db
+  filters?: { status?: string; page?: number; limit?: number }
 ): Promise<{ invoices: InvoiceSummary[]; total: number }> => {
-  const client = tx ?? db;
   const page = filters?.page ?? 1;
   const limit = filters?.limit ?? 20;
   const offset = (page - 1) * limit;
@@ -297,7 +269,7 @@ const findManyByClientId = async (
   if (filters?.status) {
     conditions.push(eq(invoices.status, filters.status));
   }
-  const results = await client.query.invoices.findMany({
+  const results = await getActiveTx().query.invoices.findMany({
     where: and(...(conditions as [ReturnType<typeof eq>])),
     orderBy: (inv, { desc: d }) => [d(inv.created_at)],
     limit,
@@ -309,14 +281,14 @@ const findManyByClientId = async (
     },
   });
 
-  const [countResult] = await client
+  const [countResult] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(invoices)
     .where(and(...(conditions as [ReturnType<typeof eq>])));
 
   return {
     invoices: results,
-    total: Number(countResult.count),
+    total: countResult?.count ?? 0,
   };
 };
 
@@ -326,11 +298,9 @@ const findManyByClientId = async (
 const findOneByIdAndClientId = async (
   organizationId: string,
   invoiceId: string,
-  userDetailId: string,
-  tx?: typeof db
-): Promise<InvoiceWithRelations | undefined> => {
-  const client = tx ?? db;
-  return await client.query.invoices.findFirst({
+  userDetailId: string
+): Promise<InvoiceWithRelations | undefined> =>
+  await getActiveTx().query.invoices.findFirst({
     where: and(
       eq(invoices.id, invoiceId),
       eq(invoices.organization_id, organizationId),
@@ -344,7 +314,6 @@ const findOneByIdAndClientId = async (
       connectedAccount: true,
     },
   });
-};
 
 /**
  * Invoices Repository

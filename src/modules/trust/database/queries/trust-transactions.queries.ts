@@ -5,13 +5,13 @@ import {
   type SelectTrustTransaction,
 } from '@/modules/trust/database/schema/trust-transactions.schema';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 /**
  * Create a trust transaction record.
  */
-const createTransaction = async (data: InsertTrustTransaction, tx?: typeof db): Promise<SelectTrustTransaction> => {
-  const client = tx ?? db;
-  const records = await client.insert(trustTransactions).values(data).returning();
+const createTransaction = async (data: InsertTrustTransaction): Promise<SelectTrustTransaction> => {
+  const records = await getActiveTx().insert(trustTransactions).values(data).returning();
   const [record] = records;
   if (!record) {
     throw new Error('Failed to create trust transaction: no row returned');
@@ -85,15 +85,13 @@ const listByOrg = async (params: {
 
 /**
  * Get the latest balance_after per client (sum across matters or per matter).
- * Returns the most recent trust_transactions row per client.
+ * Returns the most recent trust_transactions row per getActiveTx().
  */
 const getLatestBalanceByClient = async (
   organizationId: string,
-  clientId: string,
-  tx?: typeof db
+  clientId: string
 ): Promise<{ matter_id: string | null; balance: number }[]> => {
-  const client = tx ?? db;
-  const rows = await client
+  const rows = await getActiveTx()
     .selectDistinctOn([trustTransactions.matter_id], {
       matter_id: trustTransactions.matter_id,
       balance: trustTransactions.balance_after,
@@ -131,13 +129,8 @@ const getLatestBalancePerClient = async (
 const getLatestBalanceForMatter = async (
   organizationId: string,
   clientId: string,
-  matterId: string | null,
-  tx?: typeof db
+  matterId: string | null
 ): Promise<{ balance: number } | undefined> => {
-  if (!tx) {
-    throw new Error('Transaction is required for getLatestBalanceForMatter due to row locking (.for update)');
-  }
-  const client = tx;
   type Condition = ReturnType<typeof eq>;
   const conditions: Condition[] = [
     eq(trustTransactions.organization_id, organizationId),
@@ -148,7 +141,7 @@ const getLatestBalanceForMatter = async (
   } else {
     conditions.push(isNull(trustTransactions.matter_id));
   }
-  const [row] = await client
+  const [row] = await getActiveTx()
     .select({ balance: trustTransactions.balance_after })
     .from(trustTransactions)
     .where(and(...conditions))

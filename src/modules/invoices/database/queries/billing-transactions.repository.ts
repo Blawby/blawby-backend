@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 import {
   billingTransactionsSchema,
   type InsertBillingTransaction,
@@ -11,9 +12,8 @@ const { billingTransactions } = billingTransactionsSchema;
 /**
  * Create a new billing transaction
  */
-const createTransaction = async (data: InsertBillingTransaction, tx?: typeof db): Promise<SelectBillingTransaction> => {
-  const client = tx ?? db;
-  const [transaction] = await client.insert(billingTransactions).values(data).returning();
+const createTransaction = async (data: InsertBillingTransaction): Promise<SelectBillingTransaction> => {
+  const [transaction] = await getActiveTx().insert(billingTransactions).values(data).returning();
 
   if (!transaction) {
     throw new Error('Failed to create billing transaction');
@@ -41,11 +41,9 @@ const findByStripeTransferId = async (stripeTransferId: string): Promise<SelectB
 const updateTransactionStatus = async (
   id: string,
   status: SelectBillingTransaction['status'],
-  extras?: Partial<SelectBillingTransaction>,
-  tx?: typeof db
+  extras?: Partial<SelectBillingTransaction>
 ): Promise<void> => {
-  const client = tx ?? db;
-  await client
+  await getActiveTx()
     .update(billingTransactions)
     .set({
       status,
@@ -57,10 +55,8 @@ const updateTransactionStatus = async (
 /**
  * List transactions for an invoice
  */
-const listByInvoiceId = async (invoiceId: string, tx?: typeof db): Promise<SelectBillingTransaction[]> => {
-  const client = tx ?? db;
-  return await client.select().from(billingTransactions).where(eq(billingTransactions.invoice_id, invoiceId));
-};
+const listByInvoiceId = async (invoiceId: string): Promise<SelectBillingTransaction[]> =>
+  await getActiveTx().select().from(billingTransactions).where(eq(billingTransactions.invoice_id, invoiceId));
 
 /**
  * Billing Transactions Repository

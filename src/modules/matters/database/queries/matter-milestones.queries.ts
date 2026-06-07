@@ -6,6 +6,7 @@ import {
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter milestone
 const createMatterMilestone = async (data: InsertMatterMilestone): Promise<SelectMatterMilestone> => {
@@ -14,16 +15,12 @@ const createMatterMilestone = async (data: InsertMatterMilestone): Promise<Selec
 };
 
 // Create multiple milestones
-const createMatterMilestones = async (
-  data: InsertMatterMilestone[],
-  tx?: typeof db
-): Promise<SelectMatterMilestone[]> => {
+const createMatterMilestones = async (data: InsertMatterMilestone[]): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) {
     return [];
   }
 
-  const client = tx ?? db;
-  return await client.insert(matterMilestones).values(data).returning();
+  return await getActiveTx().insert(matterMilestones).values(data).returning();
 };
 
 // Find matter milestone by ID
@@ -75,7 +72,7 @@ const reorderMilestones = async (updates: { id: string; order: number }[]): Prom
 
   await db.transaction(async (tx) => {
     for (const update of updates) {
-      await tx
+      await getActiveTx()
         .update(matterMilestones)
         .set({ order: update.order, updated_at: new Date() })
         .where(eq(matterMilestones.id, update.id));
@@ -122,14 +119,8 @@ const getMilestoneStats = async (
 /**
  * Mark a milestone as invoiced.
  */
-const markAsInvoiced = async (
-  milestoneId: string,
-  invoiceId: string,
-  matterId: string,
-  tx?: typeof db
-): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const markAsInvoiced = async (milestoneId: string, invoiceId: string, matterId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterMilestones)
     .set({
       invoice_id: invoiceId,
@@ -142,9 +133,8 @@ const markAsInvoiced = async (
 /**
  * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
  */
-const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const unmarkInvoiced = async (invoiceId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterMilestones)
     .set({
       invoice_id: null,
