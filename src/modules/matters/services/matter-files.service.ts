@@ -3,10 +3,10 @@ import { HTTPException } from 'hono/http-exception';
 
 import { matterFilesQueries } from '@/modules/matters/database/queries/matter-files.queries';
 import { mattersService } from '@/modules/matters/services/matters.service';
-import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
-import { uploadCoreService } from '@/shared/uploads/services/upload-core.service';
-import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
+import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
+import { uploadCoreService } from '@/shared/uploads/services/upload-core.service';
 
 const ensureMatterAccess = async (matterId: string, ctx: ServiceContext, action: 'create' | 'read'): Promise<void> => {
   try {
@@ -32,10 +32,10 @@ const toUploadShape = (upload: SelectUpload) => ({
   created_at: upload.created_at,
 });
 
-type LinkPreparation = {
+interface LinkPreparation {
   upload: SelectUpload;
   confirmPrep: Awaited<ReturnType<typeof uploadCoreService.prepareConfirm>> | null;
-};
+}
 
 export const matterFilesService = {
   // Step 1: access checks + optional external storage verify — no DB mutations
@@ -45,13 +45,19 @@ export const matterFilesService = {
   ): Promise<LinkPreparation> {
     await ensureMatterAccess(matterId, ctx, 'create');
 
-    const upload = await uploadsRepository.findById(uploadId, ctx.db);
-    if (!upload) throw new HTTPException(404, { message: 'Upload not found' });
-    if (upload.organization_id !== ctx.organizationId)
+    const upload = await uploadsRepository.findById(uploadId);
+    if (!upload) {
+      throw new HTTPException(404, { message: 'Upload not found' });
+    }
+    if (upload.organization_id !== ctx.organizationId) {
       throw new HTTPException(403, { message: 'Upload does not belong to this organization' });
-    if (upload.deleted_at) throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
-    if (upload.status === 'rejected')
+    }
+    if (upload.deleted_at) {
+      throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
+    }
+    if (upload.status === 'rejected') {
       throw new HTTPException(400, { message: 'Upload was rejected and cannot be linked' });
+    }
 
     const confirmPrep =
       upload.status === 'pending' ? await uploadCoreService.prepareConfirm({ id: uploadId }, ctx) : null;
@@ -69,32 +75,42 @@ export const matterFilesService = {
     }
 
     // Re-fetch after potential auto-confirm so status reflects the confirmed state
-    const currentUpload = await uploadsRepository.findById(uploadId, ctx.db);
-    if (!currentUpload) throw new HTTPException(404, { message: 'Upload not found' });
-    if (currentUpload.organization_id !== ctx.organizationId)
+    const currentUpload = await uploadsRepository.findById(uploadId);
+    if (!currentUpload) {
+      throw new HTTPException(404, { message: 'Upload not found' });
+    }
+    if (currentUpload.organization_id !== ctx.organizationId) {
       throw new HTTPException(403, { message: 'Upload does not belong to this organization' });
-    if (currentUpload.deleted_at) throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
-    if (currentUpload.status === 'rejected')
+    }
+    if (currentUpload.deleted_at) {
+      throw new HTTPException(400, { message: 'Upload is deleted and cannot be linked' });
+    }
+    if (currentUpload.status === 'rejected') {
       throw new HTTPException(400, { message: 'Upload was rejected and cannot be linked' });
+    }
     if (
       currentUpload.status === 'pending' &&
       currentUpload.expires_at !== null &&
       currentUpload.expires_at <= new Date()
-    )
+    ) {
       throw new HTTPException(400, { message: 'Upload has expired and cannot be linked' });
+    }
 
-    await uploadsRepository.update(uploadId, { scope_type: 'matter', scope_id: matterId }, ctx.db);
+    await uploadsRepository.update(uploadId, { scope_type: 'matter', scope_id: matterId });
 
     const upload: SelectUpload = { ...currentUpload, scope_type: 'matter', scope_id: matterId };
 
-    const created = await matterFilesQueries.createLink(
-      { matter_id: matterId, upload_id: uploadId, linked_by: ctx.userId },
-      ctx.db
-    );
+    const created = await matterFilesQueries.createLink({
+      matter_id: matterId,
+      upload_id: uploadId,
+      linked_by: ctx.userId,
+    });
 
     if (!created) {
-      const existing = await matterFilesQueries.findLink(matterId, uploadId, ctx.db);
-      if (!existing) throw new HTTPException(409, { message: 'Link could not be created or found' });
+      const existing = await matterFilesQueries.findLink(matterId, uploadId);
+      if (!existing) {
+        throw new HTTPException(409, { message: 'Link could not be created or found' });
+      }
       return {
         id: existing.id,
         matter_id: matterId,
@@ -118,7 +134,7 @@ export const matterFilesService = {
   async listMatterFiles({ matterId }: { matterId: string }, ctx: ServiceContext) {
     await ensureMatterAccess(matterId, ctx, 'read');
 
-    const rows = await matterFilesQueries.listByMatter(matterId, ctx.db);
+    const rows = await matterFilesQueries.listByMatter(matterId);
 
     return rows.map((row) => ({
       id: row.link_id,
@@ -136,7 +152,7 @@ export const matterFilesService = {
   ): Promise<void> {
     await ensureMatterAccess(matterId, ctx, 'create');
 
-    const deleted = await matterFilesQueries.deleteLink(matterId, uploadId, ctx.db);
+    const deleted = await matterFilesQueries.deleteLink(matterId, uploadId);
     if (!deleted) {
       throw new HTTPException(404, { message: 'Matter file link not found' });
     }

@@ -1,7 +1,6 @@
 import { billingTransactionsRepository } from '@/modules/invoices/database/queries/billing-transactions.repository';
 import type { SelectBillingTransaction } from '@/modules/invoices/database/schema/billing-transactions.schema';
 import type { InvoiceLineItemInput, InvoiceTotals } from '@/modules/invoices/types/invoices.types';
-import type { db } from '@/shared/database';
 
 export const calculateInvoiceTotals = (lineItems: InvoiceLineItemInput[], amountPaid = 0): InvoiceTotals => {
   const subtotal = lineItems.reduce((acc, item) => acc + item.quantity * item.unit_price, 0);
@@ -35,7 +34,7 @@ export const requirePayoutMeteredFeeCents = (invoiceTxs: SelectBillingTransactio
   throw new Error(`Missing persisted payout metered fee for invoice ${invoiceId}`);
 };
 
-export const loadRequiredPayoutMeteredFeeCents = async (invoiceId: string, tx?: typeof db): Promise<number> => {
-  const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoiceId, tx);
+export const loadRequiredPayoutMeteredFeeCents = async (invoiceId: string): Promise<number> => {
+  const invoiceTxs = await billingTransactionsRepository.listByInvoiceId(invoiceId);
   return requirePayoutMeteredFeeCents(invoiceTxs, invoiceId);
 };

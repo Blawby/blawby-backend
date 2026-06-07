@@ -11,6 +11,7 @@ import type {
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
 import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -41,7 +42,7 @@ export const upsertDetailsTransaction = async (
   let addressResult: AddressData | null = null;
 
   if (params.data.address && Object.keys(params.data.address).length > 0) {
-    const address = await upsertAddressTx(tx, {
+    const address = await upsertAddressTx({
       addressData: params.data.address,
       organizationId: params.organizationId,
       addressId,
@@ -121,11 +122,11 @@ export const upsertDetailsTransaction = async (
 
   const syncedServices =
     params.data.services !== undefined
-      ? await practiceServicesRepository.syncServicesTx(tx, params.organizationId, params.data.services)
+      ? await practiceServicesRepository.syncServicesTx(params.organizationId, params.data.services)
       : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
-  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data }, tx);
+  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data });
 
   return { details, addressResult, syncedServices };
 };
@@ -143,8 +144,8 @@ export const findAndDeletePracticeDetails = async (
   ctx: ServiceContext,
   organizationId: string
 ): Promise<PracticeDetails | null> =>
-  await db.transaction(async (tx) => {
-    const [deleted] = await tx
+  await uow.transaction(async () => {
+    const [deleted] = await getActiveTx()
       .delete(practiceDetailsTable)
       .where(eq(practiceDetailsTable.organization_id, organizationId))
       .returning();
@@ -153,6 +154,6 @@ export const findAndDeletePracticeDetails = async (
       return null;
     }
 
-    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted), tx);
+    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted));
     return deleted;
   });

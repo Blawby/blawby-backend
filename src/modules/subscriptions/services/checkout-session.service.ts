@@ -152,7 +152,7 @@ export const createCheckoutSession = async (
   } = params;
 
   // 1. Resolve price — must exist and be active
-  const price = await subscriptionRepository.findPriceByStripeId(db, stripePriceId);
+  const price = await subscriptionRepository.findPriceByStripeId(stripePriceId);
   if (!price) {
     throw new HTTPException(400, { message: `Price not found: ${stripePriceId}` });
   }

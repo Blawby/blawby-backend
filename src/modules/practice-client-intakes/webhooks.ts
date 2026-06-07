@@ -178,7 +178,6 @@ export const handlePracticeClientIntakeSucceeded = async ({
 
         if (meteredAmount > 0) {
           await meteredProductsService.reportMeteredUsage(
-            db,
             practiceClientIntake.organization_id,
             METERED_TYPES.INTAKE_FEE,
             meteredAmount,

@@ -1,10 +1,9 @@
-import { getLogger } from '@logtape/logtape';
-import type { Stripe } from 'stripe';
 import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/metered-products';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
-import { db } from '@/shared/database';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/product-helpers';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['subscriptions', 'handlers', 'product-updated']);
 
@@ -33,7 +32,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     };
 
     // Push display data to all licensed prices for this product
-    await subscriptionRepository.upsertProductDisplayData(db, product.id, displayData);
+    await subscriptionRepository.upsertProductDisplayData(product.id, displayData);
 
     // Upsert individual prices (meter data, active status, etc.)
     const upsertPricePromises = allPrices.map(async (price) => {
@@ -53,7 +52,7 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
         }
       }
 
-      return subscriptionRepository.upsertPrice(db, {
+      return subscriptionRepository.upsertPrice({
         stripe_price_id: price.id,
         stripe_product_id: product.id,
         currency: price.currency,
@@ -85,11 +84,11 @@ export const handleProductUpdated = async (product: Stripe.Product): Promise<voi
     // Deactivate DB prices not in current Stripe response
     try {
       const currentPriceIds = new Set(allPrices.map((p) => p.id));
-      const dbPrices = await subscriptionRepository.findPricesByProductId(db, product.id);
+      const dbPrices = await subscriptionRepository.findPricesByProductId(product.id);
       const deactivatePromises: Promise<unknown>[] = [];
       for (const dbPrice of dbPrices) {
         if (!currentPriceIds.has(dbPrice.stripe_price_id) && dbPrice.is_active) {
-          deactivatePromises.push(subscriptionRepository.upsertPrice(db, { ...dbPrice, is_active: false }));
+          deactivatePromises.push(subscriptionRepository.upsertPrice({ ...dbPrice, is_active: false }));
         }
       }
       await Promise.allSettled(deactivatePromises);

@@ -4,23 +4,23 @@
  * so the frontend SDK can continue calling /api/auth/stripe/* without changes.
  */
 
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
-import { and, eq } from 'drizzle-orm';
-import type { Context } from 'hono';
-import { createCheckoutSession } from '@/modules/subscriptions/services/checkout-session.service';
-import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
-import { processWebhookRequest } from '@/modules/subscriptions/services/stripe-webhook.service';
-import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
-import { members } from '@/schema/better-auth-schema';
 import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
-import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
+import { createCheckoutSession } from '@/modules/subscriptions/services/checkout-session.service';
+import { processWebhookRequest } from '@/modules/subscriptions/services/stripe-webhook.service';
+import { members } from '@/schema/better-auth-schema';
 import { defineAbilityFor } from '@/shared/auth/abilities';
+import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { createServiceContext } from '@/shared/types/service-context';
 import type { User } from '@/shared/types/BetterAuth';
 import type { AppContext } from '@/shared/types/hono';
+import { createServiceContext } from '@/shared/types/service-context';
+import { getMatchingFrontendUrl } from '@/shared/utils/env';
+import { getLogger } from '@logtape/logtape';
+import { and, eq } from 'drizzle-orm';
+import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['shared', 'auth', 'subscription-compat']);
 const COMPAT_SUBSCRIPTION_MANAGERS = new Set(['owner', 'admin']);
@@ -82,29 +82,40 @@ const compatUpgradeHandler = async (c: Context<AppContext>) => {
   try {
     body = await c.req.json();
   } catch {
-    // empty body
+    // Empty body
   }
 
   const planName = typeof body.plan === 'string' ? body.plan : null;
   const annual = body.annual === true;
-  const referenceId =
-    typeof body.referenceId === 'string'
-      ? body.referenceId
-      : typeof body.reference_id === 'string'
-        ? body.reference_id
-        : undefined;
-  const successUrl =
-    typeof body.successUrl === 'string'
-      ? body.successUrl
-      : typeof body.success_url === 'string'
-        ? body.success_url
-        : undefined;
-  const cancelUrl =
-    typeof body.cancelUrl === 'string'
-      ? body.cancelUrl
-      : typeof body.cancel_url === 'string'
-        ? body.cancel_url
-        : undefined;
+  const {
+    referenceId: camelReferenceId,
+    reference_id: snakeReferenceId,
+    successUrl: camelSuccessUrl,
+    success_url: snakeSuccessUrl,
+    cancelUrl: camelCancelUrl,
+    cancel_url: snakeCancelUrl,
+  } = body;
+
+  let referenceId: string | undefined = undefined;
+  if (typeof camelReferenceId === 'string') {
+    referenceId = camelReferenceId;
+  } else if (typeof snakeReferenceId === 'string') {
+    referenceId = snakeReferenceId;
+  }
+
+  let successUrl: string | undefined = undefined;
+  if (typeof camelSuccessUrl === 'string') {
+    successUrl = camelSuccessUrl;
+  } else if (typeof snakeSuccessUrl === 'string') {
+    successUrl = snakeSuccessUrl;
+  }
+
+  let cancelUrl: string | undefined = undefined;
+  if (typeof camelCancelUrl === 'string') {
+    cancelUrl = camelCancelUrl;
+  } else if (typeof snakeCancelUrl === 'string') {
+    cancelUrl = snakeCancelUrl;
+  }
   const disableRedirect = body.disableRedirect === true || body.disable_redirect === true;
 
   if (!successUrl) {
@@ -117,10 +128,10 @@ const compatUpgradeHandler = async (c: Context<AppContext>) => {
 
   // Resolve stripe_price_id from plan name + interval
   const interval = annual ? 'year' : 'month';
-  const price = await subscriptionRepository.findPriceByNameAndInterval(db, planName, interval);
+  const price = await subscriptionRepository.findPriceByNameAndInterval(planName, interval);
   let fallback = null;
   if (!price) {
-    fallback = await subscriptionRepository.findPriceByName(db, planName);
+    fallback = await subscriptionRepository.findPriceByName(planName);
     if (!fallback) {
       throw new HTTPException(400, { message: `Plan not found: ${planName}` });
     }
@@ -158,7 +169,7 @@ const compatCancelHandler = async (c: Context<AppContext>) => {
   try {
     body = await c.req.json();
   } catch {
-    // empty body
+    // Empty body
   }
 
   const referenceId = typeof body.referenceId === 'string' ? body.referenceId : undefined;

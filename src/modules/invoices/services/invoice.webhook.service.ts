@@ -57,7 +57,7 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
   }
 
   await db.transaction(async (tx) => {
-    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'overdue' }, tx);
+    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'overdue' });
 
     await InvoicePaymentFailed.dispatch(
       {
@@ -86,7 +86,7 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
   }
 
   await db.transaction(async (tx) => {
-    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' }, tx);
+    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' });
 
     await InvoiceVoided.dispatch(
       {
@@ -113,7 +113,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
   }
 
   await db.transaction(async (tx) => {
-    await invoicesRepository.softDeleteInvoice(invoice.id, invoice.organization_id, null, tx);
+    await invoicesRepository.softDeleteInvoice(invoice.id, invoice.organization_id, null);
 
     await InvoiceDeleted.dispatch(
       {
