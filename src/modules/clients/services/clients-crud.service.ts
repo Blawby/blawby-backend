@@ -65,10 +65,10 @@ const createClient = async (
       });
     }
 
-    const createdDetail = await uow.transaction(async ({ tx }) => {
+    const createdDetail = await uow.transaction(async () => {
       let addressId: string | undefined = undefined;
       if (data.address) {
-        const address = await upsertAddressTx(tx, {
+        const address = await upsertAddressTx({
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -165,15 +165,11 @@ const updateClient = async (
 
         // Also update user record if linked
         if (detailWithUser.user_id && (data.name || data.email || data.phone)) {
-          await usersRepository.update(
-            detailWithUser.user_id,
-            {
-              name: data.name,
-              email: data.email?.toLowerCase(),
-              phone: data.phone,
-            },
-            tx
-          );
+          await usersRepository.update(detailWithUser.user_id, {
+            name: data.name,
+            email: data.email?.toLowerCase(),
+            phone: data.phone,
+          });
         }
 
         if (detailWithUser.stripe_customer_id) {
@@ -188,7 +184,7 @@ const updateClient = async (
 
       let addressId = detailWithUser.address_id;
       if (data.address) {
-        const address = await upsertAddressTx(tx, {
+        const address = await upsertAddressTx({
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,

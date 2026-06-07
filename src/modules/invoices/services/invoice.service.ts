@@ -1,6 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { getClientInvoiceDetail, listClientInvoices } from '@/modules/invoices/services/invoice-client.service';
 import { persistInvoiceStructure, validateInvoiceCreation } from '@/modules/invoices/services/invoice-creation.helpers';
@@ -15,6 +12,9 @@ import type {
 import { InvoiceDeleted } from '@/shared/events/definitions';
 import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['invoices', 'service']);
 
@@ -157,7 +157,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
     }
 
     await ctx.db.transaction(async (tx) => {
-      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, tx);
+      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId);
       await InvoiceDeleted.dispatch(
         {
           invoice_id: id,

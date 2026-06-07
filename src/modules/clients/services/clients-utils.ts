@@ -31,15 +31,11 @@ export const resolveUserForIntake = async (params: {
             tx,
           });
           await tx.delete(users).where(eq(users.id, userId));
-          return usersRepository.update(
-            existingUserByEmail.id,
-            {
-              name: name || existingUserByEmail.name,
-              phone: phone ?? existingUserByEmail.phone ?? undefined,
-              primaryWorkspace: 'client',
-            },
-            tx
-          );
+          return usersRepository.update(existingUserByEmail.id, {
+            name: name || existingUserByEmail.name,
+            phone: phone ?? existingUserByEmail.phone ?? undefined,
+            primaryWorkspace: 'client',
+          });
         });
       }
       if (isAnonymousUser) {

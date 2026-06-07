@@ -125,7 +125,7 @@ export const upsertDetailsTransaction = async (
       : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
-  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data }, tx);
+  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data });
 
   return { details, addressResult, syncedServices };
 };
@@ -153,6 +153,6 @@ export const findAndDeletePracticeDetails = async (
       return null;
     }
 
-    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted), tx);
+    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted));
     return deleted;
   });

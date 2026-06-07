@@ -49,7 +49,7 @@ export const handleProductCreated = async (product: Stripe.Product): Promise<voi
         }
       }
 
-      await subscriptionRepository.upsertPrice(db, {
+      await subscriptionRepository.upsertPrice({
         stripe_price_id: price.id,
         stripe_product_id: product.id,
         currency: price.currency,

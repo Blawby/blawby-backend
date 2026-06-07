@@ -1,10 +1,10 @@
-import { getLogger } from '@logtape/logtape';
-import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { SystemErrorOccurred } from '@/shared/events/definitions';
 import { addInvoiceVoidReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['invoices', 'delivery-helpers']);
 
@@ -45,12 +45,10 @@ export const dispatchVoidSystemError = async ({
   invoiceId,
   organizationId,
   stripeInvoiceId,
-  ctx,
 }: {
   invoiceId: string;
   organizationId: string;
   stripeInvoiceId: string;
-  ctx: ServiceContext;
 }): Promise<void> => {
   await SystemErrorOccurred.dispatch(
     {
@@ -82,26 +80,20 @@ export const syncStripeState = async (
   },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> => {
-  const executor = ctx.db;
   const stripeStatus = stripeInvoice.status;
   const mappedStatus =
     stripeStatus && stripeStatus in statusMap
       ? statusMap[stripeStatus as keyof typeof statusMap]
       : currentInvoice.status;
 
-  await invoicesRepository.updateInvoice(
-    invoiceId,
-    ctx.organizationId,
-    {
-      status: mappedStatus,
-      amount_paid: stripeInvoice.amount_paid,
-      amount_due: stripeInvoice.amount_remaining,
-      paid_at: stripeInvoice.status_transitions?.paid_at
-        ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-        : null,
-    },
-    executor
-  );
+  await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
+    status: mappedStatus,
+    amount_paid: stripeInvoice.amount_paid,
+    amount_due: stripeInvoice.amount_remaining,
+    paid_at: stripeInvoice.status_transitions?.paid_at
+      ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+      : null,
+  });
 
-  return await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId, executor);
+  return await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId);
 };

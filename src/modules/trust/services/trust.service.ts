@@ -99,8 +99,7 @@ const recordDeposit = async (
         },
         trx
       );
-    },
-    tx
+    }
   );
 };
 
@@ -148,8 +147,7 @@ const recordWithdrawal = async (
         },
         trx
       );
-    },
-    tx
+    }
   );
 };
 
@@ -179,7 +177,7 @@ const getBalanceWithTx = async (
   params: GetBalanceParams,
   tx?: typeof db
 ): Promise<{ total: number; byMatter: { matter_id: string | null; balance: number }[] }> => {
-  const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId, tx);
+  const rows = await trustTransactionsRepository.getLatestBalanceByClient(params.organizationId, params.clientId);
   const total = rows.reduce((sum, r) => sum + r.balance, 0);
   return { total, byMatter: rows };
 };
@@ -217,11 +215,11 @@ const syncBalanceAndCheckThreshold = async (
   ctx: ServiceContext,
   tx: typeof db
 ) => {
-  const balance = await getBalanceWithTx({ organizationId, clientId }, tx);
+  const balance = await getBalanceWithTx({ organizationId, clientId });
   const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
-  await mattersQueries.updateRetainerBalance(matterId, matterBalance, tx);
+  await mattersQueries.updateRetainerBalance(matterId, matterBalance);
 
-  const matter = await mattersQueries.findMatterById(matterId, tx);
+  const matter = await mattersQueries.findMatterById(matterId);
   if (
     matter?.retainer_low_balance_threshold !== null &&
     matter?.retainer_low_balance_threshold !== undefined &&
@@ -235,8 +233,7 @@ const syncBalanceAndCheckThreshold = async (
         organization_id: matter.organization_id,
         current_balance: matterBalance,
         threshold: matter.retainer_low_balance_threshold,
-      },
-      tx
+      }
     );
   }
 };
@@ -260,11 +257,10 @@ const manualDeposit = async (
         description: data.description ?? 'Manual trust deposit',
         source: 'manual',
         createdBy: ctx.userId,
-      },
-      tx
+      }
     );
 
-    await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
+    await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx);
     return record;
   });
 };
@@ -289,11 +285,10 @@ const manualWithdrawal = async (
         description: data.description ?? 'Manual trust withdrawal',
         source: 'manual',
         createdBy: ctx.userId,
-      },
-      tx
+      }
     );
 
-    await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx, tx);
+    await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx);
     return record;
   });
 };

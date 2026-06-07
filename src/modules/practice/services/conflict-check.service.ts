@@ -275,8 +275,7 @@ const runConflictCheck = async (
             result_status: result.status,
             practice_name: organization?.name ?? '',
             practice_email: billingEmail,
-          },
-          tx
+          }
         );
       }
     });

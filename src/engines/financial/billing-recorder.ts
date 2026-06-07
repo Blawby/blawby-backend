@@ -21,24 +21,21 @@ const record = async (opts: RecordTransactionOpts, tx?: NodePgDatabase<typeof sc
 
   logger.info('Recording billing transaction for {payableType} {payableId}', { payableType, payableId });
 
-  await billingTransactionsRepository.createTransaction(
-    {
-      organization_id: organizationId,
-      invoice_id: payableType === 'invoice' ? payableId : null,
-      matter_id: matterId,
-      amount,
-      type: 'payout',
-      status: 'completed',
-      destination_account_id: destinationAccountId,
-      stripe_transfer_id: transferId,
-      metadata: {
-        payable_type: payableType,
-        payable_id: payableId,
-        ...(metadata ?? {}),
-      },
+  await billingTransactionsRepository.createTransaction({
+    organization_id: organizationId,
+    invoice_id: payableType === 'invoice' ? payableId : null,
+    matter_id: matterId,
+    amount,
+    type: 'payout',
+    status: 'completed',
+    destination_account_id: destinationAccountId,
+    stripe_transfer_id: transferId,
+    metadata: {
+      payable_type: payableType,
+      payable_id: payableId,
+      ...metadata,
     },
-    tx
-  );
+  });
 };
 
 export const billingRecorder = { record };

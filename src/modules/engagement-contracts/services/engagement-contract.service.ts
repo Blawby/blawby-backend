@@ -66,37 +66,34 @@ const createEngagementContract = async (
 
   const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
 
-  const contract = await db.transaction(async (tx) => {
+  const contract = await db.transaction(async () => {
     let created: SelectEngagementContract;
     try {
-      created = await engagementContractsQueries.insert(
-        {
-          intake_id: data.intake_id,
-          organization_id: ctx.organizationId,
-          status: 'draft',
-          contract_body: data.contract_body ?? null,
-          engagement_notes: data.engagement_notes ?? null,
-          proposal_data: (data.proposal_data as SelectEngagementContract['proposal_data']) ?? {
-            source_snapshot: {
-              intake_uuid: intake.id,
-              conversation_id: intake.conversation_id ?? '',
-              matter_id: '',
-              practice_area: metadata?.practice_service_name ?? '',
-              urgency: intake.urgency ?? '',
-              desired_outcome: intake.desired_outcome ?? '',
-              opposing_party: metadata?.opposing_party ?? '',
-              court_date: intake.court_date?.toISOString() ?? null,
-            },
-            draft_meta: {
-              generated_at: new Date().toISOString(),
-              generated_by: 'staff',
-              version: 1,
-            },
+      created = await engagementContractsQueries.insert({
+        intake_id: data.intake_id,
+        organization_id: ctx.organizationId,
+        status: 'draft',
+        contract_body: data.contract_body ?? null,
+        engagement_notes: data.engagement_notes ?? null,
+        proposal_data: (data.proposal_data as SelectEngagementContract['proposal_data']) ?? {
+          source_snapshot: {
+            intake_uuid: intake.id,
+            conversation_id: intake.conversation_id ?? '',
+            matter_id: '',
+            practice_area: metadata?.practice_service_name ?? '',
+            urgency: intake.urgency ?? '',
+            desired_outcome: intake.desired_outcome ?? '',
+            opposing_party: metadata?.opposing_party ?? '',
+            court_date: intake.court_date?.toISOString() ?? null,
           },
-          created_by: ctx.userId,
+          draft_meta: {
+            generated_at: new Date().toISOString(),
+            generated_by: 'staff',
+            version: 1,
+          },
         },
-        tx
-      );
+        created_by: ctx.userId,
+      });
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
         throw new HTTPException(409, { message: 'An accepted engagement contract already exists for this intake' });
@@ -104,15 +101,11 @@ const createEngagementContract = async (
       throw error;
     }
 
-    await ctx.emit(
-      EngagementContractCreated,
-      {
-        contract_id: created.id,
-        intake_id: created.intake_id,
-        organization_id: created.organization_id,
-      },
-      tx
-    );
+    await ctx.emit(EngagementContractCreated, {
+      contract_id: created.id,
+      intake_id: created.intake_id,
+      organization_id: created.organization_id,
+    });
 
     return created;
   });
@@ -196,32 +189,24 @@ const sendEngagementContract = async (
     (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
       ?.matter_summary ?? `Engagement for ${clientName}`;
 
-  const sentContract = await db.transaction(async (tx) => {
-    const sent = await engagementContractsQueries.update(
-      id,
-      {
-        status: 'sent',
-        sent_at: new Date(),
-        billing_snapshot: billingSnapshot,
-        updated_at: new Date(),
-      },
-      tx
-    );
+  const sentContract = await db.transaction(async () => {
+    const sent = await engagementContractsQueries.update(id, {
+      status: 'sent',
+      sent_at: new Date(),
+      billing_snapshot: billingSnapshot,
+      updated_at: new Date(),
+    });
 
-    await ctx.emit(
-      EngagementContractSent,
-      {
-        contract_id: sent.id,
-        intake_id: sent.intake_id,
-        organization_id: sent.organization_id,
-        client_email: clientEmail,
-        client_name: clientName,
-        matter_title: matterTitle,
-        practice_name: organization?.name ?? 'Practice',
-        review_url: reviewUrl,
-      },
-      tx
-    );
+    await ctx.emit(EngagementContractSent, {
+      contract_id: sent.id,
+      intake_id: sent.intake_id,
+      organization_id: sent.organization_id,
+      client_email: clientEmail,
+      client_name: clientName,
+      matter_title: matterTitle,
+      practice_name: organization?.name ?? 'Practice',
+      review_url: reviewUrl,
+    });
 
     return sent;
   });
@@ -262,24 +247,21 @@ const createMatterFromAcceptedContract = async (
     client_summary?: { matter_summary?: string };
   } | null;
 
-  const matter = await mattersQueries.createMatter(
-    {
-      organization_id: intake.organization_id,
-      billing_type: (proposalData?.fees?.billing_type as 'hourly' | 'fixed' | 'contingency' | 'pro_bono') ?? 'fixed',
-      client_id: clientId,
-      title: proposalData?.client_summary?.matter_summary ?? `Engagement: ${metadata?.name ?? 'Client'}`,
-      description: intake.desired_outcome ?? undefined,
-      status: 'active',
-      urgency: intake.urgency ?? 'routine',
-      intake_uuid: intake.id,
-      conversation_id: intake.conversation_id ?? undefined,
-      on_behalf_of: metadata?.on_behalf_of,
-      opposing_party: metadata?.opposing_party,
-      opposing_counsel: metadata?.opposing_counsel,
-      open_date: acceptedAt,
-    },
-    tx
-  );
+  const matter = await mattersQueries.createMatter({
+    organization_id: intake.organization_id,
+    billing_type: (proposalData?.fees?.billing_type as 'hourly' | 'fixed' | 'contingency' | 'pro_bono') ?? 'fixed',
+    client_id: clientId,
+    title: proposalData?.client_summary?.matter_summary ?? `Engagement: ${metadata?.name ?? 'Client'}`,
+    description: intake.desired_outcome ?? undefined,
+    status: 'active',
+    urgency: intake.urgency ?? 'routine',
+    intake_uuid: intake.id,
+    conversation_id: intake.conversation_id ?? undefined,
+    on_behalf_of: metadata?.on_behalf_of,
+    opposing_party: metadata?.opposing_party,
+    opposing_counsel: metadata?.opposing_counsel,
+    open_date: acceptedAt,
+  });
 
   if (intake.court_date) {
     await tx.insert(matterMilestones).values({
@@ -363,33 +345,25 @@ const acceptEngagementContract = async (
       acceptedAt,
     });
 
-    const accepted = await engagementContractsQueries.update(
-      id,
-      {
-        status: 'accepted',
-        matter_id: matterId,
-        accepted_at: acceptedAt,
-        signed_pdf_s3_key: s3Key,
-        updated_at: new Date(),
-      },
-      tx
-    );
+    const accepted = await engagementContractsQueries.update(id, {
+      status: 'accepted',
+      matter_id: matterId,
+      accepted_at: acceptedAt,
+      signed_pdf_s3_key: s3Key,
+      updated_at: new Date(),
+    });
 
-    await ctx.emit(
-      EngagementContractAccepted,
-      {
-        contract_id: accepted.id,
-        matter_id: matterId,
-        organization_id: accepted.organization_id,
-        practice_email: organization?.billingEmail ?? '',
-        practice_name: organization?.name ?? 'Practice',
-        matter_title: matterTitle,
-        client_name: clientName,
-        client_email: clientEmail,
-        signed_pdf_s3_key: s3Key,
-      },
-      tx
-    );
+    await ctx.emit(EngagementContractAccepted, {
+      contract_id: accepted.id,
+      matter_id: matterId,
+      organization_id: accepted.organization_id,
+      practice_email: organization?.billingEmail ?? '',
+      practice_name: organization?.name ?? 'Practice',
+      matter_title: matterTitle,
+      client_name: clientName,
+      client_email: clientEmail,
+      signed_pdf_s3_key: s3Key,
+    });
 
     return accepted;
   });
@@ -431,30 +405,22 @@ const declineEngagementContract = async (
     (contract.proposal_data as { client_summary?: { matter_summary?: string } } | null)?.client_summary
       ?.matter_summary ?? `Engagement: ${clientName}`;
 
-  const declinedContract = await db.transaction(async (tx) => {
-    const declined = await engagementContractsQueries.update(
-      id,
-      {
-        status: 'declined',
-        declined_at: new Date(),
-        updated_at: new Date(),
-      },
-      tx
-    );
+  const declinedContract = await db.transaction(async () => {
+    const declined = await engagementContractsQueries.update(id, {
+      status: 'declined',
+      declined_at: new Date(),
+      updated_at: new Date(),
+    });
 
-    await ctx.emit(
-      EngagementContractDeclined,
-      {
-        contract_id: declined.id,
-        intake_id: declined.intake_id,
-        organization_id: declined.organization_id,
-        practice_email: organization?.billingEmail ?? '',
-        practice_name: organization?.name ?? 'Practice',
-        matter_title: matterTitle,
-        client_name: clientName,
-      },
-      tx
-    );
+    await ctx.emit(EngagementContractDeclined, {
+      contract_id: declined.id,
+      intake_id: declined.intake_id,
+      organization_id: declined.organization_id,
+      practice_email: organization?.billingEmail ?? '',
+      practice_name: organization?.name ?? 'Practice',
+      matter_title: matterTitle,
+      client_name: clientName,
+    });
 
     return declined;
   });
@@ -477,15 +443,11 @@ const listEngagementContracts = async (
   const { page, limit, ...filters } = query;
   const offset = (page - 1) * limit;
 
-  const { data, total } = await engagementContractsQueries.listByOrg(
-    ctx.organizationId,
-    {
-      ...filters,
-      limit,
-      offset,
-    },
-    db
-  );
+  const { data, total } = await engagementContractsQueries.listByOrg(ctx.organizationId, {
+    ...filters,
+    limit,
+    offset,
+  });
 
   return {
     data,

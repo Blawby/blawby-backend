@@ -39,7 +39,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
 
   try {
     await db.transaction(async (tx) => {
-      const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id, tx);
+      const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id);
       if (!invoice) {
         throw new Error(`Invoice with Stripe ID ${stripe_invoice_id} not found`);
       }
@@ -73,8 +73,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           status: 'paid',
           amount_paid: stripe_amount_paid,
           stripe_transfer_id: transfer.transferId,
-        },
-        tx
+        }
       );
 
       if (transfer.transferId) {
@@ -92,8 +91,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
               invoice_type: invoiceType,
               fund_destination: fundDestination,
             },
-          },
-          tx
+          }
         );
       }
 
@@ -105,13 +103,12 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
             matterId,
             amount: stripe_amount_paid,
             invoiceId: invoice.id,
-          },
-          tx
+          }
         );
 
-        const matter = await mattersQueries.findMatterById(matterId, tx);
+        const matter = await mattersQueries.findMatterById(matterId);
         if (matter && matter.retainer_low_balance_threshold !== null && matter.retainer_low_balance_threshold > 0) {
-          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId }, tx);
+          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId });
           const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
           if (matterBalance < matter.retainer_low_balance_threshold) {
             await RetainerLowBalance.dispatch(

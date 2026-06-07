@@ -11,11 +11,12 @@
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
-import { organizations, subscriptionLineItems, subscriptions, events } from '@/schema';
+import { organizations, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
 import { db as appDb } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getActiveTx } from '@/shared/database/uow';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
 
@@ -43,14 +44,13 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async function reportMeteredUsage(
-  db: DbOrTx,
   organizationId: string,
   meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
   quantity = 1,
   deduplicationId?: string
 ): Promise<void> {
   // 1. Get organization's Stripe Customer ID
-  const [org] = await db
+  const [org] = await getActiveTx()
     .select({
       stripeCustomerId: organizations.stripeCustomerId,
     })
@@ -91,23 +91,25 @@ const reportMeteredUsage = async function reportMeteredUsage(
   // 4. Log event to global events table for audit trail
   // We wrap this in its own try/catch to avoid failing the report if DB insert fails
   try {
-    await db.insert(events).values({
-      type: METER_USAGE_REPORTED,
-      eventVersion: '1.0.0',
-      actorId: SYSTEM_ACTOR_UUID,
-      actorType: 'system',
-      organizationId: organizationId,
-      payload: {
-        meter_event_name: eventName,
-        quantity,
-        stripe_customer_id: org.stripeCustomerId,
-        metered_type: meteredType,
-      },
-      metadata: {
-        source: 'metered-products-service',
-        environment: config.env.node,
-      },
-    });
+    await getActiveTx()
+      .insert(events)
+      .values({
+        type: METER_USAGE_REPORTED,
+        eventVersion: '1.0.0',
+        actorId: SYSTEM_ACTOR_UUID,
+        actorType: 'system',
+        organizationId: organizationId,
+        payload: {
+          meter_event_name: eventName,
+          quantity,
+          stripe_customer_id: org.stripeCustomerId,
+          metered_type: meteredType,
+        },
+        metadata: {
+          source: 'metered-products-service',
+          environment: config.env.node,
+        },
+      });
   } catch (dbError) {
     logger.error(
       'Failed to log meter usage audit for {meteredType} (org: {organizationId}, dedupe: {dedupeId}): {error}',

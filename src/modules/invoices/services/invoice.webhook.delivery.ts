@@ -38,7 +38,7 @@ const syncSeatCountForInvoice = async (
     return;
   }
 
-  const meteringSynced = await seatMeteringService.syncSeatCountOnInvoice(db, stripeInvoice, org.id, customerId);
+  const meteringSynced = await seatMeteringService.syncSeatCountOnInvoice(stripeInvoice, org.id, customerId);
 
   const meteringNote = meteringSynced ? '' : ' (metering sync failed)';
   const message = `Processed {eventType} event: {invoiceId} for organization {organizationId}${meteringNote}`;

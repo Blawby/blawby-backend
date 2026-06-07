@@ -60,7 +60,7 @@ export const intakeFilesService = {
 
     const prep = await uploadCoreService.preparePresign({ request: uploadRequest }, enrichedCtx);
     return ctx.db.transaction((tx) =>
-      uploadCoreService.persistPresign({ prep, request: uploadRequest }, createServiceContext(enrichedBase, tx))
+      uploadCoreService.persistPresign({ prep, request: uploadRequest }, createServiceContext(enrichedBase))
     );
   },
 
@@ -72,7 +72,7 @@ export const intakeFilesService = {
     await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
     const uploadCorePrep = await uploadCoreService.prepareConfirm({ id: uploadId }, enrichedCtx);
     return ctx.db.transaction((tx) =>
-      uploadCoreService.persistConfirm({ prep: uploadCorePrep }, createServiceContext(enrichedBase, tx))
+      uploadCoreService.persistConfirm({ prep: uploadCorePrep }, createServiceContext(enrichedBase))
     );
   },
 
@@ -113,7 +113,7 @@ export const intakeFilesService = {
 
     const enrichedBase = buildEnrichedCtx(ctx, intake);
     const result = await ctx.db.transaction((tx) =>
-      uploadCoreService.softDelete({ id: uploadId, reason }, createServiceContext(enrichedBase, tx))
+      uploadCoreService.softDelete({ id: uploadId, reason }, createServiceContext(enrichedBase))
     );
 
     return { id: result.id, status: 'deleted' };

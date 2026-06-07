@@ -10,13 +10,13 @@ export const handlePriceDeleted = async (price: Stripe.Price | Stripe.DeletedPri
   try {
     logger.info('Processing price.deleted: {priceId}', { priceId: price.id });
 
-    const existing = await subscriptionRepository.findPriceByStripeId(db, price.id);
+    const existing = await subscriptionRepository.findPriceByStripeId(price.id);
     if (!existing) {
       logger.warn('Price not found for price.deleted: {priceId}', { priceId: price.id });
       return;
     }
 
-    await subscriptionRepository.deletePrice(db, price.id);
+    await subscriptionRepository.deletePrice(price.id);
 
     logger.info('Successfully deleted price: {priceId}', { priceId: price.id });
   } catch (error) {

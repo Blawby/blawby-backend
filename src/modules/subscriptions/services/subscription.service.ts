@@ -176,7 +176,7 @@ const getCurrentSubscription = async (
       db.query.subscriptionEvents.findMany({
         where: eq(subscriptionEvents.subscription_id, subscriptionRecord.id),
       }),
-      subscriptionRepository.findPriceByName(db, subscriptionRecord.plan),
+      subscriptionRepository.findPriceByName(subscriptionRecord.plan),
     ]);
 
     const { plan: _plan, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
@@ -213,7 +213,7 @@ const getCurrentSubscription = async (
 
     let planResponse: SubscriptionPlanResponse | null = null;
     if (repPrice) {
-      const allPrices = await subscriptionRepository.findPricesByProductId(db, repPrice.stripe_product_id);
+      const allPrices = await subscriptionRepository.findPricesByProductId(repPrice.stripe_product_id);
       const monthlyPrice = allPrices.find((p) => p.usage_type === 'licensed' && p.interval === 'month');
       const yearlyPrice = allPrices.find((p) => p.usage_type === 'licensed' && p.interval === 'year');
       const meteredPrices = allPrices.filter((p) => p.usage_type === 'metered');

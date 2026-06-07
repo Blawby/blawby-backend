@@ -1,6 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import {
@@ -8,9 +5,12 @@ import {
   enqueueVoidReconciliation,
 } from '@/modules/invoices/services/invoice.delivery.recovery';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { InvoiceVoided } from '@/shared/events/definitions';
 import { db } from '@/shared/database';
+import { InvoiceVoided } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['invoices', 'voiding-service']);
 
@@ -21,7 +21,6 @@ export const attemptStripeVoidWithRecovery = async ({
   organizationId,
   stripeInvoiceId,
   stripeAccountId,
-  ctx,
 }: {
   invoiceId: string;
   organizationId: string;
@@ -49,7 +48,6 @@ export const attemptStripeVoidWithRecovery = async ({
         invoiceId,
         organizationId,
         stripeInvoiceId,
-        ctx,
       });
     } catch (dispatchError) {
       logger.error('Failed to dispatch invoice void system error: {error}', {
@@ -91,8 +89,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
         id,
         ctx.organizationId,
         'sent',
-        'cancelled',
-        tx
+        'cancelled'
       );
       if (!transitioned) {
         throw new HTTPException(409, { message: 'Invoice status changed before void could be applied' });

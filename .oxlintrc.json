@@ -54,7 +54,6 @@
     "max-params": "off",
     "id-length": "off",
     "sort-keys": "off",
-    "node/no-import": "off",
     "sort-imports": "off",
     "no-ternary": "off",
     "no-magic-numbers": "off"

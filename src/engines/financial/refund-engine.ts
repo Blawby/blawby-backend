@@ -8,7 +8,7 @@ import { requirePayoutMeteredFeeCents } from '@/modules/invoices/services/invoic
 import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
-import { db } from '@/shared/database';
+import { uow, getActiveTx } from '@/shared/database/uow';
 import type { InvoiceRecord } from '@/modules/invoices/types/refund-request';
 import type { RefundEventPayload } from '@/engines/financial/types';
 
@@ -56,13 +56,10 @@ const getRefundCreditFlags = async (opts: {
   claimedReqId: string;
   refundedAmount: number;
   amountPaidCents: number;
-  tx?: typeof db;
 }): Promise<{ creditInvoiceFee: boolean }> => {
-  const priorRefunds = await refundRequestsQueries.listByOrganization(
-    opts.organizationId,
-    { invoice_id: opts.invoiceId },
-    opts.tx
-  );
+  const priorRefunds = await refundRequestsQueries.listByOrganization(opts.organizationId, {
+    invoice_id: opts.invoiceId,
+  });
   const alreadyRefundedCents = priorRefunds
     .filter((r) => r.id !== opts.claimedReqId && r.status === 'executed')
     .reduce((sum, r) => sum + (r.executed_amount ?? 0), 0);
@@ -84,7 +81,6 @@ const buildRefundEventPayload = async (opts: {
   invoice: InvoiceRecord;
   invoiceTxs: SelectBillingTransaction[];
   refundedAmount: number;
-  tx?: typeof db;
 }): Promise<RefundEventPayload> => {
   const amountPaidCents = opts.invoice.amount_paid ?? 0;
   const payoutFeeCreditCents = calculatePayoutFeeCreditCents(
@@ -100,7 +96,6 @@ const buildRefundEventPayload = async (opts: {
     claimedReqId: opts.claimedReq.id,
     refundedAmount: opts.refundedAmount,
     amountPaidCents,
-    tx: opts.tx,
   });
   return {
     invoice_id: opts.invoice.id,
@@ -132,17 +127,18 @@ const persistExecutedRefund = async (opts: {
 }): Promise<{ updated: SelectRefundRequest | null; refundEventPayload: RefundEventPayload | null }> => {
   let refundEventPayload: RefundEventPayload | null = null;
 
-  const updated = await db.transaction(async (tx) => {
-    await tx
+  const updated = await uow.transaction(async () => {
+    // Cast required: pnpm resolves two drizzle-orm instances; getActiveTx() Tx type and SQL type differ at the package path level
+    await getActiveTx()
       .select({ id: invoices.id })
       .from(invoices)
       .where(and(eq(invoices.id, opts.invoice.id), eq(invoices.organization_id, opts.organizationId)))
       .for('update');
 
-    const lockedInvoice = await invoicesRepository.findInvoiceById(opts.invoice.id, opts.organizationId, tx);
+    const lockedInvoice = await invoicesRepository.findInvoiceById(opts.invoice.id, opts.organizationId);
     if (!lockedInvoice) return null;
 
-    const lockedInvoiceTxs = await billingTransactionsRepository.listByInvoiceId(lockedInvoice.id, tx);
+    const lockedInvoiceTxs = await billingTransactionsRepository.listByInvoiceId(lockedInvoice.id);
     const amountPaidCents = lockedInvoice.amount_paid ?? 0;
     const payoutFeeCreditCents = calculatePayoutFeeCreditCents(
       lockedInvoice.id,
@@ -157,7 +153,6 @@ const persistExecutedRefund = async (opts: {
       claimedReqId: opts.claimedReq.id,
       refundedAmount: opts.refundedAmount,
       amountPaidCents,
-      tx,
     });
 
     const executedRequest = await refundRequestsQueries.transitionStatus(
@@ -172,40 +167,36 @@ const persistExecutedRefund = async (opts: {
         executed_at: new Date(),
         executed_by_user_id: opts.executorUserId,
         ...(opts.refundNotes ? { review_notes: opts.refundNotes } : {}),
-      },
-      tx
+      }
     );
     if (!executedRequest) return null;
 
     const refundDestinationAccountId = getRefundDestinationAccountId(lockedInvoice, lockedInvoiceTxs);
     if (refundDestinationAccountId) {
-      await billingTransactionsRepository.createTransaction(
-        {
-          organization_id: opts.organizationId,
-          invoice_id: lockedInvoice.id,
-          matter_id: lockedInvoice.matter_id,
-          amount: opts.refundedAmount,
-          metered_fee_cents: payoutFeeCreditCents,
-          type: 'refund',
-          status: 'completed',
-          destination_account_id: refundDestinationAccountId,
-          completed_at: new Date(),
-          metadata: {
-            refund_request_id: opts.claimedReq.id,
-            stripe_refund_id: opts.stripeRefundId,
-            stripe_payment_intent_id: opts.stripePaymentIntentId,
-            stripe_transfer_id: opts.stripeTransferId,
-            reverse_transfer: Boolean(opts.stripeTransferId),
-            credit_invoice_fee: creditInvoiceFee,
-            payout_fee_credit_cents: payoutFeeCreditCents,
-          },
+      await billingTransactionsRepository.createTransaction({
+        organization_id: opts.organizationId,
+        invoice_id: lockedInvoice.id,
+        matter_id: lockedInvoice.matter_id,
+        amount: opts.refundedAmount,
+        metered_fee_cents: payoutFeeCreditCents,
+        type: 'refund',
+        status: 'completed',
+        destination_account_id: refundDestinationAccountId,
+        completed_at: new Date(),
+        metadata: {
+          refund_request_id: opts.claimedReq.id,
+          stripe_refund_id: opts.stripeRefundId,
+          stripe_payment_intent_id: opts.stripePaymentIntentId,
+          stripe_transfer_id: opts.stripeTransferId,
+          reverse_transfer: Boolean(opts.stripeTransferId),
+          credit_invoice_fee: creditInvoiceFee,
+          payout_fee_credit_cents: payoutFeeCreditCents,
         },
-        tx
-      );
+      });
     }
 
     if (lockedInvoice.invoice_type === 'retainer_deposit' && lockedInvoice.matter_id) {
-      const matter = await mattersQueries.findMatterById(lockedInvoice.matter_id, tx);
+      const matter = await mattersQueries.findMatterById(lockedInvoice.matter_id);
       if (matter) {
         const newBalance = Math.max(0, matter.retainer_balance - opts.refundedAmount);
         if (matter.retainer_balance < opts.refundedAmount) {
@@ -225,7 +216,7 @@ const persistExecutedRefund = async (opts: {
           refundId: opts.stripeRefundId,
           invoiceId: lockedInvoice.id,
         });
-        await mattersQueries.updateRetainerBalance(lockedInvoice.matter_id, newBalance, tx);
+        await mattersQueries.updateRetainerBalance(lockedInvoice.matter_id, newBalance);
       } else {
         logger.warn('Skipping retainer balance update for refund because matter was not found', {
           matterId: lockedInvoice.matter_id,
@@ -242,7 +233,6 @@ const persistExecutedRefund = async (opts: {
       invoice: lockedInvoice,
       invoiceTxs: lockedInvoiceTxs,
       refundedAmount: opts.refundedAmount,
-      tx,
     });
 
     return executedRequest;

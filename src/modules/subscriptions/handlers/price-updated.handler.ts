@@ -21,7 +21,7 @@ export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => 
     logger.info('Processing price.updated: {priceId}', { priceId: price.id });
 
     // Find the price
-    const existingPrice = await subscriptionRepository.findPriceByStripeId(db, price.id);
+    const existingPrice = await subscriptionRepository.findPriceByStripeId(price.id);
 
     if (!existingPrice) {
       logger.warn('Price not found for price.updated: {priceId}', { priceId: price.id });
@@ -40,7 +40,7 @@ export const handlePriceUpdated = async (price: Stripe.Price): Promise<void> => 
       updated_at: new Date(),
     };
 
-    await subscriptionRepository.upsertPrice(db, updates);
+    await subscriptionRepository.upsertPrice(updates);
     logger.info('Successfully updated price: {priceId}', { priceId: price.id });
   } catch (error) {
     logger.error('Failed to process price.updated: {priceId}. Error: {error}', {

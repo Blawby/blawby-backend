@@ -126,8 +126,7 @@ const createRequest = async (
     const invoice = await invoicesRepository.findOneByIdAndClientId(
       ctx.organizationId,
       opts.invoiceId,
-      clientUserDetailsId,
-      tx
+      clientUserDetailsId
     );
     if (!invoice) {
       throw new HTTPException(404, { message: 'Invoice not found' });
@@ -138,8 +137,7 @@ const createRequest = async (
 
     const existingRefunds = await refundRequestsQueries.listByOrganization(
       ctx.organizationId,
-      { invoice_id: opts.invoiceId },
-      tx
+      { invoice_id: opts.invoiceId }
     );
 
     const blockingStatuses: readonly SelectRefundRequest['status'][] = ['requested', 'approved', 'executing'];
@@ -174,8 +172,7 @@ const createRequest = async (
         reason: opts.reason,
         notes: opts.notes,
         status: 'requested',
-      },
-      tx
+      }
     );
 
     return req;
@@ -310,8 +307,7 @@ const executeRefund = async (
 
       const priorRefunds = await refundRequestsQueries.listByOrganization(
         ctx.organizationId,
-        { invoice_id: invoice.id },
-        tx
+        { invoice_id: invoice.id }
       );
       const reservedStatuses: readonly SelectRefundRequest['status'][] = [
         'requested',
