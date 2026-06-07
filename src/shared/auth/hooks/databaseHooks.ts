@@ -7,14 +7,15 @@
  * active org, or falling back to the user's first organization membership.
  */
 
-import { getLogger } from '@logtape/logtape';
-import { and, eq, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+// oxlint-disable-next-line import/no-namespace
 import * as schema from '@/schema';
 import { AuthUserSignedUp, PracticeMemberJoined } from '@/shared/events/definitions';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import { sessionsRepository } from '@/shared/repositories/sessions.repository';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, sql } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const logger = getLogger(['auth', 'database-hooks']);
 
@@ -105,19 +106,19 @@ type SessionData = Record<string, unknown> & {
 };
 
 const resolveActiveOrganizationIdForSession = async (
-  db: NodePgDatabase<typeof schema>,
+  _db: NodePgDatabase<typeof schema>,
   userId: string
 ): Promise<string | null> => {
-  const previousActiveOrganizationId = await sessionsRepository.findPreviousActiveOrganizationId(userId, db);
+  const previousActiveOrganizationId = await sessionsRepository.findPreviousActiveOrganizationId(userId);
   const previousActiveMembership = previousActiveOrganizationId
-    ? await membersRepository.findByOrgAndUser({ userId, organizationId: previousActiveOrganizationId }, db)
+    ? await membersRepository.findByOrgAndUser({ userId, organizationId: previousActiveOrganizationId })
     : null;
 
   if (previousActiveOrganizationId && previousActiveMembership) {
     return previousActiveOrganizationId;
   }
 
-  return membersRepository.findFirstOrganizationIdByUser(userId, db);
+  return membersRepository.findFirstOrganizationIdByUser(userId);
 };
 
 export const createDatabaseHooks = (
@@ -155,10 +156,10 @@ export const createDatabaseHooks = (
   session: {
     create: {
       // Enforce one session per user. Preserve a valid previous active org when possible;
-      // otherwise fall back to the user's first org membership.
+      // Otherwise fall back to the user's first org membership.
       before: async (sessionData: SessionData): Promise<{ data: SessionData }> => {
         const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, sessionData.userId);
-        await sessionsRepository.deleteByUserId(sessionData.userId, db);
+        await sessionsRepository.deleteByUserId(sessionData.userId);
         return { data: { ...sessionData, activeOrganizationId } };
       },
       after: async (session: SessionData): Promise<void> => {
@@ -167,7 +168,7 @@ export const createDatabaseHooks = (
             const activeOrganizationId = await resolveActiveOrganizationIdForSession(db, session.userId);
 
             if (activeOrganizationId) {
-              await sessionsRepository.setActiveOrganizationId(session.id, activeOrganizationId, db);
+              await sessionsRepository.setActiveOrganizationId(session.id, activeOrganizationId);
             }
           }
         } catch (error) {

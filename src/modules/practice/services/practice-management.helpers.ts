@@ -121,7 +121,7 @@ export const upsertDetailsTransaction = async (
 
   const syncedServices =
     params.data.services !== undefined
-      ? await practiceServicesRepository.syncServicesTx(tx, params.organizationId, params.data.services)
+      ? await practiceServicesRepository.syncServicesTx(params.organizationId, params.data.services)
       : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;

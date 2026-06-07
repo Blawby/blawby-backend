@@ -34,7 +34,7 @@ const buildEnrichedCtx = (ctx: ServiceContext, intake: SelectPracticeClientIntak
 });
 
 const ensureUploadBelongsToIntake = async (uploadId: string, intakeId: string, ctx: ServiceContext) => {
-  const upload = await uploadsRepository.findById(uploadId, ctx.db);
+  const upload = await uploadsRepository.findById(uploadId);
   if (!upload) {
     throw new HTTPException(404, { message: 'Upload not found' });
   }
@@ -87,13 +87,11 @@ export const intakeFilesService = {
     const [uploads, total] = await Promise.all([
       uploadsRepository.listByOrganization(
         intake.organization_id,
-        { scopeType: 'intake', scopeId: intake.id, limit, offset },
-        enrichedCtx.db
+        { scopeType: 'intake', scopeId: intake.id, limit, offset }
       ),
       uploadsRepository.countByOrganization(
         intake.organization_id,
-        { scopeType: 'intake', scopeId: intake.id },
-        enrichedCtx.db
+        { scopeType: 'intake', scopeId: intake.id }
       ),
     ]);
 

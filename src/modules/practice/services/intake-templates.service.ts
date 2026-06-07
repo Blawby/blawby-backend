@@ -1,6 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
-import { and, eq } from 'drizzle-orm';
-import { HTTPException } from 'hono/http-exception';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
 import {
   intakeTemplates,
@@ -8,17 +5,22 @@ import {
 } from '@/modules/practice/database/schema/intake-templates.schema';
 import type {
   CreateIntakeTemplateRequest,
-  UpdateIntakeTemplateRequest,
   IntakeTemplateResponse,
+  UpdateIntakeTemplateRequest,
 } from '@/modules/practice/validations/intake-templates.validation';
 import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { wrapDbError } from '@/shared/utils/db-error';
+import { ForbiddenError } from '@casl/ability';
+import { and, eq } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 
 const toResponse = (
   template: Awaited<ReturnType<typeof intakeTemplatesRepository.findById>>
 ): IntakeTemplateResponse => {
-  if (!template) throw new Error('Template is null');
+  if (!template) {
+    throw new Error('Template is null');
+  }
   return {
     ...template,
     description: template.description ?? null,
@@ -90,7 +92,6 @@ const createTemplate = async (
         await intakeTemplatesRepository.clearDefaultForOrganization(tx, organizationId);
       }
       return intakeTemplatesRepository.create(
-        tx,
         {
           organization_id: organizationId,
           slug: data.slug,
@@ -144,7 +145,6 @@ const updateTemplate = async (
       await intakeTemplatesRepository.clearDefaultForOrganization(tx, organizationId);
     }
     return intakeTemplatesRepository.update(
-      tx,
       id,
       {
         slug: data.slug,
@@ -159,8 +159,8 @@ const updateTemplate = async (
         ...(data.status === 'archived'
           ? { archived_at: new Date() }
           : data.status !== undefined
-          ? { archived_at: null }
-          : {}),
+            ? { archived_at: null }
+            : {}),
       },
       fields
     );
@@ -194,16 +194,17 @@ const deleteTemplate = async (
         .where(and(eq(intakeTemplates.id, id), eq(intakeTemplates.organization_id, organizationId)))
         .limit(1);
 
-      if (!existing) throw new HTTPException(404, { message: 'Intake template not found' });
+      if (!existing) {
+        throw new HTTPException(404, { message: 'Intake template not found' });
+      }
       throw new HTTPException(409, { message: 'Cannot delete the default intake template' });
     }
   });
 };
 
 const seedDefaultTemplate = async (organizationId: string): Promise<void> => {
-  await db.transaction(async (tx) => {
+  await db.transaction(async () => {
     await intakeTemplatesRepository.create(
-      tx,
       {
         organization_id: organizationId,
         slug: 'general-consultation',
