@@ -10,7 +10,7 @@ import { invoiceValidators } from '@/modules/invoices/validators/invoice-creatio
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
-import { getActiveTx } from '@/shared/database/uow';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceCreated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -71,7 +71,7 @@ export const syncLineItems = async ({
   invoiceId: string;
   lineItems: InvoiceLineItemInput[];
 }): Promise<void> => {
-  await getActiveTx().transaction(async () => {
+  await uow.transaction(async () => {
     await invoicesRepository.deleteInvoiceLineItems(invoiceId);
     await invoicesRepository.createInvoiceLineItems(mapToLineItemRows(invoiceId, lineItems));
   });
@@ -128,7 +128,7 @@ export const persistInvoiceStructure = async (
   { data, clientId }: { data: CreateInvoiceRequest; clientId: string },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> =>
-  await ctx.db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     const { line_items, time_entry_ids, expense_ids, milestone_id, ...invoiceData } = data;
     const matterId = data.matter_id;
     const { invoice_type } = data;
@@ -183,7 +183,7 @@ export const persistInvoiceStructure = async (
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     }

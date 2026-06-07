@@ -11,6 +11,7 @@ import type { AppAbility } from '@/shared/auth/abilities';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import { toUploadDetails, uploadCoreService } from '@/shared/uploads/services/upload-core.service';
 import type { PresignUploadRequest } from '@/shared/uploads/types/uploads.types';
+import { uow } from '@/shared/database/uow';
 import { createServiceContext, type ServiceContext } from '@/shared/types/service-context';
 
 const buildIntakeParticipantAbility = (): AppAbility => {
@@ -59,7 +60,7 @@ export const intakeFilesService = {
     };
 
     const prep = await uploadCoreService.preparePresign({ request: uploadRequest }, enrichedCtx);
-    return ctx.db.transaction((tx) =>
+    return uow.transaction(async () =>
       uploadCoreService.persistPresign({ prep, request: uploadRequest }, createServiceContext(enrichedBase))
     );
   },
@@ -71,7 +72,7 @@ export const intakeFilesService = {
 
     await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
     const uploadCorePrep = await uploadCoreService.prepareConfirm({ id: uploadId }, enrichedCtx);
-    return ctx.db.transaction((tx) =>
+    return uow.transaction(async () =>
       uploadCoreService.persistConfirm({ prep: uploadCorePrep }, createServiceContext(enrichedBase))
     );
   },
@@ -112,7 +113,7 @@ export const intakeFilesService = {
     await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
 
     const enrichedBase = buildEnrichedCtx(ctx, intake);
-    const result = await ctx.db.transaction((tx) =>
+    const result = await uow.transaction(async () =>
       uploadCoreService.softDelete({ id: uploadId, reason }, createServiceContext(enrichedBase))
     );
 

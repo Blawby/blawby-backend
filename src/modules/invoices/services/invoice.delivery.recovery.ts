@@ -1,3 +1,4 @@
+import { uow } from '@/shared/database/uow';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { SystemErrorOccurred } from '@/shared/events/definitions';
@@ -86,14 +87,16 @@ export const syncStripeState = async (
       ? statusMap[stripeStatus as keyof typeof statusMap]
       : currentInvoice.status;
 
-  await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
-    status: mappedStatus,
-    amount_paid: stripeInvoice.amount_paid,
-    amount_due: stripeInvoice.amount_remaining,
-    paid_at: stripeInvoice.status_transitions?.paid_at
-      ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
-      : null,
-  });
+  return uow.transaction(async () => {
+    await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
+      status: mappedStatus,
+      amount_paid: stripeInvoice.amount_paid,
+      amount_due: stripeInvoice.amount_remaining,
+      paid_at: stripeInvoice.status_transitions?.paid_at
+        ? new Date(stripeInvoice.status_transitions.paid_at * 1000)
+        : null,
+    });
 
-  return await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId);
+    return invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId);
+  });
 };

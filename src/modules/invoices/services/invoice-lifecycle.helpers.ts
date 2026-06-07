@@ -1,3 +1,4 @@
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { syncLineItems } from '@/modules/invoices/services/invoice-creation.helpers';
 import { calculateInvoiceTotals } from '@/modules/invoices/services/invoice.utils';
@@ -19,7 +20,7 @@ export const persistInvoiceUpdate = async (
   },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> =>
-  await ctx.db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     const { line_items, due_date: _dueDate, ...invoiceData } = data;
     let totals = {};
     const dueDateUpdate =
@@ -54,7 +55,7 @@ export const persistInvoiceUpdate = async (
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     }
