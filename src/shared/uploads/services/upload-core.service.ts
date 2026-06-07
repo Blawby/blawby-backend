@@ -490,17 +490,15 @@ const uploadCoreService = {
 
     await uploadsRepository.updateLastAccessed(id, ctx.userId);
 
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'viewed',
-        user_id: ctx.userId,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        metadata: { kind: 'thumbnail', width, height, fit },
-      },
-    );
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'viewed',
+      user_id: ctx.userId,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      metadata: { kind: 'thumbnail', width, height, fit },
+    });
 
     return {
       thumbnail_url: thumbnailUrl,
@@ -526,14 +524,12 @@ const uploadCoreService = {
 
     await uploadsRepository.updateLastAccessed(id, ctx.userId);
 
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'viewed',
-        user_id: ctx.userId,
-      },
-    );
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'viewed',
+      user_id: ctx.userId,
+    });
 
     return toUploadDetails(upload, enrichmentMap.get(upload.id) ?? defaultUploadMetadataEnrichment);
   },
@@ -656,4 +652,4 @@ const uploadCoreService = {
 
 logger.debug('Upload core service initialized');
 
-export { uploadCoreService };
+export { toUploadDetails, uploadCoreService };
