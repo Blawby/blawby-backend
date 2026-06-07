@@ -1,23 +1,24 @@
-import { getLogger } from '@logtape/logtape';
-import { eq, and, inArray, or, isNull } from 'drizzle-orm';
-import type { Stripe } from 'stripe';
+import { PRACTICE_ENTITLED_STATUSES } from '@/modules/subscriptions/constants/subscription-statuses';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { stripePrices } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
 import type { SubscriptionItemType } from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
-import { PRACTICE_ENTITLED_STATUSES } from '@/modules/subscriptions/constants/subscription-statuses';
+// oxlint-disable-next-line import/no-namespace
 import * as schema from '@/schema';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { SubscriptionCreated } from '@/shared/events/definitions';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { fromStripeTimestamp } from '@/shared/utils/timestamps';
-import { getActiveTx } from '@/shared/database/uow';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['subscriptions', 'lifecycle']);
 
 // ---------------------------------------------------------------------------
-// syncSubscriptionToOrg
+// SyncSubscriptionToOrg
 // ---------------------------------------------------------------------------
 
-export const syncSubscriptionToOrg = async (params: {
+const syncSubscriptionToOrg = async (params: {
   stripeSubscription: Stripe.Subscription;
   subscriptionId: string;
   referenceId: string | null;
@@ -61,15 +62,15 @@ export const syncSubscriptionToOrg = async (params: {
   const stripeIdsToCancel: string[] = [];
   let cancelIncomingAndStop = false;
 
-  await getActiveTx().transaction(async (tx) => {
-    const [existingOrg] = await tx
+  await uow.transaction(async () => {
+    const [existingOrg] = await getActiveTx()
       .select({ activeSubscriptionId: schema.organizations.activeSubscriptionId })
       .from(schema.organizations)
       .where(eq(schema.organizations.id, organizationId))
       .limit(1);
 
     if (existingOrg?.activeSubscriptionId && existingOrg.activeSubscriptionId !== subscriptionId) {
-      const [oldSub] = await tx
+      const [oldSub] = await getActiveTx()
         .select()
         .from(schema.subscriptions)
         .where(eq(schema.subscriptions.id, existingOrg.activeSubscriptionId))
@@ -84,7 +85,7 @@ export const syncSubscriptionToOrg = async (params: {
             'Race condition: incoming subscription {incomingId} is OLDER than active {existingId}. Canceling incoming.',
             { incomingId: subscriptionId, existingId: oldSub.id }
           );
-          await tx
+          await getActiveTx()
             .update(schema.subscriptions)
             .set({ status: 'canceled', updatedAt: new Date() })
             .where(eq(schema.subscriptions.id, subscriptionId));
@@ -96,7 +97,7 @@ export const syncSubscriptionToOrg = async (params: {
             'Race condition: incoming subscription {incomingId} is NEWER than active {existingId}. Canceling existing.',
             { incomingId: subscriptionId, existingId: oldSub.id }
           );
-          await tx
+          await getActiveTx()
             .update(schema.subscriptions)
             .set({ status: 'canceled', updatedAt: new Date() })
             .where(eq(schema.subscriptions.id, oldSub.id));
@@ -108,7 +109,7 @@ export const syncSubscriptionToOrg = async (params: {
     }
 
     // Update org's active subscription pointer and customer ID
-    const updated = await tx
+    const updated = await getActiveTx()
       .update(schema.organizations)
       .set({ stripeCustomerId: customerId, activeSubscriptionId: subscriptionId })
       .where(eq(schema.organizations.id, organizationId))
@@ -119,7 +120,7 @@ export const syncSubscriptionToOrg = async (params: {
     }
 
     // Sync subscription row fields
-    await tx
+    await getActiveTx()
       .update(schema.subscriptions)
       .set({
         stripeSubscriptionId: stripeSubscription.id,
@@ -144,7 +145,7 @@ export const syncSubscriptionToOrg = async (params: {
       // Batch-fetch DB prices to resolve internal_type without N+1 queries
       const stripePriceIds = stripeSubscription.items.data.map((item) => item.price.id);
       const dbPrices = stripePriceIds.length
-        ? await tx
+        ? await getActiveTx()
             .select({ stripe_price_id: stripePrices.stripe_price_id, internal_type: stripePrices.internal_type })
             .from(stripePrices)
             .where(inArray(stripePrices.stripe_price_id, stripePriceIds))
@@ -181,7 +182,7 @@ export const syncSubscriptionToOrg = async (params: {
   });
 
   // Cancel stale Stripe subscriptions after the transaction commits — keeps
-  // lock duration short and avoids partial rollback leaving Stripe inconsistent.
+  // Lock duration short and avoids partial rollback leaving Stripe inconsistent.
   for (const stripeId of stripeIdsToCancel) {
     try {
       await getStripeInstance().subscriptions.cancel(stripeId);
@@ -193,7 +194,9 @@ export const syncSubscriptionToOrg = async (params: {
     }
   }
 
-  if (cancelIncomingAndStop) return;
+  if (cancelIncomingAndStop) {
+    return;
+  }
 
   // Idempotent SubscriptionCreated dispatch
   if (subscriptionSynced && !hadCreatedEvent) {
@@ -202,18 +205,18 @@ export const syncSubscriptionToOrg = async (params: {
         subscription_id: subscriptionId,
         stripe_subscription_id: stripeSubscription.id,
         plan_name: planName,
-        organization_id: organizationId!,
+        organization_id: organizationId,
       },
-      { actorId: 'system', organizationId: organizationId!, critical: true }
+      { actorId: 'system', organizationId, critical: true }
     );
   }
 };
 
 // ---------------------------------------------------------------------------
-// attachMeteredPricesToSubscription
+// AttachMeteredPricesToSubscription
 // ---------------------------------------------------------------------------
 
-export const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subscription): Promise<void> => {
+const attachMeteredPricesToSubscription = async (stripeSubscription: Stripe.Subscription): Promise<void> => {
   const stripe = getStripeInstance();
   const liveSub = await stripe.subscriptions.retrieve(stripeSubscription.id);
   const existingPriceIds = new Set(liveSub.items.data.map((i) => i.price.id));
@@ -228,7 +231,9 @@ export const attachMeteredPricesToSubscription = async (stripeSubscription: Stri
     )
   ) as string[];
 
-  if (productIds.length === 0) return;
+  if (productIds.length === 0) {
+    return;
+  }
 
   const meteredPrices = await getActiveTx()
     .select({ stripe_price_id: stripePrices.stripe_price_id })
@@ -246,7 +251,9 @@ export const attachMeteredPricesToSubscription = async (stripeSubscription: Stri
     .filter((id) => !existingPriceIds.has(id))
     .sort();
 
-  if (toAdd.length === 0) return;
+  if (toAdd.length === 0) {
+    return;
+  }
 
   const idempotencyKey = `attach-metered-${stripeSubscription.id}-${toAdd.join(',')}`;
   await stripe.subscriptions.update(
@@ -274,7 +281,9 @@ const resolveLocalSubscription = async (stripeSubscription: Stripe.Subscription)
       .from(schema.subscriptions)
       .where(eq(schema.subscriptions.id, metaId))
       .limit(1);
-    if (sub) return sub;
+    if (sub) {
+      return sub;
+    }
   }
 
   // Fall back: look up by Stripe subscription ID
@@ -287,15 +296,17 @@ const resolveLocalSubscription = async (stripeSubscription: Stripe.Subscription)
 };
 
 // ---------------------------------------------------------------------------
-// handleSubscriptionEvent — called by webhook worker for customer.subscription.*
-// and checkout.session.completed
+// HandleSubscriptionEvent — called by webhook worker for customer.subscription.*
+// And checkout.session.completed
 // ---------------------------------------------------------------------------
 
 export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void> => {
   switch (event.type) {
     case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (session.mode !== 'subscription') return;
+      const session = event.data.object;
+      if (session.mode !== 'subscription') {
+        return;
+      }
 
       const stripeSubscriptionId =
         typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
@@ -329,7 +340,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
     }
 
     case 'customer.subscription.created': {
-      const stripeSub = event.data.object as Stripe.Subscription;
+      const stripeSub = event.data.object;
       const localSub = await resolveLocalSubscription(stripeSub);
 
       if (!localSub) {
@@ -353,7 +364,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
     }
 
     case 'customer.subscription.updated': {
-      const stripeSub = event.data.object as Stripe.Subscription;
+      const stripeSub = event.data.object;
       const localSub = await resolveLocalSubscription(stripeSub);
       if (!localSub) {
         logger.warn('No local subscription found for customer.subscription.updated {stripeSubId}', {
@@ -362,12 +373,12 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
         return;
       }
 
-      await getActiveTx().transaction(async (tx) => {
+      await uow.transaction(async () => {
         if (localSub.referenceId) {
           const isEntitled = (PRACTICE_ENTITLED_STATUSES as readonly string[]).includes(stripeSub.status);
           if (isEntitled) {
             // Only claim pointer if not already owned by a different subscription
-            await tx
+            await getActiveTx()
               .update(schema.organizations)
               .set({ activeSubscriptionId: localSub.id })
               .where(
@@ -381,7 +392,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
               );
           } else {
             // Only clear pointer if it still points to this subscription
-            await tx
+            await getActiveTx()
               .update(schema.organizations)
               .set({ activeSubscriptionId: null })
               .where(
@@ -394,7 +405,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
         }
 
         // Update subscription row
-        await tx
+        await getActiveTx()
           .update(schema.subscriptions)
           .set({
             status: stripeSub.status,
@@ -414,7 +425,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
         if (stripeSub.items?.data) {
           const updatedPriceIds = stripeSub.items.data.map((item) => item.price.id);
           const updatedDbPrices = updatedPriceIds.length
-            ? await tx
+            ? await getActiveTx()
                 .select({ stripe_price_id: stripePrices.stripe_price_id, internal_type: stripePrices.internal_type })
                 .from(stripePrices)
                 .where(inArray(stripePrices.stripe_price_id, updatedPriceIds))
@@ -459,7 +470,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
             metadata: { from_plan_name: localSub.plan, to_plan_name: newDbPrice?.name ?? localSub.plan },
           });
           if (newDbPrice?.name) {
-            await tx
+            await getActiveTx()
               .update(schema.subscriptions)
               .set({ plan: newDbPrice.name, updatedAt: new Date() })
               .where(eq(schema.subscriptions.id, localSub.id));
@@ -470,7 +481,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
     }
 
     case 'customer.subscription.deleted': {
-      const stripeSub = event.data.object as Stripe.Subscription;
+      const stripeSub = event.data.object;
       const localSub = await resolveLocalSubscription(stripeSub);
       if (!localSub) {
         logger.warn('No local subscription found for customer.subscription.deleted {stripeSubId}', {
@@ -479,9 +490,9 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
         return;
       }
 
-      await getActiveTx().transaction(async (tx) => {
+      await uow.transaction(async () => {
         if (localSub.referenceId) {
-          await tx
+          await getActiveTx()
             .update(schema.organizations)
             .set({ activeSubscriptionId: null })
             .where(
@@ -492,7 +503,7 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
             );
         }
 
-        await tx
+        await getActiveTx()
           .update(schema.subscriptions)
           .set({ status: 'canceled', updatedAt: new Date() })
           .where(eq(schema.subscriptions.id, localSub.id));
@@ -511,9 +522,11 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
 
     case 'customer.subscription.paused':
     case 'customer.subscription.trial_will_end': {
-      const stripeSub = event.data.object as Stripe.Subscription;
+      const stripeSub = event.data.object;
       const localSub = await resolveLocalSubscription(stripeSub);
-      if (!localSub) return;
+      if (!localSub) {
+        return;
+      }
 
       await subscriptionRepository.createEvent({
         subscription_id: localSub.id,
@@ -529,3 +542,5 @@ export const handleSubscriptionEvent = async (event: Stripe.Event): Promise<void
       logger.warn('Unhandled subscription event type: {type}', { type: event.type });
   }
 };
+
+export { attachMeteredPricesToSubscription, syncSubscriptionToOrg };

@@ -41,7 +41,7 @@ export const upsertDetailsTransaction = async (
   let addressResult: AddressData | null = null;
 
   if (params.data.address && Object.keys(params.data.address).length > 0) {
-    const address = await upsertAddressTx(tx, {
+    const address = await upsertAddressTx({
       addressData: params.data.address,
       organizationId: params.organizationId,
       addressId,

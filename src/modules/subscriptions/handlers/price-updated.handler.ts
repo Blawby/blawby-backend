@@ -6,10 +6,9 @@
  * Does NOT modify is_active — that's our own control flag
  */
 
-import type Stripe from 'stripe';
-import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+import { getLogger } from '@logtape/logtape';
+import type Stripe from 'stripe';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-updated']);
 

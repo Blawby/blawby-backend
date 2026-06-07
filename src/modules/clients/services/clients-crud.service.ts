@@ -1,22 +1,22 @@
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
+import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
+import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
+import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
+import type { AddressInput } from '@/modules/clients/types';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import type { Address } from '@/modules/practice/database/schema/addresses.schema';
+import type { users } from '@/schema/better-auth-schema';
+import { toSubject } from '@/shared/auth/subject-helpers';
+import { uow } from '@/shared/database/uow';
+import { ClientCreated, ClientDeleted, ClientUpdated } from '@/shared/events/definitions';
+import { membersRepository } from '@/shared/repositories/members.repository';
+import usersRepository from '@/shared/repositories/users.repository';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
-import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
-import type { Address } from '@/modules/practice/database/schema/addresses.schema';
-import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
-import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
-import type { AddressInput } from '@/modules/clients/types';
-import type { users } from '@/schema/better-auth-schema';
-import { toSubject } from '@/shared/auth/subject-helpers';
-import { uow } from '@/shared/database/uow';
-import { ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
-import { membersRepository } from '@/shared/repositories/members.repository';
-import usersRepository from '@/shared/repositories/users.repository';
-import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['clients', 'crud-service']);
 

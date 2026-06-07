@@ -1,8 +1,7 @@
-import type Stripe from 'stripe';
-import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { sanitizeError } from '@/shared/utils/logging';
+import { getLogger } from '@logtape/logtape';
+import type Stripe from 'stripe';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-deleted']);
 

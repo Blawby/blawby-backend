@@ -1,6 +1,5 @@
 import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { sanitizeError } from '@/shared/utils/logging';
 
