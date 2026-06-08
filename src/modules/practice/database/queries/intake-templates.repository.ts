@@ -7,13 +7,12 @@ import {
   type InsertIntakeTemplate,
   type InsertIntakeTemplateField,
 } from '@/modules/practice/database/schema/intake-templates.schema';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 type TemplateWithFields = IntakeTemplate & { fields: IntakeTemplateField[] };
 
 const withFields = async (template: IntakeTemplate): Promise<TemplateWithFields> => {
-  const fields = await db
+  const fields = await getActiveTx()
     .select()
     .from(intakeTemplateFields)
     .where(eq(intakeTemplateFields.template_id, template.id))
@@ -22,16 +21,19 @@ const withFields = async (template: IntakeTemplate): Promise<TemplateWithFields>
 };
 
 const findById = async (id: string): Promise<TemplateWithFields | undefined> => {
-  const [template] = await db.select().from(intakeTemplates).where(eq(intakeTemplates.id, id)).limit(1);
+  const [template] = await getActiveTx().select().from(intakeTemplates).where(eq(intakeTemplates.id, id)).limit(1);
   if (!template) return undefined;
   return withFields(template);
 };
 
 const findByOrganization = async (organizationId: string): Promise<TemplateWithFields[]> => {
-  const templates = await db.select().from(intakeTemplates).where(eq(intakeTemplates.organization_id, organizationId));
+  const templates = await getActiveTx()
+    .select()
+    .from(intakeTemplates)
+    .where(eq(intakeTemplates.organization_id, organizationId));
   if (templates.length === 0) return [];
 
-  const allFields = await db
+  const allFields = await getActiveTx()
     .select()
     .from(intakeTemplateFields)
     .where(
@@ -53,7 +55,7 @@ const findByOrganization = async (organizationId: string): Promise<TemplateWithF
 };
 
 const findPublishedDefaultByOrganization = async (organizationId: string): Promise<TemplateWithFields | undefined> => {
-  const [template] = await db
+  const [template] = await getActiveTx()
     .select()
     .from(intakeTemplates)
     .where(
@@ -68,10 +70,7 @@ const findPublishedDefaultByOrganization = async (organizationId: string): Promi
   return withFields(template);
 };
 
-const create = async (
-  data: InsertIntakeTemplate,
-  fields: InsertIntakeTemplateField[]
-): Promise<TemplateWithFields> => {
+const create = async (data: InsertIntakeTemplate, fields: InsertIntakeTemplateField[]): Promise<TemplateWithFields> => {
   const [template] = await getActiveTx().insert(intakeTemplates).values(data).returning();
   if (!template) throw new Error('Failed to insert intake template');
 

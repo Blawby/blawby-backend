@@ -17,7 +17,8 @@ export const listClientsRoute = routeBuilder.build({
   description: 'Get all clients for an organization.',
   mcp: {
     scope: 'clients:read',
-    handler: async (args, ctx) => clientsService.listClients(args as Parameters<typeof clientsService.listClients>[0], ctx),
+    handler: async (args, ctx) =>
+      clientsService.listClients(args as Parameters<typeof clientsService.listClients>[0], ctx),
   },
   request: {
     params: practiceParamsSchema,

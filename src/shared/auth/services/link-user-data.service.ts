@@ -5,9 +5,9 @@ import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { members, users } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import { PracticeMemberJoined } from '@/shared/events/definitions';
+import { getActiveTx, uow } from '@/shared/database/uow';
 
 const logger: Logger = getLogger(['auth', 'link-service']);
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const MEMBER_ROLE_CLIENT = 'client' as const;
 
@@ -18,9 +18,8 @@ const MEMBER_ROLE_CLIENT = 'client' as const;
 export const linkAnonymousUserData = async (params: {
   anonymousUser: { id: string; email: string };
   newUser: { id: string; email: string };
-  tx?: DbTx;
 }): Promise<void> => {
-  const { anonymousUser, newUser, tx } = params;
+  const { anonymousUser, newUser } = params;
 
   logger.info('Linking anonymous user {anonId} to new user {newId}', {
     anonId: anonymousUser.id,
@@ -32,7 +31,9 @@ export const linkAnonymousUserData = async (params: {
     options: { actorId: string; organizationId: string };
   }[] = [];
 
-  const run = async (txContext: DbTx) => {
+  const run = async () => {
+    const txContext = getActiveTx();
+
     // 1. Move organization memberships
     const anonMemberships: (typeof members.$inferSelect)[] = await txContext
       .select()
@@ -134,10 +135,10 @@ export const linkAnonymousUserData = async (params: {
     }
   };
 
-  if (tx) {
-    await run(tx);
+  if (getActiveTx() !== db) {
+    await run();
   } else {
-    await db.transaction(run);
+    await uow.transaction(run);
   }
 
   logger.info('Successfully linked data from anonymous user {anonId} to {newId}', {

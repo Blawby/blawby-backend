@@ -4,7 +4,6 @@ import type { SelectMatterMilestone } from '@/modules/matters/database/schema/ma
 import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter
@@ -116,7 +115,7 @@ const listMattersByOrganization = async (
 
   // Handle assignee filter separately with join
   if (filters?.assigneeId) {
-    results = await db
+    results = await getActiveTx()
       .select(getTableColumns(matters))
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
@@ -125,7 +124,7 @@ const listMattersByOrganization = async (
       .limit(limit)
       .offset(offset);
   } else {
-    results = await db
+    results = await getActiveTx()
       .select()
       .from(matters)
       .where(and(...conditions))
@@ -137,13 +136,13 @@ const listMattersByOrganization = async (
   // Get total count (must include assignee join if filtering by assignee)
   let countResult: { count: number };
   if (filters?.assigneeId) {
-    [countResult] = await db
+    [countResult] = await getActiveTx()
       .select({ count: sql<number>`count(*)` })
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
       .where(and(...conditions, eq(matterAssignees.user_id, filters.assigneeId)));
   } else {
-    [countResult] = await db
+    [countResult] = await getActiveTx()
       .select({ count: sql<number>`count(*)` })
       .from(matters)
       .where(and(...conditions));
@@ -156,10 +155,7 @@ const listMattersByOrganization = async (
 };
 
 // Update matter
-const updateMatter = async (
-  id: string,
-  data: Partial<InsertMatter>
-): Promise<SelectMatter | undefined> => {
+const updateMatter = async (id: string, data: Partial<InsertMatter>): Promise<SelectMatter | undefined> => {
   const [matter] = await getActiveTx()
     .update(matters)
     .set({ ...data, updated_at: new Date() })
@@ -184,12 +180,12 @@ const softDeleteMatter = async (id: string, deletedBy: string): Promise<SelectMa
 
 // Hard delete matter
 const deleteMatter = async (id: string): Promise<void> => {
-  await db.delete(matters).where(eq(matters.id, id));
+  await getActiveTx().delete(matters).where(eq(matters.id, id));
 };
 
 // Get matter counts by status
 const getMatterCountsByStatus = async (organizationId: string): Promise<{ status: string; count: number }[]> =>
-  await db
+  await getActiveTx()
     .select({
       status: matters.status,
       count: sql<number>`count(*)`,
@@ -209,7 +205,7 @@ const getMattersSummaryByOriginatingAttorney = async (
     closed_matters: number;
   }[]
 > => {
-  const rows = await db
+  const rows = await getActiveTx()
     .select({
       originating_attorney_id: matters.originating_attorney_id,
       total_matters: sql<number>`count(*)::int`,
@@ -265,7 +261,7 @@ interface MatterAssignee {
 }
 
 const getMatterAssignees = async (matterId: string): Promise<MatterAssignee[]> =>
-  await db
+  await getActiveTx()
     .select({
       id: users.id,
       name: users.name,

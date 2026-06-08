@@ -221,12 +221,11 @@ const sendEngagementContract = async (
 };
 
 const createMatterFromAcceptedContract = async (params: {
-    contract: SelectEngagementContract;
-    intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
-    userId: string;
-    acceptedAt: Date;
-  }
-): Promise<string> => {
+  contract: SelectEngagementContract;
+  intake: Awaited<ReturnType<typeof practiceClientIntakesRepository.findById>>;
+  userId: string;
+  acceptedAt: Date;
+}): Promise<string> => {
   const { contract, intake, userId, acceptedAt } = params;
   if (!intake) throw new Error('Intake not found');
 
@@ -262,30 +261,36 @@ const createMatterFromAcceptedContract = async (params: {
   });
 
   if (intake.court_date) {
-    await getActiveTx().insert(matterMilestones).values({
-      matter_id: matter.id,
-      description: 'Court Date from Intake',
-      amount: 0,
-      due_date: intake.court_date.toISOString().split('T')[0],
-      status: 'pending',
-      order: 999,
-    });
+    await getActiveTx()
+      .insert(matterMilestones)
+      .values({
+        matter_id: matter.id,
+        description: 'Court Date from Intake',
+        amount: 0,
+        due_date: intake.court_date.toISOString().split('T')[0],
+        status: 'pending',
+        order: 999,
+      });
   }
 
   if (intake.desired_outcome) {
-    await getActiveTx().insert(matterNotes).values({
-      matter_id: matter.id,
-      user_id: userId,
-      content: `Desired outcome: ${intake.desired_outcome}`,
-    });
+    await getActiveTx()
+      .insert(matterNotes)
+      .values({
+        matter_id: matter.id,
+        user_id: userId,
+        content: `Desired outcome: ${intake.desired_outcome}`,
+      });
   }
 
   if (typeof intake.case_strength === 'number') {
-    await getActiveTx().insert(matterNotes).values({
-      matter_id: matter.id,
-      user_id: userId,
-      content: `Case strength score from intake: ${intake.case_strength}`,
-    });
+    await getActiveTx()
+      .insert(matterNotes)
+      .values({
+        matter_id: matter.id,
+        user_id: userId,
+        content: `Case strength score from intake: ${intake.case_strength}`,
+      });
   }
 
   return matter.id;

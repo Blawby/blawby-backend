@@ -1,15 +1,17 @@
 import { eq, inArray, and } from 'drizzle-orm';
 import { practiceServices, type PracticeService } from '@/modules/practice/database/schema/practice.schema';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 const findServicesByOrganization = async (organizationId: string): Promise<PracticeService[]> =>
-  await db.select().from(practiceServices).where(eq(practiceServices.organization_id, organizationId));
+  await getActiveTx().select().from(practiceServices).where(eq(practiceServices.organization_id, organizationId));
 
 const findServicesByOrganizations = async (organizationIds: string[]): Promise<PracticeService[]> =>
   organizationIds.length === 0
     ? []
-    : await db.select().from(practiceServices).where(inArray(practiceServices.organization_id, organizationIds));
+    : await getActiveTx()
+        .select()
+        .from(practiceServices)
+        .where(inArray(practiceServices.organization_id, organizationIds));
 
 const syncServicesTx = async (
   organizationId: string,
@@ -25,15 +27,17 @@ const syncServicesTx = async (
   if (existingServices.length > 0) {
     const servicesToDelete = existingServices.filter((s) => !newServiceIds.includes(s.id));
     if (servicesToDelete.length > 0) {
-      await getActiveTx().delete(practiceServices).where(
-        and(
-          eq(practiceServices.organization_id, organizationId),
-          inArray(
-            practiceServices.id,
-            servicesToDelete.map((s) => s.id)
+      await getActiveTx()
+        .delete(practiceServices)
+        .where(
+          and(
+            eq(practiceServices.organization_id, organizationId),
+            inArray(
+              practiceServices.id,
+              servicesToDelete.map((s) => s.id)
+            )
           )
-        )
-      );
+        );
     }
   }
 
@@ -69,7 +73,7 @@ const syncServicesTx = async (
 };
 
 const findById = async (id: string): Promise<PracticeService | undefined> => {
-  const [service] = await db.select().from(practiceServices).where(eq(practiceServices.id, id)).limit(1);
+  const [service] = await getActiveTx().select().from(practiceServices).where(eq(practiceServices.id, id)).limit(1);
   return service;
 };
 

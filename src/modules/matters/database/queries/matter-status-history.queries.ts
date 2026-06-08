@@ -6,9 +6,7 @@ import {
 } from '@/modules/matters/database/schema/matter-status-history.schema';
 import { getActiveTx } from '@/shared/database/uow';
 
-const createMatterStatusHistory = async (
-  data: InsertMatterStatusHistory
-): Promise<SelectMatterStatusHistory> => {
+const createMatterStatusHistory = async (data: InsertMatterStatusHistory): Promise<SelectMatterStatusHistory> => {
   const [entry] = await getActiveTx().insert(matterStatusHistory).values(data).returning();
   if (!entry) {
     throw new Error('Failed to create matter status history entry');

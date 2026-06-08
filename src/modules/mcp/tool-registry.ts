@@ -90,14 +90,13 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
         | Record<string, unknown>
         | undefined;
       const bodySchema = jsonSchema?.['application/json'] as Record<string, unknown> | undefined;
-      const bodyShape = ((bodySchema?.['schema'] as ZodObject<ZodRawShape> | undefined)?.shape as ZodRawShape | undefined) ?? {};
+      const bodyShape =
+        ((bodySchema?.['schema'] as ZodObject<ZodRawShape> | undefined)?.shape as ZodRawShape | undefined) ?? {};
 
       // Path params — exclude org-scoping fields (practice_id, organization_id)
       const orgParams = new Set(['practice_id', 'organization_id']);
       const paramsShape = (req?.['params'] as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
-      const filteredParams = Object.fromEntries(
-        Object.entries(paramsShape).filter(([k]) => !orgParams.has(k)),
-      );
+      const filteredParams = Object.fromEntries(Object.entries(paramsShape).filter(([k]) => !orgParams.has(k)));
 
       // Query params
       const queryShape = (req?.['query'] as ZodObject<ZodRawShape> | undefined)?.shape ?? {};

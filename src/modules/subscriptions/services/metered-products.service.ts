@@ -13,14 +13,11 @@ import { sql, and, eq } from 'drizzle-orm';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
 import { organizations, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
-import { db as appDb } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { getActiveTx } from '@/shared/database/uow';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
-
-type DbOrTx = typeof appDb | Parameters<Parameters<typeof appDb.transaction>[0]>[0];
 
 const METER_USAGE_REPORTED = 'meter_usage.reported';
 
@@ -123,11 +120,10 @@ const reportMeteredUsage = async function reportMeteredUsage(
 };
 
 const getCurrentUsage = async function getCurrentUsage(
-  db: DbOrTx,
   organizationId: string
 ): Promise<{ meter_name: string; quantity: number; description: string | null }[]> {
   // 1. Get organization's active subscription to find current period start
-  const [org] = await db
+  const [org] = await getActiveTx()
     .select({
       activeSubscriptionId: organizations.activeSubscriptionId,
     })
@@ -137,7 +133,7 @@ const getCurrentUsage = async function getCurrentUsage(
 
   let periodStart: Date | null = null;
   if (org?.activeSubscriptionId) {
-    const [sub] = await db
+    const [sub] = await getActiveTx()
       .select({
         periodStart: subscriptions.periodStart,
       })
@@ -148,7 +144,7 @@ const getCurrentUsage = async function getCurrentUsage(
   }
 
   // 2. Aggregate usage within the current period
-  const usage = await db
+  const usage = await getActiveTx()
     .select({
       meter_name: sql<string>`${events.payload}->>'meter_event_name'`,
       quantity: sql<number>`CAST(SUM(CAST(${events.payload}->>'quantity' AS INTEGER)) AS INTEGER)`,

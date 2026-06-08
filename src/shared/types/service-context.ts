@@ -1,9 +1,9 @@
 // oxlint-disable typescript/no-unsafe-assignment
-import type { Context } from 'hono';
 import { defineAbilityFor, type AppAbility } from '@/shared/auth/abilities';
 import type { DispatchOptions, EventClass } from '@/shared/events/event';
+import { getActiveTx } from '@/shared/database/uow';
 import type { User } from '@/shared/types/BetterAuth';
-import { db } from '@/shared/database';
+import type { Context } from 'hono';
 
 type SystemUser = Pick<User, 'id' | 'email' | 'name'>;
 
@@ -15,11 +15,7 @@ export interface ServiceContext {
   memberRole: string | null;
   ability: AppAbility;
   requestHeaders: Record<string, string>;
-  // Database executor for this context. May be the global `db` or a transaction executor.
-  db: typeof db;
-
-  // Emit an event. Optional `tx` may be provided to override ctx.db.
-  emit: <T extends Record<string, unknown>>(event: EventClass<T>, payload: T, tx?: typeof db) => Promise<string>;
+  emit: <T extends Record<string, unknown>>(event: EventClass<T>, payload: T) => Promise<string>;
 }
 
 export const getServiceContext = (c: Context): ServiceContext => {
@@ -37,43 +33,35 @@ export const getServiceContext = (c: Context): ServiceContext => {
     requestHeaders: c.req.header(),
   } as const;
 
-  return createServiceContext(base, db);
+  return createServiceContext(base);
 };
 
 /**
  * Creates a system/background ServiceContext for use in listeners or batch jobs.
  */
 export const createSystemContext = (organizationId: string, userId = 'system'): ServiceContext =>
-  createServiceContext(
-    {
-      userId,
-      user: { id: userId, email: 'system@blawby.com', name: 'System' } as SystemUser as User,
-      organizationId,
-      memberRole: 'admin',
-      ability: defineAbilityFor('admin'),
-      requestHeaders: {},
-    },
-    db
-  );
+  createServiceContext({
+    userId,
+    user: { id: userId, email: 'system@blawby.com', name: 'System' } as SystemUser as User,
+    organizationId,
+    memberRole: 'admin',
+    ability: defineAbilityFor('admin'),
+    requestHeaders: {},
+  });
 
 /**
- * Create a ServiceContext given base properties and an optional DB executor.
- * By default `executor` is the global `db`. Handlers should call `createServiceContext(base, tx)`
- * when they open a transaction.
+ * Create a ServiceContext given base properties.
+ * Event dispatch resolves the active transaction through AsyncLocalStorage.
  */
-export const createServiceContext = (
-  base: Omit<ServiceContext, 'db' | 'emit'>,
-  executor: typeof db = db
-): ServiceContext => {
+export const createServiceContext = (base: Omit<ServiceContext, 'emit'>): ServiceContext => {
   const { userId, organizationId } = base as { userId: string; organizationId: string };
   return {
     ...base,
-    db: executor,
-    emit: (event, payload, tx) => {
+    emit: (event, payload) => {
       const options: DispatchOptions = {
         actorId: userId,
         organizationId,
-        tx: tx ?? executor,
+        tx: getActiveTx(),
       };
       const result = event.dispatch(payload, options);
       return result instanceof Promise ? result : Promise.resolve(result);

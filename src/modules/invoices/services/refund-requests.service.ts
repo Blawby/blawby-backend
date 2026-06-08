@@ -135,10 +135,9 @@ const createRequest = async (
       throw new HTTPException(400, { message: 'Refunds can only be requested for paid invoices' });
     }
 
-    const existingRefunds = await refundRequestsQueries.listByOrganization(
-      ctx.organizationId,
-      { invoice_id: opts.invoiceId }
-    );
+    const existingRefunds = await refundRequestsQueries.listByOrganization(ctx.organizationId, {
+      invoice_id: opts.invoiceId,
+    });
 
     const blockingStatuses: readonly SelectRefundRequest['status'][] = ['requested', 'approved', 'executing'];
     if (existingRefunds.some((r) => blockingStatuses.includes(r.status))) {
@@ -162,18 +161,16 @@ const createRequest = async (
       });
     }
 
-    const req = await refundRequestsQueries.create(
-      {
-        organization_id: ctx.organizationId,
-        invoice_id: opts.invoiceId,
-        client_user_details_id: clientUserDetailsId,
-        created_by_user_details_id: clientUserDetailsId,
-        requested_amount: opts.requestedAmount,
-        reason: opts.reason,
-        notes: opts.notes,
-        status: 'requested',
-      }
-    );
+    const req = await refundRequestsQueries.create({
+      organization_id: ctx.organizationId,
+      invoice_id: opts.invoiceId,
+      client_user_details_id: clientUserDetailsId,
+      created_by_user_details_id: clientUserDetailsId,
+      requested_amount: opts.requestedAmount,
+      reason: opts.reason,
+      notes: opts.notes,
+      status: 'requested',
+    });
 
     return req;
   });
@@ -305,10 +302,9 @@ const executeRefund = async (
         .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, ctx.organizationId)))
         .for('update');
 
-      const priorRefunds = await refundRequestsQueries.listByOrganization(
-        ctx.organizationId,
-        { invoice_id: invoice.id }
-      );
+      const priorRefunds = await refundRequestsQueries.listByOrganization(ctx.organizationId, {
+        invoice_id: invoice.id,
+      });
       const reservedStatuses: readonly SelectRefundRequest['status'][] = [
         'requested',
         'approved',

@@ -6,15 +6,13 @@
 
 import { getLogger } from '@logtape/logtape';
 import { eq, desc, and, gte, count } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { HTTPException } from 'hono/http-exception';
 import {
   matterActivityLog,
   type SelectMatterActivityLog,
 } from '@/modules/matters/database/schema/matter-activity-log.schema';
 import type { MatterActivityListFilters } from '@/modules/matters/types/matter-filters.types';
-import type * as schema from '@/schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['matters', 'services', 'activity']);
@@ -29,8 +27,7 @@ const logMatterActivity = async (
     metadata?: Record<string, unknown>;
     matterId?: string;
   },
-  ctx: ServiceContext,
-  tx?: NodePgDatabase<typeof schema>
+  ctx: ServiceContext
 ): Promise<void> => {
   const matterId = params.matterId ?? ctx.matterId;
 
@@ -43,20 +40,21 @@ const logMatterActivity = async (
   }
 
   try {
-    const client = tx ?? db;
-    await client.insert(matterActivityLog).values({
-      matter_id: matterId,
-      user_id: ctx.userId || null,
-      action: params.action,
-      description: params.description,
-      metadata: params.metadata ?? null,
-    });
+    await getActiveTx()
+      .insert(matterActivityLog)
+      .values({
+        matter_id: matterId,
+        user_id: ctx.userId || null,
+        action: params.action,
+        description: params.description,
+        metadata: params.metadata ?? null,
+      });
   } catch (error) {
     logger.error('Failed to insert activity log for matter {matterId}: {error}', {
       matterId,
       error: error instanceof Error ? error.message : String(error),
     });
-    if (tx) throw error;
+    throw error;
   }
 };
 
@@ -79,7 +77,7 @@ const getMatterActivity = async (
   const offset = options?.offset ?? 0;
 
   if (options?.activityId) {
-    const [activity] = await db
+    const [activity] = await getActiveTx()
       .select()
       .from(matterActivityLog)
       .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, options.activityId)))
@@ -87,7 +85,7 @@ const getMatterActivity = async (
     return activity ? [activity] : [];
   }
 
-  return db
+  return getActiveTx()
     .select()
     .from(matterActivityLog)
     .where(eq(matterActivityLog.matter_id, matterId))
@@ -105,7 +103,7 @@ const getMatterActivityCount = async (options: { since: Date }, ctx: ServiceCont
   const { mattersService } = await import('@/modules/matters/services/matters.service');
   await mattersService.verifyMatterAccess(matterId, ctx);
 
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({ count: count() })
     .from(matterActivityLog)
     .where(and(eq(matterActivityLog.matter_id, matterId), gte(matterActivityLog.created_at, options.since)));

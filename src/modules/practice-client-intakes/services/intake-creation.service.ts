@@ -3,7 +3,7 @@ import type { Stripe } from 'stripe';
 import { fundManagement } from '@/engines/financial';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
 import { mapIntakeTemplateFieldToPublicSettings } from '@/modules/practice/utils/intake-template.utils';
 import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
@@ -20,7 +20,7 @@ import type {
   IntakeSettingsResponse,
   UpdatePracticeClientIntakeRequest,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { uow, type Tx } from '@/shared/database/uow';
+import { uow } from '@/shared/database/uow';
 import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -113,12 +113,10 @@ const insertIntakeRecord = async (params: {
   stripePaymentLinkId: string | null;
   shouldBypassPayment: boolean;
   validatedUserId?: string;
-  tx: Tx;
-  practiceClientIntakesRepository: typeof practiceClientIntakesRepository;
 }): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined = undefined;
   if (params.request.address) {
-    const addressRecord = await upsertAddressTx({
+    const addressRecord = await upsertAddress({
       addressData: params.request.address,
       organizationId: params.organizationId,
       userId: params.validatedUserId,
@@ -165,7 +163,7 @@ const insertIntakeRecord = async (params: {
     ...(params.shouldBypassPayment && { succeeded_at: new Date() }),
   };
 
-  return params.practiceClientIntakesRepository.create(intakeData);
+  return practiceClientIntakesRepository.create(intakeData);
 };
 
 const createIntake = async (params: { data: IntakeCreationRequest }): Promise<CreateIntakeResponse> => {
@@ -236,7 +234,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
       });
     }
 
-    const intake = await uow.transaction(async ({ tx, repositories }) =>
+    const intake = await uow.transaction(async () =>
       insertIntakeRecord({
         request,
         resolvedAmount,
@@ -247,8 +245,6 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
         stripePaymentLinkId: stripePaymentLink?.id ?? null,
         shouldBypassPayment,
         validatedUserId,
-        tx,
-        practiceClientIntakesRepository: repositories.practiceClientIntakesRepository,
       })
     );
 

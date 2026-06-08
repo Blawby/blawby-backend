@@ -1,15 +1,13 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { db } from '@/shared/database';
-import { buildUowRepositories, type UowRepositories } from '@/shared/database/uow.generated';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+const txStorage = new AsyncLocalStorage<Tx>();
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface UowContext {
   tx: Tx;
-  repositories: UowRepositories;
 }
-
-const txStorage = new AsyncLocalStorage<Tx>();
 
 /**
  * Returns the active transaction if inside uow.transaction(), otherwise the global db.
@@ -25,10 +23,8 @@ export const uow = {
   transaction<T>(fn: (ctx: UowContext) => Promise<T>): Promise<T> {
     const existing = txStorage.getStore();
     if (existing) {
-      return fn({ tx: existing, repositories: buildUowRepositories(existing) });
+      return fn({ tx: existing });
     }
-    return db.transaction((tx) =>
-      txStorage.run(tx, () => fn({ tx, repositories: buildUowRepositories(tx) }))
-    );
+    return db.transaction((tx) => txStorage.run(tx, () => fn({ tx })));
   },
 };

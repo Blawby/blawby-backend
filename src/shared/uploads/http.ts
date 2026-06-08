@@ -1,11 +1,12 @@
-import { z } from '@hono/zod-openapi';
-import { createHonoApp } from '@/shared/router/factory';
+import { uow } from '@/shared/database/uow';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { requireAuth } from '@/shared/middleware/requireAuth';
+import { createHonoApp } from '@/shared/router/factory';
 import { routeBuilder } from '@/shared/router/route-builder';
-import { createServiceContext, getServiceContext } from '@/shared/types/service-context';
+import { getServiceContext } from '@/shared/types/service-context';
 import { uploadCoreService } from '@/shared/uploads/services/upload-core.service';
 import { uploadValidations } from '@/shared/uploads/types/uploads.validation';
+import { z } from '@hono/zod-openapi';
 
 const uploadMutationResponseSchema = z.object({
   id: z.uuid(),
@@ -223,26 +224,20 @@ uploadsHttp.use('*', injectAbility());
 uploadsHttp.openapi(presignUploadRoute, async (c) => {
   const request = c.req.valid('json');
   const ctx = getServiceContext(c);
-  const { db, emit, ...baseCtx } = ctx;
 
   // External call outside transaction (avoids holding a DB connection during Cloudflare API call)
   const prep = await uploadCoreService.preparePresign({ request }, ctx);
-  const result = await db.transaction((tx) =>
-    uploadCoreService.persistPresign({ prep, request }, createServiceContext(baseCtx, tx))
-  );
+  const result = await uow.transaction(async () => uploadCoreService.persistPresign({ prep, request }, ctx));
   return c.json(result, 201);
 });
 
 uploadsHttp.openapi(confirmUploadRoute, async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const { db, emit, ...baseCtx } = ctx;
 
   // DB read + external verify outside transaction; only mutations run inside
   const prep = await uploadCoreService.prepareConfirm({ id }, ctx);
-  const result = await db.transaction((tx) =>
-    uploadCoreService.persistConfirm({ prep }, createServiceContext(baseCtx, tx))
-  );
+  const result = await uow.transaction(async () => uploadCoreService.persistConfirm({ prep }, ctx));
   return c.json(result, 200);
 });
 
@@ -287,22 +282,16 @@ uploadsHttp.openapi(deleteUploadRoute, async (c) => {
   const { id } = c.req.valid('param');
   const { reason } = c.req.valid('json');
   const ctx = getServiceContext(c);
-  const { db, emit, ...baseCtx } = ctx;
 
-  const result = await db.transaction((tx) =>
-    uploadCoreService.softDelete({ id, reason }, createServiceContext(baseCtx, tx))
-  );
+  const result = await uow.transaction(async () => uploadCoreService.softDelete({ id, reason }, ctx));
   return c.json(result, 200);
 });
 
 uploadsHttp.openapi(restoreUploadRoute, async (c) => {
   const { id } = c.req.valid('param');
   const ctx = getServiceContext(c);
-  const { db, emit, ...baseCtx } = ctx;
 
-  const result = await db.transaction((tx) =>
-    uploadCoreService.restoreUpload({ id }, createServiceContext(baseCtx, tx))
-  );
+  const result = await uow.transaction(async () => uploadCoreService.restoreUpload({ id }, ctx));
   return c.json(result, 200);
 });
 

@@ -8,9 +8,7 @@ import { matters } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import { getActiveTx } from '@/shared/database/uow';
 
-const createMatterTasks = async (
-  data: InsertMatterTask | InsertMatterTask[]
-): Promise<SelectMatterTask[]> => {
+const createMatterTasks = async (data: InsertMatterTask | InsertMatterTask[]): Promise<SelectMatterTask[]> => {
   const items = Array.isArray(data) ? data : [data];
   if (items.length === 0) {
     return [];

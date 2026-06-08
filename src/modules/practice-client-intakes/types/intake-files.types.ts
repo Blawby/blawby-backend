@@ -7,7 +7,7 @@ export type PresignBody = {
   file_size: number;
 };
 
-export type EnrichedServiceContextBase = Omit<ServiceContext, 'db' | 'emit'>;
+export type EnrichedServiceContextBase = Omit<ServiceContext, 'emit'>;
 
 export type PresignPrep = Awaited<ReturnType<typeof uploadCoreService.preparePresign>>;
 

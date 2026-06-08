@@ -59,17 +59,14 @@ const buildCompatContext = async (c: Context<AppContext>, organizationId?: strin
     memberRole = member?.role ?? null;
   }
 
-  return createServiceContext(
-    {
-      userId: user.id,
-      user,
-      organizationId: orgId,
-      memberRole,
-      ability: defineAbilityFor(memberRole, { userId: user.id, organizationId: orgId }),
-      requestHeaders: c.req.header(),
-    },
-    db
-  );
+  return createServiceContext({
+    userId: user.id,
+    user,
+    organizationId: orgId,
+    memberRole,
+    ability: defineAbilityFor(memberRole, { userId: user.id, organizationId: orgId }),
+    requestHeaders: c.req.header(),
+  });
 };
 
 /**

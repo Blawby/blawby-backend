@@ -8,19 +8,17 @@ export const findAddressesByIds = async (addressIds: string[]): Promise<(typeof 
   addressIds.length === 0 ? [] : await db.select().from(addresses).where(inArray(addresses.id, addressIds));
 
 /**
- * Upsert an address within a transaction.
+ * Upsert an address within the active transaction.
  * If addressId is provided, updates the existing address.
  * Otherwise, inserts a new address.
  */
-export const upsertAddressTx = async (
-  params: {
-    addressData: AddressData;
-    organizationId: string;
-    userId?: string | null;
-    addressId?: string | null;
-    type?: string;
-  }
-): Promise<typeof addresses.$inferSelect | undefined> => {
+export const upsertAddress = async (params: {
+  addressData: AddressData;
+  organizationId: string;
+  userId?: string | null;
+  addressId?: string | null;
+  type?: string;
+}): Promise<typeof addresses.$inferSelect | undefined> => {
   const { addressData, organizationId, userId, addressId: providedAddressId, type = 'practice_location' } = params;
   let targetAddressId = providedAddressId;
 

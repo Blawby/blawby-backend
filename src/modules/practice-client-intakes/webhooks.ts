@@ -13,7 +13,7 @@ import {
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
 import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { IntakePaymentSucceeded, IntakePaymentFailed, IntakePaymentCanceled } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import { sanitizeError } from '@/shared/utils/logging';
@@ -117,8 +117,8 @@ export const handlePracticeClientIntakeSucceeded = async ({
       });
     }
 
-    await db.transaction(async (tx) => {
-      const updateResult = await tx
+    await uow.transaction(async () => {
+      const updateResult = await getActiveTx()
         .update(practiceClientIntakes)
         .set({
           status: 'succeeded',
@@ -161,7 +161,7 @@ export const handlePracticeClientIntakeSucceeded = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx,
+            tx: getActiveTx(),
           }
         );
       }
@@ -218,8 +218,8 @@ export const handlePracticeClientIntakeFailed = async ({
       return;
     }
 
-    await db.transaction(async (tx) => {
-      const updateResult = await tx
+    await uow.transaction(async () => {
+      const updateResult = await getActiveTx()
         .update(practiceClientIntakes)
         .set({
           status: 'failed',
@@ -239,7 +239,7 @@ export const handlePracticeClientIntakeFailed = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx,
+            tx: getActiveTx(),
           }
         );
       }
@@ -268,8 +268,8 @@ export const handlePracticeClientIntakeCanceled = async ({
       return;
     }
 
-    await db.transaction(async (tx) => {
-      const updateResult = await tx
+    await uow.transaction(async () => {
+      const updateResult = await getActiveTx()
         .update(practiceClientIntakes)
         .set({
           status: 'canceled',
@@ -288,7 +288,7 @@ export const handlePracticeClientIntakeCanceled = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx,
+            tx: getActiveTx(),
           }
         );
       }
@@ -328,7 +328,7 @@ export const handlePracticeClientIntakeCheckoutSessionCompleted = async (
       return;
     }
 
-    await db
+    await getActiveTx()
       .update(practiceClientIntakes)
       .set({
         stripe_checkout_session_id: session.id,

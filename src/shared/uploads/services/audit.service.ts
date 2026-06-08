@@ -1,8 +1,5 @@
 import { db } from '@/shared/database';
-import {
-  uploadAuditLogs,
-  type InsertUploadAuditLog,
-} from '@/shared/uploads/schema/upload-audit-logs.schema';
+import { uploadAuditLogs, type InsertUploadAuditLog } from '@/shared/uploads/schema/upload-audit-logs.schema';
 import type { AuditAction } from '@/shared/uploads/types/uploads.types';
 
 export const auditService = {

@@ -1,5 +1,4 @@
-import { eq } from 'drizzle-orm';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import {
   practiceDetails as practiceDetailsTable,
@@ -11,8 +10,9 @@ import type {
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
 import { getActiveTx, uow } from '@/shared/database/uow';
-import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
+import { PracticeDetailsCreated, PracticeDetailsDeleted, PracticeDetailsUpdated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { eq } from 'drizzle-orm';
 
 export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'business_phone',
@@ -32,15 +32,12 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'accent_color',
 ];
 
-export const upsertDetailsTransaction = async (
-  ctx: ServiceContext,
-  params: UpsertDetailsTransactionParams
-) => {
+export const upsertDetailsTransaction = async (ctx: ServiceContext, params: UpsertDetailsTransactionParams) => {
   let addressId = params.existingAddressId;
   let addressResult: AddressData | null = null;
 
   if (params.data.address && Object.keys(params.data.address).length > 0) {
-    const address = await upsertAddressTx({
+    const address = await upsertAddress({
       addressData: params.data.address,
       organizationId: params.organizationId,
       addressId,

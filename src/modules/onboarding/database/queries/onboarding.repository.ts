@@ -10,7 +10,7 @@ import {
   type StripeConnectedAccount,
   type NewStripeConnectedAccount,
 } from '@/modules/onboarding/schemas/onboarding.schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 import { webhookEvents, type WebhookEvent } from '@/shared/schemas/stripe.webhook-events.schema';
 
 /**
@@ -18,7 +18,7 @@ import { webhookEvents, type WebhookEvent } from '@/shared/schemas/stripe.webhoo
  */
 
 export const findByOrganizationId = async (organizationId: string): Promise<StripeConnectedAccount | null> => {
-  const [account] = await db
+  const [account] = await getActiveTx()
     .select()
     .from(stripeConnectedAccounts)
     .where(eq(stripeConnectedAccounts.organization_id, organizationId))
@@ -28,7 +28,7 @@ export const findByOrganizationId = async (organizationId: string): Promise<Stri
 };
 
 export const findByStripeAccountId = async (stripeAccountId: string): Promise<StripeConnectedAccount | null> => {
-  const [account] = await db
+  const [account] = await getActiveTx()
     .select()
     .from(stripeConnectedAccounts)
     .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
@@ -38,13 +38,17 @@ export const findByStripeAccountId = async (stripeAccountId: string): Promise<St
 };
 
 export const findById = async (id: string): Promise<StripeConnectedAccount | null> => {
-  const [account] = await db.select().from(stripeConnectedAccounts).where(eq(stripeConnectedAccounts.id, id)).limit(1);
+  const [account] = await getActiveTx()
+    .select()
+    .from(stripeConnectedAccounts)
+    .where(eq(stripeConnectedAccounts.id, id))
+    .limit(1);
 
   return account || null;
 };
 
 export const create = async (data: NewStripeConnectedAccount): Promise<StripeConnectedAccount> => {
-  const [account] = await db
+  const [account] = await getActiveTx()
     .insert(stripeConnectedAccounts)
     .values({
       ...data,
@@ -59,7 +63,7 @@ export const update = async (
   id: string,
   data: Partial<NewStripeConnectedAccount>
 ): Promise<StripeConnectedAccount | null> => {
-  const [account] = await db
+  const [account] = await getActiveTx()
     .update(stripeConnectedAccounts)
     .set({
       ...data,
@@ -75,7 +79,7 @@ export const updateByStripeAccountId = async (
   stripeAccountId: string,
   data: Partial<NewStripeConnectedAccount>
 ): Promise<StripeConnectedAccount | null> => {
-  const [account] = await db
+  const [account] = await getActiveTx()
     .update(stripeConnectedAccounts)
     .set({
       ...data,
@@ -88,7 +92,7 @@ export const updateByStripeAccountId = async (
 };
 
 export const updateLastRefreshed = async (stripeAccountId: string): Promise<void> => {
-  await db
+  await getActiveTx()
     .update(stripeConnectedAccounts)
     .set({
       last_refreshed_at: new Date(),
@@ -103,14 +107,14 @@ export const updateLastRefreshed = async (stripeAccountId: string): Promise<void
 
 export const getEventsToRetry = async (): Promise<WebhookEvent[]> => {
   const now = new Date();
-  return await db
+  return await getActiveTx()
     .select()
     .from(webhookEvents)
     .where(and(eq(webhookEvents.processed, false), lte(webhookEvents.nextRetryAt, now)));
 };
 
 export const findWebhookById = async (id: string): Promise<WebhookEvent | null> => {
-  const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id)).limit(1);
+  const [event] = await getActiveTx().select().from(webhookEvents).where(eq(webhookEvents.id, id)).limit(1);
 
   return event || null;
 };

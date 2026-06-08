@@ -48,7 +48,7 @@ export const intakeFilesService = {
   async presignFile({ uuid, body }: { uuid: string; body: PresignBody }, ctx: ServiceContext) {
     const intake = await getActorAccessibleIntake(uuid, ctx, 'update');
     const enrichedBase = buildEnrichedCtx(ctx, intake);
-    const enrichedCtx = createServiceContext(enrichedBase, ctx.db);
+    const enrichedCtx = createServiceContext(enrichedBase);
 
     const uploadRequest: PresignUploadRequest = {
       file_name: body.file_name,
@@ -68,7 +68,7 @@ export const intakeFilesService = {
   async confirmFile({ uuid, uploadId }: { uuid: string; uploadId: string }, ctx: ServiceContext) {
     const intake = await getActorAccessibleIntake(uuid, ctx, 'update');
     const enrichedBase = buildEnrichedCtx(ctx, intake);
-    const enrichedCtx = createServiceContext(enrichedBase, ctx.db);
+    const enrichedCtx = createServiceContext(enrichedBase);
 
     await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
     const uploadCorePrep = await uploadCoreService.prepareConfirm({ id: uploadId }, enrichedCtx);
@@ -80,19 +80,18 @@ export const intakeFilesService = {
   async listFiles({ uuid, query }: { uuid: string; query: ListFilesQuery }, ctx: ServiceContext) {
     const intake = await getActorAccessibleIntake(uuid, ctx, 'read');
     const enrichedBase = buildEnrichedCtx(ctx, intake);
-    const enrichedCtx = createServiceContext(enrichedBase, ctx.db);
+    const enrichedCtx = createServiceContext(enrichedBase);
     const { page, limit } = query;
     const offset = (page - 1) * limit;
 
     const [uploads, total] = await Promise.all([
-      uploadsRepository.listByOrganization(
-        intake.organization_id,
-        { scopeType: 'intake', scopeId: intake.id, limit, offset }
-      ),
-      uploadsRepository.countByOrganization(
-        intake.organization_id,
-        { scopeType: 'intake', scopeId: intake.id }
-      ),
+      uploadsRepository.listByOrganization(intake.organization_id, {
+        scopeType: 'intake',
+        scopeId: intake.id,
+        limit,
+        offset,
+      }),
+      uploadsRepository.countByOrganization(intake.organization_id, { scopeType: 'intake', scopeId: intake.id }),
     ]);
 
     return {

@@ -92,15 +92,12 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
       ctx
     );
 
-    await ctx.emit(
-      MatterCreated,
-      {
-        matter_id: newMatter.id,
-        organization_id: ctx.organizationId,
-        title: newMatter.title,
-        billing_type: newMatter.billing_type,
-      }
-    );
+    await ctx.emit(MatterCreated, {
+      matter_id: newMatter.id,
+      organization_id: ctx.organizationId,
+      title: newMatter.title,
+      billing_type: newMatter.billing_type,
+    });
 
     return newMatter;
   });
@@ -254,25 +251,23 @@ const updateMatter = async (
         ctx
       );
 
-      await ctx.emit(
-        MatterStatusChanged,
-        {
-          matter_id: matterId,
-          organization_id: ctx.organizationId,
-          old_status: existing.status,
-          new_status: data.status,
-          matter_title: existing.title,
-          organization_name: organizationName ?? 'Your Legal Team',
-          client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
-          client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
-        }
-      );
+      await ctx.emit(MatterStatusChanged, {
+        matter_id: matterId,
+        organization_id: ctx.organizationId,
+        old_status: existing.status,
+        new_status: data.status,
+        matter_title: existing.title,
+        organization_name: organizationName ?? 'Your Legal Team',
+        client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
+        client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
+      });
     }
 
-    await ctx.emit(
-      MatterUpdated,
-      { matter_id: matterId, organization_id: ctx.organizationId, changes: { ...matterData } }
-    );
+    await ctx.emit(MatterUpdated, {
+      matter_id: matterId,
+      organization_id: ctx.organizationId,
+      changes: { ...matterData },
+    });
 
     return result;
   });

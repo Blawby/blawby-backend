@@ -25,7 +25,7 @@ const mapPayoutToRecord = (
   organizationId: string,
   stripeAccountId: string,
   eventCreated: number,
-  eventId: string,
+  eventId: string
 ): InsertPayout => ({
   organization_id: organizationId,
   stripe_account_id: stripeAccountId,
@@ -77,9 +77,7 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
   const connectedAccount = await onboardingRepository.findByStripeAccountId(stripeAccountId);
   if (!connectedAccount) {
     // Throw so the worker retries — account may not be onboarded yet (transient miss).
-    throw new Error(
-      `No connected account found for Stripe account ${stripeAccountId} (payout ${payout.id})`
-    );
+    throw new Error(`No connected account found for Stripe account ${stripeAccountId} (payout ${payout.id})`);
   }
 
   const record = mapPayoutToRecord(payout, connectedAccount.organization_id, stripeAccountId, event.created, event.id);

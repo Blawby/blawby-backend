@@ -17,7 +17,11 @@ import { getActiveTx } from '@/shared/database/uow';
  */
 
 const findPriceByStripeId = async (stripePriceId: string): Promise<StripePrice | undefined> => {
-  const [price] = await getActiveTx().select().from(stripePrices).where(eq(stripePrices.stripe_price_id, stripePriceId)).limit(1);
+  const [price] = await getActiveTx()
+    .select()
+    .from(stripePrices)
+    .where(eq(stripePrices.stripe_price_id, stripePriceId))
+    .limit(1);
   return price;
 };
 
@@ -31,7 +35,8 @@ const findPriceByName = async (name: string): Promise<StripePrice | undefined> =
   return price;
 };
 
-const findPriceByNameAndInterval = async (name: string,
+const findPriceByNameAndInterval = async (
+  name: string,
   interval: 'month' | 'year'
 ): Promise<StripePrice | undefined> => {
   const [price] = await getActiveTx()
@@ -67,7 +72,8 @@ const upsertPrice = async (priceData: NewStripePrice): Promise<StripePrice> => {
 };
 
 /** Update denormalized product display columns on all prices sharing a stripe_product_id. */
-const upsertProductDisplayData = async (stripeProductId: string,
+const upsertProductDisplayData = async (
+  stripeProductId: string,
   displayData: {
     name?: string | null;
     display_name?: string | null;
@@ -129,7 +135,8 @@ const createEvent = async (eventData: NewSubscriptionEvent): Promise<Subscriptio
   return created;
 };
 
-const findEventsBySubscriptionIdAndType = async (subscriptionId: string,
+const findEventsBySubscriptionIdAndType = async (
+  subscriptionId: string,
   eventType: SubscriptionEventType
 ): Promise<SubscriptionEvent[]> =>
   await getActiveTx()

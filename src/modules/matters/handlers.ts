@@ -1,16 +1,17 @@
 import type { routes as matterRoutes } from '@/modules/matters/routes';
-import { matterDeadlinesService } from '@/modules/matters/services/matter-deadlines.service';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
+import { matterDeadlinesService } from '@/modules/matters/services/matter-deadlines.service';
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
+import { matterFilesService } from '@/modules/matters/services/matter-files.service';
 import { matterMilestonesService } from '@/modules/matters/services/matter-milestones.service';
 import { matterNotesService } from '@/modules/matters/services/matter-notes.service';
 import { matterTasksService } from '@/modules/matters/services/matter-tasks.service';
 import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
-import { matterFilesService } from '@/modules/matters/services/matter-files.service';
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { AppRouteHandler } from '@/shared/types/hono';
-import { createServiceContext, getServiceContext } from '@/shared/types/service-context';
+import { uow } from '@/shared/database/uow';
+import { getServiceContext } from '@/shared/types/service-context';
 
 const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -338,13 +339,13 @@ const getMatterUnbilledHandler: AppRouteHandler<typeof matterRoutes.getMatterUnb
 };
 
 const linkMatterFileHandler: AppRouteHandler<typeof matterRoutes.linkMatterFileRoute> = async (c) => {
-  const { db, ...baseCtx } = getServiceContext(c);
+  const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const { upload_id: uploadId } = c.req.valid('json');
 
-  const prep = await matterFilesService.prepareLinkUpload({ matterId, uploadId }, createServiceContext(baseCtx, db));
-  const linked = await db.transaction((tx) =>
-    matterFilesService.persistLinkUpload({ matterId, uploadId, prep }, createServiceContext(baseCtx, tx))
+  const prep = await matterFilesService.prepareLinkUpload({ matterId, uploadId }, ctx);
+  const linked = await uow.transaction(async () =>
+    matterFilesService.persistLinkUpload({ matterId, uploadId, prep }, ctx)
   );
   return c.json(linked, 201);
 };

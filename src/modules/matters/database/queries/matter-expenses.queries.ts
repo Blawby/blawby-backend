@@ -5,18 +5,17 @@ import {
   type SelectMatterExpense,
 } from '@/modules/matters/database/schema/matter-expenses.schema';
 import type { MatterExpenseListFilters } from '@/modules/matters/types/matter-filters.types';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter expense
 const createMatterExpense = async (data: InsertMatterExpense): Promise<SelectMatterExpense> => {
-  const [expense] = await db.insert(matterExpenses).values(data).returning();
+  const [expense] = await getActiveTx().insert(matterExpenses).values(data).returning();
   return expense;
 };
 
 // Find matter expense by ID
 const findMatterExpenseById = async (id: string): Promise<SelectMatterExpense | undefined> => {
-  const [expense] = await db.select().from(matterExpenses).where(eq(matterExpenses.id, id)).limit(1);
+  const [expense] = await getActiveTx().select().from(matterExpenses).where(eq(matterExpenses.id, id)).limit(1);
   return expense;
 };
 
@@ -50,7 +49,7 @@ const listMatterExpenses = async (
     conditions.push(lte(matterExpenses.date, formatLocalDate(filters.endDate)));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(matterExpenses)
     .where(and(...conditions))
@@ -63,7 +62,7 @@ const updateMatterExpense = async (
   matterId: string,
   data: Partial<InsertMatterExpense>
 ): Promise<SelectMatterExpense | undefined> => {
-  const [expense] = await db
+  const [expense] = await getActiveTx()
     .update(matterExpenses)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(matterExpenses.id, id), eq(matterExpenses.matter_id, matterId)))
@@ -73,7 +72,7 @@ const updateMatterExpense = async (
 
 // Delete matter expense
 const deleteMatterExpense = async (id: string, matterId: string): Promise<boolean> => {
-  const deleted = await db
+  const deleted = await getActiveTx()
     .delete(matterExpenses)
     .where(and(eq(matterExpenses.id, id), eq(matterExpenses.matter_id, matterId)))
     .returning({ id: matterExpenses.id });
@@ -82,7 +81,7 @@ const deleteMatterExpense = async (id: string, matterId: string): Promise<boolea
 
 // Get total billable expenses for matter
 const getTotalBillableExpenses = async (matterId: string): Promise<number> => {
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({
       total: sql<number>`COALESCE(SUM(${matterExpenses.amount}), 0)`,
     })
@@ -94,7 +93,7 @@ const getTotalBillableExpenses = async (matterId: string): Promise<number> => {
 
 // Get total expenses for matter (billable and non-billable)
 const getTotalExpenses = async (matterId: string): Promise<number> => {
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({
       total: sql<number>`COALESCE(SUM(${matterExpenses.amount}), 0)`,
     })
@@ -107,11 +106,7 @@ const getTotalExpenses = async (matterId: string): Promise<number> => {
 /**
  * Mark expenses as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (
-  expenseIds: string[],
-  invoiceId: string,
-  matterId: string
-): Promise<void> => {
+const markAsInvoiced = async (expenseIds: string[], invoiceId: string, matterId: string): Promise<void> => {
   if (expenseIds.length === 0) {
     return;
   }
@@ -143,7 +138,7 @@ const unmarkInvoiced = async (invoiceId: string): Promise<void> => {
  * Get unbilled expenses for a matter: invoice_id IS NULL AND billable = true.
  */
 const getUnbilled = async (matterId: string): Promise<SelectMatterExpense[]> =>
-  await db
+  await getActiveTx()
     .select()
     .from(matterExpenses)
     .where(
@@ -156,7 +151,7 @@ const countByIds = async (matterId: string, expenseIds: string[]): Promise<numbe
     return 0;
   }
 
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(matterExpenses)
     .where(and(eq(matterExpenses.matter_id, matterId), inArray(matterExpenses.id, expenseIds)));

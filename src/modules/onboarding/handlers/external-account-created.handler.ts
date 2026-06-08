@@ -5,7 +5,7 @@ import type { Stripe } from 'stripe';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { OnboardingExternalAccountCreated } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
@@ -49,47 +49,45 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
       { externalAccountId: externalAccount.id, accountType, stripeAccountId }
     );
 
-    // Get current account record
-    const [accountRecord] = await db
-      .select()
-      .from(stripeConnectedAccounts)
-      .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
-      .limit(1);
+    await uow.transaction(async () => {
+      const [accountRecord] = await getActiveTx()
+        .select()
+        .from(stripeConnectedAccounts)
+        .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
+        .limit(1);
 
-    if (!accountRecord) {
-      logger.warn('Account not found for external account creation: {stripeAccountId}', { stripeAccountId });
-      return;
-    }
+      if (!accountRecord) {
+        logger.warn('Account not found for external account creation: {stripeAccountId}', { stripeAccountId });
+        return;
+      }
 
-    const bankAccount = stripeTypeGuards.isBankAccount(externalAccount) ? externalAccount : undefined;
-    const cardAccount = stripeTypeGuards.isCardAccount(externalAccount) ? externalAccount : undefined;
-    const normalizedAccount: ExternalAccount = {
-      id: externalAccount.id,
-      object: externalAccount.object,
-      account: stripeAccountId,
-      account_holder_name: bankAccount?.account_holder_name ?? undefined,
-      account_holder_type: bankAccount?.account_holder_type ?? undefined,
-      bank_name: bankAccount?.bank_name ?? undefined,
-      country: externalAccount.country ?? undefined,
-      currency: externalAccount.currency ?? undefined,
-      default_for_currency: externalAccount.default_for_currency ?? undefined,
-      fingerprint: externalAccount.fingerprint ?? undefined,
-      last_4: bankAccount?.last4 ?? cardAccount?.last4,
-      metadata: externalAccount.metadata ?? undefined,
-      routing_number: bankAccount?.routing_number ?? undefined,
-      status: externalAccount.status ?? undefined,
-    };
-    const currentExternalAccounts = normalizeExternalAccounts({
-      externalAccounts: accountRecord.externalAccounts,
-    });
-    const updatedExternalAccounts: ExternalAccounts = {
-      object: 'list',
-      data: [...currentExternalAccounts.data.filter((acc) => acc.id !== externalAccount.id), normalizedAccount],
-    };
+      const bankAccount = stripeTypeGuards.isBankAccount(externalAccount) ? externalAccount : undefined;
+      const cardAccount = stripeTypeGuards.isCardAccount(externalAccount) ? externalAccount : undefined;
+      const normalizedAccount: ExternalAccount = {
+        id: externalAccount.id,
+        object: externalAccount.object,
+        account: stripeAccountId,
+        account_holder_name: bankAccount?.account_holder_name ?? undefined,
+        account_holder_type: bankAccount?.account_holder_type ?? undefined,
+        bank_name: bankAccount?.bank_name ?? undefined,
+        country: externalAccount.country ?? undefined,
+        currency: externalAccount.currency ?? undefined,
+        default_for_currency: externalAccount.default_for_currency ?? undefined,
+        fingerprint: externalAccount.fingerprint ?? undefined,
+        last_4: bankAccount?.last4 ?? cardAccount?.last4,
+        metadata: externalAccount.metadata ?? undefined,
+        routing_number: bankAccount?.routing_number ?? undefined,
+        status: externalAccount.status ?? undefined,
+      };
+      const currentExternalAccounts = normalizeExternalAccounts({
+        externalAccounts: accountRecord.externalAccounts,
+      });
+      const updatedExternalAccounts: ExternalAccounts = {
+        object: 'list',
+        data: [...currentExternalAccounts.data.filter((acc) => acc.id !== externalAccount.id), normalizedAccount],
+      };
 
-    // Update the account external accounts in the database within transaction with event publishing
-    await db.transaction(async (tx) => {
-      await tx
+      await getActiveTx()
         .update(stripeConnectedAccounts)
         .set({
           externalAccounts: updatedExternalAccounts as unknown as ExternalAccounts,
@@ -97,7 +95,6 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
         })
         .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId));
 
-      // Publish external account created event within transaction
       await OnboardingExternalAccountCreated.dispatch(
         {
           stripe_account_id: stripeAccountId,
@@ -111,7 +108,7 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId: accountRecord.organization_id,
-          tx,
+          tx: getActiveTx(),
         }
       );
     });

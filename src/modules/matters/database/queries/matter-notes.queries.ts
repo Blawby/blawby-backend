@@ -5,17 +5,17 @@ import {
   type SelectMatterNote,
 } from '@/modules/matters/database/schema/matter-notes.schema';
 import type { MatterNoteListFilters } from '@/modules/matters/types/matter-filters.types';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter note
 const createMatterNote = async (data: InsertMatterNote): Promise<SelectMatterNote> => {
-  const [note] = await db.insert(matterNotes).values(data).returning();
+  const [note] = await getActiveTx().insert(matterNotes).values(data).returning();
   return note;
 };
 
 // Find matter note by ID
 const findMatterNoteById = async (id: string): Promise<SelectMatterNote | undefined> => {
-  const [note] = await db.select().from(matterNotes).where(eq(matterNotes.id, id)).limit(1);
+  const [note] = await getActiveTx().select().from(matterNotes).where(eq(matterNotes.id, id)).limit(1);
   return note;
 };
 
@@ -26,7 +26,7 @@ const listMatterNotes = async (matterId: string, filters?: MatterNoteListFilters
     conditions.push(eq(matterNotes.id, filters.noteId));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(matterNotes)
     .where(and(...conditions))
@@ -35,7 +35,7 @@ const listMatterNotes = async (matterId: string, filters?: MatterNoteListFilters
 
 // Update matter note
 const updateMatterNote = async (id: string, data: Partial<InsertMatterNote>): Promise<SelectMatterNote | undefined> => {
-  const [note] = await db
+  const [note] = await getActiveTx()
     .update(matterNotes)
     .set({ ...data, updated_at: new Date() })
     .where(eq(matterNotes.id, id))
@@ -45,7 +45,7 @@ const updateMatterNote = async (id: string, data: Partial<InsertMatterNote>): Pr
 
 // Delete matter note
 const deleteMatterNote = async (id: string): Promise<void> => {
-  await db.delete(matterNotes).where(eq(matterNotes.id, id));
+  await getActiveTx().delete(matterNotes).where(eq(matterNotes.id, id));
 };
 
 export const matterNotesQueries = {

@@ -1,6 +1,6 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { sessions } from '@/schema/better-auth-schema';
 import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 
 const deleteByUserId = async (userId: string): Promise<void> => {
   await getActiveTx().delete(sessions).where(eq(sessions.userId, userId));
@@ -17,10 +17,7 @@ const findPreviousActiveOrganizationId = async (userId: string): Promise<string 
   return previousSession?.activeOrganizationId ?? null;
 };
 
-const setActiveOrganizationId = async (
-  sessionId: string,
-  activeOrganizationId: string
-): Promise<void> => {
+const setActiveOrganizationId = async (sessionId: string, activeOrganizationId: string): Promise<void> => {
   await getActiveTx().update(sessions).set({ activeOrganizationId }).where(eq(sessions.id, sessionId));
 };
 

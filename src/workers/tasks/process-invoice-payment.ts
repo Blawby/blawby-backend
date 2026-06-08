@@ -66,45 +66,37 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
         routing,
       });
 
-      await invoicesRepository.updateInvoice(
-        invoice.id,
-        organization_id,
-        {
-          status: 'paid',
-          amount_paid: stripe_amount_paid,
-          stripe_transfer_id: transfer.transferId,
-        }
-      );
+      await invoicesRepository.updateInvoice(invoice.id, organization_id, {
+        status: 'paid',
+        amount_paid: stripe_amount_paid,
+        stripe_transfer_id: transfer.transferId,
+      });
 
       if (transfer.transferId) {
-        await billingRecorder.record(
-          {
-            organizationId: organization_id,
-            payableId: invoice.id,
-            payableType: 'invoice',
-            matterId,
-            amount: stripe_amount_paid,
-            transferId: transfer.transferId,
-            destinationAccountId: invoice.connected_account_id,
-            metadata: {
-              stripe_invoice_id,
-              invoice_type: invoiceType,
-              fund_destination: fundDestination,
-            },
-          }
-        );
+        await billingRecorder.record({
+          organizationId: organization_id,
+          payableId: invoice.id,
+          payableType: 'invoice',
+          matterId,
+          amount: stripe_amount_paid,
+          transferId: transfer.transferId,
+          destinationAccountId: invoice.connected_account_id,
+          metadata: {
+            stripe_invoice_id,
+            invoice_type: invoiceType,
+            fund_destination: fundDestination,
+          },
+        });
       }
 
       if (invoiceType === 'retainer_deposit' && matterId && clientId) {
-        await retainerPaymentFlow.recordDeposit(
-          {
-            organizationId: organization_id,
-            clientId,
-            matterId,
-            amount: stripe_amount_paid,
-            invoiceId: invoice.id,
-          }
-        );
+        await retainerPaymentFlow.recordDeposit({
+          organizationId: organization_id,
+          clientId,
+          matterId,
+          amount: stripe_amount_paid,
+          invoiceId: invoice.id,
+        });
 
         const matter = await mattersQueries.findMatterById(matterId);
         if (matter && matter.retainer_low_balance_threshold !== null && matter.retainer_low_balance_threshold > 0) {

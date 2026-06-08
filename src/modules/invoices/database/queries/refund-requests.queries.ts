@@ -4,7 +4,6 @@ import {
   refundRequests,
 } from '@/modules/invoices/database/schema/refund-requests.schema';
 import type { RefundRequestUpdatePatch } from '@/modules/invoices/types/refund-request';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -14,7 +13,7 @@ const create = async (data: InsertRefundRequest): Promise<SelectRefundRequest> =
 };
 
 const findById = async (id: string, organizationId: string): Promise<SelectRefundRequest | undefined> => {
-  const [req] = await db
+  const [req] = await getActiveTx()
     .select()
     .from(refundRequests)
     .where(and(eq(refundRequests.id, id), eq(refundRequests.organization_id, organizationId)))
@@ -27,7 +26,7 @@ const findByIdAndClient = async (
   organizationId: string,
   clientUserDetailsId: string
 ): Promise<SelectRefundRequest | undefined> => {
-  const [req] = await db
+  const [req] = await getActiveTx()
     .select()
     .from(refundRequests)
     .where(
@@ -57,7 +56,7 @@ const listByOrganization = async (
   });
 
 const listByClient = async (organizationId: string, clientUserDetailsId: string): Promise<SelectRefundRequest[]> =>
-  db
+  getActiveTx()
     .select()
     .from(refundRequests)
     .where(
