@@ -11,6 +11,7 @@ import type { AppAbility } from '@/shared/auth/abilities';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import { toUploadDetails, uploadCoreService } from '@/shared/uploads/services/upload-core.service';
 import type { PresignUploadRequest } from '@/shared/uploads/types/uploads.types';
+import { uow } from '@/shared/database/uow';
 import { createServiceContext, type ServiceContext } from '@/shared/types/service-context';
 
 const buildIntakeParticipantAbility = (): AppAbility => {
@@ -33,7 +34,7 @@ const buildEnrichedCtx = (ctx: ServiceContext, intake: SelectPracticeClientIntak
 });
 
 const ensureUploadBelongsToIntake = async (uploadId: string, intakeId: string, ctx: ServiceContext) => {
-  const upload = await uploadsRepository.findById(uploadId, ctx.db);
+  const upload = await uploadsRepository.findById(uploadId);
   if (!upload) {
     throw new HTTPException(404, { message: 'Upload not found' });
   }
@@ -59,8 +60,8 @@ export const intakeFilesService = {
     };
 
     const prep = await uploadCoreService.preparePresign({ request: uploadRequest }, enrichedCtx);
-    return ctx.db.transaction((tx) =>
-      uploadCoreService.persistPresign({ prep, request: uploadRequest }, createServiceContext(enrichedBase, tx))
+    return uow.transaction(async () =>
+      uploadCoreService.persistPresign({ prep, request: uploadRequest }, createServiceContext(enrichedBase))
     );
   },
 
@@ -71,8 +72,8 @@ export const intakeFilesService = {
 
     await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
     const uploadCorePrep = await uploadCoreService.prepareConfirm({ id: uploadId }, enrichedCtx);
-    return ctx.db.transaction((tx) =>
-      uploadCoreService.persistConfirm({ prep: uploadCorePrep }, createServiceContext(enrichedBase, tx))
+    return uow.transaction(async () =>
+      uploadCoreService.persistConfirm({ prep: uploadCorePrep }, createServiceContext(enrichedBase))
     );
   },
 
@@ -86,13 +87,11 @@ export const intakeFilesService = {
     const [uploads, total] = await Promise.all([
       uploadsRepository.listByOrganization(
         intake.organization_id,
-        { scopeType: 'intake', scopeId: intake.id, limit, offset },
-        enrichedCtx.db
+        { scopeType: 'intake', scopeId: intake.id, limit, offset }
       ),
       uploadsRepository.countByOrganization(
         intake.organization_id,
-        { scopeType: 'intake', scopeId: intake.id },
-        enrichedCtx.db
+        { scopeType: 'intake', scopeId: intake.id }
       ),
     ]);
 
@@ -112,8 +111,8 @@ export const intakeFilesService = {
     await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
 
     const enrichedBase = buildEnrichedCtx(ctx, intake);
-    const result = await ctx.db.transaction((tx) =>
-      uploadCoreService.softDelete({ id: uploadId, reason }, createServiceContext(enrichedBase, tx))
+    const result = await uow.transaction(async () =>
+      uploadCoreService.softDelete({ id: uploadId, reason }, createServiceContext(enrichedBase))
     );
 
     return { id: result.id, status: 'deleted' };

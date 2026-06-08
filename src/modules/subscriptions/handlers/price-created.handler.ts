@@ -1,10 +1,9 @@
-import type { Stripe } from 'stripe';
-import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
-import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/metered-products';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/product-helpers';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
 
@@ -61,7 +60,7 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       }
     }
 
-    await subscriptionRepository.upsertPrice(db, {
+    await subscriptionRepository.upsertPrice({
       stripe_price_id: price.id,
       stripe_product_id: productId,
       currency: price.currency,

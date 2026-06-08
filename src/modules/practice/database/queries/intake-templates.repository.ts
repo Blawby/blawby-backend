@@ -118,7 +118,7 @@ const update = async (
   return { ...template, fields: existingFields };
 };
 
-const clearDefaultForOrganization = async (tx: typeof db, organizationId: string): Promise<void> => {
+const clearDefaultForOrganization = async (organizationId: string): Promise<void> => {
   await getActiveTx()
     .update(intakeTemplates)
     .set({ is_default: false, updated_at: new Date() })
@@ -126,7 +126,7 @@ const clearDefaultForOrganization = async (tx: typeof db, organizationId: string
 };
 
 const remove = async (id: string): Promise<void> => {
-  await db.delete(intakeTemplates).where(eq(intakeTemplates.id, id));
+  await getActiveTx().delete(intakeTemplates).where(eq(intakeTemplates.id, id));
 };
 
 export const intakeTemplatesRepository = {

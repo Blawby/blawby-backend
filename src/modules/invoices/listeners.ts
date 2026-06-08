@@ -52,7 +52,7 @@ export const reportMeteredUsageWithRetry = async (
   }
 ): Promise<void> => {
   try {
-    await deps.reportMeteredUsage(db, opts.organizationId, opts.meteredType, opts.quantity, opts.deduplicationId);
+    await deps.reportMeteredUsage(opts.organizationId, opts.meteredType, opts.quantity, opts.deduplicationId);
     return;
   } catch (usageError) {
     const usageErrorMessage = usageError instanceof Error ? usageError.message : 'Unknown error';

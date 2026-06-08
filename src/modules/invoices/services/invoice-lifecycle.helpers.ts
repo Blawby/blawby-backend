@@ -1,8 +1,9 @@
-import { InvoiceUpdated } from '@/shared/events/definitions';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { syncLineItems } from '@/modules/invoices/services/invoice-creation.helpers';
 import { calculateInvoiceTotals } from '@/modules/invoices/services/invoice.utils';
 import type { InvoiceWithRelations, UpdateInvoiceRequest } from '@/modules/invoices/types/invoices.types';
+import { InvoiceUpdated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 export const persistInvoiceUpdate = async (
@@ -18,8 +19,8 @@ export const persistInvoiceUpdate = async (
     definedKeys: string[];
   },
   ctx: ServiceContext
-): Promise<InvoiceWithRelations | undefined> => {
-  return await ctx.db.transaction(async (tx) => {
+): Promise<InvoiceWithRelations | undefined> =>
+  await uow.transaction(async () => {
     const { line_items, due_date: _dueDate, ...invoiceData } = data;
     let totals = {};
     const dueDateUpdate =
@@ -31,21 +32,16 @@ export const persistInvoiceUpdate = async (
 
     if (line_items?.length) {
       totals = calculateInvoiceTotals(line_items, existing.amount_paid);
-      await syncLineItems({ invoiceId: id, lineItems: line_items }, tx);
+      await syncLineItems({ invoiceId: id, lineItems: line_items });
     }
 
-    await invoicesRepository.updateInvoice(
-      id,
-      ctx.organizationId,
-      {
-        ...invoiceData,
-        ...totals,
-        ...dueDateUpdate,
-      },
-      tx
-    );
+    await invoicesRepository.updateInvoice(id, ctx.organizationId, {
+      ...invoiceData,
+      ...totals,
+      ...dueDateUpdate,
+    });
 
-    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
+    const invoice = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (invoice) {
       await InvoiceUpdated.dispatch(
         {
@@ -59,11 +55,10 @@ export const persistInvoiceUpdate = async (
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     }
 
     return invoice;
   });
-};

@@ -118,7 +118,7 @@ const insertIntakeRecord = async (params: {
 }): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined = undefined;
   if (params.request.address) {
-    const addressRecord = await upsertAddressTx(params.tx, {
+    const addressRecord = await upsertAddressTx({
       addressData: params.request.address,
       organizationId: params.organizationId,
       userId: params.validatedUserId,

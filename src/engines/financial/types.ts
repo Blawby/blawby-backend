@@ -60,3 +60,19 @@ export interface RefundEventPayload {
   payout_fee_credit_cents: number;
   credit_invoice_fee: boolean;
 }
+
+export interface RecordDepositOpts {
+  organizationId: string;
+  clientId: string;
+  matterId: string;
+  amount: number;
+  invoiceId?: string;
+}
+
+export interface RecordWithdrawalOpts {
+  organizationId: string;
+  clientId: string;
+  matterId: string;
+  amount: number;
+  reason: string;
+}
