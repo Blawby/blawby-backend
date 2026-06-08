@@ -2,7 +2,7 @@ import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { handleInvoiceCreated, handleInvoiceUpcoming } from '@/modules/invoices/services/invoice.webhook.delivery';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceDeleted, InvoicePaymentFailed, InvoiceVoided } from '@/shared/events/definitions';
 import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
 
@@ -56,7 +56,7 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
     return;
   }
 
-  await db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'overdue' });
 
     await InvoicePaymentFailed.dispatch(
@@ -69,7 +69,7 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx,
+        tx: getActiveTx(),
       }
     );
   });
@@ -85,7 +85,7 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
     return;
   }
 
-  await db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' });
 
     await InvoiceVoided.dispatch(
@@ -99,7 +99,7 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx,
+        tx: getActiveTx(),
       }
     );
   });
@@ -112,7 +112,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
     return;
   }
 
-  await db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     await invoicesRepository.softDeleteInvoice(invoice.id, invoice.organization_id, null);
 
     await InvoiceDeleted.dispatch(
@@ -125,7 +125,7 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx,
+        tx: getActiveTx(),
       }
     );
   });

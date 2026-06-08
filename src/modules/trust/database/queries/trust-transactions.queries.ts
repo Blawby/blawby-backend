@@ -123,7 +123,10 @@ const getLatestBalancePerClient = async (
 };
 
 /**
- * Get the latest balance_after for a specific client/matter and lock the row
+ * Get the latest balance_after for a specific client/matter and lock the row.
+ * MUST be called inside uow.transaction() (e.g. via withTrustLock) so that
+ * getActiveTx() returns a real transaction and FOR UPDATE is meaningful.
+ * Callers: recordDeposit, recordWithdrawal.
  */
 const getLatestBalanceForMatter = async (
   organizationId: string,

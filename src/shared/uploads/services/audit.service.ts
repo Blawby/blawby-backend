@@ -26,6 +26,8 @@ export const auditService = {
     };
 
     try {
+      // Intentionally uses global db (not getActiveTx) so audit entries persist
+      // even if the caller's transaction rolls back.
       await db.insert(uploadAuditLogs).values(auditLog);
     } catch (err) {
       // Audit failures must not break the primary flow

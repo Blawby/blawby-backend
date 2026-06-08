@@ -517,10 +517,7 @@ const uploadCoreService = {
       throw new HTTPException(400, { message: 'Organization context required' });
     }
 
-    const enrichmentMap = await buildUploadMetadataEnrichment([upload], {
-      db: ctx.db,
-      organizationId,
-    });
+    const enrichmentMap = await buildUploadMetadataEnrichment([upload], { organizationId });
 
     await uploadsRepository.updateLastAccessed(id, ctx.userId);
 
@@ -565,10 +562,7 @@ const uploadCoreService = {
       }),
     ]);
 
-    const enrichmentMap = await buildUploadMetadataEnrichment(results, {
-      db: ctx.db,
-      organizationId: ctx.organizationId,
-    });
+    const enrichmentMap = await buildUploadMetadataEnrichment(results, { organizationId: ctx.organizationId });
 
     return {
       uploads: results.map((upload) =>

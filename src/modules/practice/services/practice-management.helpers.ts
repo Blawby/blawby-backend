@@ -10,7 +10,6 @@ import type {
   DetailsFieldKeys,
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
-import { db } from '@/shared/database';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -34,7 +33,6 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
 ];
 
 export const upsertDetailsTransaction = async (
-  tx: typeof db,
   ctx: ServiceContext,
   params: UpsertDetailsTransactionParams
 ) => {
@@ -77,7 +75,7 @@ export const upsertDetailsTransaction = async (
   };
 
   const updatePayload = { address_id: addressId, ...detailsPayload, updated_at: new Date() };
-  const [updated] = await tx
+  const [updated] = await getActiveTx()
     .update(practiceDetailsTable)
     .set(updatePayload)
     .where(eq(practiceDetailsTable.organization_id, params.organizationId))
@@ -89,7 +87,7 @@ export const upsertDetailsTransaction = async (
     details = updated;
     isCreated = false;
   } else {
-    const [inserted] = await tx
+    const [inserted] = await getActiveTx()
       .insert(practiceDetailsTable)
       .values({
         organization_id: params.organizationId,
@@ -107,7 +105,7 @@ export const upsertDetailsTransaction = async (
       isCreated = true;
     } else {
       // Concurrent create won the race; treat this operation as update.
-      const [raceUpdated] = await tx
+      const [raceUpdated] = await getActiveTx()
         .update(practiceDetailsTable)
         .set(updatePayload)
         .where(eq(practiceDetailsTable.organization_id, params.organizationId))

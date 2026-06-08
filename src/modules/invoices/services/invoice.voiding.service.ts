@@ -5,7 +5,7 @@ import {
   enqueueVoidReconciliation,
 } from '@/modules/invoices/services/invoice.delivery.recovery';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceVoided } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
@@ -83,7 +83,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
     }
     const stripeInvoiceId = invoice.stripe_invoice_id;
 
-    await db.transaction(async (tx) => {
+    await uow.transaction(async () => {
       const transitioned = await invoicesRepository.transitionInvoiceStatus(
         id,
         ctx.organizationId,
@@ -104,7 +104,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     });

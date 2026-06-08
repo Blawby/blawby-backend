@@ -13,7 +13,7 @@ import {
 } from '@/modules/practice/services/practice-management.helpers';
 import type { UpsertPracticeDetailsParams } from '@/modules/practice/types/practice-management.types';
 import type { OrganizationRequestParams, PracticeResponse } from '@/modules/practice/types/practice.types';
-import { db } from '@/shared/database';
+import { uow } from '@/shared/database/uow';
 import { PracticeDeleted, PracticeDetailsDeleted, PracticeSwitched } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -43,8 +43,8 @@ export const practiceDetailsManagementService = {
 
       const existing = await findPracticeDetailsByOrganization(organizationId);
 
-      await db.transaction(async (tx) =>
-        upsertDetailsTransaction(tx, ctx, {
+      await uow.transaction(async () =>
+        upsertDetailsTransaction(ctx, {
           organizationId,
           userId: user.id,
           data,

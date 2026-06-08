@@ -5,6 +5,7 @@ import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { InvoiceSent } from '@/shared/events/definitions';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['invoices', 'delivery-lock']);
@@ -13,7 +14,7 @@ export const lockInvoiceForSending = async (
   { id }: { id: string },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations> =>
-  await ctx.db.transaction(async () => {
+  await uow.transaction(async () => {
     const found = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!found) {
       throw new HTTPException(404, { message: 'Invoice not found' });
@@ -82,7 +83,7 @@ export const markInvoiceSent = async (
   }
   const hostedInvoiceUrl = stripeInvoice.hosted_invoice_url;
 
-  return await ctx.db.transaction(async (tx) => {
+  return await uow.transaction(async () => {
     const transitioned = await invoicesRepository.transitionInvoiceStatus(
       invoiceId,
       ctx.organizationId,
@@ -112,7 +113,7 @@ export const markInvoiceSent = async (
         actorId: ctx.userId,
         actorType: 'user',
         organizationId: ctx.organizationId,
-        tx,
+        tx: getActiveTx(),
       }
     );
 
