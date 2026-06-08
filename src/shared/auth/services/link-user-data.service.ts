@@ -146,18 +146,19 @@ export const linkAnonymousUserData = async (params: {
     newId: newUser.id,
   });
 
-  // Dispatch queued events
-  for (const event of eventsToDispatch) {
-    try {
-      await PracticeMemberJoined.dispatch(event.payload, event.options);
-    } catch (error) {
-      logger.error('Failed to dispatch PracticeMemberJoined event', {
-        error,
-        member_id: event.payload.member_id,
-        intake_id: event.payload.intake_id,
-        actorId: event.options.actorId,
-        organizationId: event.options.organizationId,
-      });
+  await uow.afterCommit(async () => {
+    for (const event of eventsToDispatch) {
+      try {
+        await PracticeMemberJoined.dispatch(event.payload, event.options);
+      } catch (error) {
+        logger.error('Failed to dispatch PracticeMemberJoined event', {
+          error,
+          member_id: event.payload.member_id,
+          intake_id: event.payload.intake_id,
+          actorId: event.options.actorId,
+          organizationId: event.options.organizationId,
+        });
+      }
     }
-  }
+  });
 };

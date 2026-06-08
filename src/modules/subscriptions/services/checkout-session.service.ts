@@ -3,7 +3,7 @@ import { subscriptionRepository } from '@/modules/subscriptions/database/queries
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { getActiveTx, uow } from '@/shared/database/uow';
+import { getActiveTx } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { getLogger } from '@logtape/logtape';
@@ -42,7 +42,7 @@ const createStripeCustomerForOrganization = async (
     metadata: { organization_id: organizationId },
   });
 
-  await getActiveTx()
+  await db
     .update(schema.organizations)
     .set({ stripeCustomerId: customer.id })
     .where(eq(schema.organizations.id, organizationId));
@@ -50,7 +50,7 @@ const createStripeCustomerForOrganization = async (
 };
 
 const updateLocalSubscriptionCustomer = async (subscriptionId: string, stripeCustomerId: string): Promise<void> => {
-  await getActiveTx()
+  await db
     .update(schema.subscriptions)
     .set({ stripeCustomerId, updatedAt: new Date() })
     .where(eq(schema.subscriptions.id, subscriptionId));
@@ -86,11 +86,11 @@ const getOrCreateOrg = async (
     // oxlint-disable-next-line no-await-in-loop
     for (const candidateSlug of candidates) {
       try {
-        await uow.transaction(async () => {
-          await getActiveTx()
+        await db.transaction(async (tx) => {
+          await tx
             .insert(schema.organizations)
             .values({ id: organizationId, name: orgName, slug: candidateSlug, createdAt: new Date() });
-          await getActiveTx()
+          await tx
             .insert(schema.members)
             .values({ id: crypto.randomUUID(), userId, organizationId, role: 'owner', createdAt: new Date() });
         });
@@ -100,7 +100,9 @@ const getOrCreateOrg = async (
       } catch (err) {
         const code =
           typeof err === 'object' && err !== null && 'code' in err ? (err as { code: unknown }).code : undefined;
-        if (code !== '23505') throw err;
+        if (code !== '23505') {
+          throw err;
+        }
       }
     }
     if (!created) {
@@ -263,8 +265,8 @@ export const createCheckoutSession = async (
   // 5. Atomically find-or-create the incomplete subscription row so retries share
   // The same subscriptionId and thus the same Stripe idempotency key.
   const planName = price.name ?? stripePriceId;
-  const { subscriptionId, isNew } = await uow.transaction(async () => {
-    const [existingIncomplete] = await getActiveTx()
+  const { subscriptionId, isNew } = await db.transaction(async (tx) => {
+    const [existingIncomplete] = await tx
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
       .where(
@@ -277,7 +279,7 @@ export const createCheckoutSession = async (
       .limit(1);
 
     if (existingIncomplete) {
-      await getActiveTx()
+      await tx
         .update(schema.subscriptions)
         .set({ stripeCustomerId, updatedAt: new Date() })
         .where(eq(schema.subscriptions.id, existingIncomplete.id));
@@ -285,7 +287,7 @@ export const createCheckoutSession = async (
     }
 
     const newId = crypto.randomUUID();
-    await getActiveTx().insert(schema.subscriptions).values({
+    await tx.insert(schema.subscriptions).values({
       id: newId,
       plan: planName,
       referenceId: organizationId,

@@ -10,7 +10,6 @@ import { matterTimeEntriesService } from '@/modules/matters/services/matter-time
 import { mattersService } from '@/modules/matters/services/matters.service';
 import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
 import type { AppRouteHandler } from '@/shared/types/hono';
-import { uow } from '@/shared/database/uow';
 import { getServiceContext } from '@/shared/types/service-context';
 
 const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute> = async (c) => {
@@ -343,10 +342,7 @@ const linkMatterFileHandler: AppRouteHandler<typeof matterRoutes.linkMatterFileR
   const { matter_id: matterId } = c.req.valid('param');
   const { upload_id: uploadId } = c.req.valid('json');
 
-  const prep = await matterFilesService.prepareLinkUpload({ matterId, uploadId }, ctx);
-  const linked = await uow.transaction(async () =>
-    matterFilesService.persistLinkUpload({ matterId, uploadId, prep }, ctx)
-  );
+  const linked = await matterFilesService.linkUpload({ matterId, uploadId }, ctx);
   return c.json(linked, 201);
 };
 

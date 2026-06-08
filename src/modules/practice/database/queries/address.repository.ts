@@ -18,7 +18,7 @@ export const upsertAddress = async (params: {
   userId?: string | null;
   addressId?: string | null;
   type?: string;
-}): Promise<typeof addresses.$inferSelect | undefined> => {
+}): Promise<typeof addresses.$inferSelect> => {
   const { addressData, organizationId, userId, addressId: providedAddressId, type = 'practice_location' } = params;
   let targetAddressId = providedAddressId;
 
@@ -49,6 +49,10 @@ export const upsertAddress = async (params: {
       .set({ ...dataToSave, updated_at: new Date() })
       .where(and(eq(addresses.id, targetAddressId), eq(addresses.organization_id, organizationId)))
       .returning();
+
+    if (!updatedAddress) {
+      throw new Error(`Address ${targetAddressId} not found for organization ${organizationId}`);
+    }
 
     return updatedAddress;
   } else {

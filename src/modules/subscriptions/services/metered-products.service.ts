@@ -13,9 +13,11 @@ import { sql, and, eq } from 'drizzle-orm';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
 import { organizations, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
+import { db } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { getActiveTx } from '@/shared/database/uow';
+import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
 
@@ -34,19 +36,21 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * promises if they do not want Stripe outages or invalid `meteredType` inputs
  * to break the caller flow.
  *
- * @param organizationId - Organization UUID
- * @param meteredType - Standardized metered type (see METERED_TYPES)
- * @param quantity - Amount to report
- * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async function reportMeteredUsage(
-  organizationId: string,
-  meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
-  quantity = 1,
-  deduplicationId?: string
+  params: {
+    organizationId: string;
+    meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT;
+    quantity?: number;
+    deduplicationId?: string;
+  },
+  ctx?: ServiceContext
 ): Promise<void> {
+  void ctx;
+  const { organizationId, meteredType, quantity = 1, deduplicationId } = params;
+
   // 1. Get organization's Stripe Customer ID
-  const [org] = await getActiveTx()
+  const [org] = await db
     .select({
       stripeCustomerId: organizations.stripeCustomerId,
     })
@@ -87,25 +91,23 @@ const reportMeteredUsage = async function reportMeteredUsage(
   // 4. Log event to global events table for audit trail
   // We wrap this in its own try/catch to avoid failing the report if DB insert fails
   try {
-    await getActiveTx()
-      .insert(events)
-      .values({
-        type: METER_USAGE_REPORTED,
-        eventVersion: '1.0.0',
-        actorId: SYSTEM_ACTOR_UUID,
-        actorType: 'system',
-        organizationId: organizationId,
-        payload: {
-          meter_event_name: eventName,
-          quantity,
-          stripe_customer_id: org.stripeCustomerId,
-          metered_type: meteredType,
-        },
-        metadata: {
-          source: 'metered-products-service',
-          environment: config.env.node,
-        },
-      });
+    await db.insert(events).values({
+      type: METER_USAGE_REPORTED,
+      eventVersion: '1.0.0',
+      actorId: SYSTEM_ACTOR_UUID,
+      actorType: 'system',
+      organizationId,
+      payload: {
+        meter_event_name: eventName,
+        quantity,
+        stripe_customer_id: org.stripeCustomerId,
+        metered_type: meteredType,
+      },
+      metadata: {
+        source: 'metered-products-service',
+        environment: config.env.node,
+      },
+    });
   } catch (dbError) {
     logger.error(
       'Failed to log meter usage audit for {meteredType} (org: {organizationId}, dedupe: {dedupeId}): {error}',
@@ -120,8 +122,12 @@ const reportMeteredUsage = async function reportMeteredUsage(
 };
 
 const getCurrentUsage = async function getCurrentUsage(
-  organizationId: string
+  params: { organizationId: string },
+  ctx?: ServiceContext
 ): Promise<{ meter_name: string; quantity: number; description: string | null }[]> {
+  void ctx;
+  const { organizationId } = params;
+
   // 1. Get organization's active subscription to find current period start
   const [org] = await getActiveTx()
     .select({

@@ -1,5 +1,5 @@
 import { getLogger } from '@logtape/logtape';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
@@ -50,6 +50,8 @@ export const handleExternalAccountCreated = async (externalAccount: Stripe.Exter
     );
 
     await uow.transaction(async () => {
+      await getActiveTx().execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${stripeAccountId}, 0))`);
+
       const [accountRecord] = await getActiveTx()
         .select()
         .from(stripeConnectedAccounts)

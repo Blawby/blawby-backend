@@ -53,19 +53,19 @@ const createClient = async (
       throw new HTTPException(404, { message: 'User not found. Please invite them using the invitations flow first.' });
     }
 
-    const existingMember = await membersRepository.findByOrgAndUser({
-      organizationId: ctx.organizationId,
-      userId: user.id,
-    });
-    if (!existingMember) {
-      await membersRepository.create({
+    const createdDetail = await uow.transaction(async () => {
+      const existingMember = await membersRepository.findByOrgAndUser({
         organizationId: ctx.organizationId,
         userId: user.id,
-        role: 'client',
       });
-    }
+      if (!existingMember) {
+        await membersRepository.create({
+          organizationId: ctx.organizationId,
+          userId: user.id,
+          role: 'client',
+        });
+      }
 
-    const createdDetail = await uow.transaction(async () => {
       let addressId: string | undefined = undefined;
       if (data.address) {
         const address = await upsertAddress({

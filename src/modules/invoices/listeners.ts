@@ -51,7 +51,12 @@ export const reportMeteredUsageWithRetry = async (
   }
 ): Promise<void> => {
   try {
-    await deps.reportMeteredUsage(opts.organizationId, opts.meteredType, opts.quantity, opts.deduplicationId);
+    await deps.reportMeteredUsage({
+      organizationId: opts.organizationId,
+      meteredType: opts.meteredType,
+      quantity: opts.quantity,
+      deduplicationId: opts.deduplicationId,
+    });
     return;
   } catch (usageError) {
     const usageErrorMessage = usageError instanceof Error ? usageError.message : 'Unknown error';
@@ -134,7 +139,7 @@ export const reportMeteredUsageWithRetry = async (
  * reporting failures are re-queued onto Graphile Worker with job-key
  * deduplication instead of sleeping or retrying inline.
  */
-export function registerInvoicesListeners(): void {
+export const registerInvoicesListeners = (): void => {
   logger.info('Registering invoices event listeners...');
 
   /**
@@ -230,4 +235,4 @@ export function registerInvoicesListeners(): void {
   });
 
   logger.info('Invoices event listeners registered');
-}
+};

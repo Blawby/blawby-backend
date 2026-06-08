@@ -1,7 +1,7 @@
-import { getLogger } from '@logtape/logtape';
-import type { Task } from 'graphile-worker';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
 import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
+import { getLogger } from '@logtape/logtape';
+import type { Task } from 'graphile-worker';
 
 const logger = getLogger(['workers', 'process-metered-usage']);
 
@@ -28,7 +28,7 @@ export const processMeteredUsage: Task = async (payload): Promise<void> => {
     throw new Error('Invalid metered usage retry payload');
   }
 
-  await meteredProductsService.reportMeteredUsage(organizationId, meteredType, quantity, deduplicationId);
+  await meteredProductsService.reportMeteredUsage({ organizationId, meteredType, quantity, deduplicationId });
 
   logger.info('Processed metered usage retry job {deduplicationId}', {
     organizationId,

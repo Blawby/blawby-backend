@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { matterFilesQueries } from '@/modules/matters/database/queries/matter-files.queries';
 import { mattersService } from '@/modules/matters/services/matters.service';
+import { uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
@@ -38,6 +39,11 @@ interface LinkPreparation {
 }
 
 export const matterFilesService = {
+  async linkUpload({ matterId, uploadId }: { matterId: string; uploadId: string }, ctx: ServiceContext) {
+    const prep = await this.prepareLinkUpload({ matterId, uploadId }, ctx);
+    return await uow.transaction(async () => this.persistLinkUpload({ matterId, uploadId, prep }, ctx));
+  },
+
   // Step 1: access checks + optional external storage verify — no DB mutations
   async prepareLinkUpload(
     { matterId, uploadId }: { matterId: string; uploadId: string },
