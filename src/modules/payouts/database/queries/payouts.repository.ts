@@ -1,6 +1,5 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { payouts, type InsertPayout, type SelectPayout } from '@/modules/payouts/database/schema/payouts.schema';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 interface ListPayoutsFilters {
@@ -66,7 +65,7 @@ const listByOrganization = async (
   }
   const where = and(...conditions);
 
-  const results = await db
+  const results = await getActiveTx()
     .select()
     .from(payouts)
     .where(where)
@@ -75,7 +74,7 @@ const listByOrganization = async (
     .limit(filters.limit)
     .offset(offset);
 
-  const [countResult] = await db
+  const [countResult] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(payouts)
     .where(where);
@@ -87,7 +86,7 @@ const listByOrganization = async (
 };
 
 const findByIdAndOrganization = async (id: string, organizationId: string): Promise<SelectPayout | undefined> => {
-  const [payout] = await db
+  const [payout] = await getActiveTx()
     .select()
     .from(payouts)
     .where(and(eq(payouts.id, id), eq(payouts.organization_id, organizationId)))

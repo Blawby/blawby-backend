@@ -1,8 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-
-;
 import { uploads } from '@/shared/uploads/schema/uploads.schema';
-import type { ServiceContext } from '@/shared/types/service-context';
 import { matterFiles, type InsertMatterFile } from '@/modules/matters/database/schema/matter-files.schema';
 import { getActiveTx } from '@/shared/database/uow';
 

@@ -1,6 +1,5 @@
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { sessions } from '@/schema/better-auth-schema';
-;
 import { getActiveTx } from '@/shared/database/uow';
 
 const deleteByUserId = async (userId: string): Promise<void> => {

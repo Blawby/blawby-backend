@@ -786,7 +786,7 @@ import { getActiveTx } from '@/shared/database/uow';
 
 Check if `uploadsRepository` uses tx params:
 ```bash
-grep -n "tx\b" src/shared/uploads/database/queries/uploads.repository.ts 2>/dev/null || \
+grep -n "tx\b" src/shared/uploads/queries/uploads.repository.ts 2>/dev/null || \
   find src -path "*uploads*queries*" -name "*.ts" | head -3
 ```
 

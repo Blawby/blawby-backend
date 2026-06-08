@@ -1,16 +1,13 @@
 import { desc, eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterStatusHistory,
   type InsertMatterStatusHistory,
   type SelectMatterStatusHistory,
 } from '@/modules/matters/database/schema/matter-status-history.schema';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 const createMatterStatusHistory = async (
-  data: InsertMatterStatusHistory,
-  tx?: NodePgDatabase
+  data: InsertMatterStatusHistory
 ): Promise<SelectMatterStatusHistory> => {
   const [entry] = await getActiveTx().insert(matterStatusHistory).values(data).returning();
   if (!entry) {
@@ -20,7 +17,7 @@ const createMatterStatusHistory = async (
 };
 
 const listMatterStatusHistory = async (matterId: string): Promise<SelectMatterStatusHistory[]> =>
-  await db
+  await getActiveTx()
     .select()
     .from(matterStatusHistory)
     .where(eq(matterStatusHistory.matter_id, matterId))

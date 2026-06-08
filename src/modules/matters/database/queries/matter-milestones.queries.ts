@@ -6,7 +6,7 @@ import {
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
 import { db } from '@/shared/database';
-import { getActiveTx } from '@/shared/database/uow';
+import { getActiveTx, uow } from '@/shared/database/uow';
 
 // Create matter milestone
 const createMatterMilestone = async (data: InsertMatterMilestone): Promise<SelectMatterMilestone> => {
@@ -70,7 +70,7 @@ const reorderMilestones = async (updates: { id: string; order: number }[]): Prom
     return;
   }
 
-  await db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     for (const update of updates) {
       await getActiveTx()
         .update(matterMilestones)

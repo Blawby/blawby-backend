@@ -7,7 +7,7 @@ import {
   type SelectInvoiceLineItem,
 } from '@/modules/invoices/database/schema';
 import type { InvoiceListFilters, InvoiceSummary, InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
-import { db } from '@/shared/database';
+
 import { getActiveTx } from '@/shared/database/uow';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
@@ -106,7 +106,7 @@ const listInvoicesByOrganization = async (
     conditions.push(eq(invoices.status, filters.status));
   }
 
-  const results = await db.query.invoices.findMany({
+  const results = await getActiveTx().query.invoices.findMany({
     where: and(...conditions),
     orderBy: desc(invoices.created_at),
     limit,
@@ -120,7 +120,7 @@ const listInvoicesByOrganization = async (
     },
   });
 
-  const [countResult] = await db
+  const [countResult] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(invoices)
     .where(and(...conditions));

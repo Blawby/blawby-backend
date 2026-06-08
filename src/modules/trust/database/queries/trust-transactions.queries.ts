@@ -4,7 +4,6 @@ import {
   type InsertTrustTransaction,
   type SelectTrustTransaction,
 } from '@/modules/trust/database/schema/trust-transactions.schema';
-import { db } from '@/shared/database';
 import { getActiveTx } from '@/shared/database/uow';
 
 /**
@@ -44,7 +43,7 @@ const listByClient = async (params: {
     conditions.push(lte(trustTransactions.created_at, params.endDate));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(trustTransactions)
     .where(and(...conditions))
@@ -76,7 +75,7 @@ const listByOrg = async (params: {
     conditions.push(lte(trustTransactions.created_at, params.endDate));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(trustTransactions)
     .where(and(...conditions))
@@ -110,7 +109,7 @@ const getLatestBalanceByClient = async (
 const getLatestBalancePerClient = async (
   organizationId: string
 ): Promise<{ client_id: string; balance: number; as_of_date: Date }[]> => {
-  const rows = await db
+  const rows = await getActiveTx()
     .selectDistinctOn([trustTransactions.client_id], {
       client_id: trustTransactions.client_id,
       balance: trustTransactions.balance_after,

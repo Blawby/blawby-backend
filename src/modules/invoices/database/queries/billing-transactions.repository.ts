@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@/shared/database';
+
 import { getActiveTx } from '@/shared/database/uow';
 import {
   billingTransactionsSchema,
@@ -26,7 +26,7 @@ const createTransaction = async (data: InsertBillingTransaction): Promise<Select
  * Find a transaction by Stripe Transfer ID
  */
 const findByStripeTransferId = async (stripeTransferId: string): Promise<SelectBillingTransaction | null> => {
-  const [transaction] = await db
+  const [transaction] = await getActiveTx()
     .select()
     .from(billingTransactions)
     .where(eq(billingTransactions.stripe_transfer_id, stripeTransferId))
