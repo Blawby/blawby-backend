@@ -6,7 +6,7 @@
 
 import type { Task } from 'graphile-worker';
 import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { trustService } from '@/modules/trust/services/trust.service';
@@ -38,8 +38,8 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
   });
 
   try {
-    await db.transaction(async (tx) => {
-      const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id, tx);
+    await uow.transaction(async () => {
+      const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id);
       if (!invoice) {
         throw new Error(`Invoice with Stripe ID ${stripe_invoice_id} not found`);
       }
@@ -66,52 +66,41 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
         routing,
       });
 
-      await invoicesRepository.updateInvoice(
-        invoice.id,
-        organization_id,
-        {
-          status: 'paid',
-          amount_paid: stripe_amount_paid,
-          stripe_transfer_id: transfer.transferId,
-        },
-        tx
-      );
+      await invoicesRepository.updateInvoice(invoice.id, organization_id, {
+        status: 'paid',
+        amount_paid: stripe_amount_paid,
+        stripe_transfer_id: transfer.transferId,
+      });
 
       if (transfer.transferId) {
-        await billingRecorder.record(
-          {
-            organizationId: organization_id,
-            payableId: invoice.id,
-            payableType: 'invoice',
-            matterId,
-            amount: stripe_amount_paid,
-            transferId: transfer.transferId,
-            destinationAccountId: invoice.connected_account_id,
-            metadata: {
-              stripe_invoice_id,
-              invoice_type: invoiceType,
-              fund_destination: fundDestination,
-            },
+        await billingRecorder.record({
+          organizationId: organization_id,
+          payableId: invoice.id,
+          payableType: 'invoice',
+          matterId,
+          amount: stripe_amount_paid,
+          transferId: transfer.transferId,
+          destinationAccountId: invoice.connected_account_id,
+          metadata: {
+            stripe_invoice_id,
+            invoice_type: invoiceType,
+            fund_destination: fundDestination,
           },
-          tx
-        );
+        });
       }
 
       if (invoiceType === 'retainer_deposit' && matterId && clientId) {
-        await retainerPaymentFlow.recordDeposit(
-          {
-            organizationId: organization_id,
-            clientId,
-            matterId,
-            amount: stripe_amount_paid,
-            invoiceId: invoice.id,
-          },
-          tx
-        );
+        await retainerPaymentFlow.recordDeposit({
+          organizationId: organization_id,
+          clientId,
+          matterId,
+          amount: stripe_amount_paid,
+          invoiceId: invoice.id,
+        });
 
-        const matter = await mattersQueries.findMatterById(matterId, tx);
+        const matter = await mattersQueries.findMatterById(matterId);
         if (matter && matter.retainer_low_balance_threshold !== null && matter.retainer_low_balance_threshold > 0) {
-          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId }, tx);
+          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId });
           const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
           if (matterBalance < matter.retainer_low_balance_threshold) {
             await RetainerLowBalance.dispatch(
@@ -121,7 +110,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
                 current_balance: matterBalance,
                 threshold: matter.retainer_low_balance_threshold,
               },
-              { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx }
+              { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx: getActiveTx() }
             );
           }
         }
@@ -136,7 +125,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           amount_paid: stripe_amount_paid,
           retainer_deducted: invoiceType === 'retainer_deposit' && !!matterId && !!clientId,
         },
-        { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx }
+        { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx: getActiveTx() }
       );
     });
 

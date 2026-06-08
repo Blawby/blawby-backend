@@ -1,5 +1,9 @@
 import type { SelectPayout } from '@/modules/payouts/database/schema/payouts.schema';
-import type { PayoutDetailResponse, PayoutResponse, PayoutTransactionResponse } from '@/modules/payouts/schemas/payouts.validation';
+import type {
+  PayoutDetailResponse,
+  PayoutResponse,
+  PayoutTransactionResponse,
+} from '@/modules/payouts/schemas/payouts.validation';
 import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 
 export interface PayoutDetailServiceResult {
@@ -31,7 +35,11 @@ export const serializePayout = (payout: SelectPayout): PayoutResponse => ({
   updated_at: payout.updated_at.toISOString(),
 });
 
-export const serializePayoutDetail = ({ payout, transactions, transactions_has_more }: PayoutDetailServiceResult): PayoutDetailResponse => ({
+export const serializePayoutDetail = ({
+  payout,
+  transactions,
+  transactions_has_more,
+}: PayoutDetailServiceResult): PayoutDetailResponse => ({
   ...serializePayout(payout),
   balance_transaction_id: payout.balance_transaction_id,
   metadata: payout.metadata ?? null,

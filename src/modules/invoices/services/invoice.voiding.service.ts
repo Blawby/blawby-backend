@@ -1,6 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import {
@@ -8,9 +5,12 @@ import {
   enqueueVoidReconciliation,
 } from '@/modules/invoices/services/invoice.delivery.recovery';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceVoided } from '@/shared/events/definitions';
-import { db } from '@/shared/database';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['invoices', 'voiding-service']);
 
@@ -21,13 +21,11 @@ export const attemptStripeVoidWithRecovery = async ({
   organizationId,
   stripeInvoiceId,
   stripeAccountId,
-  ctx,
 }: {
   invoiceId: string;
   organizationId: string;
   stripeInvoiceId: string;
   stripeAccountId: string;
-  ctx: ServiceContext;
 }): Promise<void> => {
   try {
     await stripeApiAdapter.voidInvoice(stripeInvoiceId, stripeAccountId);
@@ -49,7 +47,6 @@ export const attemptStripeVoidWithRecovery = async ({
         invoiceId,
         organizationId,
         stripeInvoiceId,
-        ctx,
       });
     } catch (dispatchError) {
       logger.error('Failed to dispatch invoice void system error: {error}', {
@@ -86,13 +83,12 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
     }
     const stripeInvoiceId = invoice.stripe_invoice_id;
 
-    await db.transaction(async (tx) => {
+    await uow.transaction(async () => {
       const transitioned = await invoicesRepository.transitionInvoiceStatus(
         id,
         ctx.organizationId,
         'sent',
-        'cancelled',
-        tx
+        'cancelled'
       );
       if (!transitioned) {
         throw new HTTPException(409, { message: 'Invoice status changed before void could be applied' });
@@ -108,7 +104,7 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     });
@@ -118,7 +114,6 @@ export const voidInvoice = async ({ id }: { id: string }, ctx: ServiceContext): 
       organizationId: ctx.organizationId,
       stripeInvoiceId,
       stripeAccountId: invoice.connectedAccount.stripe_account_id,
-      ctx,
     });
     stripeVoidSucceeded = true;
 

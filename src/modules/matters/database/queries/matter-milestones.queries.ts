@@ -5,30 +5,26 @@ import {
   type SelectMatterMilestone,
 } from '@/modules/matters/database/schema/matter-milestones.schema';
 import type { MatterMilestoneListFilters } from '@/modules/matters/types/matter-filters.types';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 
 // Create matter milestone
 const createMatterMilestone = async (data: InsertMatterMilestone): Promise<SelectMatterMilestone> => {
-  const [milestone] = await db.insert(matterMilestones).values(data).returning();
+  const [milestone] = await getActiveTx().insert(matterMilestones).values(data).returning();
   return milestone;
 };
 
 // Create multiple milestones
-const createMatterMilestones = async (
-  data: InsertMatterMilestone[],
-  tx?: typeof db
-): Promise<SelectMatterMilestone[]> => {
+const createMatterMilestones = async (data: InsertMatterMilestone[]): Promise<SelectMatterMilestone[]> => {
   if (data.length === 0) {
     return [];
   }
 
-  const client = tx ?? db;
-  return await client.insert(matterMilestones).values(data).returning();
+  return await getActiveTx().insert(matterMilestones).values(data).returning();
 };
 
 // Find matter milestone by ID
 const findMatterMilestoneById = async (id: string): Promise<SelectMatterMilestone | undefined> => {
-  const [milestone] = await db.select().from(matterMilestones).where(eq(matterMilestones.id, id)).limit(1);
+  const [milestone] = await getActiveTx().select().from(matterMilestones).where(eq(matterMilestones.id, id)).limit(1);
   return milestone;
 };
 
@@ -42,7 +38,7 @@ const listMatterMilestones = async (
     conditions.push(eq(matterMilestones.id, filters.milestoneId));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(matterMilestones)
     .where(and(...conditions))
@@ -54,7 +50,7 @@ const updateMatterMilestone = async (
   id: string,
   data: Partial<InsertMatterMilestone>
 ): Promise<SelectMatterMilestone | undefined> => {
-  const [milestone] = await db
+  const [milestone] = await getActiveTx()
     .update(matterMilestones)
     .set({ ...data, updated_at: new Date() })
     .where(eq(matterMilestones.id, id))
@@ -64,7 +60,7 @@ const updateMatterMilestone = async (
 
 // Delete matter milestone
 const deleteMatterMilestone = async (id: string): Promise<void> => {
-  await db.delete(matterMilestones).where(eq(matterMilestones.id, id));
+  await getActiveTx().delete(matterMilestones).where(eq(matterMilestones.id, id));
 };
 
 // Reorder milestones
@@ -73,9 +69,9 @@ const reorderMilestones = async (updates: { id: string; order: number }[]): Prom
     return;
   }
 
-  await db.transaction(async (tx) => {
+  await uow.transaction(async () => {
     for (const update of updates) {
-      await tx
+      await getActiveTx()
         .update(matterMilestones)
         .set({ order: update.order, updated_at: new Date() })
         .where(eq(matterMilestones.id, update.id));
@@ -95,7 +91,7 @@ const getMilestoneStats = async (
   totalAmount: number;
   completedAmount: number;
 }> => {
-  const [stats] = await db
+  const [stats] = await getActiveTx()
     .select({
       total: sql<number>`COUNT(*)`,
       pending: sql<number>`COUNT(CASE WHEN ${matterMilestones.status} = 'pending' THEN 1 END)`,
@@ -122,14 +118,8 @@ const getMilestoneStats = async (
 /**
  * Mark a milestone as invoiced.
  */
-const markAsInvoiced = async (
-  milestoneId: string,
-  invoiceId: string,
-  matterId: string,
-  tx?: typeof db
-): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const markAsInvoiced = async (milestoneId: string, invoiceId: string, matterId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterMilestones)
     .set({
       invoice_id: invoiceId,
@@ -142,9 +132,8 @@ const markAsInvoiced = async (
 /**
  * Unmark milestones as invoiced. Resets invoice_id and invoiced_at for milestones linked to the given invoice.
  */
-const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const unmarkInvoiced = async (invoiceId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterMilestones)
     .set({
       invoice_id: null,

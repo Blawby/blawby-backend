@@ -1,12 +1,14 @@
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
-import { and, eq, inArray } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
+// oxlint-disable-next-line import/no-namespace
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getActiveTx } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, inArray } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['subscriptions', 'services', 'checkout-session']);
 
@@ -58,13 +60,13 @@ const getOrCreateOrg = async (
   userId: string,
   requestHeaders: Headers
 ): Promise<{ organizationId: string; isNew: boolean }> => {
-  const memberships = await db
+  const memberships = await getActiveTx()
     .select({ organizationId: schema.members.organizationId })
     .from(schema.members)
     .where(eq(schema.members.userId, userId));
 
   if (memberships.length === 0) {
-    const [userData] = await db
+    const [userData] = await getActiveTx()
       .select({ name: schema.users.name })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -77,33 +79,35 @@ const getOrCreateOrg = async (
     const orgName = `${userData.name}'s org`;
     let orgSlug = generateSlug(userData.name);
 
-    let slugFound = false;
-    for (let i = 0; i < 10; i++) {
-      const candidate = i === 0 ? orgSlug : `${orgSlug}-${i}`;
-      const [existing] = await db
-        .select({ id: schema.organizations.id })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.slug, candidate))
-        .limit(1);
-      if (!existing) {
-        orgSlug = candidate;
-        slugFound = true;
+    const candidates = Array.from({ length: 10 }, (_, i) => (i === 0 ? orgSlug : `${orgSlug}-${i}`));
+    const organizationId = crypto.randomUUID();
+    let created = false;
+
+    // oxlint-disable-next-line no-await-in-loop
+    for (const candidateSlug of candidates) {
+      try {
+        await db.transaction(async (tx) => {
+          await tx
+            .insert(schema.organizations)
+            .values({ id: organizationId, name: orgName, slug: candidateSlug, createdAt: new Date() });
+          await tx
+            .insert(schema.members)
+            .values({ id: crypto.randomUUID(), userId, organizationId, role: 'owner', createdAt: new Date() });
+        });
+        orgSlug = candidateSlug;
+        created = true;
         break;
+      } catch (err) {
+        const code =
+          typeof err === 'object' && err !== null && 'code' in err ? (err as { code: unknown }).code : undefined;
+        if (code !== '23505') {
+          throw err;
+        }
       }
     }
-    if (!slugFound) {
+    if (!created) {
       throw new HTTPException(500, { message: 'Unable to generate unique organization slug' });
     }
-
-    const organizationId = crypto.randomUUID();
-    await db.transaction(async (tx) => {
-      await tx
-        .insert(schema.organizations)
-        .values({ id: organizationId, name: orgName, slug: orgSlug, createdAt: new Date() });
-      await tx
-        .insert(schema.members)
-        .values({ id: crypto.randomUUID(), userId, organizationId, role: 'owner', createdAt: new Date() });
-    });
 
     await createBetterAuthInstance(db).api.setActiveOrganization({
       body: { organizationId },
@@ -115,7 +119,7 @@ const getOrCreateOrg = async (
 
   // Find org without active subscription (prefer that), else first org
   const orgIds = memberships.map((m) => m.organizationId);
-  const orgs = await db
+  const orgs = await getActiveTx()
     .select({ id: schema.organizations.id, activeSubscriptionId: schema.organizations.activeSubscriptionId })
     .from(schema.organizations)
     .where(inArray(schema.organizations.id, orgIds));
@@ -152,7 +156,7 @@ export const createCheckoutSession = async (
   } = params;
 
   // 1. Resolve price — must exist and be active
-  const price = await subscriptionRepository.findPriceByStripeId(db, stripePriceId);
+  const price = await subscriptionRepository.findPriceByStripeId(stripePriceId);
   if (!price) {
     throw new HTTPException(400, { message: `Price not found: ${stripePriceId}` });
   }
@@ -161,10 +165,10 @@ export const createCheckoutSession = async (
   }
 
   // 2. Resolve org
-  let organizationId: string;
-  let resolvedMember: { role: string | null } | undefined;
+  let organizationId = '';
+  let resolvedMember: { role: string | null } | undefined = undefined;
   if (explicitOrgId) {
-    const [org] = await db
+    const [org] = await getActiveTx()
       .select({ id: schema.organizations.id })
       .from(schema.organizations)
       .where(eq(schema.organizations.id, explicitOrgId))
@@ -174,7 +178,7 @@ export const createCheckoutSession = async (
       throw new HTTPException(404, { message: 'Organization not found' });
     }
 
-    const [member] = await db
+    const [member] = await getActiveTx()
       .select({ role: schema.members.role })
       .from(schema.members)
       .where(and(eq(schema.members.userId, ctx.userId), eq(schema.members.organizationId, explicitOrgId)))
@@ -187,15 +191,15 @@ export const createCheckoutSession = async (
     resolvedMember = member;
     organizationId = explicitOrgId;
   } else {
-    const resolved = await getOrCreateOrg(ctx.userId, new Headers(ctx.requestHeaders as Record<string, string>));
-    organizationId = resolved.organizationId;
+    const resolved = await getOrCreateOrg(ctx.userId, new Headers(ctx.requestHeaders));
+    ({ organizationId } = resolved);
   }
 
   if (requireManagementAccess) {
     const member =
       resolvedMember ??
       (
-        await db
+        await getActiveTx()
           .select({ role: schema.members.role })
           .from(schema.members)
           .where(and(eq(schema.members.userId, ctx.userId), eq(schema.members.organizationId, organizationId)))
@@ -208,14 +212,14 @@ export const createCheckoutSession = async (
   }
 
   // 3. Guard duplicate active subscription
-  const [org] = await db
+  const [org] = await getActiveTx()
     .select({ activeSubscriptionId: schema.organizations.activeSubscriptionId })
     .from(schema.organizations)
     .where(eq(schema.organizations.id, organizationId))
     .limit(1);
 
   if (org?.activeSubscriptionId) {
-    const [activeSub] = await db
+    const [activeSub] = await getActiveTx()
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
       .where(eq(schema.subscriptions.id, org.activeSubscriptionId))
@@ -227,7 +231,7 @@ export const createCheckoutSession = async (
   }
 
   // 4. Get or create Stripe customer
-  const [orgData] = await db
+  const [orgData] = await getActiveTx()
     .select({ stripeCustomerId: schema.organizations.stripeCustomerId })
     .from(schema.organizations)
     .where(eq(schema.organizations.id, organizationId))
@@ -259,7 +263,7 @@ export const createCheckoutSession = async (
   }
 
   // 5. Atomically find-or-create the incomplete subscription row so retries share
-  // the same subscriptionId and thus the same Stripe idempotency key.
+  // The same subscriptionId and thus the same Stripe idempotency key.
   const planName = price.name ?? stripePriceId;
   const { subscriptionId, isNew } = await db.transaction(async (tx) => {
     const [existingIncomplete] = await tx

@@ -1,6 +1,19 @@
-import type { listClientsRoute, getClientRoute, updateClientRoute, deleteClientRoute } from '@/modules/clients/routes/clients.routes';
-import type { listClientMemosRoute, createClientMemoRoute, updateClientMemoRoute, deleteClientMemoRoute } from '@/modules/clients/routes/client-memos.routes';
-import type { getClientIntakeProfileRoute, updateClientIntakeProfileRoute } from '@/modules/clients/routes/client-intake-profile.routes';
+import type {
+  listClientsRoute,
+  getClientRoute,
+  updateClientRoute,
+  deleteClientRoute,
+} from '@/modules/clients/routes/clients.routes';
+import type {
+  listClientMemosRoute,
+  createClientMemoRoute,
+  updateClientMemoRoute,
+  deleteClientMemoRoute,
+} from '@/modules/clients/routes/client-memos.routes';
+import type {
+  getClientIntakeProfileRoute,
+  updateClientIntakeProfileRoute,
+} from '@/modules/clients/routes/client-intake-profile.routes';
 import { clientIntakeProfilesService } from '@/modules/clients/services/client-intake-profiles.service';
 import { clientMemosService } from '@/modules/clients/services/client-memos.service';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';

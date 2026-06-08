@@ -1,57 +1,53 @@
-import { eq, and, desc } from 'drizzle-orm';
-import { engagementTemplates } from '@/modules/engagement-templates/database/schema/engagement-templates.schema';
-import type {
-  InsertEngagementTemplate,
-  SelectEngagementTemplate,
+import {
+  type InsertEngagementTemplate,
+  type SelectEngagementTemplate,
+  engagementTemplates,
 } from '@/modules/engagement-templates/database/schema/engagement-templates.schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq } from 'drizzle-orm';
 
-const insert = async (data: InsertEngagementTemplate, tx: typeof db = db): Promise<SelectEngagementTemplate> => {
-  const [record] = await tx.insert(engagementTemplates).values(data).returning();
+const insert = async (data: InsertEngagementTemplate): Promise<SelectEngagementTemplate> => {
+  const [record] = await getActiveTx().insert(engagementTemplates).values(data).returning();
   if (!record) {
     throw new Error('Failed to insert engagement template');
   }
   return record;
 };
 
-const findById = async (id: string, tx: typeof db = db): Promise<SelectEngagementTemplate | undefined> => {
-  const [record] = await tx.select().from(engagementTemplates).where(eq(engagementTemplates.id, id)).limit(1);
+const findById = async (id: string): Promise<SelectEngagementTemplate | undefined> => {
+  const [record] = await getActiveTx()
+    .select()
+    .from(engagementTemplates)
+    .where(eq(engagementTemplates.id, id))
+    .limit(1);
   return record;
 };
 
-const listByPractice = async (
-  practiceId: string,
-  tx: typeof db = db
-): Promise<SelectEngagementTemplate[]> => {
-  return tx
+const listByPractice = async (practiceId: string): Promise<SelectEngagementTemplate[]> =>
+  getActiveTx()
     .select()
     .from(engagementTemplates)
     .where(eq(engagementTemplates.practice_id, practiceId))
     .orderBy(desc(engagementTemplates.created_at));
-};
 
-const update = async (
-  id: string,
-  data: Partial<InsertEngagementTemplate>,
-  tx: typeof db = db
-): Promise<SelectEngagementTemplate> => {
-  const [record] = await tx.update(engagementTemplates).set(data).where(eq(engagementTemplates.id, id)).returning();
+const update = async (id: string, data: Partial<InsertEngagementTemplate>): Promise<SelectEngagementTemplate> => {
+  const [record] = await getActiveTx()
+    .update(engagementTemplates)
+    .set(data)
+    .where(eq(engagementTemplates.id, id))
+    .returning();
   if (!record) {
     throw new Error('Failed to update engagement template');
   }
   return record;
 };
 
-const remove = async (id: string, tx: typeof db = db): Promise<void> => {
-  await tx.delete(engagementTemplates).where(eq(engagementTemplates.id, id));
+const remove = async (id: string): Promise<void> => {
+  await getActiveTx().delete(engagementTemplates).where(eq(engagementTemplates.id, id));
 };
 
-const findByIdAndPractice = async (
-  id: string,
-  practiceId: string,
-  tx: typeof db = db
-): Promise<SelectEngagementTemplate | undefined> => {
-  const [record] = await tx
+const findByIdAndPractice = async (id: string, practiceId: string): Promise<SelectEngagementTemplate | undefined> => {
+  const [record] = await getActiveTx()
     .select()
     .from(engagementTemplates)
     .where(and(eq(engagementTemplates.id, id), eq(engagementTemplates.practice_id, practiceId)))

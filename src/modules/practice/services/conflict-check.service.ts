@@ -1,19 +1,19 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { and, eq, gt, isNull, isNotNull, sql } from 'drizzle-orm';
-import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
-import { db } from '@/shared/database';
-import { ConflictCheckCompleted } from '@/shared/events/definitions/engagement-contracts';
-import type { ServiceContext } from '@/shared/types/service-context';
 import type {
   ConflictCheckInput,
   ConflictCheckResult,
   ConflictCheckStatus,
   ConflictCheckWarning,
 } from '@/modules/practice/types/conflict-check.types';
+import { getActiveTx, uow } from '@/shared/database/uow';
+import { ConflictCheckCompleted } from '@/shared/events/definitions/engagement-contracts';
+import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 
 const logger = getLogger(['practice', 'conflict-check-service']);
 
@@ -121,7 +121,7 @@ const runConflictCheck = async (
 
   for (const term of terms) {
     const [onBehalfMatches, opposingMatches, clientMatches] = await Promise.all([
-      db
+      getActiveTx()
         .select({
           matter_id: matters.id,
           title: matters.title,
@@ -137,7 +137,7 @@ const runConflictCheck = async (
           )
         )
         .limit(25),
-      db
+      getActiveTx()
         .select({
           matter_id: matters.id,
           title: matters.title,
@@ -153,7 +153,7 @@ const runConflictCheck = async (
           )
         )
         .limit(25),
-      db
+      getActiveTx()
         .select({
           client_id: clients.id,
           name: clients.name,
@@ -244,8 +244,8 @@ const runConflictCheck = async (
     const organization = await organizationRepository.findById(ctx.organizationId);
     const billingEmail = organization?.billingEmail;
 
-    await db.transaction(async (tx) => {
-      await tx
+    await uow.transaction(async () => {
+      await getActiveTx()
         .update(matters)
         .set({
           last_conflict_check_at: new Date(),
@@ -267,17 +267,13 @@ const runConflictCheck = async (
           matterId,
         });
       } else {
-        await ctx.emit(
-          ConflictCheckCompleted,
-          {
-            matter_id: matterId,
-            organization_id: ctx.organizationId,
-            result_status: result.status,
-            practice_name: organization?.name ?? '',
-            practice_email: billingEmail,
-          },
-          tx
-        );
+        await ctx.emit(ConflictCheckCompleted, {
+          matter_id: matterId,
+          organization_id: ctx.organizationId,
+          result_status: result.status,
+          practice_name: organization?.name ?? '',
+          practice_email: billingEmail,
+        });
       }
     });
   }

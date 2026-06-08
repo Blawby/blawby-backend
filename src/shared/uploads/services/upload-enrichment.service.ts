@@ -4,7 +4,7 @@ import { practiceClientIntakes } from '@/modules/practice-client-intakes/databas
 import { users } from '@/schema/better-auth-schema';
 import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
 import type { UploadMetadataEnrichment } from '@/shared/uploads/types/uploads.types';
-import type { ServiceContext } from '@/shared/types/service-context';
+import { getActiveTx } from '@/shared/database/uow';
 
 export type { UploadMetadataEnrichment } from '@/shared/uploads/types/uploads.types';
 
@@ -32,7 +32,7 @@ const getIntakeScopeLabel = (metadata: unknown): string | null => {
 
 export const buildUploadMetadataEnrichment = async (
   uploads: SelectUpload[],
-  { db, organizationId }: { db: ServiceContext['db']; organizationId: string }
+  { organizationId }: { organizationId: string }
 ): Promise<Map<string, UploadMetadataEnrichment>> => {
   const enrichments = new Map<string, UploadMetadataEnrichment>();
   if (uploads.length === 0) {
@@ -57,19 +57,19 @@ export const buildUploadMetadataEnrichment = async (
 
   const [uploaderRows, matterRows, intakeRows] = await Promise.all([
     uploaderIds.length
-      ? db
+      ? getActiveTx()
           .select({ id: users.id, name: users.name, email: users.email })
           .from(users)
           .where(inArray(users.id, uploaderIds))
       : Promise.resolve([]),
     matterScopeIds.length
-      ? db
+      ? getActiveTx()
           .select({ id: matters.id, title: matters.title })
           .from(matters)
           .where(and(eq(matters.organization_id, organizationId), inArray(matters.id, matterScopeIds)))
       : Promise.resolve([]),
     intakeScopeIds.length
-      ? db
+      ? getActiveTx()
           .select({ id: practiceClientIntakes.id, metadata: practiceClientIntakes.metadata })
           .from(practiceClientIntakes)
           .where(

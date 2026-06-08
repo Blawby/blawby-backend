@@ -1,5 +1,4 @@
-import { eq } from 'drizzle-orm';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import {
   practiceDetails as practiceDetailsTable,
@@ -10,9 +9,10 @@ import type {
   DetailsFieldKeys,
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
-import { db } from '@/shared/database';
-import { PracticeDetailsCreated, PracticeDetailsUpdated, PracticeDetailsDeleted } from '@/shared/events/definitions';
+import { getActiveTx, uow } from '@/shared/database/uow';
+import { PracticeDetailsCreated, PracticeDetailsDeleted, PracticeDetailsUpdated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { eq } from 'drizzle-orm';
 
 export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'business_phone',
@@ -32,16 +32,12 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'accent_color',
 ];
 
-export const upsertDetailsTransaction = async (
-  tx: typeof db,
-  ctx: ServiceContext,
-  params: UpsertDetailsTransactionParams
-) => {
+export const upsertDetailsTransaction = async (ctx: ServiceContext, params: UpsertDetailsTransactionParams) => {
   let addressId = params.existingAddressId;
   let addressResult: AddressData | null = null;
 
   if (params.data.address && Object.keys(params.data.address).length > 0) {
-    const address = await upsertAddressTx(tx, {
+    const address = await upsertAddress({
       addressData: params.data.address,
       organizationId: params.organizationId,
       addressId,
@@ -76,7 +72,7 @@ export const upsertDetailsTransaction = async (
   };
 
   const updatePayload = { address_id: addressId, ...detailsPayload, updated_at: new Date() };
-  const [updated] = await tx
+  const [updated] = await getActiveTx()
     .update(practiceDetailsTable)
     .set(updatePayload)
     .where(eq(practiceDetailsTable.organization_id, params.organizationId))
@@ -88,7 +84,7 @@ export const upsertDetailsTransaction = async (
     details = updated;
     isCreated = false;
   } else {
-    const [inserted] = await tx
+    const [inserted] = await getActiveTx()
       .insert(practiceDetailsTable)
       .values({
         organization_id: params.organizationId,
@@ -106,7 +102,7 @@ export const upsertDetailsTransaction = async (
       isCreated = true;
     } else {
       // Concurrent create won the race; treat this operation as update.
-      const [raceUpdated] = await tx
+      const [raceUpdated] = await getActiveTx()
         .update(practiceDetailsTable)
         .set(updatePayload)
         .where(eq(practiceDetailsTable.organization_id, params.organizationId))
@@ -121,11 +117,11 @@ export const upsertDetailsTransaction = async (
 
   const syncedServices =
     params.data.services !== undefined
-      ? await practiceServicesRepository.syncServicesTx(tx, params.organizationId, params.data.services)
+      ? await practiceServicesRepository.syncServicesTx(params.organizationId, params.data.services)
       : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
-  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data }, tx);
+  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data });
 
   return { details, addressResult, syncedServices };
 };
@@ -143,8 +139,8 @@ export const findAndDeletePracticeDetails = async (
   ctx: ServiceContext,
   organizationId: string
 ): Promise<PracticeDetails | null> =>
-  await db.transaction(async (tx) => {
-    const [deleted] = await tx
+  await uow.transaction(async () => {
+    const [deleted] = await getActiveTx()
       .delete(practiceDetailsTable)
       .where(eq(practiceDetailsTable.organization_id, organizationId))
       .returning();
@@ -153,6 +149,6 @@ export const findAndDeletePracticeDetails = async (
       return null;
     }
 
-    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted), tx);
+    await ctx.emit(PracticeDetailsDeleted, buildPracticeDetailsDeletedPayload(deleted));
     return deleted;
   });

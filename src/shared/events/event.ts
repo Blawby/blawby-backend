@@ -172,6 +172,10 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
   }
 }
 
+// TODO: refactor dispatchTransactional to call getActiveTx() internally (from @/shared/database/uow)
+// so callers pass { transactional: true } instead of { tx: getActiveTx() }. Requires updating
+// DispatchOptions type and all callers of dispatch() that pass tx.
+
 /**
  * Transactional dispatch: Write to outbox + queue job atomically
  * Used when event must be atomic with business logic (inside db.transaction)

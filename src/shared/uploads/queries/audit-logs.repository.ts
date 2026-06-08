@@ -1,27 +1,23 @@
 import { and, count, desc, eq } from 'drizzle-orm';
-
-import { db } from '@/shared/database';
 import {
   uploadAuditLogs,
   type InsertUploadAuditLog,
   type SelectUploadAuditLog,
 } from '@/shared/uploads/schema/upload-audit-logs.schema';
-import type { ServiceContext } from '@/shared/types/service-context';
-
-type DbExecutor = ServiceContext['db'];
+import { getActiveTx } from '@/shared/database/uow';
 
 export const auditLogsRepository = {
-  create: async (data: InsertUploadAuditLog, executor: DbExecutor = db): Promise<SelectUploadAuditLog> => {
-    const [log] = await executor.insert(uploadAuditLogs).values(data).returning();
+  create: async (data: InsertUploadAuditLog): Promise<SelectUploadAuditLog> => {
+    const [log] = await getActiveTx().insert(uploadAuditLogs).values(data).returning();
     return log;
   },
 
   findByUploadId: async (
     uploadId: string,
-    options: { limit?: number; offset?: number; executor?: DbExecutor } = {}
+    options: { limit?: number; offset?: number } = {}
   ): Promise<SelectUploadAuditLog[]> => {
-    const { limit = 100, offset = 0, executor: exec = db } = options;
-    return exec
+    const { limit = 100, offset = 0 } = options;
+    return getActiveTx()
       .select()
       .from(uploadAuditLogs)
       .where(eq(uploadAuditLogs.upload_id, uploadId))
@@ -30,8 +26,8 @@ export const auditLogsRepository = {
       .offset(offset);
   },
 
-  countByUploadId: async (uploadId: string, executor: DbExecutor = db): Promise<number> => {
-    const [result] = await executor
+  countByUploadId: async (uploadId: string): Promise<number> => {
+    const [result] = await getActiveTx()
       .select({ count: count() })
       .from(uploadAuditLogs)
       .where(eq(uploadAuditLogs.upload_id, uploadId));
@@ -41,8 +37,7 @@ export const auditLogsRepository = {
 
   findByOrganization: async (
     organizationId: string,
-    options: { uploadId?: string; action?: string; userId?: string; limit?: number; offset?: number } = {},
-    executor: DbExecutor = db
+    options: { uploadId?: string; action?: string; userId?: string; limit?: number; offset?: number } = {}
   ): Promise<SelectUploadAuditLog[]> => {
     const conditions = [eq(uploadAuditLogs.organization_id, organizationId)];
 
@@ -58,7 +53,7 @@ export const auditLogsRepository = {
       conditions.push(eq(uploadAuditLogs.user_id, options.userId));
     }
 
-    return executor
+    return getActiveTx()
       .select()
       .from(uploadAuditLogs)
       .where(and(...conditions))

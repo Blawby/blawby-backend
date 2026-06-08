@@ -4,20 +4,20 @@ import {
   type InsertMatterDeadline,
   type SelectMatterDeadline,
 } from '@/modules/matters/database/schema/matter-deadlines.schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 const createMatterDeadline = async (data: InsertMatterDeadline): Promise<SelectMatterDeadline> => {
-  const [deadline] = await db.insert(matterDeadlines).values(data).returning();
+  const [deadline] = await getActiveTx().insert(matterDeadlines).values(data).returning();
   return deadline;
 };
 
 const findMatterDeadlineById = async (id: string): Promise<SelectMatterDeadline | undefined> => {
-  const [deadline] = await db.select().from(matterDeadlines).where(eq(matterDeadlines.id, id)).limit(1);
+  const [deadline] = await getActiveTx().select().from(matterDeadlines).where(eq(matterDeadlines.id, id)).limit(1);
   return deadline;
 };
 
 const listMatterDeadlines = async (matterId: string): Promise<SelectMatterDeadline[]> =>
-  await db
+  await getActiveTx()
     .select()
     .from(matterDeadlines)
     .where(eq(matterDeadlines.matter_id, matterId))
@@ -27,7 +27,7 @@ const updateMatterDeadline = async (
   id: string,
   data: Partial<InsertMatterDeadline>
 ): Promise<SelectMatterDeadline | undefined> => {
-  const [updated] = await db
+  const [updated] = await getActiveTx()
     .update(matterDeadlines)
     .set({ ...data, updated_at: new Date() })
     .where(eq(matterDeadlines.id, id))
@@ -36,7 +36,7 @@ const updateMatterDeadline = async (
 };
 
 const deleteMatterDeadline = async (id: string): Promise<void> => {
-  await db.delete(matterDeadlines).where(eq(matterDeadlines.id, id));
+  await getActiveTx().delete(matterDeadlines).where(eq(matterDeadlines.id, id));
 };
 
 export const matterDeadlinesQueries = {

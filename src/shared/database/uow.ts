@@ -1,21 +1,24 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { db } from '@/shared/database';
-import { buildUowRepositories, type UowRepositories } from '@/shared/database/uow.generated';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
-export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+interface UowStore {
+  tx: Tx;
+  afterCommitCallbacks: (() => Promise<void> | void)[];
+}
+
+const txStorage = new AsyncLocalStorage<UowStore>();
 
 export interface UowContext {
   tx: Tx;
-  repositories: UowRepositories;
 }
-
-const txStorage = new AsyncLocalStorage<Tx>();
 
 /**
  * Returns the active transaction if inside uow.transaction(), otherwise the global db.
  * Used by repositories instead of importing db directly.
  */
-export const getActiveTx = (): Tx | typeof db => txStorage.getStore() ?? db;
+export const getActiveTx = (): Tx | typeof db => txStorage.getStore()?.tx ?? db;
 
 export const uow = {
   /**
@@ -25,10 +28,32 @@ export const uow = {
   transaction<T>(fn: (ctx: UowContext) => Promise<T>): Promise<T> {
     const existing = txStorage.getStore();
     if (existing) {
-      return fn({ tx: existing, repositories: buildUowRepositories(existing) });
+      return fn({ tx: existing.tx });
     }
-    return db.transaction((tx) =>
-      txStorage.run(tx, () => fn({ tx, repositories: buildUowRepositories(tx) }))
-    );
+    let callbacks: UowStore['afterCommitCallbacks'] = [];
+    return db
+      .transaction(async (tx) => {
+        const store: UowStore = { tx, afterCommitCallbacks: [] };
+        const result = await txStorage.run(store, () => fn({ tx }));
+        callbacks = [...store.afterCommitCallbacks];
+        return result;
+      })
+      .then(async (result) => {
+        for (const callback of callbacks) {
+          await callback();
+        }
+        return result;
+      });
+  },
+
+  async afterCommit(callback: () => Promise<void> | void): Promise<void> {
+    const existing = txStorage.getStore();
+    if (!existing) {
+      await callback();
+      return;
+    }
+    existing.afterCommitCallbacks.push(callback);
   },
 };
+
+export type { Tx };

@@ -14,22 +14,19 @@ import { getLogger } from '@logtape/logtape';
 import { eq, count } from 'drizzle-orm';
 import type { Stripe } from 'stripe';
 import { members } from '@/schema/better-auth-schema';
-import type { db as appDb } from '@/shared/database';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getActiveTx } from '@/shared/database/uow';
 
 const logger = getLogger(['subscriptions', 'seat-metering']);
-
-type DbOrTx = typeof appDb | Parameters<Parameters<typeof appDb.transaction>[0]>[0];
 
 /**
  * Get the current member count for an organization
  *
- * @param db - Database instance or transaction
  * @param organizationId - Organization UUID
  * @returns Current total count of members (billable seats)
  */
-const getMemberCountForOrganization = async (db: DbOrTx, organizationId: string): Promise<number> => {
-  const result = await db
+const getMemberCountForOrganization = async (organizationId: string): Promise<number> => {
+  const result = await getActiveTx()
     .select({ count: count(members.id) })
     .from(members)
     .where(eq(members.organizationId, organizationId));
@@ -50,19 +47,17 @@ const getMemberCountForOrganization = async (db: DbOrTx, organizationId: string)
  *
  * Throws on error — caller (syncSeatCountOnInvoice) handles non-blocking error handling.
  *
- * @param db - Database instance or transaction
  * @param organizationId - Organization UUID
  * @param idempotencyIdentifier - Stable idempotency identifier for invoice event
  * @param stripeCustomerId - Stripe Customer ID for the organization
  */
 const reportAbsoluteSeatCount = async (
-  db: DbOrTx,
   organizationId: string,
   idempotencyIdentifier: string,
   stripeCustomerId: string
 ): Promise<void> => {
   // 1. Query current member count
-  const memberCount = await getMemberCountForOrganization(db, organizationId);
+  const memberCount = await getMemberCountForOrganization(organizationId);
 
   // 2. Prepare Stripe Metering API call
   const stripe = getStripeInstance();
@@ -115,14 +110,12 @@ const buildSeatSyncIdentifier = (invoice: Stripe.Invoice, organizationId: string
  *
  * Returns boolean indicating success/failure for caller visibility.
  *
- * @param db - Database instance or transaction
  * @param invoice - Stripe Invoice object
  * @param organizationId - Organization UUID
  * @param stripeCustomerId - Stripe Customer ID
  * @returns true if seat sync succeeded, false if it failed
  */
 const syncSeatCountOnInvoice = async (
-  db: DbOrTx,
   invoice: Stripe.Invoice,
   organizationId: string,
   stripeCustomerId: string
@@ -130,7 +123,7 @@ const syncSeatCountOnInvoice = async (
   const idempotencyIdentifier = buildSeatSyncIdentifier(invoice, organizationId, stripeCustomerId);
 
   try {
-    await reportAbsoluteSeatCount(db, organizationId, idempotencyIdentifier, stripeCustomerId);
+    await reportAbsoluteSeatCount(organizationId, idempotencyIdentifier, stripeCustomerId);
     return true;
   } catch (error) {
     // Log but don't throw — metering should not block invoice webhook processing

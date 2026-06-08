@@ -1,22 +1,22 @@
+import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
+import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
+import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
+import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
+import type { AddressInput } from '@/modules/clients/types';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
+import type { Address } from '@/modules/practice/database/schema/addresses.schema';
+import type { users } from '@/schema/better-auth-schema';
+import { toSubject } from '@/shared/auth/subject-helpers';
+import { getActiveTx, uow } from '@/shared/database/uow';
+import { ClientCreated, ClientDeleted, ClientUpdated } from '@/shared/events/definitions';
+import { membersRepository } from '@/shared/repositories/members.repository';
+import usersRepository from '@/shared/repositories/users.repository';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
 import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { clientsStripeService } from '@/modules/clients/services/clients-stripe.service';
-import { resolveUserForIntake } from '@/modules/clients/services/clients-utils';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
-import type { Address } from '@/modules/practice/database/schema/addresses.schema';
-import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
-import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
-import { clients, type SelectClient } from '@/modules/clients/database/schema/clients.schema';
-import type { AddressInput } from '@/modules/clients/types';
-import type { users } from '@/schema/better-auth-schema';
-import { toSubject } from '@/shared/auth/subject-helpers';
-import { uow } from '@/shared/database/uow';
-import { ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
-import { membersRepository } from '@/shared/repositories/members.repository';
-import usersRepository from '@/shared/repositories/users.repository';
-import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['clients', 'crud-service']);
 
@@ -53,22 +53,22 @@ const createClient = async (
       throw new HTTPException(404, { message: 'User not found. Please invite them using the invitations flow first.' });
     }
 
-    const existingMember = await membersRepository.findByOrgAndUser({
-      organizationId: ctx.organizationId,
-      userId: user.id,
-    });
-    if (!existingMember) {
-      await membersRepository.create({
+    const createdDetail = await uow.transaction(async () => {
+      const existingMember = await membersRepository.findByOrgAndUser({
         organizationId: ctx.organizationId,
         userId: user.id,
-        role: 'client',
       });
-    }
+      if (!existingMember) {
+        await membersRepository.create({
+          organizationId: ctx.organizationId,
+          userId: user.id,
+          role: 'client',
+        });
+      }
 
-    const createdDetail = await uow.transaction(async ({ tx }) => {
       let addressId: string | undefined = undefined;
       if (data.address) {
-        const address = await upsertAddressTx(tx, {
+        const address = await upsertAddress({
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -140,7 +140,7 @@ const updateClient = async (
 
   let stripeSyncPayload: StripeSyncPayload | undefined = undefined;
 
-  const updated = await uow.transaction(async ({ tx }): Promise<SelectClient> => {
+  const updated = await uow.transaction(async (): Promise<SelectClient> => {
     try {
       const detailWithUser = await clientsRepository.findById(id);
       if (!detailWithUser || detailWithUser.organization_id !== ctx.organizationId) {
@@ -160,20 +160,16 @@ const updateClient = async (
         }
 
         if (Object.keys(updatePayload).length > 0) {
-          await tx.update(clients).set(updatePayload).where(eq(clients.id, id));
+          await getActiveTx().update(clients).set(updatePayload).where(eq(clients.id, id));
         }
 
         // Also update user record if linked
         if (detailWithUser.user_id && (data.name || data.email || data.phone)) {
-          await usersRepository.update(
-            detailWithUser.user_id,
-            {
-              name: data.name,
-              email: data.email?.toLowerCase(),
-              phone: data.phone,
-            },
-            tx
-          );
+          await usersRepository.update(detailWithUser.user_id, {
+            name: data.name,
+            email: data.email?.toLowerCase(),
+            phone: data.phone,
+          });
         }
 
         if (detailWithUser.stripe_customer_id) {
@@ -188,7 +184,7 @@ const updateClient = async (
 
       let addressId = detailWithUser.address_id;
       if (data.address) {
-        const address = await upsertAddressTx(tx, {
+        const address = await upsertAddress({
           addressData: {
             line1: data.address.line1,
             line2: data.address.line2,
@@ -221,7 +217,7 @@ const updateClient = async (
         {
           actorId: ctx.userId,
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
 

@@ -31,7 +31,7 @@ export const routeBuilder = {
    * @returns Hono route object
    */
   build: <P extends string, M extends McpRouteAnnotation | undefined, R extends RouteConfig & { path: P; mcp?: M }>(
-    config: R,
+    config: R
   ) => {
     const { mcp, ...routeConfig } = config;
 

@@ -1,6 +1,3 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { getClientInvoiceDetail, listClientInvoices } from '@/modules/invoices/services/invoice-client.service';
 import { persistInvoiceStructure, validateInvoiceCreation } from '@/modules/invoices/services/invoice-creation.helpers';
@@ -12,9 +9,13 @@ import type {
   ListInvoicesQuery,
   UpdateInvoiceRequest,
 } from '@/modules/invoices/types/invoices.types';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceDeleted } from '@/shared/events/definitions';
 import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['invoices', 'service']);
 
@@ -156,8 +157,8 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
       throw new HTTPException(400, { message: 'Only draft invoices can be deleted' });
     }
 
-    await ctx.db.transaction(async (tx) => {
-      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId, tx);
+    await uow.transaction(async () => {
+      await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId);
       await InvoiceDeleted.dispatch(
         {
           invoice_id: id,
@@ -168,7 +169,7 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx,
+          tx: getActiveTx(),
         }
       );
     });

@@ -1,19 +1,19 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
+import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
-import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import {
   createAndSendStripeInvoice,
   lockInvoiceForSending,
   markInvoiceSent,
 } from '@/modules/invoices/services/invoice.delivery.lock';
 import { syncStripeState } from '@/modules/invoices/services/invoice.delivery.recovery';
-import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { voidInvoice } from '@/modules/invoices/services/invoice.voiding.service';
-import { db } from '@/shared/database';
+import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import { uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['invoices', 'delivery-service']);
 
@@ -28,8 +28,8 @@ const rollbackSendingTransaction = async ({
   stripeInvoiceId: string | null;
   stripeAccountId: string | null;
 }): Promise<void> => {
-  await db.transaction(async (tx) => {
-    const rolledBack = await invoicesRepository.transitionInvoiceStatus(id, organizationId, 'sending', 'draft', tx);
+  await uow.transaction(async () => {
+    const rolledBack = await invoicesRepository.transitionInvoiceStatus(id, organizationId, 'sending', 'draft');
     if (!rolledBack) {
       logger.warn('Invoice was no longer in sending state during rollback', {
         invoiceId: id,
@@ -38,7 +38,7 @@ const rollbackSendingTransaction = async ({
       });
     }
     if (stripeInvoiceId) {
-      await invoicesRepository.updateInvoice(id, organizationId, { stripe_invoice_id: null }, tx);
+      await invoicesRepository.updateInvoice(id, organizationId, { stripe_invoice_id: null });
     }
   });
 

@@ -7,12 +7,12 @@ import {
   type InsertIntakeTemplate,
   type InsertIntakeTemplateField,
 } from '@/modules/practice/database/schema/intake-templates.schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 type TemplateWithFields = IntakeTemplate & { fields: IntakeTemplateField[] };
 
 const withFields = async (template: IntakeTemplate): Promise<TemplateWithFields> => {
-  const fields = await db
+  const fields = await getActiveTx()
     .select()
     .from(intakeTemplateFields)
     .where(eq(intakeTemplateFields.template_id, template.id))
@@ -21,16 +21,19 @@ const withFields = async (template: IntakeTemplate): Promise<TemplateWithFields>
 };
 
 const findById = async (id: string): Promise<TemplateWithFields | undefined> => {
-  const [template] = await db.select().from(intakeTemplates).where(eq(intakeTemplates.id, id)).limit(1);
+  const [template] = await getActiveTx().select().from(intakeTemplates).where(eq(intakeTemplates.id, id)).limit(1);
   if (!template) return undefined;
   return withFields(template);
 };
 
 const findByOrganization = async (organizationId: string): Promise<TemplateWithFields[]> => {
-  const templates = await db.select().from(intakeTemplates).where(eq(intakeTemplates.organization_id, organizationId));
+  const templates = await getActiveTx()
+    .select()
+    .from(intakeTemplates)
+    .where(eq(intakeTemplates.organization_id, organizationId));
   if (templates.length === 0) return [];
 
-  const allFields = await db
+  const allFields = await getActiveTx()
     .select()
     .from(intakeTemplateFields)
     .where(
@@ -52,7 +55,7 @@ const findByOrganization = async (organizationId: string): Promise<TemplateWithF
 };
 
 const findPublishedDefaultByOrganization = async (organizationId: string): Promise<TemplateWithFields | undefined> => {
-  const [template] = await db
+  const [template] = await getActiveTx()
     .select()
     .from(intakeTemplates)
     .where(
@@ -67,17 +70,13 @@ const findPublishedDefaultByOrganization = async (organizationId: string): Promi
   return withFields(template);
 };
 
-const create = async (
-  tx: typeof db,
-  data: InsertIntakeTemplate,
-  fields: InsertIntakeTemplateField[]
-): Promise<TemplateWithFields> => {
-  const [template] = await tx.insert(intakeTemplates).values(data).returning();
+const create = async (data: InsertIntakeTemplate, fields: InsertIntakeTemplateField[]): Promise<TemplateWithFields> => {
+  const [template] = await getActiveTx().insert(intakeTemplates).values(data).returning();
   if (!template) throw new Error('Failed to insert intake template');
 
   const insertedFields =
     fields.length > 0
-      ? await tx
+      ? await getActiveTx()
           .insert(intakeTemplateFields)
           .values(fields.map((f) => ({ ...f, template_id: template.id })))
           .returning()
@@ -87,12 +86,11 @@ const create = async (
 };
 
 const update = async (
-  tx: typeof db,
   id: string,
   data: Partial<InsertIntakeTemplate>,
   fields?: InsertIntakeTemplateField[]
 ): Promise<TemplateWithFields> => {
-  const [template] = await tx
+  const [template] = await getActiveTx()
     .update(intakeTemplates)
     .set({ ...data, updated_at: new Date() })
     .where(eq(intakeTemplates.id, id))
@@ -100,10 +98,10 @@ const update = async (
   if (!template) throw new Error('Failed to update intake template');
 
   if (fields !== undefined) {
-    await tx.delete(intakeTemplateFields).where(eq(intakeTemplateFields.template_id, id));
+    await getActiveTx().delete(intakeTemplateFields).where(eq(intakeTemplateFields.template_id, id));
     const insertedFields =
       fields.length > 0
-        ? await tx
+        ? await getActiveTx()
             .insert(intakeTemplateFields)
             .values(fields.map((f) => ({ ...f, template_id: id })))
             .returning()
@@ -111,7 +109,7 @@ const update = async (
     return { ...template, fields: insertedFields };
   }
 
-  const existingFields = await tx
+  const existingFields = await getActiveTx()
     .select()
     .from(intakeTemplateFields)
     .where(eq(intakeTemplateFields.template_id, id))
@@ -119,15 +117,15 @@ const update = async (
   return { ...template, fields: existingFields };
 };
 
-const clearDefaultForOrganization = async (tx: typeof db, organizationId: string): Promise<void> => {
-  await tx
+const clearDefaultForOrganization = async (organizationId: string): Promise<void> => {
+  await getActiveTx()
     .update(intakeTemplates)
     .set({ is_default: false, updated_at: new Date() })
     .where(and(eq(intakeTemplates.organization_id, organizationId), eq(intakeTemplates.is_default, true)));
 };
 
 const remove = async (id: string): Promise<void> => {
-  await db.delete(intakeTemplates).where(eq(intakeTemplates.id, id));
+  await getActiveTx().delete(intakeTemplates).where(eq(intakeTemplates.id, id));
 };
 
 export const intakeTemplatesRepository = {
