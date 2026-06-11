@@ -6,7 +6,6 @@ import { connectedAccountsService } from '@/modules/onboarding/services/connecte
 import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
 import { mapIntakeTemplateFieldToPublicSettings } from '@/modules/practice/utils/intake-template.utils';
-import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -35,6 +34,7 @@ type IntakeCreationRequest = CreatePracticeClientIntakeRequest & {
 
 const getIntakeSettings = async (params: {
   slug: string;
+  templateSlug?: string;
   organization?: NonNullable<Awaited<ReturnType<typeof organizationRepository.findBySlug>>>;
 }): Promise<IntakeSettingsResponse> => {
   const organization = params.organization ?? (await organizationRepository.findBySlug(params.slug));
@@ -56,13 +56,18 @@ const getIntakeSettings = async (params: {
     throw new HTTPException(403, { message: 'Connected account is not ready to accept payments' });
   }
 
-  const [practiceDetails, defaultTemplate] = await Promise.all([
+  const [practiceDetails, defaultTemplate, requestedTemplate] = await Promise.all([
     findPracticeDetailsByOrganization(organization.id),
     intakeTemplatesRepository.findPublishedDefaultByOrganization(organization.id),
+    params.templateSlug
+      ? intakeTemplatesRepository.findPublishedByOrganizationAndSlug(organization.id, params.templateSlug)
+      : Promise.resolve(undefined),
   ]);
 
-  if (!defaultTemplate) {
-    void addSeedDefaultIntakeTemplateJob(organization.id).catch(() => {});
+  // Use the requested template when found; fall back to the practice default.
+  const resolvedTemplate = requestedTemplate ?? defaultTemplate;
+
+  if (!resolvedTemplate) {
     throw new HTTPException(503, { message: 'Intake configuration is being set up, please try again shortly' });
   }
 
@@ -91,14 +96,14 @@ const getIntakeSettings = async (params: {
       charges_enabled: connectedAccount.charges_enabled,
     },
     intake_template: {
-      id: defaultTemplate.id,
-      slug: defaultTemplate.slug,
-      name: defaultTemplate.name,
-      intro_message: defaultTemplate.intro_message,
-      legal_disclaimer: defaultTemplate.legal_disclaimer,
-      payment_link_enabled: defaultTemplate.payment_link_enabled,
-      consultation_fee: defaultTemplate.consultation_fee,
-      fields: defaultTemplate.fields.map(mapIntakeTemplateFieldToPublicSettings),
+      id: resolvedTemplate.id,
+      slug: resolvedTemplate.slug,
+      name: resolvedTemplate.name,
+      intro_message: resolvedTemplate.intro_message,
+      legal_disclaimer: resolvedTemplate.legal_disclaimer,
+      payment_link_enabled: resolvedTemplate.payment_link_enabled,
+      consultation_fee: resolvedTemplate.consultation_fee,
+      fields: resolvedTemplate.fields.map(mapIntakeTemplateFieldToPublicSettings),
     },
   };
 };

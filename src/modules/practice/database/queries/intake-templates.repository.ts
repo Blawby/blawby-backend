@@ -70,6 +70,25 @@ const findPublishedDefaultByOrganization = async (organizationId: string): Promi
   return withFields(template);
 };
 
+const findPublishedByOrganizationAndSlug = async (
+  organizationId: string,
+  slug: string,
+): Promise<TemplateWithFields | undefined> => {
+  const [template] = await getActiveTx()
+    .select()
+    .from(intakeTemplates)
+    .where(
+      and(
+        eq(intakeTemplates.organization_id, organizationId),
+        eq(intakeTemplates.slug, slug),
+        eq(intakeTemplates.status, 'published')
+      )
+    )
+    .limit(1);
+  if (!template) return undefined;
+  return withFields(template);
+};
+
 const create = async (data: InsertIntakeTemplate, fields: InsertIntakeTemplateField[]): Promise<TemplateWithFields> => {
   const [template] = await getActiveTx().insert(intakeTemplates).values(data).returning();
   if (!template) throw new Error('Failed to insert intake template');
@@ -132,6 +151,7 @@ export const intakeTemplatesRepository = {
   findById,
   findByOrganization,
   findPublishedDefaultByOrganization,
+  findPublishedByOrganizationAndSlug,
   create,
   update,
   clearDefaultForOrganization,
