@@ -6,7 +6,6 @@ import { connectedAccountsService } from '@/modules/onboarding/services/connecte
 import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
 import { mapIntakeTemplateFieldToPublicSettings } from '@/modules/practice/utils/intake-template.utils';
-import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -69,7 +68,6 @@ const getIntakeSettings = async (params: {
   const resolvedTemplate = requestedTemplate ?? defaultTemplate;
 
   if (!resolvedTemplate) {
-    void addSeedDefaultIntakeTemplateJob(organization.id).catch(() => {});
     throw new HTTPException(503, { message: 'Intake configuration is being set up, please try again shortly' });
   }
 

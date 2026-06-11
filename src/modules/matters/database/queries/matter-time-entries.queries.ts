@@ -1,4 +1,3 @@
-import { eq, and, desc, gte, lte, sql, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
   matterTimeEntries,
   type InsertMatterTimeEntry,
@@ -6,6 +5,7 @@ import {
 } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
 import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 // Create matter time entry
 const createMatterTimeEntry = async (data: InsertMatterTimeEntry): Promise<SelectMatterTimeEntry> => {
@@ -80,7 +80,7 @@ const getTotalBillableTime = async (matterId: string): Promise<number> => {
     .from(matterTimeEntries)
     .where(and(eq(matterTimeEntries.matter_id, matterId), eq(matterTimeEntries.billable, true)));
 
-  return Number(result.total);
+  return result.total;
 };
 
 // Get total time for matter (billable and non-billable)
@@ -92,7 +92,7 @@ const getTotalTime = async (matterId: string): Promise<number> => {
     .from(matterTimeEntries)
     .where(eq(matterTimeEntries.matter_id, matterId));
 
-  return Number(result.total);
+  return result.total;
 };
 
 /**
@@ -152,7 +152,7 @@ const countByIds = async (matterId: string, timeEntryIds: string[]): Promise<num
     .from(matterTimeEntries)
     .where(and(eq(matterTimeEntries.matter_id, matterId), inArray(matterTimeEntries.id, timeEntryIds)));
 
-  return Number(result?.count ?? 0);
+  return result?.count ?? 0;
 };
 
 export const matterTimeEntriesQueries = {
