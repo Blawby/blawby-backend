@@ -143,7 +143,7 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
       fields: z.array(intakeTemplateFieldSettingsSchema),
     })
     .openapi({
-      description: 'Resolved default intake template for this practice.',
+      description: 'Resolved intake template for this practice (requested via template_slug, or practice default).',
     }),
 });
 
