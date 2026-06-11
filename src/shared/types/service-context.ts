@@ -1,9 +1,10 @@
 // oxlint-disable typescript/no-unsafe-assignment
 import { defineAbilityFor, type AppAbility } from '@/shared/auth/abilities';
-import type { DispatchOptions, EventClass } from '@/shared/events/event';
 import { getActiveTx } from '@/shared/database/uow';
+import type { DispatchOptions, EventClass } from '@/shared/events/event';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 
 type SystemUser = Pick<User, 'id' | 'email' | 'name'>;
 
@@ -21,7 +22,12 @@ export interface ServiceContext {
 export const getServiceContext = (c: Context): ServiceContext => {
   const userId = c.get('userId');
   const user = c.get('user');
-  const organizationId = c.req.param('organization_id') ?? c.req.param('practice_id') ?? c.get('activeOrganizationId');
+  const routeOrganizationId = c.req.param('organization_id') ?? c.req.param('practice_id');
+  const activeOrganizationId = c.get('activeOrganizationId');
+  if (routeOrganizationId && activeOrganizationId && routeOrganizationId !== activeOrganizationId) {
+    throw new HTTPException(400, { message: 'organization route parameter must match your current organization' });
+  }
+  const organizationId = routeOrganizationId ?? activeOrganizationId;
   const matterId = c.req.param('id') ?? c.req.param('matter_id');
   const base = {
     userId,
