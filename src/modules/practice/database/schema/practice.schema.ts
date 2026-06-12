@@ -31,7 +31,6 @@ export const practiceDetails = pgTable('practice_details', {
   created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   supported_states: jsonb('supported_states').$type<PracticeDetailsSupportedStates[]>(),
-  service_states: jsonb('service_states').$type<string[]>(),
 });
 
 // Practice services table (normalized)
