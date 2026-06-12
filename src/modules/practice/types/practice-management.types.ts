@@ -21,7 +21,6 @@ export type DetailsData = Partial<
     | 'accent_color'
     | 'services'
     | 'supported_states'
-    | 'service_states'
     | 'address'
   >
 >;
@@ -41,7 +40,6 @@ export type DetailsFieldKeys =
   | 'is_public'
   | 'services'
   | 'supported_states'
-  | 'service_states'
   | 'address'
   | 'accent_color';
 

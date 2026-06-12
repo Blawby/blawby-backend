@@ -47,7 +47,6 @@ export const serializePractice = ({
   billing_increment_minutes: details.billing_increment_minutes,
   payment_link_enabled: organization.paymentLinkEnabled,
   services,
-  service_states: details.service_states,
   supported_states: details.supported_states,
   address,
   created_at: organization.createdAt.toISOString(),
