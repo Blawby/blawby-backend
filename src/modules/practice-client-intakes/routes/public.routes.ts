@@ -7,7 +7,8 @@ const getIntakeSettingsRoute = routeBuilder.build({
   path: '/{slug}/intake',
   tags: ['Practice Client Intakes'],
   summary: 'Get intake settings',
-  description: 'Public endpoint to retrieve organization details and payment settings for a practice intake form. Pass ?template_slug= to select a specific published template; omit to get the practice default.',
+  description:
+    'Public endpoint to retrieve organization details and payment settings for a practice intake form. Pass ?template_slug= to select a specific published template; omit to get the practice default.',
   request: {
     params: slugParamOpenAPISchema,
     query: intakeValidations.getIntakeSettingsQuerySchema,

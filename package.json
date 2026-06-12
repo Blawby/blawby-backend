@@ -25,7 +25,6 @@
     "db:migrate:prod": "tsx scripts/migrate-from-secrets.ts cf-secrets.production.json",
     "db:studio": "drizzle-kit studio",
     "sync:plans": "tsx src/scripts/sync-subscription-plans.ts",
-    "seed:intake-templates": "tsx src/scripts/seed-missing-intake-templates.ts",
     "sync:schemas": "tsx scripts/sync-schemas.ts",
     "sync:listeners": "tsx scripts/sync-listeners.ts",
     "init:preferences": "tsx scripts/initialize-user-preferences.ts",

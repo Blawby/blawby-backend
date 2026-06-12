@@ -1,6 +1,6 @@
-import { z } from '@hono/zod-openapi';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import { addressSchema } from '@/shared/validations/address';
+import { z } from '@hono/zod-openapi';
 
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
@@ -58,7 +58,8 @@ const slugParamSchema = z.object({
 
 const getIntakeSettingsQuerySchema = z.object({
   template_slug: z.string().min(1).max(100).optional().openapi({
-    description: 'Optional slug of a specific published template to return. Falls back to the practice default when omitted or when the slug does not match a published template.',
+    description:
+      'Optional slug of a specific published template to return. Falls back to the practice default when omitted or when the slug does not match a published template.',
     example: 'family-law-intake',
   }),
 });

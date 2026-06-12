@@ -6,8 +6,8 @@
  */
 
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { ingestRoute } from '@/modules/worker-events/routes';
-import { ingestHandler } from '@/modules/worker-events/handlers';
+import { ingestRoute, ingestIntakeConversationsRoute } from '@/modules/worker-events/routes';
+import { ingestHandler, ingestIntakeConversationsHandler } from '@/modules/worker-events/handlers';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import type { AppContext } from '@/shared/types/hono';
 
@@ -15,5 +15,6 @@ const workerEventsApp = new OpenAPIHono<AppContext>();
 workerEventsApp.use('*', injectAbility());
 
 workerEventsApp.openapi(ingestRoute, ingestHandler);
+workerEventsApp.openapi(ingestIntakeConversationsRoute, ingestIntakeConversationsHandler);
 
 export default workerEventsApp;
