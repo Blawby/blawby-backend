@@ -44,7 +44,6 @@ ALTER TABLE "intake_conversation_messages" ADD CONSTRAINT "intake_conversation_m
 ALTER TABLE "intake_conversations" ADD CONSTRAINT "intake_conversations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "intake_conversations" ADD CONSTRAINT "intake_conversations_client_user_id_users_id_fk" FOREIGN KEY ("client_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "intake_conversations" ADD CONSTRAINT "intake_conversations_assigned_to_user_id_users_id_fk" FOREIGN KEY ("assigned_to_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "intake_conversation_messages_conv_seq_idx" ON "intake_conversation_messages" USING btree ("conversation_id","seq");--> statement-breakpoint
 CREATE INDEX "intake_conversation_messages_org_idx" ON "intake_conversation_messages" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "intake_conversations_org_lifecycle_last_message_idx" ON "intake_conversations" USING btree ("organization_id","lifecycle_status","last_message_at");--> statement-breakpoint
 CREATE INDEX "intake_conversations_org_status_idx" ON "intake_conversations" USING btree ("organization_id","status");--> statement-breakpoint

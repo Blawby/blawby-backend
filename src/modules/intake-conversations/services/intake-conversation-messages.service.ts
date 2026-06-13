@@ -5,6 +5,7 @@ import type {
   IntakeConversationMessageResponse,
   ListMessagesQuery,
 } from '@/modules/intake-conversations/types/intake-conversations.types';
+import type { CursorPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
@@ -19,7 +20,7 @@ const listMessages = async (
   conversationId: string,
   query: ListMessagesQuery,
   ctx: ServiceContext
-): Promise<IntakeConversationMessageResponse[]> => {
+): Promise<CursorPaginatedResponse<IntakeConversationMessageResponse>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'IntakeConversation');
 
   const conversation = await intakeConversationsQueries.findByIdAndOrg(conversationId, ctx.organizationId);
@@ -27,12 +28,27 @@ const listMessages = async (
     throw new HTTPException(404, { message: 'Intake conversation not found' });
   }
 
-  const messages = await intakeConversationMessagesQueries.listByConversation(
+  // Fetch one extra to detect next page without a count query
+  const rows = await intakeConversationMessagesQueries.listByConversation(
     conversationId,
     query.from_seq,
-    query.limit
+    query.limit + 1
   );
-  return messages.map(toResponse);
+
+  const hasNextPage = rows.length > query.limit;
+  const items = hasNextPage ? rows.slice(0, query.limit) : rows;
+  const hasPreviousPage = query.from_seq !== undefined && query.from_seq > 0;
+  const lastItem = items[items.length - 1];
+
+  return {
+    data: items.map(toResponse),
+    page_info: {
+      has_next_page: hasNextPage,
+      has_previous_page: hasPreviousPage,
+      next_cursor: hasNextPage && lastItem ? String(lastItem.seq + 1) : null,
+      previous_cursor: null,
+    },
+  };
 };
 
 export const intakeConversationMessagesService = {

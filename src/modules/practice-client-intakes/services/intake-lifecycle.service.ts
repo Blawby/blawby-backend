@@ -105,8 +105,8 @@ const updateTriageStatus = async (
         triage_reason: nextReason,
         triage_decided_at: new Date(),
       });
-      if (nextTriageStatus === 'accepted' && intake.conversation_id) {
-        await intakeConversationsQueries.updateLifecycleStatus(intake.conversation_id, 'visible');
+      if (nextTriageStatus === 'accepted' && result.conversation_id) {
+        await intakeConversationsQueries.updateLifecycleStatus(result.conversation_id, 'visible', ctx.organizationId);
       }
       return result;
     });

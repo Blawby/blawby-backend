@@ -18,8 +18,20 @@ export const listIntakeConversationMessagesRoute = routeBuilder.build({
   },
   responses: {
     200: {
-      description: 'List of messages',
-      content: { 'application/json': { schema: z.array(intakeConversationMessageResponseSchema) } },
+      description: 'Paginated list of messages',
+      content: {
+        'application/json': {
+          schema: z.object({
+            data: z.array(intakeConversationMessageResponseSchema),
+            page_info: z.object({
+              has_next_page: z.boolean(),
+              has_previous_page: z.boolean(),
+              next_cursor: z.string().nullable(),
+              previous_cursor: z.string().nullable(),
+            }),
+          }),
+        },
+      },
     },
   },
 });

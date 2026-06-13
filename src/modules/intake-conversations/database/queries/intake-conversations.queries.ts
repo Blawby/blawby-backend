@@ -82,12 +82,13 @@ const update = async (
 
 const updateLifecycleStatus = async (
   id: string,
-  lifecycleStatus: 'pending_visibility' | 'visible' | 'archived'
+  lifecycleStatus: 'pending_visibility' | 'visible' | 'archived',
+  organizationId: string
 ): Promise<void> => {
   await getActiveTx()
     .update(intakeConversations)
     .set({ lifecycle_status: lifecycleStatus, updated_at: new Date() })
-    .where(eq(intakeConversations.id, id));
+    .where(and(eq(intakeConversations.id, id), eq(intakeConversations.organization_id, organizationId)));
 };
 
 const softDelete = async (id: string, organizationId: string): Promise<SelectIntakeConversation | undefined> =>

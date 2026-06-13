@@ -27,7 +27,6 @@ export const intakeConversationMessages = pgTable(
     unique('intake_conversation_messages_conv_seq_uniq').on(t.conversation_id, t.seq),
     // client_id is the idempotency key used in upsert onConflictDoNothing
     unique('intake_conversation_messages_conv_client_id_uniq').on(t.conversation_id, t.client_id),
-    index('intake_conversation_messages_conv_seq_idx').on(t.conversation_id, t.seq),
     index('intake_conversation_messages_org_idx').on(t.organization_id),
   ]
 );

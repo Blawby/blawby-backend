@@ -121,79 +121,70 @@ const intakeConversationsLogger = getLogger(['worker-events', 'intake-conversati
 
 const processIntakeConversationEvent = async (event: IntakeConversationEvent): Promise<'processed' | 'skipped'> => {
   const { id, organization_id } = event;
-  try {
-    switch (event.type) {
-      case 'conversation.created': {
-        const ts = new Date(event.created_at);
-        await intakeConversationsQueries.create({
-          id,
-          organization_id,
-          client_user_id: event.client_user_id,
-          is_anonymous: event.is_anonymous,
-          status: event.status,
-          priority: event.priority,
-          created_at: ts,
-          updated_at: ts,
-        });
-        return 'processed';
-      }
-      case 'message.completed': {
-        const createdAt = new Date(event.created_at);
-        await intakeConversationMessagesQueries.upsert({
-          id,
-          conversation_id: event.conversation_id,
-          organization_id,
-          user_id: event.user_id ?? null,
-          role: event.role,
-          content: event.content,
-          seq: event.seq,
-          client_id: event.client_id,
-          token_count: event.token_count ?? null,
-          metadata: event.metadata,
-          created_at: createdAt,
-        });
-        await intakeConversationsQueries.updateLatestSeq(event.conversation_id, event.seq, createdAt, event.content);
-        return 'processed';
-      }
-      case 'conversation.status_changed': {
-        // Stale guard: only update if event is newer than current row's updated_at.
-        const eventUpdatedAt = new Date(event.updated_at);
-        const existing = await intakeConversationsQueries.findById(id);
-        if (existing && existing.updated_at >= eventUpdatedAt) {
-          return 'skipped';
-        }
-        await intakeConversationsQueries.update(id, {
-          status: event.status,
-          intake_mode_activated_at: event.intake_mode_activated_at ? new Date(event.intake_mode_activated_at) : null,
-          ai_failed_at: event.ai_failed_at ? new Date(event.ai_failed_at) : null,
-          closed_at: event.closed_at ? new Date(event.closed_at) : null,
-          updated_at: eventUpdatedAt,
-        });
-        return 'processed';
-      }
-      case 'conversation.matter_linked': {
-        const eventUpdatedAt = new Date(event.updated_at);
-        const existingForLink = await intakeConversationsQueries.findById(id);
-        if (existingForLink && existingForLink.updated_at >= eventUpdatedAt) {
-          return 'skipped';
-        }
-        await intakeConversationsQueries.update(id, {
-          matter_id: event.matter_id ?? null,
-          updated_at: eventUpdatedAt,
-        });
-        return 'processed';
-      }
-      default: {
+  switch (event.type) {
+    case 'conversation.created': {
+      const ts = new Date(event.created_at);
+      await intakeConversationsQueries.create({
+        id,
+        organization_id,
+        client_user_id: event.client_user_id,
+        is_anonymous: event.is_anonymous,
+        status: event.status,
+        priority: event.priority,
+        created_at: ts,
+        updated_at: ts,
+      });
+      return 'processed';
+    }
+    case 'message.completed': {
+      const createdAt = new Date(event.created_at);
+      await intakeConversationMessagesQueries.upsert({
+        id,
+        conversation_id: event.conversation_id,
+        organization_id,
+        user_id: event.user_id ?? null,
+        role: event.role,
+        content: event.content,
+        seq: event.seq,
+        client_id: event.client_id,
+        token_count: event.token_count ?? null,
+        metadata: event.metadata,
+        created_at: createdAt,
+      });
+      await intakeConversationsQueries.updateLatestSeq(event.conversation_id, event.seq, createdAt, event.content);
+      return 'processed';
+    }
+    case 'conversation.status_changed': {
+      // Stale guard: only update if event is newer than current row's updated_at.
+      const eventUpdatedAt = new Date(event.updated_at);
+      const existing = await intakeConversationsQueries.findById(id);
+      if (existing && existing.updated_at >= eventUpdatedAt) {
         return 'skipped';
       }
+      const updatedStatus = await intakeConversationsQueries.update(id, {
+        status: event.status,
+        intake_mode_activated_at: event.intake_mode_activated_at ? new Date(event.intake_mode_activated_at) : null,
+        ai_failed_at: event.ai_failed_at ? new Date(event.ai_failed_at) : null,
+        closed_at: event.closed_at ? new Date(event.closed_at) : null,
+        updated_at: eventUpdatedAt,
+      });
+      return updatedStatus ? 'processed' : 'skipped';
     }
-  } catch (err) {
-    intakeConversationsLogger.warn('Failed to process intake conversation event {type} {id}: {error}', {
-      type: event.type,
-      id,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return 'skipped';
+    case 'conversation.matter_linked': {
+      const eventUpdatedAt = new Date(event.updated_at);
+      const existingForLink = await intakeConversationsQueries.findById(id);
+      if (existingForLink && existingForLink.updated_at >= eventUpdatedAt) {
+        return 'skipped';
+      }
+      const updatedLink = await intakeConversationsQueries.update(id, {
+        matter_id: event.matter_id ?? null,
+        updated_at: eventUpdatedAt,
+      });
+      return updatedLink ? 'processed' : 'skipped';
+    }
+    default: {
+      return 'skipped';
+    }
   }
 };
 

@@ -27,7 +27,7 @@ const listIntakeConversations = async (
 ): Promise<{ data: IntakeConversationResponse[]; pagination: { total: number; page: number; limit: number } }> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'IntakeConversation');
 
-  const { data, total } = await intakeConversationsQueries.list(query);
+  const { data, total } = await intakeConversationsQueries.list({ ...query, practice_id: ctx.organizationId });
   return {
     data: data.map(toResponse),
     pagination: { total, page: query.page, limit: query.limit },
