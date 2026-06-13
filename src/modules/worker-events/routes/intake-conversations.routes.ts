@@ -8,10 +8,10 @@ export const ingestIntakeConversationsRoute = routeBuilder.build({
   tags: ['Worker Events'],
   summary: 'Ingest intake conversation events from CF Worker queue',
   description:
-    'Internal endpoint. Secured via x-worker-secret header. Accepts batched events from the CF Worker consumer.',
+    'Internal endpoint. Secured via Authorization: Bearer <api-key> header. Accepts batched events from the CF Worker consumer.',
   request: {
     headers: z.object({
-      'x-worker-secret': z.string().openapi({ description: 'Shared secret for worker authentication' }),
+      authorization: z.string().openapi({ description: 'Bearer token: Authorization: Bearer <api-key>' }),
     }),
     body: { content: { 'application/json': { schema: intakeConversationEventsPayloadSchema } } },
   },
