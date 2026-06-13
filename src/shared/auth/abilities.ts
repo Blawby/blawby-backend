@@ -23,6 +23,7 @@ export type SubjectName =
   | 'Onboarding'
   | 'Subscription'
   | 'Matter'
+  | 'IntakeConversation'
   | 'Invoice'
   | 'Payout'
   | 'RefundRequest'
@@ -73,6 +74,8 @@ export const defineAbilityFor = (
     cannot('update', 'Upload');
     cannot('delete', 'Upload');
     can('update', 'Matter');
+    can('read', 'IntakeConversation');
+    can('update', 'IntakeConversation');
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');

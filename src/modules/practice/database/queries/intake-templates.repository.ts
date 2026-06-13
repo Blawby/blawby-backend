@@ -1,13 +1,13 @@
-import { eq, and, asc, inArray } from 'drizzle-orm';
 import {
-  intakeTemplates,
   intakeTemplateFields,
-  type IntakeTemplate,
-  type IntakeTemplateField,
+  intakeTemplates,
   type InsertIntakeTemplate,
   type InsertIntakeTemplateField,
+  type IntakeTemplate,
+  type IntakeTemplateField,
 } from '@/modules/practice/database/schema/intake-templates.schema';
 import { getActiveTx } from '@/shared/database/uow';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 type TemplateWithFields = IntakeTemplate & { fields: IntakeTemplateField[] };
 
@@ -22,7 +22,9 @@ const withFields = async (template: IntakeTemplate): Promise<TemplateWithFields>
 
 const findById = async (id: string): Promise<TemplateWithFields | undefined> => {
   const [template] = await getActiveTx().select().from(intakeTemplates).where(eq(intakeTemplates.id, id)).limit(1);
-  if (!template) return undefined;
+  if (!template) {
+    return undefined;
+  }
   return withFields(template);
 };
 
@@ -31,7 +33,9 @@ const findByOrganization = async (organizationId: string): Promise<TemplateWithF
     .select()
     .from(intakeTemplates)
     .where(eq(intakeTemplates.organization_id, organizationId));
-  if (templates.length === 0) return [];
+  if (templates.length === 0) {
+    return [];
+  }
 
   const allFields = await getActiveTx()
     .select()
@@ -66,13 +70,15 @@ const findPublishedDefaultByOrganization = async (organizationId: string): Promi
       )
     )
     .limit(1);
-  if (!template) return undefined;
+  if (!template) {
+    return undefined;
+  }
   return withFields(template);
 };
 
 const findPublishedByOrganizationAndSlug = async (
   organizationId: string,
-  slug: string,
+  slug: string
 ): Promise<TemplateWithFields | undefined> => {
   const [template] = await getActiveTx()
     .select()
@@ -85,13 +91,17 @@ const findPublishedByOrganizationAndSlug = async (
       )
     )
     .limit(1);
-  if (!template) return undefined;
+  if (!template) {
+    return undefined;
+  }
   return withFields(template);
 };
 
 const create = async (data: InsertIntakeTemplate, fields: InsertIntakeTemplateField[]): Promise<TemplateWithFields> => {
   const [template] = await getActiveTx().insert(intakeTemplates).values(data).returning();
-  if (!template) throw new Error('Failed to insert intake template');
+  if (!template) {
+    throw new Error('Failed to insert intake template');
+  }
 
   const insertedFields =
     fields.length > 0
@@ -114,7 +124,9 @@ const update = async (
     .set({ ...data, updated_at: new Date() })
     .where(eq(intakeTemplates.id, id))
     .returning();
-  if (!template) throw new Error('Failed to update intake template');
+  if (!template) {
+    throw new Error('Failed to update intake template');
+  }
 
   if (fields !== undefined) {
     await getActiveTx().delete(intakeTemplateFields).where(eq(intakeTemplateFields.template_id, id));

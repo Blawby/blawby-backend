@@ -1,8 +1,8 @@
-import { pgTable, uuid, varchar, text, integer, real, timestamp, index, check, jsonb } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
-import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
+import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
+import { sql } from 'drizzle-orm';
+import { check, index, integer, jsonb, pgTable, real, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const matters = pgTable(
   'matters',
