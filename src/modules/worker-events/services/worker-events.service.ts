@@ -15,6 +15,7 @@ import type {
 } from '@/modules/worker-events/types/worker-events.types';
 import { config } from '@/shared/config';
 import { db } from '@/shared/database';
+import { uow } from '@/shared/database/uow';
 import { events } from '@/shared/events/schemas/events.schema';
 import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
@@ -117,8 +118,6 @@ const ingestWorkerEvent = async (payload: WorkerEventPayload): Promise<WorkerEve
   };
 };
 
-const intakeConversationsLogger = getLogger(['worker-events', 'intake-conversations']);
-
 const processIntakeConversationEvent = async (event: IntakeConversationEvent): Promise<'processed' | 'skipped'> => {
   const { id, organization_id } = event;
   switch (event.type) {
@@ -138,20 +137,22 @@ const processIntakeConversationEvent = async (event: IntakeConversationEvent): P
     }
     case 'message.completed': {
       const createdAt = new Date(event.created_at);
-      await intakeConversationMessagesQueries.upsert({
-        id,
-        conversation_id: event.conversation_id,
-        organization_id,
-        user_id: event.user_id ?? null,
-        role: event.role,
-        content: event.content,
-        seq: event.seq,
-        client_id: event.client_id,
-        token_count: event.token_count ?? null,
-        metadata: event.metadata,
-        created_at: createdAt,
+      await uow.transaction(async () => {
+        await intakeConversationMessagesQueries.upsert({
+          id,
+          conversation_id: event.conversation_id,
+          organization_id,
+          user_id: event.user_id ?? null,
+          role: event.role,
+          content: event.content,
+          seq: event.seq,
+          client_id: event.client_id,
+          token_count: event.token_count ?? null,
+          metadata: event.metadata,
+          created_at: createdAt,
+        });
+        await intakeConversationsQueries.updateLatestSeq(event.conversation_id, event.seq, createdAt, event.content);
       });
-      await intakeConversationsQueries.updateLatestSeq(event.conversation_id, event.seq, createdAt, event.content);
       return 'processed';
     }
     case 'conversation.status_changed': {
@@ -161,13 +162,17 @@ const processIntakeConversationEvent = async (event: IntakeConversationEvent): P
       if (existing && existing.updated_at >= eventUpdatedAt) {
         return 'skipped';
       }
-      const updatedStatus = await intakeConversationsQueries.update(id, {
-        status: event.status,
-        intake_mode_activated_at: event.intake_mode_activated_at ? new Date(event.intake_mode_activated_at) : null,
-        ai_failed_at: event.ai_failed_at ? new Date(event.ai_failed_at) : null,
-        closed_at: event.closed_at ? new Date(event.closed_at) : null,
-        updated_at: eventUpdatedAt,
-      });
+      const updatedStatus = await intakeConversationsQueries.update(
+        id,
+        {
+          status: event.status,
+          intake_mode_activated_at: event.intake_mode_activated_at ? new Date(event.intake_mode_activated_at) : null,
+          ai_failed_at: event.ai_failed_at ? new Date(event.ai_failed_at) : null,
+          closed_at: event.closed_at ? new Date(event.closed_at) : null,
+          updated_at: eventUpdatedAt,
+        },
+        organization_id
+      );
       return updatedStatus ? 'processed' : 'skipped';
     }
     case 'conversation.matter_linked': {
@@ -176,10 +181,14 @@ const processIntakeConversationEvent = async (event: IntakeConversationEvent): P
       if (existingForLink && existingForLink.updated_at >= eventUpdatedAt) {
         return 'skipped';
       }
-      const updatedLink = await intakeConversationsQueries.update(id, {
-        matter_id: event.matter_id ?? null,
-        updated_at: eventUpdatedAt,
-      });
+      const updatedLink = await intakeConversationsQueries.update(
+        id,
+        {
+          matter_id: event.matter_id ?? null,
+          updated_at: eventUpdatedAt,
+        },
+        organization_id
+      );
       return updatedLink ? 'processed' : 'skipped';
     }
     default: {

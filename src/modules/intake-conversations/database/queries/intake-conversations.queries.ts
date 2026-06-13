@@ -58,7 +58,9 @@ const create = async (data: InsertIntakeConversation): Promise<SelectIntakeConve
   const [row] = await getActiveTx().insert(intakeConversations).values(data).onConflictDoNothing().returning();
   if (!row) {
     const existing = await findById(data.id);
-    if (!existing) throw new Error(`IntakeConversation not found after conflict for id ${data.id}`);
+    if (!existing) {
+      throw new Error(`IntakeConversation not found after conflict for id ${data.id}`);
+    }
     return existing;
   }
   return row;
@@ -74,7 +76,7 @@ const update = async (
     : eq(intakeConversations.id, id);
   const [row] = await getActiveTx()
     .update(intakeConversations)
-    .set({ ...data, updated_at: new Date() })
+    .set({ ...data, updated_at: data.updated_at ?? new Date() })
     .where(where)
     .returning();
   return row;
