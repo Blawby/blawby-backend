@@ -50,5 +50,6 @@ CREATE INDEX "intake_conversations_org_status_idx" ON "intake_conversations" USI
 CREATE INDEX "intake_conversations_matter_idx" ON "intake_conversations" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "intake_conversations_client_user_idx" ON "intake_conversations" USING btree ("client_user_id");--> statement-breakpoint
 CREATE INDEX "intake_conversations_assigned_status_idx" ON "intake_conversations" USING btree ("assigned_to_user_id","status");--> statement-breakpoint
+UPDATE "practice_client_intakes" SET "conversation_id" = NULL WHERE "conversation_id" IS NOT NULL;--> statement-breakpoint
 ALTER TABLE "practice_client_intakes" ADD CONSTRAINT "practice_client_intakes_conversation_id_intake_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."intake_conversations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practice_details" DROP COLUMN "service_states";
