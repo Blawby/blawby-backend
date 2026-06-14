@@ -60,18 +60,13 @@ const main = async (): Promise<void> => {
 
   const auth = createBetterAuthInstance(db);
 
-  // Rotate: delete existing key with same name if present (query DB directly — listApiKeys requires session)
-  const [existingKey] = await db
+  // Find all existing keys with same name (query DB directly — listApiKeys requires session)
+  const existingKeys = await db
     .select({ id: apikeys.id })
     .from(apikeys)
-    .where(and(eq(apikeys.referenceId, user.id), eq(apikeys.name, KEY_NAME)))
-    .limit(1);
+    .where(and(eq(apikeys.referenceId, user.id), eq(apikeys.name, KEY_NAME)));
 
-  if (existingKey) {
-    await db.delete(apikeys).where(eq(apikeys.id, existingKey.id));
-    console.log('Existing key deleted (rotating).');
-  }
-
+  // Create new key first so the system is never left without a valid key
   const apiKey = await auth.api.createApiKey({
     body: {
       name: KEY_NAME,
@@ -79,7 +74,15 @@ const main = async (): Promise<void> => {
     },
   });
 
-  console.log(`\nAPI key ${existingKey ? 'rotated' : 'created'} for ${user.email}\n`);
+  // Delete all old keys only after new one is confirmed created
+  if (existingKeys.length > 0) {
+    for (const old of existingKeys) {
+      await db.delete(apikeys).where(eq(apikeys.id, old.id));
+    }
+    console.log(`${existingKeys.length} old key(s) deleted (rotating).`);
+  }
+
+  console.log(`\nAPI key ${existingKeys.length > 0 ? 'rotated' : 'created'} for ${user.email}\n`);
   console.log('Set this as WORKER_EVENT_SECRET wrangler secret:\n');
   console.log(`  ${apiKey.key}\n`);
   console.log('Run:');
