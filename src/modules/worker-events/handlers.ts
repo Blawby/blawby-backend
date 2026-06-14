@@ -6,7 +6,7 @@ import { db } from '@/shared/database';
 import { HTTPException } from 'hono/http-exception';
 
 const verifyApiKey = async (authHeader: string | undefined): Promise<void> => {
-  const key = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const key = authHeader ? /^bearer\s+(.+)$/i.exec(authHeader)?.[1]?.trim() : undefined;
   if (!key) {
     throw new HTTPException(401, { message: 'Missing API key' });
   }
