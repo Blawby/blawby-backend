@@ -11,7 +11,7 @@ export const ingestRoute = routeBuilder.build({
     'Internal endpoint for external workers to dispatch events into the backend event pipeline. No session auth — secured via Authorization: Bearer <api-key> header. Supports idempotent replay via event_id.',
   request: {
     headers: z.object({
-      authorization: z.string().openapi({
+      authorization: z.string().regex(/^[Bb]earer\s+\S+$/).openapi({
         description: 'Bearer token: Authorization: Bearer <api-key>',
       }),
     }),

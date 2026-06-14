@@ -11,7 +11,7 @@ export const ingestIntakeConversationsRoute = routeBuilder.build({
     'Internal endpoint. Secured via Authorization: Bearer <api-key> header. Accepts batched events from the CF Worker consumer.',
   request: {
     headers: z.object({
-      authorization: z.string().openapi({ description: 'Bearer token: Authorization: Bearer <api-key>' }),
+      authorization: z.string().regex(/^[Bb]earer\s+\S+$/).openapi({ description: 'Bearer token: Authorization: Bearer <api-key>' }),
     }),
     body: { content: { 'application/json': { schema: intakeConversationEventsPayloadSchema } } },
   },
