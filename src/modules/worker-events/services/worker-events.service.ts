@@ -19,7 +19,6 @@ import { uow } from '@/shared/database/uow';
 import { events } from '@/shared/events/schemas/events.schema';
 import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
-import { timingSafeEqual } from 'node:crypto';
 
 const logger = getLogger(['worker-events', 'service']);
 
@@ -38,29 +37,6 @@ const resolveActorType = (
       return 'system';
     default:
       return 'system';
-  }
-};
-
-/**
- * Validate the worker event secret from the request header.
- * Uses constant-time comparison to prevent timing side-channel attacks.
- */
-const validateWorkerSecret = (headerValue: string | undefined): void => {
-  const { secret } = config.workerEvents;
-
-  if (!secret) {
-    throw new HTTPException(503, { message: 'Worker event ingestion is not configured' });
-  }
-
-  if (!headerValue) {
-    throw new HTTPException(401, { message: 'Invalid worker event secret' });
-  }
-
-  const expected = Buffer.from(secret);
-  const received = Buffer.from(headerValue);
-
-  if (expected.length !== received.length || !timingSafeEqual(expected, received)) {
-    throw new HTTPException(401, { message: 'Invalid worker event secret' });
   }
 };
 
@@ -215,7 +191,6 @@ const ingestIntakeConversationEvents = async (
 };
 
 export const workerEventsService = {
-  validateWorkerSecret,
   ingestWorkerEvent,
   ingestIntakeConversationEvents,
 };
