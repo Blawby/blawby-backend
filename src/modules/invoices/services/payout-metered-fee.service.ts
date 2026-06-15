@@ -1,9 +1,6 @@
 import { PLATFORM_VARIABLE_FEE_RATE } from '@/modules/invoices/constants';
 import { stripe } from '@/shared/utils/stripe-client';
-import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
-
-const logger = getLogger(['invoices', 'payout-metered-fee']);
 
 interface CalculateMeteredFeeParams {
   amountPaid: number;
@@ -34,18 +31,9 @@ const calculateMeteredFeeCents = async (
     return variablePlatformFee;
   }
 
-  try {
-    const charge = await dependencies.retrieveCharge(chargeId, stripeAccountId);
-    const stripeFee = typeof charge.balance_transaction === 'string' ? 0 : (charge.balance_transaction?.fee ?? 0);
-    return stripeFee + variablePlatformFee;
-  } catch (error) {
-    logger.error('Failed to fetch Stripe balance transaction fee for charge {chargeId}: {error}', {
-      chargeId,
-      stripeAccountId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return variablePlatformFee;
-  }
+  const charge = await dependencies.retrieveCharge(chargeId, stripeAccountId);
+  const stripeFee = typeof charge.balance_transaction === 'string' ? 0 : (charge.balance_transaction?.fee ?? 0);
+  return stripeFee + variablePlatformFee;
 };
 
 export const payoutMeteredFeeService = { calculateMeteredFeeCents } as const;

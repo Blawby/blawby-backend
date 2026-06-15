@@ -33,11 +33,6 @@ interface ProcessInvoicePaymentPayload {
 export const processInvoicePayment: Task = async (payload: unknown) => {
   const data = payload as ProcessInvoicePaymentPayload;
   const { invoice_id, organization_id, stripe_invoice_id, stripe_amount_paid } = data;
-  const meteredFeeCents = await payoutMeteredFeeService.calculateMeteredFeeCents({
-    amountPaid: stripe_amount_paid,
-    chargeId: data.stripe_charge_id ?? null,
-    stripeAccountId: data.stripe_account_id ?? null,
-  });
 
   logger.info('Processing invoice payment from worker: {invoiceId}', {
     invoiceId: invoice_id,
@@ -46,6 +41,12 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
   });
 
   try {
+    const meteredFeeCents = await payoutMeteredFeeService.calculateMeteredFeeCents({
+      amountPaid: stripe_amount_paid,
+      chargeId: data.stripe_charge_id ?? null,
+      stripeAccountId: data.stripe_account_id ?? null,
+    });
+
     await uow.transaction(async () => {
       const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id);
       if (!invoice) {

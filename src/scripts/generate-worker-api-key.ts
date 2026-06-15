@@ -18,7 +18,7 @@
 import { config } from '@dotenvx/dotenvx';
 config();
 
-import { users, apikeys } from '@/schema/better-auth-schema';
+import { apikeys, users } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { and, eq } from 'drizzle-orm';

@@ -37,16 +37,17 @@ void test('payout metered fee calculation', async (suite) => {
     assert.equal(retrieved, false);
   });
 
-  await suite.test('falls back to the variable fee when Stripe retrieval fails', async (assert) => {
-    const result = await payoutMeteredFeeService.calculateMeteredFeeCents(
-      { amountPaid: 10_000, chargeId: 'ch_123', stripeAccountId: null },
-      {
-        retrieveCharge: async () => {
-          throw new Error('Stripe unavailable');
-        },
-      }
+  await suite.test('throws when Stripe retrieval fails so the worker can retry', async (assert) => {
+    await assert.rejects(
+      payoutMeteredFeeService.calculateMeteredFeeCents(
+        { amountPaid: 10_000, chargeId: 'ch_123', stripeAccountId: null },
+        {
+          retrieveCharge: async () => {
+            throw new Error('Stripe unavailable');
+          },
+        }
+      ),
+      /Stripe unavailable/
     );
-
-    assert.equal(result, 134);
   });
 });

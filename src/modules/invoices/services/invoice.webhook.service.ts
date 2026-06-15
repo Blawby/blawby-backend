@@ -21,10 +21,20 @@ const IGNORED_INVOICE_EVENTS = [
 const isStripeInvoiceLike = (obj: unknown): obj is Stripe.Invoice =>
   obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
 
+const getStripeResourceId = (resource: unknown): string | null => {
+  if (typeof resource === 'string') {
+    return resource;
+  }
+  if (resource !== null && typeof resource === 'object' && 'id' in resource && typeof resource.id === 'string') {
+    return resource.id;
+  }
+  return null;
+};
+
 const getChargeIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
   const rawInvoice = stripeInvoice as unknown as Record<string, unknown>;
-  const latestChargeId = typeof rawInvoice.latest_charge === 'string' ? rawInvoice.latest_charge : null;
-  const legacyChargeId = typeof rawInvoice.charge === 'string' ? rawInvoice.charge : null;
+  const latestChargeId = getStripeResourceId(rawInvoice.latest_charge);
+  const legacyChargeId = getStripeResourceId(rawInvoice.charge);
   return latestChargeId ?? legacyChargeId;
 };
 

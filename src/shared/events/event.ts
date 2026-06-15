@@ -11,9 +11,14 @@ import {
   ORGANIZATION_ACTOR_UUID,
   SYSTEM_ACTOR_UUID,
   WEBHOOK_ACTOR_UUID,
-} from './constants';
-import { events, type BaseEvent as BaseEventRecord, type EventMetadata, type NewEvent } from './schemas/events.schema';
-import type { DispatchOptions, EventClass, Handler } from './types/event.types';
+} from '@/shared/events/constants';
+import {
+  events,
+  type BaseEvent as BaseEventRecord,
+  type EventMetadata,
+  type NewEvent,
+} from '@/shared/events/schemas/events.schema';
+import type { DispatchOptions, EventClass, Handler } from '@/shared/events/types/event.types';
 
 const logger = getLogger(['events', 'system']);
 
@@ -28,11 +33,11 @@ const ACTOR_ID_MAP: Record<string, string> = {
 };
 
 const ACTOR_TYPE_MAP: Record<string, ActorType> = {
-  system: 'system',
-  webhook: 'webhook',
-  cron: 'cron',
-  api: 'api',
-  organization: 'organization',
+  [SYSTEM_ACTOR_UUID]: 'system',
+  [WEBHOOK_ACTOR_UUID]: 'webhook',
+  [CRON_ACTOR_UUID]: 'cron',
+  [API_ACTOR_UUID]: 'api',
+  [ORGANIZATION_ACTOR_UUID]: 'organization',
 };
 
 const handlers = new Map<string, Handler<Record<string, unknown>>[]>();
@@ -96,7 +101,7 @@ const dispatchCritical = async (record: NewEvent, eventId: string, eventType: st
       error: error instanceof Error ? error.message : String(error),
       eventId,
     });
-    return '';
+    throw error;
   }
 };
 
@@ -159,7 +164,7 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
     const rawActorId = options?.actorId ?? 'system';
     const resolvedActorId = resolveActorId(rawActorId);
 
-    const resolvedActorType: ActorType = options?.actorType ?? ACTOR_TYPE_MAP[rawActorId] ?? 'user';
+    const resolvedActorType: ActorType = options?.actorType ?? ACTOR_TYPE_MAP[resolvedActorId] ?? 'user';
 
     let metadataSource = 'async';
     if (options?.tx) {
