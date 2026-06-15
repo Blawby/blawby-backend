@@ -71,6 +71,8 @@ const main = async (): Promise<void> => {
     body: {
       name: KEY_NAME,
       userId: user.id,
+      rateLimitEnabled: false,
+      expiresIn: null,
     },
   });
 

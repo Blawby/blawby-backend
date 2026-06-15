@@ -9,14 +9,18 @@
  * Graphile retry jobs so payment flow remains non-blocking.
  */
 
-import { getLogger } from '@logtape/logtape';
 import { loadRequiredPayoutMeteredFeeCents } from '@/modules/invoices/services/invoice.utils';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
 import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
-import { InvoicePaid, InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
+import {
+  InvoicePaid,
+  InvoiceRefunded,
+  InvoiceStripePaymentReceived,
+  SystemErrorOccurred,
+} from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
-import { addMeteredUsageJob, addInvoicePaymentJob } from '@/shared/queue/queue.manager';
-import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
+import { addInvoicePaymentJob, addMeteredUsageJob } from '@/shared/queue/queue.manager';
+import { getLogger } from '@logtape/logtape';
 
 const logger = getLogger(['invoices', 'listeners']);
 
@@ -168,6 +172,8 @@ export const registerInvoicesListeners = (): void => {
       stripe_paid_at: payload.stripe_paid_at,
       stripe_customer_id: payload.stripe_customer_id,
       stripe_on_behalf_of: payload.stripe_on_behalf_of,
+      stripe_charge_id: payload.stripe_charge_id,
+      stripe_account_id: payload.stripe_account_id,
     });
   });
 
