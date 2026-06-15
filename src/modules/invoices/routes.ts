@@ -1,5 +1,5 @@
-import { z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import { invoiceService } from '@/modules/invoices/services/invoice.service';
 import type { ListInvoicesQuery } from '@/modules/invoices/types/invoices.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
@@ -10,7 +10,7 @@ import {
   practiceIdParamSchema,
   unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
-import { invoiceService } from '@/modules/invoices/services/invoice.service';
+import { z } from '@hono/zod-openapi';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
   invoice_id: z.uuid().openapi({
@@ -97,7 +97,7 @@ const getInvoiceRoute = routeBuilder.build({
   mcp: {
     scope: 'invoices:read',
     schema: { invoice_id: z.uuid() },
-    handler: async (args, ctx) => invoiceService.getInvoiceById({ id: args['invoice_id'] as string }, ctx),
+    handler: async (args, ctx) => invoiceService.getInvoiceById({ id: args.invoice_id as string }, ctx),
   },
   request: {
     params: invoiceParamSchema,
@@ -147,8 +147,7 @@ const deleteInvoiceRoute = routeBuilder.build({
   description: 'Soft delete a draft invoice',
   request: { params: invoiceParamSchema },
   responses: {
-    200: {
-      content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+    204: {
       description: 'Invoice deleted successfully',
     },
   },

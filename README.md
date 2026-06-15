@@ -101,7 +101,6 @@ src/
 │   ├── types/             # Global TypeScript definitions
 │   │   └── hono.ts        # Hono app context and types
 │   └── utils/             # Utility functions
-│       └── result.ts      # Result pattern helpers (ok, fail, etc.)
 ├── workers/                # Background worker processes
 │   ├── event.worker.ts    # Event processing worker
 │   └── email.worker.ts    # Email sending worker
@@ -949,7 +948,7 @@ export * from '../modules/settings/schemas/settings.schema';
 - **Naming**: camelCase for variables, kebab-case for files
 - **Architecture**: Feature-based modules with clear separation
 - **One Export Rule**: Every service, repository, and helper file should ideally have a single main export (documented object or default export).
-- **Result Pattern**: Use the unified `Result<T>` pattern for all service and repository operations. Types are in `@/shared/types/result` and creators in `@/shared/utils/result`.
+- **Error Handling**: Services return data directly and throw `HTTPException` for expected HTTP failures; workers/webhooks throw raw `Error` when retry infrastructure should observe failures.
 - **Hono Validation**: Use the canonical `c.req.valid('json')` pattern for request bodies, facilitated by `validateJson` middleware.
 
 ## Planned Features
