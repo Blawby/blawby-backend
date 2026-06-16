@@ -5,6 +5,7 @@ import {
   matterExpenseResponseSchema,
   listMatterExpensesQuerySchema,
 } from '@/modules/matters/types/matter.types';
+import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 
 const tags = ['Matters'];
@@ -14,6 +15,24 @@ export const listExpensesRoute = routeBuilder.build({
   path: '/{matter_id}/expenses',
   tags,
   summary: 'List expenses',
+  mcp: {
+    name: 'list_expenses',
+    scope: 'matters:read',
+    handler: async (args, ctx) => {
+      const scopedCtx = { ...ctx, matterId: args.matter_id as string };
+      return matterExpensesService.listMatterExpenses(
+        {
+          filters: {
+            billable: args.billable as boolean | undefined,
+            startDate: typeof args.start_date === 'string' ? new Date(args.start_date) : undefined,
+            endDate: typeof args.end_date === 'string' ? new Date(args.end_date) : undefined,
+            expenseId: args.expense_id as string | undefined,
+          },
+        },
+        scopedCtx
+      );
+    },
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),
@@ -37,6 +56,18 @@ export const createExpenseRoute = routeBuilder.build({
   path: '/{matter_id}/expenses',
   tags,
   summary: 'Create an expense',
+  mcp: {
+    name: 'create_expense',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      const { matter_id, ...data } = args;
+      const scopedCtx = { ...ctx, matterId: matter_id as string };
+      return matterExpensesService.createMatterExpense(
+        { data: data as Parameters<typeof matterExpensesService.createMatterExpense>[0]['data'] },
+        scopedCtx
+      );
+    },
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),
@@ -66,6 +97,21 @@ export const updateExpenseRoute = routeBuilder.build({
   path: '/{matter_id}/expenses/{expense_id}',
   tags,
   summary: 'Update an expense',
+  mcp: {
+    name: 'update_expense',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      const { matter_id, expense_id, ...data } = args;
+      const scopedCtx = { ...ctx, matterId: matter_id as string };
+      return matterExpensesService.updateMatterExpense(
+        {
+          expenseId: expense_id as string,
+          data: data as Parameters<typeof matterExpensesService.updateMatterExpense>[0]['data'],
+        },
+        scopedCtx
+      );
+    },
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),
@@ -96,6 +142,15 @@ export const deleteExpenseRoute = routeBuilder.build({
   path: '/{matter_id}/expenses/{expense_id}',
   tags,
   summary: 'Delete an expense',
+  mcp: {
+    name: 'delete_expense',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      const scopedCtx = { ...ctx, matterId: args.matter_id as string };
+      await matterExpensesService.deleteMatterExpense({ expenseId: args.expense_id as string }, scopedCtx);
+      return { deleted: true };
+    },
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),

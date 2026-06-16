@@ -1,4 +1,6 @@
 import { uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
+import { intakeCheckoutService } from '@/modules/practice-client-intakes/services/intake-checkout.service';
+import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
@@ -61,6 +63,17 @@ const updatePracticeClientIntakeRoute = routeBuilder.build({
   tags: ['Practice Client Intakes'],
   summary: 'Update practice client intake',
   description: 'Updates practice client intake details in the database.',
+  mcp: {
+    name: 'update_intake',
+    scope: 'intakes:write',
+    handler: async (args, ctx) => {
+      const { uuid, ...data } = args;
+      return intakeCreationService.updateIntake(
+        { uuid: uuid as string, data: data as Parameters<typeof intakeCreationService.updateIntake>[0]['data'] },
+        ctx
+      );
+    },
+  },
   request: {
     params: uuidParamOpenAPISchema,
     body: {
@@ -113,6 +126,11 @@ const getPracticeClientIntakeStatusRoute = routeBuilder.build({
   tags: ['Practice Client Intakes'],
   summary: 'Get practice client intake status',
   description: 'Retrieves the current status of a practice client intake.',
+  mcp: {
+    name: 'get_intake_status',
+    scope: 'intakes:read',
+    handler: async (args, ctx) => intakeCheckoutService.getIntakeStatus({ uuid: args.uuid as string }, ctx),
+  },
   request: {
     params: uuidParamOpenAPISchema,
   },

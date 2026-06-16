@@ -5,17 +5,23 @@ import {
   internalServerErrorResponseSchema,
 } from '@/shared/validations/openapi';
 import type { ServiceContext } from '@/shared/types/service-context';
+import type { ZodRawShape } from 'zod';
 
 type RouteConfig = Parameters<typeof createRoute>[0];
 type Responses = RouteConfig['responses'];
 
-export interface McpRouteAnnotation {
+type McpRouteAnnotation = {
   scope: string;
   name?: string;
   description?: string;
-  schema?: import('zod').ZodRawShape;
+  schema?: ZodRawShape;
+  approval?: {
+    required: true;
+    message?: string;
+    confirm_title?: string;
+  };
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
-}
+};
 
 type WithMcp = { mcp: McpRouteAnnotation };
 type WithoutMcp = Record<string, never>;
@@ -97,3 +103,5 @@ export const routeBuilder = {
     return route as typeof route & WithoutMcp;
   },
 };
+
+export type { McpRouteAnnotation };

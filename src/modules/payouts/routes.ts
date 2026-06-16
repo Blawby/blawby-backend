@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { payoutValidations } from '@/modules/payouts/schemas/payouts.validation';
+import { payoutsService } from '@/modules/payouts/services/payouts.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
   badGatewayResponseSchema,
@@ -24,6 +25,12 @@ const listPayoutsRoute = routeBuilder.build({
   tags: ['Payouts'],
   summary: 'List payouts',
   description: 'List the payout ledger (settlement batches) for a practice, newest first.',
+  mcp: {
+    name: 'list_payouts',
+    scope: 'payouts:read',
+    handler: async (args, ctx) =>
+      payoutsService.listPayouts({ filters: args as Parameters<typeof payoutsService.listPayouts>[0]['filters'] }, ctx),
+  },
   request: {
     params: practiceIdParamSchema,
     query: payoutValidations.listPayoutsQuerySchema,
@@ -51,6 +58,12 @@ const getPayoutRoute = routeBuilder.build({
   tags: ['Payouts'],
   summary: 'Get payout',
   description: 'Get a single payout with the balance transactions that settled in that batch.',
+  mcp: {
+    name: 'get_payout',
+    scope: 'payouts:read',
+    schema: { payout_id: z.uuid() },
+    handler: async (args, ctx) => payoutsService.getPayoutDetail({ id: args.payout_id as string }, ctx),
+  },
   request: { params: payoutParamSchema },
   responses: {
     200: {

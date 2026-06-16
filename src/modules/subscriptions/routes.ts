@@ -1,5 +1,11 @@
 import { subscriptionValidations } from './validations/subscription.validation';
+import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
+import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
+import { createCheckoutSession } from '@/modules/subscriptions/services/checkout-session.service';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
+import { db } from '@/shared/database';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/subscriptions/plans
@@ -11,6 +17,11 @@ const listPlansRoute = routeBuilder.build({
   tags: ['Subscriptions'],
   summary: 'List subscription plans',
   description: 'Get all available subscription plans. Requires authentication but no active organization.',
+  mcp: {
+    name: 'list_subscription_plans',
+    scope: 'subscriptions:read',
+    handler: async () => subscriptionService.listPlans(),
+  },
   responses: {
     200: {
       content: {
@@ -33,6 +44,11 @@ const getCurrentSubscriptionRoute = routeBuilder.build({
   tags: ['Subscriptions'],
   summary: 'Get current subscription',
   description: "Get the current organization's active subscription",
+  mcp: {
+    name: 'get_current_subscription',
+    scope: 'subscriptions:read',
+    handler: async (_args, ctx) => subscriptionService.getCurrentSubscription({}, ctx),
+  },
   security: [{ Bearer: [] }],
   responses: {
     200: {
@@ -57,6 +73,20 @@ const cancelSubscriptionRoute = routeBuilder.build({
   summary: 'Cancel subscription',
   description:
     "Cancel the current organization's subscription. Returns a Stripe Billing Portal URL for the user to confirm cancellation.",
+  mcp: {
+    name: 'cancel_subscription',
+    scope: 'subscriptions:write',
+    approval: {
+      required: true,
+      message: 'Open the Stripe cancellation flow for this subscription?',
+      confirm_title: 'Cancel subscription',
+    },
+    handler: async (args, ctx) =>
+      subscriptionService.cancelSubscription(
+        { data: args as Parameters<typeof subscriptionService.cancelSubscription>[0]['data'] },
+        ctx
+      ),
+  },
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -89,6 +119,28 @@ const checkoutRoute = routeBuilder.build({
   tags: ['Subscriptions'],
   summary: 'Create checkout session',
   description: 'Create a Stripe Checkout Session for a given price. Auto-creates an org if the user has none.',
+  mcp: {
+    name: 'create_subscription_checkout',
+    scope: 'subscriptions:write',
+    approval: {
+      required: true,
+      message: 'Create a Stripe subscription checkout session?',
+      confirm_title: 'Create checkout',
+    },
+    handler: async (args, ctx) => {
+      const result = await createCheckoutSession(
+        {
+          stripePriceId: args.stripe_price_id as string,
+          successUrl: args.success_url as string,
+          cancelUrl: args.cancel_url as string,
+          disableRedirect: args.disable_redirect as boolean | undefined,
+          organizationId: args.organization_id as string | undefined,
+        },
+        ctx
+      );
+      return { subscription_id: result.subscriptionId, url: result.url };
+    },
+  },
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -117,6 +169,20 @@ const billingPortalRoute = routeBuilder.build({
   tags: ['Subscriptions'],
   summary: 'Create billing portal session',
   description: 'Create a Stripe Billing Portal session to manage or cancel the active subscription.',
+  mcp: {
+    name: 'create_billing_portal',
+    scope: 'subscriptions:write',
+    approval: {
+      required: true,
+      message: 'Create a Stripe billing portal session for this organization?',
+      confirm_title: 'Create portal',
+    },
+    handler: async (args, ctx) =>
+      createBillingPortalSession(
+        { returnUrl: args.return_url as string, immediately: args.immediately as boolean | undefined },
+        ctx
+      ),
+  },
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -145,6 +211,17 @@ const listSubscriptionsRoute = routeBuilder.build({
   tags: ['Subscriptions'],
   summary: 'List subscriptions',
   description: "List active organization's subscriptions.",
+  mcp: {
+    name: 'list_subscriptions',
+    scope: 'subscriptions:read',
+    handler: async (_args, ctx) => {
+      if (!ctx.organizationId) {
+        return { subscriptions: [] };
+      }
+      const rows = await db.select().from(subscriptions).where(eq(subscriptions.referenceId, ctx.organizationId));
+      return { subscriptions: rows };
+    },
+  },
   security: [{ Bearer: [] }],
   responses: {
     200: {

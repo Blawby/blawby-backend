@@ -1,4 +1,6 @@
 import { z } from '@hono/zod-openapi';
+import { practiceDetailsManagementService } from '@/modules/practice/services/practice-details-management.service';
+import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
@@ -19,6 +21,12 @@ export const getPracticeDetailsRoute = routeBuilder.build({
   tags: ['Practice'],
   summary: 'Get practice details',
   description: 'Retrieve practice details for a specific practice',
+  mcp: {
+    name: 'get_practice_details',
+    scope: 'practice:read',
+    handler: async (_args, ctx) =>
+      practiceQueriesService.getPracticeDetails({ organizationId: ctx.organizationId }, ctx),
+  },
   request: {
     params: practiceIdParamSchema,
   },
@@ -40,6 +48,18 @@ export const createPracticeDetailsRoute = routeBuilder.build({
   tags: ['Practice'],
   summary: 'Create practice details',
   description: 'Create practice details for a practice',
+  mcp: {
+    name: 'create_practice_details',
+    scope: 'practice:write',
+    handler: async (args, ctx) =>
+      practiceDetailsManagementService.upsertPracticeDetails(
+        {
+          organizationId: ctx.organizationId,
+          data: args as Parameters<typeof practiceDetailsManagementService.upsertPracticeDetails>[0]['data'],
+        },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -69,6 +89,18 @@ export const updatePracticeDetailsRoute = routeBuilder.build({
   tags: ['Practice'],
   summary: 'Update practice details',
   description: "Update practice details for a practice (creates if doesn't exist)",
+  mcp: {
+    name: 'update_practice_details',
+    scope: 'practice:write',
+    handler: async (args, ctx) =>
+      practiceDetailsManagementService.upsertPracticeDetails(
+        {
+          organizationId: ctx.organizationId,
+          data: args as Parameters<typeof practiceDetailsManagementService.upsertPracticeDetails>[0]['data'],
+        },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -98,6 +130,19 @@ export const deletePracticeDetailsRoute = routeBuilder.build({
   tags: ['Practice'],
   summary: 'Delete practice details',
   description: 'Delete practice details for a practice',
+  mcp: {
+    name: 'delete_practice_details',
+    scope: 'practice:write',
+    approval: {
+      required: true,
+      message: 'Delete practice details for this practice?',
+      confirm_title: 'Delete details',
+    },
+    handler: async (_args, ctx) => {
+      await practiceDetailsManagementService.deletePracticeDetails({ organizationId: ctx.organizationId }, ctx);
+      return { deleted: true };
+    },
+  },
   request: {
     params: practiceIdParamSchema,
   },

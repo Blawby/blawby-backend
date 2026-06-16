@@ -11,6 +11,7 @@ import {
   unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
 import { invoiceService } from '@/modules/invoices/services/invoice.service';
+import { invoiceDeliveryService } from '@/modules/invoices/services/invoice.delivery.service';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
   invoice_id: z.uuid().openapi({
@@ -29,6 +30,12 @@ const createInvoiceRoute = routeBuilder.build({
   summary: 'Create invoice',
   description:
     'Create a new draft invoice. The client_id can be either a User ID or a Client ID; the system will automatically resolve and create the necessary client records in a non-blocking way.',
+  mcp: {
+    name: 'create_invoice',
+    scope: 'invoices:write',
+    handler: async (args, ctx) =>
+      invoiceService.createInvoice({ data: args as Parameters<typeof invoiceService.createInvoice>[0]['data'] }, ctx),
+  },
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -97,7 +104,7 @@ const getInvoiceRoute = routeBuilder.build({
   mcp: {
     scope: 'invoices:read',
     schema: { invoice_id: z.uuid() },
-    handler: async (args, ctx) => invoiceService.getInvoiceById({ id: args['invoice_id'] as string }, ctx),
+    handler: async (args, ctx) => invoiceService.getInvoiceById({ id: args.invoice_id as string }, ctx),
   },
   request: {
     params: invoiceParamSchema,
@@ -121,6 +128,21 @@ const updateInvoiceRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'Update invoice',
   description: 'Update a draft invoice',
+  mcp: {
+    name: 'update_invoice',
+    scope: 'invoices:write',
+    schema: { invoice_id: z.uuid(), ...invoiceValidations.updateInvoiceSchema.shape },
+    handler: async (args, ctx) => {
+      const { invoice_id, ...data } = args;
+      return invoiceService.updateInvoice(
+        {
+          id: invoice_id as string,
+          data: data as Parameters<typeof invoiceService.updateInvoice>[0]['data'],
+        },
+        ctx
+      );
+    },
+  },
   request: {
     params: invoiceParamSchema,
     body: {
@@ -145,6 +167,17 @@ const deleteInvoiceRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'Delete invoice',
   description: 'Soft delete a draft invoice',
+  mcp: {
+    name: 'delete_invoice',
+    scope: 'invoices:write',
+    approval: {
+      required: true,
+      message: 'Delete this draft invoice? This soft-deletes the invoice and cannot be undone from MCP.',
+      confirm_title: 'Delete invoice',
+    },
+    schema: { invoice_id: z.uuid() },
+    handler: async (args, ctx) => invoiceService.deleteInvoice({ id: args.invoice_id as string }, ctx),
+  },
   request: { params: invoiceParamSchema },
   responses: {
     200: {
@@ -160,6 +193,17 @@ const sendInvoiceRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'Send invoice',
   description: 'Finalize and send an invoice via Stripe',
+  mcp: {
+    name: 'send_invoice',
+    scope: 'invoices:write',
+    approval: {
+      required: true,
+      message: 'Send this invoice through Stripe? This finalizes delivery to the client.',
+      confirm_title: 'Send invoice',
+    },
+    schema: { invoice_id: z.uuid() },
+    handler: async (args, ctx) => invoiceDeliveryService.sendInvoice({ id: args.invoice_id as string }, ctx),
+  },
   request: { params: invoiceParamSchema },
   responses: {
     200: {
@@ -175,6 +219,12 @@ const syncInvoiceRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'Sync invoice',
   description: 'Sync invoice status with Stripe',
+  mcp: {
+    name: 'sync_invoice',
+    scope: 'invoices:write',
+    schema: { invoice_id: z.uuid() },
+    handler: async (args, ctx) => invoiceDeliveryService.syncInvoice({ id: args.invoice_id as string }, ctx),
+  },
   request: { params: invoiceParamSchema },
   responses: {
     200: {
@@ -190,6 +240,17 @@ const voidInvoiceRoute = routeBuilder.build({
   tags: ['Invoices'],
   summary: 'Void invoice',
   description: 'Void a sent invoice (cannot be undone)',
+  mcp: {
+    name: 'void_invoice',
+    scope: 'invoices:write',
+    approval: {
+      required: true,
+      message: 'Void this sent invoice? This Stripe-linked action cannot be undone.',
+      confirm_title: 'Void invoice',
+    },
+    schema: { invoice_id: z.uuid() },
+    handler: async (args, ctx) => invoiceDeliveryService.voidInvoice({ id: args.invoice_id as string }, ctx),
+  },
   request: { params: invoiceParamSchema },
   responses: {
     200: {

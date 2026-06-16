@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { trustService } from '@/modules/trust/services/trust.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { practiceIdParamSchema } from '@/shared/validations/openapi';
 
@@ -35,6 +36,20 @@ const createDepositRoute = routeBuilder.build({
   summary: 'Record a manual trust deposit',
   description:
     'Staff-initiated retainer deposit. Creates a trust ledger entry, syncs matters.retainer_balance, and fires RetainerLowBalance if threshold is breached.',
+  mcp: {
+    name: 'create_trust_deposit',
+    scope: 'trust:write',
+    approval: {
+      required: true,
+      message: 'Record this manual trust deposit? This changes the client trust ledger.',
+      confirm_title: 'Record deposit',
+    },
+    handler: async (args, ctx) =>
+      trustService.manualDeposit(
+        { data: args as unknown as Parameters<typeof trustService.manualDeposit>[0]['data'] },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     body: { content: { 'application/json': { schema: manualTrustBodySchema } } },
@@ -54,6 +69,20 @@ const createWithdrawalRoute = routeBuilder.build({
   summary: 'Record a manual trust withdrawal',
   description:
     'Staff-initiated retainer withdrawal. Rejects if balance would go below 0. Syncs matters.retainer_balance and checks threshold.',
+  mcp: {
+    name: 'create_trust_withdrawal',
+    scope: 'trust:write',
+    approval: {
+      required: true,
+      message: 'Record this manual trust withdrawal? This changes the client trust ledger.',
+      confirm_title: 'Record withdrawal',
+    },
+    handler: async (args, ctx) =>
+      trustService.manualWithdrawal(
+        { data: args as unknown as Parameters<typeof trustService.manualWithdrawal>[0]['data'] },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     body: { content: { 'application/json': { schema: manualTrustBodySchema } } },
@@ -73,6 +102,21 @@ const getTrustTransactionsRoute = routeBuilder.build({
   summary: 'List trust transactions',
   description:
     'List trust transactions for the organization, ordered by created_at DESC. When client_id is omitted, returns org-wide transactions; when provided, scopes to that client. Optionally filterable by matter_id and date range.',
+  mcp: {
+    name: 'list_trust_transactions',
+    scope: 'trust:read',
+    handler: async (args, ctx) =>
+      trustService.getTransactions(
+        {
+          organizationId: ctx.organizationId,
+          clientId: args.client_id as string | undefined,
+          matterId: args.matter_id as string | undefined,
+          startDate: typeof args.start_date === 'string' ? new Date(args.start_date) : undefined,
+          endDate: typeof args.end_date === 'string' ? new Date(args.end_date) : undefined,
+        },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     query: z.object({
@@ -96,6 +140,12 @@ const getTrustBalanceRoute = routeBuilder.build({
   tags: ['Trust'],
   summary: 'Get trust balance',
   description: 'Get current trust balance for a client, broken down by matter.',
+  mcp: {
+    name: 'get_trust_balance',
+    scope: 'trust:read',
+    handler: async (args, ctx) =>
+      trustService.getBalance({ organizationId: ctx.organizationId, clientId: args.client_id as string }, ctx),
+  },
   request: {
     params: practiceIdParamSchema,
     query: z.object({ client_id: z.uuid() }),
@@ -120,6 +170,19 @@ const getTrustReportRoute = routeBuilder.build({
   path: '/{practice_id}/report',
   tags: ['Trust'],
   summary: 'Trust report',
+  mcp: {
+    name: 'get_trust_report',
+    scope: 'trust:read',
+    handler: async (args, ctx) =>
+      trustService.getReport(
+        {
+          organizationId: ctx.organizationId,
+          startDate: typeof args.start_date === 'string' ? new Date(args.start_date) : undefined,
+          endDate: typeof args.end_date === 'string' ? new Date(args.end_date) : undefined,
+        },
+        ctx
+      ),
+  },
   description: 'IOLTA compliance report — trust transactions for an org in a date range.',
   request: {
     params: practiceIdParamSchema,
@@ -149,6 +212,11 @@ const getTrustClientBalancesRoute = routeBuilder.build({
   path: '/{practice_id}/client-balances',
   tags: ['Trust'],
   summary: 'List latest trust balance per client',
+  mcp: {
+    name: 'list_trust_client_balances',
+    scope: 'trust:read',
+    handler: async (_args, ctx) => trustService.getClientBalances({}, ctx),
+  },
   description:
     'Returns the latest trust balance_after per client across the organization, one row per client with the timestamp of the underlying transaction.',
   request: {

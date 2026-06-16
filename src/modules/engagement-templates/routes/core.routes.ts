@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { engagementTemplateService } from '@/modules/engagement-templates/services/engagement-template.service';
 import { engagementTemplateValidations } from '@/modules/engagement-templates/validations/engagement-template.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
@@ -21,6 +22,11 @@ const listEngagementTemplatesRoute = routeBuilder.build({
   path: '/{practice_id}',
   tags: ['Engagement Templates'],
   summary: 'List engagement templates for a practice',
+  mcp: {
+    name: 'list_engagement_templates',
+    scope: 'engagement_templates:read',
+    handler: async (_args, ctx) => engagementTemplateService.listEngagementTemplates(ctx.organizationId, ctx),
+  },
   request: {
     params: practiceIdParamSchema,
   },
@@ -43,6 +49,15 @@ const createEngagementTemplateRoute = routeBuilder.build({
   path: '/{practice_id}',
   tags: ['Engagement Templates'],
   summary: 'Create a new engagement template for a practice',
+  mcp: {
+    name: 'create_engagement_template',
+    scope: 'engagement_templates:write',
+    handler: async (args, ctx) =>
+      engagementTemplateService.createEngagementTemplate(
+        { data: args as Parameters<typeof engagementTemplateService.createEngagementTemplate>[0]['data'] },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -73,6 +88,24 @@ const updateEngagementTemplateRoute = routeBuilder.build({
   path: '/{practice_id}/{template_id}',
   tags: ['Engagement Templates'],
   summary: 'Update an engagement template',
+  mcp: {
+    name: 'update_engagement_template',
+    scope: 'engagement_templates:write',
+    schema: {
+      template_id: z.uuid(),
+      ...engagementTemplateValidations.updateEngagementTemplateSchema.shape,
+    },
+    handler: async (args, ctx) => {
+      const { template_id, ...data } = args;
+      return engagementTemplateService.updateEngagementTemplate(
+        {
+          id: template_id as string,
+          data: data as Parameters<typeof engagementTemplateService.updateEngagementTemplate>[0]['data'],
+        },
+        ctx
+      );
+    },
+  },
   request: {
     params: engagementTemplateParamSchema,
     body: {
@@ -107,6 +140,18 @@ const deleteEngagementTemplateRoute = routeBuilder.build({
   path: '/{practice_id}/{template_id}',
   tags: ['Engagement Templates'],
   summary: 'Delete an engagement template',
+  mcp: {
+    name: 'delete_engagement_template',
+    scope: 'engagement_templates:write',
+    schema: { template_id: z.uuid() },
+    approval: {
+      required: true,
+      message: 'Delete this engagement template?',
+      confirm_title: 'Delete engagement template',
+    },
+    handler: async (args, ctx) =>
+      engagementTemplateService.deleteEngagementTemplate({ id: args.template_id as string }, ctx),
+  },
   request: {
     params: engagementTemplateParamSchema,
   },
