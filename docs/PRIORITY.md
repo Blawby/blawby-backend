@@ -1,7 +1,7 @@
 # Blawby Backend — Work Priority Tracker
 
 > Single source of truth for prioritized work across all plan files and GitHub issues.
-> Last updated: 2026-06-06
+> Last updated: 2026-06-16
 >
 > Related: `docs/superpowers/TRACKING.md` (API remediation detail) | `ROADMAP.md` (product direction)
 
@@ -103,7 +103,21 @@
 
 ---
 
-## P6 — Feature Backlog
+## P6 — Engineering Cleanup Backlog
+
+> Concrete GitHub issues extracted from archived `plans/*.md` files. Use these instead of executing the old plans.
+
+| Item | Ref | Status | Notes |
+|------|-----|--------|-------|
+| Finish remaining module standardization cleanup | [#334](https://github.com/Blawby/blawby-backend/issues/334) | ⬜ | Practice-client-intakes, subscriptions, trust, practice handler exports |
+| Refactor trust and invoice workflows toward deeper modules | [#335](https://github.com/Blawby/blawby-backend/issues/335) | ⬜ | Architecture cleanup; verify interfaces before refactor |
+| Standardize module structure, naming, and event-definition layout | [#336](https://github.com/Blawby/blawby-backend/issues/336) | ⬜ | Non-breaking structural cleanup |
+| Improve real database integration test harness | [#337](https://github.com/Blawby/blawby-backend/issues/337) | ⬜ | Supersedes stale DB test plan details |
+| Tighten TypeScript type safety and strictness gates | [#338](https://github.com/Blawby/blawby-backend/issues/338) | ⬜ | Type safety and TSConfig hardening |
+
+---
+
+## P7 — Feature Backlog
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
@@ -114,11 +128,10 @@
 
 ---
 
-## P7 — Defer / Archive
+## P8 — Defer / Archive
 
 | Item | Ref | Notes |
 |------|-----|-------|
-| `plans/` Stripe directory (8 files) | `plans/MASTER_IMPLEMENTATION_PLAN.md` etc. | Feb 2026, ~60% done. Verify in code, archive remainder. |
 | Observability / audit trail | `docs/brainstorms/observability-and-audit-trail.md` | Brainstorm done (Jun 4). Write plan when P1–P3 clear. |
 | Checklist items | [#176](https://github.com/Blawby/blawby-backend/issues/176) | Too vague. Needs triage. |
 | Clio Manage Integration | [#9](https://github.com/Blawby/blawby-backend/issues/9) | Explicit BACKLOG. Ignore. |
@@ -127,15 +140,13 @@
 
 ## Stale Plan Files (do not execute from these)
 
+The top-level `plans/*.md` files are historical context only. Do not execute them directly unless a user explicitly reactivates one and its claims are verified against current code. Current executable plans live under `docs/plans/`, `docs/superpowers/plans/`, and `test/PLAN.md`.
+
 | File | Reason |
 |------|--------|
-| `plans/MASTER_IMPLEMENTATION_PLAN.md` | Feb 2026, partially superseded |
-| `plans/STRIPE_SUBSCRIPTIONS_PLAN.md` | No date, superseded |
-| `plans/STRIPE_SUBSCRIPTION_SYNC_AUDIT.md` | Feb 2026 |
-| `plans/LEGAL_BILLING_FUND_ROUTING_PLAN.md` | Feb 2026 |
-| `plans/INVOICES_REMAINING_WORK.md` | No date |
 | `plans/TECH_DEBT_REMEDIATION_PLAN.md` | No date |
 | `plans/architectural-issues.md` | No date |
-| `plans/blawby-ts-intake-payments-improvements.md` | No date |
 | `plans/fix-test-db-integration.md` | No date, superseded by test/PLAN.md |
 | `plans/ideal-architecture.md` | No date, superseded by UoW plan |
+
+Removed on 2026-06-16: historical Stripe/payment plan docs (`MASTER_IMPLEMENTATION_PLAN.md`, `STRIPE_SUBSCRIPTIONS_PLAN.md`, `STRIPE_SUBSCRIPTION_SYNC_AUDIT.md`, `LEGAL_BILLING_FUND_ROUTING_PLAN.md`, `INVOICES_REMAINING_WORK.md`, `blawby-ts-intake-payments-improvements.md`). Use git history if that old context is needed.

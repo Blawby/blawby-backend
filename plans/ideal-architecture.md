@@ -1,5 +1,7 @@
 # Ideal Architecture for Blawby Backend
 
+> Archived historical plan. Do not execute directly without first verifying every relevant claim against current code. See `docs/PRIORITY.md` for current work ordering.
+
 ## System Overview - Detailed Layers
 
 ```

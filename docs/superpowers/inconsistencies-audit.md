@@ -46,7 +46,7 @@ const deleteThingHandler = async (c) => {
 ## 2. `engagement-contracts` Module Deviations
 
 **Severity:** High  
-**Status:** 🔄 (being fixed in current PR)
+**Status:** ✅
 
 **Problems:**
 - ~~Used raw `createRoute()` instead of `routeBuilder.build()`~~ ✅
@@ -54,9 +54,9 @@ const deleteThingHandler = async (c) => {
 - ~~Generic `{id}` param instead of `{contract_id}`~~ ✅
 - ~~Exported handlers as `engagementContractHandlers` instead of `handlers`~~ ✅
 - ~~Handler `{ id }` destructuring instead of `{ contract_id: id }`~~ ✅
-- `practice_id` in URL is not validated against `ctx.organizationId` in service ⬜
+- ~~`practice_id` in URL is validated against the active organization in every handler~~ ✅
 
-**Remaining:** Add URL param validation in `engagement-contract.service.ts` — confirm `practice_id` from URL matches `ctx.organizationId` before proceeding, consistent with how other modules cross-check ownership.
+**Current status:** Complete. `src/modules/engagement-contracts/handlers.ts` has `assertPracticeMatchesActiveOrg(...)` and calls it from all five route handlers.
 
 ---
 
@@ -69,11 +69,10 @@ const deleteThingHandler = async (c) => {
 
 | Style | Modules |
 |-------|---------|
-| `export const handlers = { ... }` (bundled object) | `matters`, `invoices`, `trust`, `subscriptions`, `stripe`, `onboarding`, `practice-client-intakes`, `engagement-contracts` (after fix) |
-| `export const fooHandler = ...` (individual named exports) | `clients`, `practice` |
-| Mixed | `clients` (both named exports + bundled object) |
+| `export const handlers = { ... }` (bundled object) | `matters`, `invoices`, `trust`, `subscriptions`, `stripe`, `onboarding`, `practice-client-intakes`, `engagement-contracts`, `clients` |
+| `export const fooHandler = ...` (individual named exports) | `practice` |
 
-**Resolution:** Standardize to `export const handlers = { ... }` (bundled object) as used by the majority. `clients` and `practice` need to be migrated.
+**Resolution:** Standardize to `export const handlers = { ... }` (bundled object) as used by the majority. `practice` still needs to be migrated.
 
 ---
 
@@ -119,12 +118,13 @@ Mixed camelCase and kebab-case in the same directory:
 
 ### 5a. Handler files inside `services/`
 
-- `src/modules/invoices/services/invoice-lifecycle.handlers.ts`
-- `src/modules/invoices/services/invoice-metering.handlers.ts`
+**Status:** ✅
 
-These are Graphile Worker task handlers, not service files. They should move to a `workers/` or `tasks/` subdirectory, or be co-located with the worker bootstrap.
+The previous `invoice-lifecycle.handlers.ts` and `invoice-metering.handlers.ts` files are no longer present under `src/modules/invoices/services/`.
 
 ### 5b. Sub-resource files in module root
+
+**Status:** ⬜
 
 - `src/modules/invoices/refund-requests.handlers.ts`
 - `src/modules/invoices/refund-requests.routes.ts`
@@ -145,12 +145,13 @@ These belong in `invoices/routes/refund-requests.routes.ts` and folded into `inv
 - Not in `EventClasses` map
 - **Action:** Determine if these events are needed. If yes, rename appropriately and register. If no, delete the file.
 
-### 6b. `engagement-contracts.ts` — not imported in `definitions.ts`
+### 6b. `engagement-contracts.ts` — active but not in central aggregator
 
 - File: `src/shared/events/definitions/engagement-contracts.ts`
 - Contains: `EngagementContractCreated`, `EngagementContractSent`, etc.
-- Not imported in `definitions.ts` and not in `EventClasses` map
-- **Action:** Import in `definitions.ts` and add to `EventClasses`.
+- Imported directly by engagement-contract services/listeners and practice conflict-check service.
+- Not imported in `src/shared/events/definitions.ts` and not in the `EventClasses` map.
+- **Action:** Either add it to the central aggregator/map if dynamic lookup is required, or document direct-import-only usage.
 
 ### 6c. `practice.events.types.ts` — module-local event types
 

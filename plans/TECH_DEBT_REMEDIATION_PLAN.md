@@ -1,5 +1,7 @@
 # Tech Debt Remediation Plan
 
+> Archived historical plan. Do not execute directly without first verifying every relevant claim against current code. See `docs/PRIORITY.md` for current work ordering.
+
 > **Goal:** Make the codebase readable, standardized, and easy for any new developer to understand.
 > **Branch:** `refactor/tech-debt`
 > Testing infrastructure is tracked on a separate branch — excluded from this plan.

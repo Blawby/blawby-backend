@@ -190,7 +190,7 @@ export const uploadCoreService = {
 
 ## Error Handling
 
-All services throw — no `Result<T>`. Follows [plans/architectural-issues.md](../../../plans/architectural-issues.md) Issue #1.
+All services throw — no `Result<T>`. This follows the current repository convention in `AGENTS.md` and `docs/CODING_STANDARDS.md`; the top-level architectural-issues plan is historical context only.
 
 ```typescript
 // Bad (current)

@@ -25,44 +25,9 @@
 
 ## Task 1: Close Track 1 — Mark practice_id validation done
 
-**Files:**
-- Update: `docs/superpowers/TRACKING.md`
-- Update: `docs/PRIORITY.md`
+**Status:** ✅ Done.
 
-The `assertPracticeMatchesActiveOrg` guard is already implemented in `src/modules/engagement-contracts/handlers.ts` lines 7–11 and called in every handler. This is done. Update the tracking docs.
-
-- [ ] **Step 1: Verify guard exists in all 5 handlers**
-
-```bash
-grep -n "assertPracticeMatchesActiveOrg" src/modules/engagement-contracts/handlers.ts
-```
-
-Expected: 5 matches — one call per handler (createEngagementContractHandler, listEngagementContractsHandler, getEngagementContractHandler, updateEngagementContractHandler, updateEngagementContractStatusHandler).
-
-- [ ] **Step 2: Update TRACKING.md**
-
-In `docs/superpowers/TRACKING.md`, change the last sub-item of Audit Item 2 from `🔄` to `✅`:
-
-```markdown
-| `practice_id` URL param not validated against session active organization in handler/service flow | ✅ |
-```
-
-- [ ] **Step 3: Update PRIORITY.md**
-
-In `docs/PRIORITY.md`, remove the Track 1 row from P0:
-
-```markdown
-| Track 1 last item: `practice_id` URL param not validated against session org | `docs/superpowers/TRACKING.md` Track 1 | 🔄 | Small fix. Closes Track 1 entirely. |
-```
-
-Replace with: *(remove the row entirely — Track 1 is complete)*
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add docs/superpowers/TRACKING.md docs/PRIORITY.md
-git commit -m "docs: close Track 1 — practice_id validation already implemented"
-```
+Verified against `src/modules/engagement-contracts/handlers.ts`: `assertPracticeMatchesActiveOrg(...)` exists and is called by all five engagement-contract route handlers. `docs/superpowers/TRACKING.md`, `docs/superpowers/inconsistencies-audit.md`, and `docs/PRIORITY.md` now agree that Track 1 is complete.
 
 ---
 

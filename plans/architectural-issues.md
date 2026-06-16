@@ -1,5 +1,7 @@
 # Architectural Issues & Resolutions
 
+> Archived historical plan. Do not execute directly without first verifying every relevant claim against current code. See `docs/PRIORITY.md` for current work ordering.
+
 This document tracks architectural problems identified in Blawby and their resolutions.
 
 ---
