@@ -2,22 +2,22 @@
  * Practice Client Intake Webhook Handlers
  */
 
-import { getLogger } from '@logtape/logtape';
-import { and, eq, not, inArray } from 'drizzle-orm';
-import type { Stripe } from 'stripe';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   practiceClientIntakes,
   type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
 import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
 import { getActiveTx, uow } from '@/shared/database/uow';
-import { IntakePaymentSucceeded, IntakePaymentFailed, IntakePaymentCanceled } from '@/shared/events/definitions';
+import { IntakePaymentCanceled, IntakePaymentFailed, IntakePaymentSucceeded } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import { sanitizeError } from '@/shared/utils/logging';
 import { stripe } from '@/shared/utils/stripe-client';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, inArray, not } from 'drizzle-orm';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['practice-client-intakes', 'webhooks']);
 const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
@@ -164,7 +164,6 @@ export const handlePracticeClientIntakeSucceeded = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx: getActiveTx(),
           }
         );
       }
@@ -242,7 +241,6 @@ export const handlePracticeClientIntakeFailed = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx: getActiveTx(),
           }
         );
       }
@@ -291,7 +289,6 @@ export const handlePracticeClientIntakeCanceled = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx: getActiveTx(),
           }
         );
       }

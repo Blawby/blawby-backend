@@ -73,7 +73,7 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
       await getActiveTx()
         .update(stripeConnectedAccounts)
         .set({
-          externalAccounts: updatedExternalAccounts as unknown as ExternalAccounts,
+          externalAccounts: updatedExternalAccounts,
           last_refreshed_at: new Date(),
         })
         .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId));
@@ -90,7 +90,6 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId: accountRecord.organization_id,
-          tx: getActiveTx(),
         }
       );
     });

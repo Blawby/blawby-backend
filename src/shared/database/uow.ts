@@ -20,6 +20,8 @@ export interface UowContext {
  */
 export const getActiveTx = (): Tx | typeof db => txStorage.getStore()?.tx ?? db;
 
+export const isInTransaction = (): boolean => txStorage.getStore() !== undefined;
+
 export const uow = {
   /**
    * REQUIRED propagation: nested calls join the outer transaction automatically.

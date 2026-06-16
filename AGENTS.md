@@ -29,6 +29,26 @@ Blawby is a legal-practice management backend for matters, clients, billing, inv
 6. Ask only when missing information cannot be discovered and a reasonable assumption would be risky.
 7. Finish with focused validation and review the final diff for dead code and accidental scope expansion.
 
+## Evidence Before Action
+
+Before changing docs, plans, GitHub issues, or code from a written claim, verify the claim against current reality. For each non-trivial item, identify the claim, check at least one current source, and then decide the action.
+
+Acceptable evidence sources:
+
+- Current implementation files, call sites, schemas, routes, generated registries, or tests
+- Current git diff for files already in motion
+- Current GitHub issues or PRs when triaging external work
+- Runtime/config files when the claim is about commands, services, deployment, or infrastructure
+
+Do not mark work complete, stale, safe to delete, or ready to implement from plan text alone. If a claim cannot be verified quickly, leave it as "needs triage" instead of guessing.
+
+For doc cleanup and issue creation, use this loop:
+
+1. Extract the claim from the document.
+2. Verify it against code, tests, config, or issues.
+3. Choose one action: keep, update, archive, delete, or convert to an issue.
+4. Record concise evidence in the edited doc, issue body, or final response.
+
 ## Source Of Truth
 
 Use sources in this order:
@@ -155,4 +175,6 @@ For database changes, also run `pnpm run db:generate` and inspect the migration.
 - Keep this file concise and current; do not copy it into tool-specific instruction files.
 - Put reusable agent workflows in `.agents/skills/` only when they contain real procedure, references, or scripts beyond these repository conventions.
 - Treat `plans/` and `docs/**/plans/` as historical unless the user identifies a plan as active.
+- Treat historical plans as leads, not proof. Search the relevant current module, tests, and issues before executing, deleting, or rewriting a plan item.
+- GitHub issues created from old docs must include a checklist and a short "Verified current state" or "Evidence" section with file or issue references.
 - Update architecture documentation when a change alters module ownership, event flow, queue ownership, or a public contract.
