@@ -229,7 +229,7 @@ sequenceDiagram
     H->>S: Call Service
     S->>DB: Database Query
     DB-->>S: Query Result
-    S-->>H: Result<T>
+    S-->>H: Data or thrown error
     H-->>MW: Response Data
     MW-->>C: JSON Response
 ```
@@ -238,20 +238,20 @@ sequenceDiagram
 
 ## Error Handling Pattern
 
-The system uses a **Result type pattern** for explicit error handling:
+The system uses **throw-based error handling**:
 
 ```typescript
-type Result<T> =
-  | { success: true; data: T }
-  | { success: false; error: AppError }
+const getThing = async ({ id }: { id: string }, ctx: ServiceContext): Promise<Thing> => {
+  const thing = await thingsQueries.findById(id, ctx.organizationId);
+  if (!thing) {
+    throw new HTTPException(404, { message: 'Thing not found' });
+  }
 
-interface AppError {
-  status: number;      // HTTP status code
-  code: string;        // Error code (e.g., "VALIDATION_ERROR")
-  message: string;     // Human-readable message
-  details?: unknown;   // Additional error details
+  return thing;
 }
 ```
+
+Handlers do not unwrap service response objects. They call services directly and let middleware convert thrown errors into HTTP responses.
 
 **Response Format:**
 ```json
@@ -426,7 +426,7 @@ src/shared/
 ├── events/            # Event system & outbox
 ├── queue/             # Graphile Worker config
 ├── router/            # Module discovery & OpenAPI
-├── types/             # Result<T>, Hono context
+├── types/             # Hono context and shared app types
 ├── validations/       # Shared Zod schemas
 └── utils/             # Helpers (Stripe client, logging)
 ```
@@ -623,7 +623,7 @@ src/
 │   ├── events/                    # Event system
 │   ├── queue/                     # Graphile Worker
 │   ├── router/                    # Module registration
-│   ├── types/                     # Result<T>, context types
+│   ├── types/                     # Context and shared app types
 │   └── utils/                     # Helpers
 ├── schema/                        # Database schemas
 └── workers/                       # Background workers

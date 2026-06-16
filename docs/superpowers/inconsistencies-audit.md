@@ -17,16 +17,11 @@
 ## 1. Error Handling — Two Incompatible Patterns
 
 **Severity:** High  
-**Status:** ⬜
+**Status:** ✅
 
-**Problem:** Half the codebase uses the old `Result<T>` / `sendResult` pattern; the other half uses throw-based `HTTPException`. CLAUDE.md mandates throw-based only.
+**Problem:** The codebase previously mixed service response wrappers with throw-based `HTTPException` handling.
 
-**Modules still using `Result<T>`:**
-- `matters/` — service returns `Result<T>`, handlers call `sendResult(c, result)`
-- `matters/services/matters.service.ts` — wraps `ForbiddenError.throwUnlessCan()` in try/catch and converts to `Result<never>` (opposite of the rule)
-- `trust/services/trust.service.ts` — custom `assertTrustManageAccess()` / `assertTrustReadAccess()` return `Result<void>` instead of throwing
-- `trust/`, `subscriptions/`, `practice-client-intakes/`, `onboarding/`, `stripe/` handlers — all use `sendResult`
-- Services returning `Result<{ success: true }>` for deletes — should return `Promise<void>` and throw on failure
+**Current status:** Complete. Current `src/` and `test/` have no `Result<T>` or `sendResult` matches. Services return data directly and throw on failure.
 
 **What correct looks like:**
 ```typescript

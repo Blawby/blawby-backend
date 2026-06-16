@@ -18,12 +18,11 @@
 
 ## Track 1 — Error Handling Migration (Audit Item 1 + Item 2 remainder)
 
-> Prerequisite for Track 2. Migrate all modules from `Result<T>` / `sendResult` → throw-based `HTTPException`.
-> Execution order: matters → trust → subscriptions → practice-client-intakes → onboarding → stripe
+> ✅ Complete. All modules use throw-based service/handler error handling; worker-facing services throw raw `Error` when retry infrastructure should observe failure.
 
 **Audit Item 1 — Error Handling: Two Incompatible Patterns** | Severity: High
 
-Modules still using `Result<T>` / `sendResult`:
+Former migration scope:
 
 | Module | Status | Notes |
 |--------|--------|-------|
@@ -33,7 +32,7 @@ Modules still using `Result<T>` / `sendResult`:
 | `practice-client-intakes/` | ✅ | Helpers, services, handlers migrated |
 | `onboarding/` | ✅ | Migrated; legacy named exports removed from `connected-accounts.service.ts` |
 | `stripe/` | ✅ | `getConnectedAccountHandler` cleaned up; legacy exports removed from `stripe.webhook-events.repository.ts` |
-| Services returning `Result<{ success: true }>` for deletes | ✅ | All modules now `Promise<void>` / `204` |
+| Services returning encoded success wrappers for deletes | ✅ | All modules now `Promise<void>` / `204` |
 
 **Audit Item 2 — `engagement-contracts` Module Deviations** | Severity: High
 

@@ -8,7 +8,7 @@
 
 ## The Standard
 
-Every module should look and feel the same. The **matters**, **preferences**, and **invoices** modules are the gold standard for **structure** (CASL, ServiceContext, thin handlers), but still require the final **Error Handling** pass to remove `Result<T>`. Here's the target pattern:
+Every module should look and feel the same. The **matters**, **preferences**, and **invoices** modules are the gold standard for **structure** (CASL, ServiceContext, thin handlers). The error-handling migration is complete; keep new and touched code throw-based. Here's the target pattern:
 
 ### Handler Pattern
 
@@ -42,12 +42,12 @@ const createThing = async (
 ): Promise<ThingRecord> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Thing');
 
-  return await db.transaction(async (tx) => {
-    const [newRecord] = await tx.insert(things).values({ ... }).returning();
+  return await uow.transaction(async () => {
+    const [newRecord] = await getActiveTx().insert(things).values({ ... }).returning();
     if (!newRecord) {
       throw new HTTPException(500, { message: 'Failed to create Thing' });
     }
-    await ctx.emit(ThingCreated, { ... }, tx);
+    await ctx.emit(ThingCreated, { ... });
     return newRecord;
   });
 };
@@ -56,7 +56,7 @@ const createThing = async (
 **Rules:**
 
 - Max 2 parameters: `(params, ctx)` — params is an object, ctx is ServiceContext
-- Return data directly — do not return Result<T> objects from services
+- Return data directly — do not return service response wrapper objects
 - Throw `HTTPException` for expected failures (404, 400, etc.) from service layer
 - CASL check first, then validate, then execute
 - Max ~50 lines per function — if longer, extract helpers
@@ -104,20 +104,20 @@ export default app;
 
 ---
 
-## Error Handling Transformation (Result → Throw)
+## Error Handling Standard
 
-**Goal:** Standardize on Hono's native throw-based error handling to eliminate `Result<T>` boilerplate.
+**Status:** Complete. Standardize on Hono's native throw-based error handling.
 
-### Mapping Table: Result → HTTPException
+### Expected Failure Mapping
 
-| Result Helper               | Throw Pattern                                    | Status |
-| --------------------------- | ------------------------------------------------ | ------ |
-| `result.notFound(msg)`      | `throw new HTTPException(404, { message: msg })` | 404    |
-| `result.badRequest(msg)`    | `throw new HTTPException(400, { message: msg })` | 400    |
-| `result.unauthorized(msg)`  | `throw new HTTPException(401, { message: msg })` | 401    |
-| `result.conflict(msg)`      | `throw new HTTPException(409, { message: msg })` | 409    |
-| `result.unprocessable(msg)` | `throw new HTTPException(422, { message: msg })` | 422    |
-| `result.internalError(msg)` | `throw new Error(msg)` (caught as 500)           | 500    |
+| Situation | Throw Pattern | Status |
+| --- | --- | --- |
+| Not found | `throw new HTTPException(404, { message })` | 404 |
+| Bad input | `throw new HTTPException(400, { message })` | 400 |
+| Unauthorized | `throw new HTTPException(401, { message })` | 401 |
+| Conflict | `throw new HTTPException(409, { message })` | 409 |
+| Unprocessable | `throw new HTTPException(422, { message })` | 422 |
+| Unexpected server failure | `throw new Error(message)` | 500 |
 
 ### Special Cases (Webhooks & Workers)
 
@@ -180,7 +180,7 @@ Remaining high-priority work from this snapshot:
 
 - [ ] Remove remaining `if (!user)` checks in `src/modules/clients/services/clients-crud.service.ts` (2 occurrences)
 - [ ] Remove remaining `requestHeaders` usage in `src/modules/subscriptions/services/subscription.service.ts` (2 occurrences)
-- [ ] Migrate all modules from `Result<T>` → Hono native throw-based pattern (in progress)
+- [x] Migrate all modules to Hono native throw-based pattern
 - [ ] Remove legacy `src/modules/uploads/services/uploads.service.ts` after fully moving references
 
 ---
@@ -279,7 +279,7 @@ Remaining high-priority work from this snapshot:
   - `routes/shared.ts`
 - [x] Remove raw `Headers` passthrough from intake invitation flow (minimal origin-only header passed to Better Auth)
 - [ ] Replace base64url-encoded `PrefillData` in magic-link `callbackURL` with an opaque, short-lived server-side token (store minimal payload in DB/Redis, pass only the token ID in the URL, validate/consume on callback)
-- [ ] Move `convertIntake` eligibility checks (`status`, `triage_status`, metadata) inside `db.transaction` with `SELECT … FOR UPDATE` on the intake row to prevent race-condition duplicates
+- [ ] Move `convertIntake` eligibility checks (`status`, `triage_status`, metadata) inside `uow.transaction(...)` with `SELECT … FOR UPDATE` on the intake row to prevent race-condition duplicates
 
 ---
 
@@ -395,7 +395,7 @@ Remaining high-priority work from this snapshot:
 
 **Dependencies:** All Group A merged
 
-**A. Services: Remove all `result.ok<T>()`**
+**A. Services: Reduce unsafe type assertions**
 
 - [ ] Audit and fix all `as SomeRecord` casts in services
 
@@ -442,10 +442,10 @@ notifications: jsonb('notifications').$type<NotificationPreferences>(),
 
 **Dependencies:** All Group A merged
 
-- [ ] Standardize on one handler response utility (`sendResult` preferred) and remove mixed usage of `response.fromResult(...)`
+- [x] Remove legacy handler response utilities from active code paths
 - [ ] Keep payload-builder utilities (if needed), avoid response wrappers that return `any`
 - [ ] Remove temporary Oxlint rule overrides added for `no-unsafe-return`/unsafe assertions after migration
-- [ ] Update handler pattern examples in this plan to reflect `sendResult(...)` consistently
+- [x] Update current handler pattern examples to use direct `c.json(...)` responses
 
 ---
 

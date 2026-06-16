@@ -84,3 +84,18 @@ export class InvoiceDeleted extends BaseEvent<{
 }> {
   static type = 'invoice.deleted' as const;
 }
+
+export class InvoiceStripePaymentReceived extends BaseEvent<{
+  invoice_id: string;
+  organization_id: string;
+  stripe_invoice_id: string;
+  stripe_amount_paid: number;
+  stripe_amount_remaining: number;
+  stripe_paid_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_on_behalf_of: string | null;
+  stripe_charge_id: string | null;
+  stripe_account_id: string | null;
+}> {
+  static readonly type = 'invoice:stripe_payment_received';
+}
