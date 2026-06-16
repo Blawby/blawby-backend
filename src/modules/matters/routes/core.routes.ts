@@ -174,6 +174,15 @@ export const deleteMatterRoute = routeBuilder.build({
   path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Delete a matter',
+  mcp: {
+    name: 'delete_matter',
+    scope: 'matters:write',
+    approval: { required: true, message: 'Permanently delete this matter and all associated data?' },
+    handler: async (args, ctx) => {
+      await mattersService.deleteMatter(args.matter_id as string, ctx);
+      return { deleted: true };
+    },
+  },
   request: {
     params: z.object({
       practice_id: z.uuid(),

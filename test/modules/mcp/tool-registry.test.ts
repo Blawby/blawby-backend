@@ -85,6 +85,32 @@ describe('toolRegistry.registerTools', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it('returns an MCP tool error when approval is accepted but confirm is false', async () => {
+    const handler = vi.fn(async () => ({ ok: true }));
+    const { callbacks, server } = createFakeServer('accept');
+    server.server.elicitInput = vi.fn(async () => ({ action: 'accept', content: { confirm: false } }));
+
+    toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
+    const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content[0]?.text).toContain('Approval declined');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('returns an MCP tool error when elicitInput throws', async () => {
+    const handler = vi.fn(async () => ({ ok: true }));
+    const { callbacks, server } = createFakeServer('accept');
+    server.server.elicitInput = vi.fn(async () => { throw new Error('transport error'); });
+
+    toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
+    const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content[0]?.text).toContain('transport error');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('runs the handler after required scope and approval acceptance', async () => {
     const handler = vi.fn(async () => ({ ok: true }));
     const { callbacks, server } = createFakeServer('accept');

@@ -1,29 +1,28 @@
-import { createRoute } from '@hono/zod-openapi';
+import type { McpToolApproval } from '@/modules/mcp/types';
+import type { ServiceContext } from '@/shared/types/service-context';
 import {
   errorResponseSchema,
-  notFoundResponseSchema,
   internalServerErrorResponseSchema,
+  notFoundResponseSchema,
 } from '@/shared/validations/openapi';
-import type { ServiceContext } from '@/shared/types/service-context';
+import { createRoute } from '@hono/zod-openapi';
 import type { ZodRawShape } from 'zod';
 
 type RouteConfig = Parameters<typeof createRoute>[0];
 type Responses = RouteConfig['responses'];
 
-type McpRouteAnnotation = {
+interface McpRouteAnnotation {
   scope: string;
   name?: string;
   description?: string;
   schema?: ZodRawShape;
-  approval?: {
-    required: true;
-    message?: string;
-    confirm_title?: string;
-  };
+  approval?: McpToolApproval;
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
-};
+}
 
-type WithMcp = { mcp: McpRouteAnnotation };
+interface WithMcp {
+  mcp: McpRouteAnnotation;
+}
 type WithoutMcp = Record<string, never>;
 
 /**

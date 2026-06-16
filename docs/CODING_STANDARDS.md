@@ -11,6 +11,8 @@ When you touch a file, check for nearby instances of these known issues and fix 
 - Relative imports in `src/`; use `@/` aliases.
 - Service or handler response wrappers; use throw-based services and direct handler responses.
 - Handler business logic, raw `c.req.param(...)`, or untyped handlers; use route-typed handlers and `c.req.valid(...)`.
+- Unsafe `as` type assertions, including `as unknown as`; replace them with narrowing, Zod parsing, predicates, typed helpers, explicit types, or `satisfies`.
+- Missing domain or package types; create the project type or ask to install official typings instead of using `any` or assertions.
 - Direct value imports of `z` from `zod`; use `@hono/zod-openapi` for application schemas.
 - API date schemas using `z.date()`; prefer ISO string schemas for API payloads.
 - Legacy list responses with resource-named arrays, top-level `page`/`limit`, or `total_pages`; use `{ data, pagination }` or `{ data, page_info }`.
@@ -42,7 +44,7 @@ const getInvoiceHandler: AppRouteHandler<typeof routes.getInvoiceRoute> = async 
 
 export const handlers = {
   getInvoiceHandler,
-} as const;
+};
 ```
 
 Avoid:
@@ -93,7 +95,7 @@ const getInvoiceById = async ({ id }: { id: string }, ctx: ServiceContext): Prom
 
 export const invoiceService = {
   getInvoiceById,
-} as const;
+};
 ```
 
 Avoid service response wrappers or encoded error objects:
@@ -158,6 +160,51 @@ await db.transaction(async (tx) => {
 ```
 
 Direct `db.transaction(...)` belongs in the UoW implementation or exceptional infrastructure code, not ordinary module services.
+
+## Type Narrowing Pattern
+
+Do not use `as` to force TypeScript to accept a value. Never use double assertions like `value as unknown as Type`; that bypasses the exact type uncertainty we need to resolve. At boundaries, accept `unknown`, validate or narrow it, then pass the narrowed value forward.
+
+If the right type does not exist, add it near the owning module contract. For third-party libraries without bundled types, ask to install official typings such as `@types/<package>` instead of inventing a loose local replacement.
+
+```typescript
+import type Stripe from 'stripe';
+
+const isStripeInvoice = (value: unknown): value is Stripe.Invoice =>
+  value !== null &&
+  typeof value === 'object' &&
+  'object' in value &&
+  value.object === 'invoice' &&
+  'id' in value &&
+  typeof value.id === 'string';
+
+const object = event.data.object;
+if (!isStripeInvoice(object)) {
+  throw new Error('Expected Stripe invoice event');
+}
+
+await invoiceWebhookService.handleInvoicePaid(object);
+```
+
+Use `satisfies` when checking an object shape without changing the inferred runtime value.
+
+```typescript
+const routeTags = ['Invoices'] satisfies string[];
+```
+
+Avoid assertions that silence real uncertainty:
+
+```typescript
+const invoice = event.data.object as Stripe.Invoice;
+const params = payload as unknown as MeteredUsagePayload;
+```
+
+Avoid filling type gaps with placeholders:
+
+```typescript
+type ExternalPayload = any;
+const payload = rawPayload as ExternalPayload;
+```
 
 ## Route Pattern
 
@@ -387,25 +434,33 @@ const logger = getLogger(['workers', 'process-metered-usage']);
 const isKnownMeteredType = (value: string): value is keyof typeof METERED_TYPE_TO_STRIPE_EVENT =>
   Object.hasOwn(METERED_TYPE_TO_STRIPE_EVENT, value);
 
-export const processMeteredUsage: Task = async (payload): Promise<void> => {
-  const { organizationId, meteredType, quantity, deduplicationId } =
-    (payload as {
-      organizationId?: string;
-      meteredType?: string;
-      quantity?: number;
-      deduplicationId?: string;
-    }) || {};
+interface MeteredUsagePayload {
+  organizationId: string;
+  meteredType: string;
+  quantity: number;
+  deduplicationId: string;
+}
 
-  if (
-    !organizationId ||
-    typeof meteredType !== 'string' ||
-    !isKnownMeteredType(meteredType) ||
-    typeof quantity !== 'number' ||
-    !deduplicationId
-  ) {
+const isMeteredUsagePayload = (payload: unknown): payload is MeteredUsagePayload =>
+  payload !== null &&
+  typeof payload === 'object' &&
+  'organizationId' in payload &&
+  typeof payload.organizationId === 'string' &&
+  'meteredType' in payload &&
+  typeof payload.meteredType === 'string' &&
+  isKnownMeteredType(payload.meteredType) &&
+  'quantity' in payload &&
+  typeof payload.quantity === 'number' &&
+  'deduplicationId' in payload &&
+  typeof payload.deduplicationId === 'string';
+
+export const processMeteredUsage: Task = async (payload): Promise<void> => {
+  if (!isMeteredUsagePayload(payload)) {
     logger.error('Invalid metered usage retry payload', { payload });
     throw new Error('Invalid metered usage retry payload');
   }
+
+  const { organizationId, meteredType, quantity, deduplicationId } = payload;
 
   await meteredProductsService.reportMeteredUsage({ organizationId, meteredType, quantity, deduplicationId });
 };
@@ -449,7 +504,8 @@ These are recurring project issues. Apply the standard when creating new code, a
 | Area | Standard |
 | --- | --- |
 | Error handling | New service code returns data or throws; no service response wrappers. |
-| Handler exports | Prefer `export const handlers = { ... } as const`. |
+| Type assertions | Do not use `as` or `as unknown as` to coerce values; narrow, parse, type explicitly, create missing types, or use `satisfies`. |
+| Handler exports | Prefer `export const handlers = { ... }`; add an explicit type only when needed. |
 | Handler input | Prefer `AppRouteHandler<typeof route>` and `c.req.valid(...)`. |
 | File naming | Prefer kebab-case service files and `*.queries.ts` for query modules when creating new files. |
 | Validation directories | Prefer `validations/` for validation-only schemas; keep `types/` for exported domain/API types. |

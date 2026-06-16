@@ -67,6 +67,8 @@ Run focused tests while iterating. Run broader tests when changing shared behavi
 - Use `@/` aliases for project imports. Do not introduce `./` or `../` imports in `src/`.
 - Use `import type` for type-only imports.
 - Do not use explicit `any`; use domain types, generics, or `unknown` with narrowing.
+- Do not use `as` type assertions to coerce values, especially double assertions like `value as unknown as Type`. Prefer type guards, Zod parsing, typed helpers, generics, `satisfies`, or narrowing from `unknown`; remove nearby unsafe assertions when touching code.
+- When types are missing, create the local/domain type or ask to install the package's official typings. Do not replace missing types with `any`, `unknown as`, or broad assertions.
 - Keep shared types in dedicated type files when they are reused or form a module contract.
 - Use `snake_case` for API payloads, database columns, and event payloads.
 - Use `camelCase` for internal variables, functions, and service parameters.

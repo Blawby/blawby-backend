@@ -1,11 +1,11 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { mcpContext } from '@/modules/mcp/mcp-context';
 import type { AnyToolDef, McpJwt } from '@/modules/mcp/types';
-import type { z } from '@hono/zod-openapi';
-import type { ZodObject, ZodRawShape } from 'zod';
-import type { ServiceContext } from '@/shared/types/service-context';
 import type { McpRouteAnnotation } from '@/shared/router/route-builder';
+import type { ServiceContext } from '@/shared/types/service-context';
+import type { z } from '@hono/zod-openapi';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { ZodObject, ZodRawShape } from 'zod';
 
 const defineTool = <S extends ZodRawShape>(def: {
   name: string;
@@ -35,22 +35,25 @@ const requireToolApproval = async (server: McpServer, tool: AnyToolDef): Promise
     return null;
   }
 
-  const result = await server.server.elicitInput({
-    mode: 'form',
-    message: tool.approval.message ?? `Approve MCP tool "${tool.name}" before continuing.`,
-    requestedSchema: {
-      type: 'object',
-      properties: {
-        confirm: {
-          type: 'boolean',
-          title: tool.approval.confirm_title ?? 'Approve',
-          description: `Confirm that "${tool.name}" may make this change.`,
-          default: false,
+  const result = await server.server.elicitInput(
+    {
+      mode: 'form',
+      message: tool.approval.message ?? `Approve MCP tool "${tool.name}" before continuing.`,
+      requestedSchema: {
+        type: 'object',
+        properties: {
+          confirm: {
+            type: 'boolean',
+            title: tool.approval.confirm_title ?? 'Approve',
+            description: `Confirm that "${tool.name}" may make this change.`,
+            default: false,
+          },
         },
+        required: ['confirm'],
       },
-      required: ['confirm'],
     },
-  });
+    { timeout: 30_000 }
+  );
 
   if (result.action === 'decline') {
     return toolErrorResult(`Approval declined for MCP tool "${tool.name}"`);
@@ -58,6 +61,10 @@ const requireToolApproval = async (server: McpServer, tool: AnyToolDef): Promise
 
   if (result.action === 'cancel') {
     return toolErrorResult(`Approval cancelled for MCP tool "${tool.name}"`);
+  }
+
+  if (result.action !== 'accept') {
+    return toolErrorResult(`Unexpected approval response for MCP tool "${tool.name}"`);
   }
 
   if (result.content?.confirm !== true) {
@@ -183,8 +190,9 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
   for (const [exportKey, route] of Object.entries(routeMap)) {
     addRouteTool(exportKey, route);
 
-    if (typeof route === 'object' && route !== null && !Array.isArray(route)) {
-      for (const [nestedKey, nestedRoute] of Object.entries(route as Record<string, unknown>)) {
+    const r = route as Record<string, unknown>;
+    if (typeof route === 'object' && route !== null && !Array.isArray(route) && !r.mcp && !r.method) {
+      for (const [nestedKey, nestedRoute] of Object.entries(r)) {
         addRouteTool(nestedKey, nestedRoute);
       }
     }
@@ -198,5 +206,3 @@ export const toolRegistry = {
   hasRequiredMcpScope,
   registerTools,
 };
-
-export { hasRequiredMcpScope };
