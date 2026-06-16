@@ -1,5 +1,5 @@
-import { z } from '@hono/zod-openapi';
 import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import { invoiceService } from '@/modules/invoices/services/invoice.service';
 import type { ListInvoicesQuery } from '@/modules/invoices/types/invoices.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
@@ -10,8 +10,8 @@ import {
   practiceIdParamSchema,
   unauthorizedResponseSchema,
 } from '@/shared/validations/openapi';
-import { invoiceService } from '@/modules/invoices/services/invoice.service';
 import { invoiceDeliveryService } from '@/modules/invoices/services/invoice.delivery.service';
+import { z } from '@hono/zod-openapi';
 
 const invoiceParamSchema = practiceIdParamSchema.extend({
   invoice_id: z.uuid().openapi({
@@ -180,8 +180,7 @@ const deleteInvoiceRoute = routeBuilder.build({
   },
   request: { params: invoiceParamSchema },
   responses: {
-    200: {
-      content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+    204: {
       description: 'Invoice deleted successfully',
     },
   },

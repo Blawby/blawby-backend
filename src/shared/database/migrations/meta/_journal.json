@@ -491,6 +491,20 @@
       "when": 1780728956178,
       "tag": "0069_illegal_warbird",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1781273286419,
+      "tag": "0070_woozy_marrow",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1781363837439,
+      "tag": "0071_brown_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

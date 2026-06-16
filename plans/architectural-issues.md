@@ -4,26 +4,17 @@ This document tracks architectural problems identified in Blawby and their resol
 
 ---
 
-## Issue #1: Mixed Error Handling Paradigms (Result<T> vs Throw-Based)
+## Issue #1: Mixed Error Handling Paradigms
 
-**Status**: ✅ PARTIALLY RESOLVED (Invoices done, 7 modules pending)
+**Status**: ✅ RESOLVED
 
 ### Problem
-Codebase uses both Result<T> and throw-based error handling:
-- **Invoices module** (✅ done): Throw-based with factory functions
-- **Refund requests**: Result<T> pattern
-- **Matters**: Result<T> pattern
-- **Trust**: Result<T> pattern
-- **Uploads**: Result<T> pattern
-- **Subscriptions**: Result<T> pattern
-- **Practice-Client-Intakes**: Result<T> pattern
-- **Onboarding**: Result<T> pattern
+The codebase previously mixed service response wrappers with throw-based error handling.
 
 This creates:
 - Inconsistent error handling across modules
-- Mixed cognitive load (some throw, some return Result)
-- No structured logging/context in Result<T> modules
-- Verbose handler code checking `.success` flags
+- Mixed cognitive load
+- Verbose handler code checking success flags
 - Global error middleware can't work consistently
 
 ### Impact
@@ -31,50 +22,21 @@ This creates:
 - Integration tests harder (different error shapes)
 - Debugging requires checking logs AND database state
 - Error context (which resource, which org) is lost
-- No error codes for monitoring/alerting in Result<T> modules
+- No consistent error handling surface for monitoring/alerting
 
 ### Resolution
-**Unified throw-based error handling with factory functions**
+**Unified throw-based error handling**
 
-All modules follow the invoices pattern:
+Current code has no `Result<T>` or `sendResult` usage in `src/` or `test/`. Services now return data directly and throw for failures:
 
-1. **Factory functions** (one-liner error creation):
 ```typescript
-throw createValidationError('INVOICE_NOT_DRAFT', 'Only draft invoices can be sent', {
-  invoiceId: id,
-  currentStatus: invoice.status,
-});
-```
-
-2. **Four error kinds** (discriminated unions):
-```typescript
-type AppError =
-  | { kind: 'validation_error'; code: string; message: string; context: Record<string, unknown> }
-  | { kind: 'app_error'; code: string; status: number; message: string; context: Record<string, unknown>; cause?: Error }
-  | { kind: 'transaction_error'; code: string; message: string; context: Record<string, unknown>; cause?: Error }
-  | { kind: 'authorization_error'; code: string; message: string; context: Record<string, unknown> };
-```
-
-3. **Global errorHandler pattern-matches** and logs appropriately:
-   - 4xx errors: Log message only (safe for clients)
-   - 5xx errors: Log full cause chain + context (debugging)
-
-4. **Clean service signatures**:
-```typescript
-// Before (Result<T>)
-const create = async (...): Promise<Result<Invoice>> => {
-  if (!valid) return badRequest('Invalid');
-  return ok(invoice);
-};
-
-// After (throw-based)
 const create = async (...): Promise<Invoice> => {
-  if (!valid) throw createValidationError('INVALID', 'Invalid');
+  if (!valid) throw new HTTPException(400, { message: 'Invalid' });
   return invoice;
 };
 ```
 
-**Rollout Priority**: Trust → Subscriptions → Uploads → Matters → Practice-Client-Intakes → Onboarding → Invoices (Refund Requests)
+Workers and webhook code throw raw `Error` when failures should trigger retry infrastructure.
 
 ---
 
@@ -84,7 +46,7 @@ const create = async (...): Promise<Invoice> => {
 
 ### Problem
 Unclear transaction ownership:
-- Some services opened transactions (`db.transaction()`)
+- Some services opened direct transactions (`db.transaction()`)
 - Some expected transactions passed in
 - Some ignored transaction state
 - Event emissions could happen outside transaction scope
@@ -96,39 +58,26 @@ This created:
 - Hard to test transaction behavior
 
 ### Resolution
-**Single source of transaction ownership: Handlers**
+**Single source of transaction ownership: Unit of Work**
 
-Handlers open transactions and inject them into ServiceContext.db:
+Application code opens transactions through `uow.transaction(...)`; repositories and helpers use `getActiveTx()` so nested calls join the active transaction automatically:
 
 ```typescript
-// Handler owns the transaction
-const createInvoiceHandler = async (c) => {
-  const ctx = getServiceContext(c);
-
-  const result = await db.transaction(async (tx) => {
-    const invoiceCtx = createServiceContext(ctx, tx);
-    return await invoiceService.createInvoice({ data }, invoiceCtx);
-  });
-
-  return c.json(result, 201);
-};
-
-// Service never opens transactions
 const createInvoice = async ({ data }, ctx) => {
-  // ctx.db is either db or tx (service doesn't care)
-  const [invoice] = await ctx.db.insert(invoices).values({...}).returning();
+  return await uow.transaction(async () => {
+    const [invoice] = await getActiveTx().insert(invoices).values({...}).returning();
 
-  // Events emitted within same transaction
-  await ctx.emit(InvoiceCreated, { invoice_id: invoice.id });
+    await ctx.emit(InvoiceCreated, { invoice_id: invoice.id });
 
-  return invoice;
+    return invoice;
+  });
 };
 ```
 
 **Benefits:**
 - Clear ownership and atomicity guarantees
-- Services remain transaction-unaware and easier to test
-- No nested transaction risks
+- Nested calls join the active transaction
+- No accidental nested transaction risks
 - Events guaranteed to succeed/fail with DB writes
 
 ---
@@ -172,12 +121,12 @@ Each service is **deep**:
 
 ---
 
-## Issue #4: Result<T> Pattern Overhead
+## Issue #4: Service Response Wrapper Overhead
 
-**Status**: ✅ RESOLVED (Invoices done, pending rollout)
+**Status**: ✅ RESOLVED
 
 ### Problem
-Many modules return Result<T> objects:
+Many modules previously returned encoded success/error objects:
 ```typescript
 const result = await service.create(...);
 if (!result.success) {
@@ -188,10 +137,9 @@ if (!result.success) {
 ```
 
 This required:
-- Handlers understanding Result shape
-- Calling helper methods (`result.badRequest()`)
+- Handlers understanding the wrapper shape
 - Type system doesn't prevent forgetting `.success` check
-- Mixed paradigm: some services throw, some return Result
+- Mixed paradigm: some services throw, some return wrappers
 
 ### Resolution
 **Unified throw-based errors (see Issue #1)**
@@ -262,11 +210,11 @@ Events emitted within the same transaction as DB changes:
 
 ```typescript
 const createInvoice = async ({ data }, ctx) => {
-  return await ctx.db.transaction(async (tx) => {
-    const [invoice] = await tx.insert(invoices).values({...}).returning();
+  return await uow.transaction(async () => {
+    const [invoice] = await getActiveTx().insert(invoices).values({...}).returning();
 
     // Event emitted within same transaction
-    await ctx.emit(InvoiceCreated, { invoice_id: invoice.id }, { tx });
+    await ctx.emit(InvoiceCreated, { invoice_id: invoice.id });
 
     return invoice;  // Commit happens after this line
   });
@@ -333,10 +281,10 @@ CreateInvoice validation scattered across 4 modules:
 
 | Issue | Status | Pattern |
 |-------|--------|---------|
-| Mixed error handling | ✅ Partial (Invoices done) | Throw-based + factory functions |
-| Transaction boundaries | ✅ Resolved | Handlers own transactions |
+| Mixed error handling | ✅ Resolved | Throw-based services |
+| Transaction boundaries | ✅ Resolved | Use `uow.transaction(...)` and `getActiveTx()` |
 | Deep modules | 🔄 In progress | Small interface, large implementation |
-| Result<T> overhead | ✅ Resolved (pending rollout) | Unified throw-based errors |
+| Service wrapper overhead | ✅ Resolved | Unified throw-based errors |
 | Relative imports | ✅ Resolved | Always use @/ aliases |
 | Event timing | ✅ Resolved (pending rollout) | Transactional outbox pattern |
 | Cross-module queries | 🟡 Medium | Validation layer / injection pattern |
@@ -346,9 +294,8 @@ CreateInvoice validation scattered across 4 modules:
 
 ## Migration Roadmap
 
-**Phase 1 (Current Focus):**
-- Error handling migration: Trust → Subscriptions → Uploads → Matters → Practice-Client-Intakes → Onboarding
-- Enables global error middleware
+**Phase 1:**
+- Error handling migration complete; keep new/touched code throw-based.
 
 **Phase 2 (Next):**
 - Deep module refactoring (Trust service, Invoice services consolidation)
@@ -362,5 +309,5 @@ CreateInvoice validation scattered across 4 modules:
 
 ## Reference Documents
 
-- See `.agents/workflows/coding-standards.md` Section 7 & 12 for implementation details
+- See `AGENTS.md` for current repository rules and `docs/CODING_STANDARDS.md` for concrete examples.
 - See `plans/ideal-architecture.md` for target architecture, phases, and detailed migration steps

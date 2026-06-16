@@ -1,4 +1,5 @@
 import type { z } from '@hono/zod-openapi';
+import { intakeConversationsQueries } from '@/modules/intake-conversations/database/queries/intake-conversations.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
@@ -98,10 +99,16 @@ const updateTriageStatus = async (
     const nextTriageStatus = params.data.status;
     const nextReason = nextTriageStatus === 'declined' ? (params.data.reason?.trim() ?? null) : null;
 
-    const updatedIntake = await practiceClientIntakesRepository.update(params.uuid, {
-      triage_status: nextTriageStatus,
-      triage_reason: nextReason,
-      triage_decided_at: new Date(),
+    const updatedIntake = await uow.transaction(async () => {
+      const result = await practiceClientIntakesRepository.update(params.uuid, {
+        triage_status: nextTriageStatus,
+        triage_reason: nextReason,
+        triage_decided_at: new Date(),
+      });
+      if (nextTriageStatus === 'accepted' && result.conversation_id) {
+        await intakeConversationsQueries.updateLifecycleStatus(result.conversation_id, 'visible', ctx.organizationId);
+      }
+      return result;
     });
 
     // Emit triage event for email notifications

@@ -9,7 +9,7 @@ import type {
   ListInvoicesQuery,
   UpdateInvoiceRequest,
 } from '@/modules/invoices/types/invoices.types';
-import { getActiveTx, uow } from '@/shared/database/uow';
+import { uow } from '@/shared/database/uow';
 import { InvoiceDeleted } from '@/shared/events/definitions';
 import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -144,7 +144,7 @@ const updateInvoice = async (
   }
 };
 
-const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<{ success: true }> => {
+const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promise<void> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', 'Invoice');
 
   try {
@@ -159,22 +159,12 @@ const deleteInvoice = async ({ id }: { id: string }, ctx: ServiceContext): Promi
 
     await uow.transaction(async () => {
       await invoicesRepository.softDeleteInvoice(id, ctx.organizationId, ctx.userId);
-      await InvoiceDeleted.dispatch(
-        {
-          invoice_id: id,
-          organization_id: ctx.organizationId,
-          deleted_by: 'user',
-        },
-        {
-          actorId: ctx.userId,
-          actorType: 'user',
-          organizationId: ctx.organizationId,
-          tx: getActiveTx(),
-        }
-      );
+      await ctx.emit(InvoiceDeleted, {
+        invoice_id: id,
+        organization_id: ctx.organizationId,
+        deleted_by: 'user',
+      });
     });
-
-    return { success: true };
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;

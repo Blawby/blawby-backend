@@ -1,191 +1,76 @@
-/**
- * Event System - Laravel-Inspired Implementation
- *
- * Provides a clean, type-safe API for publishing and subscribing to events.
- *
- * Usage:
- *   Dispatch an event
- *   await UserSignedUp.dispatch({ userId, email });
- *
- *   Dispatch within a transaction
- *   await UserSignedUp.dispatch({ userId, email }, { tx });
- *
- *   Listen to an event
- *   Event.listen(UserSignedUp, async (payload) => { ... });
- */
-
-import { randomUUID } from 'node:crypto';
-import { getLogger } from '@logtape/logtape';
-import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import {
-  SYSTEM_ACTOR_UUID,
-  WEBHOOK_ACTOR_UUID,
-  CRON_ACTOR_UUID,
-  API_ACTOR_UUID,
-  ORGANIZATION_ACTOR_UUID,
-} from './constants';
+import { db, type DrizzleDb } from '@/shared/database';
 import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
-import { events, type EventMetadata, type BaseEvent as BaseEventRecord, type NewEvent } from './schemas/events.schema';
-import type * as schema from '@/schema';
-import { db } from '@/shared/database';
 import { TASK_NAMES } from '@/shared/queue/queue.config';
 import { getAppEnv } from '@/shared/utils/env';
+import { getLogger } from '@logtape/logtape';
+import { sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import {
+  API_ACTOR_UUID,
+  CRON_ACTOR_UUID,
+  ORGANIZATION_ACTOR_UUID,
+  SYSTEM_ACTOR_UUID,
+  WEBHOOK_ACTOR_UUID,
+} from '@/shared/events/constants';
+import {
+  events,
+  type BaseEvent as BaseEventRecord,
+  type EventMetadata,
+  type NewEvent,
+} from '@/shared/events/schemas/events.schema';
+import type { DispatchOptions, EventClass, Handler } from '@/shared/events/types/event.types';
 
 const logger = getLogger(['events', 'system']);
 
-// Handler function type
-type Handler<T> = (payload: T, context?: BaseEventRecord) => Promise<void | boolean>;
+type ActorType = 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
 
-// Dispatch options type
-export interface DispatchOptions {
-  actorId?: string;
-  actorType?: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization';
-  organizationId?: string;
-  tx?: NodePgDatabase<typeof schema>;
-  /** For critical events (Stripe/payments): immediate DB write, guaranteed before response */
-  critical?: boolean;
-}
-
-// Event class type - infers payload type T from constructor parameter
-export interface EventClass<T extends Record<string, unknown> = Record<string, unknown>> {
-  type: string;
-  new (payload: T, actorId?: string, organizationId?: string): BaseEvent<T>;
-  dispatch(payload: T, options?: DispatchOptions): string | Promise<string>;
-}
-
-// Global handler registry - populated by Event.listen()
-const handlers = new Map<string, Handler<Record<string, unknown>>[]>();
-
-/**
- * Resolve actor ID string to UUID
- */
-const resolveActorId = (actorId: string): string => {
-  // If already a UUID, return as-is
-  if (actorId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-    return actorId;
-  }
-
-  switch (actorId) {
-    case 'system':
-      return SYSTEM_ACTOR_UUID;
-    case 'webhook':
-      return WEBHOOK_ACTOR_UUID;
-    case 'cron':
-      return CRON_ACTOR_UUID;
-    case 'api':
-      return API_ACTOR_UUID;
-    case 'organization':
-      return ORGANIZATION_ACTOR_UUID;
-    default:
-      logger.warn('Unknown actorId {actorId} mapped to SYSTEM_ACTOR_UUID', {
-        actorId,
-        fallback: SYSTEM_ACTOR_UUID,
-      });
-      return SYSTEM_ACTOR_UUID;
-  }
+const ACTOR_ID_MAP: Record<string, string> = {
+  system: SYSTEM_ACTOR_UUID,
+  webhook: WEBHOOK_ACTOR_UUID,
+  cron: CRON_ACTOR_UUID,
+  api: API_ACTOR_UUID,
+  organization: ORGANIZATION_ACTOR_UUID,
 };
 
-/**
- * Create event metadata
- */
+const ACTOR_TYPE_MAP: Record<string, ActorType> = {
+  [SYSTEM_ACTOR_UUID]: 'system',
+  [WEBHOOK_ACTOR_UUID]: 'webhook',
+  [CRON_ACTOR_UUID]: 'cron',
+  [API_ACTOR_UUID]: 'api',
+  [ORGANIZATION_ACTOR_UUID]: 'organization',
+};
+
+const handlers = new Map<string, Handler<Record<string, unknown>>[]>();
+
+const resolveActorId = (actorId: string): string => {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.exec(actorId)) {
+    return actorId;
+  }
+  const resolved = ACTOR_ID_MAP[actorId];
+  if (!resolved) {
+    logger.warn('Unknown actorId {actorId} mapped to SYSTEM_ACTOR_UUID', {
+      actorId,
+      fallback: SYSTEM_ACTOR_UUID,
+    });
+    return SYSTEM_ACTOR_UUID;
+  }
+  return resolved;
+};
+
 const createEventMetadata = (source: string): EventMetadata => ({
   source,
   environment: getAppEnv(),
 });
 
-/**
- * Base Event class - all events extend this
- *
- * Each subclass must define a static `type` property with the event type string.
- */
-export abstract class BaseEvent<T extends Record<string, unknown>> {
-  // Note: `static type` is defined in each subclass, not here
-
-  constructor(
-    public readonly payload: T,
-    public readonly actorId: string = 'system',
-    public readonly organizationId?: string
-  ) {}
-
-  /**
-   * Dispatch event - Three-tier approach for production-grade performance
-   *
-   * 1. Transactional (tx): Atomic with business logic - caller must await
-   * 2. Critical (critical: true): Immediate DB write - caller must await
-   * 3. Fire-and-forget: Async DB write - returns immediately, non-blocking
-   *
-   * @param payload - Event-specific payload data
-   * @param options - Optional dispatch options
-   * @returns Event ID (UUID) - for async dispatch, returns before DB write completes
-   */
-  static dispatch<T extends Record<string, unknown>>(
-    this: { type: string; new (payload: T): BaseEvent<T> },
-    payload: T,
-    options?: DispatchOptions
-  ): string | Promise<string> {
-    const eventId = randomUUID();
-    const rawActorId = options?.actorId ?? 'system';
-    const resolvedActorId = resolveActorId(rawActorId);
-
-    // Derive actorType from rawActorId if not explicitly provided
-    const resolvedActorType: 'user' | 'system' | 'webhook' | 'cron' | 'api' | 'organization' =
-      options?.actorType ??
-      (rawActorId === 'system'
-        ? 'system'
-        : rawActorId === 'webhook'
-          ? 'webhook'
-          : rawActorId === 'cron'
-            ? 'cron'
-            : rawActorId === 'api'
-              ? 'api'
-              : rawActorId === 'organization'
-                ? 'organization'
-                : 'user');
-
-    const record = {
-      eventId,
-      type: this.type,
-      eventVersion: '1.0.0',
-      actorId: resolvedActorId,
-      actorType: resolvedActorType,
-      organizationId: options?.organizationId,
-      payload,
-      metadata: createEventMetadata(options?.tx ? 'tx' : options?.critical ? 'critical' : 'async'),
-      processed: false,
-      retryCount: 0,
-    };
-
-    // 1. Transactional: Atomic with business logic (caller awaits)
-    if (options?.tx) {
-      return dispatchTransactional(record, options.tx, eventId, this.type);
-    }
-
-    // 2. Critical: Immediate DB write, guaranteed persistence (caller awaits)
-    if (options?.critical) {
-      return dispatchCritical(record, eventId, this.type);
-    }
-
-    // 3. Fire-and-forget: Async DB write (non-blocking, returns immediately)
-    dispatchAsync(record, eventId, this.type);
-    return eventId;
-  }
-}
-
 // TODO: refactor dispatchTransactional to call getActiveTx() internally (from @/shared/database/uow)
-// so callers pass { transactional: true } instead of { tx: getActiveTx() }. Requires updating
+// So callers pass { transactional: true } instead of { tx: getActiveTx() }. Requires updating
 // DispatchOptions type and all callers of dispatch() that pass tx.
-
-/**
- * Transactional dispatch: Write to outbox + queue job atomically
- * Used when event must be atomic with business logic (inside db.transaction)
- */
-async function dispatchTransactional(
+const dispatchTransactional = async (
   record: NewEvent,
-  tx: NodePgDatabase<typeof schema>,
+  tx: DrizzleDb,
   eventId: string,
   eventType: string
-): Promise<string> {
+): Promise<string> => {
   try {
     await tx.insert(events).values(record);
     await tx.execute(sql`
@@ -201,18 +86,13 @@ async function dispatchTransactional(
       error: error instanceof Error ? error.message : String(error),
       eventId,
     });
-    throw error; // Re-throw to rollback transaction
+    throw error;
   }
-}
+};
 
-/**
- * Critical dispatch: Immediate DB write, no transaction
- * Used for Stripe/payment events that must persist before API response
- */
-async function dispatchCritical(record: NewEvent, eventId: string, eventType: string): Promise<string> {
+const dispatchCritical = async (record: NewEvent, eventId: string, eventType: string): Promise<string> => {
   try {
     await db.insert(events).values(record);
-    // Use NOTIFY for instant worker pickup
     await db.execute(sql`NOTIFY new_events`);
     return eventId;
   } catch (error) {
@@ -221,20 +101,14 @@ async function dispatchCritical(record: NewEvent, eventId: string, eventType: st
       error: error instanceof Error ? error.message : String(error),
       eventId,
     });
-    return ''; // Return empty string on failure (don't throw - critical but not transactional)
+    throw error;
   }
-}
+};
 
-/**
- * Async dispatch: Non-blocking DB write with dead-letter fallback
- * Used for fire-and-forget events (practice, client, user activity)
- * Events are still persisted to outbox (durable), just doesn't block the response.
- */
-function dispatchAsync(record: NewEvent, eventId: string, eventType: string): void {
+const dispatchAsync = (record: NewEvent, eventId: string, eventType: string): void => {
   void (async () => {
     try {
       await db.insert(events).values(record);
-      // Use NOTIFY for instant worker pickup
       await db.execute(sql`NOTIFY new_events`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -268,33 +142,70 @@ function dispatchAsync(record: NewEvent, eventId: string, eventType: string): vo
       }
     }
   })();
+};
+
+export abstract class BaseEvent<T extends Record<string, unknown>> {
+  readonly payload: T;
+  readonly actorId: string;
+  readonly organizationId?: string;
+
+  constructor(payload: T, actorId = 'system', organizationId?: string) {
+    this.payload = payload;
+    this.actorId = actorId;
+    this.organizationId = organizationId;
+  }
+
+  static dispatch<T extends Record<string, unknown>>(
+    this: { type: string; new (payload: T): BaseEvent<T> },
+    payload: T,
+    options?: DispatchOptions
+  ): string | Promise<string> {
+    const eventId = randomUUID();
+    const rawActorId = options?.actorId ?? 'system';
+    const resolvedActorId = resolveActorId(rawActorId);
+
+    const resolvedActorType: ActorType = options?.actorType ?? ACTOR_TYPE_MAP[resolvedActorId] ?? 'user';
+
+    let metadataSource = 'async';
+    if (options?.tx) {
+      metadataSource = 'tx';
+    } else if (options?.critical) {
+      metadataSource = 'critical';
+    }
+
+    const record = {
+      eventId,
+      type: this.type,
+      eventVersion: '1.0.0',
+      actorId: resolvedActorId,
+      actorType: resolvedActorType,
+      organizationId: options?.organizationId,
+      payload,
+      metadata: createEventMetadata(metadataSource),
+      processed: false,
+      retryCount: 0,
+    };
+
+    if (options?.tx) {
+      return dispatchTransactional(record, options.tx, eventId, this.type);
+    }
+
+    if (options?.critical) {
+      return dispatchCritical(record, eventId, this.type);
+    }
+
+    dispatchAsync(record, eventId, this.type);
+    return eventId;
+  }
 }
 
-/**
- * Event facade - Laravel style
- *
- * Provides static methods for registering and dispatching event handlers.
- */
 export const Event = {
-  /**
-   * Register a handler for an event type
-   *
-   * @param eventClass - The event class to listen for
-   * @param handler - Handler function to execute when event fires
-   */
   listen<T extends Record<string, unknown>>(eventClass: EventClass<T>, handler: Handler<T>): void {
     const list = handlers.get(eventClass.type) ?? [];
     list.push(handler as Handler<Record<string, unknown>>);
     handlers.set(eventClass.type, list);
   },
 
-  /**
-   * Dispatch event to all registered handlers
-   *
-   * Called by the worker task to process events from the outbox.
-   *
-   * @param record - Full event record from database
-   */
   async dispatch(eventType: string, record: BaseEventRecord): Promise<void> {
     const list = handlers.get(eventType) ?? [];
 
@@ -308,7 +219,6 @@ export const Event = {
     for (const handler of list) {
       try {
         const result = await handler(payload, record);
-        // Stop propagation if handler returns false
         if (result === false) {
           logger.info('Propagation stopped for event type {eventType}', { eventType });
           break;
@@ -324,20 +234,13 @@ export const Event = {
     }
   },
 
-  /**
-   * Get all registered handlers (for debugging/testing)
-   */
   getHandlers(): Map<string, Handler<Record<string, unknown>>[]> {
     return handlers;
   },
 
-  /**
-   * Clear all handlers (for testing)
-   */
   clearHandlers(): void {
     handlers.clear();
   },
 };
 
-// Re-export constants for convenience
-export { SYSTEM_ACTOR_UUID, WEBHOOK_ACTOR_UUID, CRON_ACTOR_UUID, API_ACTOR_UUID, ORGANIZATION_ACTOR_UUID };
+export { API_ACTOR_UUID, CRON_ACTOR_UUID, ORGANIZATION_ACTOR_UUID, SYSTEM_ACTOR_UUID, WEBHOOK_ACTOR_UUID };

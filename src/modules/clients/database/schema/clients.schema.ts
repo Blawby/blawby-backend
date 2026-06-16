@@ -1,7 +1,7 @@
-import { pgTable, uuid, varchar, timestamp, date, index, unique } from 'drizzle-orm/pg-core';
-import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
+import { date, index, pgTable, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const clients = pgTable(
   'clients',

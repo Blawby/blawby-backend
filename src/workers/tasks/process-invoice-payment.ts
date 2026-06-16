@@ -4,15 +4,16 @@
  * Worker owns invoice-domain sequencing and calls generic financial engines
  */
 
-import type { Task } from 'graphile-worker';
-import { getLogger } from '@logtape/logtape';
-import { getActiveTx, uow } from '@/shared/database/uow';
+import { billingRecorder, fundManagement, retainerPaymentFlow, transferExecutor } from '@/engines/financial';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { payoutMeteredFeeService } from '@/modules/invoices/services/payout-metered-fee.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { trustService } from '@/modules/trust/services/trust.service';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoicePaid } from '@/shared/events/definitions';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
-import { billingRecorder, fundManagement, retainerPaymentFlow, transferExecutor } from '@/engines/financial';
+import { getLogger } from '@logtape/logtape';
+import type { Task } from 'graphile-worker';
 
 const logger = getLogger(['workers', 'tasks', 'process-invoice-payment']);
 
@@ -25,6 +26,8 @@ interface ProcessInvoicePaymentPayload {
   stripe_paid_at?: string | null;
   stripe_customer_id?: string | null;
   stripe_on_behalf_of?: string | null;
+  stripe_charge_id?: string | null;
+  stripe_account_id?: string | null;
 }
 
 export const processInvoicePayment: Task = async (payload: unknown) => {
@@ -38,6 +41,12 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
   });
 
   try {
+    const meteredFeeCents = await payoutMeteredFeeService.calculateMeteredFeeCents({
+      amountPaid: stripe_amount_paid,
+      chargeId: data.stripe_charge_id ?? null,
+      stripeAccountId: data.stripe_account_id ?? null,
+    });
+
     await uow.transaction(async () => {
       const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id);
       if (!invoice) {
@@ -81,6 +90,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           amount: stripe_amount_paid,
           transferId: transfer.transferId,
           destinationAccountId: invoice.connected_account_id,
+          meteredFeeCents,
           metadata: {
             stripe_invoice_id,
             invoice_type: invoiceType,
@@ -123,7 +133,8 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           matter_id: matterId,
           stripe_invoice_id,
           amount_paid: stripe_amount_paid,
-          retainer_deducted: invoiceType === 'retainer_deposit' && !!matterId && !!clientId,
+          retainer_deducted: invoiceType === 'retainer_deposit' && Boolean(matterId) && Boolean(clientId),
+          metered_fee_cents: meteredFeeCents,
         },
         { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx: getActiveTx() }
       );

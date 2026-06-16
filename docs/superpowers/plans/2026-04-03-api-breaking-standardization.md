@@ -1,5 +1,7 @@
 # API Breaking Standardization Implementation Plan
 
+> Historical note: legacy handler-wrapper snippets in this plan describe the old implementation state. Current code should follow `AGENTS.md` and `docs/CODING_STANDARDS.md`: handlers call services directly and return `c.json(...)`/`c.body(...)`.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Standardize DELETE responses to `204 No Content`, list response envelopes to `{ data: [], pagination: { page, limit, total } }`, and fix REST violations in practice routes — all without breaking the frontend by using a deprecation strategy.

@@ -3,6 +3,8 @@
 **Date**: 2026-04-19
 **Status**: Approved
 
+> Historical note: references to legacy service response wrappers describe the old state. Current code should follow `AGENTS.md` and `docs/CODING_STANDARDS.md`: services return data directly and throw on failure.
+
 ## Problem
 
 The current `src/modules/uploads/` is a full domain module with HTTP routes, services, and DB schema all co-located. This creates:
