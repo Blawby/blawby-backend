@@ -51,6 +51,7 @@ export const createPracticeDetailsRoute = routeBuilder.build({
   mcp: {
     name: 'create_practice_details',
     scope: 'practice:write',
+    schema: practiceValidations.createPracticeDetailsSchema.shape,
     handler: async (args, ctx) =>
       practiceDetailsManagementService.upsertPracticeDetails(
         {
@@ -92,6 +93,7 @@ export const updatePracticeDetailsRoute = routeBuilder.build({
   mcp: {
     name: 'update_practice_details',
     scope: 'practice:write',
+    schema: practiceValidations.updatePracticeDetailsSchema.shape,
     handler: async (args, ctx) =>
       practiceDetailsManagementService.upsertPracticeDetails(
         {

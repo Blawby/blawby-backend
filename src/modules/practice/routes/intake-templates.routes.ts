@@ -47,6 +47,7 @@ export const createIntakeTemplateRoute = routeBuilder.build({
   mcp: {
     name: 'create_intake_template',
     scope: 'practice:write',
+    schema: createIntakeTemplateSchema.shape,
     handler: async (args, ctx) =>
       intakeTemplatesService.createTemplate(
         {

@@ -52,6 +52,7 @@ const createEngagementTemplateRoute = routeBuilder.build({
   mcp: {
     name: 'create_engagement_template',
     scope: 'engagement_templates:write',
+    schema: engagementTemplateValidations.createEngagementTemplateSchema.shape,
     handler: async (args, ctx) =>
       engagementTemplateService.createEngagementTemplate(
         { data: args as Parameters<typeof engagementTemplateService.createEngagementTemplate>[0]['data'] },

@@ -69,6 +69,7 @@ const listIntakesRoute = routeBuilder.build({
   mcp: {
     name: 'list_intakes',
     scope: 'intakes:read',
+    schema: intakeValidations.listIntakesQuerySchema.shape,
     handler: async (args, ctx) =>
       intakeLifecycleService.listIntakes(
         { query: args as Parameters<typeof intakeLifecycleService.listIntakes>[0]['query'] },
@@ -170,6 +171,7 @@ const updateIntakeTriageStatusRoute = routeBuilder.build({
   mcp: {
     name: 'update_intake_triage_status',
     scope: 'intakes:write',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...intakeValidations.updateIntakeTriageStatusSchema.shape },
     handler: async (args, ctx) => {
       const { uuid, ...data } = args;
       return intakeLifecycleService.updateTriageStatus(
@@ -246,6 +248,7 @@ const convertIntakeRoute = routeBuilder.build({
       message: 'Convert this intake into a formal matter?',
       confirm_title: 'Convert intake',
     },
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...intakeValidations.convertIntakeSchema.shape },
     handler: async (args, ctx) => {
       const { uuid, ...data } = args;
       return intakeLifecycleService.convertIntake(

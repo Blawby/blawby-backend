@@ -66,6 +66,7 @@ const updatePracticeClientIntakeRoute = routeBuilder.build({
   mcp: {
     name: 'update_intake',
     scope: 'intakes:write',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...intakeValidations.updatePracticeClientIntakeSchema.shape },
     handler: async (args, ctx) => {
       const { uuid, ...data } = args;
       return intakeCreationService.updateIntake(
@@ -129,6 +130,7 @@ const getPracticeClientIntakeStatusRoute = routeBuilder.build({
   mcp: {
     name: 'get_intake_status',
     scope: 'intakes:read',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid },
     handler: async (args, ctx) => intakeCheckoutService.getIntakeStatus({ uuid: args.uuid as string }, ctx),
   },
   request: {

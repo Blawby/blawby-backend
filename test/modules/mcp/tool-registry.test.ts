@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from '@hono/zod-openapi';
 import { toolRegistry } from '@/modules/mcp/tool-registry';
 import { mcpContext } from '@/modules/mcp/mcp-context';
@@ -50,6 +50,10 @@ const createTool = (handler: AnyToolDef['handler']): AnyToolDef => ({
 });
 
 describe('toolRegistry.registerTools', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('returns an MCP tool error before handler execution when scope is missing', async () => {
     const handler = vi.fn(async () => ({ ok: true }));
     const { callbacks, elicitInput, server } = createFakeServer();

@@ -39,6 +39,7 @@ export const presignIntakeFileRoute = routeBuilder.build({
   mcp: {
     name: 'presign_intake_file',
     scope: 'intakes:write',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...intakeFilePresignRequestSchema.shape },
     handler: async (args, ctx) => {
       const { uuid, ...body } = args;
       return intakeFilesService.presignFile(
@@ -69,6 +70,10 @@ export const confirmIntakeFileRoute = routeBuilder.build({
   mcp: {
     name: 'confirm_intake_file',
     scope: 'intakes:write',
+    schema: {
+      uuid: intakeFileUploadIdParamSchema.shape.uuid,
+      upload_id: intakeFileUploadIdParamSchema.shape.upload_id,
+    },
     handler: async (args, ctx) =>
       intakeFilesService.confirmFile({ uuid: args.uuid as string, uploadId: args.upload_id as string }, ctx),
   },
@@ -89,6 +94,7 @@ export const listIntakeFilesRoute = routeBuilder.build({
   mcp: {
     name: 'list_intake_files',
     scope: 'intakes:read',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...listIntakeFilesQuerySchema.shape },
     handler: async (args, ctx) =>
       intakeFilesService.listFiles(
         {
@@ -121,6 +127,7 @@ export const deleteIntakeFileRoute = routeBuilder.build({
   mcp: {
     name: 'delete_intake_file',
     scope: 'intakes:write',
+    schema: { ...intakeFileUploadIdParamSchema.shape, ...deleteIntakeFileRequestSchema.shape },
     handler: async (args, ctx) =>
       intakeFilesService.deleteFile(
         {

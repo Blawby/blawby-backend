@@ -27,6 +27,7 @@ const createEngagementContractRoute = routeBuilder.build({
   mcp: {
     name: 'create_engagement_contract',
     scope: 'engagement_contracts:write',
+    schema: engagementContractValidations.createEngagementContractSchema.shape,
     handler: async (args, ctx) =>
       engagementContractService.createEngagementContract(
         { data: args as Parameters<typeof engagementContractService.createEngagementContract>[0]['data'] },
@@ -71,6 +72,7 @@ const listEngagementContractsRoute = routeBuilder.build({
   mcp: {
     name: 'list_engagement_contracts',
     scope: 'engagement_contracts:read',
+    schema: engagementContractValidations.listEngagementContractsQuerySchema.shape,
     handler: async (args, ctx) =>
       engagementContractService.listEngagementContracts(
         args as Parameters<typeof engagementContractService.listEngagementContracts>[0],
@@ -200,6 +202,10 @@ const updateEngagementContractStatusRoute = routeBuilder.build({
       message: 'Change this engagement contract status?',
       confirm_title: 'Update status',
     },
+    schema: {
+      contract_id: z.uuid(),
+      ...engagementContractValidations.updateEngagementContractStatusSchema.shape,
+    },
     handler: async (args, ctx) => {
       const id = args.contract_id as string;
       const { status } = args;
@@ -208,6 +214,9 @@ const updateEngagementContractStatusRoute = routeBuilder.build({
       }
       if (status === 'accepted') {
         return engagementContractService.acceptEngagementContract({ id }, ctx);
+      }
+      if (status !== 'declined') {
+        throw new Error('Invalid engagement contract status. Expected sent, accepted, or declined.');
       }
       return engagementContractService.declineEngagementContract({ id }, ctx);
     },

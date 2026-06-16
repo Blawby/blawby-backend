@@ -53,6 +53,7 @@ export const conflictCheckRoute = routeBuilder.build({
   mcp: {
     name: 'run_conflict_check',
     scope: 'practice:read',
+    schema: conflictCheckRequestSchema.shape,
     handler: async (args, ctx) =>
       conflictCheckService.runConflictCheck(
         { data: args as Parameters<typeof conflictCheckService.runConflictCheck>[0]['data'] },

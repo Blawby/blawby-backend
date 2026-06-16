@@ -1,11 +1,11 @@
-import { subscriptionValidations } from './validations/subscription.validation';
+import { subscriptionValidations } from '@/modules/subscriptions/validations/subscription.validation';
 import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
 import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
-import { createCheckoutSession } from '@/modules/subscriptions/services/checkout-session.service';
-import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
-import { db } from '@/shared/database';
+import {
+  createCheckoutSession,
+  toCheckoutSessionResponse,
+} from '@/modules/subscriptions/services/checkout-session.service';
 import { routeBuilder } from '@/shared/router/route-builder';
-import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/subscriptions/plans
@@ -138,7 +138,7 @@ const checkoutRoute = routeBuilder.build({
         },
         ctx
       );
-      return { subscription_id: result.subscriptionId, url: result.url };
+      return toCheckoutSessionResponse(result);
     },
   },
   security: [{ Bearer: [] }],
@@ -214,13 +214,7 @@ const listSubscriptionsRoute = routeBuilder.build({
   mcp: {
     name: 'list_subscriptions',
     scope: 'subscriptions:read',
-    handler: async (_args, ctx) => {
-      if (!ctx.organizationId) {
-        return { subscriptions: [] };
-      }
-      const rows = await db.select().from(subscriptions).where(eq(subscriptions.referenceId, ctx.organizationId));
-      return { subscriptions: rows };
-    },
+    handler: async (_args, ctx) => subscriptionService.listSubscriptions({}, ctx),
   },
   security: [{ Bearer: [] }],
   responses: {
