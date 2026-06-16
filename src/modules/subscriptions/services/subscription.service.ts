@@ -265,6 +265,20 @@ const getCurrentSubscription = async (
   }
 };
 
+const listSubscriptions = async (
+  _params: Record<string, never>,
+  ctx: ServiceContext
+): Promise<{ subscriptions: (typeof subscriptions.$inferSelect)[] }> => {
+  assertSubscriptionReadAccess(ctx);
+
+  const rows = await getActiveTx()
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.referenceId, ctx.organizationId));
+
+  return { subscriptions: rows };
+};
+
 /**
  * Cancel a subscription — delegates to billing portal service.
  */
@@ -296,5 +310,6 @@ const cancelSubscription = async (
 export const subscriptionService = {
   listPlans,
   getCurrentSubscription,
+  listSubscriptions,
   cancelSubscription,
 };

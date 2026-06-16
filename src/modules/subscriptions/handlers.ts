@@ -1,11 +1,11 @@
 import type { routes } from '@/modules/subscriptions/routes';
 import { subscriptionService } from '@/modules/subscriptions/services/subscription.service';
-import { createCheckoutSession } from '@/modules/subscriptions/services/checkout-session.service';
+import {
+  createCheckoutSession,
+  toCheckoutSessionResponse,
+} from '@/modules/subscriptions/services/checkout-session.service';
 import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
 import { processWebhookRequest } from '@/modules/subscriptions/services/stripe-webhook.service';
-import { eq } from 'drizzle-orm';
-import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
-import { db } from '@/shared/database';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 
@@ -40,7 +40,7 @@ const checkoutHandler: AppRouteHandler<typeof routes.checkoutRoute> = async (c) 
     },
     ctx
   );
-  return c.json({ subscription_id: result.subscriptionId, url: result.url }, 200);
+  return c.json(toCheckoutSessionResponse(result), 200);
 };
 
 const billingPortalHandler: AppRouteHandler<typeof routes.billingPortalRoute> = async (c) => {
@@ -52,11 +52,8 @@ const billingPortalHandler: AppRouteHandler<typeof routes.billingPortalRoute> = 
 
 const listSubscriptionsHandler: AppRouteHandler<typeof routes.listSubscriptionsRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  if (!ctx.organizationId) {
-    return c.json({ subscriptions: [] }, 200);
-  }
-  const subs = await db.select().from(subscriptions).where(eq(subscriptions.referenceId, ctx.organizationId));
-  return c.json({ subscriptions: subs }, 200);
+  const data = await subscriptionService.listSubscriptions({}, ctx);
+  return c.json(data, 200);
 };
 
 const webhookHandler: AppRouteHandler<typeof routes.webhookRoute> = async (c) => {

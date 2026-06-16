@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { engagementContractService } from '@/modules/engagement-contracts/services/engagement-contract.service';
 import { engagementContractValidations } from '@/modules/engagement-contracts/validations/engagement-contract.validation';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { requireAuth } from '@/shared/middleware/requireAuth';
@@ -23,6 +24,16 @@ const createEngagementContractRoute = routeBuilder.build({
   path: '/{practice_id}',
   tags: ['Engagement Contracts'],
   summary: 'Create a new engagement contract for a matter',
+  mcp: {
+    name: 'create_engagement_contract',
+    scope: 'engagement_contracts:write',
+    schema: engagementContractValidations.createEngagementContractSchema.shape,
+    handler: async (args, ctx) =>
+      engagementContractService.createEngagementContract(
+        { data: args as Parameters<typeof engagementContractService.createEngagementContract>[0]['data'] },
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     body: {
@@ -58,6 +69,16 @@ const listEngagementContractsRoute = routeBuilder.build({
   path: '/{practice_id}',
   tags: ['Engagement Contracts'],
   summary: 'List engagement contracts for a practice',
+  mcp: {
+    name: 'list_engagement_contracts',
+    scope: 'engagement_contracts:read',
+    schema: engagementContractValidations.listEngagementContractsQuerySchema.shape,
+    handler: async (args, ctx) =>
+      engagementContractService.listEngagementContracts(
+        args as Parameters<typeof engagementContractService.listEngagementContracts>[0],
+        ctx
+      ),
+  },
   request: {
     params: practiceIdParamSchema,
     query: engagementContractValidations.listEngagementContractsQuerySchema,
@@ -89,6 +110,13 @@ const getEngagementContractRoute = routeBuilder.build({
   middleware: [requireAuth(), injectAbility()] as const,
   tags: ['Engagement Contracts'],
   summary: 'Get an engagement contract by ID',
+  mcp: {
+    name: 'get_engagement_contract',
+    scope: 'engagement_contracts:read',
+    schema: { contract_id: z.uuid() },
+    handler: async (args, ctx) =>
+      engagementContractService.getEngagementContract({ id: args.contract_id as string }, ctx),
+  },
   request: {
     params: engagementContractParamSchema,
   },
@@ -115,6 +143,21 @@ const updateEngagementContractRoute = routeBuilder.build({
   path: '/{practice_id}/{contract_id}',
   tags: ['Engagement Contracts'],
   summary: 'Update a draft engagement contract',
+  mcp: {
+    name: 'update_engagement_contract',
+    scope: 'engagement_contracts:write',
+    schema: { contract_id: z.uuid(), ...engagementContractValidations.updateEngagementContractSchema.shape },
+    handler: async (args, ctx) => {
+      const { contract_id, ...data } = args;
+      return engagementContractService.updateEngagementContract(
+        {
+          id: contract_id as string,
+          data: data as Parameters<typeof engagementContractService.updateEngagementContract>[0]['data'],
+        },
+        ctx
+      );
+    },
+  },
   request: {
     params: engagementContractParamSchema,
     body: {
@@ -151,6 +194,33 @@ const updateEngagementContractRoute = routeBuilder.build({
 const updateEngagementContractStatusRoute = routeBuilder.build({
   method: 'patch',
   path: '/{practice_id}/{contract_id}/status',
+  mcp: {
+    name: 'update_engagement_contract_status',
+    scope: 'engagement_contracts:write',
+    approval: {
+      required: true,
+      message: 'Change this engagement contract status?',
+      confirm_title: 'Update status',
+    },
+    schema: {
+      contract_id: z.uuid(),
+      ...engagementContractValidations.updateEngagementContractStatusSchema.shape,
+    },
+    handler: async (args, ctx) => {
+      const id = args.contract_id as string;
+      const { status } = args;
+      if (status === 'sent') {
+        return engagementContractService.sendEngagementContract({ id }, ctx);
+      }
+      if (status === 'accepted') {
+        return engagementContractService.acceptEngagementContract({ id }, ctx);
+      }
+      if (status !== 'declined') {
+        throw new Error('Invalid engagement contract status. Expected sent, accepted, or declined.');
+      }
+      return engagementContractService.declineEngagementContract({ id }, ctx);
+    },
+  },
   tags: ['Engagement Contracts'],
   summary: 'Transition an engagement contract status (draft → sent, sent → accepted | declined)',
   request: {

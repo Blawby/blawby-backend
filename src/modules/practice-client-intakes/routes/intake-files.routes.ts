@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
+import { intakeFilesService } from '@/modules/practice-client-intakes/services/intake-files.service';
 import { uploadValidations } from '@/shared/uploads/types/uploads.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
@@ -35,6 +36,18 @@ export const presignIntakeFileRoute = routeBuilder.build({
   path: '/{uuid}/files/presign',
   tags,
   summary: 'Generate presigned upload URL for intake file',
+  mcp: {
+    name: 'presign_intake_file',
+    scope: 'intakes:write',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...intakeFilePresignRequestSchema.shape },
+    handler: async (args, ctx) => {
+      const { uuid, ...body } = args;
+      return intakeFilesService.presignFile(
+        { uuid: uuid as string, body: body as Parameters<typeof intakeFilesService.presignFile>[0]['body'] },
+        ctx
+      );
+    },
+  },
   request: {
     params: uuidParamOpenAPISchema,
     body: {
@@ -54,6 +67,16 @@ export const confirmIntakeFileRoute = routeBuilder.build({
   path: '/{uuid}/files/{upload_id}/confirm',
   tags,
   summary: 'Confirm intake file upload',
+  mcp: {
+    name: 'confirm_intake_file',
+    scope: 'intakes:write',
+    schema: {
+      uuid: intakeFileUploadIdParamSchema.shape.uuid,
+      upload_id: intakeFileUploadIdParamSchema.shape.upload_id,
+    },
+    handler: async (args, ctx) =>
+      intakeFilesService.confirmFile({ uuid: args.uuid as string, uploadId: args.upload_id as string }, ctx),
+  },
   request: { params: intakeFileUploadIdParamSchema },
   responses: {
     200: {
@@ -68,6 +91,22 @@ export const listIntakeFilesRoute = routeBuilder.build({
   path: '/{uuid}/files',
   tags,
   summary: 'List files for an intake',
+  mcp: {
+    name: 'list_intake_files',
+    scope: 'intakes:read',
+    schema: { uuid: uuidParamOpenAPISchema.shape.uuid, ...listIntakeFilesQuerySchema.shape },
+    handler: async (args, ctx) =>
+      intakeFilesService.listFiles(
+        {
+          uuid: args.uuid as string,
+          query: {
+            page: (args.page as number | undefined) ?? 1,
+            limit: (args.limit as number | undefined) ?? 20,
+          },
+        },
+        ctx
+      ),
+  },
   request: {
     params: uuidParamOpenAPISchema,
     query: listIntakeFilesQuerySchema,
@@ -85,6 +124,20 @@ export const deleteIntakeFileRoute = routeBuilder.build({
   path: '/{uuid}/files/{upload_id}',
   tags,
   summary: 'Soft delete an intake file',
+  mcp: {
+    name: 'delete_intake_file',
+    scope: 'intakes:write',
+    schema: { ...intakeFileUploadIdParamSchema.shape, ...deleteIntakeFileRequestSchema.shape },
+    handler: async (args, ctx) =>
+      intakeFilesService.deleteFile(
+        {
+          uuid: args.uuid as string,
+          uploadId: args.upload_id as string,
+          reason: args.reason as string,
+        },
+        ctx
+      ),
+  },
   request: {
     params: intakeFileUploadIdParamSchema,
     body: {

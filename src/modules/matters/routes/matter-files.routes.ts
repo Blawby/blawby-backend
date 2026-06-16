@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { matterFilesService } from '@/modules/matters/services/matter-files.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 
 const tags = ['Matters'];
@@ -33,6 +34,12 @@ export const linkMatterFileRoute = routeBuilder.build({
   path: '/{matter_id}/files',
   tags,
   summary: 'Link confirmed upload to matter',
+  mcp: {
+    name: 'link_matter_file',
+    scope: 'matters:write',
+    handler: async (args, ctx) =>
+      matterFilesService.linkUpload({ matterId: args.matter_id as string, uploadId: args.upload_id as string }, ctx),
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),
@@ -62,6 +69,11 @@ export const listMatterFilesRoute = routeBuilder.build({
   path: '/{matter_id}/files',
   tags,
   summary: 'List files linked to a matter',
+  mcp: {
+    name: 'list_matter_files',
+    scope: 'matters:read',
+    handler: async (args, ctx) => matterFilesService.listMatterFiles({ matterId: args.matter_id as string }, ctx),
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),
@@ -84,6 +96,17 @@ export const unlinkMatterFileRoute = routeBuilder.build({
   path: '/{matter_id}/files/{upload_id}',
   tags,
   summary: 'Unlink upload from matter',
+  mcp: {
+    name: 'unlink_matter_file',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      await matterFilesService.unlinkUpload(
+        { matterId: args.matter_id as string, uploadId: args.upload_id as string },
+        ctx
+      );
+      return { unlinked: true };
+    },
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),

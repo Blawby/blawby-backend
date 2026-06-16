@@ -395,9 +395,11 @@ Remaining high-priority work from this snapshot:
 
 **Dependencies:** All Group A merged
 
-**A. Services: Reduce unsafe type assertions**
+**A. Services: Remove unsafe type assertions**
 
-- [ ] Audit and fix all `as SomeRecord` casts in services
+- [ ] Audit and fix all unsafe `as` casts in services, especially `as unknown as` double assertions
+- [ ] When touching a file, replace nearby unsafe assertions with narrowing, schemas, predicates, typed helpers, explicit types, or `satisfies`
+- [ ] Add missing domain/package types instead of replacing type gaps with `any` or assertions
 
 **B. Repositories: Add explicit return types**
 

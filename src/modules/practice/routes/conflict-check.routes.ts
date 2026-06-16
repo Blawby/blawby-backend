@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { conflictCheckService } from '@/modules/practice/services/conflict-check.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { uuidValidator } from '@/shared/validations/common';
 
@@ -49,6 +50,16 @@ export const conflictCheckRoute = routeBuilder.build({
   tags: ['Practice'],
   summary: 'Run a conflict check',
   description: 'Fuzzy matches intake names and aliases against existing matters and clients using pg_trgm similarity.',
+  mcp: {
+    name: 'run_conflict_check',
+    scope: 'practice:read',
+    schema: conflictCheckRequestSchema.shape,
+    handler: async (args, ctx) =>
+      conflictCheckService.runConflictCheck(
+        { data: args as Parameters<typeof conflictCheckService.runConflictCheck>[0]['data'] },
+        ctx
+      ),
+  },
   request: {
     params: z.object({
       practice_id: z.uuid().openapi({

@@ -143,10 +143,25 @@ export interface CheckoutSessionRequest {
   requireManagementAccess?: boolean;
 }
 
+export interface CheckoutSessionResult {
+  subscriptionId: string;
+  url: string | null;
+}
+
+export interface CheckoutSessionResponse {
+  subscription_id: string;
+  url: string | null;
+}
+
+export const toCheckoutSessionResponse = (result: CheckoutSessionResult): CheckoutSessionResponse => ({
+  subscription_id: result.subscriptionId,
+  url: result.url,
+});
+
 export const createCheckoutSession = async (
   params: CheckoutSessionRequest,
   ctx: ServiceContext
-): Promise<{ subscriptionId: string; url: string | null }> => {
+): Promise<CheckoutSessionResult> => {
   const {
     stripePriceId,
     successUrl,

@@ -5,6 +5,8 @@ import {
   matterTaskResponseSchema,
   listMatterTasksQuerySchema,
 } from '@/modules/matters/types/matter.types';
+import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
+import { matterTasksService } from '@/modules/matters/services/matter-tasks.service';
 import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { uuidValidator, paginationSchema as paginationQuerySchema } from '@/shared/validations/common';
@@ -36,6 +38,24 @@ export const listMatterTasksRoute = routeBuilder.build({
   path: '/{matter_id}/tasks',
   tags,
   summary: 'List matter tasks',
+  mcp: {
+    name: 'list_matter_tasks',
+    scope: 'matters:read',
+    handler: async (args, ctx) =>
+      matterTasksService.listMatterTasks(
+        {
+          matterId: args.matter_id as string,
+          filters: {
+            taskId: args.task_id as string | undefined,
+            assigneeId: args.assignee_id as string | undefined,
+            status: args.status as MatterTaskListFilters['status'],
+            priority: args.priority as MatterTaskListFilters['priority'],
+            stage: args.stage as MatterTaskListFilters['stage'],
+          },
+        },
+        ctx
+      ),
+  },
   request: {
     params: matterIdParamSchema,
     query: listMatterTasksQuerySchema,
@@ -59,6 +79,20 @@ export const createMatterTaskRoute = routeBuilder.build({
   path: '/{matter_id}/tasks',
   tags,
   summary: 'Create a matter task',
+  mcp: {
+    name: 'create_matter_task',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      const { matter_id, ...data } = args;
+      return matterTasksService.createMatterTask(
+        {
+          matterId: matter_id as string,
+          data: data as Parameters<typeof matterTasksService.createMatterTask>[0]['data'],
+        },
+        ctx
+      );
+    },
+  },
   request: {
     params: matterIdParamSchema,
     body: {
@@ -86,6 +120,21 @@ export const updateMatterTaskRoute = routeBuilder.build({
   path: '/{matter_id}/tasks/{task_id}',
   tags,
   summary: 'Update a matter task',
+  mcp: {
+    name: 'update_matter_task',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      const { matter_id, task_id, ...data } = args;
+      return matterTasksService.updateMatterTask(
+        {
+          matterId: matter_id as string,
+          taskId: task_id as string,
+          data: data as Parameters<typeof matterTasksService.updateMatterTask>[0]['data'],
+        },
+        ctx
+      );
+    },
+  },
   request: {
     params: matterIdParamSchema.merge(taskIdParamSchema),
     body: {
@@ -113,6 +162,17 @@ export const deleteMatterTaskRoute = routeBuilder.build({
   path: '/{matter_id}/tasks/{task_id}',
   tags,
   summary: 'Delete a matter task',
+  mcp: {
+    name: 'delete_matter_task',
+    scope: 'matters:write',
+    handler: async (args, ctx) => {
+      await matterTasksService.deleteMatterTask(
+        { matterId: args.matter_id as string, taskId: args.task_id as string },
+        ctx
+      );
+      return { deleted: true };
+    },
+  },
   request: {
     params: matterIdParamSchema.merge(taskIdParamSchema),
   },
@@ -128,6 +188,23 @@ export const listOrganizationTasksRoute = routeBuilder.build({
   path: '/{practice_id}/tasks',
   tags,
   summary: 'List tasks across the organization',
+  mcp: {
+    name: 'list_tasks',
+    scope: 'matters:read',
+    handler: async (args, ctx) =>
+      matterTasksService.listOrganizationTasks(
+        {
+          filters: {
+            assigneeId: args.assignee_id as string | undefined,
+            status: args.status as OrgTaskListFilters['status'],
+            dueBefore: args.due_before as string | undefined,
+            page: args.page as number | undefined,
+            limit: args.limit as number | undefined,
+          },
+        },
+        ctx
+      ),
+  },
   description:
     'Returns tasks across the organization, joined to matters for org scoping. Supports filtering by assignee_id, status, and due_before. due_before semantics: due_date < due_before (excludes tasks with NULL due_date). Ordered by created_at DESC.',
   request: {

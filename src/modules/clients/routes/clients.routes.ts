@@ -41,7 +41,7 @@ export const getClientRoute = routeBuilder.build({
   mcp: {
     scope: 'clients:read',
     schema: { client_id: z.uuid() },
-    handler: async (args, ctx) => clientsService.getClient({ id: args['client_id'] as string }, ctx),
+    handler: async (args, ctx) => clientsService.getClient({ id: args.client_id as string }, ctx),
   },
   request: {
     params: clientParamsSchema,
@@ -60,6 +60,18 @@ export const updateClientRoute = routeBuilder.build({
   tags: ['Clients'],
   summary: 'Update client',
   description: 'Update client profile',
+  mcp: {
+    name: 'update_client',
+    scope: 'clients:write',
+    schema: { client_id: z.uuid(), ...updateClientSchema.shape },
+    handler: async (args, ctx) => {
+      const { client_id, ...data } = args;
+      return clientsService.updateClient(
+        { id: client_id as string, data: data as Parameters<typeof clientsService.updateClient>[0]['data'] },
+        ctx
+      );
+    },
+  },
   request: {
     params: clientParamsSchema,
     body: { content: { 'application/json': { schema: updateClientSchema } } },
@@ -78,6 +90,20 @@ export const deleteClientRoute = routeBuilder.build({
   tags: ['Clients'],
   summary: 'Delete client',
   description: 'Delete a client (soft delete)',
+  mcp: {
+    name: 'delete_client',
+    scope: 'clients:write',
+    approval: {
+      required: true,
+      message: 'Delete this client profile? This soft-deletes the client record.',
+      confirm_title: 'Delete client',
+    },
+    schema: { client_id: z.uuid() },
+    handler: async (args, ctx) => {
+      await clientsService.deleteClient({ id: args.client_id as string }, ctx);
+      return { deleted: true };
+    },
+  },
   request: { params: clientParamsSchema },
   responses: {
     204: {
