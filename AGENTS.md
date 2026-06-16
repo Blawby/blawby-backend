@@ -79,6 +79,7 @@ Run focused tests while iterating. Run broader tests when changing shared behavi
 - Use `practice_id` in organization-scoped API paths even though the database column is `organization_id`.
 - Keep handlers thin: read validated input, obtain `ServiceContext`, call a service, and return `c.json(...)`.
 - Do not catch service errors in handlers unless the route has a specific recovery requirement.
+- List responses must use the shared pagination shapes: offset lists return `{ data, pagination }`; cursor lists return `{ data, page_info }`.
 
 ### Services And Errors
 

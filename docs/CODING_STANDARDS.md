@@ -13,6 +13,7 @@ When you touch a file, check for nearby instances of these known issues and fix 
 - Handler business logic, raw `c.req.param(...)`, or untyped handlers; use route-typed handlers and `c.req.valid(...)`.
 - Direct value imports of `z` from `zod`; use `@hono/zod-openapi` for application schemas.
 - API date schemas using `z.date()`; prefer ISO string schemas for API payloads.
+- Legacy list responses with resource-named arrays, top-level `page`/`limit`, or `total_pages`; use `{ data, pagination }` or `{ data, page_info }`.
 - Worker/listener code that swallows failures needed for retries.
 - Event files that are not registered in shared event definitions.
 - Oversized files where the current change clearly belongs in an extracted helper or narrower service.
@@ -211,6 +212,100 @@ app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 app.openapi(routes.getInvoiceRoute, handlers.getInvoiceHandler);
 
 export default app;
+```
+
+## Pagination Pattern
+
+Use the shared pagination types from `@/shared/types/pagination`.
+
+- Offset pagination: `OffsetPaginatedResponse<T>` with `{ data, pagination: { page, limit, total } }`.
+- Cursor pagination: `CursorPaginatedResponse<T>` with `{ data, page_info }`.
+- Use `PaginatedResponse<T>` only when code genuinely accepts either offset or cursor shape.
+- Use `pagination` for offset metadata and `page_info` for cursor metadata. Do not return both.
+- The list payload array should always be named `data`, not `invoices`, `intakes`, `uploads`, etc.
+- Do not add top-level `total_pages`; clients can calculate it from `pagination.total` and `pagination.limit` when needed.
+
+Offset example:
+
+```typescript
+import type { SelectPayout } from '@/modules/payouts/database/schema/payouts.schema';
+import { payoutsRepository } from '@/modules/payouts/database/queries/payouts.repository';
+import type { ListPayoutsQuery } from '@/modules/payouts/schemas/payouts.validation';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
+import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+
+const listPayouts = async (
+  { filters }: { filters: ListPayoutsQuery },
+  ctx: ServiceContext
+): Promise<OffsetPaginatedResponse<SelectPayout>> => {
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Payout');
+
+  const { payouts, total } = await payoutsRepository.listByOrganization(ctx.organizationId, filters);
+
+  return {
+    data: payouts,
+    pagination: { page: filters.page, limit: filters.limit, total },
+  };
+};
+```
+
+Cursor example:
+
+```typescript
+import type { CursorPaginatedResponse } from '@/shared/types/pagination';
+
+const listMessages = async (
+  conversationId: string,
+  query: ListMessagesQuery,
+  ctx: ServiceContext
+): Promise<CursorPaginatedResponse<IntakeConversationMessageResponse>> => {
+  const rows = await messagesQueries.listByConversation(conversationId, query.from_seq, query.limit + 1);
+  const hasNextPage = rows.length > query.limit;
+  const items = hasNextPage ? rows.slice(0, query.limit) : rows;
+  const lastItem = items[items.length - 1];
+
+  return {
+    data: items.map(toResponse),
+    page_info: {
+      has_next_page: hasNextPage,
+      has_previous_page: query.from_seq !== undefined && query.from_seq > 0,
+      next_cursor: hasNextPage && lastItem ? String(lastItem.seq + 1) : null,
+      previous_cursor: null,
+    },
+  };
+};
+```
+
+OpenAPI list responses should mirror the same shape:
+
+```typescript
+import { paginationSchema } from '@/shared/validations/openapi';
+
+responses: {
+  200: {
+    description: 'Payouts',
+    content: {
+      'application/json': {
+        schema: z.object({
+          data: z.array(payoutResponseSchema),
+          pagination: paginationSchema,
+        }),
+      },
+    },
+  },
+}
+```
+
+Avoid legacy shapes:
+
+```typescript
+return {
+  intakes,
+  page,
+  limit,
+  total_pages,
+};
 ```
 
 ## Schema Import Pattern
