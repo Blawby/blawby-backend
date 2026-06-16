@@ -177,7 +177,7 @@ export const deleteMatterRoute = routeBuilder.build({
   mcp: {
     name: 'delete_matter',
     scope: 'matters:write',
-    approval: { required: true, message: 'Permanently delete this matter and all associated data?' },
+    approval: { required: true, message: 'Archive this matter? This is a soft delete — the matter and its data remain recoverable.' },
     handler: async (args, ctx) => {
       await mattersService.deleteMatter(args.matter_id as string, ctx);
       return { deleted: true };

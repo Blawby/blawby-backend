@@ -20,9 +20,8 @@ interface McpRouteAnnotation {
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
 }
 
-interface WithMcp {
-  mcp: McpRouteAnnotation;
-}
+// Mapped type prevents oxfmt from converting to interface; interface WithMcp breaks RouteConfig's x-${string} index signature constraint
+type WithMcp = { [K in 'mcp']: McpRouteAnnotation };
 type WithoutMcp = Record<string, never>;
 
 /**
