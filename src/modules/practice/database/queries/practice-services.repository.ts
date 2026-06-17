@@ -13,7 +13,7 @@ const findServicesByOrganizations = async (organizationIds: string[]): Promise<P
         .from(practiceServices)
         .where(inArray(practiceServices.organization_id, organizationIds));
 
-const syncServicesTx = async (
+const syncServices = async (
   organizationId: string,
   newServices: { id?: string; name: string; key: string; description?: string }[]
 ): Promise<PracticeService[]> => {
@@ -80,6 +80,6 @@ const findById = async (id: string): Promise<PracticeService | undefined> => {
 export const practiceServicesRepository = {
   findServicesByOrganization,
   findServicesByOrganizations,
-  syncServicesTx,
+  syncServices,
   findById,
 };

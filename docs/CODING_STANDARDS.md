@@ -497,6 +497,35 @@ logger.info('Invoice {invoiceId} synced for organization {organizationId}', {
 
 Do not add `console.log`, `console.error`, or unstructured string interpolation in logs.
 
+## Docs And Issue Hygiene Pattern
+
+When updating docs, plans, or GitHub issues, treat every status claim as untrusted until checked against current code, tests, config, or issue state.
+
+Use this format in issue bodies or doc notes when converting old plan work into executable backlog:
+
+```markdown
+## Verified current state
+
+- `src/modules/example/service.ts` already uses `uow.transaction(...)`.
+- `src/modules/example/database/queries/example.queries.ts` still imports `db` directly.
+- No focused test exists under `test/modules/example/`.
+
+## Checklist
+
+- [ ] Replace direct repository `db` usage with `getActiveTx()`.
+- [ ] Add a focused regression test for the transaction path.
+- [ ] Run `pnpm run typecheck` and the focused test.
+```
+
+Avoid:
+
+```markdown
+- [x] Old plan task says this is done.
+- [ ] Implement all remaining cleanup from `plans/old-plan.md`.
+```
+
+The first example gives future agents receipts. The second makes them rediscover the same uncertainty.
+
 ## Known Cleanup Areas From Audits
 
 These are recurring project issues. Apply the standard when creating new code, and fix touched code when the change is local and low-risk.

@@ -3,7 +3,7 @@ import { subscriptionRepository } from '@/modules/subscriptions/database/queries
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
-import { getActiveTx } from '@/shared/database/uow';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { getLogger } from '@logtape/logtape';
@@ -86,11 +86,11 @@ const getOrCreateOrg = async (
     // oxlint-disable-next-line no-await-in-loop
     for (const candidateSlug of candidates) {
       try {
-        await db.transaction(async (tx) => {
-          await tx
+        await uow.transaction(async () => {
+          await getActiveTx()
             .insert(schema.organizations)
             .values({ id: organizationId, name: orgName, slug: candidateSlug, createdAt: new Date() });
-          await tx
+          await getActiveTx()
             .insert(schema.members)
             .values({ id: crypto.randomUUID(), userId, organizationId, role: 'owner', createdAt: new Date() });
         });
@@ -280,8 +280,8 @@ export const createCheckoutSession = async (
   // 5. Atomically find-or-create the incomplete subscription row so retries share
   // The same subscriptionId and thus the same Stripe idempotency key.
   const planName = price.name ?? stripePriceId;
-  const { subscriptionId, isNew } = await db.transaction(async (tx) => {
-    const [existingIncomplete] = await tx
+  const { subscriptionId, isNew } = await uow.transaction(async () => {
+    const [existingIncomplete] = await getActiveTx()
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
       .where(
@@ -294,7 +294,7 @@ export const createCheckoutSession = async (
       .limit(1);
 
     if (existingIncomplete) {
-      await tx
+      await getActiveTx()
         .update(schema.subscriptions)
         .set({ stripeCustomerId, updatedAt: new Date() })
         .where(eq(schema.subscriptions.id, existingIncomplete.id));
@@ -302,7 +302,7 @@ export const createCheckoutSession = async (
     }
 
     const newId = crypto.randomUUID();
-    await tx.insert(schema.subscriptions).values({
+    await getActiveTx().insert(schema.subscriptions).values({
       id: newId,
       plan: planName,
       referenceId: organizationId,

@@ -1,12 +1,12 @@
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
-import type { Stripe } from 'stripe';
 import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import { uow } from '@/shared/database/uow';
 import { InvoiceSent } from '@/shared/events/definitions';
-import { getActiveTx, uow } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['invoices', 'delivery-lock']);
 
@@ -113,7 +113,6 @@ export const markInvoiceSent = async (
         actorId: ctx.userId,
         actorType: 'user',
         organizationId: ctx.organizationId,
-        tx: getActiveTx(),
       }
     );
 

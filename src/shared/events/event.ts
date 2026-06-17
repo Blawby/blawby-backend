@@ -1,10 +1,5 @@
-import { db, type DrizzleDb } from '@/shared/database';
-import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
-import { TASK_NAMES } from '@/shared/queue/queue.config';
-import { getAppEnv } from '@/shared/utils/env';
-import { getLogger } from '@logtape/logtape';
-import { sql } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
+import { db } from '@/shared/database';
+import { getActiveTx, isInTransaction } from '@/shared/database/uow';
 import {
   API_ACTOR_UUID,
   CRON_ACTOR_UUID,
@@ -12,6 +7,7 @@ import {
   SYSTEM_ACTOR_UUID,
   WEBHOOK_ACTOR_UUID,
 } from '@/shared/events/constants';
+import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import {
   events,
   type BaseEvent as BaseEventRecord,
@@ -19,6 +15,11 @@ import {
   type NewEvent,
 } from '@/shared/events/schemas/events.schema';
 import type { DispatchOptions, EventClass, Handler } from '@/shared/events/types/event.types';
+import { TASK_NAMES } from '@/shared/queue/queue.config';
+import { getAppEnv } from '@/shared/utils/env';
+import { getLogger } from '@logtape/logtape';
+import { sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 
 const logger = getLogger(['events', 'system']);
 
@@ -62,15 +63,8 @@ const createEventMetadata = (source: string): EventMetadata => ({
   environment: getAppEnv(),
 });
 
-// TODO: refactor dispatchTransactional to call getActiveTx() internally (from @/shared/database/uow)
-// So callers pass { transactional: true } instead of { tx: getActiveTx() }. Requires updating
-// DispatchOptions type and all callers of dispatch() that pass tx.
-const dispatchTransactional = async (
-  record: NewEvent,
-  tx: DrizzleDb,
-  eventId: string,
-  eventType: string
-): Promise<string> => {
+const dispatchTransactional = async (record: NewEvent, eventId: string, eventType: string): Promise<string> => {
+  const tx = getActiveTx();
   try {
     await tx.insert(events).values(record);
     await tx.execute(sql`
@@ -166,8 +160,9 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
 
     const resolvedActorType: ActorType = options?.actorType ?? ACTOR_TYPE_MAP[resolvedActorId] ?? 'user';
 
+    const inTx = isInTransaction();
     let metadataSource = 'async';
-    if (options?.tx) {
+    if (inTx) {
       metadataSource = 'tx';
     } else if (options?.critical) {
       metadataSource = 'critical';
@@ -186,8 +181,8 @@ export abstract class BaseEvent<T extends Record<string, unknown>> {
       retryCount: 0,
     };
 
-    if (options?.tx) {
-      return dispatchTransactional(record, options.tx, eventId, this.type);
+    if (inTx) {
+      return dispatchTransactional(record, eventId, this.type);
     }
 
     if (options?.critical) {

@@ -77,7 +77,6 @@ export const handleAccountUpdated = async (account: Stripe.Account): Promise<voi
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId,
-          tx: getActiveTx(),
         }
       );
     });

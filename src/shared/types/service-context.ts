@@ -1,6 +1,5 @@
 // oxlint-disable typescript/no-unsafe-assignment
 import { defineAbilityFor, type AppAbility } from '@/shared/auth/abilities';
-import { getActiveTx } from '@/shared/database/uow';
 import type { DispatchOptions, EventClass } from '@/shared/events/types/event.types';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Context } from 'hono';
@@ -67,7 +66,6 @@ export const createServiceContext = (base: Omit<ServiceContext, 'emit'>): Servic
       const options: DispatchOptions = {
         actorId: userId,
         organizationId,
-        tx: getActiveTx(),
       };
       const result = event.dispatch(payload, options);
       return result instanceof Promise ? result : Promise.resolve(result);

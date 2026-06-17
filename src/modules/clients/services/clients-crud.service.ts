@@ -217,7 +217,6 @@ const updateClient = async (
         {
           actorId: ctx.userId,
           organizationId: ctx.organizationId,
-          tx: getActiveTx(),
         }
       );
 

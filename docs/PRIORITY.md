@@ -4,6 +4,8 @@
 > Last updated: 2026-06-16
 >
 > Related: `docs/superpowers/TRACKING.md` (API remediation detail) | `ROADMAP.md` (product direction)
+>
+> Execution rule: before editing code or closing checklist items from this tracker, verify the claim against current code/tests/config/issues and record the evidence in the issue or final response. Historical plans are leads, not proof.
 
 ---
 
@@ -25,25 +27,20 @@
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| UoW U2: engagement-contracts class-based repository | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🔄 | Canonical pattern for U4–U7. |
+| Complete Unit of Work migration cleanup | [#342](https://github.com/Blawby/blawby-backend/issues/342) | 🔄 | Mostly migrated; remaining cleanup is direct subscription transactions, event `tx` threading, stale `Tx` helper naming, and one transaction-state check. |
 
 ---
 
 ## P1 — Core Architecture (UoW Refactor)
 
-> In motion. U1 + U3 already committed. U2 unblocks U4–U7. U8 requires all done.
+> Mostly migrated in code. The historical U2–U9 plan labels are stale; use #342 for the remaining executable checklist.
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| UoW U2: engagement-contracts class repo | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🔄 | See P0 |
-| UoW U4: clients module | same plan | ⬜ | Independent after U1 |
-| UoW U5: matters module | same plan | ⬜ | Removes last `Tx`-suffix helpers |
-| UoW U6: invoices module | same plan | ⬜ | Most tx threading (74 sites) |
-| UoW U7: subscriptions, practice, shared repos, financial engines | same plan | ⬜ | Includes trust `pg_advisory_xact_lock` |
-| UoW U8: remove `ServiceContext.db`, remove `tx` from `ctx.emit()` | same plan | 🔒 | Blocked until U2–U7 done |
-| UoW U9: update codemod for class-based repos | same plan | ⬜ | Depends on U2 |
+| Complete UoW cleanup | [#342](https://github.com/Blawby/blawby-backend/issues/342) | 🔄 | `ServiceContext.db` is gone; engagement-contracts already uses `getActiveTx()`. Remaining work is tracked in the issue checklist. |
+| Historical UoW plan | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🗄️ | Do not execute directly without re-verifying each claim against current code. |
 
-**Already done:** U1 (ALS foundation `56cb35e`), U3 (intake module `d279801` + `e1df0a3`)
+**Verified done:** ALS foundation exists in `src/shared/database/uow.ts`; `ServiceContext` no longer exposes `db`; engagement-contracts repositories use `getActiveTx()`; broad scans do not show app-level `DbOrTx`, `ctx.db`, or `tx ?? db` patterns outside the remaining cleanup noted in #342.
 
 ---
 
@@ -91,13 +88,10 @@
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| `{uuid}` → `{practice_id}` in practice routes | `docs/superpowers/plans/2026-04-03-api-non-breaking-fixes.md` Task 1 | ⬜ | Non-breaking |
-| `{id}` → `{client_id}`, `{matter_id}`, `{invoice_id}` | same plan Task 3 | ⬜ | Non-breaking |
-| DELETE endpoints → 204 | `docs/superpowers/plans/2026-04-03-api-breaking-standardization.md` Tasks 1a–1d | ⬜ | **Breaking — needs frontend coordination** |
-| List response envelopes → `{ data, pagination }` | same plan Tasks 2a–2c | ⬜ | **Breaking** |
-| REST verb violations (`GET /list`, `POST /cancel`, etc.) | same plan Task 3 | ⬜ | **Breaking** |
-| `PUT` → `PATCH` for partial updates | same plan Task 3e | ⬜ | **Breaking** |
-| Track 3: handler exports, file naming, misplaced files, event orphans, datetime validation, zod imports | `docs/superpowers/TRACKING.md` Track 3 | ⬜ | After Track 2 |
+| Descriptive path parameter names | [#339](https://github.com/Blawby/blawby-backend/issues/339) | ⬜ | Non-breaking; `{uuid}`/generic `{id}` cleanup |
+| DELETE 204 + list response envelopes | [#340](https://github.com/Blawby/blawby-backend/issues/340) | ⬜ | **Breaking — needs frontend coordination** |
+| Canonical REST routes + PATCH updates | [#341](https://github.com/Blawby/blawby-backend/issues/341) | ⬜ | **Breaking — needs frontend coordination** |
+| Track 3: handler exports, file naming, misplaced files, event orphans, datetime validation, zod imports | [#336](https://github.com/Blawby/blawby-backend/issues/336) | ⬜ | Non-breaking structural cleanup after API surface |
 
 **Action needed:** Schedule frontend coordination meeting for breaking changes before touching P5 breaking items.
 
