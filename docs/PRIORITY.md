@@ -1,9 +1,11 @@
 # Blawby Backend — Work Priority Tracker
 
 > Single source of truth for prioritized work across all plan files and GitHub issues.
-> Last updated: 2026-06-16
+> Last updated: 2026-06-18
 >
 > Related: `docs/superpowers/TRACKING.md` (API remediation detail) | `ROADMAP.md` (product direction)
+>
+> Execution rule: before editing code or closing checklist items from this tracker, verify the claim against current code/tests/config/issues and record the evidence in the issue or final response. Historical plans and roadmap notes are leads, not proof.
 
 ---
 
@@ -25,25 +27,21 @@
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| UoW U2: engagement-contracts class-based repository | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🔄 | Canonical pattern for U4–U7. |
+| Complete Unit of Work migration cleanup | [#342](https://github.com/Blawby/blawby-backend/issues/342) | 🔄 | Mostly migrated; remaining cleanup is direct subscription transactions, event transaction option/threading, stale `Tx` helper naming, and one transaction-state check. |
 
 ---
 
-## P1 — Core Architecture (UoW Refactor)
+## P1 — Core Architecture And Test Foundation
 
-> In motion. U1 + U3 already committed. U2 unblocks U4–U7. U8 requires all done.
+> Stabilization before larger product roadmap work.
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| UoW U2: engagement-contracts class repo | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🔄 | See P0 |
-| UoW U4: clients module | same plan | ⬜ | Independent after U1 |
-| UoW U5: matters module | same plan | ⬜ | Removes last `Tx`-suffix helpers |
-| UoW U6: invoices module | same plan | ⬜ | Most tx threading (74 sites) |
-| UoW U7: subscriptions, practice, shared repos, financial engines | same plan | ⬜ | Includes trust `pg_advisory_xact_lock` |
-| UoW U8: remove `ServiceContext.db`, remove `tx` from `ctx.emit()` | same plan | 🔒 | Blocked until U2–U7 done |
-| UoW U9: update codemod for class-based repos | same plan | ⬜ | Depends on U2 |
+| Complete UoW cleanup | [#342](https://github.com/Blawby/blawby-backend/issues/342) | 🔄 | `ServiceContext.db` is gone; engagement-contracts already uses `getActiveTx()`. Remaining work is tracked in the issue checklist. |
+| Improve real database integration test harness | [#337](https://github.com/Blawby/blawby-backend/issues/337) | ⬜ | Needed before large billing/intake/event automation work. |
+| Historical UoW plan | `docs/plans/2026-06-04-001-refactor-db-ambient-context-plan.md` | 🗄️ | Do not execute directly without re-verifying each claim against current code. |
 
-**Already done:** U1 (ALS foundation `56cb35e`), U3 (intake module `d279801` + `e1df0a3`)
+**Verified done:** ALS foundation exists in `src/shared/database/uow.ts`; `ServiceContext` no longer exposes `db`; engagement-contracts repositories use `getActiveTx()`.
 
 ---
 
@@ -64,24 +62,26 @@
 
 ## P3 — MCP / AI Cluster
 
-> 3 open GH issues. #292 is small prerequisite for the rest.
+> MCP CRUD expansion is no longer blank-slate work. #320 is closed; remaining work is AI configuration/skills.
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
 | AI provider at practice level | [#292](https://github.com/Blawby/blawby-backend/issues/292) | ⬜ | Small. Unblocks #316 |
-| MCP route annotation + codegen (U1–U7) | `docs/plans/2026-05-25-001-feat-mcp-route-annotation-codegen-plan.md` | ⬜ | |
+| MCP route annotation + codegen | `docs/plans/2026-05-25-001-feat-mcp-route-annotation-codegen-plan.md` | ✅ | Generated registry exists at `src/modules/mcp/mcp.tools.generated.ts`; verify before extending. |
 | Practice AI Skills (MCP + chatbot parity) | [#316](https://github.com/Blawby/blawby-backend/issues/316) | ⬜ | |
-| More tools | [#320](https://github.com/Blawby/blawby-backend/issues/320) | ⬜ | Likely flows from #316 |
+| More MCP tools / write safety | [#320](https://github.com/Blawby/blawby-backend/issues/320) | ✅ | Issue closed; tests cover scope enforcement and approval flow. |
 
 ---
 
-## P4 — Major Product Feature
+## P4 — Product Roadmap Work
 
-> ROADMAP calls Conversations→PG the #1 priority. No plan exists — brainstorm first.
+> Use `ROADMAP.md` for sequence. Convert each open product item into a verified GitHub issue before implementation.
 
 | Item | Ref | Status | Notes |
 |------|-----|--------|-------|
-| Conversations → PostgreSQL (D1 → backend) | [#308](https://github.com/Blawby/blawby-backend/issues/308) `ROADMAP.md` §1 | ⬜ | Brainstorm → plan before code |
+| Intake conversations → PostgreSQL | [#308](https://github.com/Blawby/blawby-backend/issues/308) `ROADMAP.md` | ✅ | Backend module exists under `src/modules/intake-conversations`; verify worker write-through separately. |
+| Backend intake enrichment job | [#344](https://github.com/Blawby/blawby-backend/issues/344) `ROADMAP.md` | ⬜ | Verified issue exists; do not recreate existing intake schema work. |
+| Engagement AI generation backend service | [#345](https://github.com/Blawby/blawby-backend/issues/345) `ROADMAP.md` | ⬜ | Verified issue exists; engagement templates are already first-class resources. |
 
 ---
 
