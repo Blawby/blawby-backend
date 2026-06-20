@@ -31,16 +31,16 @@ importers:
         version: 1.57.0
       '@hono/node-server':
         specifier: ^1.19.13
-        version: 1.19.13(hono@4.12.21)
+        version: 1.19.13(hono@4.12.25)
       '@hono/zod-openapi':
         specifier: ^1.2.3
-        version: 1.2.3(hono@4.12.21)(zod@4.3.6)
+        version: 1.2.3(hono@4.12.25)(zod@4.3.6)
       '@logtape/file':
         specifier: ^2.0.4
         version: 2.0.4(@logtape/logtape@2.0.4)
       '@logtape/hono':
         specifier: ^2.0.4
-        version: 2.0.4(@logtape/logtape@2.0.4)(hono@4.12.21)
+        version: 2.0.4(@logtape/logtape@2.0.4)(hono@4.12.25)
       '@logtape/logtape':
         specifier: ^2.0.4
         version: 2.0.4
@@ -49,7 +49,7 @@ importers:
         version: 1.29.0(zod@4.3.6)
       '@scalar/hono-api-reference':
         specifier: ^0.10.4
-        version: 0.10.4(hono@4.12.21)
+        version: 0.10.4(hono@4.12.25)
       '@scalar/openapi-to-markdown':
         specifier: ^0.4.12
         version: 0.4.12(typescript@6.0.3)
@@ -72,8 +72,8 @@ importers:
         specifier: ^0.16.6
         version: 0.16.6(typescript@6.0.3)
       hono:
-        specifier: ^4.12.21
-        version: 4.12.21
+        specifier: ^4.12.25
+        version: 4.12.25
       mjml:
         specifier: ^5.0.0
         version: 5.0.0(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@6.0.3)
@@ -110,7 +110,7 @@ importers:
         version: 10.4.0
       '@hono/zod-validator':
         specifier: ^0.8.0
-        version: 0.8.0(hono@4.12.21)(zod@4.3.6)
+        version: 0.8.0(hono@4.12.25)(zod@4.3.6)
       '@tapjs/test':
         specifier: 4.4.8
         version: 4.4.8(@tapjs/core@4.5.8(@types/node@25.8.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/node@25.8.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1632,8 +1632,8 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
-  '@napi-rs/wasm-runtime@1.1.4':
-    resolution: {integrity: sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow==}
+  '@napi-rs/wasm-runtime@1.1.5':
+    resolution: {integrity: sha512-AWPoBRJ9tsnVhor4sjO7rkni+7p+2IAEFj6cx06UgP10jkQHqay/36uRV/bFkgrh18D9vb4cr8Q0Pthskgzy+Q==}
     peerDependencies:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
@@ -4152,8 +4152,8 @@ packages:
   highlightjs-curl@1.3.0:
     resolution: {integrity: sha512-50UEfZq1KR0Lfk2Tr6xb/MUIZH3h10oNC0OTy9g7WELcs5Fgy/mKN1vEhuKTkKbdo8vr5F9GXstu2eLhApfQ3A==}
 
-  hono@4.12.21:
-    resolution: {integrity: sha512-uV63apnb0kyPtAUwoWgaGh9HyIFcv8lgmzPZSiTBQAFOFGIzka5EZ1dZocmGnn0XdX0+XTqJ6Tqv7selMuGLRQ==}
+  hono@4.12.25:
+    resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@9.0.3:
@@ -4956,6 +4956,11 @@ packages:
 
   nanoid@3.3.12:
     resolution: {integrity: sha512-ZB9RH/39qpq5Vu6Y+NmUaFhQR6pp+M2Xt76XBnEwDaGcVAqhlvxrl3B2bKS5D3NH3QR76v3aSrKaF/Kiy7lEtQ==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
+  nanoid@3.3.13:
+    resolution: {integrity: sha512-sPdqC6ByMVVGvF1ynvvMo0/o+oD1VX7DaHhijt1bFgjvBkHBib4t49GoNDhf2NDta4oeUNlaGbSt5K7qjZ955Q==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -6081,6 +6086,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -7614,26 +7620,26 @@ snapshots:
       '@tanstack/vue-virtual': 3.13.23(vue@3.5.30(typescript@6.0.3))
       vue: 3.5.30(typescript@6.0.3)
 
-  '@hono/node-server@1.19.13(hono@4.12.21)':
+  '@hono/node-server@1.19.13(hono@4.12.25)':
     dependencies:
-      hono: 4.12.21
+      hono: 4.12.25
 
-  '@hono/zod-openapi@1.2.3(hono@4.12.21)(zod@4.3.6)':
+  '@hono/zod-openapi@1.2.3(hono@4.12.25)(zod@4.3.6)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.3.6)
-      '@hono/zod-validator': 0.7.6(hono@4.12.21)(zod@4.3.6)
-      hono: 4.12.21
+      '@hono/zod-validator': 0.7.6(hono@4.12.25)(zod@4.3.6)
+      hono: 4.12.25
       openapi3-ts: 4.5.0
       zod: 4.3.6
 
-  '@hono/zod-validator@0.7.6(hono@4.12.21)(zod@4.3.6)':
+  '@hono/zod-validator@0.7.6(hono@4.12.25)(zod@4.3.6)':
     dependencies:
-      hono: 4.12.21
+      hono: 4.12.25
       zod: 4.3.6
 
-  '@hono/zod-validator@0.8.0(hono@4.12.21)(zod@4.3.6)':
+  '@hono/zod-validator@0.8.0(hono@4.12.25)(zod@4.3.6)':
     dependencies:
-      hono: 4.12.21
+      hono: 4.12.25
       zod: 4.3.6
 
   '@img/colour@1.1.0': {}
@@ -7821,16 +7827,16 @@ snapshots:
     dependencies:
       '@logtape/logtape': 2.0.4
 
-  '@logtape/hono@2.0.4(@logtape/logtape@2.0.4)(hono@4.12.21)':
+  '@logtape/hono@2.0.4(@logtape/logtape@2.0.4)(hono@4.12.25)':
     dependencies:
       '@logtape/logtape': 2.0.4
-      hono: 4.12.21
+      hono: 4.12.25
 
   '@logtape/logtape@2.0.4': {}
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.3.6)':
     dependencies:
-      '@hono/node-server': 1.19.13(hono@4.12.21)
+      '@hono/node-server': 1.19.13(hono@4.12.25)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -7840,7 +7846,7 @@ snapshots:
       eventsource-parser: 3.0.8
       express: 5.2.1
       express-rate-limit: 8.5.2(express@5.2.1)
-      hono: 4.12.21
+      hono: 4.12.25
       jose: 6.2.2
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -7850,7 +7856,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@napi-rs/wasm-runtime@1.1.4(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)':
+  '@napi-rs/wasm-runtime@1.1.5(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)':
     dependencies:
       '@emnapi/core': 1.9.1
       '@emnapi/runtime': 1.9.1
@@ -8134,7 +8140,7 @@ snapshots:
 
   '@rolldown/binding-wasm32-wasi@1.0.0-rc.10(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)':
     dependencies:
-      '@napi-rs/wasm-runtime': 1.1.4(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
+      '@napi-rs/wasm-runtime': 1.1.5(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
@@ -8272,10 +8278,10 @@ snapshots:
 
   '@scalar/helpers@0.4.2': {}
 
-  '@scalar/hono-api-reference@0.10.4(hono@4.12.21)':
+  '@scalar/hono-api-reference@0.10.4(hono@4.12.25)':
     dependencies:
       '@scalar/core': 0.4.4
-      hono: 4.12.21
+      hono: 4.12.25
 
   '@scalar/icons@0.6.3(typescript@6.0.3)':
     dependencies:
@@ -10647,7 +10653,7 @@ snapshots:
 
   highlightjs-curl@1.3.0: {}
 
-  hono@4.12.21: {}
+  hono@4.12.25: {}
 
   hosted-git-info@9.0.3:
     dependencies:
@@ -11924,6 +11930,8 @@ snapshots:
 
   nanoid@3.3.12: {}
 
+  nanoid@3.3.13: {}
+
   nanoid@5.1.7: {}
 
   nanostores@1.3.0: {}
@@ -12444,7 +12452,7 @@ snapshots:
 
   postcss@8.5.15:
     dependencies:
-      nanoid: 3.3.12
+      nanoid: 3.3.13
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
