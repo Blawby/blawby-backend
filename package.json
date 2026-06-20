@@ -23,6 +23,7 @@
     "sync:schemas": "tsx scripts/sync-schemas.ts",
     "sync:listeners": "tsx scripts/sync-listeners.ts",
     "init:preferences": "tsx scripts/initialize-user-preferences.ts",
+    "seed:demo": "node --import tsx scripts/seed-demo-account.ts",
     "format": "oxfmt write src",
     "format:check": "oxfmt check src",
     "lint": "oxlint --ignore-path .oxlintignore src",
