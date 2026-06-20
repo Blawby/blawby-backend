@@ -66,7 +66,6 @@ export const handleCapabilityUpdated = async (capability: Stripe.Capability): Pr
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId: record.organization_id,
-          tx: getActiveTx(),
         }
       );
     });

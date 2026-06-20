@@ -1,6 +1,6 @@
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { handleInvoiceCreated, handleInvoiceUpcoming } from '@/modules/invoices/services/invoice.webhook.delivery';
-import { getActiveTx, uow } from '@/shared/database/uow';
+import { uow } from '@/shared/database/uow';
 import {
   InvoiceDeleted,
   InvoicePaymentFailed,
@@ -95,7 +95,6 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx: getActiveTx(),
       }
     );
   });
@@ -125,7 +124,6 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx: getActiveTx(),
       }
     );
   });
@@ -151,7 +149,6 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx: getActiveTx(),
       }
     );
   });

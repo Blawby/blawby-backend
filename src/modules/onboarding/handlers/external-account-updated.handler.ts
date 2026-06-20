@@ -108,7 +108,6 @@ export const handleExternalAccountUpdated = async (externalAccount: Stripe.Exter
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId: accountRecord.organization_id,
-          tx: getActiveTx(),
         }
       );
     });

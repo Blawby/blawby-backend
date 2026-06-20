@@ -10,7 +10,7 @@ import { invoiceValidators } from '@/modules/invoices/validators/invoice-creatio
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
-import { getActiveTx, uow } from '@/shared/database/uow';
+import { uow } from '@/shared/database/uow';
 import { InvoiceCreated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -183,7 +183,6 @@ export const persistInvoiceStructure = async (
           actorId: ctx.userId,
           actorType: 'user',
           organizationId: ctx.organizationId,
-          tx: getActiveTx(),
         }
       );
     }

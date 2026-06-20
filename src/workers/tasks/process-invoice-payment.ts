@@ -9,7 +9,7 @@ import { invoicesRepository } from '@/modules/invoices/database/queries/invoices
 import { payoutMeteredFeeService } from '@/modules/invoices/services/payout-metered-fee.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { trustService } from '@/modules/trust/services/trust.service';
-import { getActiveTx, uow } from '@/shared/database/uow';
+import { uow } from '@/shared/database/uow';
 import { InvoicePaid } from '@/shared/events/definitions';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import { getLogger } from '@logtape/logtape';
@@ -120,7 +120,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
                 current_balance: matterBalance,
                 threshold: matter.retainer_low_balance_threshold,
               },
-              { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx: getActiveTx() }
+              { actorId: 'worker', actorType: 'system', organizationId: organization_id }
             );
           }
         }
@@ -136,7 +136,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           retainer_deducted: invoiceType === 'retainer_deposit' && Boolean(matterId) && Boolean(clientId),
           metered_fee_cents: meteredFeeCents,
         },
-        { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx: getActiveTx() }
+        { actorId: 'worker', actorType: 'system', organizationId: organization_id }
       );
     });
 

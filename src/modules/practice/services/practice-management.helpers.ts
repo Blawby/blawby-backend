@@ -76,8 +76,8 @@ export const upsertDetailsTransaction = async (ctx: ServiceContext, params: Upse
     .where(eq(practiceDetailsTable.organization_id, params.organizationId))
     .returning();
 
-  let details: PracticeDetails;
-  let isCreated: boolean;
+  let details: PracticeDetails | null = null;
+  let isCreated = false;
   if (updated) {
     details = updated;
     isCreated = false;
@@ -115,7 +115,7 @@ export const upsertDetailsTransaction = async (ctx: ServiceContext, params: Upse
 
   const syncedServices =
     params.data.services !== undefined
-      ? await practiceServicesRepository.syncServicesTx(params.organizationId, params.data.services)
+      ? await practiceServicesRepository.syncServices(params.organizationId, params.data.services)
       : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
