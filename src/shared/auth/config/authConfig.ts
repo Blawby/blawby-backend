@@ -7,6 +7,10 @@ export const AUTH_CONFIG = {
     expiresIn: 60 * 60 * 24, // 24 hours
     updateAge: 60 * 60, // 1 hour
     freshAge: 60 * 60 * 24, // 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 60, // 1 minute
+    },
   },
   emailAndPassword: {
     enabled: true,
