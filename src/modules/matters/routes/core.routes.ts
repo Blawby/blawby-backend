@@ -1,17 +1,29 @@
-import { z } from '@hono/zod-openapi';
+import { mattersService } from '@/modules/matters/services/matters.service';
+import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import {
   createMatterRequestSchema,
-  updateMatterRequestSchema,
   listMattersQuerySchema,
   matterResponseSchema,
+  updateMatterRequestSchema,
+  type CreateMatterRequest,
+  type UpdateMatterRequest,
 } from '@/modules/matters/types/matter.types';
-import type { CreateMatterRequest, UpdateMatterRequest } from '@/modules/matters/types/matter.types';
-import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { errorResponseSchema } from '@/shared/validations/openapi';
-import { mattersService } from '@/modules/matters/services/matters.service';
+import { z } from '@hono/zod-openapi';
 
 const tags = ['Matters'];
+
+const mattersSummaryByOriginatingAttorneyItemSchema = z
+  .object({
+    originating_attorney_id: z.uuid().nullable(),
+    total_matters: z.number().int().min(0),
+    active_matters: z.number().int().min(0),
+    closed_matters: z.number().int().min(0),
+  })
+  .openapi('MattersSummaryByOriginatingAttorney', {
+    description: 'Aggregate matter counts grouped by originating attorney',
+  });
 
 export const createMatterRoute = routeBuilder.build({
   method: 'post',
@@ -90,7 +102,7 @@ export const getMatterRoute = routeBuilder.build({
   mcp: {
     scope: 'matters:read',
     schema: { matter_id: z.uuid() },
-    handler: async (args, ctx) => mattersService.getMatterById(args['matter_id'] as string, ctx),
+    handler: async (args, ctx) => mattersService.getMatterById(args.matter_id as string, ctx),
   },
   description: 'Returns a single matter by ID.',
   request: {
@@ -177,7 +189,10 @@ export const deleteMatterRoute = routeBuilder.build({
   mcp: {
     name: 'delete_matter',
     scope: 'matters:write',
-    approval: { required: true, message: 'Archive this matter? This is a soft delete — the matter and its data remain recoverable.' },
+    approval: {
+      required: true,
+      message: 'Archive this matter? This is a soft delete — the matter and its data remain recoverable.',
+    },
     handler: async (args, ctx) => {
       await mattersService.deleteMatter(args.matter_id as string, ctx);
       return { deleted: true };
@@ -203,17 +218,6 @@ export const deleteMatterRoute = routeBuilder.build({
     },
   },
 });
-
-const mattersSummaryByOriginatingAttorneyItemSchema = z
-  .object({
-    originating_attorney_id: z.uuid().nullable(),
-    total_matters: z.number().int().min(0),
-    active_matters: z.number().int().min(0),
-    closed_matters: z.number().int().min(0),
-  })
-  .openapi('MattersSummaryByOriginatingAttorney', {
-    description: 'Aggregate matter counts grouped by originating attorney',
-  });
 
 export const getMattersSummaryByOriginatingAttorneyRoute = routeBuilder.build({
   method: 'get',
