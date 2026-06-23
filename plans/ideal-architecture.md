@@ -1,5 +1,7 @@
 # Ideal Architecture for Blawby Backend
 
+> Archived historical plan. Do not execute directly without first verifying every relevant claim against current code. See `docs/PRIORITY.md` for current work ordering.
+
 ## System Overview - Detailed Layers
 
 ```
@@ -149,21 +151,15 @@ const createInvoice = async ({ data }, ctx) => {
 
 ---
 
-### 3. **Throw-Based Error Handling (No Result<T>)**
+### 3. **Throw-Based Error Handling**
 
 Services throw. Handlers don't catch. Global errorHandler catches all.
 
-**Current (Invoices module):**
+**Current standard:**
 ```typescript
 // Services throw directly
-throw createValidationError('INVOICE_NOT_DRAFT', 'Only draft invoices can be sent', {
-  invoiceId: id,
-  currentStatus: invoice.status,
-});
-
-throw createAppError('INVOICE_NOT_FOUND', 404, 'Invoice not found', {
-  invoiceId: id,
-});
+throw new HTTPException(400, { message: 'Only draft invoices can be sent' });
+throw new HTTPException(404, { message: 'Invoice not found' });
 
 // Handlers never catch or handle errors
 const sendInvoiceHandler = async (c) => {
@@ -172,14 +168,7 @@ const sendInvoiceHandler = async (c) => {
 };
 ```
 
-**Still needs migration:**
-- Refund requests (using Result<T>)
-- Practice-client-intakes (using Result<T>)
-- Matters (using Result<T>)
-- Trust (using Result<T>)
-- Uploads (using Result<T>)
-- Subscriptions (using Result<T>)
-- Onboarding (using Result<T>)
+**Migration status:** Complete. Current `src/` and `test/` have no legacy service response wrapper matches.
 
 **Error Types (Functional Discriminated Unions):**
 ```typescript
@@ -318,26 +307,10 @@ throw createTransactionError(
 ## Implementation Status (As of 2026-03-31)
 
 ### ✅ Completed
-1. **Invoices Module** — All services migrated to throw-based error handling with structured context
-   - `invoice-creation.service.ts`: Uses throw-based errors ✓
-   - `invoice-lifecycle.service.ts`: Uses throw-based errors ✓
-   - `invoice-stripe-coordination.service.ts`: Uses throw-based errors ✓
-   - **BUT**: `refund-requests.service.ts` still uses Result<T> ❌
-
-### 🔄 Partially Migrated / Mixed Patterns
-2. **Invoices Module (Refunds)** — Inconsistent: main services throw, refund-requests returns Result<T>
-3. **Trust Module** — All Result<T> (returns from recordDeposit, recordWithdrawal, getBalance, etc.)
-4. **Subscriptions Module** — All Result<T> (using ok/badRequest/notFound/internalError helpers)
-5. **Uploads Module** — All Result<T> (confirmUpload, presign, storage operations)
-6. **Matters Module** — All Result<T> (createMatter, updateMatter, all CRUD operations)
-7. **Practice-Client-Intakes** — All Result<T>
-8. **Onboarding** — All Result<T>
+1. **Error Handling** — All active modules use throw-based service/handler error handling.
 
 ### 🚨 Handler Response Pattern Inconsistency
-**Current state**: Handlers use `sendResult(c, result)` wrapper which works with Result<T> pattern
-- Invoices handlers: Mix of direct `c.json()` (throw-based services) and `sendResult()` wrapper
-- All other modules: Strictly using `sendResult()` wrapper
-- **Issue**: This prevents global middleware error handling from working consistently
+**Current state**: Handlers call services directly and return `c.json(...)` or `c.body(...)`. Service failures propagate to middleware.
 
 ---
 
@@ -345,9 +318,7 @@ throw createTransactionError(
 
 ### 🔴 Critical Issue: Error Handling Inconsistency
 **Impact**: HIGH — Affects all modules, prevents global error middleware
-- **Problem**: Mix of throw-based (invoices main services) and Result<T> (everything else)
-- **Effect**: Handlers can't have unified error handling; each Result<T> caller must check `.success`
-- **Solution**: Complete migration to throw-based across all modules by Q2 2026
+- **Status**: Resolved. Keep new and touched code throw-based.
 
 ### 🟠 Trust Service Over-Exposure
 **Impact**: HIGH — Complex, hard to test, tightly coupled
@@ -417,17 +388,13 @@ throw createTransactionError(
 
 ## Phase 1: Error Handling Migration (BLOCKING - Do First)
 
-**Goal**: Complete migration from Result<T> to throw-based across all modules. This enables global error middleware.
+**Goal**: Maintain throw-based service/handler error handling across all modules.
 
 ### Per-Module Migration Steps:
 
-1. **Update imports:** Replace `Result` helpers with error factory functions
+1. **Use direct throws:** Use `HTTPException` for expected HTTP failures and raw `Error` for unexpected worker/webhook failures.
    ```typescript
-   // ❌ Old
-   import { badRequest, notFound, internalError } from '@/shared/utils/result';
-
-   // ✅ New
-   import { createValidationError, createAppError, createTransactionError } from '@/shared/types/errors';
+   throw new HTTPException(404, { message: 'Resource not found' });
    ```
 
 2. **Replace Result returns with throws:**
@@ -531,9 +498,7 @@ throw createTransactionError(
 
 ## Current Gaps (Blocking Full Benefits)
 
-1. **Error Handling Not Universal**: Mix of throw-based and Result<T> prevents global error middleware
-   - **Effect**: Each module handles errors differently; no consistent error response format
-   - **Cost**: Harder to debug, inconsistent API contracts
+1. **Error Handling**: Resolved. Preserve the throw-based standard in new and touched code.
 
 2. **Services Not Deep Enough**: Shallow public interfaces (8-11 entry points per "service")
    - **Effect**: Testing requires mocking complex dependency chains; "service" ≈ implementation

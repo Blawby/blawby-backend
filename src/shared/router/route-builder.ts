@@ -1,23 +1,27 @@
-import { createRoute } from '@hono/zod-openapi';
+import type { McpToolApproval } from '@/modules/mcp/types';
+import type { ServiceContext } from '@/shared/types/service-context';
 import {
   errorResponseSchema,
-  notFoundResponseSchema,
   internalServerErrorResponseSchema,
+  notFoundResponseSchema,
 } from '@/shared/validations/openapi';
-import type { ServiceContext } from '@/shared/types/service-context';
+import { createRoute } from '@hono/zod-openapi';
+import type { ZodRawShape } from 'zod';
 
 type RouteConfig = Parameters<typeof createRoute>[0];
 type Responses = RouteConfig['responses'];
 
-export interface McpRouteAnnotation {
+interface McpRouteAnnotation {
   scope: string;
   name?: string;
   description?: string;
-  schema?: import('zod').ZodRawShape;
+  schema?: ZodRawShape;
+  approval?: McpToolApproval;
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
 }
 
-type WithMcp = { mcp: McpRouteAnnotation };
+// Mapped type prevents oxfmt from converting to interface; interface WithMcp breaks RouteConfig's x-${string} index signature constraint
+type WithMcp = { [K in 'mcp']: McpRouteAnnotation };
 type WithoutMcp = Record<string, never>;
 
 /**
@@ -31,7 +35,7 @@ export const routeBuilder = {
    * @returns Hono route object
    */
   build: <P extends string, M extends McpRouteAnnotation | undefined, R extends RouteConfig & { path: P; mcp?: M }>(
-    config: R,
+    config: R
   ) => {
     const { mcp, ...routeConfig } = config;
 
@@ -97,3 +101,5 @@ export const routeBuilder = {
     return route as typeof route & WithoutMcp;
   },
 };
+
+export type { McpRouteAnnotation };

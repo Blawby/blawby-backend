@@ -1,21 +1,21 @@
-import { eq, and, desc, gte, lte, sql, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
   matterTimeEntries,
   type InsertMatterTimeEntry,
   type SelectMatterTimeEntry,
 } from '@/modules/matters/database/schema/matter-time-entries.schema';
 import type { MatterTimeEntryListFilters } from '@/modules/matters/types/matter-filters.types';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 // Create matter time entry
 const createMatterTimeEntry = async (data: InsertMatterTimeEntry): Promise<SelectMatterTimeEntry> => {
-  const [entry] = await db.insert(matterTimeEntries).values(data).returning();
+  const [entry] = await getActiveTx().insert(matterTimeEntries).values(data).returning();
   return entry;
 };
 
 // Find matter time entry by ID
 const findMatterTimeEntryById = async (id: string): Promise<SelectMatterTimeEntry | undefined> => {
-  const [entry] = await db.select().from(matterTimeEntries).where(eq(matterTimeEntries.id, id)).limit(1);
+  const [entry] = await getActiveTx().select().from(matterTimeEntries).where(eq(matterTimeEntries.id, id)).limit(1);
   return entry;
 };
 
@@ -46,7 +46,7 @@ const listMatterTimeEntries = async (
     conditions.push(lte(matterTimeEntries.end_time, filters.endDate));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(matterTimeEntries)
     .where(and(...conditions))
@@ -58,7 +58,7 @@ const updateMatterTimeEntry = async (
   id: string,
   data: Partial<InsertMatterTimeEntry>
 ): Promise<SelectMatterTimeEntry | undefined> => {
-  const [entry] = await db
+  const [entry] = await getActiveTx()
     .update(matterTimeEntries)
     .set({ ...data, updated_at: new Date() })
     .where(eq(matterTimeEntries.id, id))
@@ -68,47 +68,41 @@ const updateMatterTimeEntry = async (
 
 // Delete matter time entry
 const deleteMatterTimeEntry = async (id: string): Promise<void> => {
-  await db.delete(matterTimeEntries).where(eq(matterTimeEntries.id, id));
+  await getActiveTx().delete(matterTimeEntries).where(eq(matterTimeEntries.id, id));
 };
 
 // Get total billable time for matter
 const getTotalBillableTime = async (matterId: string): Promise<number> => {
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({
       total: sql<number>`COALESCE(SUM(${matterTimeEntries.duration}), 0)`,
     })
     .from(matterTimeEntries)
     .where(and(eq(matterTimeEntries.matter_id, matterId), eq(matterTimeEntries.billable, true)));
 
-  return Number(result.total);
+  return result.total;
 };
 
 // Get total time for matter (billable and non-billable)
 const getTotalTime = async (matterId: string): Promise<number> => {
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({
       total: sql<number>`COALESCE(SUM(${matterTimeEntries.duration}), 0)`,
     })
     .from(matterTimeEntries)
     .where(eq(matterTimeEntries.matter_id, matterId));
 
-  return Number(result.total);
+  return result.total;
 };
 
 /**
  * Mark time entries as invoiced. Sets invoice_id and invoiced_at on all specified IDs.
  */
-const markAsInvoiced = async (
-  timeEntryIds: string[],
-  invoiceId: string,
-  matterId: string,
-  tx?: typeof db
-): Promise<void> => {
+const markAsInvoiced = async (timeEntryIds: string[], invoiceId: string, matterId: string): Promise<void> => {
   if (timeEntryIds.length === 0) {
     return;
   }
-  const client = tx ?? db;
-  await client
+  await getActiveTx()
     .update(matterTimeEntries)
     .set({
       invoice_id: invoiceId,
@@ -121,9 +115,8 @@ const markAsInvoiced = async (
 /**
  * Unmark time entries as invoiced. Resets invoice_id and invoiced_at for entries linked to the given invoice.
  */
-const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const unmarkInvoiced = async (invoiceId: string): Promise<void> => {
+  await getActiveTx()
     .update(matterTimeEntries)
     .set({
       invoice_id: null,
@@ -137,7 +130,7 @@ const unmarkInvoiced = async (invoiceId: string, tx?: typeof db): Promise<void> 
  * Get unbilled time entries for a matter: invoice_id IS NULL AND billable = true.
  */
 const getUnbilled = async (matterId: string): Promise<SelectMatterTimeEntry[]> =>
-  await db
+  await getActiveTx()
     .select()
     .from(matterTimeEntries)
     .where(
@@ -154,12 +147,12 @@ const countByIds = async (matterId: string, timeEntryIds: string[]): Promise<num
     return 0;
   }
 
-  const [result] = await db
+  const [result] = await getActiveTx()
     .select({ count: sql<number>`count(*)` })
     .from(matterTimeEntries)
     .where(and(eq(matterTimeEntries.matter_id, matterId), inArray(matterTimeEntries.id, timeEntryIds)));
 
-  return Number(result?.count ?? 0);
+  return result?.count ?? 0;
 };
 
 export const matterTimeEntriesQueries = {

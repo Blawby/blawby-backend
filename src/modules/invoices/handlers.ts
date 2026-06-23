@@ -47,9 +47,9 @@ const updateInvoiceHandler: AppRouteHandler<typeof routes.updateInvoiceRoute> = 
 const deleteInvoiceHandler: AppRouteHandler<typeof routes.deleteInvoiceRoute> = async (c) => {
   const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
-  const result = await invoiceService.deleteInvoice({ id }, ctx);
+  await invoiceService.deleteInvoice({ id }, ctx);
 
-  return c.json(result, 200);
+  return c.body(null, 204);
 };
 
 const sendInvoiceHandler: AppRouteHandler<typeof routes.sendInvoiceRoute> = async (c) => {

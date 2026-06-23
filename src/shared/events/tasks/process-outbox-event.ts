@@ -8,12 +8,13 @@
  * the database within business transactions, then processed asynchronously.
  */
 
-import { eq, and, lt, asc } from 'drizzle-orm';
-import type { Task } from 'graphile-worker';
 import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { Event } from '@/shared/events/event';
 import { eventsDeadLetter } from '@/shared/events/schemas/events-dead-letter.schema';
 import { events } from '@/shared/events/schemas/events.schema';
+import { and, asc, eq, lt } from 'drizzle-orm';
+import type { Task } from 'graphile-worker';
 
 // Batch processing configuration
 const BATCH_SIZE = 10; // Process 10 events at a time
@@ -37,7 +38,7 @@ export const processOutboxEvent: Task = async (payload: unknown, helpers): Promi
   }
 
   try {
-    let unprocessedEvents;
+    let unprocessedEvents = undefined;
 
     if (eventId) {
       // Process specific event request
@@ -103,9 +104,9 @@ export const processOutboxEvent: Task = async (payload: unknown, helpers): Promi
         if (newRetryCount >= MAX_RETRIES) {
           helpers.logger.warn(`Event ${event.eventId} exceeded max retries, moving to dead letter queue`);
 
-          await db.transaction(async (tx) => {
+          await uow.transaction(async () => {
             // Move to dead letter queue
-            await tx.insert(eventsDeadLetter).values({
+            await getActiveTx().insert(eventsDeadLetter).values({
               eventId: event.eventId,
               type: event.type,
               eventVersion: event.eventVersion,
@@ -120,7 +121,7 @@ export const processOutboxEvent: Task = async (payload: unknown, helpers): Promi
             });
 
             // Remove from main events table
-            await tx.delete(events).where(eq(events.eventId, event.eventId));
+            await getActiveTx().delete(events).where(eq(events.eventId, event.eventId));
           });
 
           helpers.logger.warn(`Event ${event.eventId} moved to dead letter queue`);

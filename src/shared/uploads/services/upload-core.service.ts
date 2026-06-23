@@ -1,20 +1,18 @@
-import { ForbiddenError } from '@casl/ability';
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
-import { config } from '@/shared/config';
 import { toSubject } from '@/shared/auth/subject-helpers';
+import { config } from '@/shared/config';
+import type { ServiceContext } from '@/shared/types/service-context';
 import { auditLogsRepository } from '@/shared/uploads/queries/audit-logs.repository';
+import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
+import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
+import { auditService } from '@/shared/uploads/services/audit.service';
+import { cloudflareImagesService } from '@/shared/uploads/services/cloudflare-images.service';
+import { keyGeneratorService } from '@/shared/uploads/services/key-generator.service';
+import { r2Service } from '@/shared/uploads/services/r2.service';
 import {
   buildUploadMetadataEnrichment,
   defaultUploadMetadataEnrichment,
   type UploadMetadataEnrichment,
 } from '@/shared/uploads/services/upload-enrichment.service';
-import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
-import { auditService } from '@/shared/uploads/services/audit.service';
-import { keyGeneratorService } from '@/shared/uploads/services/key-generator.service';
-import { cloudflareImagesService } from '@/shared/uploads/services/cloudflare-images.service';
-import { r2Service } from '@/shared/uploads/services/r2.service';
-import type { SelectUpload } from '@/shared/uploads/schema/uploads.schema';
 import type {
   AuditLogEntry,
   AuditLogResponse,
@@ -28,7 +26,9 @@ import type {
   ThumbnailUrlResponse,
   UploadDetails,
 } from '@/shared/uploads/types/uploads.types';
-import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['uploads', 'core-service']);
 
@@ -80,7 +80,7 @@ const getBucketOrThrow = (): string => {
 };
 
 const getImagesConfigOrThrow = (): { accountId: string; accountHash: string; apiToken: string } => {
-  const accountId = config.cloudflare.accountId;
+  const { accountId } = config.cloudflare;
   const accountHash = config.cloudflare.imagesAccountHash;
   const apiToken = config.cloudflare.imagesApiToken;
   if (!accountId || !accountHash || !apiToken) {
@@ -110,7 +110,7 @@ const buildCloudflareResizedUrl = ({
   height: number;
   fit: 'contain' | 'cover' | 'scale-down';
 }): string => {
-  const origin = new URL(sourceUrl).origin;
+  const { origin } = new URL(sourceUrl);
   const resizeParams = `width=${width},height=${height},fit=${fit},metadata=none`;
   return `${origin}/cdn-cgi/image/${resizeParams}/${sourceUrl}`;
 };
@@ -124,7 +124,7 @@ const buildInlineThumbnail = (
 
   if (upload.storage_provider === 'images') {
     return {
-      hasThumbnail: !!upload.public_url,
+      hasThumbnail: Boolean(upload.public_url),
       thumbnailUrl: upload.public_url ?? null,
       thumbnailExpiresAt: null,
     };
@@ -152,7 +152,7 @@ const buildInlineThumbnail = (
   };
 };
 
-export const toUploadDetails = (
+const toUploadDetails = (
   upload: SelectUpload,
   enrichment: UploadMetadataEnrichment = defaultUploadMetadataEnrichment
 ): UploadDetails => {
@@ -194,10 +194,7 @@ const toAuditLogEntry = (
   user_name: null,
   ip_address: log.ip_address,
   user_agent: log.user_agent,
-  metadata:
-    log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata)
-      ? (log.metadata as Record<string, unknown>)
-      : null,
+  metadata: log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata) ? log.metadata : null,
   created_at: log.created_at,
 });
 
@@ -206,7 +203,7 @@ const getUploadOrThrow = async (
   ctx: ServiceContext,
   includeDeleted = false
 ): Promise<SelectUpload> => {
-  const upload = await uploadsRepository.findById(uploadId, ctx.db);
+  const upload = await uploadsRepository.findById(uploadId);
   if (!upload) {
     throw new HTTPException(404, { message: 'Upload not found' });
   }
@@ -216,23 +213,23 @@ const getUploadOrThrow = async (
   return upload;
 };
 
-type PresignPreparation = {
+interface PresignPreparation {
   uploadId: string;
   storageKey: string;
   storageProvider: 'r2' | 'images';
   presignedUrl: string;
   method: 'PUT' | 'POST';
   fileType: string;
-};
+}
 
-type ConfirmPreparation = {
+interface ConfirmPreparation {
   upload: SelectUpload;
   publicUrl: string | null;
   actualMimeType: string | null;
   actualFileSize: number | null;
-};
+}
 
-export const uploadCoreService = {
+const uploadCoreService = {
   // Step 1: auth + external call only — no DB, safe to run outside a transaction
   async preparePresign(
     { request }: { request: PresignUploadRequest },
@@ -291,31 +288,30 @@ export const uploadCoreService = {
     { prep, request }: { prep: PresignPreparation; request: PresignUploadRequest },
     ctx: ServiceContext
   ): Promise<PresignUploadResponse> {
-    await uploadsRepository.create(
-      {
-        id: prep.uploadId,
-        user_id: ctx.userId,
-        organization_id: ctx.organizationId,
-        file_name: request.file_name,
-        file_type: prep.fileType,
-        file_size: request.file_size,
-        mime_type: request.mime_type,
-        storage_provider: prep.storageProvider,
-        storage_key: prep.storageKey,
-        scope_type: request.scope_type ?? null,
-        scope_id: request.scope_id ?? null,
-        status: 'pending',
-        is_privileged: request.is_privileged ?? true,
-        retention_until: null,
-        expires_at: new Date(Date.now() + 60 * 60 * 1000),
-      },
-      ctx.db
-    );
+    await uploadsRepository.create({
+      id: prep.uploadId,
+      user_id: ctx.userId,
+      organization_id: ctx.organizationId,
+      file_name: request.file_name,
+      file_type: prep.fileType,
+      file_size: request.file_size,
+      mime_type: request.mime_type,
+      storage_provider: prep.storageProvider,
+      storage_key: prep.storageKey,
+      scope_type: request.scope_type ?? null,
+      scope_id: request.scope_id ?? null,
+      status: 'pending',
+      is_privileged: request.is_privileged ?? true,
+      retention_until: null,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000),
+    });
 
-    await auditService.log(
-      { upload_id: prep.uploadId, organization_id: ctx.organizationId, action: 'created', user_id: ctx.userId },
-      ctx.db
-    );
+    await auditService.log({
+      upload_id: prep.uploadId,
+      organization_id: ctx.organizationId,
+      action: 'created',
+      user_id: ctx.userId,
+    });
 
     return {
       upload_id: prep.uploadId,
@@ -363,26 +359,19 @@ export const uploadCoreService = {
   async persistConfirm({ prep }: { prep: ConfirmPreparation }, ctx: ServiceContext): Promise<ConfirmUploadResponse> {
     const { upload, publicUrl, actualMimeType, actualFileSize } = prep;
 
-    await uploadsRepository.update(
-      upload.id,
-      {
-        status: 'verified',
-        verified_at: new Date(),
-        public_url: publicUrl,
-        ...(actualMimeType !== null && actualMimeType !== undefined && { mime_type: actualMimeType }),
-        ...(actualFileSize !== null && actualFileSize !== undefined && { file_size: actualFileSize }),
-      },
-      ctx.db
-    );
-    await auditService.log(
-      {
-        upload_id: upload.id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'confirmed',
-        user_id: ctx.userId,
-      },
-      ctx.db
-    );
+    await uploadsRepository.update(upload.id, {
+      status: 'verified',
+      verified_at: new Date(),
+      public_url: publicUrl,
+      ...(actualMimeType !== null && actualMimeType !== undefined && { mime_type: actualMimeType }),
+      ...(actualFileSize !== null && actualFileSize !== undefined && { file_size: actualFileSize }),
+    });
+    await auditService.log({
+      upload_id: upload.id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'confirmed',
+      user_id: ctx.userId,
+    });
 
     return { upload_id: upload.id, public_url: publicUrl, storage_key: upload.storage_key, status: 'verified' };
   },
@@ -400,8 +389,8 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: 'Upload must be verified before download' });
     }
 
-    let downloadUrl: string;
-    let expiresAt: Date | null;
+    let downloadUrl: string | undefined = undefined;
+    let expiresAt: Date | null = null;
 
     if (upload.storage_provider === 'images') {
       if (!upload.public_url) {
@@ -422,19 +411,16 @@ export const uploadCoreService = {
       downloadUrl = url;
     }
 
-    await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
+    await uploadsRepository.updateLastAccessed(id, ctx.userId);
 
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'downloaded',
-        user_id: ctx.userId,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-      },
-      ctx.db
-    );
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'downloaded',
+      user_id: ctx.userId,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+    });
 
     return {
       download_url: downloadUrl,
@@ -475,7 +461,7 @@ export const uploadCoreService = {
         thumbnailUrl = upload.public_url;
       } else {
         // Cloudflare Images flexible variant: https://imagedelivery.net/<ACCOUNT_HASH>/<IMAGE_ID>/<variant>
-        const match = upload.public_url.match(/^https:\/\/imagedelivery\.net\/([^/]+)\/([^/]+)/);
+        const match = /^https:\/\/imagedelivery\.net\/([^/]+)\/([^/]+)/.exec(upload.public_url);
         if (!match) {
           throw new HTTPException(400, { message: 'Unsupported thumbnail params for this image provider' });
         }
@@ -502,20 +488,17 @@ export const uploadCoreService = {
       }
     }
 
-    await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
+    await uploadsRepository.updateLastAccessed(id, ctx.userId);
 
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'viewed',
-        user_id: ctx.userId,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        metadata: { kind: 'thumbnail', width, height, fit },
-      },
-      ctx.db
-    );
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'viewed',
+      user_id: ctx.userId,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      metadata: { kind: 'thumbnail', width, height, fit },
+    });
 
     return {
       thumbnail_url: thumbnailUrl,
@@ -534,22 +517,16 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: 'Organization context required' });
     }
 
-    const enrichmentMap = await buildUploadMetadataEnrichment([upload], {
-      db: ctx.db,
-      organizationId,
+    const enrichmentMap = await buildUploadMetadataEnrichment([upload], { organizationId });
+
+    await uploadsRepository.updateLastAccessed(id, ctx.userId);
+
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'viewed',
+      user_id: ctx.userId,
     });
-
-    await uploadsRepository.updateLastAccessed(id, ctx.userId, ctx.db);
-
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'viewed',
-        user_id: ctx.userId,
-      },
-      ctx.db
-    );
 
     return toUploadDetails(upload, enrichmentMap.get(upload.id) ?? defaultUploadMetadataEnrichment);
   },
@@ -567,36 +544,25 @@ export const uploadCoreService = {
     const userIdFilter = ctx.memberRole === 'client' ? ctx.userId : undefined;
 
     const [results, total] = await Promise.all([
-      uploadsRepository.listByOrganization(
-        ctx.organizationId,
-        {
-          scopeType: query.scope_type,
-          scopeId: query.scope_id,
-          status: query.status,
-          includeDeleted: query.include_deleted,
-          userId: userIdFilter,
-          limit,
-          offset,
-        },
-        ctx.db
-      ),
-      uploadsRepository.countByOrganization(
-        ctx.organizationId,
-        {
-          scopeType: query.scope_type,
-          scopeId: query.scope_id,
-          status: query.status,
-          includeDeleted: query.include_deleted,
-          userId: userIdFilter,
-        },
-        ctx.db
-      ),
+      uploadsRepository.listByOrganization(ctx.organizationId, {
+        scopeType: query.scope_type,
+        scopeId: query.scope_id,
+        status: query.status,
+        includeDeleted: query.include_deleted,
+        userId: userIdFilter,
+        limit,
+        offset,
+      }),
+      uploadsRepository.countByOrganization(ctx.organizationId, {
+        scopeType: query.scope_type,
+        scopeId: query.scope_id,
+        status: query.status,
+        includeDeleted: query.include_deleted,
+        userId: userIdFilter,
+      }),
     ]);
 
-    const enrichmentMap = await buildUploadMetadataEnrichment(results, {
-      db: ctx.db,
-      organizationId: ctx.organizationId,
-    });
+    const enrichmentMap = await buildUploadMetadataEnrichment(results, { organizationId: ctx.organizationId });
 
     return {
       uploads: results.map((upload) =>
@@ -621,17 +587,14 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: 'Upload already deleted' });
     }
 
-    await uploadsRepository.softDelete(id, ctx.userId, reason, ctx.db);
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'deleted',
-        user_id: ctx.userId,
-        metadata: { reason },
-      },
-      ctx.db
-    );
+    await uploadsRepository.softDelete(id, ctx.userId, reason);
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'deleted',
+      user_id: ctx.userId,
+      metadata: { reason },
+    });
 
     return { id, status: 'rejected' };
   },
@@ -646,16 +609,13 @@ export const uploadCoreService = {
       throw new HTTPException(400, { message: 'Upload is not deleted' });
     }
 
-    await uploadsRepository.restore(id, ctx.db);
-    await auditService.log(
-      {
-        upload_id: id,
-        organization_id: upload.organization_id ?? undefined,
-        action: 'restored',
-        user_id: ctx.userId,
-      },
-      ctx.db
-    );
+    await uploadsRepository.restore(id);
+    await auditService.log({
+      upload_id: id,
+      organization_id: upload.organization_id ?? undefined,
+      action: 'restored',
+      user_id: ctx.userId,
+    });
 
     return { id, status: 'pending' };
   },
@@ -673,8 +633,8 @@ export const uploadCoreService = {
     const offset = (page - 1) * cappedLimit;
 
     const [logs, total] = await Promise.all([
-      auditLogsRepository.findByUploadId(id, { limit: cappedLimit, offset, executor: ctx.db }),
-      auditLogsRepository.countByUploadId(id, ctx.db),
+      auditLogsRepository.findByUploadId(id, { limit: cappedLimit, offset }),
+      auditLogsRepository.countByUploadId(id),
     ]);
 
     return {
@@ -685,3 +645,5 @@ export const uploadCoreService = {
 };
 
 logger.debug('Upload core service initialized');
+
+export { toUploadDetails, uploadCoreService };

@@ -1,20 +1,21 @@
-import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
-import type { Stripe } from 'stripe';
 import { stripeApiAdapter } from '@/engines/stripe/stripe-api-adapter';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
+import { uow } from '@/shared/database/uow';
 import { InvoiceSent } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { getLogger } from '@logtape/logtape';
+import { HTTPException } from 'hono/http-exception';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['invoices', 'delivery-lock']);
 
 export const lockInvoiceForSending = async (
   { id }: { id: string },
   ctx: ServiceContext
-): Promise<InvoiceWithRelations> => {
-  return await ctx.db.transaction(async (tx) => {
-    const found = await invoicesRepository.findInvoiceById(id, ctx.organizationId, tx);
+): Promise<InvoiceWithRelations> =>
+  await uow.transaction(async () => {
+    const found = await invoicesRepository.findInvoiceById(id, ctx.organizationId);
     if (!found) {
       throw new HTTPException(404, { message: 'Invoice not found' });
     }
@@ -31,20 +32,13 @@ export const lockInvoiceForSending = async (
       throw new HTTPException(400, { message: 'Cannot send an invoice with zero or negative total' });
     }
 
-    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(
-      id,
-      ctx.organizationId,
-      'draft',
-      'sending',
-      tx
-    );
+    const lockedInvoice = await invoicesRepository.transitionInvoiceStatus(id, ctx.organizationId, 'draft', 'sending');
     if (!lockedInvoice) {
       throw new HTTPException(409, { message: 'Invoice is already being sent by another request' });
     }
 
     return found;
   });
-};
 
 export const createAndSendStripeInvoice = async ({
   invWithRel,
@@ -89,28 +83,22 @@ export const markInvoiceSent = async (
   }
   const hostedInvoiceUrl = stripeInvoice.hosted_invoice_url;
 
-  return await ctx.db.transaction(async (tx) => {
+  return await uow.transaction(async () => {
     const transitioned = await invoicesRepository.transitionInvoiceStatus(
       invoiceId,
       ctx.organizationId,
       'sending',
-      'sent',
-      tx
+      'sent'
     );
     if (!transitioned) {
       throw new HTTPException(409, { message: 'Invoice status changed while sending' });
     }
 
-    await invoicesRepository.updateInvoice(
-      invoiceId,
-      ctx.organizationId,
-      {
-        stripe_invoice_id: stripeInvoice.id,
-        stripe_hosted_invoice_url: hostedInvoiceUrl,
-        issue_date: new Date(),
-      },
-      tx
-    );
+    await invoicesRepository.updateInvoice(invoiceId, ctx.organizationId, {
+      stripe_invoice_id: stripeInvoice.id,
+      stripe_hosted_invoice_url: hostedInvoiceUrl,
+      issue_date: new Date(),
+    });
 
     await InvoiceSent.dispatch(
       {
@@ -125,11 +113,10 @@ export const markInvoiceSent = async (
         actorId: ctx.userId,
         actorType: 'user',
         organizationId: ctx.organizationId,
-        tx,
       }
     );
 
-    const updated = await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId, tx);
+    const updated = await invoicesRepository.findInvoiceById(invoiceId, ctx.organizationId);
     if (!updated) {
       logger.error('Invoice not found after markInvoiceSent: {invoiceId}', { invoiceId });
       throw new Error('Invoice not found after update');

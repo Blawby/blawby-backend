@@ -22,7 +22,7 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { practiceServicesRepository } from '@/modules/practice/database/queries/practice-services.repository';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { toSubject } from '@/shared/auth/subject-helpers';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
@@ -53,20 +53,20 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
     }
   }
 
-  return db.transaction(async (tx) => {
+  return uow.transaction(async () => {
     const dbData = {
       ...matterData,
       open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
       close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
     };
 
-    const [newMatter] = await tx
+    const [newMatter] = await getActiveTx()
       .insert(matters)
       .values({ organization_id: ctx.organizationId, ...dbData })
       .returning();
 
     if (assignee_ids && assignee_ids.length > 0) {
-      await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids, tx);
+      await mattersQueries.addMatterAssignees(newMatter.id, assignee_ids);
     }
 
     if (milestones && milestones.length > 0) {
@@ -78,8 +78,7 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
           due_date: milestone.due_date,
           order: milestone.order,
           status: 'pending' as const,
-        })),
-        tx
+        }))
       );
     }
 
@@ -90,20 +89,15 @@ const createMatter = async (data: CreateMatterRequest, ctx: ServiceContext): Pro
         description: `Matter "${newMatter.title}" was created`,
         metadata: { billing_type: newMatter.billing_type, status: newMatter.status },
       },
-      ctx,
-      tx
+      ctx
     );
 
-    await ctx.emit(
-      MatterCreated,
-      {
-        matter_id: newMatter.id,
-        organization_id: ctx.organizationId,
-        title: newMatter.title,
-        billing_type: newMatter.billing_type,
-      },
-      tx
-    );
+    await ctx.emit(MatterCreated, {
+      matter_id: newMatter.id,
+      organization_id: ctx.organizationId,
+      title: newMatter.title,
+      billing_type: newMatter.billing_type,
+    });
 
     return newMatter;
   });
@@ -214,22 +208,22 @@ const updateMatter = async (
       ? ((await organizationRepository.findById(ctx.organizationId))?.name ?? 'Your Legal Team')
       : null;
 
-  const updated = await db.transaction(async (tx) => {
+  const updated = await uow.transaction(async () => {
     const dbData = {
       ...matterData,
       open_date: matterData.open_date ? new Date(matterData.open_date) : undefined,
       close_date: matterData.close_date ? new Date(matterData.close_date) : undefined,
     };
 
-    const result = await mattersQueries.updateMatter(matterId, dbData, tx);
+    const result = await mattersQueries.updateMatter(matterId, dbData);
     if (!result) {
       throw new HTTPException(500, { message: 'Failed to update matter' });
     }
 
     if (assignee_ids !== undefined) {
-      await mattersQueries.clearMatterAssignees(matterId, tx);
+      await mattersQueries.clearMatterAssignees(matterId);
       if (assignee_ids.length > 0) {
-        await mattersQueries.addMatterAssignees(matterId, assignee_ids, tx);
+        await mattersQueries.addMatterAssignees(matterId, assignee_ids);
       }
     }
 
@@ -244,8 +238,7 @@ const updateMatter = async (
         description: activityDescription,
         metadata: { changes: matterData, changed_fields: changedFields },
       },
-      ctx,
-      tx
+      ctx
     );
 
     if (data.status && data.status !== existing.status) {
@@ -255,31 +248,26 @@ const updateMatter = async (
           description: `Matter status changed from "${existing.status}" to "${data.status}"`,
           metadata: { oldStatus: existing.status, newStatus: data.status, changed_fields: ['status'] },
         },
-        ctx,
-        tx
+        ctx
       );
 
-      await ctx.emit(
-        MatterStatusChanged,
-        {
-          matter_id: matterId,
-          organization_id: ctx.organizationId,
-          old_status: existing.status,
-          new_status: data.status,
-          matter_title: existing.title,
-          organization_name: organizationName ?? 'Your Legal Team',
-          client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
-          client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
-        },
-        tx
-      );
+      await ctx.emit(MatterStatusChanged, {
+        matter_id: matterId,
+        organization_id: ctx.organizationId,
+        old_status: existing.status,
+        new_status: data.status,
+        matter_title: existing.title,
+        organization_name: organizationName ?? 'Your Legal Team',
+        client_email: existing.client?.email ?? existing.client?.user?.email ?? null,
+        client_name: existing.client?.name ?? existing.client?.user?.name ?? null,
+      });
     }
 
-    await ctx.emit(
-      MatterUpdated,
-      { matter_id: matterId, organization_id: ctx.organizationId, changes: { ...matterData } },
-      tx
-    );
+    await ctx.emit(MatterUpdated, {
+      matter_id: matterId,
+      organization_id: ctx.organizationId,
+      changes: { ...matterData },
+    });
 
     return result;
   });
@@ -299,8 +287,8 @@ const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<void
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('delete', toSubject('Matter', existing));
 
-  await db.transaction(async (tx) => {
-    const deleted = await mattersQueries.softDeleteMatter(matterId, ctx.userId, tx);
+  await uow.transaction(async () => {
+    const deleted = await mattersQueries.softDeleteMatter(matterId, ctx.userId);
     if (!deleted) {
       throw new HTTPException(500, { message: 'Failed to delete matter' });
     }
@@ -311,11 +299,10 @@ const deleteMatter = async (matterId: string, ctx: ServiceContext): Promise<void
         description: `Matter "${deleted.title}" was deleted`,
         metadata: undefined,
       },
-      ctx,
-      tx
+      ctx
     );
 
-    await ctx.emit(MatterDeleted, { matter_id: matterId, organization_id: ctx.organizationId }, tx);
+    await ctx.emit(MatterDeleted, { matter_id: matterId, organization_id: ctx.organizationId });
   });
 };
 

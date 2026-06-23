@@ -1,10 +1,14 @@
-import { getLogger } from '@logtape/logtape';
-import type { Stripe } from 'stripe';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { handleInvoiceCreated, handleInvoiceUpcoming } from '@/modules/invoices/services/invoice.webhook.delivery';
-import { db } from '@/shared/database';
-import { InvoiceDeleted, InvoicePaymentFailed, InvoiceVoided } from '@/shared/events/definitions';
-import { InvoiceStripePaymentReceived } from '@/modules/invoices/types/events';
+import { uow } from '@/shared/database/uow';
+import {
+  InvoiceDeleted,
+  InvoicePaymentFailed,
+  InvoiceStripePaymentReceived,
+  InvoiceVoided,
+} from '@/shared/events/definitions';
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['invoices', 'webhook-service']);
 const IGNORED_INVOICE_EVENTS = [
@@ -17,7 +21,27 @@ const IGNORED_INVOICE_EVENTS = [
 const isStripeInvoiceLike = (obj: unknown): obj is Stripe.Invoice =>
   obj !== null && typeof obj === 'object' && 'object' in obj && obj.object === 'invoice';
 
-const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> => {
+const getStripeResourceId = (resource: unknown): string | null => {
+  if (typeof resource === 'string') {
+    return resource;
+  }
+  if (resource !== null && typeof resource === 'object' && 'id' in resource && typeof resource.id === 'string') {
+    return resource.id;
+  }
+  return null;
+};
+
+const getChargeIdFromInvoice = (stripeInvoice: Stripe.Invoice): string | null => {
+  const rawInvoice = stripeInvoice as unknown as Record<string, unknown>;
+  const latestChargeId = getStripeResourceId(rawInvoice.latest_charge);
+  const legacyChargeId = getStripeResourceId(rawInvoice.charge);
+  return latestChargeId ?? legacyChargeId;
+};
+
+const handleInvoicePaid = async (
+  stripeInvoice: Stripe.Invoice,
+  stripeAccountId: string | null = null
+): Promise<void> => {
   const invoice = await invoicesRepository.findInvoiceByStripeId(stripeInvoice.id);
   if (!invoice) {
     logger.warn('Invoice not found for Stripe ID: {stripeInvoiceId}', { stripeInvoiceId: stripeInvoice.id });
@@ -39,6 +63,8 @@ const handleInvoicePaid = async (stripeInvoice: Stripe.Invoice): Promise<void> =
         typeof stripeInvoice.on_behalf_of === 'string'
           ? stripeInvoice.on_behalf_of
           : (stripeInvoice.on_behalf_of?.id ?? null),
+      stripe_charge_id: getChargeIdFromInvoice(stripeInvoice),
+      stripe_account_id: stripeAccountId,
     },
     {
       actorId: 'webhook',
@@ -56,8 +82,8 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
     return;
   }
 
-  await db.transaction(async (tx) => {
-    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'overdue' }, tx);
+  await uow.transaction(async () => {
+    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'overdue' });
 
     await InvoicePaymentFailed.dispatch(
       {
@@ -69,7 +95,6 @@ const handleInvoicePaymentFailed = async (stripeInvoice: Stripe.Invoice): Promis
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx,
       }
     );
   });
@@ -85,8 +110,8 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
     return;
   }
 
-  await db.transaction(async (tx) => {
-    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' }, tx);
+  await uow.transaction(async () => {
+    await invoicesRepository.updateInvoice(invoice.id, invoice.organization_id, { status: 'cancelled' });
 
     await InvoiceVoided.dispatch(
       {
@@ -99,7 +124,6 @@ const handleInvoiceVoided = async (stripeInvoice: Stripe.Invoice): Promise<void>
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx,
       }
     );
   });
@@ -112,8 +136,8 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
     return;
   }
 
-  await db.transaction(async (tx) => {
-    await invoicesRepository.softDeleteInvoice(invoice.id, invoice.organization_id, null, tx);
+  await uow.transaction(async () => {
+    await invoicesRepository.softDeleteInvoice(invoice.id, invoice.organization_id, null);
 
     await InvoiceDeleted.dispatch(
       {
@@ -125,7 +149,6 @@ const handleInvoiceDeleted = async (stripeInvoice: Stripe.Invoice): Promise<void
         actorId: 'webhook',
         actorType: 'webhook',
         organizationId: invoice.organization_id,
-        tx,
       }
     );
   });
@@ -162,7 +185,7 @@ const processEvent = async (event: Stripe.Event): Promise<void> => {
 
   switch (event.type) {
     case 'invoice.paid':
-      await handleInvoicePaid(stripeInvoice);
+      await handleInvoicePaid(stripeInvoice, event.account ?? null);
       break;
     case 'invoice.payment_failed':
       await handleInvoicePaymentFailed(stripeInvoice);

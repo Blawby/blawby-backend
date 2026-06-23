@@ -4,13 +4,15 @@
  * if referenceId is not provided, before the request reaches Better Auth
  */
 
-import { getLogger } from '@logtape/logtape';
-import { eq, inArray } from 'drizzle-orm';
-import type { MiddlewareHandler } from 'hono';
+// oxlint-disable-next-line import/no-namespace
 import * as schema from '@/schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { sanitizeError } from '@/shared/utils/logging';
+import { getLogger } from '@logtape/logtape';
+import { eq, inArray } from 'drizzle-orm';
+import type { MiddlewareHandler } from 'hono';
 
 const logger = getLogger(['shared', 'middleware', 'auto-create-org']);
 
@@ -101,14 +103,14 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
 
         const newOrgId = crypto.randomUUID();
         organizationId = newOrgId;
-        await db.transaction(async (tx) => {
-          await tx.insert(schema.organizations).values({
+        await uow.transaction(async () => {
+          await getActiveTx().insert(schema.organizations).values({
             id: newOrgId,
             name: orgName,
             slug: orgSlug,
             createdAt: new Date(),
           });
-          await tx.insert(schema.members).values({
+          await getActiveTx().insert(schema.members).values({
             id: crypto.randomUUID(),
             userId,
             organizationId: newOrgId,
@@ -128,7 +130,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
         .from(schema.organizations)
         .where(inArray(schema.organizations.id, orgIds));
 
-      organizationId = (orgsData.find((org) => !org.activeSubscriptionId)?.id ?? orgsData[0]?.id) || null;
+      organizationId = orgsData.find((org) => !org.activeSubscriptionId)?.id ?? orgsData[0]?.id ?? null;
     }
 
     if (!organizationId) {
@@ -137,7 +139,7 @@ export const autoCreateOrgForSubscription = (): MiddlewareHandler => async (c, n
 
     // Activate the org on the current session so requireOrgMembership passes on the next request.
     // The session.create.before hook only fires on new sessions, so a freshly-created org is never
-    // reflected in an existing session without this call.
+    // Reflected in an existing session without this call.
     await authInstance.api.setActiveOrganization({
       body: { organizationId },
       headers: c.req.raw.headers,

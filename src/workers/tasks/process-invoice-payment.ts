@@ -4,15 +4,16 @@
  * Worker owns invoice-domain sequencing and calls generic financial engines
  */
 
-import type { Task } from 'graphile-worker';
-import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
+import { billingRecorder, fundManagement, retainerPaymentFlow, transferExecutor } from '@/engines/financial';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
+import { payoutMeteredFeeService } from '@/modules/invoices/services/payout-metered-fee.service';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { trustService } from '@/modules/trust/services/trust.service';
+import { uow } from '@/shared/database/uow';
 import { InvoicePaid } from '@/shared/events/definitions';
 import { RetainerLowBalance } from '@/shared/events/definitions/matters';
-import { billingRecorder, fundManagement, retainerPaymentFlow, transferExecutor } from '@/engines/financial';
+import { getLogger } from '@logtape/logtape';
+import type { Task } from 'graphile-worker';
 
 const logger = getLogger(['workers', 'tasks', 'process-invoice-payment']);
 
@@ -25,6 +26,8 @@ interface ProcessInvoicePaymentPayload {
   stripe_paid_at?: string | null;
   stripe_customer_id?: string | null;
   stripe_on_behalf_of?: string | null;
+  stripe_charge_id?: string | null;
+  stripe_account_id?: string | null;
 }
 
 export const processInvoicePayment: Task = async (payload: unknown) => {
@@ -38,8 +41,14 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
   });
 
   try {
-    await db.transaction(async (tx) => {
-      const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id, tx);
+    const meteredFeeCents = await payoutMeteredFeeService.calculateMeteredFeeCents({
+      amountPaid: stripe_amount_paid,
+      chargeId: data.stripe_charge_id ?? null,
+      stripeAccountId: data.stripe_account_id ?? null,
+    });
+
+    await uow.transaction(async () => {
+      const invoice = await invoicesRepository.findInvoiceByStripeId(stripe_invoice_id);
       if (!invoice) {
         throw new Error(`Invoice with Stripe ID ${stripe_invoice_id} not found`);
       }
@@ -66,52 +75,42 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
         routing,
       });
 
-      await invoicesRepository.updateInvoice(
-        invoice.id,
-        organization_id,
-        {
-          status: 'paid',
-          amount_paid: stripe_amount_paid,
-          stripe_transfer_id: transfer.transferId,
-        },
-        tx
-      );
+      await invoicesRepository.updateInvoice(invoice.id, organization_id, {
+        status: 'paid',
+        amount_paid: stripe_amount_paid,
+        stripe_transfer_id: transfer.transferId,
+      });
 
       if (transfer.transferId) {
-        await billingRecorder.record(
-          {
-            organizationId: organization_id,
-            payableId: invoice.id,
-            payableType: 'invoice',
-            matterId,
-            amount: stripe_amount_paid,
-            transferId: transfer.transferId,
-            destinationAccountId: invoice.connected_account_id,
-            metadata: {
-              stripe_invoice_id,
-              invoice_type: invoiceType,
-              fund_destination: fundDestination,
-            },
+        await billingRecorder.record({
+          organizationId: organization_id,
+          payableId: invoice.id,
+          payableType: 'invoice',
+          matterId,
+          amount: stripe_amount_paid,
+          transferId: transfer.transferId,
+          destinationAccountId: invoice.connected_account_id,
+          meteredFeeCents,
+          metadata: {
+            stripe_invoice_id,
+            invoice_type: invoiceType,
+            fund_destination: fundDestination,
           },
-          tx
-        );
+        });
       }
 
       if (invoiceType === 'retainer_deposit' && matterId && clientId) {
-        await retainerPaymentFlow.recordDeposit(
-          {
-            organizationId: organization_id,
-            clientId,
-            matterId,
-            amount: stripe_amount_paid,
-            invoiceId: invoice.id,
-          },
-          tx
-        );
+        await retainerPaymentFlow.recordDeposit({
+          organizationId: organization_id,
+          clientId,
+          matterId,
+          amount: stripe_amount_paid,
+          invoiceId: invoice.id,
+        });
 
-        const matter = await mattersQueries.findMatterById(matterId, tx);
+        const matter = await mattersQueries.findMatterById(matterId);
         if (matter && matter.retainer_low_balance_threshold !== null && matter.retainer_low_balance_threshold > 0) {
-          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId }, tx);
+          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId });
           const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
           if (matterBalance < matter.retainer_low_balance_threshold) {
             await RetainerLowBalance.dispatch(
@@ -121,7 +120,7 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
                 current_balance: matterBalance,
                 threshold: matter.retainer_low_balance_threshold,
               },
-              { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx }
+              { actorId: 'worker', actorType: 'system', organizationId: organization_id }
             );
           }
         }
@@ -134,9 +133,10 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           matter_id: matterId,
           stripe_invoice_id,
           amount_paid: stripe_amount_paid,
-          retainer_deducted: invoiceType === 'retainer_deposit' && !!matterId && !!clientId,
+          retainer_deducted: invoiceType === 'retainer_deposit' && Boolean(matterId) && Boolean(clientId),
+          metered_fee_cents: meteredFeeCents,
         },
-        { actorId: 'worker', actorType: 'system', organizationId: organization_id, tx }
+        { actorId: 'worker', actorType: 'system', organizationId: organization_id }
       );
     });
 

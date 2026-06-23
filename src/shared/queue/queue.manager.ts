@@ -144,6 +144,8 @@ export const addInvoicePaymentJob = async (payload: {
   stripe_paid_at: string | null;
   stripe_customer_id: string | null;
   stripe_on_behalf_of: string | null;
+  stripe_charge_id: string | null;
+  stripe_account_id: string | null;
 }): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 

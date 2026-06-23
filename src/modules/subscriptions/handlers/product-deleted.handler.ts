@@ -1,6 +1,5 @@
 import type { Stripe } from 'stripe';
 import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { sanitizeError } from '@/shared/utils/logging';
 
@@ -10,7 +9,7 @@ export const handleProductDeleted = async (product: Stripe.Product | Stripe.Dele
   try {
     logger.info('Processing product.deleted: {productId}', { productId: product.id });
 
-    await subscriptionRepository.deactivatePricesByProductId(db, product.id);
+    await subscriptionRepository.deactivatePricesByProductId(product.id);
 
     logger.info('Deactivated all prices for product: {productId}', { productId: product.id });
   } catch (error) {

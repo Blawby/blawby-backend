@@ -1,5 +1,7 @@
 # Fix Test Database Integration
 
+> Archived historical plan. Do not execute directly without first verifying every relevant claim against current code. See `docs/PRIORITY.md` for current work ordering.
+
 ## Context
 
 All tests currently mock the database, services, and events because importing `hono-app.ts` triggers top-level `await bootApplication()` and `await registerModuleRoutes()`, which initialize the full app (DB, rate limiter, workers, event listeners). The test helpers (`db.ts`, `auth.ts`, `factories.ts`) were built for real DB integration but are unused.

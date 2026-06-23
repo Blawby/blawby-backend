@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
 import { jwt } from 'better-auth/plugins';
+import { apiKey } from '@better-auth/api-key';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -182,6 +183,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         },
       }),
       ...(config.env.isTest ? [testUtils()] : []),
+      apiKey(),
     ],
     baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',

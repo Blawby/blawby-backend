@@ -2,22 +2,22 @@
  * Practice Client Intake Webhook Handlers
  */
 
-import { getLogger } from '@logtape/logtape';
-import { and, eq, not, inArray } from 'drizzle-orm';
-import type { Stripe } from 'stripe';
-import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   practiceClientIntakes,
   type SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { METERED_TYPES } from '@/modules/subscriptions/constants/metered-products';
 import { meteredProductsService } from '@/modules/subscriptions/services/metered-products.service';
-import { db } from '@/shared/database';
-import { IntakePaymentSucceeded, IntakePaymentFailed, IntakePaymentCanceled } from '@/shared/events/definitions';
+import { getActiveTx, uow } from '@/shared/database/uow';
+import { IntakePaymentCanceled, IntakePaymentFailed, IntakePaymentSucceeded } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 import { sanitizeError } from '@/shared/utils/logging';
 import { stripe } from '@/shared/utils/stripe-client';
+import { getLogger } from '@logtape/logtape';
+import { and, eq, inArray, not } from 'drizzle-orm';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['practice-client-intakes', 'webhooks']);
 const PLATFORM_VARIABLE_FEE_RATE = 0.01337;
@@ -31,15 +31,17 @@ export const findPracticeClientIntakeByPaymentIntent = async (
   let practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentIntentId(paymentIntent.id);
 
   if (!practiceClientIntake && 'payment_link' in paymentIntent && paymentIntent.payment_link) {
-    const paymentLinkId: string | undefined =
-      typeof paymentIntent.payment_link === 'string'
-        ? paymentIntent.payment_link
-        : typeof paymentIntent.payment_link === 'object' &&
-            paymentIntent.payment_link !== null &&
-            'id' in paymentIntent.payment_link &&
-            typeof paymentIntent.payment_link.id === 'string'
-          ? paymentIntent.payment_link.id
-          : undefined;
+    let paymentLinkId: string | undefined = undefined;
+    if (typeof paymentIntent.payment_link === 'string') {
+      paymentLinkId = paymentIntent.payment_link;
+    } else if (
+      typeof paymentIntent.payment_link === 'object' &&
+      paymentIntent.payment_link !== null &&
+      'id' in paymentIntent.payment_link &&
+      typeof paymentIntent.payment_link.id === 'string'
+    ) {
+      paymentLinkId = paymentIntent.payment_link.id;
+    }
     if (paymentLinkId) {
       practiceClientIntake = await practiceClientIntakesRepository.findByStripePaymentLinkId(paymentLinkId);
     }
@@ -94,14 +96,15 @@ export const handlePracticeClientIntakeSucceeded = async ({
       return;
     }
 
-    const stripeChargeId = paymentIntent.latest_charge
-      ? typeof paymentIntent.latest_charge === 'string'
-        ? paymentIntent.latest_charge
-        : paymentIntent.latest_charge.id
-      : undefined;
+    let stripeChargeId: string | undefined = undefined;
+    if (typeof paymentIntent.latest_charge === 'string') {
+      stripeChargeId = paymentIntent.latest_charge;
+    } else if (paymentIntent.latest_charge) {
+      stripeChargeId = paymentIntent.latest_charge.id;
+    }
 
     let organizationName = 'Your Legal Team';
-    let organizationSlug: string | undefined;
+    let organizationSlug: string | undefined = undefined;
     let billingEmail: string | null = null;
     try {
       const organization = await organizationRepository.findById(practiceClientIntake.organization_id);
@@ -117,8 +120,8 @@ export const handlePracticeClientIntakeSucceeded = async ({
       });
     }
 
-    await db.transaction(async (tx) => {
-      const updateResult = await tx
+    await uow.transaction(async () => {
+      const updateResult = await getActiveTx()
         .update(practiceClientIntakes)
         .set({
           status: 'succeeded',
@@ -161,7 +164,6 @@ export const handlePracticeClientIntakeSucceeded = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx,
           }
         );
       }
@@ -177,13 +179,12 @@ export const handlePracticeClientIntakeSucceeded = async ({
         const meteredAmount = stripeFee + variableFee;
 
         if (meteredAmount > 0) {
-          await meteredProductsService.reportMeteredUsage(
-            db,
-            practiceClientIntake.organization_id,
-            METERED_TYPES.INTAKE_FEE,
-            meteredAmount,
-            practiceClientIntake.id
-          );
+          await meteredProductsService.reportMeteredUsage({
+            organizationId: practiceClientIntake.organization_id,
+            meteredType: METERED_TYPES.INTAKE_FEE,
+            quantity: meteredAmount,
+            deduplicationId: practiceClientIntake.id,
+          });
         }
       } catch (feeError) {
         logger.error('Failed to compute/report metered intake fee for intake {intakeId}: {error}', {
@@ -219,8 +220,8 @@ export const handlePracticeClientIntakeFailed = async ({
       return;
     }
 
-    await db.transaction(async (tx) => {
-      const updateResult = await tx
+    await uow.transaction(async () => {
+      const updateResult = await getActiveTx()
         .update(practiceClientIntakes)
         .set({
           status: 'failed',
@@ -240,7 +241,6 @@ export const handlePracticeClientIntakeFailed = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx,
           }
         );
       }
@@ -269,8 +269,8 @@ export const handlePracticeClientIntakeCanceled = async ({
       return;
     }
 
-    await db.transaction(async (tx) => {
-      const updateResult = await tx
+    await uow.transaction(async () => {
+      const updateResult = await getActiveTx()
         .update(practiceClientIntakes)
         .set({
           status: 'canceled',
@@ -289,7 +289,6 @@ export const handlePracticeClientIntakeCanceled = async ({
             actorId: WEBHOOK_ACTOR_UUID,
             actorType: 'webhook',
             organizationId: practiceClientIntake.organization_id,
-            tx,
           }
         );
       }
@@ -329,7 +328,7 @@ export const handlePracticeClientIntakeCheckoutSessionCompleted = async (
       return;
     }
 
-    await db
+    await getActiveTx()
       .update(practiceClientIntakes)
       .set({
         stripe_checkout_session_id: session.id,

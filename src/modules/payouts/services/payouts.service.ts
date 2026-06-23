@@ -4,10 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { Stripe } from 'stripe';
 import { payoutsRepository } from '@/modules/payouts/database/queries/payouts.repository';
 import type { SelectPayout } from '@/modules/payouts/database/schema/payouts.schema';
-import type {
-  ListPayoutsQuery,
-  PayoutTransactionResponse,
-} from '@/modules/payouts/schemas/payouts.validation';
+import type { ListPayoutsQuery, PayoutTransactionResponse } from '@/modules/payouts/schemas/payouts.validation';
 import type { PayoutDetailServiceResult } from '@/modules/payouts/serializers/payout.serializer';
 import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';

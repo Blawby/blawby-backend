@@ -1,12 +1,12 @@
-import { getLogger } from '@logtape/logtape';
-import { eq } from 'drizzle-orm';
-import type Stripe from 'stripe';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
 import { organizations } from '@/schema/better-auth-schema';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { OnboardingAccountUpdated } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
+import { getLogger } from '@logtape/logtape';
+import { eq } from 'drizzle-orm';
+import type Stripe from 'stripe';
 
 const logger = getLogger(['onboarding', 'handler', 'account-updated']);
 
@@ -36,10 +36,10 @@ export const handleAccountUpdated = async (account: Stripe.Account): Promise<voi
     };
 
     // Update and get organization_id in one go
-    let organizationId: string | undefined;
+    let organizationId: string | undefined = undefined;
 
-    await db.transaction(async (tx) => {
-      const [updatedRecord] = await tx
+    await uow.transaction(async () => {
+      const [updatedRecord] = await getActiveTx()
         .update(stripeConnectedAccounts)
         .set(updateData)
         .where(eq(stripeConnectedAccounts.stripe_account_id, account.id))
@@ -56,7 +56,10 @@ export const handleAccountUpdated = async (account: Stripe.Account): Promise<voi
 
       // Auto-enable payment links if charges are enabled
       if (account.charges_enabled && organizationId) {
-        await tx.update(organizations).set({ paymentLinkEnabled: true }).where(eq(organizations.id, organizationId));
+        await getActiveTx()
+          .update(organizations)
+          .set({ paymentLinkEnabled: true })
+          .where(eq(organizations.id, organizationId));
       }
 
       // Publish account updated event within transaction
@@ -73,8 +76,7 @@ export const handleAccountUpdated = async (account: Stripe.Account): Promise<voi
         {
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
-          organizationId: organizationId,
-          tx,
+          organizationId,
         }
       );
     });

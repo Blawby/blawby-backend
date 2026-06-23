@@ -24,7 +24,8 @@ const getCreateIntakeRequestMetadata = (c: Context) => ({
 
 const getIntakeSettingsHandler: AppRouteHandler<typeof publicRoutes.getIntakeSettingsRoute> = async (c) => {
   const { slug } = c.req.valid('param');
-  const data = await intakeCreationService.getIntakeSettings({ slug });
+  const { template_slug } = c.req.valid('query');
+  const data = await intakeCreationService.getIntakeSettings({ slug, templateSlug: template_slug });
   return c.json(data, 200);
 };
 

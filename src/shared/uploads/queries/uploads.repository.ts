@@ -1,28 +1,20 @@
 import { and, count, desc, eq, isNotNull, isNull, lte } from 'drizzle-orm';
-
-import { db } from '@/shared/database';
 import { uploads, type InsertUpload, type SelectUpload } from '@/shared/uploads/schema/uploads.schema';
-import type { ServiceContext } from '@/shared/types/service-context';
-
-type DbExecutor = ServiceContext['db'];
+import { getActiveTx } from '@/shared/database/uow';
 
 export const uploadsRepository = {
-  create: async (data: InsertUpload, executor: DbExecutor = db): Promise<SelectUpload> => {
-    const [upload] = await executor.insert(uploads).values(data).returning();
+  create: async (data: InsertUpload): Promise<SelectUpload> => {
+    const [upload] = await getActiveTx().insert(uploads).values(data).returning();
     return upload;
   },
 
-  findById: async (id: string, executor: DbExecutor = db): Promise<SelectUpload | undefined> => {
-    const [result] = await executor.select().from(uploads).where(eq(uploads.id, id)).limit(1);
+  findById: async (id: string): Promise<SelectUpload | undefined> => {
+    const [result] = await getActiveTx().select().from(uploads).where(eq(uploads.id, id)).limit(1);
     return result;
   },
 
-  update: async (
-    id: string,
-    data: Partial<InsertUpload>,
-    executor: DbExecutor = db
-  ): Promise<SelectUpload | undefined> => {
-    const [updated] = await executor.update(uploads).set(data).where(eq(uploads.id, id)).returning();
+  update: async (id: string, data: Partial<InsertUpload>): Promise<SelectUpload | undefined> => {
+    const [updated] = await getActiveTx().update(uploads).set(data).where(eq(uploads.id, id)).returning();
     return updated;
   },
 
@@ -36,8 +28,7 @@ export const uploadsRepository = {
       userId?: string;
       limit?: number;
       offset?: number;
-    } = {},
-    executor: DbExecutor = db
+    } = {}
   ): Promise<SelectUpload[]> => {
     const conditions = [eq(uploads.organization_id, organizationId)];
 
@@ -64,7 +55,7 @@ export const uploadsRepository = {
     const limit = options.limit ?? 20;
     const offset = options.offset ?? 0;
 
-    return executor
+    return getActiveTx()
       .select()
       .from(uploads)
       .where(and(...conditions))
@@ -81,8 +72,7 @@ export const uploadsRepository = {
       status?: string;
       includeDeleted?: boolean;
       userId?: string;
-    } = {},
-    executor: DbExecutor = db
+    } = {}
   ): Promise<number> => {
     const conditions = [eq(uploads.organization_id, organizationId)];
 
@@ -106,7 +96,7 @@ export const uploadsRepository = {
       conditions.push(eq(uploads.user_id, options.userId));
     }
 
-    const [result] = await executor
+    const [result] = await getActiveTx()
       .select({ count: count() })
       .from(uploads)
       .where(and(...conditions));
@@ -114,8 +104,8 @@ export const uploadsRepository = {
     return result?.count ?? 0;
   },
 
-  softDelete: async (id: string, deletedBy: string, reason: string, executor: DbExecutor = db): Promise<void> => {
-    await executor
+  softDelete: async (id: string, deletedBy: string, reason: string): Promise<void> => {
+    await getActiveTx()
       .update(uploads)
       .set({
         deleted_at: new Date(),
@@ -125,8 +115,8 @@ export const uploadsRepository = {
       .where(eq(uploads.id, id));
   },
 
-  restore: async (id: string, executor: DbExecutor = db): Promise<void> => {
-    await executor
+  restore: async (id: string): Promise<void> => {
+    await getActiveTx()
       .update(uploads)
       .set({
         deleted_at: null,
@@ -136,8 +126,8 @@ export const uploadsRepository = {
       .where(eq(uploads.id, id));
   },
 
-  updateLastAccessed: async (id: string, userId: string, executor: DbExecutor = db): Promise<void> => {
-    await executor
+  updateLastAccessed: async (id: string, userId: string): Promise<void> => {
+    await getActiveTx()
       .update(uploads)
       .set({
         last_accessed_at: new Date(),
@@ -146,8 +136,8 @@ export const uploadsRepository = {
       .where(eq(uploads.id, id));
   },
 
-  findExpiredUnconfirmed: async (beforeDate: Date, limit = 500, executor: DbExecutor = db): Promise<SelectUpload[]> =>
-    executor
+  findExpiredUnconfirmed: async (beforeDate: Date, limit = 500): Promise<SelectUpload[]> =>
+    getActiveTx()
       .select()
       .from(uploads)
       .where(and(eq(uploads.status, 'pending'), isNotNull(uploads.expires_at), lte(uploads.expires_at, beforeDate)))

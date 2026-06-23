@@ -1,23 +1,23 @@
-import { getLogger } from '@logtape/logtape';
-import { ForbiddenError } from '@casl/ability';
-import { HTTPException } from 'hono/http-exception';
-import { asc, eq } from 'drizzle-orm';
 import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { stripePrices } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
 import { subscriptionEvents } from '@/modules/subscriptions/database/schema/subscription-events.schema';
 import { subscriptionLineItems } from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 import { createBillingPortalSession } from '@/modules/subscriptions/services/billing-portal.service';
 import type {
   CancelSubscriptionRequest,
-  GetCurrentSubscriptionResponse,
-  SubscriptionPlanResponse,
-  LineItemResponse,
   EventResponse,
+  GetCurrentSubscriptionResponse,
+  LineItemResponse,
+  SubscriptionPlanResponse,
 } from '@/modules/subscriptions/types/subscription.types';
 import { organizations } from '@/schema/better-auth-schema';
-import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { ForbiddenError } from '@casl/ability';
+import { getLogger } from '@logtape/logtape';
+import { asc, eq } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 
 const DEFAULT_PLAN_LIMITS = { users: -1, invoices_per_month: -1, storage_gb: 10 };
 
@@ -31,7 +31,9 @@ const shouldLogSubscriptionError = (error: unknown): boolean => {
 };
 
 const isRecordStringString = (obj: unknown): obj is Record<string, string> => {
-  if (typeof obj !== 'object' || obj === null) return false;
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
   return Object.values(obj).every((val) => typeof val === 'string');
 };
 
@@ -46,7 +48,9 @@ const assertSubscriptionManageAccess = (ctx: ServiceContext): void => {
 };
 
 const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T | null => {
-  if (data === null || data === undefined) return null;
+  if (data === null || data === undefined) {
+    return null;
+  }
   let parsed = data;
   if (typeof data === 'string') {
     try {
@@ -63,7 +67,7 @@ const parseMetadata = <T>(data: unknown, guard: (obj: unknown) => obj is T): T |
  * Groups active stripe_prices by stripe_product_id; each product becomes one "plan" entry.
  */
 const listPlans = async (): Promise<{ plans: SubscriptionPlanResponse[] }> => {
-  const allPrices = await db
+  const allPrices = await getActiveTx()
     .select()
     .from(stripePrices)
     .where(eq(stripePrices.is_active, true))
@@ -79,37 +83,37 @@ const listPlans = async (): Promise<{ plans: SubscriptionPlanResponse[] }> => {
   const response: SubscriptionPlanResponse[] = [];
   for (const prices of productMap.values()) {
     const rep = prices.find((p) => p.usage_type === 'licensed') ?? prices[0];
-    if (!rep?.name) continue;
+    if (rep?.name) {
+      const monthlyPrice = prices.find((p) => p.usage_type === 'licensed' && p.interval === 'month');
+      const yearlyPrice = prices.find((p) => p.usage_type === 'licensed' && p.interval === 'year');
+      const meteredPrices = prices.filter((p) => p.usage_type === 'metered');
+      const currency = monthlyPrice?.currency ?? yearlyPrice?.currency ?? '';
 
-    const monthlyPrice = prices.find((p) => p.usage_type === 'licensed' && p.interval === 'month');
-    const yearlyPrice = prices.find((p) => p.usage_type === 'licensed' && p.interval === 'year');
-    const meteredPrices = prices.filter((p) => p.usage_type === 'metered');
-    const currency = monthlyPrice?.currency ?? yearlyPrice?.currency ?? '';
-
-    response.push({
-      id: rep.id,
-      name: rep.name,
-      display_name: rep.display_name ?? rep.name,
-      description: rep.description ?? null,
-      stripe_product_id: rep.stripe_product_id,
-      stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
-      stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
-      monthly_price: monthlyPrice?.unit_amount ?? null,
-      yearly_price: yearlyPrice?.unit_amount ?? null,
-      currency,
-      features: rep.features ?? [],
-      limits: rep.limits ?? DEFAULT_PLAN_LIMITS,
-      metered_items: meteredPrices.length
-        ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
-        : null,
-      is_active: rep.is_active,
-      is_public: rep.is_public ?? true,
-      sort_order: rep.sort_order ?? 0,
-      metadata: rep.metadata ?? null,
-      image: rep.image ?? null,
-      created_at: rep.created_at,
-      updated_at: rep.updated_at,
-    });
+      response.push({
+        id: rep.id,
+        name: rep.name,
+        display_name: rep.display_name ?? rep.name,
+        description: rep.description ?? null,
+        stripe_product_id: rep.stripe_product_id,
+        stripe_monthly_price_id: monthlyPrice?.stripe_price_id ?? null,
+        stripe_yearly_price_id: yearlyPrice?.stripe_price_id ?? null,
+        monthly_price: monthlyPrice?.unit_amount ?? null,
+        yearly_price: yearlyPrice?.unit_amount ?? null,
+        currency,
+        features: rep.features ?? [],
+        limits: rep.limits ?? DEFAULT_PLAN_LIMITS,
+        metered_items: meteredPrices.length
+          ? meteredPrices.map((p) => ({ price_id: p.stripe_price_id, meter_name: p.meter_name, type: p.internal_type }))
+          : null,
+        is_active: rep.is_active,
+        is_public: rep.is_public ?? true,
+        sort_order: rep.sort_order ?? 0,
+        metadata: rep.metadata ?? null,
+        image: rep.image ?? null,
+        created_at: rep.created_at,
+        updated_at: rep.updated_at,
+      });
+    }
   }
 
   response.sort((a, b) => a.sort_order - b.sort_order);
@@ -131,7 +135,7 @@ const getCurrentSubscription = async (
       throw new HTTPException(400, { message: 'No active organization. Please select an organization first.' });
     }
 
-    const result = await db
+    const result = await getActiveTx()
       .select({
         activeSubscriptionId: organizations.activeSubscriptionId,
         subscription: {
@@ -170,13 +174,13 @@ const getCurrentSubscription = async (
     const subscriptionRecord = organizationData.subscription;
 
     const [lineItems, events, repPrice] = await Promise.all([
-      db.query.subscriptionLineItems.findMany({
+      getActiveTx().query.subscriptionLineItems.findMany({
         where: eq(subscriptionLineItems.subscription_id, subscriptionRecord.id),
       }),
-      db.query.subscriptionEvents.findMany({
+      getActiveTx().query.subscriptionEvents.findMany({
         where: eq(subscriptionEvents.subscription_id, subscriptionRecord.id),
       }),
-      subscriptionRepository.findPriceByName(db, subscriptionRecord.plan),
+      subscriptionRepository.findPriceByName(subscriptionRecord.plan),
     ]);
 
     const { plan: _plan, ...subscriptionRecordWithoutPlanName } = subscriptionRecord;
@@ -213,7 +217,7 @@ const getCurrentSubscription = async (
 
     let planResponse: SubscriptionPlanResponse | null = null;
     if (repPrice) {
-      const allPrices = await subscriptionRepository.findPricesByProductId(db, repPrice.stripe_product_id);
+      const allPrices = await subscriptionRepository.findPricesByProductId(repPrice.stripe_product_id);
       const monthlyPrice = allPrices.find((p) => p.usage_type === 'licensed' && p.interval === 'month');
       const yearlyPrice = allPrices.find((p) => p.usage_type === 'licensed' && p.interval === 'year');
       const meteredPrices = allPrices.filter((p) => p.usage_type === 'metered');
@@ -261,6 +265,20 @@ const getCurrentSubscription = async (
   }
 };
 
+const listSubscriptions = async (
+  _params: Record<string, never>,
+  ctx: ServiceContext
+): Promise<{ subscriptions: (typeof subscriptions.$inferSelect)[] }> => {
+  assertSubscriptionReadAccess(ctx);
+
+  const rows = await getActiveTx()
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.referenceId, ctx.organizationId));
+
+  return { subscriptions: rows };
+};
+
 /**
  * Cancel a subscription — delegates to billing portal service.
  */
@@ -292,5 +310,6 @@ const cancelSubscription = async (
 export const subscriptionService = {
   listPlans,
   getCurrentSubscription,
+  listSubscriptions,
   cancelSubscription,
 };

@@ -1,4 +1,5 @@
 import type { z } from '@hono/zod-openapi';
+import { intakeConversationsQueries } from '@/modules/intake-conversations/database/queries/intake-conversations.queries';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
@@ -18,6 +19,7 @@ import type { intakeValidations } from '@/modules/practice-client-intakes/valida
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
@@ -97,10 +99,16 @@ const updateTriageStatus = async (
     const nextTriageStatus = params.data.status;
     const nextReason = nextTriageStatus === 'declined' ? (params.data.reason?.trim() ?? null) : null;
 
-    const updatedIntake = await practiceClientIntakesRepository.update(params.uuid, {
-      triage_status: nextTriageStatus,
-      triage_reason: nextReason,
-      triage_decided_at: new Date(),
+    const updatedIntake = await uow.transaction(async () => {
+      const result = await practiceClientIntakesRepository.update(params.uuid, {
+        triage_status: nextTriageStatus,
+        triage_reason: nextReason,
+        triage_decided_at: new Date(),
+      });
+      if (nextTriageStatus === 'accepted' && result.conversation_id) {
+        await intakeConversationsQueries.updateLifecycleStatus(result.conversation_id, 'visible', ctx.organizationId);
+      }
+      return result;
     });
 
     // Emit triage event for email notifications
@@ -151,16 +159,13 @@ const updateTriageStatus = async (
   }
 };
 
-const createMatterFromIntakeTx = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  params: {
-    uuid: string;
-    data: z.infer<typeof intakeValidations.convertIntakeSchema>;
-    intake: Awaited<ReturnType<typeof getStaffAccessibleIntake>>;
-    metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
-    userId: string;
-  }
-): Promise<string> => {
+const createMatterFromIntake = async (params: {
+  uuid: string;
+  data: z.infer<typeof intakeValidations.convertIntakeSchema>;
+  intake: Awaited<ReturnType<typeof getStaffAccessibleIntake>>;
+  metadata: NonNullable<ReturnType<typeof intakeSharedHelpers.parseMetadata>>;
+  userId: string;
+}): Promise<string> => {
   let clientId: string | undefined = undefined;
   if (params.metadata.user_id) {
     const clientRecord = await clientsRepository.findByOrgAndUser(
@@ -178,55 +183,58 @@ const createMatterFromIntakeTx = async (
     }
   }
 
-  const matter = await mattersQueries.createMatter(
-    {
-      organization_id: params.intake.organization_id,
-      billing_type: params.data.billing_type ?? 'fixed',
-      client_id: clientId,
-      title: params.data.title ?? `Intake: ${params.metadata.name}`,
-      description: params.metadata.description,
-      status: params.data.status ?? 'engagement_pending',
-      urgency: params.intake.urgency ?? 'routine',
-      intake_uuid: params.uuid,
-      conversation_id: params.intake.conversation_id,
-      on_behalf_of: params.metadata.on_behalf_of,
-      opposing_party: params.metadata.opposing_party,
-      opposing_counsel: params.metadata.opposing_counsel,
-      responsible_attorney_id: params.data.responsible_attorney_id,
-      practice_service_id: params.data.practice_service_id,
-      open_date: params.data.open_date ? new Date(params.data.open_date) : undefined,
-    },
-    tx
-  );
+  const matter = await mattersQueries.createMatter({
+    organization_id: params.intake.organization_id,
+    billing_type: params.data.billing_type ?? 'fixed',
+    client_id: clientId,
+    title: params.data.title ?? `Intake: ${params.metadata.name}`,
+    description: params.metadata.description,
+    status: params.data.status ?? 'engagement_pending',
+    urgency: params.intake.urgency ?? 'routine',
+    intake_uuid: params.uuid,
+    conversation_id: params.intake.conversation_id,
+    on_behalf_of: params.metadata.on_behalf_of,
+    opposing_party: params.metadata.opposing_party,
+    opposing_counsel: params.metadata.opposing_counsel,
+    responsible_attorney_id: params.data.responsible_attorney_id,
+    practice_service_id: params.data.practice_service_id,
+    open_date: params.data.open_date ? new Date(params.data.open_date) : undefined,
+  });
 
   if (params.intake.court_date) {
-    await tx.insert(matterMilestones).values({
-      matter_id: matter.id,
-      description: 'Court Date from Intake',
-      amount: 0,
-      due_date: params.intake.court_date.toISOString().split('T')[0],
-      status: 'pending',
-      order: 999,
-    });
+    await getActiveTx()
+      .insert(matterMilestones)
+      .values({
+        matter_id: matter.id,
+        description: 'Court Date from Intake',
+        amount: 0,
+        due_date: params.intake.court_date.toISOString().split('T')[0],
+        status: 'pending',
+        order: 999,
+      });
   }
 
   if (params.intake.desired_outcome) {
-    await tx.insert(matterNotes).values({
-      matter_id: matter.id,
-      user_id: params.userId,
-      content: `Desired outcome: ${params.intake.desired_outcome}`,
-    });
+    await getActiveTx()
+      .insert(matterNotes)
+      .values({
+        matter_id: matter.id,
+        user_id: params.userId,
+        content: `Desired outcome: ${params.intake.desired_outcome}`,
+      });
   }
 
   if (typeof params.intake.case_strength === 'number') {
-    await tx.insert(matterNotes).values({
-      matter_id: matter.id,
-      user_id: params.userId,
-      content: `Case strength score from intake: ${params.intake.case_strength}`,
-    });
+    await getActiveTx()
+      .insert(matterNotes)
+      .values({
+        matter_id: matter.id,
+        user_id: params.userId,
+        content: `Case strength score from intake: ${params.intake.case_strength}`,
+      });
   }
 
-  await practiceClientIntakesRepository.updateStatus(params.uuid, 'converted', tx);
+  await practiceClientIntakesRepository.updateStatus(params.uuid, 'converted');
 
   return matter.id;
 };
@@ -286,8 +294,8 @@ const convertIntake = async (
       throw new HTTPException(400, { message: 'Intake metadata is missing' });
     }
 
-    const matterId = await db.transaction((tx) =>
-      createMatterFromIntakeTx(tx, {
+    const matterId = await uow.transaction(async () =>
+      createMatterFromIntake({
         uuid: params.uuid,
         data: params.data,
         intake,

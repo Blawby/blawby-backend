@@ -4,18 +4,17 @@ import type { SelectMatterMilestone } from '@/modules/matters/database/schema/ma
 import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
 // Create matter
-const createMatter = async (data: InsertMatter, tx: typeof db = db): Promise<SelectMatter> => {
-  const [matter] = await tx.insert(matters).values(data).returning();
+const createMatter = async (data: InsertMatter): Promise<SelectMatter> => {
+  const [matter] = await getActiveTx().insert(matters).values(data).returning();
   return matter;
 };
 
 // Find matter by ID (excluding soft deleted)
-const findMatterById = async (id: string, tx?: typeof db): Promise<SelectMatter | undefined> => {
-  const client = tx ?? db;
-  const [matter] = await client
+const findMatterById = async (id: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .select()
     .from(matters)
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -26,9 +25,8 @@ const findMatterById = async (id: string, tx?: typeof db): Promise<SelectMatter 
 /**
  * Find matter by ID with relations (optimized)
  */
-const findMatterByIdWithRelations = async (id: string, tx?: typeof db): Promise<MatterWithRelations | undefined> => {
-  const client = tx ?? db;
-  return await client.query.matters.findFirst({
+const findMatterByIdWithRelations = async (id: string): Promise<MatterWithRelations | undefined> => {
+  return await getActiveTx().query.matters.findFirst({
     where: and(eq(matters.id, id), isNull(matters.deleted_at)),
     with: {
       assignees: {
@@ -59,15 +57,14 @@ const findMatterByIdWithRelations = async (id: string, tx?: typeof db): Promise<
 };
 
 // Find matter by ID (including soft deleted)
-const findMatterByIdWithDeleted = async (id: string, tx?: typeof db): Promise<SelectMatter | undefined> => {
-  const client = tx ?? db;
-  const [matter] = await client.select().from(matters).where(eq(matters.id, id)).limit(1);
+const findMatterByIdWithDeleted = async (id: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx().select().from(matters).where(eq(matters.id, id)).limit(1);
   return matter;
 };
 
 // Find matter by intake UUID
-const findByIntakeUuid = async (intakeUuid: string, tx: typeof db = db): Promise<SelectMatter | undefined> => {
-  const [matter] = await tx
+const findByIntakeUuid = async (intakeUuid: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .select()
     .from(matters)
     .where(and(eq(matters.intake_uuid, intakeUuid), isNull(matters.deleted_at)))
@@ -118,7 +115,7 @@ const listMattersByOrganization = async (
 
   // Handle assignee filter separately with join
   if (filters?.assigneeId) {
-    results = await db
+    results = await getActiveTx()
       .select(getTableColumns(matters))
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
@@ -127,7 +124,7 @@ const listMattersByOrganization = async (
       .limit(limit)
       .offset(offset);
   } else {
-    results = await db
+    results = await getActiveTx()
       .select()
       .from(matters)
       .where(and(...conditions))
@@ -139,13 +136,13 @@ const listMattersByOrganization = async (
   // Get total count (must include assignee join if filtering by assignee)
   let countResult: { count: number };
   if (filters?.assigneeId) {
-    [countResult] = await db
+    [countResult] = await getActiveTx()
       .select({ count: sql<number>`count(*)` })
       .from(matters)
       .innerJoin(matterAssignees, eq(matters.id, matterAssignees.matter_id))
       .where(and(...conditions, eq(matterAssignees.user_id, filters.assigneeId)));
   } else {
-    [countResult] = await db
+    [countResult] = await getActiveTx()
       .select({ count: sql<number>`count(*)` })
       .from(matters)
       .where(and(...conditions));
@@ -158,13 +155,8 @@ const listMattersByOrganization = async (
 };
 
 // Update matter
-const updateMatter = async (
-  id: string,
-  data: Partial<InsertMatter>,
-  tx?: typeof db
-): Promise<SelectMatter | undefined> => {
-  const client = tx ?? db;
-  const [matter] = await client
+const updateMatter = async (id: string, data: Partial<InsertMatter>): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .update(matters)
     .set({ ...data, updated_at: new Date() })
     .where(and(eq(matters.id, id), isNull(matters.deleted_at)))
@@ -173,9 +165,8 @@ const updateMatter = async (
 };
 
 // Soft delete matter
-const softDeleteMatter = async (id: string, deletedBy: string, tx?: typeof db): Promise<SelectMatter | undefined> => {
-  const client = tx ?? db;
-  const [matter] = await client
+const softDeleteMatter = async (id: string, deletedBy: string): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
     .update(matters)
     .set({
       deleted_at: new Date(),
@@ -189,12 +180,12 @@ const softDeleteMatter = async (id: string, deletedBy: string, tx?: typeof db): 
 
 // Hard delete matter
 const deleteMatter = async (id: string): Promise<void> => {
-  await db.delete(matters).where(eq(matters.id, id));
+  await getActiveTx().delete(matters).where(eq(matters.id, id));
 };
 
 // Get matter counts by status
 const getMatterCountsByStatus = async (organizationId: string): Promise<{ status: string; count: number }[]> =>
-  await db
+  await getActiveTx()
     .select({
       status: matters.status,
       count: sql<number>`count(*)`,
@@ -214,7 +205,7 @@ const getMattersSummaryByOriginatingAttorney = async (
     closed_matters: number;
   }[]
 > => {
-  const rows = await db
+  const rows = await getActiveTx()
     .select({
       originating_attorney_id: matters.originating_attorney_id,
       total_matters: sql<number>`count(*)::int`,
@@ -234,13 +225,12 @@ const getMattersSummaryByOriginatingAttorney = async (
 };
 
 // Add assignees to matter
-const addMatterAssignees = async (matterId: string, userIds: string[], tx?: typeof db): Promise<void> => {
+const addMatterAssignees = async (matterId: string, userIds: string[]): Promise<void> => {
   if (userIds.length === 0) {
     return;
   }
 
-  const client = tx ?? db;
-  await client
+  await getActiveTx()
     .insert(matterAssignees)
     .values(
       userIds.map((userId) => ({
@@ -252,13 +242,12 @@ const addMatterAssignees = async (matterId: string, userIds: string[], tx?: type
 };
 
 // Remove assignees from matter
-const removeMatterAssignees = async (matterId: string, userIds: string[], tx?: typeof db): Promise<void> => {
+const removeMatterAssignees = async (matterId: string, userIds: string[]): Promise<void> => {
   if (userIds.length === 0) {
     return;
   }
 
-  const client = tx ?? db;
-  await client
+  await getActiveTx()
     .delete(matterAssignees)
     .where(and(eq(matterAssignees.matter_id, matterId), inArray(matterAssignees.user_id, userIds)));
 };
@@ -272,7 +261,7 @@ interface MatterAssignee {
 }
 
 const getMatterAssignees = async (matterId: string): Promise<MatterAssignee[]> =>
-  await db
+  await getActiveTx()
     .select({
       id: users.id,
       name: users.name,
@@ -284,17 +273,15 @@ const getMatterAssignees = async (matterId: string): Promise<MatterAssignee[]> =
     .where(eq(matterAssignees.matter_id, matterId));
 
 // Clear all assignees from matter
-const clearMatterAssignees = async (matterId: string, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client.delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
+const clearMatterAssignees = async (matterId: string): Promise<void> => {
+  await getActiveTx().delete(matterAssignees).where(eq(matterAssignees.matter_id, matterId));
 };
 
 /**
  * Update matter retainer balance
  */
-const updateRetainerBalance = async (matterId: string, newBalance: number, tx?: typeof db): Promise<void> => {
-  const client = tx ?? db;
-  await client
+const updateRetainerBalance = async (matterId: string, newBalance: number): Promise<void> => {
+  await getActiveTx()
     .update(matters)
     .set({
       retainer_balance: newBalance,

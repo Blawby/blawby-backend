@@ -17,7 +17,7 @@ import type {
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { ForbiddenError } from '@casl/ability';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
-import { db } from '@/shared/database';
+import { uow } from '@/shared/database/uow';
 import { PracticeCreated, PracticeUpdated } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 
@@ -45,8 +45,8 @@ export const practiceManagementService = {
       let practiceDetails: PracticeDetails | null = null;
 
       try {
-        practiceDetails = await db.transaction(async (tx) => {
-          const { details } = await upsertDetailsTransaction(tx, ctx, {
+        practiceDetails = await uow.transaction(async () => {
+          const { details } = await upsertDetailsTransaction(ctx, {
             organizationId: organization.id,
             userId: user.id,
             data: practiceValidations.hasPracticeDetails(data) ? data : {},
@@ -147,8 +147,8 @@ export const practiceManagementService = {
         const existing = await findPracticeDetailsByOrganization(organizationId);
 
         try {
-          practiceDetails = await db.transaction(async (tx) => {
-            const { details } = await upsertDetailsTransaction(tx, ctx, {
+          practiceDetails = await uow.transaction(async () => {
+            const { details } = await upsertDetailsTransaction(ctx, {
               organizationId,
               userId: user.id,
               data,

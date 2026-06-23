@@ -1,6 +1,7 @@
-import { z } from '@hono/zod-openapi';
+import { mattersService } from '@/modules/matters/services/matters.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { errorResponseSchema } from '@/shared/validations/openapi';
+import { z } from '@hono/zod-openapi';
 
 const tags = ['Matters'];
 
@@ -9,6 +10,11 @@ export const getMatterUnbilledRoute = routeBuilder.build({
   path: '/{matter_id}/unbilled',
   tags,
   summary: 'Get unbilled time entries, expenses, and milestones for a matter',
+  mcp: {
+    name: 'get_matter_unbilled',
+    scope: 'matters:read',
+    handler: async (args, ctx) => mattersService.getMatterUnbilled(args.matter_id as string, ctx),
+  },
   request: {
     params: z.object({
       matter_id: z.uuid(),

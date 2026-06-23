@@ -37,6 +37,61 @@ const rethrowConnectedAccountError = (error: unknown, fallbackMessage: string): 
   throw new Error(error instanceof Error ? error.message : fallbackMessage, { cause: error });
 };
 
+const isMissingConnectedAccountError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const rawMessage = error instanceof Error ? error.message : (error as { message?: unknown }).message;
+  const message = typeof rawMessage === 'string' ? rawMessage : '';
+  return (
+    isStripeClientError(error) &&
+    (message.includes('not connected to your platform') ||
+      message.includes('does not exist') ||
+      message.includes('No such account'))
+  );
+};
+
+const toConnectedAccountData = (
+  organizationId: string,
+  email: string,
+  stripeAccount: Awaited<ReturnType<typeof stripe.accounts.create>>
+): NewStripeConnectedAccount => ({
+  organization_id: organizationId,
+  stripe_account_id: stripeAccount.id,
+  account_type: 'custom',
+  country: 'US',
+  email,
+  charges_enabled: stripeAccount.charges_enabled,
+  payouts_enabled: stripeAccount.payouts_enabled,
+  details_submitted: stripeAccount.details_submitted,
+  business_type: stripeAccount.business_type,
+  company: stripeAccountNormalizers.normalizeCompany(stripeAccount.company),
+  individual: stripeAccountNormalizers.normalizeIndividual(stripeAccount.individual),
+  requirements: stripeAccountNormalizers.normalizeRequirements(stripeAccount.requirements),
+  capabilities: stripeAccountNormalizers.normalizeCapabilities(stripeAccount.capabilities),
+  externalAccounts: stripeAccountNormalizers.normalizeExternalAccounts(stripeAccount.external_accounts),
+  futureRequirements: stripeAccountNormalizers.normalizeFutureRequirements(stripeAccount.future_requirements),
+  tosAcceptance: stripeAccountNormalizers.normalizeTosAcceptance(stripeAccount.tos_acceptance),
+  metadata: stripeAccount.metadata ?? undefined,
+  last_refreshed_at: new Date(),
+});
+
+const createStripeConnectedAccount = async (email: string) =>
+  await stripe.accounts.create({
+    country: 'US',
+    email,
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+      us_bank_account_ach_payments: { requested: true },
+    },
+    controller: {
+      fees: { payer: 'application' },
+      stripe_dashboard: { type: 'none' },
+    },
+  });
+
 /**
  * Helper to determine readiness status based on requirements and capabilities
  */
@@ -132,43 +187,10 @@ export const connectedAccountsService = {
    */
   async createStripeAccount(organizationId: string, email: string, userId?: string): Promise<StripeConnectedAccount> {
     try {
-      const stripeAccount = await stripe.accounts.create({
-        country: 'US',
-        email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-          us_bank_account_ach_payments: { requested: true },
-        },
-        controller: {
-          fees: { payer: 'application' },
-          stripe_dashboard: { type: 'none' },
-        },
-      });
+      const stripeAccount = await createStripeConnectedAccount(email);
 
       // Save to database
-      const newAccount: NewStripeConnectedAccount = {
-        organization_id: organizationId,
-        stripe_account_id: stripeAccount.id,
-        account_type: 'custom',
-        country: 'US',
-        email,
-        charges_enabled: stripeAccount.charges_enabled,
-        payouts_enabled: stripeAccount.payouts_enabled,
-        details_submitted: stripeAccount.details_submitted,
-        business_type: stripeAccount.business_type,
-        company: stripeAccountNormalizers.normalizeCompany(stripeAccount.company),
-        individual: stripeAccountNormalizers.normalizeIndividual(stripeAccount.individual),
-        requirements: stripeAccountNormalizers.normalizeRequirements(stripeAccount.requirements),
-        capabilities: stripeAccountNormalizers.normalizeCapabilities(stripeAccount.capabilities),
-        externalAccounts: stripeAccountNormalizers.normalizeExternalAccounts(stripeAccount.external_accounts),
-        futureRequirements: stripeAccountNormalizers.normalizeFutureRequirements(stripeAccount.future_requirements),
-        tosAcceptance: stripeAccountNormalizers.normalizeTosAcceptance(stripeAccount.tos_acceptance),
-        metadata: stripeAccount.metadata ?? undefined,
-        last_refreshed_at: new Date(),
-      };
-
-      const createdAccount = await onboardingRepo.create(newAccount);
+      const createdAccount = await onboardingRepo.create(toConnectedAccountData(organizationId, email, stripeAccount));
 
       void StripeConnectedAccountCreated.dispatch(
         {
@@ -190,6 +212,54 @@ export const connectedAccountsService = {
         organizationId,
       });
       return rethrowConnectedAccountError(error, 'Failed to create Stripe account');
+    }
+  },
+
+  /**
+   * Replace a stale local connected account with a new Stripe account while preserving the local row id.
+   */
+  async replaceStripeAccount(account: StripeConnectedAccount, userId?: string): Promise<StripeConnectedAccount> {
+    try {
+      const oldStripeAccountId = account.stripe_account_id;
+      const stripeAccount = await createStripeConnectedAccount(account.email);
+      const updatedAccount = await onboardingRepo.update(
+        account.id,
+        toConnectedAccountData(account.organization_id, account.email, stripeAccount)
+      );
+
+      if (!updatedAccount) {
+        throw new HTTPException(404, { message: 'Connected account not found' });
+      }
+
+      logger.warn(
+        'Replaced stale Stripe connected account {oldStripeAccountId} with {newStripeAccountId} for organization {organizationId}',
+        {
+          oldStripeAccountId,
+          newStripeAccountId: stripeAccount.id,
+          organizationId: account.organization_id,
+        }
+      );
+
+      void StripeConnectedAccountCreated.dispatch(
+        {
+          account_id: stripeAccount.id,
+          email: account.email,
+          country: 'US',
+        },
+        {
+          actorId: userId ?? 'system',
+          organizationId: account.organization_id,
+        }
+      );
+
+      return updatedAccount;
+    } catch (error) {
+      logger.error('Failed to replace Stripe account for organization {organizationId}: {error}', {
+        error,
+        userId,
+        organizationId: account.organization_id,
+      });
+      return rethrowConnectedAccountError(error, 'Failed to replace Stripe account');
     }
   },
 
@@ -240,8 +310,17 @@ export const connectedAccountsService = {
       account = await connectedAccountsService.createStripeAccount(organizationId, email, userId);
     }
 
-    // Create account link for the account — throws on failure
-    const accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+    let accountLink: CreateSessionResponse;
+    try {
+      accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+    } catch (error) {
+      if (!isMissingConnectedAccountError(error)) {
+        throw error;
+      }
+
+      account = await connectedAccountsService.replaceStripeAccount(account, userId);
+      accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+    }
 
     return {
       account_id: account.stripe_account_id,

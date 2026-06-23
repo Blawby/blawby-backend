@@ -1,11 +1,13 @@
 import { handlers } from '@/modules/stripe/handlers';
 import { createAccountSessionRoute, getConnectedAccountRoute } from '@/modules/stripe/routes/index';
 import { injectAbility } from '@/shared/middleware/inject-ability';
+import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';
 
 const stripeApp = createHonoApp();
-stripeApp.use('*', injectAbility());
+stripeApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 /**
  * POST /api/stripe/connect/account-session

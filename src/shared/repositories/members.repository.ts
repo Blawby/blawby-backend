@@ -2,17 +2,13 @@ import { eq, and } from 'drizzle-orm';
 import { members } from '@/schema/better-auth-schema';
 import { db } from '@/shared/database';
 import usersRepository from '@/shared/repositories/users.repository';
+import { getActiveTx } from '@/shared/database/uow';
 
-type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-const findByOrgAndUser = async (
-  params: {
-    organizationId: string;
-    userId: string;
-  },
-  tx: DbOrTx = db
-): Promise<SelectMember | undefined> => {
-  const [member] = await tx
+const findByOrgAndUser = async (params: {
+  organizationId: string;
+  userId: string;
+}): Promise<SelectMember | undefined> => {
+  const [member] = await getActiveTx()
     .select()
     .from(members)
     .where(and(eq(members.organizationId, params.organizationId), eq(members.userId, params.userId)))
@@ -20,8 +16,8 @@ const findByOrgAndUser = async (
   return member;
 };
 
-const findFirstOrganizationIdByUser = async (userId: string, tx: DbOrTx = db): Promise<string | null> => {
-  const [membership] = await tx
+const findFirstOrganizationIdByUser = async (userId: string): Promise<string | null> => {
+  const [membership] = await getActiveTx()
     .select({ organizationId: members.organizationId })
     .from(members)
     .where(eq(members.userId, userId))

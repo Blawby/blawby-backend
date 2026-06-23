@@ -5,7 +5,7 @@ import type { Stripe } from 'stripe';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import type { ExternalAccount, ExternalAccounts } from '@/modules/onboarding/types/onboarding.types';
 import { stripeTypeGuards } from '@/modules/onboarding/utils/stripeTypeGuards';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { OnboardingExternalAccountDeleted } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
@@ -49,38 +49,35 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
       { externalAccountId: externalAccount.id, accountType, stripeAccountId }
     );
 
-    // Get current account record
-    const [accountRecord] = await db
-      .select()
-      .from(stripeConnectedAccounts)
-      .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
-      .limit(1);
+    await uow.transaction(async () => {
+      const [accountRecord] = await getActiveTx()
+        .select()
+        .from(stripeConnectedAccounts)
+        .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId))
+        .limit(1);
 
-    if (!accountRecord) {
-      logger.warn('Account not found for external account deletion: {stripeAccountId}', { stripeAccountId });
-      return;
-    }
+      if (!accountRecord) {
+        logger.warn('Account not found for external account deletion: {stripeAccountId}', { stripeAccountId });
+        return;
+      }
 
-    const currentExternalAccounts = normalizeExternalAccounts({
-      externalAccounts: accountRecord.externalAccounts,
-    });
+      const currentExternalAccounts = normalizeExternalAccounts({
+        externalAccounts: accountRecord.externalAccounts,
+      });
 
-    const updatedExternalAccounts: ExternalAccounts = {
-      object: 'list',
-      data: currentExternalAccounts.data.filter((acc: ExternalAccount) => acc.id !== externalAccount.id),
-    };
+      const updatedExternalAccounts: ExternalAccounts = {
+        object: 'list',
+        data: currentExternalAccounts.data.filter((acc: ExternalAccount) => acc.id !== externalAccount.id),
+      };
 
-    // Update the account external accounts in the database within transaction with event publishing
-    await db.transaction(async (tx) => {
-      await tx
+      await getActiveTx()
         .update(stripeConnectedAccounts)
         .set({
-          externalAccounts: updatedExternalAccounts as unknown as ExternalAccounts,
+          externalAccounts: updatedExternalAccounts,
           last_refreshed_at: new Date(),
         })
         .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId));
 
-      // Publish external account deleted event within transaction
       await OnboardingExternalAccountDeleted.dispatch(
         {
           stripe_account_id: stripeAccountId,
@@ -93,7 +90,6 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId: accountRecord.organization_id,
-          tx,
         }
       );
     });

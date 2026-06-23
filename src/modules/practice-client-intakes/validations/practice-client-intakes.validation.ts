@@ -1,6 +1,6 @@
-import { z } from '@hono/zod-openapi';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import { addressSchema } from '@/shared/validations/address';
+import { z } from '@hono/zod-openapi';
 
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
@@ -54,6 +54,14 @@ const updatePracticeClientIntakeSchema = z.object({
 
 const slugParamSchema = z.object({
   slug: z.string().min(1).max(100),
+});
+
+const getIntakeSettingsQuerySchema = z.object({
+  template_slug: z.string().min(1).max(100).optional().openapi({
+    description:
+      'Optional slug of a specific published template to return. Falls back to the practice default when omitted or when the slug does not match a published template.',
+    example: 'family-law-intake',
+  }),
 });
 
 const uuidParamSchema = z.object({
@@ -136,7 +144,7 @@ const practiceClientIntakeSettingsResponseSchema = z.object({
       fields: z.array(intakeTemplateFieldSettingsSchema),
     })
     .openapi({
-      description: 'Resolved default intake template for this practice.',
+      description: 'Resolved intake template for this practice (requested via template_slug, or practice default).',
     }),
 });
 
@@ -350,6 +358,7 @@ export const intakeValidations = {
   createPracticeClientIntakeSchema,
   updatePracticeClientIntakeSchema,
   slugParamSchema,
+  getIntakeSettingsQuerySchema,
   uuidParamSchema,
   checkoutSessionStatusQuerySchema,
   claimPracticeClientIntakeSchema,

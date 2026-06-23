@@ -3,10 +3,9 @@ import type { Stripe } from 'stripe';
 import { fundManagement } from '@/engines/financial';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { connectedAccountsService } from '@/modules/onboarding/services/connected-accounts.service';
-import { upsertAddressTx } from '@/modules/practice/database/queries/address.repository';
+import { upsertAddress } from '@/modules/practice/database/queries/address.repository';
 import { intakeTemplatesRepository } from '@/modules/practice/database/queries/intake-templates.repository';
 import { mapIntakeTemplateFieldToPublicSettings } from '@/modules/practice/utils/intake-template.utils';
-import { addSeedDefaultIntakeTemplateJob } from '@/shared/queue/queue.manager';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
@@ -20,7 +19,7 @@ import type {
   IntakeSettingsResponse,
   UpdatePracticeClientIntakeRequest,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
-import { db } from '@/shared/database';
+import { uow } from '@/shared/database/uow';
 import { IntakePaymentCreated, IntakeSubmitted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -35,6 +34,7 @@ type IntakeCreationRequest = CreatePracticeClientIntakeRequest & {
 
 const getIntakeSettings = async (params: {
   slug: string;
+  templateSlug?: string;
   organization?: NonNullable<Awaited<ReturnType<typeof organizationRepository.findBySlug>>>;
 }): Promise<IntakeSettingsResponse> => {
   const organization = params.organization ?? (await organizationRepository.findBySlug(params.slug));
@@ -56,13 +56,18 @@ const getIntakeSettings = async (params: {
     throw new HTTPException(403, { message: 'Connected account is not ready to accept payments' });
   }
 
-  const [practiceDetails, defaultTemplate] = await Promise.all([
+  const [practiceDetails, defaultTemplate, requestedTemplate] = await Promise.all([
     findPracticeDetailsByOrganization(organization.id),
     intakeTemplatesRepository.findPublishedDefaultByOrganization(organization.id),
+    params.templateSlug
+      ? intakeTemplatesRepository.findPublishedByOrganizationAndSlug(organization.id, params.templateSlug)
+      : Promise.resolve(undefined),
   ]);
 
-  if (!defaultTemplate) {
-    void addSeedDefaultIntakeTemplateJob(organization.id).catch(() => {});
+  // Use the requested template when found; fall back to the practice default.
+  const resolvedTemplate = requestedTemplate ?? defaultTemplate;
+
+  if (!resolvedTemplate) {
     throw new HTTPException(503, { message: 'Intake configuration is being set up, please try again shortly' });
   }
 
@@ -91,35 +96,32 @@ const getIntakeSettings = async (params: {
       charges_enabled: connectedAccount.charges_enabled,
     },
     intake_template: {
-      id: defaultTemplate.id,
-      slug: defaultTemplate.slug,
-      name: defaultTemplate.name,
-      intro_message: defaultTemplate.intro_message,
-      legal_disclaimer: defaultTemplate.legal_disclaimer,
-      payment_link_enabled: defaultTemplate.payment_link_enabled,
-      consultation_fee: defaultTemplate.consultation_fee,
-      fields: defaultTemplate.fields.map(mapIntakeTemplateFieldToPublicSettings),
+      id: resolvedTemplate.id,
+      slug: resolvedTemplate.slug,
+      name: resolvedTemplate.name,
+      intro_message: resolvedTemplate.intro_message,
+      legal_disclaimer: resolvedTemplate.legal_disclaimer,
+      payment_link_enabled: resolvedTemplate.payment_link_enabled,
+      consultation_fee: resolvedTemplate.consultation_fee,
+      fields: resolvedTemplate.fields.map(mapIntakeTemplateFieldToPublicSettings),
     },
   };
 };
 
-const insertIntakeRecordTx = async (
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  params: {
-    request: IntakeCreationRequest;
-    resolvedAmount: number;
-    organizationId: string;
-    intakeId: string;
-    practiceServiceName?: string;
-    connectedAccountId?: string;
-    stripePaymentLinkId: string | null;
-    shouldBypassPayment: boolean;
-    validatedUserId?: string;
-  }
-): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
+const insertIntakeRecord = async (params: {
+  request: IntakeCreationRequest;
+  resolvedAmount: number;
+  organizationId: string;
+  intakeId: string;
+  practiceServiceName?: string;
+  connectedAccountId?: string;
+  stripePaymentLinkId: string | null;
+  shouldBypassPayment: boolean;
+  validatedUserId?: string;
+}): Promise<Awaited<ReturnType<typeof practiceClientIntakesRepository.create>>> => {
   let addressId: string | undefined = undefined;
   if (params.request.address) {
-    const addressRecord = await upsertAddressTx(tx, {
+    const addressRecord = await upsertAddress({
       addressData: params.request.address,
       organizationId: params.organizationId,
       userId: params.validatedUserId,
@@ -166,7 +168,7 @@ const insertIntakeRecordTx = async (
     ...(params.shouldBypassPayment && { succeeded_at: new Date() }),
   };
 
-  return practiceClientIntakesRepository.create(intakeData, tx);
+  return practiceClientIntakesRepository.create(intakeData);
 };
 
 const createIntake = async (params: { data: IntakeCreationRequest }): Promise<CreateIntakeResponse> => {
@@ -237,8 +239,8 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
       });
     }
 
-    const intake = await db.transaction(async (tx) =>
-      insertIntakeRecordTx(tx, {
+    const intake = await uow.transaction(async () =>
+      insertIntakeRecord({
         request,
         resolvedAmount,
         organizationId: organization.id,

@@ -12,7 +12,7 @@ import type { SelectRefundRequest } from '@/modules/invoices/database/schema/ref
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { refundEngine } from '@/engines/financial/refund-engine';
 import type { Action, Subject } from '@/shared/auth/abilities';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -116,8 +116,8 @@ const createRequest = async (
   }
   const clientUserDetailsId = clientResult;
 
-  return await db.transaction(async (tx) => {
-    await tx
+  return await uow.transaction(async () => {
+    await getActiveTx()
       .select({ id: invoices.id })
       .from(invoices)
       .where(and(eq(invoices.id, opts.invoiceId), eq(invoices.organization_id, ctx.organizationId)))
@@ -126,8 +126,7 @@ const createRequest = async (
     const invoice = await invoicesRepository.findOneByIdAndClientId(
       ctx.organizationId,
       opts.invoiceId,
-      clientUserDetailsId,
-      tx
+      clientUserDetailsId
     );
     if (!invoice) {
       throw new HTTPException(404, { message: 'Invoice not found' });
@@ -136,11 +135,9 @@ const createRequest = async (
       throw new HTTPException(400, { message: 'Refunds can only be requested for paid invoices' });
     }
 
-    const existingRefunds = await refundRequestsQueries.listByOrganization(
-      ctx.organizationId,
-      { invoice_id: opts.invoiceId },
-      tx
-    );
+    const existingRefunds = await refundRequestsQueries.listByOrganization(ctx.organizationId, {
+      invoice_id: opts.invoiceId,
+    });
 
     const blockingStatuses: readonly SelectRefundRequest['status'][] = ['requested', 'approved', 'executing'];
     if (existingRefunds.some((r) => blockingStatuses.includes(r.status))) {
@@ -164,19 +161,16 @@ const createRequest = async (
       });
     }
 
-    const req = await refundRequestsQueries.create(
-      {
-        organization_id: ctx.organizationId,
-        invoice_id: opts.invoiceId,
-        client_user_details_id: clientUserDetailsId,
-        created_by_user_details_id: clientUserDetailsId,
-        requested_amount: opts.requestedAmount,
-        reason: opts.reason,
-        notes: opts.notes,
-        status: 'requested',
-      },
-      tx
-    );
+    const req = await refundRequestsQueries.create({
+      organization_id: ctx.organizationId,
+      invoice_id: opts.invoiceId,
+      client_user_details_id: clientUserDetailsId,
+      created_by_user_details_id: clientUserDetailsId,
+      requested_amount: opts.requestedAmount,
+      reason: opts.reason,
+      notes: opts.notes,
+      status: 'requested',
+    });
 
     return req;
   });
@@ -301,18 +295,16 @@ const executeRefund = async (
     stripeTransferId ??=
       invoiceTxs.find((tx) => tx.type === 'payout' && Boolean(tx.stripe_transfer_id))?.stripe_transfer_id ?? null;
 
-    refundableBalanceCheck = await db.transaction(async (tx) => {
-      await tx
+    refundableBalanceCheck = await uow.transaction(async () => {
+      await getActiveTx()
         .select({ id: invoices.id })
         .from(invoices)
         .where(and(eq(invoices.id, invoice.id), eq(invoices.organization_id, ctx.organizationId)))
         .for('update');
 
-      const priorRefunds = await refundRequestsQueries.listByOrganization(
-        ctx.organizationId,
-        { invoice_id: invoice.id },
-        tx
-      );
+      const priorRefunds = await refundRequestsQueries.listByOrganization(ctx.organizationId, {
+        invoice_id: invoice.id,
+      });
       const reservedStatuses: readonly SelectRefundRequest['status'][] = [
         'requested',
         'approved',

@@ -3,6 +3,8 @@
 **Date**: 2026-04-19
 **Status**: Approved
 
+> Historical note: references to legacy service response wrappers describe the old state. Current code should follow `AGENTS.md` and `docs/CODING_STANDARDS.md`: services return data directly and throw on failure.
+
 ## Problem
 
 The current `src/modules/uploads/` is a full domain module with HTTP routes, services, and DB schema all co-located. This creates:
@@ -188,7 +190,7 @@ export const uploadCoreService = {
 
 ## Error Handling
 
-All services throw — no `Result<T>`. Follows [plans/architectural-issues.md](../../../plans/architectural-issues.md) Issue #1.
+All services throw — no `Result<T>`. This follows the current repository convention in `AGENTS.md` and `docs/CODING_STANDARDS.md`; the top-level architectural-issues plan is historical context only.
 
 ```typescript
 // Bad (current)

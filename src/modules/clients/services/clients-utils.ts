@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { users } from '@/schema/better-auth-schema';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import usersRepository from '@/shared/repositories/users.repository';
 
 /**
@@ -21,25 +21,20 @@ export const resolveUserForIntake = async (params: {
     if (sessionUser) {
       const isAnonymousUser = sessionUser.isAnonymous;
       if (isAnonymousUser && existingUserByEmail && existingUserByEmail.id !== userId) {
-        return db.transaction(async (tx) => {
+        return uow.transaction(async () => {
           await linkAnonymousUserData({
             anonymousUser: { id: userId, email: '' },
             newUser: {
               id: existingUserByEmail.id,
               email: existingUserByEmail.email,
             },
-            tx,
           });
-          await tx.delete(users).where(eq(users.id, userId));
-          return usersRepository.update(
-            existingUserByEmail.id,
-            {
-              name: name || existingUserByEmail.name,
-              phone: phone ?? existingUserByEmail.phone ?? undefined,
-              primaryWorkspace: 'client',
-            },
-            tx
-          );
+          await getActiveTx().delete(users).where(eq(users.id, userId));
+          return usersRepository.update(existingUserByEmail.id, {
+            name: name || existingUserByEmail.name,
+            phone: phone ?? existingUserByEmail.phone ?? undefined,
+            primaryWorkspace: 'client',
+          });
         });
       }
       if (isAnonymousUser) {

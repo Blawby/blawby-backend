@@ -1,10 +1,10 @@
-import type { Stripe } from 'stripe';
-import { getLogger } from '@logtape/logtape';
-import { db } from '@/shared/database';
-import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
-import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { getInternalTypeFromMeterName } from '@/modules/subscriptions/constants/metered-products';
+import { subscriptionRepository } from '@/modules/subscriptions/database/queries/subscription.repository';
 import { extractFeatures, extractLimits } from '@/modules/subscriptions/utils/product-helpers';
+import { uow } from '@/shared/database/uow';
+import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getLogger } from '@logtape/logtape';
+import type { Stripe } from 'stripe';
 
 const logger = getLogger(['subscriptions', 'handlers', 'price-created']);
 
@@ -61,21 +61,23 @@ export const handlePriceCreated = async (price: Stripe.Price): Promise<void> => 
       }
     }
 
-    await subscriptionRepository.upsertPrice(db, {
-      stripe_price_id: price.id,
-      stripe_product_id: productId,
-      currency: price.currency,
-      unit_amount: price.unit_amount ?? 0,
-      interval: price.recurring?.interval ?? null,
-      interval_count: price.recurring?.interval_count ?? null,
-      usage_type: price.recurring?.usage_type ?? null,
-      billing_scheme: price.billing_scheme ?? null,
-      meter_id: price.recurring?.meter ?? null,
-      meter_name: meterName,
-      internal_type: internalType,
-      is_active: price.active,
-      metadata: price.metadata ?? {},
-      ...displayData,
+    await uow.transaction(async () => {
+      await subscriptionRepository.upsertPrice({
+        stripe_price_id: price.id,
+        stripe_product_id: productId,
+        currency: price.currency,
+        unit_amount: price.unit_amount ?? 0,
+        interval: price.recurring?.interval ?? null,
+        interval_count: price.recurring?.interval_count ?? null,
+        usage_type: price.recurring?.usage_type ?? null,
+        billing_scheme: price.billing_scheme ?? null,
+        meter_id: price.recurring?.meter ?? null,
+        meter_name: meterName,
+        internal_type: internalType,
+        is_active: price.active,
+        metadata: price.metadata ?? {},
+        ...displayData,
+      });
     });
 
     logger.info('Successfully created price: {priceId}', { priceId: price.id });

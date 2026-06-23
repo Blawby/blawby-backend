@@ -11,15 +11,15 @@
 import { getLogger } from '@logtape/logtape';
 import { sql, and, eq } from 'drizzle-orm';
 import { METERED_TYPE_TO_STRIPE_EVENT } from '@/modules/subscriptions/constants/metered-products';
-import { organizations, subscriptionLineItems, subscriptions, events } from '@/schema';
+import { organizations, subscriptions, events } from '@/schema';
 import { config } from '@/shared/config';
-import { db as appDb } from '@/shared/database';
+import { db } from '@/shared/database';
 import { SYSTEM_ACTOR_UUID } from '@/shared/events/constants';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
+import { getActiveTx } from '@/shared/database/uow';
+import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['subscriptions', 'services', 'metered-products']);
-
-type DbOrTx = typeof appDb | Parameters<Parameters<typeof appDb.transaction>[0]>[0];
 
 const METER_USAGE_REPORTED = 'meter_usage.reported';
 
@@ -36,19 +36,19 @@ const METER_USAGE_REPORTED = 'meter_usage.reported';
  * promises if they do not want Stripe outages or invalid `meteredType` inputs
  * to break the caller flow.
  *
- * @param db - Database instance
- * @param organizationId - Organization UUID
- * @param meteredType - Standardized metered type (see METERED_TYPES)
- * @param quantity - Amount to report
- * @param deduplicationId - Optional stable key to prevent double reporting on retries
  */
 const reportMeteredUsage = async function reportMeteredUsage(
-  db: DbOrTx,
-  organizationId: string,
-  meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT,
-  quantity = 1,
-  deduplicationId?: string
+  params: {
+    organizationId: string;
+    meteredType: keyof typeof METERED_TYPE_TO_STRIPE_EVENT;
+    quantity?: number;
+    deduplicationId?: string;
+  },
+  ctx?: ServiceContext
 ): Promise<void> {
+  void ctx;
+  const { organizationId, meteredType, quantity = 1, deduplicationId } = params;
+
   // 1. Get organization's Stripe Customer ID
   const [org] = await db
     .select({
@@ -96,7 +96,7 @@ const reportMeteredUsage = async function reportMeteredUsage(
       eventVersion: '1.0.0',
       actorId: SYSTEM_ACTOR_UUID,
       actorType: 'system',
-      organizationId: organizationId,
+      organizationId,
       payload: {
         meter_event_name: eventName,
         quantity,
@@ -122,11 +122,14 @@ const reportMeteredUsage = async function reportMeteredUsage(
 };
 
 const getCurrentUsage = async function getCurrentUsage(
-  db: DbOrTx,
-  organizationId: string
+  params: { organizationId: string },
+  ctx?: ServiceContext
 ): Promise<{ meter_name: string; quantity: number; description: string | null }[]> {
+  void ctx;
+  const { organizationId } = params;
+
   // 1. Get organization's active subscription to find current period start
-  const [org] = await db
+  const [org] = await getActiveTx()
     .select({
       activeSubscriptionId: organizations.activeSubscriptionId,
     })
@@ -136,7 +139,7 @@ const getCurrentUsage = async function getCurrentUsage(
 
   let periodStart: Date | null = null;
   if (org?.activeSubscriptionId) {
-    const [sub] = await db
+    const [sub] = await getActiveTx()
       .select({
         periodStart: subscriptions.periodStart,
       })
@@ -147,7 +150,7 @@ const getCurrentUsage = async function getCurrentUsage(
   }
 
   // 2. Aggregate usage within the current period
-  const usage = await db
+  const usage = await getActiveTx()
     .select({
       meter_name: sql<string>`${events.payload}->>'meter_event_name'`,
       quantity: sql<number>`CAST(SUM(CAST(${events.payload}->>'quantity' AS INTEGER)) AS INTEGER)`,

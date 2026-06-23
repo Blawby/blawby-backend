@@ -1,5 +1,4 @@
 import { and, asc, count, desc, eq, getTableColumns, isNull, lt } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   matterTasks,
   type InsertMatterTask,
@@ -7,24 +6,19 @@ import {
 } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterTaskListFilters, OrgTaskListFilters } from '@/modules/matters/types/matter-filters.types';
-import type * as schema from '@/schema';
-import { db } from '@/shared/database';
+import { getActiveTx } from '@/shared/database/uow';
 
-const createMatterTasks = async (
-  data: InsertMatterTask | InsertMatterTask[],
-  tx?: NodePgDatabase<typeof schema>
-): Promise<SelectMatterTask[]> => {
+const createMatterTasks = async (data: InsertMatterTask | InsertMatterTask[]): Promise<SelectMatterTask[]> => {
   const items = Array.isArray(data) ? data : [data];
   if (items.length === 0) {
     return [];
   }
 
-  const client = tx ?? db;
-  return await client.insert(matterTasks).values(items).returning();
+  return await getActiveTx().insert(matterTasks).values(items).returning();
 };
 
 const findMatterTaskById = async (id: string): Promise<SelectMatterTask | undefined> => {
-  const [task] = await db.select().from(matterTasks).where(eq(matterTasks.id, id)).limit(1);
+  const [task] = await getActiveTx().select().from(matterTasks).where(eq(matterTasks.id, id)).limit(1);
   return task;
 };
 
@@ -47,7 +41,7 @@ const listMatterTasks = async (matterId: string, filters?: MatterTaskListFilters
     conditions.push(eq(matterTasks.stage, filters.stage));
   }
 
-  return await db
+  return await getActiveTx()
     .select()
     .from(matterTasks)
     .where(and(...conditions))
@@ -55,7 +49,7 @@ const listMatterTasks = async (matterId: string, filters?: MatterTaskListFilters
 };
 
 const updateMatterTask = async (id: string, data: Partial<InsertMatterTask>): Promise<SelectMatterTask | undefined> => {
-  const [task] = await db
+  const [task] = await getActiveTx()
     .update(matterTasks)
     .set({ ...data, updated_at: new Date() })
     .where(eq(matterTasks.id, id))
@@ -64,7 +58,7 @@ const updateMatterTask = async (id: string, data: Partial<InsertMatterTask>): Pr
 };
 
 const deleteMatterTask = async (id: string): Promise<boolean> => {
-  const rows = await db.delete(matterTasks).where(eq(matterTasks.id, id)).returning({ id: matterTasks.id });
+  const rows = await getActiveTx().delete(matterTasks).where(eq(matterTasks.id, id)).returning({ id: matterTasks.id });
   return rows.length > 0;
 };
 
@@ -97,7 +91,7 @@ const listTasksByOrganization = async (
   const whereClause = and(...conditions);
 
   const [tasks, [countRow]] = await Promise.all([
-    db
+    getActiveTx()
       .select(getTableColumns(matterTasks))
       .from(matterTasks)
       .innerJoin(matters, eq(matterTasks.matter_id, matters.id))
@@ -105,7 +99,7 @@ const listTasksByOrganization = async (
       .orderBy(desc(matterTasks.created_at))
       .limit(limit)
       .offset(offset),
-    db
+    getActiveTx()
       .select({ total: count() })
       .from(matterTasks)
       .innerJoin(matters, eq(matterTasks.matter_id, matters.id))

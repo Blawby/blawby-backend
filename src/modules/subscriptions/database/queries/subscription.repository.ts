@@ -10,21 +10,23 @@ import type {
 } from '@/modules/subscriptions/database/schema/subscription-line-items.schema';
 import type { NewStripePrice, StripePrice } from '@/modules/subscriptions/database/schema/stripe-prices.schema';
 import { subscriptionEvents, subscriptionLineItems, stripePrices } from '@/modules/subscriptions/database/schema';
-import type { db } from '@/shared/database';
-
-type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { getActiveTx } from '@/shared/database/uow';
 
 /**
  * --- Stripe Prices Operations ---
  */
 
-const findPriceByStripeId = async (db: DbOrTx, stripePriceId: string): Promise<StripePrice | undefined> => {
-  const [price] = await db.select().from(stripePrices).where(eq(stripePrices.stripe_price_id, stripePriceId)).limit(1);
+const findPriceByStripeId = async (stripePriceId: string): Promise<StripePrice | undefined> => {
+  const [price] = await getActiveTx()
+    .select()
+    .from(stripePrices)
+    .where(eq(stripePrices.stripe_price_id, stripePriceId))
+    .limit(1);
   return price;
 };
 
-const findPriceByName = async (db: DbOrTx, name: string): Promise<StripePrice | undefined> => {
-  const [price] = await db
+const findPriceByName = async (name: string): Promise<StripePrice | undefined> => {
+  const [price] = await getActiveTx()
     .select()
     .from(stripePrices)
     .where(and(eq(stripePrices.name, name), eq(stripePrices.is_active, true)))
@@ -34,11 +36,10 @@ const findPriceByName = async (db: DbOrTx, name: string): Promise<StripePrice | 
 };
 
 const findPriceByNameAndInterval = async (
-  db: DbOrTx,
   name: string,
   interval: 'month' | 'year'
 ): Promise<StripePrice | undefined> => {
-  const [price] = await db
+  const [price] = await getActiveTx()
     .select()
     .from(stripePrices)
     .where(and(eq(stripePrices.name, name), eq(stripePrices.interval, interval), eq(stripePrices.is_active, true)))
@@ -47,19 +48,19 @@ const findPriceByNameAndInterval = async (
   return price;
 };
 
-const findPricesByProductId = async (db: DbOrTx, stripeProductId: string): Promise<StripePrice[]> =>
-  await db.select().from(stripePrices).where(eq(stripePrices.stripe_product_id, stripeProductId));
+const findPricesByProductId = async (stripeProductId: string): Promise<StripePrice[]> =>
+  await getActiveTx().select().from(stripePrices).where(eq(stripePrices.stripe_product_id, stripeProductId));
 
 /** Returns all active licensed (non-metered) prices, sorted by sort_order for plan catalog display. */
-const findAllActiveBasePrices = async (db: DbOrTx): Promise<StripePrice[]> =>
-  await db
+const findAllActiveBasePrices = async (): Promise<StripePrice[]> =>
+  await getActiveTx()
     .select()
     .from(stripePrices)
     .where(and(eq(stripePrices.usage_type, 'licensed'), eq(stripePrices.is_active, true)))
     .orderBy(asc(stripePrices.sort_order));
 
-const upsertPrice = async (db: DbOrTx, priceData: NewStripePrice): Promise<StripePrice> => {
-  const [row] = await db
+const upsertPrice = async (priceData: NewStripePrice): Promise<StripePrice> => {
+  const [row] = await getActiveTx()
     .insert(stripePrices)
     .values(priceData)
     .onConflictDoUpdate({
@@ -72,7 +73,6 @@ const upsertPrice = async (db: DbOrTx, priceData: NewStripePrice): Promise<Strip
 
 /** Update denormalized product display columns on all prices sharing a stripe_product_id. */
 const upsertProductDisplayData = async (
-  db: DbOrTx,
   stripeProductId: string,
   displayData: {
     name?: string | null;
@@ -85,36 +85,36 @@ const upsertProductDisplayData = async (
     image?: string | null;
   }
 ): Promise<void> => {
-  await db
+  await getActiveTx()
     .update(stripePrices)
     .set({ ...displayData, updated_at: new Date() })
     .where(eq(stripePrices.stripe_product_id, stripeProductId));
 };
 
-const deactivatePricesByProductId = async (db: DbOrTx, stripeProductId: string): Promise<void> => {
-  await db
+const deactivatePricesByProductId = async (stripeProductId: string): Promise<void> => {
+  await getActiveTx()
     .update(stripePrices)
     .set({ is_active: false, updated_at: new Date() })
     .where(eq(stripePrices.stripe_product_id, stripeProductId));
 };
 
-const deletePrice = async (db: DbOrTx, stripePriceId: string): Promise<void> => {
-  await db.delete(stripePrices).where(eq(stripePrices.stripe_price_id, stripePriceId));
+const deletePrice = async (stripePriceId: string): Promise<void> => {
+  await getActiveTx().delete(stripePrices).where(eq(stripePrices.stripe_price_id, stripePriceId));
 };
 
 /**
  * --- Subscription Line Items Operations ---
  */
 
-const upsertLineItem = async (db: DbOrTx, itemData: NewSubscriptionLineItem): Promise<SubscriptionLineItem> => {
-  const [existing] = await db
+const upsertLineItem = async (itemData: NewSubscriptionLineItem): Promise<SubscriptionLineItem> => {
+  const [existing] = await getActiveTx()
     .select()
     .from(subscriptionLineItems)
     .where(eq(subscriptionLineItems.stripe_subscription_item_id, itemData.stripe_subscription_item_id))
     .limit(1);
 
   if (existing) {
-    const [updated] = await db
+    const [updated] = await getActiveTx()
       .update(subscriptionLineItems)
       .set({ ...itemData, updated_at: new Date() })
       .where(eq(subscriptionLineItems.id, existing.id))
@@ -122,7 +122,7 @@ const upsertLineItem = async (db: DbOrTx, itemData: NewSubscriptionLineItem): Pr
     return updated;
   }
 
-  const [created] = await db.insert(subscriptionLineItems).values(itemData).returning();
+  const [created] = await getActiveTx().insert(subscriptionLineItems).values(itemData).returning();
   return created;
 };
 
@@ -130,17 +130,16 @@ const upsertLineItem = async (db: DbOrTx, itemData: NewSubscriptionLineItem): Pr
  * --- Subscription Events Operations ---
  */
 
-const createEvent = async (db: DbOrTx, eventData: NewSubscriptionEvent): Promise<SubscriptionEvent> => {
-  const [created] = await db.insert(subscriptionEvents).values(eventData).returning();
+const createEvent = async (eventData: NewSubscriptionEvent): Promise<SubscriptionEvent> => {
+  const [created] = await getActiveTx().insert(subscriptionEvents).values(eventData).returning();
   return created;
 };
 
 const findEventsBySubscriptionIdAndType = async (
-  db: DbOrTx,
   subscriptionId: string,
   eventType: SubscriptionEventType
 ): Promise<SubscriptionEvent[]> =>
-  await db
+  await getActiveTx()
     .select()
     .from(subscriptionEvents)
     .where(and(eq(subscriptionEvents.subscription_id, subscriptionId), eq(subscriptionEvents.event_type, eventType)))

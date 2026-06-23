@@ -1,5 +1,7 @@
 # Inconsistencies Remediation Design
 
+> Historical note: the error-handling migration described here is complete. Do not use old `Result<T>`/`sendResult` examples from this document as current guidance; use `AGENTS.md` and `docs/CODING_STANDARDS.md`.
+>
 > Audited: 2026-04-24. Design finalized: 2026-04-25.
 > Source of truth: `docs/superpowers/inconsistencies-audit.md`
 

@@ -470,6 +470,41 @@
       "when": 1780463023265,
       "tag": "0066_opposite_krista_starr",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1780718044625,
+      "tag": "0067_red_moondragon",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1780725182553,
+      "tag": "0068_unusual_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1780728956178,
+      "tag": "0069_illegal_warbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1781273286419,
+      "tag": "0070_woozy_marrow",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1781363837439,
+      "tag": "0071_brown_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

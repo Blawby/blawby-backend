@@ -23,11 +23,14 @@ export type SubjectName =
   | 'Onboarding'
   | 'Subscription'
   | 'Matter'
+  | 'IntakeConversation'
   | 'Invoice'
   | 'Payout'
   | 'RefundRequest'
   | 'Client'
-  | 'ClientMemo';
+  | 'ClientMemo'
+  | 'MemberProfile'
+  | 'ClientIntakeProfile';
 
 /**
  * Subjects include both string names and tagged instances (from subject() helper)
@@ -71,6 +74,8 @@ export const defineAbilityFor = (
     cannot('update', 'Upload');
     cannot('delete', 'Upload');
     can('update', 'Matter');
+    can('read', 'IntakeConversation');
+    can('update', 'IntakeConversation');
     can('update', 'PracticeClientIntake');
     can('read', 'Invoice');
     can('update', 'Invoice');
@@ -81,6 +86,7 @@ export const defineAbilityFor = (
     can('update', 'RefundRequest');
     can('manage', 'Client');
     can('manage', 'ClientMemo');
+    can('manage', 'ClientIntakeProfile');
     cannot('read', 'UserDetails');
     if (metadata.userId) {
       canWithConditions('read', 'UserDetails', { user_id: metadata.userId });

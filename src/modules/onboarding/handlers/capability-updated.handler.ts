@@ -2,7 +2,7 @@ import { getLogger } from '@logtape/logtape';
 import { eq, sql } from 'drizzle-orm';
 import type Stripe from 'stripe';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
-import { db } from '@/shared/database';
+import { getActiveTx, uow } from '@/shared/database/uow';
 import { OnboardingAccountCapabilitiesUpdated } from '@/shared/events/definitions';
 import { WEBHOOK_ACTOR_UUID } from '@/shared/events/event';
 
@@ -37,8 +37,8 @@ export const handleCapabilityUpdated = async (capability: Stripe.Capability): Pr
     // Actually, let's see if we can do it effectively without a redundant SELECT.
     // If we want to be truly efficient, we use jsonb_set or || in SQL.
 
-    await db.transaction(async (tx) => {
-      const [record] = await tx
+    await uow.transaction(async () => {
+      const [record] = await getActiveTx()
         .update(stripeConnectedAccounts)
         .set({
           capabilities: sql`${stripeConnectedAccounts.capabilities} || ${JSON.stringify({ [capability.id]: capability.status })}::jsonb`,
@@ -66,7 +66,6 @@ export const handleCapabilityUpdated = async (capability: Stripe.Capability): Pr
           actorId: WEBHOOK_ACTOR_UUID,
           actorType: 'webhook',
           organizationId: record.organization_id,
-          tx,
         }
       );
     });
