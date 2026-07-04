@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { HTTPException } from 'hono/http-exception';
+import { processWebhookRequest } from '@/modules/subscriptions/services/stripe-webhook.service';
 import { config } from '@/shared/config';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { stripeWebhookEventsRepository } from '@/shared/repositories/stripe.webhook-events.repository';
 import { getStripeInstance } from '@/shared/utils/stripe-client';
-import { processWebhookRequest } from '@/modules/subscriptions/services/stripe-webhook.service';
+import { HTTPException } from 'hono/http-exception';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/shared/config', () => ({
   config: { stripe: { webhookSecret: 'whsec_test' } },
@@ -25,9 +25,9 @@ vi.mock('@/shared/utils/stripe-client', () => ({
   getStripeInstance: vi.fn(),
 }));
 
-const addWebhookJobMock = vi.mocked(queueManager.addWebhookJob);
-const createIfNotExistsMock = vi.mocked(stripeWebhookEventsRepository.createIfNotExists);
-const markFailedMock = vi.mocked(stripeWebhookEventsRepository.markFailed);
+const addWebhookJobMock = vi.mocked(queueManager).addWebhookJob;
+const createIfNotExistsMock = vi.mocked(stripeWebhookEventsRepository).createIfNotExists;
+const markFailedMock = vi.mocked(stripeWebhookEventsRepository).markFailed;
 const getStripeInstanceMock = vi.mocked(getStripeInstance);
 
 const constructEventMock = vi.fn();
@@ -45,10 +45,11 @@ beforeEach(() => {
 describe('processWebhookRequest', () => {
   it('throws when STRIPE_WEBHOOK_SECRET is not configured', async () => {
     (config.stripe as { webhookSecret: string | undefined }).webhookSecret = undefined;
-
-    await expect(processWebhookRequest('body', 'sig')).rejects.toThrow('STRIPE_WEBHOOK_SECRET must be configured');
-
-    (config.stripe as { webhookSecret: string | undefined }).webhookSecret = 'whsec_test';
+    try {
+      await expect(processWebhookRequest('body', 'sig')).rejects.toThrow('STRIPE_WEBHOOK_SECRET must be configured');
+    } finally {
+      (config.stripe as { webhookSecret: string | undefined }).webhookSecret = 'whsec_test';
+    }
   });
 
   it('throws 400 when the Stripe-Signature header is missing', async () => {
@@ -67,7 +68,7 @@ describe('processWebhookRequest', () => {
 
   it('skips processing a duplicate event', async () => {
     constructEventMock.mockReturnValue(makeStripeEvent('product.created'));
-    createIfNotExistsMock.mockResolvedValue(undefined);
+    createIfNotExistsMock.mockResolvedValue(null);
 
     await processWebhookRequest('body', 'sig');
 

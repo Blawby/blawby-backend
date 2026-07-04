@@ -31,7 +31,6 @@ const authSessionAdditionalFields =
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
   betterAuth({
     secret: config.auth.betterAuthSecret,
-    disabledPaths: ['/token'],
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
