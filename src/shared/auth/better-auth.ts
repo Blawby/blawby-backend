@@ -1,60 +1,36 @@
+import { apiKey } from '@better-auth/api-key';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, anonymous, magicLink, organization, testUtils } from 'better-auth/plugins';
-import { jwt } from 'better-auth/plugins';
-import { apiKey } from '@better-auth/api-key';
-import { oauthProvider } from '@better-auth/oauth-provider';
-import { and, eq } from 'drizzle-orm';
+import { admin, anonymous, jwt, magicLink, multiSession, organization, testUtils } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for drizzle adapter
 // oxlint-disable-next-line no-namespace
 import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
-import { config } from '@/shared/config';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
+import { checkClientIsOwner } from '@/shared/auth/services/organization-access.service';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
+import { config } from '@/shared/config';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email/email.types';
 import type { PrefillData } from '@/shared/types/prefill';
 import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/shared/utils/env';
 import { sanitizeError } from '@/shared/utils/logging';
-import { multiSession } from 'better-auth/plugins';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
 const authSessionAdditionalFields =
   // oxlint-disable-next-line no-unsafe-type-assertion
   (AUTH_CONFIG.session as { additionalFields?: Record<string, unknown> }).additionalFields ?? {};
 
-/**
- * Internal factory to define the Better Auth configuration.
- * Used for type inference without executing betterAuth() at import time.
- */
-export async function checkClientIsOwner(
-  { user, session }: { headers: Headers; user?: { id: string }; session?: Record<string, unknown> },
-  db: NodePgDatabase<typeof schema>
-): Promise<boolean> {
-  const orgId = session?.['activeOrganizationId'];
-  if (!orgId || typeof orgId !== 'string' || !user?.id) return false;
-  try {
-    const [member] = await db
-      .select({ role: schema.members.role })
-      .from(schema.members)
-      .where(and(eq(schema.members.organizationId, orgId), eq(schema.members.userId, user.id)))
-      .limit(1);
-    return member?.role === 'owner';
-  } catch {
-    return false;
-  }
-}
-
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
   betterAuth({
     secret: config.auth.betterAuthSecret,
-    disabledPaths: ['/token'],
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema,
@@ -130,24 +106,25 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       }),
       jwt(),
       oauthProvider({
+        accessTokenExpiresIn: config.auth.mcpAccessTokenExpiresIn,
         loginPage: `${getMatchingFrontendUrl()}/login`,
         consentPage: `${getMatchingFrontendUrl()}/oauth/consent`,
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
         validAudiences: [`${config.app.baseUrl}/mcp`],
         clientReference: ({ session }) => {
-          const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
+          const orgId = (session as Record<string, unknown> | undefined)?.activeOrganizationId;
           return typeof orgId === 'string' ? orgId : undefined;
         },
         postLogin: {
           page: `${getMatchingFrontendUrl()}/oauth/select-org`,
           shouldRedirect: () => false,
           consentReferenceId: ({ session }) => {
-            const orgId = (session as Record<string, unknown> | undefined)?.['activeOrganizationId'];
+            const orgId = (session as Record<string, unknown> | undefined)?.activeOrganizationId;
             return typeof orgId === 'string' ? orgId : undefined;
           },
         },
-        clientPrivileges: (params) => checkClientIsOwner(params, db),
+        clientPrivileges: checkClientIsOwner,
         customAccessTokenClaims: ({ referenceId }) => ({
           organization_id: referenceId,
         }),
