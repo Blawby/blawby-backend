@@ -1,8 +1,8 @@
-import { z } from '@hono/zod-openapi';
 import { uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
 import { intakeFilesService } from '@/modules/practice-client-intakes/services/intake-files.service';
-import { uploadValidations } from '@/shared/uploads/types/uploads.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { uploadValidations } from '@/shared/uploads/types/uploads.validation';
+import { z } from '@hono/zod-openapi';
 
 const tags = ['Practice Client Intakes'];
 
@@ -31,7 +31,7 @@ const listIntakeFilesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
 
-export const presignIntakeFileRoute = routeBuilder.build({
+const presignIntakeFileRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/files/presign',
   tags,
@@ -62,7 +62,7 @@ export const presignIntakeFileRoute = routeBuilder.build({
   },
 });
 
-export const confirmIntakeFileRoute = routeBuilder.build({
+const confirmIntakeFileRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/files/{upload_id}/confirm',
   tags,
@@ -86,7 +86,7 @@ export const confirmIntakeFileRoute = routeBuilder.build({
   },
 });
 
-export const listIntakeFilesRoute = routeBuilder.build({
+const listIntakeFilesRoute = routeBuilder.build({
   method: 'get',
   path: '/{uuid}/files',
   tags,
@@ -119,7 +119,7 @@ export const listIntakeFilesRoute = routeBuilder.build({
   },
 });
 
-export const deleteIntakeFileRoute = routeBuilder.build({
+const deleteIntakeFileRoute = routeBuilder.build({
   method: 'delete',
   path: '/{uuid}/files/{upload_id}',
   tags,

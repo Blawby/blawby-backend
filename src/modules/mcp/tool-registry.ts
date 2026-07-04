@@ -145,15 +145,20 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
   const exportsValue = routeExports.routes as Record<string, unknown> | undefined;
   const routeMap = exportsValue ?? routeExports;
   const tools: AnyToolDef[] = [];
+  const seen = new Set<object>();
 
   const addRouteTool = (exportKey: string, route: unknown): void => {
     if (typeof route !== 'object' || route === null) {
+      return;
+    }
+    if (seen.has(route)) {
       return;
     }
     const r = route as Record<string, unknown>;
     if (!r.mcp) {
       return;
     }
+    seen.add(route);
 
     const mcp = r.mcp as McpRouteAnnotation;
     const method = typeof r.method === 'string' ? r.method : 'get';
