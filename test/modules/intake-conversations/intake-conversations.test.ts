@@ -2,6 +2,8 @@ import { intakeConversationsQueries } from '@/modules/intake-conversations/datab
 import type { SelectIntakeConversation } from '@/modules/intake-conversations/database/schema/intake-conversations.schema';
 import { intakeConversationsService } from '@/modules/intake-conversations/services/intake-conversations.service';
 import { defineAbilityFor } from '@/shared/auth/abilities';
+import type { User } from '@/shared/types/BetterAuth';
+import { createServiceContext } from '@/shared/types/service-context';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,7 +26,14 @@ const ORG_ID = 'org_test_1';
 const CONVERSATION_ID = 'conv_test_1';
 
 const makeCtx = (role: string | null): ServiceContext =>
-  ({ organizationId: ORG_ID, ability: defineAbilityFor(role) }) as unknown as ServiceContext;
+  createServiceContext({
+    userId: 'user_test_1',
+    user: { id: 'user_test_1', email: 'test@example.com', name: 'Test User' } as User,
+    organizationId: ORG_ID,
+    memberRole: role,
+    ability: defineAbilityFor(role),
+    requestHeaders: {},
+  });
 
 const makeRow = (overrides: Partial<SelectIntakeConversation> = {}): SelectIntakeConversation =>
   ({
