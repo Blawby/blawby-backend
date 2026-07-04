@@ -16,11 +16,6 @@ const defineTool = <S extends ZodRawShape>(def: {
   handler: (args: z.infer<z.ZodObject<S>>, ctx: ServiceContext) => Promise<unknown>;
 }): AnyToolDef => def as unknown as AnyToolDef;
 
-const hasRequiredMcpScope = (jwt: McpJwt, requiredScope: string): boolean => {
-  const scopes = mcpContext.getMcpScopes(jwt);
-  return scopes.includes(requiredScope);
-};
-
 const toolErrorResult = (message: string): CallToolResult => ({
   content: [{ type: 'text', text: message }],
   isError: true,
@@ -78,10 +73,6 @@ const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): voi
   for (const tool of tools) {
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.schema }, async (args) => {
       try {
-        if (!hasRequiredMcpScope(jwt, tool.scope)) {
-          return toolErrorResult(`Missing required MCP scope "${tool.scope}" for tool "${tool.name}"`);
-        }
-
         const approvalError = await requireToolApproval(server, tool);
         if (approvalError) {
           return approvalError;
@@ -208,6 +199,5 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
 
 export const toolRegistry = {
   defineTool,
-  hasRequiredMcpScope,
   registerTools,
 };
