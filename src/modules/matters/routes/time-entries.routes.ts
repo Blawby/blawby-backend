@@ -1,12 +1,12 @@
-import { z } from '@hono/zod-openapi';
+import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import {
   createMatterTimeEntryRequestSchema,
-  updateMatterTimeEntryRequestSchema,
-  matterTimeEntryResponseSchema,
   listMatterTimeEntriesQuerySchema,
+  matterTimeEntryResponseSchema,
+  updateMatterTimeEntryRequestSchema,
 } from '@/modules/matters/types/matter.types';
-import { matterTimeEntriesService } from '@/modules/matters/services/matter-time-entries.service';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { z } from '@hono/zod-openapi';
 
 const tags = ['Matters'];
 
@@ -18,6 +18,14 @@ export const listTimeEntriesRoute = routeBuilder.build({
   mcp: {
     name: 'list_time_entries',
     scope: 'matters:read',
+    schema: {
+      matter_id: z.uuid(),
+      entry_id: z.uuid().optional(),
+      billable: z.coerce.boolean().optional(),
+      invoiced: z.coerce.boolean().optional(),
+      start_date: z.string().optional(),
+      end_date: z.string().optional(),
+    },
     handler: async (args, ctx) => {
       const scopedCtx = { ...ctx, matterId: args.matter_id as string };
       return matterTimeEntriesService.listMatterTimeEntries(

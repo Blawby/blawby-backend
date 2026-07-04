@@ -21,7 +21,7 @@ interface McpRouteAnnotation {
 }
 
 // Mapped type prevents oxfmt from converting to interface; interface WithMcp breaks RouteConfig's x-${string} index signature constraint
-type WithMcp = { [K in 'mcp']: McpRouteAnnotation };
+type WithMcp = Record<'mcp', McpRouteAnnotation>;
 type WithoutMcp = Record<string, never>;
 
 /**

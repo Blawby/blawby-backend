@@ -1,12 +1,12 @@
-import { z } from '@hono/zod-openapi';
+import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import {
   createMatterExpenseRequestSchema,
-  updateMatterExpenseRequestSchema,
-  matterExpenseResponseSchema,
   listMatterExpensesQuerySchema,
+  matterExpenseResponseSchema,
+  updateMatterExpenseRequestSchema,
 } from '@/modules/matters/types/matter.types';
-import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { z } from '@hono/zod-openapi';
 
 const tags = ['Matters'];
 
@@ -18,6 +18,13 @@ export const listExpensesRoute = routeBuilder.build({
   mcp: {
     name: 'list_expenses',
     scope: 'matters:read',
+    schema: {
+      matter_id: z.uuid(),
+      expense_id: z.uuid().optional(),
+      billable: z.coerce.boolean().optional(),
+      start_date: z.string().optional(),
+      end_date: z.string().optional(),
+    },
     handler: async (args, ctx) => {
       const scopedCtx = { ...ctx, matterId: args.matter_id as string };
       return matterExpensesService.listMatterExpenses(
