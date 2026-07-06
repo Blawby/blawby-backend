@@ -1,5 +1,8 @@
 import { mcpContext } from '@/modules/mcp/mcp-context';
+import { deriveHighRiskIdempotencyKey } from '@/modules/mcp/idempotency';
 import type { AnyToolDef, McpJwt } from '@/modules/mcp/types';
+import { pendingActionsService } from '@/modules/pending-actions/services/pending-actions.service';
+import { config } from '@/shared/config';
 import type { McpRouteAnnotation } from '@/shared/router/route-builder';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { z } from '@hono/zod-openapi';
@@ -13,6 +16,7 @@ const defineTool = <S extends ZodRawShape>(def: {
   schema: S;
   scope: string;
   approval?: AnyToolDef['approval'];
+  requiresPendingApproval?: AnyToolDef['requiresPendingApproval'];
   handler: (args: z.infer<z.ZodObject<S>>, ctx: ServiceContext) => Promise<unknown>;
 }): AnyToolDef => def as unknown as AnyToolDef;
 
@@ -69,6 +73,47 @@ const requireToolApproval = async (server: McpServer, tool: AnyToolDef): Promise
   return null;
 };
 
+/**
+ * Stages the tool call as a `pending_actions` row instead of executing it,
+ * and returns an approval URL. The actual write happens later, out-of-band,
+ * when a practice member approves via `POST /api/pending-actions/{id}/approve`
+ * (see the pending-actions module) — that route looks the tool back up by
+ * name and calls the same `handler` this registry would otherwise call now.
+ */
+const createPendingApprovalResult = async (tool: AnyToolDef, args: Record<string, unknown>, ctx: ServiceContext): Promise<CallToolResult> => {
+  const idempotencyKey = await deriveHighRiskIdempotencyKey({
+    toolName: tool.name,
+    organizationId: ctx.organizationId,
+    userId: ctx.userId,
+    params: args,
+  });
+
+  const pending = await pendingActionsService.createPendingAction({
+    organizationId: ctx.organizationId,
+    createdByUserId: ctx.userId,
+    toolName: tool.name,
+    toolParams: args,
+    idempotencyKey,
+  });
+
+  const approvalUrl = `${config.app.appUrl}/approve/${pending.id}`;
+  const text = [
+    `I've prepared the ${tool.name.replace(/_/g, ' ')} request.`,
+    `A practice member needs to approve it here: ${approvalUrl}.`,
+    `The link expires at ${pending.expires_at.toISOString()}.`,
+    "I'll learn the outcome once it's approved or rejected.",
+  ].join(' ');
+
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      pending_action_id: pending.id,
+      approval_url: approvalUrl,
+      expires_at: pending.expires_at.toISOString(),
+    },
+  };
+};
+
 const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): void => {
   for (const tool of tools) {
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.schema }, async (args) => {
@@ -79,6 +124,11 @@ const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): voi
         }
 
         const ctx = await mcpContext.buildMcpServiceContext(jwt);
+
+        if (tool.requiresPendingApproval) {
+          return await createPendingApprovalResult(tool, args as Record<string, unknown>, ctx);
+        }
+
         const result = await tool.handler(args as Record<string, unknown>, ctx);
         return toolSuccessResult(result);
       } catch (error) {
@@ -180,7 +230,15 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
       schema = { ...queryShape, ...filteredParams, ...bodyShape };
     }
 
-    tools.push({ name, description, scope: mcp.scope, schema, approval: mcp.approval, handler: mcp.handler });
+    tools.push({
+      name,
+      description,
+      scope: mcp.scope,
+      schema,
+      approval: mcp.approval,
+      requiresPendingApproval: mcp.requiresPendingApproval,
+      handler: mcp.handler,
+    });
   };
 
   for (const [exportKey, route] of Object.entries(routeMap)) {

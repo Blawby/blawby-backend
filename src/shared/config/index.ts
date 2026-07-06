@@ -53,6 +53,7 @@ const envSchema = z
     CLOUDFLARE_TURNSTILE_SECRET_KEY: z.string().optional(),
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
     SYSTEM_USER_EMAIL: z.string().email().optional(),
+    IDEMPOTENCY_SALT: z.string().trim().min(16).optional(),
   })
   .loose();
 
@@ -130,6 +131,9 @@ export const config = {
   },
   captcha: {
     skip: raw.SKIP_CAPTCHA === 'true',
+  },
+  mcp: {
+    idempotencySalt: raw.IDEMPOTENCY_SALT,
   },
   database: {
     url: raw.DATABASE_URL,

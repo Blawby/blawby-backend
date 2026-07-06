@@ -22,5 +22,6 @@ export interface AnyToolDef {
   schema: ZodRawShape;
   scope: string;
   approval?: McpToolApproval;
+  requiresPendingApproval?: boolean;
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
 }
