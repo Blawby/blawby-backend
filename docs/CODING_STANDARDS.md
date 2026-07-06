@@ -11,7 +11,7 @@ When you touch a file, check for nearby instances of these known issues and fix 
 - Relative imports in `src/`; use `@/` aliases.
 - Service or handler response wrappers; use throw-based services and direct handler responses.
 - Handler business logic, raw `c.req.param(...)`, or untyped handlers; use route-typed handlers and `c.req.valid(...)`.
-- Unsafe `as` type assertions, including `as unknown as`; replace them with narrowing, Zod parsing, predicates, typed helpers, explicit types, or `satisfies`.
+- Unsafe `as` type assertions, including `as unknown as` and assertion-based test doubles; replace them with narrowing, Zod parsing, predicates, typed helper interfaces, explicit types, or `satisfies`.
 - Missing domain or package types; create the project type or ask to install official typings instead of using `any` or assertions.
 - Direct value imports of `z` from `zod`; use `@hono/zod-openapi` for application schemas.
 - API date schemas using `z.date()`; prefer ISO string schemas for API payloads.
@@ -163,7 +163,7 @@ Direct `db.transaction(...)` belongs in the UoW implementation or exceptional in
 
 ## Type Narrowing Pattern
 
-Do not use `as` to force TypeScript to accept a value. Never use double assertions like `value as unknown as Type`; that bypasses the exact type uncertainty we need to resolve. At boundaries, accept `unknown`, validate or narrow it, then pass the narrowed value forward.
+Do not use `as` to force TypeScript to accept a value. Never use double assertions like `value as unknown as Type`; that bypasses the exact type uncertainty we need to resolve. At boundaries, accept `unknown`, validate or narrow it, then pass the narrowed value forward. In tests, prefer small typed interfaces for fakes over `as SomeLargeDependency`.
 
 If the right type does not exist, add it near the owning module contract. For third-party libraries without bundled types, ask to install official typings such as `@types/<package>` instead of inventing a loose local replacement.
 

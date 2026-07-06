@@ -1,14 +1,13 @@
 import { mcpContext } from '@/modules/mcp/mcp-context';
 import { deriveHighRiskIdempotencyKey } from '@/modules/mcp/idempotency';
-import type { AnyToolDef, McpJwt } from '@/modules/mcp/types';
+import { getRecord, getZodShape, isMcpRouteAnnotation } from '@/modules/mcp/tool-registry.guards';
+import type { AnyToolDef, McpJwt, McpToolServer } from '@/modules/mcp/types';
 import { pendingActionsService } from '@/modules/pending-actions/services/pending-actions.service';
 import { config } from '@/shared/config';
-import type { McpRouteAnnotation } from '@/shared/router/route-builder';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { z } from '@hono/zod-openapi';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ZodObject, ZodRawShape } from 'zod';
+import type { ZodRawShape } from 'zod';
 
 const defineTool = <S extends ZodRawShape>(def: {
   name: string;
@@ -18,7 +17,7 @@ const defineTool = <S extends ZodRawShape>(def: {
   approval?: AnyToolDef['approval'];
   requiresPendingApproval?: AnyToolDef['requiresPendingApproval'];
   handler: (args: z.infer<z.ZodObject<S>>, ctx: ServiceContext) => Promise<unknown>;
-}): AnyToolDef => def as unknown as AnyToolDef;
+}): AnyToolDef<S> => def;
 
 const toolErrorResult = (message: string): CallToolResult => ({
   content: [{ type: 'text', text: message }],
@@ -29,7 +28,16 @@ const toolSuccessResult = (result: unknown): CallToolResult => ({
   content: [{ type: 'text', text: JSON.stringify(result) }],
 });
 
-const requireToolApproval = async (server: McpServer, tool: AnyToolDef): Promise<CallToolResult | null> => {
+const requireToolScope = (jwt: McpJwt, tool: AnyToolDef): CallToolResult | null => {
+  const scopes = mcpContext.getMcpScopes(jwt);
+  if (scopes.includes(tool.scope)) {
+    return null;
+  }
+
+  return toolErrorResult(`Missing required MCP scope "${tool.scope}" for tool "${tool.name}"`);
+};
+
+const requireToolApproval = async (server: McpToolServer, tool: AnyToolDef): Promise<CallToolResult | null> => {
   if (!tool.approval?.required) {
     return null;
   }
@@ -114,10 +122,15 @@ const createPendingApprovalResult = async (tool: AnyToolDef, args: Record<string
   };
 };
 
-const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): void => {
+const registerTools = (server: McpToolServer, jwt: McpJwt, tools: AnyToolDef[]): void => {
   for (const tool of tools) {
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.schema }, async (args) => {
       try {
+        const scopeError = requireToolScope(jwt, tool);
+        if (scopeError) {
+          return scopeError;
+        }
+
         const approvalError = await requireToolApproval(server, tool);
         if (approvalError) {
           return approvalError;
@@ -129,7 +142,7 @@ const registerTools = (server: McpServer, jwt: McpJwt, tools: AnyToolDef[]): voi
           return await createPendingApprovalResult(tool, args as Record<string, unknown>, ctx);
         }
 
-        const result = await tool.handler(args as Record<string, unknown>, ctx);
+        const result = await tool.handler(args, ctx);
         return toolSuccessResult(result);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -183,7 +196,7 @@ const deriveToolName = (method: string, path: string, exportKey?: string): strin
 };
 
 export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): AnyToolDef[] => {
-  const exportsValue = routeExports.routes as Record<string, unknown> | undefined;
+  const exportsValue = getRecord(routeExports.routes);
   const routeMap = exportsValue ?? routeExports;
   const tools: AnyToolDef[] = [];
   const seen = new Set<object>();
@@ -195,13 +208,13 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
     if (seen.has(route)) {
       return;
     }
-    const r = route as Record<string, unknown>;
-    if (!r.mcp) {
+    const r = getRecord(route);
+    if (!r || !isMcpRouteAnnotation(r.mcp)) {
       return;
     }
     seen.add(route);
 
-    const mcp = r.mcp as McpRouteAnnotation;
+    const { mcp } = r;
     const method = typeof r.method === 'string' ? r.method : 'get';
     const path = typeof r.path === 'string' ? r.path : '';
     const name = mcp.name ?? deriveToolName(method, path, exportKey);
@@ -209,23 +222,21 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
 
     let schema: ZodRawShape = mcp.schema ?? {};
     if (!mcp.schema) {
-      const req = r.request as Record<string, unknown> | undefined;
+      const req = getRecord(r.request);
 
       // Body schema
-      const bodyContent = req?.body;
-      const jsonSchema = (bodyContent as Record<string, unknown> | undefined)?.content as
-        | Record<string, unknown>
-        | undefined;
-      const bodySchema = jsonSchema?.['application/json'] as Record<string, unknown> | undefined;
-      const bodyShape = (bodySchema?.schema as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
+      const bodyContent = getRecord(req?.body);
+      const jsonSchema = getRecord(bodyContent?.content);
+      const bodySchema = getRecord(jsonSchema?.['application/json']);
+      const bodyShape = getZodShape(bodySchema?.schema);
 
       // Path params — exclude org-scoping fields (practice_id, organization_id)
       const orgParams = new Set(['practice_id', 'organization_id']);
-      const paramsShape = (req?.params as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
+      const paramsShape = getZodShape(req?.params);
       const filteredParams = Object.fromEntries(Object.entries(paramsShape).filter(([k]) => !orgParams.has(k)));
 
       // Query params
-      const queryShape = (req?.query as ZodObject<ZodRawShape> | undefined)?.shape ?? {};
+      const queryShape = getZodShape(req?.query);
 
       schema = { ...queryShape, ...filteredParams, ...bodyShape };
     }
@@ -244,8 +255,8 @@ export const buildMcpToolsFromModule = (routeExports: Record<string, unknown>): 
   for (const [exportKey, route] of Object.entries(routeMap)) {
     addRouteTool(exportKey, route);
 
-    const r = route as Record<string, unknown>;
-    if (typeof route === 'object' && route !== null && !Array.isArray(route) && !r.mcp && !r.method) {
+    const r = getRecord(route);
+    if (r && !r.mcp && !r.method) {
       for (const [nestedKey, nestedRoute] of Object.entries(r)) {
         addRouteTool(nestedKey, nestedRoute);
       }
