@@ -1,19 +1,25 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from '@hono/zod-openapi';
 import { toolRegistry } from '@/modules/mcp/tool-registry';
 import { mcpContext } from '@/modules/mcp/mcp-context';
 import type { AnyToolDef, McpJwt } from '@/modules/mcp/types';
-import type { ServiceContext } from '@/shared/types/service-context';
 
 vi.mock('@/modules/mcp/mcp-context', () => ({
   mcpContext: {
     getMcpScopes: vi.fn((jwt: McpJwt) => {
-      const {scope} = jwt;
+      const { scope } = jwt;
       return typeof scope === 'string' ? scope.split(/\s+/).filter(Boolean) : [];
     }),
-    buildMcpServiceContext: vi.fn(async () => ({ organizationId: 'org_1' }) as ServiceContext),
+    buildMcpServiceContext: vi.fn(async () => ({
+      organizationId: 'org_1',
+      userId: 'user_1',
+      user: { id: 'user_1', email: 'user@example.com', name: 'User' },
+      memberRole: 'admin',
+      ability: {},
+      requestHeaders: {},
+      emit: async () => 'event_1',
+    })),
   },
 }));
 
@@ -26,16 +32,23 @@ const createFakeServer = (action: 'accept' | 'decline' | 'cancel' = 'accept') =>
     content: action === 'accept' ? { confirm: true } : undefined,
   }));
 
-  const server = {
-    server: { elicitInput },
-    registerTool: vi.fn((name: string, _config: unknown, callback: CapturedToolCallback) => {
-      callbacks.set(name, callback);
-      return {};
-    }),
-  } as unknown as McpServer;
-
-  return { callbacks, elicitInput, server };
+  return {
+    callbacks,
+    elicitInput,
+    server: {
+      server: { elicitInput },
+      registerTool: vi.fn((name: string, _config: unknown, callback: CapturedToolCallback) => {
+        callbacks.set(name, callback);
+        return {};
+      }),
+    },
+  };
 };
+
+const approvalErrorCases = [
+  ['decline', 'Approval declined'],
+  ['cancel', 'Approval cancelled'],
+] satisfies readonly (readonly ['decline' | 'cancel', string])[];
 
 const createTool = (handler: AnyToolDef['handler']): AnyToolDef => ({
   name: 'dangerous_tool',
@@ -69,10 +82,7 @@ describe('toolRegistry.registerTools', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['decline', 'Approval declined'],
-    ['cancel', 'Approval cancelled'],
-  ] as const)('returns an MCP tool error when approval is %s', async (action, message) => {
+  it.each(approvalErrorCases)('returns an MCP tool error when approval is %s', async (action, message) => {
     const handler = vi.fn(async () => ({ ok: true }));
     const { callbacks, server } = createFakeServer(action);
 
@@ -101,7 +111,9 @@ describe('toolRegistry.registerTools', () => {
   it('returns an MCP tool error when elicitInput throws', async () => {
     const handler = vi.fn(async () => ({ ok: true }));
     const { callbacks, server } = createFakeServer('accept');
-    server.server.elicitInput = vi.fn(async () => { throw new Error('transport error'); });
+    server.server.elicitInput = vi.fn(async () => {
+      throw new Error('transport error');
+    });
 
     toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
     const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });

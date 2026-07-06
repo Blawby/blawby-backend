@@ -31,7 +31,11 @@ const envSchema = z
     ALLOWED_ORIGINS: z.string().optional(),
 
     BETTER_AUTH_SECRET: z.string().optional(),
-    MCP_ACCESS_TOKEN_EXPIRES_IN: z.coerce.number().int().positive().default(60 * 60 * 24), // 24 hours
+    MCP_ACCESS_TOKEN_EXPIRES_IN: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60 * 60 * 24), // 24 hours
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().optional(),
