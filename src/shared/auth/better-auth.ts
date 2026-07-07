@@ -42,6 +42,8 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         ac: organizationAccessController,
         roles: organizationRoles,
         allowPersonalAccounts: true, // Consolidated from AUTH_CONFIG
+        // Staging doesn't send verification emails, so invited users can't verify before accepting.
+        requireEmailVerificationOnInvitation: !config.env.isStaging,
         hooks: {
           afterAcceptInvitation: async (data: {
             invitation: { id: string; organizationId: string };
