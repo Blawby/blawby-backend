@@ -133,23 +133,51 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
-          await db
-            .insert(schema.identityUpgradeClaims)
-            .values({
+          try {
+            // Better Auth can resolve "newUser" to the exact same row as
+            // "anonymousUser" (e.g. an account whose isAnonymous flag never
+            // Got cleared after a previous link). Treating that as a real
+            // Merge causes linkAnonymousUserData to migrate a user's data
+            // Onto itself, deleting/self-referencing its own rows. Bail out
+            // And just make sure the flag is correct instead.
+            if (anonymousUser.user.id === newUser.user.id) {
+              logger.warn('onLinkAccount resolved anonymousUser and newUser to the same id; skipping merge {userId}', {
+                userId: newUser.user.id,
+              });
+              await db.update(schema.users).set({ isAnonymous: false }).where(eq(schema.users.id, newUser.user.id));
+              return;
+            }
+
+            await db
+              .insert(schema.identityUpgradeClaims)
+              .values({
+                anonUserId: anonymousUser.user.id,
+                registeredUserId: newUser.user.id,
+              })
+              .onConflictDoNothing();
+
+            await db
+              .update(schema.sessions)
+              .set({ previousAnonUserId: anonymousUser.user.id })
+              .where(eq(schema.sessions.id, newUser.session.id));
+
+            await linkAnonymousUserData({
+              anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
+              newUser: { id: newUser.user.id, email: newUser.user.email },
+            });
+
+            // Mark the upgraded user as no longer anonymous so future logins
+            // Don't re-trigger this merge against itself.
+            await db.update(schema.users).set({ isAnonymous: false }).where(eq(schema.users.id, newUser.user.id));
+          } catch (error) {
+            // Never let a failure in this best-effort data migration block
+            // The user from actually signing in.
+            logger.error('onLinkAccount failed to migrate anonymous user data: {error}', {
+              error: sanitizeError(error),
               anonUserId: anonymousUser.user.id,
-              registeredUserId: newUser.user.id,
-            })
-            .onConflictDoNothing();
-
-          await db
-            .update(schema.sessions)
-            .set({ previousAnonUserId: anonymousUser.user.id })
-            .where(eq(schema.sessions.id, newUser.session.id));
-
-          await linkAnonymousUserData({
-            anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
-            newUser: { id: newUser.user.id, email: newUser.user.email },
-          });
+              newUserId: newUser.user.id,
+            });
+          }
         },
       }),
       admin(),
