@@ -2,7 +2,7 @@ import { z } from '@hono/zod-openapi';
 import { engagementContractService } from '@/modules/engagement-contracts/services/engagement-contract.service';
 import { engagementContractValidations } from '@/modules/engagement-contracts/validations/engagement-contract.validation';
 import { injectAbility } from '@/shared/middleware/inject-ability';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { routeBuilder } from '@/shared/router/route-builder';
 import {
   errorResponseSchema,

@@ -11,6 +11,7 @@ export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
  */
 export type SubjectName =
   | 'all'
+  | 'InternalConsole'
   | 'OrganizationPreferences'
   | 'UserPreferences'
   | 'UserDetails'
@@ -50,12 +51,17 @@ export type AppAbility = MongoAbility<[Action, Subject]>;
  */
 export const defineAbilityFor = (
   role: string | null,
-  metadata: { userId?: string; organizationId?: string } = {}
+  metadata: { userId?: string; organizationId?: string; globalRole?: string | null } = {}
 ): AppAbility => {
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
   const canWithConditions = can as (action: Action, subject: SubjectName, conditions: Record<string, unknown>) => void;
 
   const orgRole = role ?? null;
+  const globalRole = metadata.globalRole ?? null;
+
+  if (globalRole === 'super_admin') {
+    can('manage', 'InternalConsole');
+  }
 
   // User-scoped preferences: authenticated users can only read/update their own row.
   if (metadata.userId) {

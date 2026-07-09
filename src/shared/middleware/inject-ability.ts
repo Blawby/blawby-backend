@@ -16,6 +16,7 @@ const logger = getLogger(['middleware', 'inject-ability']);
  */
 export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
   const userId = c.get('userId');
+  const user = c.get('user');
   const orgId = c.get('activeOrganizationId');
 
   if (!userId) {
@@ -44,7 +45,7 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
     c.set('memberRole', role);
 
     // Inject Ability
-    const ability = defineAbilityFor(role, { userId, organizationId: orgId ?? undefined });
+    const ability = defineAbilityFor(role, { userId, organizationId: orgId ?? undefined, globalRole: user?.role });
     c.set('ability', ability);
 
     return next();

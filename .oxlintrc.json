@@ -6,7 +6,10 @@
     "node"
   ],
   "jsPlugins": [
-    "oxlint-plugin-eslint"
+    {
+      "name": "eslint-js",
+      "specifier": "oxlint-plugin-eslint"
+    }
   ],
   "env": {
     "node": true,
