@@ -17,6 +17,13 @@ app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
 app.openapi(matterRoutes.listMattersRoute, matterHandlers.listMattersHandler);
 
+// Client routes must be registered before dynamic /:practice_id/:matter_id routes.
+app.openapi(matterRoutes.listClientMattersRoute, matterHandlers.listClientMattersHandler);
+app.openapi(matterRoutes.getClientMatterRoute, matterHandlers.getClientMatterHandler);
+app.openapi(matterRoutes.getClientMatterActivityRoute, matterHandlers.getClientMatterActivityHandler);
+app.openapi(matterRoutes.listClientMatterNotesRoute, matterHandlers.listClientMatterNotesHandler);
+app.openapi(matterRoutes.listClientMatterTasksRoute, matterHandlers.listClientMatterTasksHandler);
+
 // Org-scoped sub-resources — MUST be registered BEFORE the `/:practice_id` sub-router
 // so Hono's matcher prefers these literal paths over the wildcard `/:practice_id/:id/*`
 // that requireMatterAccess() guards (which would reject literals like "tasks" / "summary"

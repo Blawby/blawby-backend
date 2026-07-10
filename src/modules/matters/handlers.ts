@@ -48,10 +48,45 @@ const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> 
   );
 };
 
+const listClientMattersHandler: AppRouteHandler<typeof matterRoutes.listClientMattersRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const query = c.req.valid('query');
+  const data = await mattersService.listClientMatters(
+    {
+      status: query.status,
+      practiceServiceId: query.practice_service_id,
+      assigneeId: query.assignee_id,
+      responsibleAttorneyId: query.responsible_attorney_id,
+      originatingAttorneyId: query.originating_attorney_id,
+      search: query.search,
+      page: query.page,
+      limit: query.limit,
+    },
+    ctx
+  );
+  return c.json(
+    {
+      matters: data.matters,
+      total: data.total,
+      page: query.page,
+      limit: query.limit,
+      totalPages: Math.ceil(data.total / query.limit),
+    },
+    200
+  );
+};
+
 const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: id } = c.req.valid('param');
   const matter = await mattersService.getMatterById(id, ctx);
+  return c.json({ matter }, 200);
+};
+
+const getClientMatterHandler: AppRouteHandler<typeof matterRoutes.getClientMatterRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: id } = c.req.valid('param');
+  const matter = await mattersService.getClientMatterById(id, ctx);
   return c.json({ matter }, 200);
 };
 
@@ -84,6 +119,18 @@ const getMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getMatterAct
   return c.json({ activities }, 200);
 };
 
+const getClientMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getClientMatterActivityRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const activities = await mattersService.getClientMatterActivity(
+    matterId,
+    { limit: query.limit, offset: query.offset, activityId: query.activity_id },
+    ctx
+  );
+  return c.json({ activities }, 200);
+};
+
 const getMatterActivityCountHandler: AppRouteHandler<typeof matterRoutes.getMatterActivityCountRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
@@ -99,6 +146,14 @@ const listMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listMatterNote
   const scopedCtx = { ...ctx, matterId };
   const query = c.req.valid('query');
   const notes = await matterNotesService.listMatterNotes({ filters: { noteId: query.note_id } }, scopedCtx);
+  return c.json(notes, 200);
+};
+
+const listClientMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listClientMatterNotesRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const notes = await mattersService.listClientMatterNotes(matterId, { noteId: query.note_id }, ctx);
   return c.json(notes, 200);
 };
 
@@ -306,6 +361,21 @@ const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTask
   return c.json({ tasks }, 200);
 };
 
+const listClientMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listClientMatterTasksRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId } = c.req.valid('param');
+  const query = c.req.valid('query');
+  const filters: MatterTaskListFilters = {
+    taskId: query.task_id,
+    assigneeId: query.assignee_id,
+    status: query.status,
+    priority: query.priority,
+    stage: query.stage,
+  };
+  const tasks = await mattersService.listClientMatterTasks(matterId, filters, ctx);
+  return c.json({ tasks }, 200);
+};
+
 const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterTaskRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
@@ -412,7 +482,9 @@ const deleteDeadlineHandler: AppRouteHandler<typeof matterRoutes.deleteDeadlineR
 
 export const handlers = {
   listMattersHandler,
+  listClientMattersHandler,
   getMatterHandler,
+  getClientMatterHandler,
   createMatterHandler,
   updateMatterHandler,
   deleteMatterHandler,
@@ -421,6 +493,7 @@ export const handlers = {
   updateTimeEntryHandler,
   deleteTimeEntryHandler,
   getMatterActivityHandler,
+  getClientMatterActivityHandler,
   getMatterActivityCountHandler,
   getTimeEntryStatsHandler,
   listExpensesHandler,
@@ -433,10 +506,12 @@ export const handlers = {
   deleteMilestoneHandler,
   reorderMilestonesHandler,
   listMatterNotesHandler,
+  listClientMatterNotesHandler,
   createMatterNoteHandler,
   updateMatterNoteHandler,
   deleteMatterNoteHandler,
   listMatterTasksHandler,
+  listClientMatterTasksHandler,
   createMatterTaskHandler,
   updateMatterTaskHandler,
   deleteMatterTaskHandler,

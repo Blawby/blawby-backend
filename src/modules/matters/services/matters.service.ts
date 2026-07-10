@@ -5,13 +5,27 @@
  */
 
 import { ForbiddenError } from '@casl/ability';
+import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { isEqual } from 'es-toolkit';
+import { matterNotesQueries } from '@/modules/matters/database/queries/matter-notes.queries';
+import { matterTasksQueries } from '@/modules/matters/database/queries/matter-tasks.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
-import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
+import { mattersQueries, type MatterWithRelations } from '@/modules/matters/database/queries/matters.queries';
+import {
+  matterActivityLog,
+  type SelectMatterActivityLog,
+} from '@/modules/matters/database/schema/matter-activity-log.schema';
+import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-notes.schema';
+import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
-import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
+import type {
+  MatterActivityListFilters,
+  MatterListFilters,
+  MatterNoteListFilters,
+  MatterTaskListFilters,
+} from '@/modules/matters/types/matter-filters.types';
 import type {
   CreateMatterRequest,
   UpdateMatterRequest,
@@ -28,6 +42,17 @@ import type { ServiceContext } from '@/shared/types/service-context';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
 import { matterExpensesQueries } from '@/modules/matters/database/queries/matter-expenses.queries';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
+
+const toMatterRecord = (matter: MatterWithRelations): MatterRecord => ({
+  ...matter,
+  assignees: matter.assignees.map((assignee) => ({
+    ...assignee.user,
+    name: assignee.user.name ?? '',
+  })),
+  client: matter.client
+    ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' }
+    : null,
+});
 
 /**
  * Create a new matter
@@ -129,16 +154,7 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Mat
 
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', toSubject('Matter', matter));
 
-  return {
-    ...matter,
-    assignees: matter.assignees.map((assignee) => ({
-      ...assignee.user,
-      name: assignee.user.name ?? '',
-    })),
-    client: matter.client
-      ? { id: matter.client.id, name: matter.client.name ?? '', email: matter.client.email ?? '' }
-      : null,
-  };
+  return toMatterRecord(matter);
 };
 
 /**
@@ -150,6 +166,97 @@ const listMatters = async (
 ): Promise<{ matters: MatterRecord[]; total: number }> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
   return mattersQueries.listMattersByOrganization(ctx.organizationId, filters);
+};
+
+const getAuthenticatedClientId = async (ctx: ServiceContext): Promise<string> => {
+  const client = await clientsRepository.findByOrgAndUser(ctx.organizationId, ctx.userId);
+  if (!client) {
+    throw new HTTPException(404, { message: 'Client record not found in this organization' });
+  }
+  return client.id;
+};
+
+const verifyClientMatterAccess = async (matterId: string, ctx: ServiceContext): Promise<void> => {
+  const clientId = await getAuthenticatedClientId(ctx);
+  const matter = await mattersQueries.findMatterById(matterId);
+
+  if (!matter || matter.organization_id !== ctx.organizationId || matter.client_id !== clientId) {
+    throw new HTTPException(404, { message: 'Matter not found' });
+  }
+};
+
+const listClientMatters = async (
+  filters: MatterListFilters,
+  ctx: ServiceContext
+): Promise<{ matters: MatterRecord[]; total: number }> => {
+  const clientId = await getAuthenticatedClientId(ctx);
+  return mattersQueries.listMattersByOrganization(ctx.organizationId, { ...filters, clientId });
+};
+
+const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promise<MatterRecord> => {
+  const clientId = await getAuthenticatedClientId(ctx);
+  const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
+
+  if (!matter || matter.organization_id !== ctx.organizationId || matter.client_id !== clientId) {
+    throw new HTTPException(404, { message: 'Matter not found' });
+  }
+
+  return toMatterRecord(matter);
+};
+
+const getClientMatterActivity = async (
+  matterId: string,
+  filters: MatterActivityListFilters | undefined,
+  ctx: ServiceContext
+): Promise<SelectMatterActivityLog[]> => {
+  await verifyClientMatterAccess(matterId, ctx);
+
+  const limit = filters?.limit ?? 50;
+  const offset = filters?.offset ?? 0;
+
+  if (filters?.activityId) {
+    const [activity] = await getActiveTx()
+      .select()
+      .from(matterActivityLog)
+      .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, filters.activityId)))
+      .limit(1);
+    return activity ? [activity] : [];
+  }
+
+  return getActiveTx()
+    .select()
+    .from(matterActivityLog)
+    .where(eq(matterActivityLog.matter_id, matterId))
+    .orderBy(desc(matterActivityLog.created_at))
+    .limit(limit)
+    .offset(offset);
+};
+
+const listClientMatterNotes = async (
+  matterId: string,
+  filters: MatterNoteListFilters | undefined,
+  ctx: ServiceContext
+): Promise<SelectMatterNote[]> => {
+  await verifyClientMatterAccess(matterId, ctx);
+
+  if (filters?.noteId) {
+    const note = await matterNotesQueries.findMatterNoteById(filters.noteId);
+    if (!note || note.matter_id !== matterId) {
+      return [];
+    }
+    return [note];
+  }
+
+  return matterNotesQueries.listMatterNotes(matterId, filters);
+};
+
+const listClientMatterTasks = async (
+  matterId: string,
+  filters: MatterTaskListFilters | undefined,
+  ctx: ServiceContext
+): Promise<SelectMatterTask[]> => {
+  await verifyClientMatterAccess(matterId, ctx);
+  return matterTasksQueries.listMatterTasks(matterId, filters);
 };
 
 /**
@@ -396,6 +503,11 @@ export const mattersService = {
   getMatterById,
   verifyMatterAccess,
   listMatters,
+  listClientMatters,
+  getClientMatterById,
+  getClientMatterActivity,
+  listClientMatterNotes,
+  listClientMatterTasks,
   updateMatter,
   deleteMatter,
   getMatterCounts,
