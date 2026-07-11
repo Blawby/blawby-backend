@@ -6,7 +6,7 @@
 
 import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
-import { isEqual } from 'es-toolkit';
+import { isEqual, omit } from 'es-toolkit';
 import { matterActivityQueries } from '@/modules/matters/database/queries/matter-activity.queries';
 import { matterNotesQueries } from '@/modules/matters/database/queries/matter-notes.queries';
 import { matterTasksQueries } from '@/modules/matters/database/queries/matter-tasks.queries';
@@ -24,6 +24,7 @@ import type {
   MatterTaskListFilters,
 } from '@/modules/matters/types/matter-filters.types';
 import type {
+  ClientMatterRecord,
   CreateMatterRequest,
   UpdateMatterRequest,
   MatterRecord,
@@ -165,6 +166,20 @@ const listMatters = async (
   return mattersQueries.listMattersByOrganization(ctx.organizationId, filters);
 };
 
+// Strip internal billing, staffing, and conflict-check fields before returning matters to clients
+const toClientMatterRecord = (matter: MatterRecord): ClientMatterRecord =>
+  omit(matter, [
+    'admin_hourly_rate',
+    'attorney_hourly_rate',
+    'retainer_balance',
+    'retainer_cap',
+    'retainer_low_balance_threshold',
+    'responsible_attorney_id',
+    'originating_attorney_id',
+    'last_conflict_check_at',
+    'last_conflict_check_result',
+  ]);
+
 const getAuthenticatedClientId = async (ctx: ServiceContext): Promise<string> => {
   const client = await clientsRepository.findByOrgAndUser(ctx.organizationId, ctx.userId);
   if (!client) {
@@ -184,12 +199,13 @@ const verifyClientMatterAccess = async (matterId: string, ctx: ServiceContext): 
 const listClientMatters = async (
   filters: MatterListFilters,
   ctx: ServiceContext
-): Promise<{ matters: MatterRecord[]; total: number }> => {
+): Promise<{ matters: ClientMatterRecord[]; total: number }> => {
   const clientId = await getAuthenticatedClientId(ctx);
-  return mattersQueries.listMattersByOrganization(ctx.organizationId, { ...filters, clientId });
+  const result = await mattersQueries.listMattersByOrganization(ctx.organizationId, { ...filters, clientId });
+  return { matters: result.matters.map(toClientMatterRecord), total: result.total };
 };
 
-const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promise<MatterRecord> => {
+const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promise<ClientMatterRecord> => {
   await verifyClientMatterAccess(matterId, ctx);
 
   const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
@@ -197,7 +213,7 @@ const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promi
     throw new HTTPException(404, { message: 'Matter not found' });
   }
 
-  return toMatterRecord(matter);
+  return toClientMatterRecord(toMatterRecord(matter));
 };
 
 const getClientMatterActivity = async (

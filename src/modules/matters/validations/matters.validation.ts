@@ -208,6 +208,21 @@ const matterSchema = z
   })
   .openapi('Matter');
 
+// Client-facing matter shape: omits internal billing, staffing, and conflict-check fields
+const clientMatterSchema = matterSchema
+  .omit({
+    admin_hourly_rate: true,
+    attorney_hourly_rate: true,
+    retainer_balance: true,
+    retainer_cap: true,
+    retainer_low_balance_threshold: true,
+    responsible_attorney_id: true,
+    originating_attorney_id: true,
+    last_conflict_check_at: true,
+    last_conflict_check_result: true,
+  })
+  .openapi('ClientMatter');
+
 const activityLogSchema = z
   .object({
     id: z.uuid(),
@@ -236,5 +251,6 @@ export const matterValidations = {
   getActivityLogQuerySchema,
   getActivityCountQuerySchema,
   matterSchema,
+  clientMatterSchema,
   activityLogSchema,
 };

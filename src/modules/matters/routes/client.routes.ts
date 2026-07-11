@@ -1,16 +1,16 @@
 import { z } from '@hono/zod-openapi';
 import {
   activityLogResponseSchema,
+  clientMatterResponseSchema,
   getActivityLogQuerySchema,
   listClientMattersQuerySchema,
   listMatterNotesQuerySchema,
   listMatterTasksQuerySchema,
   matterNoteResponseSchema,
-  matterResponseSchema,
   matterTaskResponseSchema,
 } from '@/modules/matters/types/matter.types';
 import { routeBuilder } from '@/shared/router/route-builder';
-import { errorResponseSchema } from '@/shared/validations/openapi';
+import { errorResponseSchema, paginationSchema, practiceIdParamSchema } from '@/shared/validations/openapi';
 
 const tags = ['Client Matters'];
 
@@ -26,9 +26,7 @@ const listClientMattersRoute = routeBuilder.build({
   summary: 'List client matters',
   description: 'Returns a paginated list of matters for the authenticated client.',
   request: {
-    params: z.object({
-      practice_id: z.uuid(),
-    }),
+    params: practiceIdParamSchema,
     query: listClientMattersQuerySchema,
   },
   responses: {
@@ -37,11 +35,8 @@ const listClientMattersRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            matters: z.array(matterResponseSchema),
-            total: z.number(),
-            page: z.number(),
-            limit: z.number(),
-            totalPages: z.number(),
+            data: z.array(clientMatterResponseSchema),
+            pagination: paginationSchema,
           }),
         },
       },
@@ -64,7 +59,7 @@ const getClientMatterRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            matter: matterResponseSchema,
+            matter: clientMatterResponseSchema,
           }),
         },
       },

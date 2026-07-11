@@ -16,6 +16,7 @@ export const updateMatterRequestSchema = matterValidations.updateMatterSchema;
 export const { listMattersQuerySchema } = matterValidations;
 export const { listClientMattersQuerySchema } = matterValidations;
 export const matterResponseSchema = matterValidations.matterSchema;
+export const clientMatterResponseSchema = matterValidations.clientMatterSchema;
 export const activityLogResponseSchema = matterValidations.activityLogSchema;
 export const matterInternalResponseSchema = matterValidations.matterSchema; // Internal same as public for now
 
@@ -88,6 +89,23 @@ export type MatterRecord = SelectMatter & {
     email: string;
   } | null;
 };
+
+/**
+ * Client-facing matter record: internal billing, staffing, and conflict-check
+ * fields are stripped before leaving the service layer.
+ */
+export type ClientMatterRecord = Omit<
+  MatterRecord,
+  | 'admin_hourly_rate'
+  | 'attorney_hourly_rate'
+  | 'retainer_balance'
+  | 'retainer_cap'
+  | 'retainer_low_balance_threshold'
+  | 'responsible_attorney_id'
+  | 'originating_attorney_id'
+  | 'last_conflict_check_at'
+  | 'last_conflict_check_result'
+>;
 
 /**
  * Matter list response
