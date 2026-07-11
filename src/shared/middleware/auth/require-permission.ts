@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import type { Action, SubjectName } from '@/shared/auth/abilities';
+import type { Action, SubjectName } from '@/shared/auth/abilities.types';
 import type { Variables } from '@/shared/types/hono';
 
 export const requirePermission =

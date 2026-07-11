@@ -31,6 +31,7 @@ const envSchema = z
     ALLOWED_ORIGINS: z.string().optional(),
 
     BETTER_AUTH_SECRET: z.string().optional(),
+    STAFF_EMAIL_DOMAIN: z.string().default('blawby.com'),
     MCP_ACCESS_TOKEN_EXPIRES_IN: z.coerce
       .number()
       .int()
@@ -108,6 +109,7 @@ export const config = {
   },
   auth: {
     betterAuthSecret: raw.BETTER_AUTH_SECRET,
+    staffEmailDomain: raw.STAFF_EMAIL_DOMAIN,
     mcpAccessTokenExpiresIn: raw.MCP_ACCESS_TOKEN_EXPIRES_IN,
     googleClientId: raw.GOOGLE_CLIENT_ID,
     googleClientSecret: raw.GOOGLE_CLIENT_SECRET,

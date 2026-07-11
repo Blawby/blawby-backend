@@ -2,6 +2,7 @@ import { db } from '@/shared/database';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AppAbility } from '@/shared/auth/abilities.types';
 
 vi.mock('@/shared/database', () => ({
   db: {
@@ -22,6 +23,7 @@ interface ContextState {
   activeOrganizationId: string | null;
   memberRole?: string | null;
   ability?: unknown;
+  user?: { role?: string | null; email?: string; emailVerified?: boolean } | null;
 }
 
 const makeContext = (state: ContextState) => {
@@ -96,5 +98,45 @@ describe('injectAbility', () => {
 
     expect(values.ability).toBeDefined();
     expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('grants console ability for a verified staff-domain user with a staff role', async () => {
+    const { c, values } = makeContext({
+      userId: 'user_1',
+      activeOrganizationId: null,
+      user: { role: 'user,support', email: 'sam@blawby.com', emailVerified: true },
+    });
+
+    await injectAbility()(c, next);
+
+    const ability = values.ability as AppAbility;
+    expect(ability.can('read', 'InternalConsole')).toBe(true);
+    expect(ability.can('manage', 'InternalConsole')).toBe(false);
+  });
+
+  it('keeps staff roles inert for a non-staff-domain email', async () => {
+    const { c, values } = makeContext({
+      userId: 'user_1',
+      activeOrganizationId: null,
+      user: { role: 'user,super_admin', email: 'owner@lawfirm.com', emailVerified: true },
+    });
+
+    await injectAbility()(c, next);
+
+    const ability = values.ability as AppAbility;
+    expect(ability.can('read', 'InternalConsole')).toBe(false);
+  });
+
+  it('keeps staff roles inert for an unverified staff-domain email', async () => {
+    const { c, values } = makeContext({
+      userId: 'user_1',
+      activeOrganizationId: null,
+      user: { role: 'user,super_admin', email: 'sam@blawby.com', emailVerified: false },
+    });
+
+    await injectAbility()(c, next);
+
+    const ability = values.ability as AppAbility;
+    expect(ability.can('read', 'InternalConsole')).toBe(false);
   });
 });

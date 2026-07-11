@@ -1,5 +1,6 @@
 // oxlint-disable typescript/no-unsafe-assignment
-import { defineAbilityFor, type AppAbility } from '@/shared/auth/abilities';
+import { defineAbilityFor } from '@/shared/auth/abilities';
+import type { AppAbility } from '@/shared/auth/abilities.types';
 import type { DispatchOptions, EventClass } from '@/shared/events/types/event.types';
 import type { User } from '@/shared/types/BetterAuth';
 import type { Context } from 'hono';

@@ -7,7 +7,7 @@ import type {
   ListFilesQuery,
   PresignBody,
 } from '@/modules/practice-client-intakes/types/intake-files.types';
-import type { AppAbility } from '@/shared/auth/abilities';
+import type { AppAbility } from '@/shared/auth/abilities.types';
 import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
 import { toUploadDetails, uploadCoreService } from '@/shared/uploads/services/upload-core.service';
 import type { PresignUploadRequest } from '@/shared/uploads/types/uploads.types';

@@ -1,9 +1,10 @@
-import { HTTPException } from 'hono/http-exception';
+import { freshUser } from '@/modules/ops/fresh-user';
 import { getOpsResource } from '@/modules/ops/resources';
 import type { OpsListParams } from '@/modules/ops/types';
-import { injectAbility } from '@/shared/middleware/inject-ability';
 import { requireAuth, requirePermission } from '@/shared/middleware/auth';
+import { injectAbility } from '@/shared/middleware/inject-ability';
 import { createHonoApp } from '@/shared/router/factory';
+import { HTTPException } from 'hono/http-exception';
 
 const opsApp = createHonoApp();
 
@@ -30,7 +31,7 @@ const getListParams = (query: Record<string, string>): OpsListParams => {
   };
 };
 
-opsApp.use('*', requireAuth(), injectAbility(), requirePermission('read', 'InternalConsole'));
+opsApp.use('*', requireAuth(), freshUser(), injectAbility(), requirePermission('read', 'InternalConsole'));
 
 opsApp.get('/:resource', async (c) => {
   const resource = getOpsResource(c.req.param('resource'));
