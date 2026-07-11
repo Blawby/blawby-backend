@@ -14,7 +14,9 @@ import { matterValidations } from '@/modules/matters/validations/matters.validat
 export const createMatterRequestSchema = matterValidations.createMatterSchema;
 export const updateMatterRequestSchema = matterValidations.updateMatterSchema;
 export const { listMattersQuerySchema } = matterValidations;
+export const { listClientMattersQuerySchema } = matterValidations;
 export const matterResponseSchema = matterValidations.matterSchema;
+export const activityLogResponseSchema = matterValidations.activityLogSchema;
 export const matterInternalResponseSchema = matterValidations.matterSchema; // Internal same as public for now
 
 export const createMatterExpenseRequestSchema = matterExpenseValidations.createMatterExpenseSchema;

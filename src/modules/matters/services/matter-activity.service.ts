@@ -5,8 +5,9 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { eq, desc, and, gte, count } from 'drizzle-orm';
+import { eq, and, gte, count } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { matterActivityQueries } from '@/modules/matters/database/queries/matter-activity.queries';
 import {
   matterActivityLog,
   type SelectMatterActivityLog,
@@ -73,25 +74,7 @@ const getMatterActivity = async (
   const { mattersService } = await import('@/modules/matters/services/matters.service');
   await mattersService.verifyMatterAccess(matterId, ctx);
 
-  const limit = options?.limit ?? 50;
-  const offset = options?.offset ?? 0;
-
-  if (options?.activityId) {
-    const [activity] = await getActiveTx()
-      .select()
-      .from(matterActivityLog)
-      .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, options.activityId)))
-      .limit(1);
-    return activity ? [activity] : [];
-  }
-
-  return getActiveTx()
-    .select()
-    .from(matterActivityLog)
-    .where(eq(matterActivityLog.matter_id, matterId))
-    .orderBy(desc(matterActivityLog.created_at))
-    .limit(limit)
-    .offset(offset);
+  return matterActivityQueries.listMatterActivity(matterId, options);
 };
 
 const getMatterActivityCount = async (options: { since: Date }, ctx: ServiceContext): Promise<number> => {

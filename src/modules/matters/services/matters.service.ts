@@ -5,17 +5,14 @@
  */
 
 import { ForbiddenError } from '@casl/ability';
-import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { isEqual } from 'es-toolkit';
+import { matterActivityQueries } from '@/modules/matters/database/queries/matter-activity.queries';
 import { matterNotesQueries } from '@/modules/matters/database/queries/matter-notes.queries';
 import { matterTasksQueries } from '@/modules/matters/database/queries/matter-tasks.queries';
 import { matterMilestonesQueries } from '@/modules/matters/database/queries/matter-milestones.queries';
 import { mattersQueries, type MatterWithRelations } from '@/modules/matters/database/queries/matters.queries';
-import {
-  matterActivityLog,
-  type SelectMatterActivityLog,
-} from '@/modules/matters/database/schema/matter-activity-log.schema';
+import type { SelectMatterActivityLog } from '@/modules/matters/database/schema/matter-activity-log.schema';
 import type { SelectMatterNote } from '@/modules/matters/database/schema/matter-notes.schema';
 import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
@@ -177,10 +174,9 @@ const getAuthenticatedClientId = async (ctx: ServiceContext): Promise<string> =>
 };
 
 const verifyClientMatterAccess = async (matterId: string, ctx: ServiceContext): Promise<void> => {
-  const clientId = await getAuthenticatedClientId(ctx);
-  const matter = await mattersQueries.findMatterById(matterId);
+  const matter = await mattersQueries.findClientMatterById(matterId, ctx.organizationId, ctx.userId);
 
-  if (!matter || matter.organization_id !== ctx.organizationId || matter.client_id !== clientId) {
+  if (!matter) {
     throw new HTTPException(404, { message: 'Matter not found' });
   }
 };
@@ -194,10 +190,10 @@ const listClientMatters = async (
 };
 
 const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promise<MatterRecord> => {
-  const clientId = await getAuthenticatedClientId(ctx);
-  const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
+  await verifyClientMatterAccess(matterId, ctx);
 
-  if (!matter || matter.organization_id !== ctx.organizationId || matter.client_id !== clientId) {
+  const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
+  if (!matter) {
     throw new HTTPException(404, { message: 'Matter not found' });
   }
 
@@ -210,26 +206,7 @@ const getClientMatterActivity = async (
   ctx: ServiceContext
 ): Promise<SelectMatterActivityLog[]> => {
   await verifyClientMatterAccess(matterId, ctx);
-
-  const limit = filters?.limit ?? 50;
-  const offset = filters?.offset ?? 0;
-
-  if (filters?.activityId) {
-    const [activity] = await getActiveTx()
-      .select()
-      .from(matterActivityLog)
-      .where(and(eq(matterActivityLog.matter_id, matterId), eq(matterActivityLog.id, filters.activityId)))
-      .limit(1);
-    return activity ? [activity] : [];
-  }
-
-  return getActiveTx()
-    .select()
-    .from(matterActivityLog)
-    .where(eq(matterActivityLog.matter_id, matterId))
-    .orderBy(desc(matterActivityLog.created_at))
-    .limit(limit)
-    .offset(offset);
+  return matterActivityQueries.listMatterActivity(matterId, filters);
 };
 
 const listClientMatterNotes = async (

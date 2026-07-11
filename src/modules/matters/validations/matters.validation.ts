@@ -145,6 +145,15 @@ const listMattersQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+// Client-facing list filters: no staff-oriented filters (assignee/attorney/client ids)
+const listClientMattersQuerySchema = z.object({
+  status: matterStatusEnum.optional(),
+  practice_service_id: uuidValidator.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+});
+
 const getActivityLogQuerySchema = z.object({
   activity_id: uuidValidator.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -223,6 +232,7 @@ export const matterValidations = {
   updateMatterSchema,
   matterIdParamSchema,
   listMattersQuerySchema,
+  listClientMattersQuerySchema,
   getActivityLogQuerySchema,
   getActivityCountQuerySchema,
   matterSchema,

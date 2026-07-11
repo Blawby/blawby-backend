@@ -1,4 +1,5 @@
 import type { routes as matterRoutes } from '@/modules/matters/routes';
+import type { clientMatterRoutes } from '@/modules/matters/routes/client.routes';
 import { matterActivityService } from '@/modules/matters/services/matter-activity.service';
 import { matterDeadlinesService } from '@/modules/matters/services/matter-deadlines.service';
 import { matterExpensesService } from '@/modules/matters/services/matter-expenses.service';
@@ -48,16 +49,13 @@ const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> 
   );
 };
 
-const listClientMattersHandler: AppRouteHandler<typeof matterRoutes.listClientMattersRoute> = async (c) => {
+const listClientMattersHandler: AppRouteHandler<typeof clientMatterRoutes.listClientMattersRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
   const data = await mattersService.listClientMatters(
     {
       status: query.status,
       practiceServiceId: query.practice_service_id,
-      assigneeId: query.assignee_id,
-      responsibleAttorneyId: query.responsible_attorney_id,
-      originatingAttorneyId: query.originating_attorney_id,
       search: query.search,
       page: query.page,
       limit: query.limit,
@@ -83,7 +81,7 @@ const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = as
   return c.json({ matter }, 200);
 };
 
-const getClientMatterHandler: AppRouteHandler<typeof matterRoutes.getClientMatterRoute> = async (c) => {
+const getClientMatterHandler: AppRouteHandler<typeof clientMatterRoutes.getClientMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: id } = c.req.valid('param');
   const matter = await mattersService.getClientMatterById(id, ctx);
@@ -119,7 +117,9 @@ const getMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getMatterAct
   return c.json({ activities }, 200);
 };
 
-const getClientMatterActivityHandler: AppRouteHandler<typeof matterRoutes.getClientMatterActivityRoute> = async (c) => {
+const getClientMatterActivityHandler: AppRouteHandler<typeof clientMatterRoutes.getClientMatterActivityRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
@@ -149,7 +149,9 @@ const listMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listMatterNote
   return c.json(notes, 200);
 };
 
-const listClientMatterNotesHandler: AppRouteHandler<typeof matterRoutes.listClientMatterNotesRoute> = async (c) => {
+const listClientMatterNotesHandler: AppRouteHandler<typeof clientMatterRoutes.listClientMatterNotesRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
@@ -361,7 +363,9 @@ const listMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listMatterTask
   return c.json({ tasks }, 200);
 };
 
-const listClientMatterTasksHandler: AppRouteHandler<typeof matterRoutes.listClientMatterTasksRoute> = async (c) => {
+const listClientMatterTasksHandler: AppRouteHandler<typeof clientMatterRoutes.listClientMatterTasksRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
