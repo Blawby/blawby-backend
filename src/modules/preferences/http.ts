@@ -7,7 +7,7 @@
 import { preferencesHandlers } from './handlers';
 import * as routes from './routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { createHonoApp } from '@/shared/router/factory';
 
 const app = createHonoApp();

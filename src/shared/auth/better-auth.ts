@@ -12,8 +12,10 @@ import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
+import { ac, staffAccessRoles } from '@/shared/auth/permissions';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { checkClientIsOwner } from '@/shared/auth/services/organization-access.service';
+import { createStaffRoleHooks } from '@/shared/auth/staff-role-hooks';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { config } from '@/shared/config';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
@@ -180,7 +182,10 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           }
         },
       }),
-      admin(),
+      admin({
+        ac,
+        roles: staffAccessRoles,
+      }),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           await queueManager.addEmailJob('magic-link', email, 'Sign in to Blawby', {
@@ -192,6 +197,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       ...(config.env.isTest ? [testUtils()] : []),
       apiKey(),
     ],
+    hooks: {
+      ...createStaffRoleHooks(db),
+    },
     baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',
     rateLimit: {

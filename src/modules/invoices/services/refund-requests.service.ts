@@ -11,7 +11,7 @@ import { invoices } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectRefundRequest } from '@/modules/invoices/database/schema/refund-requests.schema';
 import { invoiceClientResolver } from '@/modules/invoices/services/invoice-client-resolver.service';
 import { refundEngine } from '@/engines/financial/refund-engine';
-import type { Action, Subject } from '@/shared/auth/abilities';
+import type { Action, Subject } from '@/shared/auth/abilities.types';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';

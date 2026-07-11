@@ -14,7 +14,7 @@ import { clientsCrudService } from '@/modules/clients/services/clients-crud.serv
 import { Event } from '@/shared/events/event';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import type { Event as StoredEvent } from '@/shared/events/schemas/events.schema';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { intakeHelpers } from '@/test/modules/practice-client-intakes/helpers/intake';
 import type {

@@ -10,7 +10,7 @@ import { toTypedResponse } from '@/test/helpers/response';
 import trustApp from '@/modules/trust/http';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { trustTransactions } from '@/modules/trust/database/schema/trust-transactions.schema';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import type { SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
 

@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
 import { routes as matterRoutes } from '@/modules/matters/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireMatterAccess } from '@/shared/middleware/requireMatterAccess';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';

@@ -1,7 +1,7 @@
 import type { RouteConfig, RouteHandler } from '@hono/zod-openapi';
 import type { Hono } from 'hono';
 
-import type { AppAbility } from '@/shared/auth/abilities';
+import type { AppAbility } from '@/shared/auth/abilities.types';
 import type { User, Session } from '@/shared/types/BetterAuth';
 
 export interface Variables {
