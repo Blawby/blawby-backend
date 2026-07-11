@@ -62,13 +62,7 @@ const listClientMattersHandler: AppRouteHandler<typeof clientMatterRoutes.listCl
     },
     ctx
   );
-  return c.json(
-    {
-      data: result.matters,
-      pagination: { page: query.page, limit: query.limit, total: result.total },
-    },
-    200
-  );
+  return c.json(result, 200);
 };
 
 const getMatterHandler: AppRouteHandler<typeof matterRoutes.getMatterRoute> = async (c) => {
@@ -120,12 +114,12 @@ const getClientMatterActivityHandler: AppRouteHandler<typeof clientMatterRoutes.
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
-  const activities = await mattersService.getClientMatterActivity(
+  const result = await mattersService.getClientMatterActivity(
     matterId,
-    { limit: query.limit, offset: query.offset, activityId: query.activity_id },
+    { activityId: query.activity_id, page: query.page, limit: query.limit },
     ctx
   );
-  return c.json({ activities }, 200);
+  return c.json(result, 200);
 };
 
 const getMatterActivityCountHandler: AppRouteHandler<typeof matterRoutes.getMatterActivityCountRoute> = async (c) => {
@@ -152,8 +146,12 @@ const listClientMatterNotesHandler: AppRouteHandler<typeof clientMatterRoutes.li
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
-  const notes = await mattersService.listClientMatterNotes(matterId, { noteId: query.note_id }, ctx);
-  return c.json(notes, 200);
+  const result = await mattersService.listClientMatterNotes(
+    matterId,
+    { noteId: query.note_id, page: query.page, limit: query.limit },
+    ctx
+  );
+  return c.json(result, 200);
 };
 
 const createMatterNoteHandler: AppRouteHandler<typeof matterRoutes.createMatterNoteRoute> = async (c) => {
@@ -366,15 +364,20 @@ const listClientMatterTasksHandler: AppRouteHandler<typeof clientMatterRoutes.li
   const ctx = getServiceContext(c);
   const { matter_id: matterId } = c.req.valid('param');
   const query = c.req.valid('query');
-  const filters: MatterTaskListFilters = {
-    taskId: query.task_id,
-    assigneeId: query.assignee_id,
-    status: query.status,
-    priority: query.priority,
-    stage: query.stage,
-  };
-  const tasks = await mattersService.listClientMatterTasks(matterId, filters, ctx);
-  return c.json({ tasks }, 200);
+  const result = await mattersService.listClientMatterTasks(
+    matterId,
+    {
+      taskId: query.task_id,
+      assigneeId: query.assignee_id,
+      status: query.status,
+      priority: query.priority,
+      stage: query.stage,
+      page: query.page,
+      limit: query.limit,
+    },
+    ctx
+  );
+  return c.json(result, 200);
 };
 
 const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterTaskRoute> = async (c) => {

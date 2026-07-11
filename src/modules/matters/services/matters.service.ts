@@ -35,6 +35,7 @@ import { practiceServicesRepository } from '@/modules/practice/database/queries/
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { toSubject } from '@/shared/auth/subject-helpers';
 import { getActiveTx, uow } from '@/shared/database/uow';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import { MatterCreated, MatterUpdated, MatterDeleted, MatterStatusChanged } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { matterTimeEntriesQueries } from '@/modules/matters/database/queries/matter-time-entries.queries';
@@ -199,10 +200,13 @@ const verifyClientMatterAccess = async (matterId: string, ctx: ServiceContext): 
 const listClientMatters = async (
   filters: MatterListFilters,
   ctx: ServiceContext
-): Promise<{ matters: ClientMatterRecord[]; total: number }> => {
+): Promise<OffsetPaginatedResponse<ClientMatterRecord>> => {
   const clientId = await getAuthenticatedClientId(ctx);
   const result = await mattersQueries.listMattersByOrganization(ctx.organizationId, { ...filters, clientId });
-  return { matters: result.matters.map(toClientMatterRecord), total: result.total };
+  return {
+    data: result.matters.map(toClientMatterRecord),
+    pagination: { page: filters.page ?? 1, limit: filters.limit ?? 20, total: result.total },
+  };
 };
 
 const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promise<ClientMatterRecord> => {
@@ -218,38 +222,32 @@ const getClientMatterById = async (matterId: string, ctx: ServiceContext): Promi
 
 const getClientMatterActivity = async (
   matterId: string,
-  filters: MatterActivityListFilters | undefined,
+  filters: (MatterActivityListFilters & { page?: number }) | undefined,
   ctx: ServiceContext
-): Promise<SelectMatterActivityLog[]> => {
+): Promise<OffsetPaginatedResponse<SelectMatterActivityLog>> => {
   await verifyClientMatterAccess(matterId, ctx);
-  return matterActivityQueries.listMatterActivity(matterId, filters);
+  const { data, total, page, limit } = await matterActivityQueries.listMatterActivityPaginated(matterId, filters);
+  return { data, pagination: { page, limit, total } };
 };
 
 const listClientMatterNotes = async (
   matterId: string,
-  filters: MatterNoteListFilters | undefined,
+  filters: (MatterNoteListFilters & { page?: number; limit?: number }) | undefined,
   ctx: ServiceContext
-): Promise<SelectMatterNote[]> => {
+): Promise<OffsetPaginatedResponse<SelectMatterNote>> => {
   await verifyClientMatterAccess(matterId, ctx);
-
-  if (filters?.noteId) {
-    const note = await matterNotesQueries.findMatterNoteById(filters.noteId);
-    if (!note || note.matter_id !== matterId) {
-      return [];
-    }
-    return [note];
-  }
-
-  return matterNotesQueries.listMatterNotes(matterId, filters);
+  const { data, total, page, limit } = await matterNotesQueries.listMatterNotesPaginated(matterId, filters);
+  return { data, pagination: { page, limit, total } };
 };
 
 const listClientMatterTasks = async (
   matterId: string,
-  filters: MatterTaskListFilters | undefined,
+  filters: (MatterTaskListFilters & { page?: number; limit?: number }) | undefined,
   ctx: ServiceContext
-): Promise<SelectMatterTask[]> => {
+): Promise<OffsetPaginatedResponse<SelectMatterTask>> => {
   await verifyClientMatterAccess(matterId, ctx);
-  return matterTasksQueries.listMatterTasks(matterId, filters);
+  const { data, total, page, limit } = await matterTasksQueries.listMatterTasksPaginated(matterId, filters);
+  return { data, pagination: { page, limit, total } };
 };
 
 /**

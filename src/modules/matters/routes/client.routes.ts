@@ -2,7 +2,6 @@ import { z } from '@hono/zod-openapi';
 import {
   activityLogResponseSchema,
   clientMatterResponseSchema,
-  getActivityLogQuerySchema,
   listClientMattersQuerySchema,
   listMatterNotesQuerySchema,
   listMatterTasksQuerySchema,
@@ -10,14 +9,21 @@ import {
   matterTaskResponseSchema,
 } from '@/modules/matters/types/matter.types';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { paginationSchema as paginationQuerySchema, uuidValidator } from '@/shared/validations/common';
 import { errorResponseSchema, paginationSchema, practiceIdParamSchema } from '@/shared/validations/openapi';
 
 const tags = ['Client Matters'];
 
-const clientMatterParamsSchema = z.object({
-  practice_id: z.uuid(),
+const clientMatterParamsSchema = practiceIdParamSchema.extend({
   matter_id: z.uuid(),
 });
+
+const clientMatterActivityQuerySchema = z.object({
+  activity_id: uuidValidator.optional(),
+  ...paginationQuerySchema.shape,
+});
+const clientMatterNotesQuerySchema = listMatterNotesQuerySchema.extend(paginationQuerySchema.shape);
+const clientMatterTasksQuerySchema = listMatterTasksQuerySchema.extend(paginationQuerySchema.shape);
 
 const listClientMattersRoute = routeBuilder.build({
   method: 'get',
@@ -82,7 +88,7 @@ const getClientMatterActivityRoute = routeBuilder.build({
   summary: 'Get client matter activity log',
   request: {
     params: clientMatterParamsSchema,
-    query: getActivityLogQuerySchema,
+    query: clientMatterActivityQuerySchema,
   },
   responses: {
     200: {
@@ -90,7 +96,8 @@ const getClientMatterActivityRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            activities: z.array(activityLogResponseSchema),
+            data: z.array(activityLogResponseSchema),
+            pagination: paginationSchema,
           }),
         },
       },
@@ -105,14 +112,17 @@ const listClientMatterNotesRoute = routeBuilder.build({
   summary: 'List client matter notes',
   request: {
     params: clientMatterParamsSchema,
-    query: listMatterNotesQuerySchema,
+    query: clientMatterNotesQuerySchema,
   },
   responses: {
     200: {
       description: 'Notes retrieved successfully',
       content: {
         'application/json': {
-          schema: z.array(matterNoteResponseSchema),
+          schema: z.object({
+            data: z.array(matterNoteResponseSchema),
+            pagination: paginationSchema,
+          }),
         },
       },
     },
@@ -126,7 +136,7 @@ const listClientMatterTasksRoute = routeBuilder.build({
   summary: 'List client matter tasks',
   request: {
     params: clientMatterParamsSchema,
-    query: listMatterTasksQuerySchema,
+    query: clientMatterTasksQuerySchema,
   },
   responses: {
     200: {
@@ -134,7 +144,8 @@ const listClientMatterTasksRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            tasks: z.array(matterTaskResponseSchema),
+            data: z.array(matterTaskResponseSchema),
+            pagination: paginationSchema,
           }),
         },
       },
