@@ -23,22 +23,20 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
       headers: c.req.raw.headers,
     });
 
-    // Set session and user in context
-    if (session?.user) {
-      c.set('session', session);
-      c.set('user', session.user);
-      c.set('userId', session.user.id);
-      const activeOrgId = session.session.activeOrganizationId;
-
-      c.set('activeOrganizationId', activeOrgId ?? null);
-    }
-
     // Block request if no user
     if (!session?.user) {
       throw new HTTPException(401, {
         message: 'Authentication required',
       });
     }
+
+    // Set session and user in context
+    c.set('session', session);
+    c.set('user', session.user);
+    c.set('userId', session.user.id);
+    const activeOrgId = session.session.activeOrganizationId;
+
+    c.set('activeOrganizationId', activeOrgId ?? null);
 
     return next();
   } catch (error) {
@@ -47,7 +45,11 @@ export const requireAuth = (): MiddlewareHandler<{ Variables: Variables }> => as
     }
 
     const logger = getLogger(['app', 'auth']);
-    logger.error('Error in requireAuth middleware: {error}', { error });
+    logger.error('Error in requireAuth middleware: {error}', {
+      error,
+      method: c.req.method,
+      path: c.req.path,
+    });
     throw error;
   }
 };

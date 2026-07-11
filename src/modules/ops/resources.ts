@@ -8,6 +8,47 @@ import {
 import type { OpsListParams, OpsResource } from '@/modules/ops/types';
 
 const toSearchPattern = (q: string | null): string | null => (q ? `%${q.trim()}%` : null);
+const toIsoString = (date: Date): string => date.toISOString();
+const toNullableIsoString = (date: Date | null): string | null => date?.toISOString() ?? null;
+
+const opsUserSelection = {
+  id: users.id,
+  name: users.name,
+  email: users.email,
+  email_verified: users.emailVerified,
+  image: users.image,
+  phone: users.phone,
+  role: users.role,
+  banned: users.banned,
+  ban_reason: users.banReason,
+  ban_expires: users.banExpires,
+  onboarding_complete: users.onboardingComplete,
+  created_at: users.createdAt,
+  updated_at: users.updatedAt,
+};
+
+interface OpsUserRow {
+  id: string;
+  name: string;
+  email: string;
+  email_verified: boolean;
+  image: string | null;
+  phone: string | null;
+  role: string | null;
+  banned: boolean | null;
+  ban_reason: string | null;
+  ban_expires: Date | null;
+  onboarding_complete: boolean | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+const serializeOpsUser = (row: OpsUserRow) => ({
+  ...row,
+  ban_expires: toNullableIsoString(row.ban_expires),
+  created_at: toIsoString(row.created_at),
+  updated_at: toIsoString(row.updated_at),
+});
 
 const listPractices: OpsResource['list'] = async ({ limit, offset, q }) => {
   const searchPattern = toSearchPattern(q);
@@ -46,21 +87,7 @@ const listUsers: OpsResource['list'] = async ({ limit, offset, q }) => {
   const where = searchPattern ? or(ilike(users.email, searchPattern), ilike(users.name, searchPattern)) : undefined;
 
   const rowsQuery = db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      email_verified: users.emailVerified,
-      image: users.image,
-      phone: users.phone,
-      role: users.role,
-      banned: users.banned,
-      ban_reason: users.banReason,
-      ban_expires: users.banExpires,
-      onboarding_complete: users.onboardingComplete,
-      created_at: users.createdAt,
-      updated_at: users.updatedAt,
-    })
+    .select(opsUserSelection)
     .from(users)
     .$dynamic();
   const totalQuery = db
@@ -79,33 +106,19 @@ const listUsers: OpsResource['list'] = async ({ limit, offset, q }) => {
   ]);
 
   return {
-    data: rows,
+    data: rows.map(serializeOpsUser),
     total: totalRows.at(0)?.total ?? 0,
   };
 };
 
 const getUser: OpsResource['get'] = async (id) => {
   const [row] = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      email_verified: users.emailVerified,
-      image: users.image,
-      phone: users.phone,
-      role: users.role,
-      banned: users.banned,
-      ban_reason: users.banReason,
-      ban_expires: users.banExpires,
-      onboarding_complete: users.onboardingComplete,
-      created_at: users.createdAt,
-      updated_at: users.updatedAt,
-    })
+    .select(opsUserSelection)
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
 
-  return row ?? null;
+  return row ? serializeOpsUser(row) : null;
 };
 
 const listPracticeInvitations: NonNullable<OpsResource['relations']>[string]['list'] = async (
@@ -130,6 +143,7 @@ const listPracticeInvitations: NonNullable<OpsResource['relations']>[string]['li
       status: invitations.status,
       expires_at: invitations.expiresAt,
       created_at: invitations.createdAt,
+      updated_at: invitations.updatedAt,
       inviter_id: users.id,
       inviter_name: users.name,
       inviter_email: users.email,
@@ -153,8 +167,9 @@ const listPracticeInvitations: NonNullable<OpsResource['relations']>[string]['li
       email: row.email,
       role: row.role,
       status: row.status,
-      expires_at: row.expires_at.getTime(),
-      created_at: row.created_at.getTime(),
+      expires_at: toIsoString(row.expires_at),
+      created_at: toIsoString(row.created_at),
+      updated_at: toIsoString(row.updated_at),
       inviter: {
         id: row.inviter_id,
         name: row.inviter_name,

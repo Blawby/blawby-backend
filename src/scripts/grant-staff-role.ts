@@ -112,8 +112,10 @@ const main = async (): Promise<void> => {
 
   const nextRole = [...new Set([...baseRoles, ...nextStaffRoles])].join(',');
 
-  await db.update(users).set({ role: nextRole }).where(eq(users.id, user.id));
-  await db.delete(sessions).where(eq(sessions.userId, user.id));
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ role: nextRole }).where(eq(users.id, user.id));
+    await tx.delete(sessions).where(eq(sessions.userId, user.id));
+  });
 
   console.log(`Updated ${email}: role "${user.role ?? ''}" -> "${nextRole}". All sessions revoked.`);
   console.log(`Previous staff roles: [${existingStaffRoles.join(', ')}]`);

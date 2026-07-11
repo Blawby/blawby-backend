@@ -25,12 +25,6 @@ const defineAbilityFor = (
   const orgRole = role ?? null;
   const staffRoles = metadata.isVerifiedStaff ? getStaffRoles(metadata.globalRole) : [];
 
-  for (const staffRole of staffRoles) {
-    for (const action of STAFF_CONSOLE_GRANTS[staffRole]) {
-      can(action, 'InternalConsole');
-    }
-  }
-
   // User-scoped preferences: authenticated users can only read/update their own row.
   if (metadata.userId) {
     canWithConditions('read', 'UserPreferences', { user_id: metadata.userId });
@@ -83,9 +77,15 @@ const defineAbilityFor = (
     }
   }
 
-  if (orgRole && staffRoles.length === 0) {
+  if (orgRole) {
     cannot('read', 'InternalConsole');
     cannot('manage', 'InternalConsole');
+  }
+
+  for (const staffRole of staffRoles) {
+    for (const action of STAFF_CONSOLE_GRANTS[staffRole]) {
+      can(action, 'InternalConsole');
+    }
   }
 
   return build();
