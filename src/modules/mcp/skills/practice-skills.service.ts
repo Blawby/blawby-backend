@@ -56,6 +56,11 @@ const getPracticeSkills = async (ctx: ServiceContext) => {
   return await buildPracticeSkillsResponse(ctx.organizationId);
 };
 
+const getPublicPracticeSkillPrompt = async (organizationId: string) => {
+  const { enabled_skills, prompt_contribution } = await buildPracticeSkillsResponse(organizationId);
+  return { enabled_skills, prompt_contribution };
+};
+
 const updatePracticeSkills = async (enabledSkills: PracticeSkillKey[], ctx: ServiceContext) => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
   const normalized = normalizePracticeSkills(enabledSkills);
@@ -65,5 +70,6 @@ const updatePracticeSkills = async (enabledSkills: PracticeSkillKey[], ctx: Serv
 
 export const practiceSkillsService = {
   getPracticeSkills,
+  getPublicPracticeSkillPrompt,
   updatePracticeSkills,
 };

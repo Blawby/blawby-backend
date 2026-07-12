@@ -4,6 +4,7 @@ import { practiceSkillsService } from '@/modules/mcp/skills/practice-skills.serv
 import { routeBuilder } from '@/shared/router/route-builder';
 
 const practiceIdParams = z.object({ practice_id: z.uuid() });
+const practiceSlugParams = z.object({ slug: z.string().trim().min(1).max(255) });
 const skillKeySchema = z.enum(PRACTICE_SKILL_KEYS);
 const skillCatalogItemSchema = z.object({
   key: skillKeySchema,
@@ -17,6 +18,10 @@ const practiceSkillsResponseSchema = z.object({
   available_skills: z.array(skillCatalogItemSchema),
   effective_scopes: z.array(z.string()),
   prompt_contribution: z.string(),
+});
+const publicPracticeSkillPromptResponseSchema = practiceSkillsResponseSchema.pick({
+  enabled_skills: true,
+  prompt_contribution: true,
 });
 const updatePracticeSkillsSchema = z
   .object({ enabled_skills: z.array(skillKeySchema).max(PRACTICE_SKILL_KEYS.length) })
@@ -62,4 +67,27 @@ const updatePracticeSkillsRoute = routeBuilder.build({
   },
 });
 
-export { getPracticeSkillsRoute, practiceSkillsResponseSchema, updatePracticeSkillsRoute, updatePracticeSkillsSchema };
+const getPublicPracticeSkillPromptRoute = routeBuilder.build({
+  method: 'get',
+  path: '/details/{slug}/skills',
+  tags: ['Practice'],
+  summary: 'Get public practice AI skill prompt',
+  description:
+    'Returns the deterministic skill prompt for a public practice so the client-facing chatbot uses the same structured intelligence contract.',
+  request: { params: practiceSlugParams },
+  responses: {
+    200: {
+      description: 'Public practice AI skill prompt retrieved',
+      content: { 'application/json': { schema: publicPracticeSkillPromptResponseSchema } },
+    },
+  },
+});
+
+export {
+  getPracticeSkillsRoute,
+  getPublicPracticeSkillPromptRoute,
+  practiceSkillsResponseSchema,
+  publicPracticeSkillPromptResponseSchema,
+  updatePracticeSkillsRoute,
+  updatePracticeSkillsSchema,
+};

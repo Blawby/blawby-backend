@@ -49,6 +49,17 @@ describe('practiceSkillsService', () => {
     expect(result.prompt_contribution).toContain('Billing increment: 6 minute(s).');
   });
 
+  it('limits the public chatbot contract to enabled skills and assembled prompt text', async () => {
+    const result = await practiceSkillsService.getPublicPracticeSkillPrompt(organizationId);
+
+    expect(result).toEqual({
+      enabled_skills: ['billing'],
+      prompt_contribution: expect.stringContaining('Billing increment: 6 minute(s).'),
+    });
+    expect(result).not.toHaveProperty('available_skills');
+    expect(result).not.toHaveProperty('effective_scopes');
+  });
+
   it('persists the normalized replacement set and returns the resulting contract', async () => {
     vi.mocked(findPracticeDetailsByOrganization).mockResolvedValue({ enabled_skills: ['matter_management'] } as never);
 

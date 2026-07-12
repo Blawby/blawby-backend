@@ -120,6 +120,15 @@ export const updatePracticeSkillsHandler: AppRouteHandler<typeof routes.updatePr
   return c.json(await practiceSkillsService.updatePracticeSkills(body.enabled_skills, getServiceContext(c)), 200);
 };
 
+export const getPublicPracticeSkillPromptHandler: AppRouteHandler<
+  typeof routes.getPublicPracticeSkillPromptRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { slug } = c.req.valid('param');
+  const practice = await practiceQueriesService.getPracticeBySlug({ slug }, ctx);
+  return c.json(await practiceSkillsService.getPublicPracticeSkillPrompt(practice.id), 200);
+};
+
 export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof routes.getPracticeDetailsBySlugRoute> = async (
   c
 ) => {

@@ -11,6 +11,7 @@ const practiceApp = createHonoApp();
 const publicApp = createHonoApp();
 publicApp.use('*', injectAbility());
 publicApp.openapi(routes.getPracticeDetailsBySlugRoute, handlers.getPracticeDetailsBySlugHandler);
+publicApp.openapi(routes.getPublicPracticeSkillPromptRoute, handlers.getPublicPracticeSkillPromptHandler);
 
 const authApp = createHonoApp();
 authApp.use('*', requireAuth(), injectAbility());
