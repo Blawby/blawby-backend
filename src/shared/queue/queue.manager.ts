@@ -9,11 +9,12 @@
  * - PostgreSQL: Job queue storage
  */
 
+import { db } from '@/shared/database';
+import { e2eEmailCaptureService } from '@/shared/services/email/e2e-email-capture.service';
 import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
-import { getWorkerUtils, closeWorkerUtils } from './graphile-worker.client';
+import { closeWorkerUtils, getWorkerUtils } from './graphile-worker.client';
 import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
-import { db } from '@/shared/database';
 
 const logger = getLogger(['queue', 'manager']);
 
@@ -81,22 +82,24 @@ const addEmailJob = async (
   data: Record<string, unknown>
 ): Promise<void> => {
   const workerUtils = await getWorkerUtils();
+  const payload = {
+    template,
+    to,
+    subject,
+    data,
+  };
 
   try {
     await workerUtils.addJob(
       TASK_NAMES.SEND_EMAIL,
       {
-        payload: {
-          template,
-          to,
-          subject,
-          data,
-        },
+        payload,
       },
       {
         maxAttempts: graphileWorkerConfig.maxAttempts,
       }
     );
+    await e2eEmailCaptureService.captureQueuedEmail(payload);
 
     logger.info('Email job queued: {template} to {to}', { template, to });
   } catch (error) {
@@ -105,7 +108,7 @@ const addEmailJob = async (
   }
 };
 
-export const addMeteredUsageJob = async (payload: {
+const addMeteredUsageJob = async (payload: {
   organizationId: string;
   meteredType: string;
   quantity: number;
@@ -135,7 +138,7 @@ export const addMeteredUsageJob = async (payload: {
   }
 };
 
-export const addInvoicePaymentJob = async (payload: {
+const addInvoicePaymentJob = async (payload: {
   invoice_id: string;
   organization_id: string;
   stripe_invoice_id: string;
@@ -169,7 +172,7 @@ export const addInvoicePaymentJob = async (payload: {
   }
 };
 
-export const addInvoiceVoidReconciliationJob = async (payload: {
+const addInvoiceVoidReconciliationJob = async (payload: {
   invoiceId: string;
   organizationId: string;
   stripeInvoiceId: string;
@@ -198,7 +201,7 @@ export const addInvoiceVoidReconciliationJob = async (payload: {
   }
 };
 
-export const addSeedDefaultIntakeTemplateJob = async (organizationId: string): Promise<void> => {
+const addSeedDefaultIntakeTemplateJob = async (organizationId: string): Promise<void> => {
   const workerUtils = await getWorkerUtils();
 
   try {
@@ -218,7 +221,7 @@ export const addSeedDefaultIntakeTemplateJob = async (organizationId: string): P
   }
 };
 
-export const addRefundReconciliationJob = async (payload: {
+const addRefundReconciliationJob = async (payload: {
   organizationId: string;
   requestId: string;
   executorUserId: string;
@@ -329,11 +332,20 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-export const queueManager = {
+const queueManager = {
   addWebhookJob,
   addOnboardingWebhookJob,
   addEmailJob,
   getQueueStats,
   getWebhookQueueStats,
   closeQueues,
+};
+
+export {
+  addInvoicePaymentJob,
+  addInvoiceVoidReconciliationJob,
+  addMeteredUsageJob,
+  addRefundReconciliationJob,
+  addSeedDefaultIntakeTemplateJob,
+  queueManager,
 };

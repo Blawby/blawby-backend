@@ -1,3 +1,15 @@
+import { bootApplication } from '@/boot';
+import { mcpHttp } from '@/modules/mcp';
+import e2eFixturesHttp from '@/routes/e2e-fixtures';
+import { registerAuthRoutes } from '@/shared/auth/better-auth.http';
+import { config } from '@/shared/config';
+import { cors, errorHandler, notFoundHandler, responseMiddleware } from '@/shared/middleware';
+import { rateLimit, rateLimiter } from '@/shared/middleware/rateLimit';
+import { registerModuleRoutes } from '@/shared/router/module-router';
+import { buildOpenApiDocument, createOpenApiApp } from '@/shared/router/openapi-router';
+import type { AppContext } from '@/shared/types/hono';
+import { uploadsHttp } from '@/shared/uploads/http';
+import { createMarkdownFromOpenApi } from '@/shared/utils/openapi';
 import { honoLogger } from '@logtape/hono';
 import { Scalar } from '@scalar/hono-api-reference';
 import { Hono } from 'hono';
@@ -5,16 +17,6 @@ import { requestId } from 'hono/request-id';
 import { RegExpRouter } from 'hono/router/reg-exp-router';
 import { SmartRouter } from 'hono/router/smart-router';
 import { TrieRouter } from 'hono/router/trie-router';
-import { bootApplication } from '@/boot';
-import { registerAuthRoutes } from '@/shared/auth/better-auth.http';
-import { cors, responseMiddleware, notFoundHandler, errorHandler } from '@/shared/middleware';
-import { rateLimit, rateLimiter } from '@/shared/middleware/rateLimit';
-import { uploadsHttp } from '@/shared/uploads/http';
-import { mcpHttp } from '@/modules/mcp';
-import { registerModuleRoutes } from '@/shared/router/module-router';
-import { createOpenApiApp, buildOpenApiDocument } from '@/shared/router/openapi-router';
-import type { AppContext } from '@/shared/types/hono';
-import { createMarkdownFromOpenApi } from '@/shared/utils/openapi';
 
 const app = new Hono<AppContext>({
   router: new SmartRouter({
@@ -44,6 +46,10 @@ app.route('/api/uploads', uploadsHttp);
 
 // MCP server — Bearer token auth handled inside mcpHttp
 app.route('/mcp', mcpHttp);
+
+if (config.e2e.fixturesEnabled && config.env.isStaging && !config.env.isProduction) {
+  app.route('/api/e2e', e2eFixturesHttp);
+}
 
 const openApiApp = createOpenApiApp();
 

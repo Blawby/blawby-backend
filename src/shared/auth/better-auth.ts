@@ -13,6 +13,7 @@ import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
 import { ac, staffAccessRoles } from '@/shared/auth/permissions';
+import { acceptedInvitationClientLinker } from '@/shared/auth/services/accepted-invitation-client-linker.service';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { checkClientIsOwner } from '@/shared/auth/services/organization-access.service';
 import { createStaffRoleHooks } from '@/shared/auth/staff-role-hooks';
@@ -52,7 +53,15 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
             member: { role: string };
             user: { id: string; email: string };
           }) => {
-            // Dispatch event for other modules (User Details) to handle
+            await acceptedInvitationClientLinker.linkAcceptedClientInvitation({
+              invitationId: data.invitation.id,
+              organizationId: data.invitation.organizationId,
+              userId: data.user.id,
+              email: data.user.email,
+              role: data.member.role,
+            });
+
+            // Dispatch event for non-critical side effects after required linkage is durable.
             void InvitationAccepted.dispatch({
               invitationId: data.invitation.id,
               organizationId: data.invitation.organizationId,
