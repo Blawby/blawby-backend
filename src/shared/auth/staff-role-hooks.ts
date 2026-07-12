@@ -6,14 +6,32 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for the typed Drizzle database.
 // oxlint-disable-next-line no-namespace
 import * as schema from '@/schema';
+import { checkDashboardSignIn } from '@/shared/auth/dashboard-sign-in-guard';
 import { checkStaffRoleGrant } from '@/shared/auth/staff-role-guard';
 import { config } from '@/shared/config';
 
-type StaffRoleCheckUser = { role?: string | null; email: string; emailVerified: boolean };
+interface StaffRoleCheckUser {
+  role?: string | null;
+  email: string;
+  emailVerified: boolean;
+}
+
+// Mirrors Better Auth's own sign-in failure message (better-auth/dist/api/routes/sign-in.mjs,
+// BASE_ERROR_CODES.INVALID_EMAIL_OR_PASSWORD) so a non-staff login on the dashboard origin is
+// Indistinguishable from a wrong password — this hook must not become an email-enumeration oracle.
+const INVALID_EMAIL_OR_PASSWORD = 'Invalid email or password';
 
 const logger = getLogger(['shared', 'auth', 'staff-roles']);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const getSignInEmail = (body: unknown): string | undefined => {
+  if (!isRecord(body)) {
+    return undefined;
+  }
+
+  return typeof body.email === 'string' ? body.email : undefined;
+};
 
 const getSetRoleUserId = (body: unknown): string | undefined => {
   if (!isRecord(body)) {
@@ -60,8 +78,55 @@ const findStaffRoleCheckUser = async (
   return user ?? null;
 };
 
+const findStaffRoleCheckUserByEmail = async (
+  db: NodePgDatabase<typeof schema>,
+  email: string | undefined
+): Promise<StaffRoleCheckUser | null> => {
+  if (!email) {
+    return null;
+  }
+
+  const [user] = await db
+    .select({
+      role: schema.users.role,
+      email: schema.users.email,
+      emailVerified: schema.users.emailVerified,
+    })
+    .from(schema.users)
+    .where(eq(schema.users.email, email))
+    .limit(1);
+
+  return user ?? null;
+};
+
 const createStaffRoleHooks = (db: NodePgDatabase<typeof schema>) => ({
   before: createAuthMiddleware(async (ctx) => {
+    if (ctx.path === '/sign-in/email') {
+      // Dashboard console access is gated at login: a non-staff account hitting
+      // The dashboard origin never gets a session, so the frontend never has to
+      // Reason about roles — it just gets sign-in success or failure. Requests
+      // From the main app origin are untouched; dashboard and main app share
+      // One Better Auth instance and this check must not affect normal sign-in.
+      const origin = ctx.headers?.get('origin') ?? null;
+      const email = getSignInEmail(ctx.body);
+      const target = await findStaffRoleCheckUserByEmail(db, email);
+
+      const result = checkDashboardSignIn({
+        origin,
+        dashboardOrigins: config.auth.dashboardOrigins,
+        target,
+      });
+
+      if (!result.allowed) {
+        // Same message/status Better Auth's own credential check would throw,
+        // Whether the account doesn't exist, isn't staff, or the password was
+        // Wrong — a dashboard login attempt can't distinguish any of these.
+        throw new APIError('UNAUTHORIZED', { message: INVALID_EMAIL_OR_PASSWORD });
+      }
+
+      return;
+    }
+
     if (ctx.path !== '/admin/set-role') {
       return;
     }

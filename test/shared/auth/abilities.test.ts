@@ -78,5 +78,6 @@ describe('defineAbilityFor — staff grants', () => {
     });
 
     expect(ability.can('read', 'InternalConsole')).toBe(true);
+    expect(ability.can('manage', 'InternalConsole')).toBe(false);
   });
 });
