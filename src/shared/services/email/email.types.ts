@@ -276,6 +276,7 @@ export interface EmailJobPayload {
   to: string;
   subject: string;
   data: Record<string, unknown>;
+  idempotencyKey?: string;
 }
 
 // Email send options

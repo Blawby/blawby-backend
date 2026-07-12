@@ -1,45 +1,50 @@
-/**
- * Email Service
- *
- * Core email sending functionality using Resend
- */
-
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getLogger } from '@logtape/logtape';
 import { Resend } from 'resend';
-import type { EmailJobPayload, EmailSendOptions, EmailTemplateName } from './email.types';
+import type { EmailJobPayload, EmailSendOptions, EmailTemplateName } from '@/shared/services/email/email.types';
 import { config } from '@/shared/config';
 import { db } from '@/shared/database/connection';
 import { appConfigService } from '@/shared/services/app-config.service';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
 import { renderTemplate, type TemplateDataMap } from '@/shared/services/email/templates';
-import { isProduction, isTest, isProductionLike } from '@/shared/utils/env';
+import { isProduction } from '@/shared/utils/env';
 
 const logger = getLogger(['shared', 'services', 'email']);
 
-// Lazy-initialized Resend client
-let _resend: Resend | null = null;
+let resend: Resend | null = null;
 
 const getResendClient = (): Resend => {
-  if (!_resend) {
+  if (!resend) {
     const apiKey = config.email.resendApiKey;
     if (!apiKey) {
       throw new Error('Missing RESEND_API_KEY environment variable');
     }
-    _resend = new Resend(apiKey);
+    resend = new Resend(apiKey);
   }
-  return _resend;
+  return resend;
 };
 
-// Default email configuration
 const DEFAULT_FROM = 'notifications@blawby.com';
 const DEFAULT_FROM_NAME = 'Blawby';
 
-/**
- * Save email to local file for development preview
- */
-const saveEmailToFile = (to: string, subject: string, html: string) => {
+const recordEmailLog = async (
+  payload: EmailJobPayload,
+  result: { status: 'sent' | 'failed'; messageId?: string; errorMessage?: string }
+): Promise<void> => {
+  await db.insert(emailLogs).values({
+    recipientEmail: payload.to,
+    subject: payload.subject,
+    templateName: payload.template,
+    templateData: payload.data,
+    status: result.status,
+    messageId: result.messageId,
+    errorMessage: result.errorMessage,
+  });
+};
+
+const saveEmailToFile = (to: string, subject: string, html: string): void => {
   if (isProduction()) {
     return;
   }
@@ -52,7 +57,6 @@ const saveEmailToFile = (to: string, subject: string, html: string) => {
 
     const filename = `${Date.now()}-${to.replace(/[^a-z0-9]/gi, '_')}.html`;
     const filePath = path.join(storageDir, filename);
-
     const content = `
       <!-- Subject: ${subject} -->
       <!-- To: ${to} -->
@@ -71,147 +75,83 @@ const saveEmailToFile = (to: string, subject: string, html: string) => {
   }
 };
 
-/**
- * Send an email using Resend
- */
 export const sendEmail = async (
   payload: EmailJobPayload,
   options: EmailSendOptions = {}
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+  const idempotencyKey = payload.idempotencyKey ?? randomUUID();
+
   try {
-    // Render the template to HTML
+    // TemplateDataMap is the registry boundary; queue payloads are keyed by the same template name.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const html = renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
 
-    // Development/Test: Save to file for instant preview
     if (!isProduction()) {
       saveEmailToFile(payload.to, payload.subject, html);
     }
 
-    // Send via Resend
+    if (payload.to.endsWith('@test-blawby.com')) {
+      const messageId = `test-domain:${payload.template}:${idempotencyKey}`;
+      logger.info('[TEST_DOMAIN] Skipping provider delivery to test address: {to}', { to: payload.to });
+      await recordEmailLog(payload, { status: 'sent', messageId });
+      return { success: true, messageId };
+    }
+
+    if (config.email.deliveryMode === 'log_only') {
+      const messageId = `log-only:${payload.template}:${idempotencyKey}`;
+      logger.info('[LOG_ONLY] Rendered email without provider delivery: {subject}', { subject: payload.subject });
+      await recordEmailLog(payload, { status: 'sent', messageId });
+      return { success: true, messageId };
+    }
+
     const apiKey = config.email.resendApiKey;
-    const isProdLike = isProductionLike();
-    const isTestMode = isTest();
-
-    // Skip actual sending if:
-    // 1. Not in production/staging
-    // 2. OR no valid API key
-    // 3. OR specifically in test mode
-    const shouldSkip = !isProdLike || !apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_') || isTestMode;
-
-    const isTestDomain = payload.to.endsWith('@test-blawby.com');
-
-    if (isTestDomain) {
-      logger.info('📡 [TEST_DOMAIN] Skipping email to test address: {to}', { to: payload.to });
-      return { success: true, messageId: 'test_domain_skip' };
+    if (!apiKey || apiKey === 'fake' || apiKey.startsWith('re_your_')) {
+      throw new Error('EMAIL_DELIVERY_MODE=provider requires a valid RESEND_API_KEY');
     }
 
-    if (shouldSkip) {
-      const reason = isTestMode ? 'TEST' : !isProdLike ? 'DEV' : 'NO_API_KEY';
-      logger.info('📡 [{reason}] Skipping actual Resend call for "{subject}". Local preview saved.', {
-        reason,
-        subject: payload.subject,
-      });
-
-      // Log success in DB for local tracking
-      void db
-        .insert(emailLogs)
-        .values({
-          recipientEmail: payload.to,
-          subject: payload.subject,
-          templateName: payload.template,
-          templateData: payload.data,
-          status: 'sent',
-          messageId: `${reason.toLowerCase()}_preview_${Date.now()}`,
-        })
-        .catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
-
-      return { success: true, messageId: `${reason.toLowerCase()}_preview` };
-    }
-
-    // Get "from" details from app config
     const [fromAddress, fromName] = await Promise.all([
       appConfigService.get<string>('email_from_address'),
       appConfigService.get<string>('email_from_name'),
     ]);
 
-    const result = await getResendClient().emails.send({
-      from: options.from ?? `${fromName ?? DEFAULT_FROM_NAME} <${fromAddress ?? DEFAULT_FROM}>`,
-      to: payload.to,
-      subject: payload.subject,
-      html,
-      replyTo: options.replyTo,
-      cc: options.cc,
-      bcc: options.bcc,
-    });
+    const result = await getResendClient().emails.send(
+      {
+        from: options.from ?? `${fromName ?? DEFAULT_FROM_NAME} <${fromAddress ?? DEFAULT_FROM}>`,
+        to: payload.to,
+        subject: payload.subject,
+        html,
+        replyTo: options.replyTo,
+        cc: options.cc,
+        bcc: options.bcc,
+      },
+      { idempotencyKey }
+    );
 
     if (result.error) {
-      logger.error('❌ Email send failed: {error}', { error: result.error });
-
-      // Log failure (fire and forget)
-      void db
-        .insert(emailLogs)
-        .values({
-          recipientEmail: payload.to,
-          subject: payload.subject,
-          templateName: payload.template,
-          templateData: payload.data,
-          status: 'failed',
-          errorMessage: result.error.message,
-        })
-        .catch((err) => logger.error('Failed to log email failure to database: {error}', { error: err }));
-
-      return {
-        success: false,
-        error: result.error.message,
-      };
+      logger.error('Email send failed: {error}', { error: result.error });
+      await recordEmailLog(payload, { status: 'failed', errorMessage: result.error.message });
+      return { success: false, error: result.error.message };
     }
 
-    logger.info('✅ Email sent successfully: {messageId}', { messageId: result.data?.id });
-
-    // Log success (fire and forget)
-    void db
-      .insert(emailLogs)
-      .values({
-        recipientEmail: payload.to,
-        subject: payload.subject,
-        templateName: payload.template,
-        templateData: payload.data,
-        status: 'sent',
-        messageId: result.data?.id,
-      })
-      .catch((err) => logger.error('Failed to log email success to database: {error}', { error: err }));
-
-    return {
-      success: true,
-      messageId: result.data?.id,
-    };
+    const messageId = result.data?.id;
+    logger.info('Email sent successfully: {messageId}', { messageId });
+    await recordEmailLog(payload, { status: 'sent', messageId });
+    return { success: true, messageId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('❌ Email send error: {error}', { error: errorMessage });
+    logger.error('Email send error: {error}', { error: errorMessage });
 
-    // Log unexpected error (fire and forget)
-    void db
-      .insert(emailLogs)
-      .values({
-        recipientEmail: payload.to,
-        subject: payload.subject,
-        templateName: payload.template,
-        templateData: payload.data,
-        status: 'failed',
-        errorMessage: errorMessage,
-      })
-      .catch((err) => logger.error('Failed to log unexpected email error to database: {error}', { error: err }));
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    try {
+      await recordEmailLog(payload, { status: 'failed', errorMessage });
+      return { success: false, error: errorMessage };
+    } catch (auditError) {
+      const auditMessage = auditError instanceof Error ? auditError.message : 'Unknown audit log error';
+      logger.error('Failed to record email failure: {error}', { error: auditMessage });
+      return { success: false, error: `${errorMessage}; audit log failed: ${auditMessage}` };
+    }
   }
 };
 
-/**
- * Send a batch of emails
- */
 export const sendBulkEmails = async (
   payloads: EmailJobPayload[],
   options: EmailSendOptions = {}
@@ -227,10 +167,8 @@ export const sendBulkEmails = async (
     })
   );
 
-  const allSuccessful = results.every((r) => r.success);
-
   return {
-    success: allSuccessful,
+    success: results.every((result) => result.success),
     results,
   };
 };

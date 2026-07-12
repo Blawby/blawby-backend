@@ -48,6 +48,7 @@ const envSchema = z
     STRIPE_CONNECT_WEBHOOK_SECRET: z.string().optional(),
 
     RESEND_API_KEY: z.string().optional(),
+    EMAIL_DELIVERY_MODE: z.enum(['provider', 'log_only']).optional(),
 
     E2E_FIXTURES_ENABLED: z.enum(['true', 'false']).optional(),
     E2E_FIXTURE_SECRET: z.string().optional(),
@@ -91,6 +92,12 @@ const parseIntWithDefault = (value: string | undefined, fallback: number): numbe
 const raw = parsed.data;
 
 const appEnv = raw.APP_ENV ?? raw.NODE_ENV;
+const emailDeliveryMode =
+  raw.EMAIL_DELIVERY_MODE ?? (appEnv === 'development' || appEnv === 'test' ? 'log_only' : undefined);
+
+if (!emailDeliveryMode) {
+  throw new Error('EMAIL_DELIVERY_MODE must be explicitly set to provider or log_only in staging and production');
+}
 
 export const config = {
   env: {
@@ -129,6 +136,7 @@ export const config = {
   },
   email: {
     resendApiKey: raw.RESEND_API_KEY,
+    deliveryMode: emailDeliveryMode,
   },
   e2e: {
     fixturesEnabled: raw.E2E_FIXTURES_ENABLED === 'true',

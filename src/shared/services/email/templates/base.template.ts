@@ -126,6 +126,37 @@ export const cardSection = (content: string): string => `
     <mj-section padding="6px 0"></mj-section>
   `;
 
+export const emailAction = (label: string, url: string): string => {
+  const safeUrl = sanitizeUrl(url);
+  if (safeUrl === '#') {
+    throw new Error('Email action requires a safe absolute URL');
+  }
+  return `<mj-button href="${safeUrl}">${escapeHtml(label)}</mj-button>`;
+};
+
+export const emailCallout = (content: string, tone: 'info' | 'success' | 'warning' = 'info'): string => {
+  const colors = {
+    info: { background: '#eff6ff', border: '#2563eb' },
+    success: { background: '#ecfdf5', border: '#059669' },
+    warning: { background: '#fffbeb', border: '#d97706' },
+  } as const;
+  const color = colors[tone];
+  return `<mj-text background-color="${color.background}" border-left="4px solid ${color.border}" padding="16px">${escapeHtml(content)}</mj-text>`;
+};
+
+export const emailDetails = (rows: readonly { label: string; value: string }[]): string =>
+  `<mj-table>${rows
+    .map(
+      ({ label, value }) =>
+        `<tr><td style="padding: 6px 12px 6px 0; font-weight: 600;">${escapeHtml(label)}</td><td style="padding: 6px 0;">${escapeHtml(value)}</td></tr>`
+    )
+    .join('')}</mj-table>`;
+
+export const emailDivider = (): string => `<mj-divider border-color="${COLORS.border}" padding="24px 0" />`;
+
+export const emailLegalNotice = (content: string): string =>
+  `<mj-text color="${COLORS.textMuted}" font-size="13px" line-height="19px">${escapeHtml(content)}</mj-text>`;
+
 /**
  * Render MJML to HTML
  */

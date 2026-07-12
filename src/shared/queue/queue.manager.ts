@@ -12,6 +12,7 @@
 import { db } from '@/shared/database';
 import { e2eEmailCaptureService } from '@/shared/services/email/e2e-email-capture.service';
 import { getLogger } from '@logtape/logtape';
+import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { closeWorkerUtils, getWorkerUtils } from './graphile-worker.client';
 import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
@@ -87,6 +88,7 @@ const addEmailJob = async (
     to,
     subject,
     data,
+    idempotencyKey: randomUUID(),
   };
 
   try {
@@ -96,6 +98,7 @@ const addEmailJob = async (
         payload,
       },
       {
+        jobKey: `email:${payload.idempotencyKey}`,
         maxAttempts: graphileWorkerConfig.maxAttempts,
       }
     );
