@@ -62,6 +62,49 @@ const deleteMatterTask = async (id: string): Promise<boolean> => {
   return rows.length > 0;
 };
 
+// Page-based listing with total count, same filters as listMatterTasks
+const listMatterTasksPaginated = async (
+  matterId: string,
+  filters?: MatterTaskListFilters & { page?: number; limit?: number }
+): Promise<{ data: SelectMatterTask[]; total: number; page: number; limit: number }> => {
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
+  const offset = (page - 1) * limit;
+
+  const conditions = [eq(matterTasks.matter_id, matterId)];
+
+  if (filters?.status) {
+    conditions.push(eq(matterTasks.status, filters.status));
+  }
+  if (filters?.priority) {
+    conditions.push(eq(matterTasks.priority, filters.priority));
+  }
+  if (filters?.assigneeId) {
+    conditions.push(eq(matterTasks.assignee_id, filters.assigneeId));
+  }
+  if (filters?.taskId) {
+    conditions.push(eq(matterTasks.id, filters.taskId));
+  }
+  if (filters?.stage) {
+    conditions.push(eq(matterTasks.stage, filters.stage));
+  }
+
+  const whereClause = and(...conditions);
+
+  const [data, [countRow]] = await Promise.all([
+    getActiveTx()
+      .select()
+      .from(matterTasks)
+      .where(whereClause)
+      .orderBy(asc(matterTasks.due_date), asc(matterTasks.created_at))
+      .limit(limit)
+      .offset(offset),
+    getActiveTx().select({ total: count() }).from(matterTasks).where(whereClause),
+  ]);
+
+  return { data, total: countRow?.total ?? 0, page, limit };
+};
+
 /**
  * List tasks across an organization, joined to matters for org scoping
  * and to exclude soft-deleted matters.
@@ -113,6 +156,7 @@ export const matterTasksQueries = {
   createMatterTasks,
   findMatterTaskById,
   listMatterTasks,
+  listMatterTasksPaginated,
   listTasksByOrganization,
   updateMatterTask,
   deleteMatterTask,

@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { handlers as matterHandlers } from '@/modules/matters/handlers';
 import { routes as matterRoutes } from '@/modules/matters/routes';
+import { clientMatterRoutes } from '@/modules/matters/routes/client.routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
 import { requireAuth } from '@/shared/middleware/auth';
 import { requireMatterAccess } from '@/shared/middleware/requireMatterAccess';
@@ -16,6 +17,13 @@ app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 // Core matter routes (have their own access checks in services)
 app.openapi(matterRoutes.createMatterRoute, matterHandlers.createMatterHandler);
 app.openapi(matterRoutes.listMattersRoute, matterHandlers.listMattersHandler);
+
+// Client routes must be registered before dynamic /:practice_id/:matter_id routes.
+app.openapi(clientMatterRoutes.listClientMattersRoute, matterHandlers.listClientMattersHandler);
+app.openapi(clientMatterRoutes.getClientMatterRoute, matterHandlers.getClientMatterHandler);
+app.openapi(clientMatterRoutes.getClientMatterActivityRoute, matterHandlers.getClientMatterActivityHandler);
+app.openapi(clientMatterRoutes.listClientMatterNotesRoute, matterHandlers.listClientMatterNotesHandler);
+app.openapi(clientMatterRoutes.listClientMatterTasksRoute, matterHandlers.listClientMatterTasksHandler);
 
 // Org-scoped sub-resources — MUST be registered BEFORE the `/:practice_id` sub-router
 // so Hono's matcher prefers these literal paths over the wildcard `/:practice_id/:id/*`
