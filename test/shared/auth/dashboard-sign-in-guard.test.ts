@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkDashboardSignIn } from '@/shared/auth/dashboard-sign-in-guard';
+import { checkDashboardAccountSignIn, checkDashboardSignIn } from '@/shared/auth/dashboard-sign-in-guard';
 
 const DASHBOARD_ORIGIN = 'https://console.blawby.com';
 const OTHER_DASHBOARD_ORIGIN = 'https://console-staging.blawby.com';
@@ -112,6 +112,32 @@ describe('checkDashboardSignIn', () => {
       dashboardOrigins: DASHBOARD_ORIGINS,
       target: { role: 'user,super_admin' },
     });
+
+    expect(result).toEqual({ allowed: true });
+  });
+});
+
+describe('checkDashboardAccountSignIn', () => {
+  it('blocks dashboard endpoint login for an account with no matching user', () => {
+    const result = checkDashboardAccountSignIn(null);
+
+    expect(result).toEqual({ allowed: false });
+  });
+
+  it('blocks dashboard endpoint login for a non-staff account', () => {
+    const result = checkDashboardAccountSignIn({ role: 'user' });
+
+    expect(result).toEqual({ allowed: false });
+  });
+
+  it('allows dashboard endpoint login for a staff account', () => {
+    const result = checkDashboardAccountSignIn({ role: 'support' });
+
+    expect(result).toEqual({ allowed: true });
+  });
+
+  it('allows dashboard endpoint login when staff role is one entry in a comma-separated role string', () => {
+    const result = checkDashboardAccountSignIn({ role: 'user,super_admin' });
 
     expect(result).toEqual({ allowed: true });
   });

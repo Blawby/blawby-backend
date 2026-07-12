@@ -52,16 +52,12 @@ const serializeOpsUser = (row: OpsUserRow) => ({
 
 const listPractices: OpsResource['list'] = async ({ limit, offset, q }) => {
   const searchPattern = toSearchPattern(q);
-  const where = searchPattern ? or(ilike(organizations.name, searchPattern), ilike(organizations.slug, searchPattern)) : undefined;
+  const where = searchPattern
+    ? or(ilike(organizations.name, searchPattern), ilike(organizations.slug, searchPattern))
+    : undefined;
 
-  const idsQuery = db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .$dynamic();
-  const totalQuery = db
-    .select({ total: count() })
-    .from(organizations)
-    .$dynamic();
+  const idsQuery = db.select({ id: organizations.id }).from(organizations).$dynamic();
+  const totalQuery = db.select({ total: count() }).from(organizations).$dynamic();
 
   if (where) {
     idsQuery.where(where);
@@ -86,14 +82,8 @@ const listUsers: OpsResource['list'] = async ({ limit, offset, q }) => {
   const searchPattern = toSearchPattern(q);
   const where = searchPattern ? or(ilike(users.email, searchPattern), ilike(users.name, searchPattern)) : undefined;
 
-  const rowsQuery = db
-    .select(opsUserSelection)
-    .from(users)
-    .$dynamic();
-  const totalQuery = db
-    .select({ total: count() })
-    .from(users)
-    .$dynamic();
+  const rowsQuery = db.select(opsUserSelection).from(users).$dynamic();
+  const totalQuery = db.select({ total: count() }).from(users).$dynamic();
 
   if (where) {
     rowsQuery.where(where);
@@ -112,11 +102,7 @@ const listUsers: OpsResource['list'] = async ({ limit, offset, q }) => {
 };
 
 const getUser: OpsResource['get'] = async (id) => {
-  const [row] = await db
-    .select(opsUserSelection)
-    .from(users)
-    .where(eq(users.id, id))
-    .limit(1);
+  const [row] = await db.select(opsUserSelection).from(users).where(eq(users.id, id)).limit(1);
 
   return row ? serializeOpsUser(row) : null;
 };
