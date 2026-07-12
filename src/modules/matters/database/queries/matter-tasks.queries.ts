@@ -121,11 +121,20 @@ const listTasksByOrganization = async (
 
   const conditions = [eq(matters.organization_id, organizationId), isNull(matters.deleted_at)];
 
+  if (filters?.taskId) {
+    conditions.push(eq(matterTasks.id, filters.taskId));
+  }
   if (filters?.assigneeId) {
     conditions.push(eq(matterTasks.assignee_id, filters.assigneeId));
   }
   if (filters?.status) {
     conditions.push(eq(matterTasks.status, filters.status));
+  }
+  if (filters?.priority) {
+    conditions.push(eq(matterTasks.priority, filters.priority));
+  }
+  if (filters?.stage) {
+    conditions.push(eq(matterTasks.stage, filters.stage));
   }
   if (filters?.dueBefore) {
     conditions.push(lt(matterTasks.due_date, filters.dueBefore));
