@@ -18,8 +18,8 @@ export type DashboardSignInCheckResult = { allowed: true } | { allowed: false };
  */
 export const checkDashboardSignIn = (input: DashboardSignInCheckInput): DashboardSignInCheckResult => {
   // Origin scheme/host are case-insensitive per RFC 6454 — normalize both sides so a
-  // differently-cased Origin header can't make this look like a non-dashboard request
-  // and skip the staff check.
+  // Differently-cased Origin header can't make this look like a non-dashboard request
+  // And skip the staff check.
   const normalizedOrigin = input.origin?.toLowerCase() ?? null;
   const normalizedDashboardOrigins = input.dashboardOrigins.map((origin) => origin.toLowerCase());
   const isDashboardOrigin = normalizedOrigin != null && normalizedDashboardOrigins.includes(normalizedOrigin);
