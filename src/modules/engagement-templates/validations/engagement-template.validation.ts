@@ -53,9 +53,25 @@ const updateEngagementTemplateSchema = z
   })
   .strict();
 
+const generateEngagementDraftSchema = z
+  .object({
+    intake_id: z.uuid(),
+  })
+  .strict();
+
+const engagementDraftResponseSchema = z
+  .object({
+    contract_body: z.string().min(1),
+    intake_id: z.uuid(),
+    template_id: z.uuid(),
+  })
+  .openapi('EngagementDraft');
+
 export const engagementTemplateValidations = {
   feeTypeEnum,
   engagementTemplateSchema,
   createEngagementTemplateSchema,
   updateEngagementTemplateSchema,
+  generateEngagementDraftSchema,
+  engagementDraftResponseSchema,
 };

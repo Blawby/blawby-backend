@@ -53,11 +53,10 @@ const createEngagementTemplateRoute = routeBuilder.build({
     name: 'create_engagement_template',
     scope: 'engagement_templates:write',
     schema: engagementTemplateValidations.createEngagementTemplateSchema.shape,
-    handler: async (args, ctx) =>
-      engagementTemplateService.createEngagementTemplate(
-        { data: args as Parameters<typeof engagementTemplateService.createEngagementTemplate>[0]['data'] },
-        ctx
-      ),
+    handler: async (args, ctx) => {
+      const data = engagementTemplateValidations.createEngagementTemplateSchema.parse(args);
+      return engagementTemplateService.createEngagementTemplate({ data }, ctx);
+    },
   },
   request: {
     params: practiceIdParamSchema,
@@ -97,14 +96,14 @@ const updateEngagementTemplateRoute = routeBuilder.build({
       ...engagementTemplateValidations.updateEngagementTemplateSchema.shape,
     },
     handler: async (args, ctx) => {
-      const { template_id, ...data } = args;
-      return engagementTemplateService.updateEngagementTemplate(
-        {
-          id: template_id as string,
-          data: data as Parameters<typeof engagementTemplateService.updateEngagementTemplate>[0]['data'],
-        },
-        ctx
-      );
+      const parsed = z
+        .object({
+          template_id: z.uuid(),
+          ...engagementTemplateValidations.updateEngagementTemplateSchema.shape,
+        })
+        .parse(args);
+      const { template_id: id, ...data } = parsed;
+      return engagementTemplateService.updateEngagementTemplate({ id, data }, ctx);
     },
   },
   request: {
@@ -150,8 +149,10 @@ const deleteEngagementTemplateRoute = routeBuilder.build({
       message: 'Delete this engagement template?',
       confirm_title: 'Delete engagement template',
     },
-    handler: async (args, ctx) =>
-      engagementTemplateService.deleteEngagementTemplate({ id: args.template_id as string }, ctx),
+    handler: async (args, ctx) => {
+      const { template_id: id } = z.object({ template_id: z.uuid() }).parse(args);
+      return engagementTemplateService.deleteEngagementTemplate({ id }, ctx);
+    },
   },
   request: {
     params: engagementTemplateParamSchema,
@@ -167,9 +168,43 @@ const deleteEngagementTemplateRoute = routeBuilder.build({
   },
 });
 
+const generateEngagementDraftRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{practice_id}/{template_id}/draft',
+  tags: ['Engagement Templates'],
+  summary: 'Generate an engagement draft from an authoritative template and intake',
+  request: {
+    params: engagementTemplateParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: engagementTemplateValidations.generateEngagementDraftSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: engagementTemplateValidations.engagementDraftResponseSchema,
+        },
+      },
+      description: 'Generated engagement draft',
+    },
+    400: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Bad request' },
+    401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
+    403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
+    404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Not found' },
+    502: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'AI generation failed' },
+    503: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'AI is not configured' },
+  },
+});
+
 export const routes = {
   listEngagementTemplatesRoute,
   createEngagementTemplateRoute,
   updateEngagementTemplateRoute,
   deleteEngagementTemplateRoute,
+  generateEngagementDraftRoute,
 };
