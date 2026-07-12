@@ -18,6 +18,7 @@ import type {
 import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { withMagicLinkDeliveryContext } from '@/shared/auth/magic-link-delivery-context';
 import { db } from '@/shared/database';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
@@ -323,7 +324,11 @@ const convertIntake = async (
 };
 
 const triggerInvitation = async (
-  params: { uuid: string; origin?: string | null },
+  params: {
+    uuid: string;
+    origin?: string | null;
+    acceptedEmail?: { practiceName: string; recipientName: string };
+  },
   ctx: ServiceContext
 ): Promise<{ message: string }> => {
   try {
@@ -353,15 +358,30 @@ const triggerInvitation = async (
     const redirectPath = intakeRedirectUrl ?? 'auth/accept-invitation';
     const separator = redirectPath.includes('?') ? '&' : '?';
 
-    await auth.api.signInMagicLink({
-      body: {
-        email: metadata.email,
-        callbackURL: `${getMatchingFrontendUrl(params.origin)}/${redirectPath}${separator}data=${encodedData}`,
-      },
-      headers: params.origin ? { origin: params.origin } : {},
-    });
+    const sendMagicLink = async (): Promise<void> => {
+      await auth.api.signInMagicLink({
+        body: {
+          email: metadata.email,
+          callbackURL: `${getMatchingFrontendUrl(params.origin)}/${redirectPath}${separator}data=${encodedData}`,
+        },
+        headers: params.origin ? { origin: params.origin } : {},
+      });
+    };
 
-    return { message: 'Magic link sent to client email' };
+    if (params.acceptedEmail) {
+      await withMagicLinkDeliveryContext(
+        {
+          kind: 'intake_accepted',
+          practiceName: params.acceptedEmail.practiceName,
+          recipientName: params.acceptedEmail.recipientName,
+        },
+        sendMagicLink
+      );
+    } else {
+      await sendMagicLink();
+    }
+
+    return { message: params.acceptedEmail ? 'Acceptance email sent to client' : 'Magic link sent to client email' };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const safeDetails: Record<string, unknown> = { message: errorMessage };

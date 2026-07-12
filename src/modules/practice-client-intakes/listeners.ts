@@ -231,32 +231,19 @@ export const registerPracticeClientIntakesListeners = (): void => {
     });
 
     if (payload.triage_status === 'accepted') {
-      void queueManager
-        .addEmailJob(
-          EMAIL_TEMPLATES.INTAKE_ACCEPTED,
-          payload.client_email,
-          `Your case has been accepted — ${payload.organization_name}`,
-          {
-            recipientEmail: payload.client_email,
-            recipientName: payload.client_name,
-            practiceName: payload.organization_name,
-          }
-        )
-        .catch((error: unknown) => {
-          logError('Failed to queue intake accepted email', error, {
-            intakeId: payload.intake_id,
-          });
-        });
-
       // Accepted triage is the backend trigger for invitation + linkage.
       const systemCtx = createSystemContext(payload.organization_id);
 
-      await intakeLifecycleService.triggerInvitation({ uuid: payload.intake_id }, systemCtx).catch((error: unknown) => {
-        logError('Failed to trigger magic link on accepted intake', error, {
-          intakeId: payload.intake_id,
-          organizationId: payload.organization_id,
-        });
-      });
+      await intakeLifecycleService.triggerInvitation(
+        {
+          uuid: payload.intake_id,
+          acceptedEmail: {
+            practiceName: payload.organization_name,
+            recipientName: payload.client_name,
+          },
+        },
+        systemCtx
+      );
 
       void clientsCrudService
         .createClientFromIntake(

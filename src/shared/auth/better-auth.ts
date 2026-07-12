@@ -27,6 +27,7 @@ import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.ser
 import { checkClientIsOwner } from '@/shared/auth/services/organization-access.service';
 import { createStaffRoleHooks } from '@/shared/auth/staff-role-hooks';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
+import { magicLinkDeliveryService } from '@/shared/auth/magic-link-delivery.service';
 import { config } from '@/shared/config';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
 import { queueManager } from '@/shared/queue/queue.manager';
@@ -204,12 +205,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         roles: staffAccessRoles,
       }),
       magicLink({
-        sendMagicLink: async ({ email, url }) => {
-          await queueManager.addEmailJob('magic-link', email, 'Sign in to Blawby', {
-            url,
-            year: new Date().getFullYear(),
-          });
-        },
+        sendMagicLink: async ({ email, url }) => magicLinkDeliveryService.deliverMagicLink({ email, url }),
       }),
       ...(config.env.isTest ? [testUtils()] : []),
       apiKey(),

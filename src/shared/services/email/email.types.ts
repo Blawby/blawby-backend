@@ -212,6 +212,7 @@ export interface IntakeNewNotificationData extends BaseEmailData {
 // Intake accepted data (prospect-facing)
 export interface IntakeAcceptedData extends BaseEmailData {
   practiceName: string;
+  magicLinkUrl: string;
 }
 
 // Intake declined data (prospect-facing)

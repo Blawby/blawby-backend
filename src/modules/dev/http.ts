@@ -400,6 +400,7 @@ const sampleIntakeAcceptedData: IntakeAcceptedData = {
   recipientEmail: 'prospect@example.com',
   recipientName: 'Jane Smith',
   practiceName: 'Smith & Associates Law Firm',
+  magicLinkUrl: 'https://app.blawby.com/api/auth/magic-link/verify?token=preview-token',
 };
 
 const sampleIntakeDeclinedData: IntakeDeclinedData = {
