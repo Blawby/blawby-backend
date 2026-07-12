@@ -49,6 +49,10 @@ const envSchema = z
 
     RESEND_API_KEY: z.string().optional(),
 
+    E2E_FIXTURES_ENABLED: z.enum(['true', 'false']).optional(),
+    E2E_FIXTURE_SECRET: z.string().optional(),
+    E2E_EMAIL_ALLOWED_DOMAIN: z.string().default('test-blawby.com'),
+
     CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
     CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().optional(),
     CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().optional(),
@@ -125,6 +129,11 @@ export const config = {
   },
   email: {
     resendApiKey: raw.RESEND_API_KEY,
+  },
+  e2e: {
+    fixturesEnabled: raw.E2E_FIXTURES_ENABLED === 'true',
+    fixtureSecret: raw.E2E_FIXTURE_SECRET,
+    emailAllowedDomain: raw.E2E_EMAIL_ALLOWED_DOMAIN,
   },
   cloudflare: {
     accountId: raw.CLOUDFLARE_ACCOUNT_ID,

@@ -7,13 +7,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import { clientsService } from '@/modules/clients/services/clients-crud.service';
-import {
-  IntakePaymentSucceeded,
-  ClientCreated,
-  ClientUpdated,
-  ClientDeleted,
-  InvitationAccepted,
-} from '@/shared/events/definitions';
+import { IntakePaymentSucceeded, ClientCreated, ClientUpdated, ClientDeleted } from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { createSystemContext } from '@/shared/types/service-context';
 
@@ -69,45 +63,6 @@ export const registerClientsListeners = (): void => {
     } catch (error) {
       logger.error('Failed to create client from intake', {
         intakeId: payload.uuid,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
-
-  // Handle Invitation Accepted (for direct client invites)
-  Event.listen(InvitationAccepted, async (payload) => {
-    if (payload.role !== 'client') {
-      return;
-    }
-
-    logger.info('Invitation accepted by client, creating client record', {
-      userId: payload.userId,
-      organizationId: payload.organizationId,
-    });
-
-    const sysCtx = createSystemContext(payload.organizationId);
-
-    const DEFAULT_CLIENT_NAME = 'New Client';
-
-    try {
-      const result = await clientsService.createClient(
-        {
-          data: {
-            name: DEFAULT_CLIENT_NAME, // Name might be updated later
-            email: payload.email,
-            status: 'active',
-          },
-        },
-        sysCtx
-      );
-
-      logger.info('Successfully created client for invited client', {
-        clientId: result.id,
-        userId: payload.userId,
-      });
-    } catch (error) {
-      logger.error('Failed to create client for invited client', {
-        userId: payload.userId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
