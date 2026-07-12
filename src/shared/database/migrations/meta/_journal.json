@@ -505,6 +505,13 @@
       "when": 1781363837439,
       "tag": "0071_brown_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1783861448012,
+      "tag": "0072_illegal_loners",
+      "breakpoints": true
     }
   ]
 }
