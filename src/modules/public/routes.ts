@@ -50,6 +50,11 @@ export const healthRoute = createRoute({
         'application/json': {
           schema: successSchema.extend({
             uptime: z.number(),
+            release: z.object({
+              commit: z.string(),
+              deployment_id: z.string(),
+              environment: z.string(),
+            }),
             database: z.object({
               status: z.string(),
               latency: z.number().nullable(),
@@ -64,6 +69,11 @@ export const healthRoute = createRoute({
         'application/json': {
           schema: successSchema.extend({
             uptime: z.number(),
+            release: z.object({
+              commit: z.string(),
+              deployment_id: z.string(),
+              environment: z.string(),
+            }),
             database: z.object({
               status: z.string(),
               latency: z.number().nullable(),

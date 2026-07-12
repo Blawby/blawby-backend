@@ -1,5 +1,6 @@
 import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
+import { getBackendRelease, type BackendRelease } from '@/modules/public/health-release';
 import * as routes from '@/modules/public/routes';
 import { db } from '@/shared/database';
 import { injectAbility } from '@/shared/middleware/inject-ability';
@@ -13,6 +14,7 @@ interface HealthStatus {
   status: 'ok' | 'degraded';
   timestamp: string;
   uptime: number;
+  release: BackendRelease;
   database: {
     status: 'connected' | 'disconnected' | 'unknown';
     latency: number | null;
@@ -40,6 +42,7 @@ publicApp.openapi(routes.healthRoute, async (c) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    release: getBackendRelease(),
     database: {
       status: 'unknown',
       latency: null,
@@ -54,8 +57,13 @@ publicApp.openapi(routes.healthRoute, async (c) => {
 
     health.database.status = 'connected';
     health.database.latency = latency;
-  } catch (error) {
-    logger.error('Database health check failed: {error}', { error });
+  } catch {
+    logger.error('Database health check failed', {
+      environment: health.release.environment,
+      release: health.release.commit,
+      deploymentId: health.release.deployment_id,
+      failureClass: 'database_unavailable',
+    });
     health.status = 'degraded';
     health.database.status = 'disconnected';
   }
