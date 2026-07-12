@@ -11,6 +11,7 @@ type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
 type SubjectName =
   | 'all'
   | 'InternalConsole'
+  | 'DataExport'
   | 'OrganizationPreferences'
   | 'UserPreferences'
   | 'UserDetails'

@@ -252,6 +252,18 @@ const addRefundReconciliationJob = async (payload: {
     throw error;
   }
 };
+
+const addPracticeExportJob = async (payload: { exportId: string; organizationId: string }): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+  await workerUtils.addJob(TASK_NAMES.PROCESS_PRACTICE_EXPORT, payload, {
+    jobKey: `practice-export:${payload.organizationId}:${payload.exportId}`,
+    maxAttempts: graphileWorkerConfig.maxAttempts,
+  });
+  logger.info('Practice export job queued: {exportId}', {
+    exportId: payload.exportId,
+    organizationId: payload.organizationId,
+  });
+};
 /**
  * Get queue statistics for monitoring
  * Queries Graphile Worker's job tables directly
@@ -347,5 +359,6 @@ export {
   addMeteredUsageJob,
   addRefundReconciliationJob,
   addSeedDefaultIntakeTemplateJob,
+  addPracticeExportJob,
   queueManager,
 };

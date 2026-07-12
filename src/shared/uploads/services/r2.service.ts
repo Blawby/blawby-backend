@@ -16,13 +16,13 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '@/shared/config';
 
 // Lazy initialization of R2 client
-let _r2Client: S3Client | null = null;
+let r2Client: S3Client | null = null;
 
 /**
  * Initialize and return R2 client instance
  */
 const initR2Client = (): S3Client | null => {
-  if (!_r2Client) {
+  if (!r2Client) {
     const { accountId } = config.cloudflare;
     const accessKeyId = config.cloudflare.r2AccessKeyId;
     const secretAccessKey = config.cloudflare.r2SecretAccessKey;
@@ -31,7 +31,7 @@ const initR2Client = (): S3Client | null => {
       return null;
     }
 
-    _r2Client = new S3Client({
+    r2Client = new S3Client({
       region: 'auto',
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
       credentials: {
@@ -43,7 +43,7 @@ const initR2Client = (): S3Client | null => {
     });
   }
 
-  return _r2Client;
+  return r2Client;
 };
 
 /**
@@ -108,7 +108,9 @@ type FileMetadata =
 
 const getFileMetadata = async (params: { bucket: string; key: string }): Promise<FileMetadata> => {
   const client = getR2Client();
-  if (!client) return { exists: false };
+  if (!client) {
+    return { exists: false };
+  }
 
   try {
     const response = await client.send(new HeadObjectCommand({ Bucket: params.bucket, Key: params.key }));
@@ -118,10 +120,12 @@ const getFileMetadata = async (params: { bucket: string; key: string }): Promise
       contentLength: response.ContentLength ?? null,
     };
   } catch (error) {
-    const statusCode =
-      typeof error === 'object' && error !== null && '$metadata' in error
-        ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode
+    const metadata = typeof error === 'object' && error !== null && '$metadata' in error ? error.$metadata : undefined;
+    const rawStatusCode =
+      typeof metadata === 'object' && metadata !== null && 'httpStatusCode' in metadata
+        ? metadata.httpStatusCode
         : undefined;
+    const statusCode = typeof rawStatusCode === 'number' ? rawStatusCode : undefined;
     const errorName = typeof error === 'object' && error !== null && 'name' in error ? error.name : undefined;
 
     if (statusCode === 404 || errorName === 'NotFound' || errorName === 'NoSuchKey') {
@@ -135,6 +139,26 @@ const getFileMetadata = async (params: { bucket: string; key: string }): Promise
 const verifyFileExists = async (params: { bucket: string; key: string }): Promise<boolean> => {
   const result = await getFileMetadata(params);
   return result.exists;
+};
+
+const putObject = async (params: {
+  bucket: string;
+  key: string;
+  body: Uint8Array;
+  contentType: string;
+}): Promise<void> => {
+  const client = getR2Client();
+  if (!client) {
+    throw new Error('R2 client is not configured');
+  }
+  await client.send(
+    new PutObjectCommand({
+      Bucket: params.bucket,
+      Key: params.key,
+      Body: params.body,
+      ContentType: params.contentType,
+    })
+  );
 };
 
 /**
@@ -159,4 +183,5 @@ export const r2Service = {
   getFileMetadata,
   verifyFileExists,
   deleteFile,
+  putObject,
 };

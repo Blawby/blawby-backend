@@ -11,6 +11,7 @@ import { processStripeWebhook } from '@/workers/tasks/process-stripe-webhook';
 import { processInvoicePayment } from '@/workers/tasks/process-invoice-payment';
 import { processInvoiceVoidReconciliation } from '@/workers/tasks/process-invoice-void-reconciliation';
 import { seedDefaultIntakeTemplate } from '@/workers/tasks/seed-default-intake-template';
+import { processPracticeExport } from '@/workers/tasks/process-practice-export';
 
 config();
 
@@ -27,6 +28,7 @@ void runWorker({
     [TASK_NAMES.PROCESS_REFUND_RECONCILIATION]: processRefundReconciliation,
     [TASK_NAMES.CLEANUP_EMAIL_LOGS]: cleanupEmailLogs,
     [TASK_NAMES.SEED_DEFAULT_INTAKE_TEMPLATE]: seedDefaultIntakeTemplate,
+    [TASK_NAMES.PROCESS_PRACTICE_EXPORT]: processPracticeExport,
   },
   // Run outbox processing every minute to catch any missed events
   crontab: `
