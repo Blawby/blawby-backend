@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { checkStaffRoleGrant } from '@/shared/auth/staff-role-guard';
+import { describe, expect, it } from 'vitest';
 
 const STAFF_DOMAIN = 'blawby.com';
 
