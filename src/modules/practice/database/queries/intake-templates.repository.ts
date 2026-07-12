@@ -7,7 +7,7 @@ import {
   type IntakeTemplateField,
 } from '@/modules/practice/database/schema/intake-templates.schema';
 import { getActiveTx } from '@/shared/database/uow';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 type TemplateWithFields = IntakeTemplate & { fields: IntakeTemplateField[] };
 
@@ -117,15 +117,16 @@ const create = async (data: InsertIntakeTemplate, fields: InsertIntakeTemplateFi
 const update = async (
   id: string,
   data: Partial<InsertIntakeTemplate>,
-  fields?: InsertIntakeTemplateField[]
+  fields: InsertIntakeTemplateField[] | undefined,
+  expectedRevision: number
 ): Promise<TemplateWithFields> => {
   const [template] = await getActiveTx()
     .update(intakeTemplates)
-    .set({ ...data, updated_at: new Date() })
-    .where(eq(intakeTemplates.id, id))
+    .set({ ...data, revision: sql`${intakeTemplates.revision} + 1`, updated_at: new Date() })
+    .where(and(eq(intakeTemplates.id, id), eq(intakeTemplates.revision, expectedRevision)))
     .returning();
   if (!template) {
-    throw new Error('Failed to update intake template');
+    throw new Error('INTAKE_TEMPLATE_REVISION_CONFLICT');
   }
 
   if (fields !== undefined) {
