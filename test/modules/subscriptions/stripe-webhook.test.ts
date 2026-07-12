@@ -6,6 +6,14 @@ import { getStripeInstance } from '@/shared/utils/stripe-client';
 import { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const loggerMock = vi.hoisted(() => ({
+  error: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+}));
+
+vi.mock('@logtape/logtape', () => ({ getLogger: () => loggerMock }));
+
 vi.mock('@/shared/config', () => ({
   config: { stripe: { webhookSecret: 'whsec_test' } },
 }));
@@ -59,11 +67,15 @@ describe('processWebhookRequest', () => {
 
   it('throws 400 when signature verification fails', async () => {
     constructEventMock.mockImplementation(() => {
-      throw new Error('bad signature');
+      throw new Error('signature mismatch with sensitive detail');
     });
 
     await expect(processWebhookRequest('body', 'sig')).rejects.toThrow(HTTPException);
     expect(createIfNotExistsMock).not.toHaveBeenCalled();
+    expect(loggerMock.warn).toHaveBeenCalledWith('Webhook signature verification failed for {webhookPath}', {
+      webhookPath: '/api/subscriptions/webhook',
+    });
+    expect(JSON.stringify(loggerMock.warn.mock.calls)).not.toContain('sensitive detail');
   });
 
   it('skips processing a duplicate event', async () => {

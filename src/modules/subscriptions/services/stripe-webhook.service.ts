@@ -38,9 +38,9 @@ export const processWebhookRequest = async (
   let event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, stripeSignature, webhookSecret);
-  } catch (err) {
-    logger.warn('Webhook signature verification failed: {error}', {
-      error: err instanceof Error ? err.message : String(err),
+  } catch {
+    logger.warn('Webhook signature verification failed for {webhookPath}', {
+      webhookPath: endpointPath,
     });
     throw new HTTPException(400, { message: 'Invalid webhook signature' });
   }
