@@ -77,6 +77,8 @@ staffApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDetai
  * Delete practice details
  */
 staffApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDetailsHandler);
+staffApp.openapi(routes.getPracticeSkillsRoute, handlers.getPracticeSkillsHandler);
+staffApp.openapi(routes.updatePracticeSkillsRoute, handlers.updatePracticeSkillsHandler);
 
 /**
  * POST /api/practice/:practice_id/conflict-check

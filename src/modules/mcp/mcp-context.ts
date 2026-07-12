@@ -6,8 +6,7 @@ import type { McpJwt as JWTPayload } from '@/modules/mcp/types';
 import { members } from '@/schema/better-auth-schema';
 import { defineAbilityFor } from '@/shared/auth/abilities';
 import { db } from '@/shared/database';
-import { createServiceContext } from '@/shared/types/service-context';
-import type { ServiceContext } from '@/shared/types/service-context';
+import { createServiceContext, type ServiceContext } from '@/shared/types/service-context';
 import type { User } from '@/shared/types/BetterAuth';
 
 const logger = getLogger(['mcp', 'context']);
@@ -16,6 +15,14 @@ const getMcpScopes = (jwt: JWTPayload): string[] => {
   const scope = jwt['scope'];
   if (typeof scope !== 'string' || !scope.trim()) return [];
   return scope.trim().split(/\s+/);
+};
+
+const getMcpSkillScopes = (jwt: JWTPayload): string[] => {
+  const { skill_scopes: skillScopes } = jwt;
+  if (!Array.isArray(skillScopes) || !skillScopes.every((scope) => typeof scope === 'string')) {
+    return [];
+  }
+  return skillScopes;
 };
 
 const buildMcpServiceContext = async (jwt: JWTPayload): Promise<ServiceContext> => {
@@ -57,5 +64,6 @@ const buildMcpServiceContext = async (jwt: JWTPayload): Promise<ServiceContext> 
 
 export const mcpContext = {
   getMcpScopes,
+  getMcpSkillScopes,
   buildMcpServiceContext,
 };
