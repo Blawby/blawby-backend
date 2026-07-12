@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['clients', 'crud-service']);
+const PG_UNIQUE_VIOLATION = '23505';
 
 interface StripeSyncPayload {
   customerId: string;
@@ -26,6 +27,13 @@ interface StripeSyncPayload {
   name?: string;
   phone?: string;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const hasPgUniqueViolationCode = (value: unknown): boolean => isRecord(value) && value.code === PG_UNIQUE_VIOLATION;
+
+const isPgUniqueViolation = (error: unknown): boolean =>
+  hasPgUniqueViolationCode(error) || (isRecord(error) && hasPgUniqueViolationCode(error.cause));
 
 const createClient = async (
   params: {
@@ -58,60 +66,91 @@ const createClient = async (
       return { ...existingDetail, user };
     }
 
-    const createdDetail = await uow.transaction(async () => {
-      const existingMember = await membersRepository.findByOrgAndUser({
-        organizationId: ctx.organizationId,
-        userId: user.id,
-      });
-      if (!existingMember) {
-        await membersRepository.create({
-          organizationId: ctx.organizationId,
-          userId: user.id,
-          role: 'client',
+    const createResult: {
+      detail: SelectClient & {
+        user: typeof users.$inferSelect | null;
+      };
+      shouldDispatchClientCreated: boolean;
+    } = await (async () => {
+      try {
+        const detail = await uow.transaction(async () => {
+          const existingMember = await membersRepository.findByOrgAndUser({
+            organizationId: ctx.organizationId,
+            userId: user.id,
+          });
+          if (!existingMember) {
+            await membersRepository.create({
+              organizationId: ctx.organizationId,
+              userId: user.id,
+              role: 'client',
+            });
+          }
+
+          let addressId: string | undefined = undefined;
+          if (data.address) {
+            const address = await upsertAddress({
+              addressData: {
+                line1: data.address.line1,
+                line2: data.address.line2,
+                city: data.address.city,
+                state: data.address.state,
+                postal_code: data.address.postal_code,
+                country: data.address.country,
+              },
+              organizationId: ctx.organizationId,
+              type: 'client',
+            });
+            addressId = address?.id;
+          }
+
+          const client = await clientsRepository.create({
+            organization_id: ctx.organizationId,
+            user_id: user.id,
+            name: data.name,
+            email: data.email,
+            stripe_customer_id: null,
+            address_id: addressId,
+            status: data.status ?? 'lead',
+            currency: data.currency ?? 'usd',
+          });
+
+          return { ...client, user };
         });
+
+        return { detail, shouldDispatchClientCreated: true };
+      } catch (error) {
+        if (!isPgUniqueViolation(error)) {
+          throw error;
+        }
+
+        const existingDetailAfterRace = await clientsRepository.findByOrgAndUser(ctx.organizationId, user.id);
+        if (!existingDetailAfterRace) {
+          throw error;
+        }
+
+        return {
+          detail: { ...existingDetailAfterRace, user },
+          shouldDispatchClientCreated: false,
+        };
       }
+    })();
 
-      let addressId: string | undefined = undefined;
-      if (data.address) {
-        const address = await upsertAddress({
-          addressData: {
-            line1: data.address.line1,
-            line2: data.address.line2,
-            city: data.address.city,
-            state: data.address.state,
-            postal_code: data.address.postal_code,
-            country: data.address.country,
-          },
-          organizationId: ctx.organizationId,
-          type: 'client',
-        });
-        addressId = address?.id;
-      }
+    const createdDetail: SelectClient & {
+      user: typeof users.$inferSelect | null;
+    } = createResult.detail;
 
-      const detail = await clientsRepository.create({
-        organization_id: ctx.organizationId,
-        user_id: user.id,
-        name: data.name,
-        email: data.email,
-        stripe_customer_id: null,
-        address_id: addressId,
-        status: data.status ?? 'lead',
-        currency: data.currency ?? 'usd',
-      });
-
-      return { ...detail, user };
-    });
-
-    void ClientCreated.dispatch(
-      {
-        client_id: createdDetail.id,
-        user_id: user.id,
-        name: user.name,
-        email: user.email,
-        stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
-      },
-      { actorId: ctx.userId, organizationId: ctx.organizationId }
-    );
+    if (createResult.shouldDispatchClientCreated) {
+      void ClientCreated.dispatch(
+        {
+          client_id: createdDetail.id,
+          user_id: user.id,
+          name: user.name,
+          email: user.email,
+          stripe_customer_id: createdDetail.stripe_customer_id ?? undefined,
+        },
+        { actorId: ctx.userId, organizationId: ctx.organizationId }
+      );
+    }
 
     return createdDetail;
   } catch (error) {
