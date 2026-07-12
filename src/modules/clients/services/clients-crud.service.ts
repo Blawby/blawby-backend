@@ -53,6 +53,11 @@ const createClient = async (
       throw new HTTPException(404, { message: 'User not found. Please invite them using the invitations flow first.' });
     }
 
+    const existingDetail = await clientsRepository.findByOrgAndUser(ctx.organizationId, user.id);
+    if (existingDetail) {
+      return { ...existingDetail, user };
+    }
+
     const createdDetail = await uow.transaction(async () => {
       const existingMember = await membersRepository.findByOrgAndUser({
         organizationId: ctx.organizationId,

@@ -1,4 +1,5 @@
 import type {
+  createClientRoute,
   listClientsRoute,
   getClientRoute,
   updateClientRoute,
@@ -19,6 +20,14 @@ import { clientMemosService } from '@/modules/clients/services/client-memos.serv
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
+
+const createClientHandler: AppRouteHandler<typeof createClientRoute> = async (c) => {
+  const body = c.req.valid('json');
+  const ctx = getServiceContext(c);
+
+  const result = await clientsCrudService.createClient({ data: body }, ctx);
+  return c.json(result, 201);
+};
 
 const listClientsHandler: AppRouteHandler<typeof listClientsRoute> = async (c) => {
   const query = c.req.valid('query');
@@ -124,6 +133,7 @@ const updateClientIntakeProfileHandler: AppRouteHandler<typeof updateClientIntak
 };
 
 export const handlers = {
+  createClientHandler,
   listClientsHandler,
   getClientHandler,
   updateClientHandler,

@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import {
+  createClientSchema,
   updateClientSchema,
   listClientsSchema,
   clientParamsSchema,
@@ -8,6 +9,24 @@ import {
 } from '@/modules/clients/validations/clients.validation';
 import { clientsService } from '@/modules/clients/services/clients-crud.service';
 import { routeBuilder } from '@/shared/router/route-builder';
+
+export const createClientRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{practice_id}',
+  tags: ['Clients'],
+  summary: 'Create or link client',
+  description: 'Create an idempotent practice client record for an existing user account.',
+  request: {
+    params: practiceParamsSchema,
+    body: { content: { 'application/json': { schema: createClientSchema } } },
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: clientSchema } },
+      description: 'Client created or linked successfully',
+    },
+  },
+});
 
 export const listClientsRoute = routeBuilder.build({
   method: 'get',

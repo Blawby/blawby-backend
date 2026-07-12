@@ -1,4 +1,5 @@
 import {
+  createClientRoute,
   listClientsRoute,
   getClientRoute,
   updateClientRoute,
@@ -16,6 +17,7 @@ import {
 } from '@/modules/clients/routes/client-intake-profile.routes';
 
 export const routes = {
+  createClientRoute,
   listClientsRoute,
   getClientRoute,
   updateClientRoute,

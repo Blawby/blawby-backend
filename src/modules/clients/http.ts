@@ -11,6 +11,7 @@ const app = createHonoApp();
 const clientsApp = createHonoApp();
 clientsApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
+clientsApp.openapi(routes.createClientRoute, handlers.createClientHandler);
 clientsApp.openapi(routes.listClientsRoute, handlers.listClientsHandler);
 clientsApp.openapi(routes.getClientRoute, handlers.getClientHandler);
 clientsApp.openapi(routes.updateClientRoute, handlers.updateClientHandler);
