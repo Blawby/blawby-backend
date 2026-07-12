@@ -3,7 +3,16 @@ import { oauthProvider } from '@better-auth/oauth-provider';
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, anonymous, jwt, magicLink, multiSession, organization, testUtils } from 'better-auth/plugins';
+import {
+  admin,
+  anonymous,
+  jwt,
+  magicLink,
+  multiSession,
+  organization,
+  testUtils,
+  type OrganizationOptions,
+} from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for drizzle adapter
@@ -44,10 +53,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       organization({
         ac: organizationAccessController,
         roles: organizationRoles,
-        allowPersonalAccounts: true, // Consolidated from AUTH_CONFIG
         // Dev/staging don't send verification emails, so invited users can't verify before accepting.
         requireEmailVerificationOnInvitation: !config.env.isDevelopment,
-        hooks: {
+        organizationHooks: {
           afterAcceptInvitation: async (data: {
             invitation: { id: string; organizationId: string };
             member: { role: string };
@@ -116,7 +124,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
             }
           );
         },
-      }),
+      } satisfies OrganizationOptions),
       jwt(),
       oauthProvider({
         accessTokenExpiresIn: config.auth.mcpAccessTokenExpiresIn,
