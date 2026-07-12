@@ -46,6 +46,26 @@ describe('checkDashboardSignIn', () => {
     expect(result).toEqual({ allowed: false });
   });
 
+  it('blocks a non-staff login when the origin header casing differs from the configured origin', () => {
+    const result = checkDashboardSignIn({
+      origin: 'HTTPS://Console.Blawby.com',
+      dashboardOrigins: DASHBOARD_ORIGINS,
+      target: { role: 'user' },
+    });
+
+    expect(result).toEqual({ allowed: false });
+  });
+
+  it('allows a staff login when the origin header casing differs from the configured origin', () => {
+    const result = checkDashboardSignIn({
+      origin: 'HTTPS://Console.Blawby.com',
+      dashboardOrigins: DASHBOARD_ORIGINS,
+      target: { role: 'ops' },
+    });
+
+    expect(result).toEqual({ allowed: true });
+  });
+
   it('blocks a login on the dashboard origin for an email with no matching user', () => {
     const result = checkDashboardSignIn({
       origin: DASHBOARD_ORIGIN,
