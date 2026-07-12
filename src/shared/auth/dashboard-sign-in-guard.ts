@@ -11,6 +11,16 @@ export interface DashboardSignInCheckInput {
 
 export type DashboardSignInCheckResult = { allowed: true } | { allowed: false };
 
+export const checkDashboardAccountSignIn = (
+  target: DashboardSignInCheckInput['target']
+): DashboardSignInCheckResult => {
+  if (!target || getStaffRoles(target.role).length === 0) {
+    return { allowed: false };
+  }
+
+  return { allowed: true };
+};
+
 /**
  * Gates dashboard-origin logins to staff accounts only. Logins from any other
  * origin are always allowed here — this check has no opinion on normal app
@@ -28,9 +38,5 @@ export const checkDashboardSignIn = (input: DashboardSignInCheckInput): Dashboar
     return { allowed: true };
   }
 
-  if (!input.target || getStaffRoles(input.target.role).length === 0) {
-    return { allowed: false };
-  }
-
-  return { allowed: true };
+  return checkDashboardAccountSignIn(input.target);
 };
