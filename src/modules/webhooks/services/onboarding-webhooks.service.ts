@@ -24,17 +24,17 @@ import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['onboarding', 'webhook-service']);
 
-export class WebhookVerificationError extends Error {
-  constructor(
-    message: string,
-    public readonly status: 400 | 500
-  ) {
+class WebhookVerificationError extends Error {
+  public readonly status: 400 | 500;
+
+  constructor(message: string, status: 400 | 500) {
     super(message);
     this.name = 'WebhookVerificationError';
+    this.status = status;
   }
 }
 
-export interface StoredWebhookVerificationResult {
+interface StoredWebhookVerificationResult {
   event: Stripe.Event;
   alreadyProcessed: boolean;
   webhookId?: string;
@@ -48,7 +48,7 @@ const {
   handleExternalAccountDeleted,
 } = onboardingHandlers;
 
-export const onboardingWebhooksService = {
+const onboardingWebhooksService = {
   /**
    * Generic webhook verification and storage function
    * Accepts a webhook secret to support different webhook endpoints
@@ -72,8 +72,10 @@ export const onboardingWebhooksService = {
         secretPresent: true,
       });
       event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-    } catch (err) {
-      logger.warn('Invalid webhook signature received', { error: err instanceof Error ? err.message : 'Unknown' });
+    } catch {
+      logger.warn('Invalid webhook signature received for {webhookPath}', {
+        webhookPath: new URL(url).pathname,
+      });
       throw new WebhookVerificationError('Invalid signature', 400);
     }
 
@@ -376,4 +378,6 @@ export const onboardingWebhooksService = {
   },
 };
 
+export { onboardingWebhooksService, WebhookVerificationError };
+export type { StoredWebhookVerificationResult };
 export default onboardingWebhooksService;
