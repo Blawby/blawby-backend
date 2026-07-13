@@ -53,15 +53,23 @@ Implementation details that do not change feature behavior belong in code commen
 | Feature | Specification | Status |
 |---|---|---|
 | MCP | [mcp.md](./mcp.md) | Implemented |
-| Authentication and organizations | `authentication-and-organizations.md` | Needed |
-| Intake | `intake.md` | Needed |
-| Clients | `clients.md` | Needed |
-| Engagements | `engagements.md` | Needed |
-| Matters | `matters.md` | Needed |
-| Billing and invoices | `billing-and-invoices.md` | Needed |
-| Trust accounting | `trust-accounting.md` | Needed |
-| Subscriptions | `subscriptions.md` | Needed |
-| Operations | `operations.md` | Needed |
+| Authentication and organizations | [authentication-and-organizations.md](./authentication-and-organizations.md) | Implemented; evolving |
+| Intake | [intake.md](./intake.md) | Implemented; builder and analytics planned |
+| Clients | [clients.md](./clients.md) | Implemented |
+| Engagements | [engagements.md](./engagements.md) | Implemented; signature and payment gaps |
+| Matters | [matters.md](./matters.md) | Implemented; automation partial |
+| Billing and invoices | [billing-and-invoices.md](./billing-and-invoices.md) | Implemented; automation partial |
+| Trust accounting | [trust-accounting.md](./trust-accounting.md) | Implemented; automated transfers incomplete |
+| Subscriptions and onboarding | [subscriptions.md](./subscriptions.md) | Implemented; usage reporting limited |
+| Operations console | [operations.md](./operations.md) | Implemented; resource coverage evolving |
+
+## Maintenance rules
+
+- Update the relevant feature specification in the same pull request as a behavioral change.
+- Link major architecture decisions from the feature document rather than duplicating implementation detail.
+- Use OpenAPI links for endpoint schemas and keep business rules in the feature specification.
+- Mark uncertain or unverified behavior as a limitation instead of inferring it from product intent.
+- Review `Last verified` dates during major releases.
 
 ## Plan-document metadata
 
