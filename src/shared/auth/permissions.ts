@@ -63,13 +63,13 @@ const isVerifiedStaffUser = (
 };
 
 export {
-  STAFF_ROLES,
   ac,
   getStaffRoles,
   isStaffRole,
   isVerifiedStaffUser,
   parseGlobalRoles,
+  STAFF_ROLES,
   staffAccessRoles,
   statement,
+  type StaffRole,
 };
-export type { StaffRole };

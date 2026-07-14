@@ -76,7 +76,9 @@ export const getEnvArray = (key: string, defaultValue: string[] = []): string[] 
  * Returns undefined if the referer is missing or not a valid URL.
  */
 export const extractOriginFromReferer = (referer?: string | null): string | undefined => {
-  if (!referer) return undefined;
+  if (!referer) {
+    return undefined;
+  }
   try {
     return new URL(referer).origin;
   } catch {
