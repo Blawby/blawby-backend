@@ -1,54 +1,16 @@
-import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, isNull, or } from 'drizzle-orm';
 import { invitations, organizations, users } from '@/schema/better-auth-schema';
+import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
 import { db } from '@/shared/database';
 import {
   loadPracticeResponseById,
   loadPracticeResponsesForOrganizationIds,
 } from '@/modules/practice/services/practice-response.loader';
-import type { OpsListParams, OpsResource } from '@/modules/ops/types';
+import { defineOpsResource } from '@/modules/ops/define-resource';
+import type { OpsResource } from '@/modules/ops/types';
 
 const toSearchPattern = (q: string | null): string | null => (q ? `%${q.trim()}%` : null);
 const toIsoString = (date: Date): string => date.toISOString();
-const toNullableIsoString = (date: Date | null): string | null => date?.toISOString() ?? null;
-
-const opsUserSelection = {
-  id: users.id,
-  name: users.name,
-  email: users.email,
-  email_verified: users.emailVerified,
-  image: users.image,
-  phone: users.phone,
-  role: users.role,
-  banned: users.banned,
-  ban_reason: users.banReason,
-  ban_expires: users.banExpires,
-  onboarding_complete: users.onboardingComplete,
-  created_at: users.createdAt,
-  updated_at: users.updatedAt,
-};
-
-interface OpsUserRow {
-  id: string;
-  name: string;
-  email: string;
-  email_verified: boolean;
-  image: string | null;
-  phone: string | null;
-  role: string | null;
-  banned: boolean | null;
-  ban_reason: string | null;
-  ban_expires: Date | null;
-  onboarding_complete: boolean | null;
-  created_at: Date;
-  updated_at: Date;
-}
-
-const serializeOpsUser = (row: OpsUserRow) => ({
-  ...row,
-  ban_expires: toNullableIsoString(row.ban_expires),
-  created_at: toIsoString(row.created_at),
-  updated_at: toIsoString(row.updated_at),
-});
 
 const listPractices: OpsResource['list'] = async ({ limit, offset, q }) => {
   const searchPattern = toSearchPattern(q);
@@ -78,34 +40,61 @@ const listPractices: OpsResource['list'] = async ({ limit, offset, q }) => {
 
 const getPractice: OpsResource['get'] = async (id) => loadPracticeResponseById(id);
 
-const listUsers: OpsResource['list'] = async ({ limit, offset, q }) => {
-  const searchPattern = toSearchPattern(q);
-  const where = searchPattern ? or(ilike(users.email, searchPattern), ilike(users.name, searchPattern)) : undefined;
+const usersResource = defineOpsResource({
+  name: 'users',
+  table: users,
+  idColumn: users.id,
+  select: {
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    email_verified: users.emailVerified,
+    image: users.image,
+    phone: users.phone,
+    role: users.role,
+    banned: users.banned,
+    ban_reason: users.banReason,
+    ban_expires: users.banExpires,
+    onboarding_complete: users.onboardingComplete,
+    created_at: users.createdAt,
+    updated_at: users.updatedAt,
+  },
+  searchable: [users.email, users.name],
+  sortable: {
+    created_at: users.createdAt,
+    updated_at: users.updatedAt,
+    email: users.email,
+    name: users.name,
+  },
+  defaultSort: { key: 'created_at', order: 'desc' },
+});
 
-  const rowsQuery = db.select(opsUserSelection).from(users).$dynamic();
-  const totalQuery = db.select({ total: count() }).from(users).$dynamic();
-
-  if (where) {
-    rowsQuery.where(where);
-    totalQuery.where(where);
-  }
-
-  const [rows, totalRows] = await Promise.all([
-    rowsQuery.orderBy(desc(users.createdAt)).limit(limit).offset(offset),
-    totalQuery,
-  ]);
-
-  return {
-    data: rows.map(serializeOpsUser),
-    total: totalRows.at(0)?.total ?? 0,
-  };
-};
-
-const getUser: OpsResource['get'] = async (id) => {
-  const [row] = await db.select(opsUserSelection).from(users).where(eq(users.id, id)).limit(1);
-
-  return row ? serializeOpsUser(row) : null;
-};
+const emailsResource = defineOpsResource({
+  name: 'emails',
+  table: emailLogs,
+  idColumn: emailLogs.id,
+  select: {
+    id: emailLogs.id,
+    recipient_email: emailLogs.recipientEmail,
+    subject: emailLogs.subject,
+    template_name: emailLogs.templateName,
+    status: emailLogs.status,
+    message_id: emailLogs.messageId,
+    error_message: emailLogs.errorMessage,
+    sent_at: emailLogs.sentAt,
+    created_at: emailLogs.createdAt,
+  },
+  searchable: [emailLogs.recipientEmail, emailLogs.subject, emailLogs.templateName],
+  sortable: {
+    sent_at: emailLogs.sentAt,
+    created_at: emailLogs.createdAt,
+    recipient_email: emailLogs.recipientEmail,
+    status: emailLogs.status,
+  },
+  defaultSort: { key: 'sent_at', order: 'desc' },
+  filters: { status: emailLogs.status },
+  baseFilter: isNull(emailLogs.deletedAt),
+});
 
 const listPracticeInvitations: NonNullable<OpsResource['relations']>[string]['list'] = async (
   practiceId,
@@ -177,11 +166,8 @@ const opsResources: Record<string, OpsResource> = {
       },
     },
   },
-  users: {
-    name: 'users',
-    list: listUsers,
-    get: getUser,
-  },
+  users: usersResource,
+  emails: emailsResource,
 };
 
 export const getOpsResource = (name: string): OpsResource | null => opsResources[name] ?? null;

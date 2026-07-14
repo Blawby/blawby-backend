@@ -3,6 +3,8 @@ export interface OpsListParams {
   offset: number;
   q: string | null;
   status: string | null;
+  sort: string | null;
+  order: 'asc' | 'desc' | null;
 }
 
 export interface OpsListResult {

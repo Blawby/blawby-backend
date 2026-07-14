@@ -28,6 +28,8 @@ const getListParams = (query: Record<string, string>): OpsListParams => {
     offset: parsePositiveInteger(query.offset, 0),
     q: query.q?.trim() ? query.q.trim() : null,
     status: query.status?.trim() ? query.status.trim() : null,
+    sort: query.sort?.trim() ? query.sort.trim() : null,
+    order: query.order === 'asc' || query.order === 'desc' ? query.order : null,
   };
 };
 

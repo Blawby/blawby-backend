@@ -62,7 +62,7 @@ const envSchema = z
     CLOUDFLARE_IMAGES_API_TOKEN: z.string().optional(),
     CLOUDFLARE_TURNSTILE_SECRET_KEY: z.string().optional(),
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
-    SYSTEM_USER_EMAIL: z.string().email().optional(),
+    SYSTEM_USER_EMAIL: z.email().optional(),
   })
   .loose();
 
