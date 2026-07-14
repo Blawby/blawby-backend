@@ -1,26 +1,16 @@
-import { and, asc, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
-import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import type { DefineOpsResourceConfig, OpsListParams, OpsResource } from '@/modules/ops/types';
 import { db } from '@/shared/database';
-import type { OpsListParams, OpsResource } from '@/modules/ops/types';
-
-export interface DefineOpsResourceConfig {
-  name: string;
-  table: PgTable;
-  idColumn: PgColumn;
-  select: Record<string, PgColumn>;
-  searchable?: PgColumn[];
-  sortable?: Record<string, PgColumn>;
-  defaultSort?: { key: string; order: 'asc' | 'desc' };
-  filters?: { status?: PgColumn };
-  /** Always applied to list and get queries, e.g. to exclude soft-deleted rows. */
-  baseFilter?: SQL;
-  relations?: OpsResource['relations'];
-}
+import { and, asc, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 const serializeRow = (row: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(
     Object.entries(row).map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value])
   );
+
+// Escape LIKE wildcards so a search for "100%" matches literally instead of as a pattern.
+const escapeLikePattern = (value: string): string => value.replace(/[\\%_]/g, '\\$&');
+
+export const toSearchPattern = (q: string): string => `%${escapeLikePattern(q.trim())}%`;
 
 export const defineOpsResource = (config: DefineOpsResourceConfig): OpsResource => {
   const { name, table, idColumn, select, searchable = [], sortable = {}, defaultSort, filters, baseFilter } = config;
@@ -33,7 +23,7 @@ export const defineOpsResource = (config: DefineOpsResourceConfig): OpsResource 
     const conditions: (SQL | undefined)[] = [baseFilter];
 
     if (params.q && searchable.length > 0) {
-      const pattern = `%${params.q.trim()}%`;
+      const pattern = toSearchPattern(params.q);
       conditions.push(or(...searchable.map((column) => ilike(column, pattern))));
     }
 
@@ -44,36 +34,37 @@ export const defineOpsResource = (config: DefineOpsResourceConfig): OpsResource 
     return and(...conditions);
   };
 
-  const resolveOrderBy = (params: OpsListParams): SQL | undefined => {
+  // idColumn tie-breaker keeps offset pagination stable when sort values collide.
+  const resolveOrderBy = (params: OpsListParams): SQL[] => {
     const requested = params.sort ? sortable[params.sort] : undefined;
 
     if (requested) {
-      return params.order === 'asc' ? asc(requested) : desc(requested);
+      const direction = params.order === 'asc' ? asc : desc;
+      return [direction(requested), asc(idColumn)];
     }
 
     if (defaultSort) {
       const column = sortable[defaultSort.key];
-      return defaultSort.order === 'asc' ? asc(column) : desc(column);
+      const direction = defaultSort.order === 'asc' ? asc : desc;
+      return [direction(column), asc(idColumn)];
     }
 
-    return undefined;
+    return [asc(idColumn)];
   };
 
   const list: OpsResource['list'] = async (params) => {
     const where = buildWhere(params);
     const orderBy = resolveOrderBy(params);
 
-    const rowsQuery = db.select(select).from(table).$dynamic();
-    const totalQuery = db.select({ total: count() }).from(table).$dynamic();
+    let rowsQuery = db.select(select).from(table).$dynamic();
+    let totalQuery = db.select({ total: count() }).from(table).$dynamic();
 
     if (where) {
-      rowsQuery.where(where);
-      totalQuery.where(where);
+      rowsQuery = rowsQuery.where(where);
+      totalQuery = totalQuery.where(where);
     }
 
-    if (orderBy) {
-      rowsQuery.orderBy(orderBy);
-    }
+    rowsQuery = rowsQuery.orderBy(...orderBy);
 
     const [rows, totalRows] = await Promise.all([rowsQuery.limit(params.limit).offset(params.offset), totalQuery]);
 

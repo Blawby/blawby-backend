@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { isNull } from 'drizzle-orm';
 import { db } from '@/shared/database';
-import { defineOpsResource } from '@/modules/ops/define-resource';
+import { defineOpsResource, toSearchPattern } from '@/modules/ops/define-resource';
 import type { OpsListParams } from '@/modules/ops/types';
 
 vi.mock('@/shared/database', () => ({
@@ -69,6 +69,16 @@ const baseConfig = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('toSearchPattern', () => {
+  it('wraps the query in wildcards and escapes LIKE special characters', () => {
+    expect(toSearchPattern('smith')).toBe('%smith%');
+    expect(toSearchPattern('  smith  ')).toBe('%smith%');
+    expect(toSearchPattern('100%')).toBe('%100\\%%');
+    expect(toSearchPattern('a_b')).toBe('%a\\_b%');
+    expect(toSearchPattern('back\\slash')).toBe('%back\\\\slash%');
+  });
 });
 
 describe('defineOpsResource', () => {
@@ -167,7 +177,7 @@ describe('defineOpsResource', () => {
       expect(totalChain.where).toHaveBeenCalledTimes(1);
     });
 
-    it('orders by requested sortable column, falling back to defaultSort, else no ordering', async () => {
+    it('orders by requested sortable column, falling back to defaultSort, else id only — always with id tie-breaker', async () => {
       const sortable = {
         sortable: { created_at: testTable.createdAt, email: testTable.email },
         defaultSort: { key: 'created_at', order: 'desc' as const },
@@ -177,16 +187,19 @@ describe('defineOpsResource', () => {
       selectMock.mockReturnValueOnce(requestedChain as never).mockReturnValueOnce(makeQueryChain([]) as never);
       await defineOpsResource({ ...baseConfig, ...sortable }).list(listParams({ sort: 'email', order: 'asc' }));
       expect(requestedChain.orderBy).toHaveBeenCalledTimes(1);
+      expect(requestedChain.orderBy.mock.calls[0]).toHaveLength(2);
 
       const fallbackChain = makeQueryChain([]);
       selectMock.mockReturnValueOnce(fallbackChain as never).mockReturnValueOnce(makeQueryChain([]) as never);
       await defineOpsResource({ ...baseConfig, ...sortable }).list(listParams({ sort: 'not_sortable' }));
       expect(fallbackChain.orderBy).toHaveBeenCalledTimes(1);
+      expect(fallbackChain.orderBy.mock.calls[0]).toHaveLength(2);
 
       const unsortedChain = makeQueryChain([]);
       selectMock.mockReturnValueOnce(unsortedChain as never).mockReturnValueOnce(makeQueryChain([]) as never);
       await defineOpsResource(baseConfig).list(listParams({ sort: 'email' }));
-      expect(unsortedChain.orderBy).not.toHaveBeenCalled();
+      expect(unsortedChain.orderBy).toHaveBeenCalledTimes(1);
+      expect(unsortedChain.orderBy.mock.calls[0]).toHaveLength(1);
     });
   });
 

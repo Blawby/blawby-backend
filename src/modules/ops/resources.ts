@@ -6,10 +6,10 @@ import {
   loadPracticeResponseById,
   loadPracticeResponsesForOrganizationIds,
 } from '@/modules/practice/services/practice-response.loader';
-import { defineOpsResource } from '@/modules/ops/define-resource';
+import { defineOpsResource, toSearchPattern as buildSearchPattern } from '@/modules/ops/define-resource';
 import type { OpsResource } from '@/modules/ops/types';
 
-const toSearchPattern = (q: string | null): string | null => (q ? `%${q.trim()}%` : null);
+const toSearchPattern = (q: string | null): string | null => (q ? buildSearchPattern(q) : null);
 const toIsoString = (date: Date): string => date.toISOString();
 
 const listPractices: OpsResource['list'] = async ({ limit, offset, q }) => {
