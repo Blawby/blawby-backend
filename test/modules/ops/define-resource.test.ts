@@ -1,26 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { isNull } from 'drizzle-orm';
-import { db } from '@/shared/database';
 import { defineOpsResource, toSearchPattern } from '@/modules/ops/define-resource';
 import type { OpsListParams } from '@/modules/ops/types';
-
-vi.mock('@/shared/database', () => ({
-  db: {
-    select: vi.fn(),
-  },
-}));
-
-const selectMock = vi.mocked(db.select);
-
-const testTable = pgTable('ops_test_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull(),
-  name: text('name'),
-  status: text('status', { enum: ['active', 'archived'] }).notNull(),
-  deletedAt: timestamp('deleted_at'),
-  createdAt: timestamp('created_at').notNull(),
-});
+import { desc, isNull } from 'drizzle-orm';
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface QueryChain {
   from: ReturnType<typeof vi.fn>;
@@ -32,16 +14,34 @@ interface QueryChain {
   then: (resolve: (rows: unknown[]) => void) => void;
 }
 
+const selectMock = vi.hoisted(() => vi.fn<() => unknown>());
+
+vi.mock('@/shared/database', () => ({
+  db: {
+    select: selectMock,
+  },
+}));
+
+const testTable = pgTable('ops_test_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull(),
+  name: text('name'),
+  status: text('status', { enum: ['active', 'archived'] }).notNull(),
+  deletedAt: timestamp('deleted_at'),
+  createdAt: timestamp('created_at').notNull(),
+});
+
 const makeQueryChain = (rows: unknown[]): QueryChain => {
-  const chain: Partial<QueryChain> = {};
-  chain.from = vi.fn(() => chain);
-  chain.$dynamic = vi.fn(() => chain);
-  chain.where = vi.fn(() => chain);
-  chain.orderBy = vi.fn(() => chain);
-  chain.limit = vi.fn(() => chain);
-  chain.offset = vi.fn(() => chain);
-  chain.then = (resolve) => resolve(rows);
-  return chain as QueryChain;
+  const chain: QueryChain = {
+    from: vi.fn(() => chain),
+    $dynamic: vi.fn(() => chain),
+    where: vi.fn(() => chain),
+    orderBy: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    offset: vi.fn(() => chain),
+    then: (resolve) => resolve(rows),
+  };
+  return chain;
 };
 
 const listParams = (overrides: Partial<OpsListParams> = {}): OpsListParams => ({
@@ -99,7 +99,7 @@ describe('defineOpsResource', () => {
         { id: 'u1', email: 'a@b.com', name: 'A', status: 'active', created_at: createdAt },
       ]);
       const totalChain = makeQueryChain([{ total: 42 }]);
-      selectMock.mockReturnValueOnce(rowsChain as never).mockReturnValueOnce(totalChain as never);
+      selectMock.mockReturnValueOnce(rowsChain).mockReturnValueOnce(totalChain);
 
       const resource = defineOpsResource(baseConfig);
       const result = await resource.list(listParams());
@@ -115,7 +115,7 @@ describe('defineOpsResource', () => {
     it('applies no where clause without q, status filter, or baseFilter', async () => {
       const rowsChain = makeQueryChain([]);
       const totalChain = makeQueryChain([{ total: 0 }]);
-      selectMock.mockReturnValueOnce(rowsChain as never).mockReturnValueOnce(totalChain as never);
+      selectMock.mockReturnValueOnce(rowsChain).mockReturnValueOnce(totalChain);
 
       const resource = defineOpsResource({ ...baseConfig, searchable: [testTable.email] });
       await resource.list(listParams());
@@ -127,7 +127,7 @@ describe('defineOpsResource', () => {
     it('applies where clause to both rows and total when searching', async () => {
       const rowsChain = makeQueryChain([]);
       const totalChain = makeQueryChain([{ total: 0 }]);
-      selectMock.mockReturnValueOnce(rowsChain as never).mockReturnValueOnce(totalChain as never);
+      selectMock.mockReturnValueOnce(rowsChain).mockReturnValueOnce(totalChain);
 
       const resource = defineOpsResource({ ...baseConfig, searchable: [testTable.email, testTable.name] });
       await resource.list(listParams({ q: 'smith' }));
@@ -139,7 +139,7 @@ describe('defineOpsResource', () => {
     it('ignores q when no searchable columns are configured', async () => {
       const rowsChain = makeQueryChain([]);
       const totalChain = makeQueryChain([{ total: 0 }]);
-      selectMock.mockReturnValueOnce(rowsChain as never).mockReturnValueOnce(totalChain as never);
+      selectMock.mockReturnValueOnce(rowsChain).mockReturnValueOnce(totalChain);
 
       const resource = defineOpsResource(baseConfig);
       await resource.list(listParams({ q: 'smith' }));
@@ -150,7 +150,7 @@ describe('defineOpsResource', () => {
     it('applies status filter only when configured', async () => {
       const withFilter = makeQueryChain([]);
       const withFilterTotal = makeQueryChain([{ total: 0 }]);
-      selectMock.mockReturnValueOnce(withFilter as never).mockReturnValueOnce(withFilterTotal as never);
+      selectMock.mockReturnValueOnce(withFilter).mockReturnValueOnce(withFilterTotal);
 
       const filtered = defineOpsResource({ ...baseConfig, filters: { status: testTable.status } });
       await filtered.list(listParams({ status: 'active' }));
@@ -158,7 +158,7 @@ describe('defineOpsResource', () => {
 
       const withoutFilter = makeQueryChain([]);
       const withoutFilterTotal = makeQueryChain([{ total: 0 }]);
-      selectMock.mockReturnValueOnce(withoutFilter as never).mockReturnValueOnce(withoutFilterTotal as never);
+      selectMock.mockReturnValueOnce(withoutFilter).mockReturnValueOnce(withoutFilterTotal);
 
       const unfiltered = defineOpsResource(baseConfig);
       await unfiltered.list(listParams({ status: 'active' }));
@@ -168,7 +168,7 @@ describe('defineOpsResource', () => {
     it('always applies baseFilter', async () => {
       const rowsChain = makeQueryChain([]);
       const totalChain = makeQueryChain([{ total: 0 }]);
-      selectMock.mockReturnValueOnce(rowsChain as never).mockReturnValueOnce(totalChain as never);
+      selectMock.mockReturnValueOnce(rowsChain).mockReturnValueOnce(totalChain);
 
       const resource = defineOpsResource({ ...baseConfig, baseFilter: isNull(testTable.deletedAt) });
       await resource.list(listParams());
@@ -184,22 +184,39 @@ describe('defineOpsResource', () => {
       };
 
       const requestedChain = makeQueryChain([]);
-      selectMock.mockReturnValueOnce(requestedChain as never).mockReturnValueOnce(makeQueryChain([]) as never);
+      selectMock.mockReturnValueOnce(requestedChain).mockReturnValueOnce(makeQueryChain([]));
       await defineOpsResource({ ...baseConfig, ...sortable }).list(listParams({ sort: 'email', order: 'asc' }));
       expect(requestedChain.orderBy).toHaveBeenCalledTimes(1);
       expect(requestedChain.orderBy.mock.calls[0]).toHaveLength(2);
 
       const fallbackChain = makeQueryChain([]);
-      selectMock.mockReturnValueOnce(fallbackChain as never).mockReturnValueOnce(makeQueryChain([]) as never);
+      selectMock.mockReturnValueOnce(fallbackChain).mockReturnValueOnce(makeQueryChain([]));
       await defineOpsResource({ ...baseConfig, ...sortable }).list(listParams({ sort: 'not_sortable' }));
       expect(fallbackChain.orderBy).toHaveBeenCalledTimes(1);
       expect(fallbackChain.orderBy.mock.calls[0]).toHaveLength(2);
 
       const unsortedChain = makeQueryChain([]);
-      selectMock.mockReturnValueOnce(unsortedChain as never).mockReturnValueOnce(makeQueryChain([]) as never);
+      selectMock.mockReturnValueOnce(unsortedChain).mockReturnValueOnce(makeQueryChain([]));
       await defineOpsResource(baseConfig).list(listParams({ sort: 'email' }));
       expect(unsortedChain.orderBy).toHaveBeenCalledTimes(1);
       expect(unsortedChain.orderBy.mock.calls[0]).toHaveLength(1);
+    });
+
+    it('ignores prototype keys like constructor as sort values', async () => {
+      const rowsChain = makeQueryChain([]);
+      selectMock.mockReturnValueOnce(rowsChain).mockReturnValueOnce(makeQueryChain([]));
+
+      const resource = defineOpsResource({
+        ...baseConfig,
+        sortable: { created_at: testTable.createdAt },
+        defaultSort: { key: 'created_at', order: 'desc' },
+      });
+      await resource.list(listParams({ sort: 'constructor', order: 'asc' }));
+
+      // Falls back to defaultSort + id tie-breaker instead of using Object.prototype.constructor.
+      expect(rowsChain.orderBy).toHaveBeenCalledTimes(1);
+      expect(rowsChain.orderBy.mock.calls[0]).toHaveLength(2);
+      expect(rowsChain.orderBy.mock.calls[0][0]).toEqual(desc(testTable.createdAt));
     });
   });
 
@@ -209,7 +226,7 @@ describe('defineOpsResource', () => {
       const chain = makeQueryChain([
         { id: 'u1', email: 'a@b.com', name: null, status: 'active', created_at: createdAt },
       ]);
-      selectMock.mockReturnValueOnce(chain as never);
+      selectMock.mockReturnValueOnce(chain);
 
       const resource = defineOpsResource(baseConfig);
       const result = await resource.get('u1');
@@ -226,7 +243,7 @@ describe('defineOpsResource', () => {
     });
 
     it('returns null when no row matches', async () => {
-      selectMock.mockReturnValueOnce(makeQueryChain([]) as never);
+      selectMock.mockReturnValueOnce(makeQueryChain([]));
 
       const resource = defineOpsResource(baseConfig);
       await expect(resource.get('missing')).resolves.toBeNull();

@@ -15,7 +15,7 @@ export const toSearchPattern = (q: string): string => `%${escapeLikePattern(q.tr
 export const defineOpsResource = (config: DefineOpsResourceConfig): OpsResource => {
   const { name, table, idColumn, select, searchable = [], sortable = {}, defaultSort, filters, baseFilter } = config;
 
-  if (defaultSort && !sortable[defaultSort.key]) {
+  if (defaultSort && !Object.hasOwn(sortable, defaultSort.key)) {
     throw new Error(`Ops resource "${name}": defaultSort key "${defaultSort.key}" is not in sortable`);
   }
 
@@ -34,9 +34,9 @@ export const defineOpsResource = (config: DefineOpsResourceConfig): OpsResource 
     return and(...conditions);
   };
 
-  // idColumn tie-breaker keeps offset pagination stable when sort values collide.
+  // IdColumn tie-breaker keeps offset pagination stable when sort values collide.
   const resolveOrderBy = (params: OpsListParams): SQL[] => {
-    const requested = params.sort ? sortable[params.sort] : undefined;
+    const requested = params.sort && Object.hasOwn(sortable, params.sort) ? sortable[params.sort] : undefined;
 
     if (requested) {
       const direction = params.order === 'asc' ? asc : desc;
