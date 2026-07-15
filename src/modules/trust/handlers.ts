@@ -9,6 +9,7 @@ const {
   getTrustReportRoute,
   createDepositRoute,
   createWithdrawalRoute,
+  createTrustTransactionRoute,
   getTrustClientBalancesRoute,
 } = trustRoutes;
 
@@ -23,6 +24,16 @@ const createWithdrawalHandler: AppRouteHandler<typeof createWithdrawalRoute> = a
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
   const transaction = await trustService.manualWithdrawal({ data: body }, ctx);
+  return c.json(transaction, 201);
+};
+
+const createTrustTransactionHandler: AppRouteHandler<typeof createTrustTransactionRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { type, ...data } = c.req.valid('json');
+  const transaction =
+    type === 'deposit'
+      ? await trustService.manualDeposit({ data }, ctx)
+      : await trustService.manualWithdrawal({ data }, ctx);
   return c.json(transaction, 201);
 };
 
@@ -84,6 +95,7 @@ const getTrustClientBalancesHandler: AppRouteHandler<typeof getTrustClientBalanc
 export const handlers = {
   createDepositHandler,
   createWithdrawalHandler,
+  createTrustTransactionHandler,
   getTrustTransactionsHandler,
   getTrustBalanceHandler,
   getTrustReportHandler,

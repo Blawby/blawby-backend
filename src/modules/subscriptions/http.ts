@@ -41,6 +41,7 @@ staffApp.openapi(routes.getCurrentSubscriptionRoute, handlers.getCurrentSubscrip
  * POST /api/subscriptions/cancel
  */
 staffApp.openapi(routes.cancelSubscriptionRoute, handlers.cancelSubscriptionHandler);
+staffApp.openapi(routes.cancelSubscriptionLegacyRoute, handlers.cancelSubscriptionLegacyHandler);
 
 /**
  * POST /api/subscriptions/billing-portal
@@ -51,6 +52,7 @@ staffApp.openapi(routes.billingPortalRoute, handlers.billingPortalHandler);
  * GET /api/subscriptions/list
  */
 staffApp.openapi(routes.listSubscriptionsRoute, handlers.listSubscriptionsHandler);
+staffApp.openapi(routes.listSubscriptionsLegacyRoute, handlers.listSubscriptionsLegacyHandler);
 
 subscriptionsApp.route('/', publicApp);
 subscriptionsApp.route('/', authApp);

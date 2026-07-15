@@ -87,6 +87,14 @@ const updateMatterHandler: AppRouteHandler<typeof matterRoutes.updateMatterRoute
   return c.json(matter, 200);
 };
 
+const updateMatterLegacyHandler: AppRouteHandler<typeof matterRoutes.updateMatterLegacyRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: id } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const matter = await mattersService.updateMatter(id, validatedBody, ctx);
+  return c.json(matter, 200);
+};
+
 const deleteMatterHandler: AppRouteHandler<typeof matterRoutes.deleteMatterRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: id } = c.req.valid('param');
@@ -172,6 +180,15 @@ const updateMatterNoteHandler: AppRouteHandler<typeof matterRoutes.updateMatterN
   return c.json(note, 200);
 };
 
+const updateMatterNoteLegacyHandler: AppRouteHandler<typeof matterRoutes.updateMatterNoteLegacyRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId, note_id } = c.req.valid('param');
+  const scopedCtx = { ...ctx, matterId };
+  const validatedBody = c.req.valid('json');
+  const note = await matterNotesService.updateMatterNote({ noteId: note_id, data: validatedBody }, scopedCtx);
+  return c.json(note, 200);
+};
+
 const deleteMatterNoteHandler: AppRouteHandler<typeof matterRoutes.deleteMatterNoteRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId, note_id } = c.req.valid('param');
@@ -210,6 +227,18 @@ const createTimeEntryHandler: AppRouteHandler<typeof matterRoutes.createTimeEntr
 };
 
 const updateTimeEntryHandler: AppRouteHandler<typeof matterRoutes.updateTimeEntryRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId, entry_id } = c.req.valid('param');
+  const scopedCtx = { ...ctx, matterId };
+  const validatedBody = c.req.valid('json');
+  const entry = await matterTimeEntriesService.updateMatterTimeEntry(
+    { entryId: entry_id, data: validatedBody },
+    scopedCtx
+  );
+  return c.json(entry, 200);
+};
+
+const updateTimeEntryLegacyHandler: AppRouteHandler<typeof matterRoutes.updateTimeEntryLegacyRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId, entry_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
@@ -277,6 +306,18 @@ const updateExpenseHandler: AppRouteHandler<typeof matterRoutes.updateExpenseRou
   return c.json(expense, 200);
 };
 
+const updateExpenseLegacyHandler: AppRouteHandler<typeof matterRoutes.updateExpenseLegacyRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId, expense_id } = c.req.valid('param');
+  const scopedCtx = { ...ctx, matterId };
+  const validatedBody = c.req.valid('json');
+  const expense = await matterExpensesService.updateMatterExpense(
+    { expenseId: expense_id, data: validatedBody },
+    scopedCtx
+  );
+  return c.json(expense, 200);
+};
+
 const deleteExpenseHandler: AppRouteHandler<typeof matterRoutes.deleteExpenseRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId, expense_id } = c.req.valid('param');
@@ -315,6 +356,18 @@ const createMilestoneHandler: AppRouteHandler<typeof matterRoutes.createMileston
 };
 
 const updateMilestoneHandler: AppRouteHandler<typeof matterRoutes.updateMilestoneRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId, milestone_id } = c.req.valid('param');
+  const scopedCtx = { ...ctx, matterId };
+  const validatedBody = c.req.valid('json');
+  const milestone = await matterMilestonesService.updateMatterMilestone(
+    { milestoneId: milestone_id, data: validatedBody },
+    scopedCtx
+  );
+  return c.json(milestone, 200);
+};
+
+const updateMilestoneLegacyHandler: AppRouteHandler<typeof matterRoutes.updateMilestoneLegacyRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId, milestone_id } = c.req.valid('param');
   const scopedCtx = { ...ctx, matterId };
@@ -389,6 +442,14 @@ const createMatterTaskHandler: AppRouteHandler<typeof matterRoutes.createMatterT
 };
 
 const updateMatterTaskHandler: AppRouteHandler<typeof matterRoutes.updateMatterTaskRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { matter_id: matterId, task_id: taskId } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const task = await matterTasksService.updateMatterTask({ matterId, taskId, data: validatedBody }, ctx);
+  return c.json(task, 200);
+};
+
+const updateMatterTaskLegacyHandler: AppRouteHandler<typeof matterRoutes.updateMatterTaskLegacyRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { matter_id: matterId, task_id: taskId } = c.req.valid('param');
   const validatedBody = c.req.valid('json');
@@ -491,10 +552,12 @@ export const handlers = {
   getClientMatterHandler,
   createMatterHandler,
   updateMatterHandler,
+  updateMatterLegacyHandler,
   deleteMatterHandler,
   listTimeEntriesHandler,
   createTimeEntryHandler,
   updateTimeEntryHandler,
+  updateTimeEntryLegacyHandler,
   deleteTimeEntryHandler,
   getMatterActivityHandler,
   getClientMatterActivityHandler,
@@ -503,21 +566,25 @@ export const handlers = {
   listExpensesHandler,
   createExpenseHandler,
   updateExpenseHandler,
+  updateExpenseLegacyHandler,
   deleteExpenseHandler,
   listMilestonesHandler,
   createMilestoneHandler,
   updateMilestoneHandler,
+  updateMilestoneLegacyHandler,
   deleteMilestoneHandler,
   reorderMilestonesHandler,
   listMatterNotesHandler,
   listClientMatterNotesHandler,
   createMatterNoteHandler,
   updateMatterNoteHandler,
+  updateMatterNoteLegacyHandler,
   deleteMatterNoteHandler,
   listMatterTasksHandler,
   listClientMatterTasksHandler,
   createMatterTaskHandler,
   updateMatterTaskHandler,
+  updateMatterTaskLegacyHandler,
   deleteMatterTaskHandler,
   listOrganizationTasksHandler,
   getMattersSummaryByOriginatingAttorneyHandler,

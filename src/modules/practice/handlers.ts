@@ -15,6 +15,12 @@ export const listPracticesHandler: AppRouteHandler<typeof routes.listPracticesRo
   return c.json(result);
 };
 
+export const listPracticesLegacyHandler: AppRouteHandler<typeof routes.listPracticesLegacyRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const result = await practiceQueriesService.listPractices(ctx);
+  return c.json(result);
+};
+
 export const createPracticeHandler: AppRouteHandler<typeof routes.createPracticeRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const validatedBody = c.req.valid('json');
@@ -43,6 +49,17 @@ export const updatePracticeHandler: AppRouteHandler<typeof routes.updatePractice
       organizationId: practice_id,
       data: validatedBody,
     },
+    ctx
+  );
+  return c.json(result);
+};
+
+export const updatePracticeLegacyHandler: AppRouteHandler<typeof routes.updatePracticeLegacyRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { practice_id } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await practiceManagementService.updatePractice(
+    { organizationId: practice_id, data: validatedBody },
     ctx
   );
   return c.json(result);
@@ -97,6 +114,19 @@ export const updatePracticeDetailsHandler: AppRouteHandler<typeof routes.updateP
   return c.json(result);
 };
 
+export const updatePracticeDetailsLegacyHandler: AppRouteHandler<
+  typeof routes.updatePracticeDetailsLegacyRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { practice_id } = c.req.valid('param');
+  const validatedBody = c.req.valid('json');
+  const result = await practiceDetailsManagementService.upsertPracticeDetails(
+    { organizationId: practice_id, data: validatedBody },
+    ctx
+  );
+  return c.json(result);
+};
+
 export const deletePracticeDetailsHandler: AppRouteHandler<typeof routes.deletePracticeDetailsRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { practice_id } = c.req.valid('param');
@@ -131,6 +161,19 @@ export const getMemberProfileHandler: AppRouteHandler<typeof routes.getMemberPro
 };
 
 export const updateMemberProfileHandler: AppRouteHandler<typeof routes.updateMemberProfileRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { practice_id, user_id } = c.req.valid('param');
+  if (practice_id !== ctx.organizationId) {
+    throw new HTTPException(400, { message: 'practice_id must match your current organization' });
+  }
+  const body = c.req.valid('json');
+  const result = await memberProfilesService.upsertProfile({ userId: user_id, data: body }, ctx);
+  return c.json(result);
+};
+
+export const updateMemberProfileLegacyHandler: AppRouteHandler<typeof routes.updateMemberProfileLegacyRoute> = async (
+  c
+) => {
   const ctx = getServiceContext(c);
   const { practice_id, user_id } = c.req.valid('param');
   if (practice_id !== ctx.organizationId) {

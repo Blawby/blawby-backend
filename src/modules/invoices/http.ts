@@ -25,6 +25,7 @@ app.openapi(routes.deleteInvoiceRoute, handlers.deleteInvoiceHandler);
 app.openapi(routes.sendInvoiceRoute, handlers.sendInvoiceHandler);
 app.openapi(routes.syncInvoiceRoute, handlers.syncInvoiceHandler);
 app.openapi(routes.voidInvoiceRoute, handlers.voidInvoiceHandler);
+app.openapi(routes.transitionInvoiceStatusRoute, handlers.transitionInvoiceStatusHandler);
 
 // ==================== REFUND REQUESTS ====================
 app.openapi(refundRequestRoutes.createRefundRequestRoute, refundRequestHandlers.createRefundRequestHandler);

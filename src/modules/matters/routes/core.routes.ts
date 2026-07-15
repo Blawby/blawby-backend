@@ -134,7 +134,7 @@ export const getMatterRoute = routeBuilder.build({
 });
 
 export const updateMatterRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{practice_id}/{matter_id}',
   tags,
   summary: 'Update a matter',
@@ -177,6 +177,29 @@ export const updateMatterRoute = routeBuilder.build({
           schema: errorResponseSchema,
         },
       },
+    },
+  },
+});
+
+export const updateMatterLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{practice_id}/{matter_id}',
+  tags,
+  summary: 'Update a matter (deprecated)',
+  description: 'Deprecated: use `PATCH /api/matters/{practice_id}/{matter_id}` instead.',
+  deprecated: true,
+  request: {
+    params: z.object({ practice_id: z.uuid(), matter_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Matter updated successfully',
+      content: { 'application/json': { schema: z.object({ matter: matterResponseSchema }) } },
+    },
+    404: {
+      description: 'Matter not found',
+      content: { 'application/json': { schema: errorResponseSchema } },
     },
   },
 });
