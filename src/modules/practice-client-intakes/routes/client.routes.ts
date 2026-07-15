@@ -4,6 +4,29 @@ import { intakeCreationService } from '@/modules/practice-client-intakes/service
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
+const getInvitationPrefillRoute = routeBuilder.build({
+  method: 'get',
+  path: '/invitation-prefill',
+  tags: ['Practice Client Intakes'],
+  summary: 'Resolve intake invitation prefill',
+  description: 'Resolves an authenticated, short-lived opaque intake invitation token.',
+  request: { query: intakeValidations.invitationPrefillQuerySchema },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: intakeValidations.invitationPrefillResponseSchema } },
+      description: 'Invitation prefill resolved.',
+    },
+    403: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'The authenticated email does not match the invitation.',
+    },
+    404: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Invitation token is invalid or expired.',
+    },
+  },
+});
+
 const createPracticeClientIntakeCheckoutSessionRoute = routeBuilder.build({
   method: 'post',
   path: '/{uuid}/checkout-session',
@@ -165,6 +188,7 @@ const getPracticeClientIntakeStatusRoute = routeBuilder.build({
 });
 
 export const clientRoutes = {
+  getInvitationPrefillRoute,
   updatePracticeClientIntakeRoute,
   getPracticeClientIntakeStatusRoute,
   createPracticeClientIntakeCheckoutSessionRoute,

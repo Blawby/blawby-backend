@@ -267,6 +267,23 @@ const triggerIntakeInvitationResponseSchema = z.object({
   message: z.string(),
 });
 
+const invitationPrefillQuerySchema = z.object({
+  token: z
+    .string()
+    .min(32)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/),
+});
+
+const invitationPrefillResponseSchema = z.object({
+  type: z.literal('intake'),
+  intakeId: z.uuid(),
+  conversationId: z.uuid(),
+  email: z.email(),
+  orgName: z.string().min(1),
+  orgSlug: z.string().min(1),
+});
+
 const listIntakesQuerySchema = z.object({
   status: z
     .enum(['open', 'succeeded', 'expired', 'canceled', 'failed', 'converted', 'pending_review', 'accepted', 'declined'])
@@ -370,6 +387,8 @@ export const intakeValidations = {
   practiceClientIntakePostPayStatusResponseSchema,
   claimPracticeClientIntakeResponseSchema,
   triggerIntakeInvitationResponseSchema,
+  invitationPrefillQuerySchema,
+  invitationPrefillResponseSchema,
   listIntakesQuerySchema,
   listIntakesResponseSchema,
   convertIntakeSchema,

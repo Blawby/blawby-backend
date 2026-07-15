@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, or, ilike, sql } from 'drizzle-orm';
+import { eq, desc, and, gt, gte, lte, or, ilike, sql } from 'drizzle-orm';
 import {
   practiceClientIntakesSchema,
   type InsertPracticeClientIntake,
@@ -69,6 +69,33 @@ const findById = async (id: string): Promise<SelectPracticeClientIntake | undefi
   return row;
 };
 
+const findByIdForUpdate = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {
+  const [row] = await getActiveTx()
+    .select()
+    .from(practiceClientIntakes)
+    .where(eq(practiceClientIntakes.id, id))
+    .for('update')
+    .limit(1);
+  return row;
+};
+
+const findByInvitationPrefillTokenHash = async (
+  tokenHash: string,
+  now: Date
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const [row] = await getActiveTx()
+    .select()
+    .from(practiceClientIntakes)
+    .where(
+      and(
+        eq(practiceClientIntakes.invitation_prefill_token_hash, tokenHash),
+        gt(practiceClientIntakes.invitation_prefill_token_expires_at, now)
+      )
+    )
+    .limit(1);
+  return row;
+};
+
 const findByStripePaymentLinkId = async (linkId: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [row] = await getActiveTx()
     .select()
@@ -116,6 +143,23 @@ const updateStatus = async (id: string, status: string): Promise<SelectPracticeC
     throw new Error(`PracticeClientIntake not found for id: ${id}`);
   }
   return updated;
+};
+
+const setInvitationPrefillToken = async (
+  id: string,
+  organizationId: string,
+  tokenHash: string,
+  expiresAt: Date
+): Promise<boolean> => {
+  const result = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({
+      invitation_prefill_token_hash: tokenHash,
+      invitation_prefill_token_expires_at: expiresAt,
+      updated_at: new Date(),
+    })
+    .where(and(eq(practiceClientIntakes.id, id), eq(practiceClientIntakes.organization_id, organizationId)));
+  return result.rowCount === 1;
 };
 
 const findByOrganizationId = async ({
@@ -181,11 +225,14 @@ const getStats = async (
 export const practiceClientIntakesRepository = {
   create,
   findById,
+  findByIdForUpdate,
+  findByInvitationPrefillTokenHash,
   findByStripePaymentLinkId,
   findByStripePaymentIntentId,
   findByStripeCheckoutSessionId,
   update,
   updateStatus,
+  setInvitationPrefillToken,
   findByOrganizationId,
   getStats,
 };
