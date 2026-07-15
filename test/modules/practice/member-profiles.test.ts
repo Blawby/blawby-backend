@@ -7,7 +7,7 @@ import type { TestOrganization } from '@/test/types/shared';
 import practiceApp from '@/modules/practice/http';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 
 const { createTestContext } = authHelpers;

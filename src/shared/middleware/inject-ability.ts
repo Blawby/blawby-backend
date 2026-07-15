@@ -4,6 +4,8 @@ import type { MiddlewareHandler } from 'hono';
 
 import { members } from '@/schema/better-auth-schema';
 import { defineAbilityFor } from '@/shared/auth/abilities';
+import { isVerifiedStaffUser } from '@/shared/auth/permissions';
+import { config } from '@/shared/config';
 import { db } from '@/shared/database';
 import type { Variables } from '@/shared/types/hono';
 
@@ -16,6 +18,7 @@ const logger = getLogger(['middleware', 'inject-ability']);
  */
 export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => async (c, next) => {
   const userId = c.get('userId');
+  const user = c.get('user');
   const orgId = c.get('activeOrganizationId');
 
   if (!userId) {
@@ -35,8 +38,9 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
         .where(and(eq(members.userId, userId), eq(members.organizationId, orgId)))
         .limit(1);
 
-      if (memberResult[0]) {
-        ({ role } = memberResult[0]);
+      const [member] = memberResult;
+      if (member) {
+        ({ role } = member);
       }
     }
 
@@ -44,7 +48,12 @@ export const injectAbility = (): MiddlewareHandler<{ Variables: Variables }> => 
     c.set('memberRole', role);
 
     // Inject Ability
-    const ability = defineAbilityFor(role, { userId, organizationId: orgId ?? undefined });
+    const ability = defineAbilityFor(role, {
+      userId,
+      organizationId: orgId ?? undefined,
+      globalRole: user?.role,
+      isVerifiedStaff: isVerifiedStaffUser(user, config.auth.staffEmailDomain),
+    });
     c.set('ability', ability);
 
     return next();

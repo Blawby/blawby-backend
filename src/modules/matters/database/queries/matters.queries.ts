@@ -1,10 +1,11 @@
-import { eq, and, like, isNull, inArray, sql, desc, getTableColumns } from 'drizzle-orm';
+import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import type { SelectMatterMilestone } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matters, type InsertMatter, type SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { MatterListFilters } from '@/modules/matters/types/matter-filters.types';
 import { users } from '@/schema';
 import { getActiveTx } from '@/shared/database/uow';
+import { and, desc, eq, getTableColumns, inArray, isNull, like, sql } from 'drizzle-orm';
 
 // Create matter
 const createMatter = async (data: InsertMatter): Promise<SelectMatter> => {
@@ -54,6 +55,29 @@ const findMatterByIdWithRelations = async (id: string): Promise<MatterWithRelati
       },
     },
   });
+};
+
+// Find matter owned by the client record linked to this user in this org (excluding soft deleted)
+const findClientMatterById = async (
+  matterId: string,
+  organizationId: string,
+  userId: string
+): Promise<SelectMatter | undefined> => {
+  const [matter] = await getActiveTx()
+    .select(getTableColumns(matters))
+    .from(matters)
+    .innerJoin(clients, eq(matters.client_id, clients.id))
+    .where(
+      and(
+        eq(matters.id, matterId),
+        eq(matters.organization_id, organizationId),
+        isNull(matters.deleted_at),
+        eq(clients.user_id, userId),
+        isNull(clients.deleted_at)
+      )
+    )
+    .limit(1);
+  return matter;
 };
 
 // Find matter by ID (including soft deleted)
@@ -293,6 +317,7 @@ const updateRetainerBalance = async (matterId: string, newBalance: number): Prom
 export const mattersQueries = {
   createMatter,
   findMatterById,
+  findClientMatterById,
   updateMatter,
   softDeleteMatter,
   deleteMatter,

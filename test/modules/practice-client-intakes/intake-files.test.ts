@@ -13,7 +13,7 @@ import {
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { organizations, subscriptions } from '@/schema/better-auth-schema';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 
 vi.mock('@/shared/utils/stripe-client', () => ({
   stripe: {

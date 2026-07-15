@@ -2,7 +2,7 @@ import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
 import { pendingActionsQueries } from '@/modules/pending-actions/database/queries/pending-actions.queries';
 import type { SelectPendingAction } from '@/modules/pending-actions/database/schema/pending-actions.schema';
-import type { Action, Subject } from '@/shared/auth/abilities';
+import type { Action, Subject } from '@/shared/auth/abilities.types';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000; // 10 minutes, matching the approval-link copy shown to the caller.

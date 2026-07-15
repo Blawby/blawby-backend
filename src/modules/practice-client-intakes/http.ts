@@ -4,7 +4,7 @@ import { clientRoutes } from '@/modules/practice-client-intakes/routes/client.ro
 import { intakeFileRoutes } from '@/modules/practice-client-intakes/routes/intake-files.routes';
 import { staffRoutes } from '@/modules/practice-client-intakes/routes/staff.routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 

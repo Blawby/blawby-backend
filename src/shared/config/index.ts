@@ -31,6 +31,8 @@ const envSchema = z
     ALLOWED_ORIGINS: z.string().optional(),
 
     BETTER_AUTH_SECRET: z.string().optional(),
+    STAFF_EMAIL_DOMAIN: z.string().default('blawby.com'),
+    DASHBOARD_ORIGINS: z.string().optional(),
     MCP_ACCESS_TOKEN_EXPIRES_IN: z.coerce
       .number()
       .int()
@@ -47,6 +49,10 @@ const envSchema = z
 
     RESEND_API_KEY: z.string().optional(),
 
+    E2E_FIXTURES_ENABLED: z.enum(['true', 'false']).optional(),
+    E2E_FIXTURE_SECRET: z.string().optional(),
+    E2E_EMAIL_ALLOWED_DOMAIN: z.string().default('test-blawby.com'),
+
     CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
     CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().optional(),
     CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().optional(),
@@ -56,7 +62,7 @@ const envSchema = z
     CLOUDFLARE_IMAGES_API_TOKEN: z.string().optional(),
     CLOUDFLARE_TURNSTILE_SECRET_KEY: z.string().optional(),
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
-    SYSTEM_USER_EMAIL: z.string().email().optional(),
+    SYSTEM_USER_EMAIL: z.email().optional(),
     IDEMPOTENCY_SALT: z.string().trim().min(16).optional(),
   })
   .loose();
@@ -109,6 +115,8 @@ export const config = {
   },
   auth: {
     betterAuthSecret: raw.BETTER_AUTH_SECRET,
+    staffEmailDomain: raw.STAFF_EMAIL_DOMAIN,
+    dashboardOrigins: csvToArray(raw.DASHBOARD_ORIGINS),
     mcpAccessTokenExpiresIn: raw.MCP_ACCESS_TOKEN_EXPIRES_IN,
     googleClientId: raw.GOOGLE_CLIENT_ID,
     googleClientSecret: raw.GOOGLE_CLIENT_SECRET,
@@ -122,6 +130,11 @@ export const config = {
   },
   email: {
     resendApiKey: raw.RESEND_API_KEY,
+  },
+  e2e: {
+    fixturesEnabled: raw.E2E_FIXTURES_ENABLED === 'true',
+    fixtureSecret: raw.E2E_FIXTURE_SECRET,
+    emailAllowedDomain: raw.E2E_EMAIL_ALLOWED_DOMAIN,
   },
   cloudflare: {
     accountId: raw.CLOUDFLARE_ACCOUNT_ID,

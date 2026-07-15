@@ -1,7 +1,7 @@
 import { handlers } from '@/modules/clients/handlers';
 import { routes } from '@/modules/clients/routes';
 import { injectAbility } from '@/shared/middleware/inject-ability';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { registerOpenApiRoutes } from '@/shared/router/openapi-docs';

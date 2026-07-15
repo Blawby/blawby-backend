@@ -13,7 +13,7 @@ import {
   PracticeDetailsUpdated,
   PracticeUpdated,
 } from '@/shared/events/definitions';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb } from '@/test/helpers/db';

@@ -11,7 +11,7 @@ import mattersApp from '@/modules/matters/http';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { matterTasks } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matterTimeEntries } from '@/modules/matters/database/schema/matter-time-entries.schema';
-import { requireAuth } from '@/shared/middleware/requireAuth';
+import { requireAuth } from '@/shared/middleware/auth';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { SelectMatterTask } from '@/modules/matters/database/schema/matter-tasks.schema';

@@ -1,47 +1,13 @@
-import { AbilityBuilder, createMongoAbility, type ForcedSubject, type MongoAbility } from '@casl/ability';
-import { OrgRole, ADMIN_ROLES, MEMBER_ROLES } from '@/shared/enums/org-roles';
+import type { Action, AppAbility, SubjectName } from '@/shared/auth/abilities.types';
+import { getStaffRoles, type StaffRole } from '@/shared/auth/permissions';
+import { ADMIN_ROLES, MEMBER_ROLES, OrgRole } from '@/shared/enums/org-roles';
+import { AbilityBuilder, createMongoAbility } from '@casl/ability';
 
-/**
- * Actions that can be performed on resources
- */
-export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete';
-
-/**
- * Subject names (resources) in the system
- */
-export type SubjectName =
-  | 'all'
-  | 'OrganizationPreferences'
-  | 'UserPreferences'
-  | 'UserDetails'
-  | 'PracticeClientIntake'
-  | 'IntakeTemplate'
-  | 'Upload'
-  | 'Trust'
-  | 'User'
-  | 'Organization'
-  | 'Onboarding'
-  | 'Subscription'
-  | 'Matter'
-  | 'IntakeConversation'
-  | 'Invoice'
-  | 'Payout'
-  | 'RefundRequest'
-  | 'PendingAction'
-  | 'Client'
-  | 'ClientMemo'
-  | 'MemberProfile'
-  | 'ClientIntakeProfile';
-
-/**
- * Subjects include both string names and tagged instances (from subject() helper)
- */
-export type Subject = SubjectName | (Record<string, unknown> & ForcedSubject<Exclude<SubjectName, 'all'>>);
-
-/**
- * The application-wide Ability type
- */
-export type AppAbility = MongoAbility<[Action, Subject]>;
+const STAFF_CONSOLE_GRANTS: Record<StaffRole, Action[]> = {
+  support: ['read'],
+  ops: ['read'],
+  super_admin: ['manage'],
+};
 
 /**
  * Define abilities based on user role and context
@@ -49,14 +15,15 @@ export type AppAbility = MongoAbility<[Action, Subject]>;
  * @param role - The current user's role in the organization
  * @param metadata - Additional context (userId, organizationId, etc.)
  */
-export const defineAbilityFor = (
+const defineAbilityFor = (
   role: string | null,
-  metadata: { userId?: string; organizationId?: string } = {}
+  metadata: { userId?: string; organizationId?: string; globalRole?: string | null; isVerifiedStaff?: boolean } = {}
 ): AppAbility => {
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
   const canWithConditions = can as (action: Action, subject: SubjectName, conditions: Record<string, unknown>) => void;
 
   const orgRole = role ?? null;
+  const staffRoles = metadata.isVerifiedStaff ? getStaffRoles(metadata.globalRole) : [];
 
   // User-scoped preferences: authenticated users can only read/update their own row.
   if (metadata.userId) {
@@ -111,5 +78,18 @@ export const defineAbilityFor = (
     }
   }
 
+  if (orgRole) {
+    cannot('read', 'InternalConsole');
+    cannot('manage', 'InternalConsole');
+  }
+
+  for (const staffRole of staffRoles) {
+    for (const action of STAFF_CONSOLE_GRANTS[staffRole]) {
+      can(action, 'InternalConsole');
+    }
+  }
+
   return build();
 };
+
+export { defineAbilityFor };

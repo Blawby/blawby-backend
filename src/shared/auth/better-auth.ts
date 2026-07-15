@@ -3,7 +3,16 @@ import { oauthProvider } from '@better-auth/oauth-provider';
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { admin, anonymous, jwt, magicLink, multiSession, organization, testUtils } from 'better-auth/plugins';
+import {
+  admin,
+  anonymous,
+  jwt,
+  magicLink,
+  multiSession,
+  organization,
+  testUtils,
+  type OrganizationOptions,
+} from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 // Schema is used as namespace for drizzle adapter
@@ -12,8 +21,11 @@ import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
+import { ac, staffAccessRoles } from '@/shared/auth/permissions';
+import { acceptedInvitationClientLinker } from '@/shared/auth/services/accepted-invitation-client-linker.service';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
 import { checkClientIsOwner } from '@/shared/auth/services/organization-access.service';
+import { createStaffRoleHooks } from '@/shared/auth/staff-role-hooks';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { config } from '@/shared/config';
 import { InvitationAccepted, PracticeMemberInvited } from '@/shared/events/definitions';
@@ -41,14 +53,23 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       organization({
         ac: organizationAccessController,
         roles: organizationRoles,
-        allowPersonalAccounts: true, // Consolidated from AUTH_CONFIG
-        hooks: {
+        // Dev/staging don't send verification emails, so invited users can't verify before accepting.
+        requireEmailVerificationOnInvitation: !config.env.isDevelopment,
+        organizationHooks: {
           afterAcceptInvitation: async (data: {
             invitation: { id: string; organizationId: string };
             member: { role: string };
             user: { id: string; email: string };
           }) => {
-            // Dispatch event for other modules (User Details) to handle
+            await acceptedInvitationClientLinker.linkAcceptedClientInvitation({
+              invitationId: data.invitation.id,
+              organizationId: data.invitation.organizationId,
+              userId: data.user.id,
+              email: data.user.email,
+              role: data.member.role,
+            });
+
+            // Dispatch event for non-critical side effects after required linkage is durable.
             void InvitationAccepted.dispatch({
               invitationId: data.invitation.id,
               organizationId: data.invitation.organizationId,
@@ -103,7 +124,7 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
             }
           );
         },
-      }),
+      } satisfies OrganizationOptions),
       jwt(),
       oauthProvider({
         accessTokenExpiresIn: config.auth.mcpAccessTokenExpiresIn,
@@ -131,26 +152,57 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       }),
       anonymous({
         onLinkAccount: async ({ anonymousUser, newUser }) => {
-          await db
-            .insert(schema.identityUpgradeClaims)
-            .values({
+          try {
+            // Better Auth can resolve "newUser" to the exact same row as
+            // "anonymousUser" (e.g. an account whose isAnonymous flag never
+            // Got cleared after a previous link). Treating that as a real
+            // Merge causes linkAnonymousUserData to migrate a user's data
+            // Onto itself, deleting/self-referencing its own rows. Bail out
+            // And just make sure the flag is correct instead.
+            if (anonymousUser.user.id === newUser.user.id) {
+              logger.warn('onLinkAccount resolved anonymousUser and newUser to the same id; skipping merge {userId}', {
+                userId: newUser.user.id,
+              });
+              await db.update(schema.users).set({ isAnonymous: false }).where(eq(schema.users.id, newUser.user.id));
+              return;
+            }
+
+            await db
+              .insert(schema.identityUpgradeClaims)
+              .values({
+                anonUserId: anonymousUser.user.id,
+                registeredUserId: newUser.user.id,
+              })
+              .onConflictDoNothing();
+
+            await db
+              .update(schema.sessions)
+              .set({ previousAnonUserId: anonymousUser.user.id })
+              .where(eq(schema.sessions.id, newUser.session.id));
+
+            await linkAnonymousUserData({
+              anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
+              newUser: { id: newUser.user.id, email: newUser.user.email },
+            });
+
+            // Mark the upgraded user as no longer anonymous so future logins
+            // Don't re-trigger this merge against itself.
+            await db.update(schema.users).set({ isAnonymous: false }).where(eq(schema.users.id, newUser.user.id));
+          } catch (error) {
+            // Never let a failure in this best-effort data migration block
+            // The user from actually signing in.
+            logger.error('onLinkAccount failed to migrate anonymous user data: {error}', {
+              error: sanitizeError(error),
               anonUserId: anonymousUser.user.id,
-              registeredUserId: newUser.user.id,
-            })
-            .onConflictDoNothing();
-
-          await db
-            .update(schema.sessions)
-            .set({ previousAnonUserId: anonymousUser.user.id })
-            .where(eq(schema.sessions.id, newUser.session.id));
-
-          await linkAnonymousUserData({
-            anonymousUser: { id: anonymousUser.user.id, email: anonymousUser.user.email },
-            newUser: { id: newUser.user.id, email: newUser.user.email },
-          });
+              newUserId: newUser.user.id,
+            });
+          }
         },
       }),
-      admin(),
+      admin({
+        ac,
+        roles: staffAccessRoles,
+      }),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           await queueManager.addEmailJob('magic-link', email, 'Sign in to Blawby', {
@@ -162,6 +214,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       ...(config.env.isTest ? [testUtils()] : []),
       apiKey(),
     ],
+    hooks: {
+      ...createStaffRoleHooks(db),
+    },
     baseURL: config.app.baseUrl || undefined,
     basePath: '/api/auth',
     rateLimit: {
