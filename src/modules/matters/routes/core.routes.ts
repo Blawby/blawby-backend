@@ -9,7 +9,7 @@ import {
   type UpdateMatterRequest,
 } from '@/modules/matters/types/matter.types';
 import { routeBuilder } from '@/shared/router/route-builder';
-import { errorResponseSchema } from '@/shared/validations/openapi';
+import { errorResponseSchema, paginationSchema } from '@/shared/validations/openapi';
 import { z } from '@hono/zod-openapi';
 
 const tags = ['Matters'];
@@ -82,11 +82,8 @@ export const listMattersRoute = routeBuilder.build({
       content: {
         'application/json': {
           schema: z.object({
-            matters: z.array(matterResponseSchema),
-            total: z.number(),
-            page: z.number(),
-            limit: z.number(),
-            totalPages: z.number(),
+            data: z.array(matterResponseSchema),
+            pagination: paginationSchema,
           }),
         },
       },

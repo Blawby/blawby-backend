@@ -162,9 +162,17 @@ const getMatterById = async (matterId: string, ctx: ServiceContext): Promise<Mat
 const listMatters = async (
   filters: MatterListFilters,
   ctx: ServiceContext
-): Promise<{ matters: MatterRecord[]; total: number }> => {
+): Promise<OffsetPaginatedResponse<MatterRecord>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Matter');
-  return mattersQueries.listMattersByOrganization(ctx.organizationId, filters);
+  const { matters: data, total } = await mattersQueries.listMattersByOrganization(ctx.organizationId, filters);
+  return {
+    data,
+    pagination: {
+      page: filters.page ?? 1,
+      limit: filters.limit ?? 20,
+      total,
+    },
+  };
 };
 
 // Strip internal billing, staffing, and conflict-check fields before returning matters to clients

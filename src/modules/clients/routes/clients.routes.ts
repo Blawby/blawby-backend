@@ -8,6 +8,7 @@ import {
 } from '@/modules/clients/validations/clients.validation';
 import { clientsService } from '@/modules/clients/services/clients-crud.service';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { paginationSchema } from '@/shared/validations/openapi';
 
 export const listClientsRoute = routeBuilder.build({
   method: 'get',
@@ -26,7 +27,11 @@ export const listClientsRoute = routeBuilder.build({
   },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ data: z.array(clientSchema), total: z.number() }) } },
+      content: {
+        'application/json': {
+          schema: z.object({ data: z.array(clientSchema), pagination: paginationSchema }),
+        },
+      },
       description: 'Clients retrieved successfully',
     },
   },

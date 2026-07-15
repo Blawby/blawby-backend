@@ -21,11 +21,6 @@ const deleteIntakeFileRequestSchema = z.object({
   reason: z.string().min(1).max(255),
 });
 
-const deleteIntakeFileResponseSchema = z.object({
-  id: z.uuid(),
-  status: z.literal('deleted'),
-});
-
 const listIntakeFilesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
@@ -145,9 +140,8 @@ const deleteIntakeFileRoute = routeBuilder.build({
     },
   },
   responses: {
-    200: {
+    204: {
       description: 'Upload deleted successfully',
-      content: { 'application/json': { schema: deleteIntakeFileResponseSchema } },
     },
   },
 });

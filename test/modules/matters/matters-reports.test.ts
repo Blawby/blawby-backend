@@ -108,11 +108,8 @@ const insertTask = async (params: InsertTaskParams): Promise<SelectMatterTask> =
 };
 
 interface MattersListResponseBody {
-  matters: SelectMatter[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  data: SelectMatter[];
+  pagination: { page: number; limit: number; total: number };
 }
 
 interface SummaryRow {
@@ -142,8 +139,14 @@ describe('Matters reports endpoints', () => {
     ownerId = session!.user.id;
 
     // Create two other users to use as attorneys and add them to the org as members
-    const attorneyA = await createTestUser({ email: `attorney-a-${randomUUID().slice(0, 8)}@test.example`, name: 'Attorney A' });
-    const attorneyB = await createTestUser({ email: `attorney-b-${randomUUID().slice(0, 8)}@test.example`, name: 'Attorney B' });
+    const attorneyA = await createTestUser({
+      email: `attorney-a-${randomUUID().slice(0, 8)}@test.example`,
+      name: 'Attorney A',
+    });
+    const attorneyB = await createTestUser({
+      email: `attorney-b-${randomUUID().slice(0, 8)}@test.example`,
+      name: 'Attorney B',
+    });
     await addUserToOrganization(attorneyA.id, org.id, 'admin');
     await addUserToOrganization(attorneyB.id, org.id, 'admin');
     attorneyAId = attorneyA.id;
@@ -254,9 +257,11 @@ describe('Matters reports endpoints', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.matters.length).toBeGreaterThanOrEqual(1);
-    expect(res.body.matters.every((m) => m.responsible_attorney_id === attorneyAId)).toBe(true);
-    const titles = res.body.matters.map((m) => m.title);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.every((m) => m.responsible_attorney_id === attorneyAId)).toBe(true);
+    expect(res.body.pagination).toMatchObject({ page: 1, limit: 20 });
+    expect(res.body.pagination.total).toBeGreaterThanOrEqual(res.body.data.length);
+    const titles = res.body.data.map((m) => m.title);
     expect(titles).toContain(matterAttorneyA.title);
     expect(titles).not.toContain(matterAttorneyB.title);
   });
@@ -267,8 +272,8 @@ describe('Matters reports endpoints', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.matters.every((m) => m.originating_attorney_id === attorneyAId)).toBe(true);
-    const ids = new Set(res.body.matters.map((m) => m.id));
+    expect(res.body.data.every((m) => m.originating_attorney_id === attorneyAId)).toBe(true);
+    const ids = new Set(res.body.data.map((m) => m.id));
     expect(ids.has(matterAttorneyA.id)).toBe(true);
     expect(ids.has(matterOriginatingAClosed.id)).toBe(true);
     expect(ids.has(matterOriginatingANoResponsible.id)).toBe(true);
@@ -281,8 +286,8 @@ describe('Matters reports endpoints', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.matters.every((m) => m.status === 'closed')).toBe(true);
-    expect(res.body.matters.some((m) => m.id === matterOriginatingAClosed.id)).toBe(true);
+    expect(res.body.data.every((m) => m.status === 'closed')).toBe(true);
+    expect(res.body.data.some((m) => m.id === matterOriginatingAClosed.id)).toBe(true);
   });
 
   // ==================== Summary by originating attorney ====================

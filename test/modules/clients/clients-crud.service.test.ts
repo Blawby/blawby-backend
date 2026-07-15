@@ -7,12 +7,14 @@ const mocks = vi.hoisted(() => ({
   findClientByOrgAndUser: vi.fn(),
   transaction: vi.fn(),
   findUserByEmail: vi.fn(),
+  listClients: vi.fn(),
 }));
 
 vi.mock('@/modules/clients/database/queries/clients.queries', () => ({
   clientsRepository: {
     create: vi.fn(),
     findByOrgAndUser: mocks.findClientByOrgAndUser,
+    listClients: mocks.listClients,
   },
 }));
 
@@ -84,5 +86,33 @@ describe('clientsCrudService.createClient', () => {
 
     expect(mocks.findClientByOrgAndUser).toHaveBeenCalledTimes(2);
     expect(mocks.clientCreatedDispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('clientsCrudService.listClients', () => {
+  it('returns the shared offset pagination envelope', async () => {
+    const client = {
+      id: 'client-1',
+      organization_id: 'org-1',
+      user_id: null,
+      name: 'Client One',
+      email: 'client@example.com',
+      address_id: null,
+      stripe_customer_id: null,
+      status: 'active',
+      currency: 'usd',
+      created_at: new Date(),
+      updated_at: new Date(),
+      user: null,
+      address: null,
+    };
+    mocks.listClients.mockResolvedValue({ data: [client], total: 41 });
+
+    await expect(
+      clientsCrudService.listClients({ limit: 10, offset: 20 }, createSystemContext('org-1'))
+    ).resolves.toEqual({
+      data: [client],
+      pagination: { page: 3, limit: 10, total: 41 },
+    });
   });
 });
