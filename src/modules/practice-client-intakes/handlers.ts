@@ -167,8 +167,8 @@ const deleteIntakeFileHandler: AppRouteHandler<typeof intakeFileRoutes.deleteInt
   const ctx = getServiceContext(c);
   const { uuid, upload_id: uploadId } = c.req.valid('param');
   const { reason } = c.req.valid('json');
-  const result = await intakeFilesService.deleteFile({ uuid, uploadId, reason }, ctx);
-  return c.json(result, 200);
+  await intakeFilesService.deleteFile({ uuid, uploadId, reason }, ctx);
+  return c.body(null, 204);
 };
 
 export const handlers = {

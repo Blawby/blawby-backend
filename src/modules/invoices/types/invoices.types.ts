@@ -9,6 +9,7 @@ import type { invoiceValidations } from '@/modules/invoices/schemas/invoices.val
 import type * as schema from '@/schema';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';
 import type { StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 
 type Schema = ExtractTablesWithRelations<typeof schema>;
 
@@ -65,13 +66,7 @@ export type InvoiceSummary = BuildQueryResult<
 /**
  * Invoice list response
  */
-export interface InvoiceListResponse {
-  invoices: SelectInvoice[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
+export type InvoiceListResponse = OffsetPaginatedResponse<SelectInvoice>;
 
 // Inferred from Zod schemas
 export type CreateInvoiceRequest = z.infer<typeof invoiceValidations.createInvoiceSchema>;

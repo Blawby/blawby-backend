@@ -23,6 +23,7 @@ import { getActiveTx, uow } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
 import type { PrefillData } from '@/shared/types/prefill';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { getLogger } from '@logtape/logtape';
@@ -30,14 +31,14 @@ import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['practice-client-intakes', 'service']);
 
-type ListIntakeItem = z.infer<typeof intakeValidations.listIntakesResponseSchema>['intakes'][number];
+type ListIntakeItem = z.infer<typeof intakeValidations.listIntakesResponseSchema>['data'][number];
 
 const listIntakes = async (
   params: {
     query: z.infer<typeof intakeValidations.listIntakesQuerySchema>;
   },
   ctx: ServiceContext
-): Promise<{ intakes: ListIntakeItem[]; total: number; page: number; limit: number; total_pages: number }> => {
+): Promise<OffsetPaginatedResponse<ListIntakeItem>> => {
   try {
     ensureStaffOrganizationAccess(ctx.organizationId, ctx);
 
@@ -57,11 +58,12 @@ const listIntakes = async (
     });
 
     return {
-      intakes: intakes.map((intake) => intakeSharedHelpers.formatIntakeListItem(intake, { isAdmin: true })),
-      total,
-      page: params.query.page,
-      limit: params.query.limit,
-      total_pages: Math.ceil(total / params.query.limit),
+      data: intakes.map((intake) => intakeSharedHelpers.formatIntakeListItem(intake, { isAdmin: true })),
+      pagination: {
+        page: params.query.page,
+        limit: params.query.limit,
+        total,
+      },
     };
   } catch (error) {
     logger.error('Failed to list intakes for organization {organizationId}: {error}', {

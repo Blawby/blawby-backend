@@ -1,5 +1,6 @@
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import { addressSchema } from '@/shared/validations/address';
+import { paginationSchema } from '@/shared/validations/openapi';
 import { z } from '@hono/zod-openapi';
 
 const createPracticeClientIntakeSchema = z.object({
@@ -279,7 +280,7 @@ const listIntakesQuerySchema = z.object({
 });
 
 const listIntakesResponseSchema = z.object({
-  intakes: z.array(
+  data: z.array(
     z.object({
       uuid: z.uuid(),
       organization_id: z.uuid(),
@@ -311,10 +312,7 @@ const listIntakesResponseSchema = z.object({
       created_at: z.date(),
     })
   ),
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
-  total_pages: z.number(),
+  pagination: paginationSchema,
 });
 
 const convertIntakeSchema = z.object({
