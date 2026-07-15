@@ -13,7 +13,7 @@ import { config } from '@/shared/config';
  * dedupe an immediate retry without a session concept to lean on.
  */
 
-export interface IdempotencyInputs {
+interface IdempotencyInputs {
   toolName: string;
   organizationId: string;
   userId: string;
@@ -22,20 +22,32 @@ export interface IdempotencyInputs {
 
 const HIGH_RISK_BUCKET_MS = 60_000;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Canonical JSON: keys sorted at every depth so property order doesn't affect the hash. */
-export const canonicalJsonStringify = (value: unknown): string => {
-  if (value === null) return 'null';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'null';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'string') return JSON.stringify(value);
-  if (typeof value === 'undefined') return 'null';
+const canonicalJsonStringify = (value: unknown): string => {
+  if (value === null) {
+    return 'null';
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : 'null';
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'undefined') {
+    return 'null';
+  }
   if (Array.isArray(value)) {
     return `[${value.map((v) => canonicalJsonStringify(v)).join(',')}]`;
   }
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const keys = Object.keys(record).sort();
-    const parts = keys.map((k) => `${JSON.stringify(k)}:${canonicalJsonStringify(record[k])}`);
+  if (isRecord(value)) {
+    const keys = Object.keys(value).sort();
+    const parts = keys.map((k) => `${JSON.stringify(k)}:${canonicalJsonStringify(value[k])}`);
     return `{${parts.join(',')}}`;
   }
   return 'null';
@@ -70,13 +82,17 @@ const requireSalt = (): string => {
   return salt;
 };
 
+const assertPendingActionIdempotencyConfigured = (): void => {
+  requireSalt();
+};
+
 /**
  * Standard derivation for direct-write tools. Not currently wired into
  * any tool — no MCP write tool exists yet that isn't `requiresApproval`.
  * Kept so a future direct-write tool has a ready-made dedup key rather
  * than reinventing one.
  */
-export const deriveIdempotencyKey = async (inputs: IdempotencyInputs): Promise<string> =>
+const deriveIdempotencyKey = async (inputs: IdempotencyInputs): Promise<string> =>
   sha256Hex(composeKeyMaterial(requireSalt(), inputs));
 
 /**
@@ -84,10 +100,15 @@ export const deriveIdempotencyKey = async (inputs: IdempotencyInputs): Promise<s
  * within the same minute dedupes to the same pending action, but a call
  * after the bucket rolls produces a fresh one.
  */
-export const deriveHighRiskIdempotencyKey = async (
-  inputs: IdempotencyInputs,
-  nowMs: number = Date.now()
-): Promise<string> => {
+const deriveHighRiskIdempotencyKey = async (inputs: IdempotencyInputs, nowMs: number = Date.now()): Promise<string> => {
   const bucket = Math.floor(nowMs / HIGH_RISK_BUCKET_MS) * HIGH_RISK_BUCKET_MS;
   return sha256Hex(composeKeyMaterial(requireSalt(), inputs, String(bucket)));
 };
+
+export {
+  assertPendingActionIdempotencyConfigured,
+  canonicalJsonStringify,
+  deriveHighRiskIdempotencyKey,
+  deriveIdempotencyKey,
+};
+export type { IdempotencyInputs };

@@ -1,14 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { canonicalJsonStringify, deriveHighRiskIdempotencyKey, deriveIdempotencyKey } from '@/modules/mcp/idempotency';
+
+const configState = vi.hoisted((): { salt?: string } => ({ salt: 'test-salt' }));
 
 vi.mock('@/shared/config', () => ({
-  config: { mcp: { idempotencySalt: 'test-salt' } },
+  config: {
+    mcp: {
+      get idempotencySalt() {
+        return configState.salt;
+      },
+    },
+  },
 }));
-
-import {
-  canonicalJsonStringify,
-  deriveHighRiskIdempotencyKey,
-  deriveIdempotencyKey,
-} from '@/modules/mcp/idempotency';
 
 describe('canonicalJsonStringify', () => {
   it('produces identical output regardless of key order', () => {
@@ -29,7 +32,22 @@ describe('canonicalJsonStringify', () => {
 });
 
 describe('deriveIdempotencyKey', () => {
-  const baseInputs = { toolName: 'send_invoice', organizationId: 'org_1', userId: 'user_1', params: { invoice_id: 'inv_1' } };
+  const baseInputs = {
+    toolName: 'send_invoice',
+    organizationId: 'org_1',
+    userId: 'user_1',
+    params: { invoice_id: 'inv_1' },
+  };
+
+  afterEach(() => {
+    configState.salt = 'test-salt';
+  });
+
+  it('fails closed when the idempotency salt is missing', async () => {
+    configState.salt = undefined;
+
+    await expect(deriveIdempotencyKey(baseInputs)).rejects.toThrow('IDEMPOTENCY_SALT not configured');
+  });
 
   it('is deterministic for identical inputs', async () => {
     const a = await deriveIdempotencyKey(baseInputs);
@@ -63,7 +81,12 @@ describe('deriveIdempotencyKey', () => {
 });
 
 describe('deriveHighRiskIdempotencyKey', () => {
-  const baseInputs = { toolName: 'send_invoice', organizationId: 'org_1', userId: 'user_1', params: { invoice_id: 'inv_1' } };
+  const baseInputs = {
+    toolName: 'send_invoice',
+    organizationId: 'org_1',
+    userId: 'user_1',
+    params: { invoice_id: 'inv_1' },
+  };
 
   it('is identical for two calls within the same 60s bucket', async () => {
     const t0 = Date.parse('2026-01-01T00:00:05.000Z');

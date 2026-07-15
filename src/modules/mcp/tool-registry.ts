@@ -1,5 +1,5 @@
 import { mcpContext } from '@/modules/mcp/mcp-context';
-import { deriveHighRiskIdempotencyKey } from '@/modules/mcp/idempotency';
+import { assertPendingActionIdempotencyConfigured, deriveHighRiskIdempotencyKey } from '@/modules/mcp/idempotency';
 import { getRecord, getZodShape, isMcpRouteAnnotation } from '@/modules/mcp/tool-registry.guards';
 import type { AnyToolDef, McpJwt, McpToolServer } from '@/modules/mcp/types';
 import { pendingActionsService } from '@/modules/pending-actions/services/pending-actions.service';
@@ -84,11 +84,16 @@ const requireToolApproval = async (server: McpToolServer, tool: AnyToolDef): Pro
 /**
  * Stages the tool call as a `pending_actions` row instead of executing it,
  * and returns an approval URL. The actual write happens later, out-of-band,
- * when a practice member approves via `POST /api/pending-actions/{id}/approve`
+ * when a practice member approves via
+ * `POST /api/pending-actions/{practice_id}/{id}/approve`
  * (see the pending-actions module) — that route looks the tool back up by
  * name and calls the same `handler` this registry would otherwise call now.
  */
-const createPendingApprovalResult = async (tool: AnyToolDef, args: Record<string, unknown>, ctx: ServiceContext): Promise<CallToolResult> => {
+const createPendingApprovalResult = async (
+  tool: AnyToolDef,
+  args: Record<string, unknown>,
+  ctx: ServiceContext
+): Promise<CallToolResult> => {
   const idempotencyKey = await deriveHighRiskIdempotencyKey({
     toolName: tool.name,
     organizationId: ctx.organizationId,
@@ -104,7 +109,7 @@ const createPendingApprovalResult = async (tool: AnyToolDef, args: Record<string
     idempotencyKey,
   });
 
-  const approvalUrl = `${config.app.appUrl}/approve/${pending.id}`;
+  const approvalUrl = `${config.app.appUrl}/approve/${ctx.organizationId}/${pending.id}`;
   const text = [
     `I've prepared the ${tool.name.replace(/_/g, ' ')} request.`,
     `A practice member needs to approve it here: ${approvalUrl}.`,
@@ -123,6 +128,10 @@ const createPendingApprovalResult = async (tool: AnyToolDef, args: Record<string
 };
 
 const registerTools = (server: McpToolServer, jwt: McpJwt, tools: AnyToolDef[]): void => {
+  if (tools.some((tool) => tool.requiresPendingApproval)) {
+    assertPendingActionIdempotencyConfigured();
+  }
+
   for (const tool of tools) {
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.schema }, async (args) => {
       try {
@@ -139,7 +148,11 @@ const registerTools = (server: McpToolServer, jwt: McpJwt, tools: AnyToolDef[]):
         const ctx = await mcpContext.buildMcpServiceContext(jwt);
 
         if (tool.requiresPendingApproval) {
-          return await createPendingApprovalResult(tool, args as Record<string, unknown>, ctx);
+          const argsRecord = getRecord(args);
+          if (!argsRecord) {
+            return toolErrorResult('Invalid tool arguments');
+          }
+          return await createPendingApprovalResult(tool, argsRecord, ctx);
         }
 
         const result = await tool.handler(args, ctx);

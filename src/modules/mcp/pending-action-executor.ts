@@ -1,6 +1,7 @@
 import { MCP_TOOLS_REGISTRY } from '@/modules/mcp/mcp.tools.generated';
 import type { SelectPendingAction } from '@/modules/pending-actions/database/schema/pending-actions.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { z } from 'zod';
 
 /**
  * Executes the underlying MCP tool call recorded on an approved pending
@@ -13,5 +14,10 @@ export const executePendingAction = async (row: SelectPendingAction, ctx: Servic
   if (!tool) {
     throw new Error(`Unknown tool_name on pending action: ${row.tool_name}`);
   }
-  return tool.handler(row.tool_params as Record<string, unknown>, ctx);
+  const parsed = z.object(tool.schema).safeParse(row.tool_params);
+  if (!parsed.success) {
+    throw new Error(`Invalid persisted parameters for pending action tool: ${row.tool_name}`);
+  }
+
+  return tool.handler(parsed.data, ctx);
 };

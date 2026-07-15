@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { authHelpers } from '@/test/helpers/auth';
 import type { TestOrganization } from '@/test/types/shared';
 import { pendingActionsService } from '@/modules/pending-actions/services/pending-actions.service';
@@ -41,11 +41,29 @@ describe('pendingActionsService', () => {
     expect(second.id).toBe(first.id);
   });
 
+  it('dedupes concurrent creates atomically', async () => {
+    const key = `concurrent_${Math.random()}`;
+    const [first, second] = await Promise.all([create({ idempotencyKey: key }), create({ idempotencyKey: key })]);
+
+    expect(second.id).toBe(first.id);
+  });
+
   it('does not dedupe across different tool names even with the same key', async () => {
     const key = `cross_tool_${Math.random()}`;
     const a = await create({ toolName: 'send_invoice', idempotencyKey: key });
     const b = await create({ toolName: 'void_invoice', idempotencyKey: key });
     expect(a.id).not.toBe(b.id);
+  });
+
+  it('bounds organization listings', async () => {
+    await Promise.all([create(), create()]);
+
+    const rows = await pendingActionsService.listByOrganization(ctxFor(org.id), {
+      limit: 1,
+      offset: 0,
+    });
+
+    expect(rows).toHaveLength(1);
   });
 
   it('approve executes exactly once and transitions pending -> executed', async () => {
@@ -72,15 +90,33 @@ describe('pendingActionsService', () => {
     await expect(pendingActionsService.approve(row.id, ctxFor(org.id), execute)).rejects.toThrow();
   });
 
+  it('expires an overdue action without executing it when approval is attempted', async () => {
+    const row = await pendingActionsQueries.create({
+      organization_id: org.id,
+      created_by_user_id: userId,
+      tool_name: 'send_invoice',
+      tool_params: { invoice_id: 'inv_1' },
+      idempotency_key: `approve_expired_${Math.random()}`,
+      status: 'pending',
+      expires_at: new Date(Date.now() - 1000),
+    });
+    const execute = vi.fn(async (): Promise<unknown> => ({ ok: true }));
+
+    const expired = await pendingActionsService.approve(row.id, ctxFor(org.id), execute);
+
+    expect(expired.status).toBe('expired');
+    expect(expired.execution_result).toBeNull();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('marks the row "failed" and surfaces the error when execution throws', async () => {
     const row = await create();
+    const cause = new Error('downstream failure');
     const execute = async (): Promise<unknown> => {
-      throw new Error('downstream failure');
+      throw cause;
     };
 
-    await expect(pendingActionsService.approve(row.id, ctxFor(org.id), execute)).rejects.toThrow(
-      /downstream failure/
-    );
+    await expect(pendingActionsService.approve(row.id, ctxFor(org.id), execute)).rejects.toMatchObject({ cause });
 
     const persisted = await pendingActionsService.getById(row.id, ctxFor(org.id));
     expect(persisted.status).toBe('failed');

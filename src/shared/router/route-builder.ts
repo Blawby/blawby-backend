@@ -48,6 +48,10 @@ export const routeBuilder = {
   ) => {
     const { mcp, ...routeConfig } = config;
 
+    if (mcp?.approval && mcp.requiresPendingApproval) {
+      throw new Error('MCP routes must choose synchronous approval or pending approval, not both');
+    }
+
     // Standard error responses (400, 401, 403, 404, 500)
     const standardResponses: Responses = {
       400: {

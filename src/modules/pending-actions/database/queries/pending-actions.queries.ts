@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte } from 'drizzle-orm';
 import {
   type InsertPendingAction,
   type SelectPendingAction,
@@ -20,8 +20,46 @@ type PendingActionPatch = Partial<
 >;
 
 const create = async (data: InsertPendingAction): Promise<SelectPendingAction> => {
-  const [row] = await getActiveTx().insert(pendingActions).values(data).returning();
-  return row;
+  const db = getActiveTx();
+  const now = new Date();
+
+  await db
+    .update(pendingActions)
+    .set({ status: 'expired', updated_at: now })
+    .where(
+      and(
+        eq(pendingActions.organization_id, data.organization_id),
+        eq(pendingActions.tool_name, data.tool_name),
+        eq(pendingActions.idempotency_key, data.idempotency_key),
+        eq(pendingActions.status, 'pending'),
+        lte(pendingActions.expires_at, now)
+      )
+    );
+
+  const [created] = await db.insert(pendingActions).values(data).onConflictDoNothing().returning();
+  if (created) {
+    return created;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(pendingActions)
+    .where(
+      and(
+        eq(pendingActions.organization_id, data.organization_id),
+        eq(pendingActions.tool_name, data.tool_name),
+        eq(pendingActions.idempotency_key, data.idempotency_key),
+        inArray(pendingActions.status, ['pending', 'executing'])
+      )
+    )
+    .orderBy(desc(pendingActions.created_at))
+    .limit(1);
+
+  if (!existing) {
+    throw new Error('Pending action idempotency conflict did not return the existing action');
+  }
+
+  return existing;
 };
 
 const findById = async (id: string, organizationId: string): Promise<SelectPendingAction | undefined> => {
@@ -33,36 +71,16 @@ const findById = async (id: string, organizationId: string): Promise<SelectPendi
   return row;
 };
 
-/** Finds a non-terminal (still dedupe-able) pending action with the same idempotency key. */
-const findActiveByIdempotencyKey = async (
-  organizationId: string,
-  toolName: string,
-  idempotencyKey: string
-): Promise<SelectPendingAction | undefined> => {
-  const [row] = await getActiveTx()
-    .select()
-    .from(pendingActions)
-    .where(
-      and(
-        eq(pendingActions.organization_id, organizationId),
-        eq(pendingActions.tool_name, toolName),
-        eq(pendingActions.idempotency_key, idempotencyKey),
-        gt(pendingActions.expires_at, new Date())
-      )
-    )
-    .orderBy(desc(pendingActions.created_at))
-    .limit(1);
-  return row;
-};
-
 const listByOrganization = async (
   organizationId: string,
-  filters?: { status?: string }
+  filters: { status?: string; limit: number; offset: number }
 ): Promise<SelectPendingAction[]> =>
   getActiveTx().query.pendingActions.findMany({
     where: (pa, { and: a, eq: e }) =>
-      a(eq(pa.organization_id, organizationId), ...(filters?.status ? [e(pa.status, filters.status)] : [])),
+      a(e(pa.organization_id, organizationId), ...(filters?.status ? [e(pa.status, filters.status)] : [])),
     orderBy: (pa, { desc: d }) => [d(pa.created_at)],
+    limit: filters.limit,
+    offset: filters.offset,
   });
 
 /** Atomic compare-and-swap status transition — only succeeds if the row is still in `fromStatus`. */
@@ -89,7 +107,6 @@ const transitionStatus = async (
 export const pendingActionsQueries = {
   create,
   findById,
-  findActiveByIdempotencyKey,
   listByOrganization,
   transitionStatus,
 };

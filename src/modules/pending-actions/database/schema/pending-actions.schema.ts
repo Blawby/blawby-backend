@@ -1,6 +1,6 @@
 import { relations, sql } from 'drizzle-orm';
-import { pgTable, uuid, varchar, jsonb, text, timestamp, index, check } from 'drizzle-orm/pg-core';
-import { organizations, users } from '@/schema';
+import { pgTable, uuid, varchar, jsonb, text, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export const pendingActions = pgTable(
   'pending_actions',
@@ -30,10 +30,12 @@ export const pendingActions = pgTable(
     index('idx_pending_actions_org').on(table.organization_id),
     index('idx_pending_actions_status').on(table.status),
     index('idx_pending_actions_org_status').on(table.organization_id, table.status),
-    index('idx_pending_actions_idempotency_key').on(table.idempotency_key),
+    uniqueIndex('idx_pending_actions_active_idempotency')
+      .on(table.organization_id, table.tool_name, table.idempotency_key)
+      .where(sql`${table.status} IN ('pending', 'executing')`),
     check(
       'pending_actions_status_check',
-      sql`status IN ('pending', 'approved', 'rejected', 'executing', 'executed', 'failed', 'expired')`
+      sql`status IN ('pending', 'rejected', 'executing', 'executed', 'failed', 'expired')`
     ),
   ]
 );

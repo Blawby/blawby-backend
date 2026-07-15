@@ -8,7 +8,7 @@ const listPendingActionsHandler: AppRouteHandler<typeof routes.listPendingAction
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const query = c.req.valid('query');
-  const pendingActions = await pendingActionsService.listByOrganization(ctx, { status: query.status });
+  const pendingActions = await pendingActionsService.listByOrganization(ctx, query);
   return c.json({ pendingActions }, 200);
 };
 

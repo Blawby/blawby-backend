@@ -12,7 +12,7 @@ const pendingActionIdParam = practiceIdParamSchema.extend({
   id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, description: 'Pending action ID' }),
 });
 
-const pendingActionStatusEnum = z.enum(['pending', 'approved', 'rejected', 'executing', 'executed', 'failed', 'expired']);
+const pendingActionStatusEnum = z.enum(['pending', 'rejected', 'executing', 'executed', 'failed', 'expired']);
 
 const pendingActionSchema = z
   .object({
@@ -27,6 +27,7 @@ const pendingActionSchema = z
     review_notes: z.string().nullable(),
     executed_at: z.iso.datetime({ offset: true }).nullable(),
     execution_error: z.string().nullable(),
+    execution_result: z.unknown().nullable(),
     expires_at: z.iso.datetime({ offset: true }),
     created_at: z.iso.datetime({ offset: true }),
     updated_at: z.iso.datetime({ offset: true }),
@@ -45,7 +46,11 @@ const listPendingActionsRoute = routeBuilder.build({
   description: 'List MCP-originated actions awaiting or having received approval, for this practice.',
   request: {
     params: practiceIdParamSchema,
-    query: z.object({ status: pendingActionStatusEnum.optional() }),
+    query: z.object({
+      status: pendingActionStatusEnum.optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    }),
   },
   responses: {
     200: {
