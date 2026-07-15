@@ -32,14 +32,15 @@ const findByRequestKey = async (
   return suggestion;
 };
 
-const listByTemplate = async (organizationId: string, templateId: string): Promise<IntakeTemplateSuggestion[]> =>
+const listStagedByTemplate = async (organizationId: string, templateId: string): Promise<IntakeTemplateSuggestion[]> =>
   getActiveTx()
     .select()
     .from(intakeTemplateSuggestions)
     .where(
       and(
         eq(intakeTemplateSuggestions.organization_id, organizationId),
-        eq(intakeTemplateSuggestions.template_id, templateId)
+        eq(intakeTemplateSuggestions.template_id, templateId),
+        eq(intakeTemplateSuggestions.status, 'staged')
       )
     )
     .orderBy(desc(intakeTemplateSuggestions.created_at));
@@ -89,7 +90,7 @@ const markDismissed = async (id: string, userId: string): Promise<IntakeTemplate
 export const intakeTemplateSuggestionsRepository = {
   findById,
   findByRequestKey,
-  listByTemplate,
+  listStagedByTemplate,
   create,
   markApproved,
   markDismissed,

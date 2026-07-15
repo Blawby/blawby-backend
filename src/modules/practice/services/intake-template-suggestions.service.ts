@@ -138,7 +138,7 @@ const listSuggestions = async (
   if (!template || template.organization_id !== organizationId) {
     throw new HTTPException(404, { message: 'Intake template not found' });
   }
-  const suggestions = await intakeTemplateSuggestionsRepository.listByTemplate(organizationId, templateId);
+  const suggestions = await intakeTemplateSuggestionsRepository.listStagedByTemplate(organizationId, templateId);
   return { suggestions: suggestions.map(toSuggestionResponse) };
 };
 
@@ -184,7 +184,9 @@ const approveSuggestion = async (
       return { suggestion: toSuggestionResponse(approved), template: toTemplateResponse(updated) };
     });
   } catch (error) {
-    if (!(error instanceof Error) || error.message !== 'INTAKE_TEMPLATE_REVISION_CONFLICT') {
+    const isRevisionConflict = error instanceof Error && error.message === 'INTAKE_TEMPLATE_REVISION_CONFLICT';
+    const isDecisionConflict = error instanceof Error && error.message === 'Suggestion is no longer staged';
+    if (!isRevisionConflict && !isDecisionConflict) {
       throw error;
     }
     const [suggestion, template] = await Promise.all([
@@ -194,7 +196,10 @@ const approveSuggestion = async (
     if (suggestion?.status === 'approved' && template?.organization_id === organizationId) {
       return { suggestion: toSuggestionResponse(suggestion), template: toTemplateResponse(template) };
     }
-    throw new HTTPException(409, { message: 'Intake template revision conflict', cause: error });
+    throw new HTTPException(409, {
+      message: isRevisionConflict ? 'Intake template revision conflict' : 'Suggestion is no longer staged',
+      cause: error,
+    });
   }
 };
 
@@ -213,7 +218,18 @@ const dismissSuggestion = async (
   if (suggestion.status !== 'staged') {
     throw new HTTPException(409, { message: 'Approved suggestions cannot be dismissed' });
   }
-  return toSuggestionResponse(await intakeTemplateSuggestionsRepository.markDismissed(suggestionId, ctx.userId));
+  try {
+    return toSuggestionResponse(await intakeTemplateSuggestionsRepository.markDismissed(suggestionId, ctx.userId));
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== 'Suggestion is no longer staged') {
+      throw error;
+    }
+    const current = await intakeTemplateSuggestionsRepository.findById(organizationId, suggestionId);
+    if (current?.status === 'dismissed') {
+      return toSuggestionResponse(current);
+    }
+    throw new HTTPException(409, { message: 'Suggestion is no longer staged', cause: error });
+  }
 };
 
 const toTemplateResponse = (

@@ -147,7 +147,7 @@ const updateTemplate = async (
   }
 
   const statusTimestamps: { published_at?: Date | null; archived_at?: Date | null } = {};
-  if (data.status !== undefined) {
+  if (data.status !== undefined && data.status !== existing.status) {
     statusTimestamps.published_at = data.status === 'published' ? new Date() : null;
     statusTimestamps.archived_at = data.status === 'archived' ? new Date() : null;
   }

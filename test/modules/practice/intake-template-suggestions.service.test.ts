@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   updateTemplate: vi.fn(),
   findSuggestionById: vi.fn(),
   findByRequestKey: vi.fn(),
-  listByTemplate: vi.fn(),
+  listStagedByTemplate: vi.fn(),
   createSuggestion: vi.fn(),
   markApproved: vi.fn(),
   markDismissed: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock('@/modules/practice/database/queries/intake-template-suggestions.reposit
   intakeTemplateSuggestionsRepository: {
     findById: mocks.findSuggestionById,
     findByRequestKey: mocks.findByRequestKey,
-    listByTemplate: mocks.listByTemplate,
+    listStagedByTemplate: mocks.listStagedByTemplate,
     create: mocks.createSuggestion,
     markApproved: mocks.markApproved,
     markDismissed: mocks.markDismissed,
@@ -171,6 +171,19 @@ describe('intakeTemplateSuggestionsService', () => {
     expect(result.analytics_evidence.status).toBe('unavailable');
   });
 
+  it('lists only staged suggestions through the staged repository contract', async () => {
+    mocks.listStagedByTemplate.mockResolvedValue([suggestion()]);
+
+    const result = await intakeTemplateSuggestionsService.listSuggestions(
+      { organizationId: ORGANIZATION_ID, templateId: TEMPLATE_ID },
+      context()
+    );
+
+    expect(mocks.listStagedByTemplate).toHaveBeenCalledWith(ORGANIZATION_ID, TEMPLATE_ID);
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]?.status).toBe('staged');
+  });
+
   it('rejects malformed structured proposals at the API boundary', () => {
     const malformed = intakeTemplateValidations.createIntakeTemplateSuggestionSchema.safeParse({
       ...request,
@@ -243,5 +256,67 @@ describe('intakeTemplateSuggestionsService', () => {
       suggestion: { status: 'approved', applied_revision: 2 },
       template: { revision: 2 },
     });
+  });
+
+  it('returns an approval that wins a conditional-transition race', async () => {
+    mocks.findSuggestionById.mockResolvedValueOnce(suggestion()).mockResolvedValueOnce(suggestion('approved'));
+    mocks.findTemplateById.mockResolvedValueOnce(template(1)).mockResolvedValueOnce(template(2));
+    mocks.updateTemplate.mockResolvedValue(template(2));
+    mocks.markApproved.mockRejectedValue(new Error('Suggestion is no longer staged'));
+
+    const result = await intakeTemplateSuggestionsService.approveSuggestion(
+      {
+        organizationId: ORGANIZATION_ID,
+        templateId: TEMPLATE_ID,
+        suggestionId: SUGGESTION_ID,
+        expectedRevision: 1,
+      },
+      context()
+    );
+
+    expect(result).toMatchObject({ suggestion: { status: 'approved' }, template: { revision: 2 } });
+  });
+
+  it('returns 409 when dismissal wins an approval transition race', async () => {
+    mocks.findSuggestionById.mockResolvedValueOnce(suggestion()).mockResolvedValueOnce(suggestion('dismissed'));
+    mocks.findTemplateById.mockResolvedValue(template(1));
+    mocks.updateTemplate.mockResolvedValue(template(2));
+    mocks.markApproved.mockRejectedValue(new Error('Suggestion is no longer staged'));
+
+    await expect(
+      intakeTemplateSuggestionsService.approveSuggestion(
+        {
+          organizationId: ORGANIZATION_ID,
+          templateId: TEMPLATE_ID,
+          suggestionId: SUGGESTION_ID,
+          expectedRevision: 1,
+        },
+        context()
+      )
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('returns a dismissal that wins a conditional-transition race', async () => {
+    mocks.findSuggestionById.mockResolvedValueOnce(suggestion()).mockResolvedValueOnce(suggestion('dismissed'));
+    mocks.markDismissed.mockRejectedValue(new Error('Suggestion is no longer staged'));
+
+    const result = await intakeTemplateSuggestionsService.dismissSuggestion(
+      { organizationId: ORGANIZATION_ID, templateId: TEMPLATE_ID, suggestionId: SUGGESTION_ID },
+      context()
+    );
+
+    expect(result.status).toBe('dismissed');
+  });
+
+  it('returns 409 when approval wins a dismissal transition race', async () => {
+    mocks.findSuggestionById.mockResolvedValueOnce(suggestion()).mockResolvedValueOnce(suggestion('approved'));
+    mocks.markDismissed.mockRejectedValue(new Error('Suggestion is no longer staged'));
+
+    await expect(
+      intakeTemplateSuggestionsService.dismissSuggestion(
+        { organizationId: ORGANIZATION_ID, templateId: TEMPLATE_ID, suggestionId: SUGGESTION_ID },
+        context()
+      )
+    ).rejects.toMatchObject({ status: 409 });
   });
 });

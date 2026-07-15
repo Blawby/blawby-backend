@@ -533,6 +533,13 @@
       "when": 1784360571781,
       "tag": "0075_previous_zzzax",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1784371888821,
+      "tag": "0076_famous_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }
