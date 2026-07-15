@@ -85,7 +85,7 @@ Three different patterns exist — standardize to `export const handlers = { ...
 
 | Sub-item | Status |
 |----------|--------|
-| 4a: `invoices/schemas/` → `invoices/validations/` | ⬜ |
+| 4a: `invoices/schemas/` → `invoices/validations/` | ✅ |
 | 4a: `preferences/schema/` → `preferences/validations/` | ⬜ |
 | 4b: Rename `.repository.ts` → `.queries.ts` in `practice/`, `invoices/`, `onboarding/`, `subscriptions/`, `practice-client-intakes/` | ⬜ |
 | 4c: `subscriptions/services/` — rename `meteredProducts.service.ts`, `subscriptionWebhooks.service.ts`, `syncPlans.service.ts` to kebab-case | ⬜ |
@@ -98,8 +98,8 @@ Three different patterns exist — standardize to `export const handlers = { ...
 |----------|--------|
 | 5a: Move `invoices/services/invoice-lifecycle.handlers.ts` out of `services/` → `workers/` or `tasks/` | ⬜ |
 | 5a: Move `invoices/services/invoice-metering.handlers.ts` out of `services/` | ⬜ |
-| 5b: Move `invoices/refund-requests.handlers.ts` into `invoices/handlers.ts` or routes subdirectory | ⬜ |
-| 5b: Move `invoices/refund-requests.routes.ts` → `invoices/routes/refund-requests.routes.ts` | ⬜ |
+| 5b: Move `invoices/refund-requests.handlers.ts` into `invoices/handlers.ts` or routes subdirectory | ✅ |
+| 5b: Move `invoices/refund-requests.routes.ts` → `invoices/routes/refund-requests.routes.ts` | ✅ |
 
 ---
 
@@ -107,9 +107,9 @@ Three different patterns exist — standardize to `export const handlers = { ...
 
 | Sub-item | Status |
 |----------|--------|
-| 6a: `shared/events/definitions/clients.ts` — determine if needed; register or delete | ⬜ |
-| 6b: `shared/events/definitions/engagement-contracts.ts` — import in `definitions.ts`, add to `EventClasses` | ⬜ |
-| 6c: Move `practice/events/practice.events.types.ts` → `shared/events/definitions/practice.ts`, delete module-local file | ⬜ |
+| 6a: `shared/events/definitions/clients.ts` — determine if needed; register or delete | ✅ |
+| 6b: `shared/events/definitions/engagement-contracts.ts` — import in `definitions.ts`, add to `EventClasses` | ✅ |
+| 6c: Move `practice/events/practice.events.types.ts` → `shared/events/definitions/practice.ts`, delete module-local file | ✅ |
 
 ---
 

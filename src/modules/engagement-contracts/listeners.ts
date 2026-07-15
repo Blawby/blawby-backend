@@ -4,7 +4,7 @@ import {
   EngagementContractAccepted,
   EngagementContractDeclined,
   EngagementContractSent,
-} from '@/shared/events/definitions/engagement-contracts';
+} from '@/shared/events/definitions';
 import { Event } from '@/shared/events/event';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { config } from '@/shared/config';
