@@ -1,24 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Hono } from 'hono';
 
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb } from '@/test/helpers/db';
+import { createModuleTestApp } from '@/test/helpers/module-app';
 import { createAuthenticatedRequest, createRequest } from '@/test/helpers/request';
 import type { TestOrganization } from '@/test/types/shared';
 import { toTypedResponse } from '@/test/helpers/response';
 import trustApp from '@/modules/trust/http';
 import { clients } from '@/modules/clients/database/schema/clients.schema';
 import { trustTransactions } from '@/modules/trust/database/schema/trust-transactions.schema';
-import { requireAuth } from '@/shared/middleware/auth';
-import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import type { SelectTrustTransaction } from '@/modules/trust/database/schema/trust-transactions.schema';
 
 const { createTestContext } = authHelpers;
 
-const orgProtectedApp = new Hono();
-orgProtectedApp.use('/api/*', requireAuth());
-orgProtectedApp.use('/api/*', requireOrgMembership());
+const orgProtectedApp = createModuleTestApp();
 orgProtectedApp.route('/api/trust', trustApp);
 
 const orgProtectedRequest = createRequest(orgProtectedApp.fetch);
