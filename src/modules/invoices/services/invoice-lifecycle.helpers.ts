@@ -1,5 +1,5 @@
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
-import { syncLineItems } from '@/modules/invoices/services/invoice-creation.helpers';
+import { syncLineItems } from '@/modules/invoices/services/invoice-creation.workflow';
 import { calculateInvoiceTotals } from '@/modules/invoices/services/invoice.utils';
 import type { InvoiceWithRelations, UpdateInvoiceRequest } from '@/modules/invoices/types/invoices.types';
 import { uow } from '@/shared/database/uow';

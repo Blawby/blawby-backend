@@ -50,6 +50,8 @@ Transitions must be validated. Paid invoices must not return to an editable draf
 4. Backend validates ownership, amounts, and billing status.
 5. Draft invoice and line items are persisted.
 
+The module-level creation boundary is `invoiceCreationWorkflow.createInvoice(data, ctx)`. Callers do not resolve clients, inspect connected-account readiness, validate matter/source ownership, calculate totals or fund destination, persist linked records, or dispatch creation events themselves. Those steps are one workflow so their order cannot drift between callers.
+
 ### Send invoice
 
 1. Staff reviews the draft.

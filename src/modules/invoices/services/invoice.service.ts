@@ -1,6 +1,6 @@
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { getClientInvoiceDetail, listClientInvoices } from '@/modules/invoices/services/invoice-client.service';
-import { persistInvoiceStructure, validateInvoiceCreation } from '@/modules/invoices/services/invoice-creation.helpers';
+import { invoiceCreationWorkflow } from '@/modules/invoices/services/invoice-creation.workflow';
 import { persistInvoiceUpdate } from '@/modules/invoices/services/invoice-lifecycle.helpers';
 import type {
   CreateInvoiceRequest,
@@ -26,13 +26,7 @@ const createInvoice = async (
   ForbiddenError.from(ctx.ability).throwUnlessCan('create', 'Invoice');
 
   try {
-    const { clientId } = await validateInvoiceCreation(data, ctx);
-    const invoice = await persistInvoiceStructure({ data, clientId }, ctx);
-    if (!invoice) {
-      throw new Error('Failed to retrieve created invoice');
-    }
-
-    return invoice;
+    return await invoiceCreationWorkflow.createInvoice(data, ctx);
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
