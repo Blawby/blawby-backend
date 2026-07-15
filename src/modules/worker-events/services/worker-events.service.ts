@@ -18,7 +18,6 @@ import { db } from '@/shared/database';
 import { uow } from '@/shared/database/uow';
 import { events } from '@/shared/events/schemas/events.schema';
 import { getLogger } from '@logtape/logtape';
-import { HTTPException } from 'hono/http-exception';
 
 const logger = getLogger(['worker-events', 'service']);
 

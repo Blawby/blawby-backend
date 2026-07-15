@@ -48,9 +48,9 @@ export const calculateInvoiceFees = function calculateInvoiceFees(
  * Calculate payout fees
  */
 export const calculatePayoutFees = function calculatePayoutFees(
-  amount: number,
+  _amount: number,
   payoutMethod: string = 'bank',
-  country: string = 'US'
+  _country: string = 'US'
 ): number {
   // Simple payout fee calculation
   if (payoutMethod === 'bank') {

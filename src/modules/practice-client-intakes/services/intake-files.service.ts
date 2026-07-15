@@ -33,7 +33,7 @@ const buildEnrichedCtx = (ctx: ServiceContext, intake: SelectPracticeClientIntak
   ability: ctx.memberRole ? ctx.ability : buildIntakeParticipantAbility(),
 });
 
-const ensureUploadBelongsToIntake = async (uploadId: string, intakeId: string, ctx: ServiceContext) => {
+const ensureUploadBelongsToIntake = async (uploadId: string, intakeId: string) => {
   const upload = await uploadsRepository.findById(uploadId);
   if (!upload) {
     throw new HTTPException(404, { message: 'Upload not found' });
@@ -70,7 +70,7 @@ export const intakeFilesService = {
     const enrichedBase = buildEnrichedCtx(ctx, intake);
     const enrichedCtx = createServiceContext(enrichedBase);
 
-    await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
+    await ensureUploadBelongsToIntake(uploadId, intake.id);
     const uploadCorePrep = await uploadCoreService.prepareConfirm({ id: uploadId }, enrichedCtx);
     return uow.transaction(async () =>
       uploadCoreService.persistConfirm({ prep: uploadCorePrep }, createServiceContext(enrichedBase))
@@ -79,8 +79,6 @@ export const intakeFilesService = {
 
   async listFiles({ uuid, query }: { uuid: string; query: ListFilesQuery }, ctx: ServiceContext) {
     const intake = await getActorAccessibleIntake(uuid, ctx, 'read');
-    const enrichedBase = buildEnrichedCtx(ctx, intake);
-    const enrichedCtx = createServiceContext(enrichedBase);
     const { page, limit } = query;
     const offset = (page - 1) * limit;
 
@@ -107,7 +105,7 @@ export const intakeFilesService = {
     ctx: ServiceContext
   ): Promise<{ id: string; status: 'deleted' }> {
     const intake = await getActorAccessibleIntake(uuid, ctx, 'update');
-    await ensureUploadBelongsToIntake(uploadId, intake.id, ctx);
+    await ensureUploadBelongsToIntake(uploadId, intake.id);
 
     const enrichedBase = buildEnrichedCtx(ctx, intake);
     const result = await uow.transaction(async () =>
