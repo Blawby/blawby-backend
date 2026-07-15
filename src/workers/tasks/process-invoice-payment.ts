@@ -7,11 +7,8 @@
 import { billingRecorder, fundManagement, retainerPaymentFlow, transferExecutor } from '@/engines/financial';
 import { invoicesRepository } from '@/modules/invoices/database/queries/invoices.repository';
 import { payoutMeteredFeeService } from '@/modules/invoices/services/payout-metered-fee.service';
-import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
-import { trustService } from '@/modules/trust/services/trust.service';
 import { uow } from '@/shared/database/uow';
 import { InvoicePaid } from '@/shared/events/definitions';
-import { RetainerLowBalance } from '@/shared/events/definitions/matters';
 import { getLogger } from '@logtape/logtape';
 import type { Task } from 'graphile-worker';
 
@@ -107,23 +104,6 @@ export const processInvoicePayment: Task = async (payload: unknown) => {
           amount: stripe_amount_paid,
           invoiceId: invoice.id,
         });
-
-        const matter = await mattersQueries.findMatterById(matterId);
-        if (matter && matter.retainer_low_balance_threshold !== null && matter.retainer_low_balance_threshold > 0) {
-          const balance = await trustService.getBalanceWithTx({ organizationId: organization_id, clientId });
-          const matterBalance = balance.byMatter.find((m) => m.matter_id === matterId)?.balance ?? 0;
-          if (matterBalance < matter.retainer_low_balance_threshold) {
-            await RetainerLowBalance.dispatch(
-              {
-                matter_id: matterId,
-                organization_id,
-                current_balance: matterBalance,
-                threshold: matter.retainer_low_balance_threshold,
-              },
-              { actorId: 'worker', actorType: 'system', organizationId: organization_id }
-            );
-          }
-        }
       }
 
       await InvoicePaid.dispatch(
