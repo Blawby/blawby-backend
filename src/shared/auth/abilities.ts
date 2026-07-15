@@ -29,6 +29,8 @@ const defineAbilityFor = (
   if (metadata.userId) {
     canWithConditions('read', 'UserPreferences', { user_id: metadata.userId });
     canWithConditions('update', 'UserPreferences', { user_id: metadata.userId });
+    canWithConditions('read', 'Notification', { recipient_user_id: metadata.userId });
+    canWithConditions('update', 'Notification', { recipient_user_id: metadata.userId });
   }
 
   // Global admin fallback
