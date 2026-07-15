@@ -121,9 +121,9 @@ const practiceIdParamSchema = z.object({
   practice_id: z.uuid().openapi({ param: { name: 'practice_id', in: 'path' } }),
 });
 
-const templateIdParamSchema = z.object({
+const intakeTemplateIdParamSchema = z.object({
   practice_id: z.uuid().openapi({ param: { name: 'practice_id', in: 'path' } }),
-  id: z.uuid().openapi({ param: { name: 'id', in: 'path' } }),
+  intake_template_id: z.uuid().openapi({ param: { name: 'intake_template_id', in: 'path' } }),
 });
 
 export const intakeTemplateValidations = {
@@ -134,7 +134,7 @@ export const intakeTemplateValidations = {
   intakeTemplateSingleResponseSchema,
   intakeTemplateListResponseSchema,
   practiceIdParamSchema,
-  templateIdParamSchema,
+  intakeTemplateIdParamSchema,
 };
 
 export type CreateIntakeTemplateRequest = z.infer<typeof createIntakeTemplateSchema>;

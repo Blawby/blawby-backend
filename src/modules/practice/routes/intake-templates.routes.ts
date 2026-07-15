@@ -5,7 +5,7 @@ import { routeBuilder } from '@/shared/router/route-builder';
 
 const {
   practiceIdParamSchema,
-  templateIdParamSchema,
+  intakeTemplateIdParamSchema,
   intakeTemplateListResponseSchema,
   intakeTemplateSingleResponseSchema,
   createIntakeTemplateSchema,
@@ -80,18 +80,18 @@ export const createIntakeTemplateRoute = routeBuilder.build({
 
 export const getIntakeTemplateRoute = routeBuilder.build({
   method: 'get',
-  path: '/{practice_id}/intake-templates/{id}',
+  path: '/{practice_id}/intake-templates/{intake_template_id}',
   tags: ['Intake Templates'],
   summary: 'Get intake template',
   description: 'Get a single intake template by ID.',
   mcp: {
     name: 'get_intake_template',
     scope: 'practice:read',
-    schema: { id: templateIdParamSchema.shape.id },
+    schema: { id: intakeTemplateIdParamSchema.shape.intake_template_id },
     handler: async (args, ctx) =>
       intakeTemplatesService.getTemplate({ organizationId: ctx.organizationId, id: args.id as string }, ctx),
   },
-  request: { params: templateIdParamSchema },
+  request: { params: intakeTemplateIdParamSchema },
   responses: {
     200: {
       content: { 'application/json': { schema: intakeTemplateSingleResponseSchema } },
@@ -108,14 +108,17 @@ export const getIntakeTemplateRoute = routeBuilder.build({
 
 export const updateIntakeTemplateRoute = routeBuilder.build({
   method: 'put',
-  path: '/{practice_id}/intake-templates/{id}',
+  path: '/{practice_id}/intake-templates/{intake_template_id}',
   tags: ['Intake Templates'],
   summary: 'Update intake template',
   description: 'Update an intake template. Providing fields replaces all fields for the template.',
   mcp: {
     name: 'update_intake_template',
     scope: 'practice:write',
-    schema: { id: templateIdParamSchema.shape.id, ...updateIntakeTemplateSchema.shape },
+    schema: {
+      id: intakeTemplateIdParamSchema.shape.intake_template_id,
+      ...updateIntakeTemplateSchema.shape,
+    },
     handler: async (args, ctx) => {
       const { id, ...data } = args;
       return intakeTemplatesService.updateTemplate(
@@ -129,7 +132,7 @@ export const updateIntakeTemplateRoute = routeBuilder.build({
     },
   },
   request: {
-    params: templateIdParamSchema,
+    params: intakeTemplateIdParamSchema,
     body: { content: { 'application/json': { schema: updateIntakeTemplateSchema } } },
   },
   responses: {
@@ -148,20 +151,20 @@ export const updateIntakeTemplateRoute = routeBuilder.build({
 
 export const deleteIntakeTemplateRoute = routeBuilder.build({
   method: 'delete',
-  path: '/{practice_id}/intake-templates/{id}',
+  path: '/{practice_id}/intake-templates/{intake_template_id}',
   tags: ['Intake Templates'],
   summary: 'Delete intake template',
   description: 'Delete an intake template. The default template cannot be deleted.',
   mcp: {
     name: 'delete_intake_template',
     scope: 'practice:write',
-    schema: { id: templateIdParamSchema.shape.id },
+    schema: { id: intakeTemplateIdParamSchema.shape.intake_template_id },
     handler: async (args, ctx) => {
       await intakeTemplatesService.deleteTemplate({ organizationId: ctx.organizationId, id: args.id as string }, ctx);
       return { deleted: true };
     },
   },
-  request: { params: templateIdParamSchema },
+  request: { params: intakeTemplateIdParamSchema },
   responses: {
     204: { description: 'Template deleted successfully' },
     401: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'Unauthorized' },
