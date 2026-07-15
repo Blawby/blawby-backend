@@ -11,7 +11,7 @@ import {
 /**
  * Prospect-facing: "Your case has been declined"
  */
-export const intakeDeclined = (data: IntakeDeclinedData): string => {
+export const intakeDeclined = async (data: IntakeDeclinedData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const practiceName = escapeHtml(data.practiceName);
 

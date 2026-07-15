@@ -17,7 +17,7 @@ const FRONTEND_URLS = {
   DOCS: `${config.app.appUrl}/docs`,
 };
 
-export const stripeConnectStatus = (data: StripeConnectStatusData): string => {
+export const stripeConnectStatus = async (data: StripeConnectStatusData): Promise<string> => {
   const mjmlContent = baseLayout(
     `
     ${cardSection(`

@@ -14,7 +14,7 @@ import {
  * Practice-facing: "You've received a new intake submission"
  * Enhanced with decision-making data while following established design system
  */
-export const intakeNewNotification = (data: IntakeNewNotificationData): string => {
+export const intakeNewNotification = async (data: IntakeNewNotificationData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const clientName = escapeHtml(data.clientName);
   const clientEmail = escapeHtml(data.clientEmail);

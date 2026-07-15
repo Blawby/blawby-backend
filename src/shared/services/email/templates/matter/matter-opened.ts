@@ -12,7 +12,7 @@ import {
 /**
  * Client-facing: "Your matter has been opened"
  */
-export const matterOpened = (data: MatterOpenedData): string => {
+export const matterOpened = async (data: MatterOpenedData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const matterTitle = escapeHtml(data.matterTitle);
   const practiceName = escapeHtml(data.practiceName);

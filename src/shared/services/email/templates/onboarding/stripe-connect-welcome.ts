@@ -19,7 +19,7 @@ const FRONTEND_URLS = {
   DOCS: `${normalizedAppUrl}/docs`,
 };
 
-export const stripeConnectWelcome = (data: StripeConnectWelcomeData): string => {
+export const stripeConnectWelcome = async (data: StripeConnectWelcomeData): Promise<string> => {
   const mjmlContent = baseLayout(
     `
     ${cardSection(`

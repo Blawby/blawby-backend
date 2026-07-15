@@ -80,7 +80,7 @@ export const sendEmail = async (
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
   try {
     // Render the template to HTML
-    const html = renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
+    const html = await renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
 
     // Development/Test: Save to file for instant preview
     if (!isProduction()) {

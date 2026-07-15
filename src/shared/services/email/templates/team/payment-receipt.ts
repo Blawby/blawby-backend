@@ -14,7 +14,7 @@ import {
   BLAWBY_LOGO_URL,
 } from '../base.template';
 
-export const teamPaymentReceipt = (data: TeamPaymentReceiptData): string => {
+export const teamPaymentReceipt = async (data: TeamPaymentReceiptData): Promise<string> => {
   const lineItemsHtml = data.lineItems
     .map(
       (item) => `
