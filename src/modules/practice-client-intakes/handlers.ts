@@ -5,6 +5,7 @@ import type { staffRoutes } from '@/modules/practice-client-intakes/routes/staff
 import type { intakeFileRoutes } from '@/modules/practice-client-intakes/routes/intake-files.routes';
 import { intakeCheckoutService } from '@/modules/practice-client-intakes/services/intake-checkout.service';
 import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
+import { intakeEnrichmentService } from '@/modules/practice-client-intakes/services/intake-enrichment.service';
 import { intakeFilesService } from '@/modules/practice-client-intakes/services/intake-files.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { intakePreflightService } from '@/modules/practice-client-intakes/services/intake-preflight.service';
@@ -118,6 +119,13 @@ const triggerIntakeInvitationHandler: AppRouteHandler<typeof staffRoutes.trigger
   return c.json(data, 200);
 };
 
+const requestIntakeEnrichmentHandler: AppRouteHandler<typeof staffRoutes.requestIntakeEnrichmentRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const data = await intakeEnrichmentService.requestEnrichment({ intakeId: uuid }, ctx);
+  return c.json(data, 202);
+};
+
 const listIntakesHandler: AppRouteHandler<typeof staffRoutes.listIntakesRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
@@ -197,6 +205,7 @@ export const handlers = {
   getInvitationPrefillHandler,
   getPracticeClientIntakePostPayStatusHandler,
   triggerIntakeInvitationHandler,
+  requestIntakeEnrichmentHandler,
   listIntakesHandler,
   getIntakeHandler,
   getIntakePreflightHandler,

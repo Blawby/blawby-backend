@@ -1,35 +1,14 @@
 import { ForbiddenError } from '@casl/ability';
-import { z } from '@hono/zod-openapi';
-import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
 import { engagementTemplatesQueries } from '@/modules/engagement-templates/database/queries/engagement-templates.queries';
 import type { EngagementTemplateRecord } from '@/modules/engagement-templates/types/engagement-template.types';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { config } from '@/shared/config';
+import { workersAiTextService, type AiMessage } from '@/shared/services/ai/workers-ai-text.service';
 import type { ServiceContext } from '@/shared/types/service-context';
 
-const logger = getLogger(['engagement-templates', 'draft-service']);
-
-const AI_REQUEST_TIMEOUT_MS = 15_000;
-
 type GenerateText = (messages: readonly AiMessage[]) => Promise<string>;
-
-interface AiMessage {
-  role: 'system' | 'user';
-  content: string;
-}
-
-const workersAiResponseSchema = z.object({
-  choices: z.array(
-    z.object({
-      message: z.object({
-        content: z.string().min(1),
-      }),
-    })
-  ),
-});
 
 const formatCentsAsDollars = (cents: number | null): string =>
   cents === null || cents <= 0
@@ -111,57 +90,13 @@ const resolveStaticPlaceholders = ({
   return { body, requiredTerms };
 };
 
-const requestWorkersAi: GenerateText = async (messages) => {
-  const { accountId, aiApiToken: apiToken, aiGatewayId, aiModel } = config.cloudflare;
-  if (!accountId || !apiToken) {
-    throw new HTTPException(503, { message: 'Engagement AI generation is not configured' });
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-          'cf-aig-gateway-id': aiGatewayId,
-        },
-        body: JSON.stringify({
-          model: aiModel,
-          temperature: 0.3,
-          max_tokens: 1_200,
-          messages,
-        }),
-        signal: controller.signal,
-      }
-    );
-
-    if (!response.ok) {
-      throw new HTTPException(502, {
-        message: `Engagement AI generation failed with status ${String(response.status)}`,
-      });
-    }
-
-    const parsed = workersAiResponseSchema.safeParse(await response.json());
-    const content = parsed.success ? parsed.data.choices[0]?.message.content.trim() : undefined;
-    if (!content) {
-      throw new HTTPException(502, { message: 'Engagement AI returned a malformed response' });
-    }
-    return content;
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    logger.error('Engagement AI request failed: {error}', { error });
-    throw new HTTPException(502, { message: 'Engagement AI request failed' });
-  } finally {
-    clearTimeout(timer);
-  }
-};
+const requestWorkersAi: GenerateText = (messages) =>
+  workersAiTextService.generateText({
+    messages,
+    purpose: 'Engagement AI generation',
+    temperature: 0.3,
+    maxTokens: 1_200,
+  });
 
 const generateEngagementDraft = async (
   {

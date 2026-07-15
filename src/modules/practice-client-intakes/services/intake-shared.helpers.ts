@@ -84,6 +84,14 @@ const formatIntakeListItem = (
     income: intake.income ?? null,
     household_size: intake.household_size ?? null,
     case_strength: intake.case_strength ?? null,
+    transcript_summary: isAdmin ? (intake.transcript_summary ?? null) : undefined,
+    enrichment_status: isAdmin ? intake.enrichment_status : undefined,
+    enrichment_version: isAdmin ? intake.enrichment_version : undefined,
+    enrichment_attempt_count: isAdmin ? intake.enrichment_attempt_count : undefined,
+    enrichment_model: isAdmin ? (intake.enrichment_model ?? null) : undefined,
+    enrichment_error_code: isAdmin ? (intake.enrichment_error_code ?? null) : undefined,
+    enrichment_requested_at: isAdmin ? (intake.enrichment_requested_at ?? null) : undefined,
+    enriched_at: isAdmin ? (intake.enriched_at ?? null) : undefined,
   };
 };
 

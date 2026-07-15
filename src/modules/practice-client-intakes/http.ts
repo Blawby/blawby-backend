@@ -45,6 +45,7 @@ clientApp.openapi(intakeFileRoutes.deleteIntakeFileRoute, handlers.deleteIntakeF
 const staffApp = createHonoApp();
 staffApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 staffApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
+staffApp.openapi(staffRoutes.requestIntakeEnrichmentRoute, handlers.requestIntakeEnrichmentHandler);
 staffApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
 staffApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);
 staffApp.openapi(staffRoutes.getIntakePreflightRoute, handlers.getIntakePreflightHandler);
