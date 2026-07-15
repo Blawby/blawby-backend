@@ -158,22 +158,25 @@ export const createIntakeTemplateHandler: AppRouteHandler<typeof routes.createIn
 
 export const getIntakeTemplateHandler: AppRouteHandler<typeof routes.getIntakeTemplateRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { practice_id, id } = c.req.valid('param');
-  const template = await intakeTemplatesService.getTemplate({ organizationId: practice_id, id }, ctx);
+  const { practice_id, intake_template_id: intakeTemplateId } = c.req.valid('param');
+  const template = await intakeTemplatesService.getTemplate({ organizationId: practice_id, id: intakeTemplateId }, ctx);
   return c.json({ template });
 };
 
 export const updateIntakeTemplateHandler: AppRouteHandler<typeof routes.updateIntakeTemplateRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { practice_id, id } = c.req.valid('param');
+  const { practice_id, intake_template_id: intakeTemplateId } = c.req.valid('param');
   const body = c.req.valid('json');
-  const template = await intakeTemplatesService.updateTemplate({ organizationId: practice_id, id, data: body }, ctx);
+  const template = await intakeTemplatesService.updateTemplate(
+    { organizationId: practice_id, id: intakeTemplateId, data: body },
+    ctx
+  );
   return c.json({ template });
 };
 
 export const deleteIntakeTemplateHandler: AppRouteHandler<typeof routes.deleteIntakeTemplateRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const { practice_id, id } = c.req.valid('param');
-  await intakeTemplatesService.deleteTemplate({ organizationId: practice_id, id }, ctx);
+  const { practice_id, intake_template_id: intakeTemplateId } = c.req.valid('param');
+  await intakeTemplatesService.deleteTemplate({ organizationId: practice_id, id: intakeTemplateId }, ctx);
   return c.body(null, 204);
 };
