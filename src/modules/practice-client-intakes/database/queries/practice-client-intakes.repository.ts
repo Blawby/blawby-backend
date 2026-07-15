@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, or, ilike, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 import {
   practiceClientIntakesSchema,
   type InsertPracticeClientIntake,
@@ -178,6 +178,106 @@ const getStats = async (
   };
 };
 
+const requestEnrichment = async (
+  id: string,
+  organizationId: string
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const now = new Date();
+  const [updated] = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({
+      enrichment_status: 'pending',
+      enrichment_version: sql`${practiceClientIntakes.enrichment_version} + 1`,
+      enrichment_error_code: null,
+      enrichment_requested_at: now,
+      updated_at: now,
+    })
+    .where(and(eq(practiceClientIntakes.id, id), eq(practiceClientIntakes.organization_id, organizationId)))
+    .returning();
+  return updated;
+};
+
+const claimEnrichment = async (
+  id: string,
+  organizationId: string,
+  version: number
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const [updated] = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({
+      enrichment_status: 'processing',
+      enrichment_attempt_count: sql`${practiceClientIntakes.enrichment_attempt_count} + 1`,
+      enrichment_error_code: null,
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(practiceClientIntakes.id, id),
+        eq(practiceClientIntakes.organization_id, organizationId),
+        eq(practiceClientIntakes.enrichment_version, version),
+        inArray(practiceClientIntakes.enrichment_status, ['pending', 'processing', 'failed'])
+      )
+    )
+    .returning();
+  return updated;
+};
+
+const completeEnrichment = async (
+  id: string,
+  organizationId: string,
+  version: number,
+  data: {
+    transcriptSummary: string;
+    urgency: 'routine' | 'time_sensitive' | 'emergency';
+    desiredOutcome: string | null;
+    model: string;
+  }
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const now = new Date();
+  const [updated] = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({
+      transcript_summary: data.transcriptSummary,
+      urgency: data.urgency,
+      desired_outcome: data.desiredOutcome,
+      enrichment_status: 'succeeded',
+      enrichment_model: data.model,
+      enrichment_error_code: null,
+      enriched_at: now,
+      updated_at: now,
+    })
+    .where(
+      and(
+        eq(practiceClientIntakes.id, id),
+        eq(practiceClientIntakes.organization_id, organizationId),
+        eq(practiceClientIntakes.enrichment_version, version),
+        eq(practiceClientIntakes.enrichment_status, 'processing')
+      )
+    )
+    .returning();
+  return updated;
+};
+
+const failEnrichment = async (
+  id: string,
+  organizationId: string,
+  version: number,
+  errorCode: string
+): Promise<boolean> => {
+  const result = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({ enrichment_status: 'failed', enrichment_error_code: errorCode, updated_at: new Date() })
+    .where(
+      and(
+        eq(practiceClientIntakes.id, id),
+        eq(practiceClientIntakes.organization_id, organizationId),
+        eq(practiceClientIntakes.enrichment_version, version),
+        eq(practiceClientIntakes.enrichment_status, 'processing')
+      )
+    );
+  return result.rowCount === 1;
+};
+
 export const practiceClientIntakesRepository = {
   create,
   findById,
@@ -188,6 +288,10 @@ export const practiceClientIntakesRepository = {
   updateStatus,
   findByOrganizationId,
   getStats,
+  requestEnrichment,
+  claimEnrichment,
+  completeEnrichment,
+  failEnrichment,
 };
 
 export type PracticeClientIntakesRepository = typeof practiceClientIntakesRepository;

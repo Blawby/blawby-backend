@@ -17,6 +17,7 @@ export const TASK_NAMES = {
   CLEANUP_EMAIL_LOGS: 'cleanup-email-logs',
   SEND_EMAIL: 'send-email',
   SEED_DEFAULT_INTAKE_TEMPLATE: 'seed-default-intake-template',
+  ENRICH_INTAKE: 'enrich-intake',
 } as const;
 
 /**

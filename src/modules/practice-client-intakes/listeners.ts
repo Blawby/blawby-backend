@@ -18,6 +18,7 @@ import {
 import { Event } from '@/shared/events/event';
 import { clientsCrudService } from '@/modules/clients/services/clients-crud.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
+import { intakeEnrichmentService } from '@/modules/practice-client-intakes/services/intake-enrichment.service';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { EMAIL_TEMPLATES } from '@/shared/services/email';
 import { logError } from '@/shared/utils/logging';
@@ -165,6 +166,11 @@ export const registerPracticeClientIntakesListeners = (): void => {
       });
     }
 
+    await intakeEnrichmentService.requestEnrichment(
+      { intakeId: payload.uuid },
+      createSystemContext(payload.organization_id)
+    );
+
     sendSubmissionEmails({
       intake_id: payload.uuid,
       organization_name: payload.organization_name,
@@ -190,6 +196,11 @@ export const registerPracticeClientIntakesListeners = (): void => {
     logger.info('Intake submitted (bypass)', {
       intakeId: payload.intake_id,
     });
+
+    await intakeEnrichmentService.requestEnrichment(
+      { intakeId: payload.intake_id },
+      createSystemContext(payload.organization_id)
+    );
 
     sendSubmissionEmails({
       intake_id: payload.intake_id,

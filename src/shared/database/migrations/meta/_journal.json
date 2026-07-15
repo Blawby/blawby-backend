@@ -505,6 +505,13 @@
       "when": 1781363837439,
       "tag": "0071_brown_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1784078763240,
+      "tag": "0072_daily_ravenous",
+      "breakpoints": true
     }
   ]
 }
