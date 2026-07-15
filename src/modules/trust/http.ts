@@ -11,6 +11,7 @@ app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 app.openapi(routes.createDepositRoute, handlers.createDepositHandler);
 app.openapi(routes.createWithdrawalRoute, handlers.createWithdrawalHandler);
+app.openapi(routes.createTrustTransactionRoute, handlers.createTrustTransactionHandler);
 app.openapi(routes.getTrustTransactionsRoute, handlers.getTrustTransactionsHandler);
 app.openapi(routes.getTrustBalanceRoute, handlers.getTrustBalanceHandler);
 app.openapi(routes.getTrustReportRoute, handlers.getTrustReportHandler);

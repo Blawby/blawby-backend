@@ -84,7 +84,7 @@ export const createMatterNoteRoute = routeBuilder.build({
 });
 
 export const updateMatterNoteRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{matter_id}/notes/{note_id}',
   tags,
   summary: 'Update a matter note',
@@ -121,6 +121,25 @@ export const updateMatterNoteRoute = routeBuilder.build({
           schema: matterNoteResponseSchema,
         },
       },
+    },
+  },
+});
+
+export const updateMatterNoteLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{matter_id}/notes/{note_id}',
+  tags,
+  summary: 'Update a matter note (deprecated)',
+  description: 'Deprecated: use `PATCH` on this resource instead.',
+  deprecated: true,
+  request: {
+    params: z.object({ matter_id: z.uuid(), note_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterNoteRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Note updated successfully',
+      content: { 'application/json': { schema: matterNoteResponseSchema } },
     },
   },
 });

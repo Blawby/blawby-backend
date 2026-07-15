@@ -44,7 +44,7 @@ export const getMemberProfileRoute = routeBuilder.build({
 });
 
 export const updateMemberProfileRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{practice_id}/members/{user_id}/profile',
   tags: ['Practice: Member Profile'],
   summary: 'Upsert member routing profile',
@@ -65,6 +65,29 @@ export const updateMemberProfileRoute = routeBuilder.build({
   },
   description:
     "Create or update a practice member's routing and capacity metadata. Supports partial updates — only include the fields you want to change.",
+  request: {
+    params: memberProfileParamsSchema,
+    body: { content: { 'application/json': { schema: memberProfilesValidations.updateMemberProfileSchema } } },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: memberProfilesValidations.memberProfileSchema } },
+      description: 'Member profile saved',
+    },
+    404: {
+      content: { 'application/json': { schema: notFoundResponseSchema } },
+      description: 'Member profile not found',
+    },
+  },
+});
+
+export const updateMemberProfileLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{practice_id}/members/{user_id}/profile',
+  tags: ['Practice: Member Profile'],
+  summary: 'Upsert member routing profile (deprecated)',
+  description: 'Deprecated: use `PATCH /api/practice/{practice_id}/members/{user_id}/profile` for partial updates.',
+  deprecated: true,
   request: {
     params: memberProfileParamsSchema,
     body: { content: { 'application/json': { schema: memberProfilesValidations.updateMemberProfileSchema } } },

@@ -116,7 +116,7 @@ export const createMatterTaskRoute = routeBuilder.build({
 });
 
 export const updateMatterTaskRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{matter_id}/tasks/{task_id}',
   tags,
   summary: 'Update a matter task',
@@ -153,6 +153,25 @@ export const updateMatterTaskRoute = routeBuilder.build({
           schema: matterTaskResponseSchema,
         },
       },
+    },
+  },
+});
+
+export const updateMatterTaskLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{matter_id}/tasks/{task_id}',
+  tags,
+  summary: 'Update a matter task (deprecated)',
+  description: 'Deprecated: use `PATCH` on this resource instead.',
+  deprecated: true,
+  request: {
+    params: matterIdParamSchema.merge(taskIdParamSchema),
+    body: { content: { 'application/json': { schema: updateMatterTaskRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Task updated successfully',
+      content: { 'application/json': { schema: matterTaskResponseSchema } },
     },
   },
 });

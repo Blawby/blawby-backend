@@ -28,5 +28,6 @@ app.openapi(routes.getCategoryPreferencesRoute, preferencesHandlers.getCategoryP
 
 // PUT /api/preferences/:category - Update preferences by category
 app.openapi(routes.updateCategoryPreferencesRoute, preferencesHandlers.updateCategoryPreferences);
+app.openapi(routes.updateCategoryPreferencesLegacyRoute, preferencesHandlers.updateCategoryPreferences);
 
 export default app;

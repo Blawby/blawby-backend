@@ -191,7 +191,8 @@ const sendInvoiceRoute = routeBuilder.build({
   path: '/{practice_id}/{invoice_id}/send',
   tags: ['Invoices'],
   summary: 'Send invoice',
-  description: 'Finalize and send an invoice via Stripe',
+  description: 'Deprecated: use `PATCH /api/invoices/{practice_id}/{invoice_id}/status` with status `sent` instead.',
+  deprecated: true,
   mcp: {
     name: 'send_invoice',
     scope: 'invoices:write',
@@ -238,7 +239,9 @@ const voidInvoiceRoute = routeBuilder.build({
   path: '/{practice_id}/{invoice_id}/void',
   tags: ['Invoices'],
   summary: 'Void invoice',
-  description: 'Void a sent invoice (cannot be undone)',
+  description:
+    'Deprecated: use `PATCH /api/invoices/{practice_id}/{invoice_id}/status` with status `cancelled` instead.',
+  deprecated: true,
   mcp: {
     name: 'void_invoice',
     scope: 'invoices:write',
@@ -255,6 +258,31 @@ const voidInvoiceRoute = routeBuilder.build({
     200: {
       content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
       description: 'Invoice voided successfully',
+    },
+  },
+});
+
+const transitionInvoiceStatusRoute = routeBuilder.build({
+  method: 'patch',
+  path: '/{practice_id}/{invoice_id}/status',
+  tags: ['Invoices'],
+  summary: 'Transition invoice status',
+  description:
+    'Transition an invoice through its delivery workflow. Use `sent` to finalize and deliver a draft, or `cancelled` to void a sent invoice.',
+  request: {
+    params: invoiceParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({ status: z.enum(['sent', 'cancelled']) }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: invoiceValidations.invoiceSchema } },
+      description: 'Invoice status transitioned successfully',
     },
   },
 });
@@ -323,6 +351,7 @@ export const routes = {
   sendInvoiceRoute,
   syncInvoiceRoute,
   voidInvoiceRoute,
+  transitionInvoiceStatusRoute,
   getClientInvoicesRoute,
   getClientInvoiceDetailRoute,
 };

@@ -43,7 +43,7 @@ const getIntakeSettingsRoute = routeBuilder.build({
 
 const createPracticeClientIntakeRoute = routeBuilder.build({
   method: 'post',
-  path: '/create',
+  path: '/',
   tags: ['Practice Client Intakes'],
   summary: 'Create practice client intake',
   description: 'Creates a practice client intake and optional Stripe payment flow.',
@@ -79,6 +79,42 @@ const createPracticeClientIntakeRoute = routeBuilder.build({
           schema: intakeValidations.internalServerErrorResponseSchema,
         },
       },
+      description: 'Internal server error',
+    },
+  },
+});
+
+const createPracticeClientIntakeLegacyRoute = routeBuilder.build({
+  method: 'post',
+  path: '/create',
+  tags: ['Practice Client Intakes'],
+  summary: 'Create practice client intake (deprecated)',
+  description: 'Deprecated: use `POST /api/practice-client-intakes` instead.',
+  deprecated: true,
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.createPracticeClientIntakeSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.createPracticeClientIntakeResponseSchema,
+        },
+      },
+      description: 'Practice client intake created successfully.',
+    },
+    400: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Bad request - validation failed',
+    },
+    500: {
+      content: { 'application/json': { schema: intakeValidations.internalServerErrorResponseSchema } },
       description: 'Internal server error',
     },
   },
@@ -124,5 +160,6 @@ const getPracticeClientIntakePostPayStatusRoute = routeBuilder.build({
 export const publicRoutes = {
   getIntakeSettingsRoute,
   createPracticeClientIntakeRoute,
+  createPracticeClientIntakeLegacyRoute,
   getPracticeClientIntakePostPayStatusRoute,
 };

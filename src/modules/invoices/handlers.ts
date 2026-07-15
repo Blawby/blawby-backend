@@ -79,6 +79,18 @@ const voidInvoiceHandler: AppRouteHandler<typeof routes.voidInvoiceRoute> = asyn
   return c.json(serializeInvoice(result), 200);
 };
 
+const transitionInvoiceStatusHandler: AppRouteHandler<typeof routes.transitionInvoiceStatusRoute> = async (c) => {
+  const { invoice_id: id, practice_id: organizationId } = c.req.valid('param');
+  const { status } = c.req.valid('json');
+  const ctx = { ...getServiceContext(c), organizationId };
+  const result =
+    status === 'sent'
+      ? await invoiceDeliveryService.sendInvoice({ id }, ctx)
+      : await invoiceDeliveryService.voidInvoice({ id }, ctx);
+
+  return c.json(serializeInvoice(result), 200);
+};
+
 const getClientInvoicesHandler: AppRouteHandler<typeof routes.getClientInvoicesRoute> = async (c) => {
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
@@ -174,6 +186,7 @@ export const handlers = {
   sendInvoiceHandler,
   syncInvoiceHandler,
   voidInvoiceHandler,
+  transitionInvoiceStatusHandler,
   getClientInvoicesHandler,
   getClientInvoiceDetailHandler,
   createRefundRequestHandler,

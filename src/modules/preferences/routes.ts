@@ -71,7 +71,7 @@ export const getCategoryPreferencesRoute = routeBuilder.build({
  * Update preferences by category
  */
 export const updateCategoryPreferencesRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{category}',
   tags: ['Preferences'],
   summary: 'Update preferences by category',
@@ -103,6 +103,39 @@ export const updateCategoryPreferencesRoute = routeBuilder.build({
       },
       description:
         'Category-specific preferences data. Schema varies by category. For notifications: system_push and system_email are always true.',
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: preferenceValidations.categoryPreferencesResponseSchema,
+        },
+      },
+      description: 'Preferences updated successfully',
+    },
+  },
+});
+
+export const updateCategoryPreferencesLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{category}',
+  tags: ['Preferences'],
+  summary: 'Update preferences by category (deprecated)',
+  description: 'Deprecated: use `PATCH /api/preferences/{category}` for partial updates.',
+  deprecated: true,
+  security: [{ Bearer: [] }],
+  request: {
+    params: categoryParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: z.record(z.string(), z.unknown()).openapi({
+            description: 'Category-specific partial preference data.',
+          }),
+        },
+      },
+      description: 'Category-specific preferences data.',
     },
   },
   responses: {

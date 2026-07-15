@@ -102,7 +102,7 @@ export const createTimeEntryRoute = routeBuilder.build({
 });
 
 export const updateTimeEntryRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{matter_id}/time-entries/{entry_id}',
   tags,
   summary: 'Update a time entry',
@@ -142,6 +142,25 @@ export const updateTimeEntryRoute = routeBuilder.build({
           schema: matterTimeEntryResponseSchema,
         },
       },
+    },
+  },
+});
+
+export const updateTimeEntryLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{matter_id}/time-entries/{entry_id}',
+  tags,
+  summary: 'Update a time entry (deprecated)',
+  description: 'Deprecated: use `PATCH` on this resource instead.',
+  deprecated: true,
+  request: {
+    params: z.object({ matter_id: z.uuid(), entry_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterTimeEntryRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Time entry updated successfully',
+      content: { 'application/json': { schema: matterTimeEntryResponseSchema } },
     },
   },
 });
