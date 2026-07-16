@@ -1,8 +1,9 @@
 import { relations, sql } from 'drizzle-orm';
 import { pgTable, uuid, text, boolean, integer, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import { organizations } from '@/schema/better-auth-schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 
 export type IntakeTemplateStatus = 'draft' | 'published' | 'archived';
+export type IntakeTemplateSuggestionStatus = 'staged' | 'approved' | 'dismissed';
 export type IntakeFieldPhase = 'required' | 'enrichment';
 export type IntakeFieldType =
   | 'text'
@@ -26,6 +27,8 @@ export const intakeTemplates = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     status: text('status').notNull().default('draft').$type<IntakeTemplateStatus>(),
+    revision: integer('revision').notNull().default(1),
+    published_at: timestamp('published_at', { withTimezone: true, mode: 'date' }),
     is_default: boolean('is_default').notNull().default(false),
     intro_message: text('intro_message'),
     legal_disclaimer: text('legal_disclaimer'),
@@ -42,6 +45,53 @@ export const intakeTemplates = pgTable(
     uniqueIndex('intake_templates_one_default_idx')
       .on(table.organization_id)
       .where(sql`${table.is_default} = true`),
+  ]
+);
+
+export interface IntakeTemplateProposedEdit {
+  operation: 'add' | 'remove' | 'reorder' | 'rephrase' | 'condition_change';
+  field_key: string;
+  field?: Record<string, unknown>;
+  changes?: Record<string, unknown>;
+}
+
+export interface IntakeTemplateAnalyticsEvidence {
+  status: 'available' | 'unavailable';
+  window: { from: string; to: string } | null;
+  numerator: number | null;
+  denominator: number | null;
+  provenance: string;
+  reason: string | null;
+}
+
+export const intakeTemplateSuggestions = pgTable(
+  'intake_template_suggestions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organization_id: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    template_id: uuid('template_id')
+      .notNull()
+      .references(() => intakeTemplates.id, { onDelete: 'cascade' }),
+    request_key: uuid('request_key').notNull(),
+    base_revision: integer('base_revision').notNull(),
+    instruction: text('instruction').notNull(),
+    proposed_edits: jsonb('proposed_edits').$type<IntakeTemplateProposedEdit[]>().notNull(),
+    analytics_evidence: jsonb('analytics_evidence').$type<IntakeTemplateAnalyticsEvidence>().notNull(),
+    status: text('status').notNull().default('staged').$type<IntakeTemplateSuggestionStatus>(),
+    created_by: uuid('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    decided_by: uuid('decided_by').references(() => users.id, { onDelete: 'set null' }),
+    applied_revision: integer('applied_revision'),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    decided_at: timestamp('decided_at', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    uniqueIndex('intake_template_suggestions_org_request_idx').on(table.organization_id, table.request_key),
+    index('intake_template_suggestions_template_idx').on(table.template_id, table.created_at),
+    index('intake_template_suggestions_status_idx').on(table.organization_id, table.status),
   ]
 );
 
@@ -63,7 +113,7 @@ export const intakeTemplateFields = pgTable(
     prompt_hint: text('prompt_hint'),
     is_standard: boolean('is_standard').notNull().default(false),
     validation_rules: jsonb('validation_rules'),
-    options: jsonb('options').$type<Array<{ value: string; label: string }>>(),
+    options: jsonb('options').$type<{ value: string; label: string }[]>(),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
@@ -80,6 +130,7 @@ export const intakeTemplatesRelations = relations(intakeTemplates, ({ one, many 
     references: [organizations.id],
   }),
   fields: many(intakeTemplateFields),
+  suggestions: many(intakeTemplateSuggestions),
 }));
 
 export const intakeTemplateFieldsRelations = relations(intakeTemplateFields, ({ one }) => ({
@@ -89,7 +140,30 @@ export const intakeTemplateFieldsRelations = relations(intakeTemplateFields, ({ 
   }),
 }));
 
+export const intakeTemplateSuggestionsRelations = relations(intakeTemplateSuggestions, ({ one }) => ({
+  template: one(intakeTemplates, {
+    fields: [intakeTemplateSuggestions.template_id],
+    references: [intakeTemplates.id],
+  }),
+  organization: one(organizations, {
+    fields: [intakeTemplateSuggestions.organization_id],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [intakeTemplateSuggestions.created_by],
+    references: [users.id],
+    relationName: 'intakeTemplateSuggestionCreator',
+  }),
+  decider: one(users, {
+    fields: [intakeTemplateSuggestions.decided_by],
+    references: [users.id],
+    relationName: 'intakeTemplateSuggestionDecider',
+  }),
+}));
+
 export type IntakeTemplate = typeof intakeTemplates.$inferSelect;
 export type InsertIntakeTemplate = typeof intakeTemplates.$inferInsert;
 export type IntakeTemplateField = typeof intakeTemplateFields.$inferSelect;
 export type InsertIntakeTemplateField = typeof intakeTemplateFields.$inferInsert;
+export type IntakeTemplateSuggestion = typeof intakeTemplateSuggestions.$inferSelect;
+export type InsertIntakeTemplateSuggestion = typeof intakeTemplateSuggestions.$inferInsert;
