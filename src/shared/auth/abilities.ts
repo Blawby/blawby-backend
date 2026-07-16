@@ -52,6 +52,7 @@ const defineAbilityFor = (
     can('read', 'Trust');
     can('read', 'RefundRequest');
     can('update', 'RefundRequest');
+    can('update', 'PendingAction');
     can('manage', 'Client');
     can('manage', 'ClientMemo');
     can('manage', 'ClientIntakeProfile');

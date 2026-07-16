@@ -16,7 +16,16 @@ interface McpRouteAnnotation {
   name?: string;
   description?: string;
   schema?: ZodRawShape;
+  /** Synchronous in-session confirm via the MCP client's own elicitation UI (e.g. Claude Desktop). */
   approval?: McpToolApproval;
+  /**
+   * Async approval instead: the tool call stages a `pending_actions` row and
+   * returns an approval URL rather than executing immediately. Use for
+   * writes that need a durable audit trail or may be approved by someone
+   * other than whoever is driving the MCP session (e.g. financial writes).
+   * Orthogonal to `approval` — a tool should use one or the other, not both.
+   */
+  requiresPendingApproval?: boolean;
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
 }
 
@@ -38,6 +47,10 @@ export const routeBuilder = {
     config: R
   ) => {
     const { mcp, ...routeConfig } = config;
+
+    if (mcp?.approval && mcp.requiresPendingApproval) {
+      throw new Error('MCP routes must choose synchronous approval or pending approval, not both');
+    }
 
     // Standard error responses (400, 401, 403, 404, 500)
     const standardResponses: Responses = {

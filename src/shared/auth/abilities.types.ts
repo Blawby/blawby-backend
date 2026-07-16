@@ -27,6 +27,7 @@ type SubjectName =
   | 'Invoice'
   | 'Payout'
   | 'RefundRequest'
+  | 'PendingAction'
   | 'Client'
   | 'ClientMemo'
   | 'MemberProfile'

@@ -24,6 +24,7 @@ export interface AnyToolDef<S extends ZodRawShape = ZodRawShape> {
   schema: S;
   scope: string;
   approval?: McpToolApproval;
+  requiresPendingApproval?: boolean;
   handler: (args: z.infer<z.ZodObject<S>>, ctx: ServiceContext) => Promise<unknown>;
 }
 
