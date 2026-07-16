@@ -6,12 +6,17 @@ import { injectAbility } from '@/shared/middleware/inject-ability';
 import { requireOrgMembership } from '@/shared/middleware/requireOrgMembership';
 import { createHonoApp } from '@/shared/router/factory';
 import { getServiceContext } from '@/shared/types/service-context';
+import { HTTPException } from 'hono/http-exception';
 
 const app = createHonoApp();
 
 app.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 
 app.openapi(listPracticeTasksRoute, async (c) => {
+  const { practice_id: practiceId } = c.req.valid('param');
+  if (practiceId !== c.get('activeOrganizationId')) {
+    throw new HTTPException(403, { message: 'Practice access denied' });
+  }
   const query = c.req.valid('query');
   const filters: OrgTaskListFilters = {
     taskId: query.task_id,

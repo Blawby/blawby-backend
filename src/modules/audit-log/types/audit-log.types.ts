@@ -29,20 +29,30 @@ const auditLogEntrySchema = z.object({
 
 type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
 
-const listAuditLogQuerySchema = z
-  .object({
+const auditLogFiltersSchema = z.object({
+  search: z.string().trim().min(1).max(200).optional(),
+  type: z.string().trim().min(1).max(100).optional(),
+  actor: z.uuid().optional(),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+});
+
+const dateRangeIsValid = (query: { from?: string; to?: string }): boolean =>
+  !query.from || !query.to || query.from <= query.to;
+
+const dateRangeValidation = {
+  message: '`from` must be before or equal to `to`',
+  path: ['from'],
+};
+
+const listAuditLogQuerySchema = auditLogFiltersSchema
+  .extend({
     cursor: z.string().min(1).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
-    search: z.string().trim().min(1).max(200).optional(),
-    type: z.string().trim().min(1).max(100).optional(),
-    actor: z.uuid().optional(),
-    from: z.iso.datetime({ offset: true }).optional(),
-    to: z.iso.datetime({ offset: true }).optional(),
   })
-  .refine((query) => !query.from || !query.to || query.from <= query.to, {
-    message: '`from` must be before or equal to `to`',
-    path: ['from'],
-  });
+  .refine(dateRangeIsValid, dateRangeValidation);
+
+const exportAuditLogQuerySchema = auditLogFiltersSchema.refine(dateRangeIsValid, dateRangeValidation);
 
 type ListAuditLogQuery = z.infer<typeof listAuditLogQuerySchema>;
 
@@ -110,6 +120,7 @@ export {
   auditLogEntrySchema,
   auditLogResponseSchema,
   auditSourceSchema,
+  exportAuditLogQuerySchema,
   listAuditLogQuerySchema,
 };
 export type {

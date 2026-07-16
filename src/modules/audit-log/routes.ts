@@ -1,10 +1,13 @@
-import { auditLogResponseSchema, listAuditLogQuerySchema } from '@/modules/audit-log/types/audit-log.types';
+import {
+  auditLogResponseSchema,
+  exportAuditLogQuerySchema,
+  listAuditLogQuerySchema,
+} from '@/modules/audit-log/types/audit-log.types';
 import { auditLogService } from '@/modules/audit-log/services/audit-log.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { z } from '@hono/zod-openapi';
 
 const practiceParamsSchema = z.object({ practice_id: z.uuid() });
-const exportAuditLogQuerySchema = listAuditLogQuerySchema.omit({ cursor: true, limit: true });
 
 export const listAuditLogRoute = routeBuilder.build({
   method: 'get',
