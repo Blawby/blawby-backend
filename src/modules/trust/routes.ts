@@ -34,8 +34,8 @@ const createDepositRoute = routeBuilder.build({
   path: '/{practice_id}/deposit',
   tags: ['Trust'],
   summary: 'Record a manual trust deposit',
-  description:
-    'Staff-initiated retainer deposit. Creates a trust ledger entry, syncs matters.retainer_balance, and fires RetainerLowBalance if threshold is breached.',
+  description: 'Deprecated: use `POST /api/trust/{practice_id}/transactions` with type `deposit` instead.',
+  deprecated: true,
   mcp: {
     name: 'create_trust_deposit',
     scope: 'trust:write',
@@ -67,8 +67,8 @@ const createWithdrawalRoute = routeBuilder.build({
   path: '/{practice_id}/withdrawal',
   tags: ['Trust'],
   summary: 'Record a manual trust withdrawal',
-  description:
-    'Staff-initiated retainer withdrawal. Rejects if balance would go below 0. Syncs matters.retainer_balance and checks threshold.',
+  description: 'Deprecated: use `POST /api/trust/{practice_id}/transactions` with type `withdrawal` instead.',
+  deprecated: true,
   mcp: {
     name: 'create_trust_withdrawal',
     scope: 'trust:write',
@@ -91,6 +91,30 @@ const createWithdrawalRoute = routeBuilder.build({
     201: {
       content: { 'application/json': { schema: trustTransactionSchema } },
       description: 'Trust withdrawal recorded',
+    },
+  },
+});
+
+const createTrustTransactionRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{practice_id}/transactions',
+  tags: ['Trust'],
+  summary: 'Create a manual trust transaction',
+  description: 'Record a manual trust deposit or withdrawal.',
+  request: {
+    params: practiceIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: manualTrustBodySchema.extend({ type: z.enum(['deposit', 'withdrawal']) }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: trustTransactionSchema } },
+      description: 'Trust transaction recorded',
     },
   },
 });
@@ -233,6 +257,7 @@ const getTrustClientBalancesRoute = routeBuilder.build({
 export const trustRoutes = {
   createDepositRoute,
   createWithdrawalRoute,
+  createTrustTransactionRoute,
   getTrustTransactionsRoute,
   getTrustBalanceRoute,
   getTrustReportRoute,

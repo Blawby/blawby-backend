@@ -19,6 +19,7 @@ publicApp.openapi(
   handlers.getPracticeClientIntakePostPayStatusHandler
 );
 publicApp.openapi(publicRoutes.createPracticeClientIntakeRoute, handlers.createPracticeClientIntakeHandler);
+publicApp.openapi(publicRoutes.createPracticeClientIntakeLegacyRoute, handlers.createPracticeClientIntakeLegacyHandler);
 publicApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSettingsHandler);
 
 // Client routes — authenticated but no org membership required
@@ -33,6 +34,7 @@ clientApp.openapi(
   handlers.createPracticeClientIntakeCheckoutSessionHandler
 );
 clientApp.openapi(clientRoutes.updatePracticeClientIntakeRoute, handlers.updatePracticeClientIntakeHandler);
+clientApp.openapi(clientRoutes.updatePracticeClientIntakeLegacyRoute, handlers.updatePracticeClientIntakeLegacyHandler);
 clientApp.openapi(clientRoutes.getPracticeClientIntakeStatusRoute, handlers.getPracticeClientIntakeStatusHandler);
 clientApp.openapi(intakeFileRoutes.presignIntakeFileRoute, handlers.presignIntakeFileHandler);
 clientApp.openapi(intakeFileRoutes.listIntakeFilesRoute, handlers.listIntakeFilesHandler);
@@ -43,10 +45,12 @@ clientApp.openapi(intakeFileRoutes.deleteIntakeFileRoute, handlers.deleteIntakeF
 const staffApp = createHonoApp();
 staffApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 staffApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
+staffApp.openapi(staffRoutes.triggerIntakeInvitationLegacyRoute, handlers.triggerIntakeInvitationLegacyHandler);
 staffApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
 staffApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);
 staffApp.openapi(staffRoutes.updateIntakeTriageStatusRoute, handlers.updateIntakeTriageStatusHandler);
 staffApp.openapi(staffRoutes.convertIntakeRoute, handlers.convertIntakeHandler);
+staffApp.openapi(staffRoutes.convertIntakeLegacyRoute, handlers.convertIntakeLegacyHandler);
 
 practiceClientIntakesApp.route('/', publicApp);
 practiceClientIntakesApp.route('/', clientApp);

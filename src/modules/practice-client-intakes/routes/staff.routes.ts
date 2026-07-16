@@ -6,7 +6,7 @@ import { routeBuilder } from '@/shared/router/route-builder';
 
 const triggerIntakeInvitationRoute = routeBuilder.build({
   method: 'post',
-  path: '/{uuid}/invite',
+  path: '/{uuid}/invitations',
   tags: ['Practice Client Intakes'],
   summary: 'Trigger intake invitation',
   description: 'Triggers a manual organization invitation for the client associated with a successful intake.',
@@ -55,6 +55,34 @@ const triggerIntakeInvitationRoute = routeBuilder.build({
           schema: intakeValidations.internalServerErrorResponseSchema,
         },
       },
+      description: 'Internal server error',
+    },
+  },
+});
+
+const triggerIntakeInvitationLegacyRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{uuid}/invite',
+  tags: ['Practice Client Intakes'],
+  summary: 'Trigger intake invitation (deprecated)',
+  description: 'Deprecated: use `POST /api/practice-client-intakes/{uuid}/invitations` instead.',
+  deprecated: true,
+  request: { params: uuidParamOpenAPISchema },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: intakeValidations.triggerIntakeInvitationResponseSchema } },
+      description: 'Invitation triggered successfully.',
+    },
+    400: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Bad request - intake not found or not in a successful state',
+    },
+    401: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Unauthorized - authentication required',
+    },
+    500: {
+      content: { 'application/json': { schema: intakeValidations.internalServerErrorResponseSchema } },
       description: 'Internal server error',
     },
   },
@@ -235,8 +263,8 @@ const updateIntakeTriageStatusRoute = routeBuilder.build({
 });
 
 const convertIntakeRoute = routeBuilder.build({
-  method: 'patch',
-  path: '/{uuid}/convert',
+  method: 'post',
+  path: '/{uuid}/conversions',
   tags: ['Practice Client Intakes'],
   summary: 'Convert intake to matter',
   description: 'Converts a successful client intake into a formal matter.',
@@ -319,10 +347,53 @@ const convertIntakeRoute = routeBuilder.build({
   },
 });
 
+const convertIntakeLegacyRoute = routeBuilder.build({
+  method: 'patch',
+  path: '/{uuid}/convert',
+  tags: ['Practice Client Intakes'],
+  summary: 'Convert intake to matter (deprecated)',
+  description: 'Deprecated: use `POST /api/practice-client-intakes/{uuid}/conversions` instead.',
+  deprecated: true,
+  request: {
+    params: uuidParamOpenAPISchema,
+    body: {
+      content: { 'application/json': { schema: intakeValidations.convertIntakeSchema } },
+    },
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: intakeValidations.convertIntakeResponseSchema } },
+      description: 'Intake converted successfully.',
+    },
+    400: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Bad request - intake not eligible for conversion',
+    },
+    401: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Unauthorized - authentication required',
+    },
+    404: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Not Found - intake UUID does not exist',
+    },
+    409: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Conflict - intake already converted',
+    },
+    500: {
+      content: { 'application/json': { schema: intakeValidations.internalServerErrorResponseSchema } },
+      description: 'Internal server error',
+    },
+  },
+});
+
 export const staffRoutes = {
   triggerIntakeInvitationRoute,
+  triggerIntakeInvitationLegacyRoute,
   listIntakesRoute,
   getIntakeRoute,
   updateIntakeTriageStatusRoute,
   convertIntakeRoute,
+  convertIntakeLegacyRoute,
 };

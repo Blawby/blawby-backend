@@ -15,10 +15,29 @@ const practiceIdParamSchema = z.object({
 
 export const listPracticesRoute = routeBuilder.build({
   method: 'get',
-  path: '/list',
+  path: '/',
   tags: ['Practice'],
   summary: 'List practices',
   description: 'Retrieve all practices for the authenticated user',
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: practiceValidations.practiceListResponseSchema,
+        },
+      },
+      description: 'Practices retrieved successfully',
+    },
+  },
+});
+
+export const listPracticesLegacyRoute = routeBuilder.build({
+  method: 'get',
+  path: '/list',
+  tags: ['Practice'],
+  summary: 'List practices (deprecated)',
+  description: 'Deprecated: use `GET /api/practice` instead.',
+  deprecated: true,
   responses: {
     200: {
       content: {
@@ -81,11 +100,41 @@ export const getPracticeByIdRoute = routeBuilder.build({
 });
 
 export const updatePracticeRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{practice_id}',
   tags: ['Practice'],
   summary: 'Update practice',
   description: 'Update an existing practice',
+  request: {
+    params: practiceIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: practiceValidations.updatePracticeSchema,
+        },
+      },
+      description: 'Practice update data',
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: practiceValidations.practiceSingleResponseSchema,
+        },
+      },
+      description: 'Practice updated successfully',
+    },
+  },
+});
+
+export const updatePracticeLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{practice_id}',
+  tags: ['Practice'],
+  summary: 'Update practice (deprecated)',
+  description: 'Deprecated: use `PATCH /api/practice/{practice_id}` instead.',
+  deprecated: true,
   request: {
     params: practiceIdParamSchema,
     body: {

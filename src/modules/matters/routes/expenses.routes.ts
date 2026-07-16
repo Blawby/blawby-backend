@@ -100,7 +100,7 @@ export const createExpenseRoute = routeBuilder.build({
 });
 
 export const updateExpenseRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{matter_id}/expenses/{expense_id}',
   tags,
   summary: 'Update an expense',
@@ -140,6 +140,25 @@ export const updateExpenseRoute = routeBuilder.build({
           schema: matterExpenseResponseSchema,
         },
       },
+    },
+  },
+});
+
+export const updateExpenseLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{matter_id}/expenses/{expense_id}',
+  tags,
+  summary: 'Update an expense (deprecated)',
+  description: 'Deprecated: use `PATCH` on this resource instead.',
+  deprecated: true,
+  request: {
+    params: z.object({ matter_id: z.uuid(), expense_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterExpenseRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Expense updated successfully',
+      content: { 'application/json': { schema: matterExpenseResponseSchema } },
     },
   },
 });

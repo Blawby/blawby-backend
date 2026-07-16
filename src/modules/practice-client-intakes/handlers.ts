@@ -55,6 +55,24 @@ const createPracticeClientIntakeHandler: AppRouteHandler<typeof publicRoutes.cre
   return c.json(data, 201);
 };
 
+const createPracticeClientIntakeLegacyHandler: AppRouteHandler<
+  typeof publicRoutes.createPracticeClientIntakeLegacyRoute
+> = async (c) => {
+  const body = c.req.valid('json');
+  let sessionUserId: string | undefined = undefined;
+  try {
+    const auth = createBetterAuthInstance(db);
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    sessionUserId = session?.user?.id;
+  } catch (error) {
+    logger.warn('Session resolution failed on public intake route, proceeding anonymously: {error}', { error });
+  }
+  const data = await intakeCreationService.createIntake({
+    data: { ...body, user_id: sessionUserId, ...getCreateIntakeRequestMetadata(c) },
+  });
+  return c.json(data, 201);
+};
+
 const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
   typeof clientRoutes.createPracticeClientIntakeCheckoutSessionRoute
 > = async (c) => {
@@ -74,6 +92,16 @@ const createPracticeClientIntakeCheckoutSessionHandler: AppRouteHandler<
 const updatePracticeClientIntakeHandler: AppRouteHandler<typeof clientRoutes.updatePracticeClientIntakeRoute> = async (
   c
 ) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const data = await intakeCreationService.updateIntake({ uuid, data: body }, ctx);
+  return c.json(data, 200);
+};
+
+const updatePracticeClientIntakeLegacyHandler: AppRouteHandler<
+  typeof clientRoutes.updatePracticeClientIntakeLegacyRoute
+> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
@@ -108,6 +136,18 @@ const triggerIntakeInvitationHandler: AppRouteHandler<typeof staffRoutes.trigger
   return c.json(data, 200);
 };
 
+const triggerIntakeInvitationLegacyHandler: AppRouteHandler<
+  typeof staffRoutes.triggerIntakeInvitationLegacyRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const data = await intakeLifecycleService.triggerInvitation(
+    { uuid, origin: c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer')) },
+    ctx
+  );
+  return c.json(data, 200);
+};
+
 const listIntakesHandler: AppRouteHandler<typeof staffRoutes.listIntakesRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
@@ -123,6 +163,14 @@ const getIntakeHandler: AppRouteHandler<typeof staffRoutes.getIntakeRoute> = asy
 };
 
 const convertIntakeHandler: AppRouteHandler<typeof staffRoutes.convertIntakeRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { uuid } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const data = await intakeLifecycleService.convertIntake({ uuid, data: body }, ctx);
+  return c.json(data, 201);
+};
+
+const convertIntakeLegacyHandler: AppRouteHandler<typeof staffRoutes.convertIntakeLegacyRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
   const body = c.req.valid('json');
@@ -174,15 +222,19 @@ const deleteIntakeFileHandler: AppRouteHandler<typeof intakeFileRoutes.deleteInt
 export const handlers = {
   getIntakeSettingsHandler,
   createPracticeClientIntakeHandler,
+  createPracticeClientIntakeLegacyHandler,
   createPracticeClientIntakeCheckoutSessionHandler,
   updatePracticeClientIntakeHandler,
+  updatePracticeClientIntakeLegacyHandler,
   getPracticeClientIntakeStatusHandler,
   getPracticeClientIntakePostPayStatusHandler,
   triggerIntakeInvitationHandler,
+  triggerIntakeInvitationLegacyHandler,
   listIntakesHandler,
   getIntakeHandler,
   updateIntakeTriageStatusHandler,
   convertIntakeHandler,
+  convertIntakeLegacyHandler,
   presignIntakeFileHandler,
   confirmIntakeFileHandler,
   listIntakeFilesHandler,
