@@ -11,7 +11,7 @@ interface QueuedEmailCapturePayload {
   template: string;
   to: string;
   subject: string;
-  data: Record<string, unknown>;
+  data: object;
 }
 
 const isCaptureEnabled = (): boolean => config.e2e.fixturesEnabled && config.env.isStaging && !config.env.isProduction;
@@ -19,8 +19,8 @@ const isCaptureEnabled = (): boolean => config.e2e.fixturesEnabled && config.env
 const isAllowedRecipient = (email: string): boolean =>
   email.toLowerCase().endsWith(`@${config.e2e.emailAllowedDomain.toLowerCase()}`);
 
-const getStringField = (data: Record<string, unknown>, key: string): string | undefined => {
-  const value = data[key];
+const getStringField = (data: object, key: string): string | undefined => {
+  const value = Object.entries(data).find(([entryKey]) => entryKey === key)?.[1];
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 };
 
@@ -34,7 +34,7 @@ const captureQueuedEmail = async (payload: QueuedEmailCapturePayload): Promise<v
       recipientEmail: payload.to,
       subject: payload.subject,
       templateName: payload.template,
-      templateData: payload.data,
+      templateData: Object.fromEntries(Object.entries(payload.data)),
       status: 'sent',
       messageId: `e2e_capture_${Date.now()}`,
     });

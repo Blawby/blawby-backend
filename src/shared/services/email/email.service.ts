@@ -1,15 +1,20 @@
-import { randomUUID } from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { getLogger } from '@logtape/logtape';
-import { Resend } from 'resend';
-import type { EmailJobPayload, EmailSendOptions, EmailTemplateName } from '@/shared/services/email/email.types';
 import { config } from '@/shared/config';
 import { db } from '@/shared/database/connection';
 import { appConfigService } from '@/shared/services/app-config.service';
+import {
+  EMAIL_TEMPLATES,
+  type EmailJobPayload,
+  type EmailSendOptions,
+  type EmailTemplateName,
+} from '@/shared/services/email/email.types';
 import { emailLogs } from '@/shared/services/email/schemas/email-logs.schema';
-import { renderTemplate, type TemplateDataMap } from '@/shared/services/email/templates';
+import { renderTemplate } from '@/shared/services/email/templates';
 import { isProduction } from '@/shared/utils/env';
+import { getLogger } from '@logtape/logtape';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { Resend } from 'resend';
 
 const logger = getLogger(['shared', 'services', 'email']);
 
@@ -29,6 +34,22 @@ const getResendClient = (): Resend => {
 const DEFAULT_FROM = 'notifications@blawby.com';
 const DEFAULT_FROM_NAME = 'Blawby';
 
+// Bearer URLs (sign-in / reset / verification links) must never persist in delivery evidence.
+const SENSITIVE_TEMPLATE_DATA_KEYS: Partial<Record<EmailTemplateName, readonly string[]>> = {
+  [EMAIL_TEMPLATES.MAGIC_LINK]: ['url'],
+  [EMAIL_TEMPLATES.PASSWORD_RESET]: ['url'],
+  [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: ['url'],
+  [EMAIL_TEMPLATES.CHANGE_EMAIL_CONFIRMATION]: ['url'],
+  [EMAIL_TEMPLATES.INTAKE_ACCEPTED]: ['magicLinkUrl'],
+};
+
+const redactTemplateData = (template: EmailTemplateName, data: object): Record<string, unknown> => {
+  const sensitiveKeys = SENSITIVE_TEMPLATE_DATA_KEYS[template];
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, sensitiveKeys?.includes(key) ? '[REDACTED]' : value])
+  );
+};
+
 const recordEmailLog = async (
   payload: EmailJobPayload,
   result: { status: 'sent' | 'failed'; messageId?: string; errorMessage?: string }
@@ -37,23 +58,21 @@ const recordEmailLog = async (
     recipientEmail: payload.to,
     subject: payload.subject,
     templateName: payload.template,
-    templateData: payload.data,
+    templateData: redactTemplateData(payload.template, payload.data),
     status: result.status,
     messageId: result.messageId,
     errorMessage: result.errorMessage,
   });
 };
 
-const saveEmailToFile = (to: string, subject: string, html: string): void => {
+const saveEmailToFile = async (to: string, subject: string, html: string): Promise<void> => {
   if (isProduction()) {
     return;
   }
 
   try {
     const storageDir = path.join(process.cwd(), 'storage', 'emails');
-    if (!fs.existsSync(storageDir)) {
-      fs.mkdirSync(storageDir, { recursive: true });
-    }
+    await fs.mkdir(storageDir, { recursive: true });
 
     const filename = `${Date.now()}-${to.replace(/[^a-z0-9]/gi, '_')}.html`;
     const filePath = path.join(storageDir, filename);
@@ -68,26 +87,26 @@ const saveEmailToFile = (to: string, subject: string, html: string): void => {
       ${html}
     `;
 
-    fs.writeFileSync(filePath, content);
+    await fs.writeFile(filePath, content);
     logger.info('Email saved for preview: file://{filePath}', { filePath });
   } catch (error) {
     logger.error('Failed to save email to file: {error}', { error });
   }
 };
 
-export const sendEmail = async (
-  payload: EmailJobPayload,
+export const sendEmail = async <T extends EmailTemplateName>(
+  payload: EmailJobPayload<T>,
   options: EmailSendOptions = {}
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+  // Queued payloads always carry a durable key from enqueue time; the fallback
+  // Only covers direct callers that send inline and never retry.
   const idempotencyKey = payload.idempotencyKey ?? randomUUID();
 
   try {
-    // TemplateDataMap is the registry boundary; queue payloads are keyed by the same template name.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const html = await renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
+    const html = await renderTemplate(payload.template, payload.data);
 
     if (!isProduction()) {
-      saveEmailToFile(payload.to, payload.subject, html);
+      await saveEmailToFile(payload.to, payload.subject, html);
     }
 
     if (payload.to.endsWith('@test-blawby.com')) {

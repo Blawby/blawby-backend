@@ -61,13 +61,13 @@ vi.mock('@/shared/uploads/services/r2.service', () => ({
 }));
 
 vi.mock('@/shared/config', async (importOriginal) => {
-  const actual = await importOriginal<{ config: Record<string, unknown> }>();
+  const actual = await importOriginal<{ config: { env: Record<string, unknown> } & Record<string, unknown> }>();
   return {
     ...actual,
     config: {
       ...actual.config,
       env: {
-        ...(actual.config.env as Record<string, unknown>),
+        ...actual.config.env,
         app: 'test',
         node: 'test',
         isTest: true,
@@ -128,6 +128,13 @@ const createTestIntake = async (
     .returning();
 
   return result;
+};
+
+const getUploadId = (body: unknown): string => {
+  if (typeof body === 'object' && body !== null && 'upload_id' in body && typeof body.upload_id === 'string') {
+    return body.upload_id;
+  }
+  throw new Error('Response body is missing upload_id');
 };
 
 const authApp = new Hono();
@@ -249,7 +256,7 @@ describe('Intake File Uploads API', () => {
         .send({ file_name: 'evidence.pdf', mime_type: 'application/pdf', file_size: 2048 });
 
       expect(presignRes.status).toBe(201);
-      const { upload_id: uploadId } = presignRes.body as { upload_id: string };
+      const uploadId = getUploadId(presignRes.body);
 
       const confirmRes = await req.post(`/api/practice-client-intakes/${intakeId}/files/${uploadId}/confirm`);
 
@@ -277,7 +284,7 @@ describe('Intake File Uploads API', () => {
         .send({ file_name: 'cross-intake.pdf', mime_type: 'application/pdf', file_size: 512 });
 
       expect(presignRes.status).toBe(201);
-      const { upload_id: uploadId } = presignRes.body as { upload_id: string };
+      const uploadId = getUploadId(presignRes.body);
 
       const confirmRes = await req.post(`/api/practice-client-intakes/${otherIntake.id}/files/${uploadId}/confirm`);
 
@@ -293,7 +300,7 @@ describe('Intake File Uploads API', () => {
         .send({ file_name: 'to-delete.pdf', mime_type: 'application/pdf', file_size: 256 });
 
       expect(presignRes.status).toBe(201);
-      const { upload_id: uploadId } = presignRes.body as { upload_id: string };
+      const uploadId = getUploadId(presignRes.body);
 
       const confirmRes = await req.post(`/api/practice-client-intakes/${intakeId}/files/${uploadId}/confirm`);
       expect(confirmRes.status).toBe(200);
@@ -328,7 +335,7 @@ describe('Intake File Uploads API', () => {
         .send({ file_name: 'cross-delete.pdf', mime_type: 'application/pdf', file_size: 128 });
 
       expect(presignRes.status).toBe(201);
-      const { upload_id: uploadId } = presignRes.body as { upload_id: string };
+      const uploadId = getUploadId(presignRes.body);
 
       const deleteRes = await req
         .delete(`/api/practice-client-intakes/${otherIntake.id}/files/${uploadId}`)

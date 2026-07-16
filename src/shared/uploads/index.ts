@@ -5,4 +5,4 @@ export { auditLogsRepository } from '@/shared/uploads/queries/audit-logs.reposit
 export { uploadCoreService } from '@/shared/uploads/services/upload-core.service';
 export { uploadsHttp } from '@/shared/uploads/http';
 export { uploadValidations } from '@/shared/uploads/types/uploads.validation';
-export * from '@/shared/uploads/types/uploads.types';
+export type * from '@/shared/uploads/types/uploads.types';

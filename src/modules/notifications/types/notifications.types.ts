@@ -1,32 +1,48 @@
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_STATUSES,
+  type NotificationChannel,
 } from '@/modules/notifications/database/schema/notifications.schema';
 import { z } from '@hono/zod-openapi';
 
 export const notificationChannelSchema = z.enum(NOTIFICATION_CHANNELS);
 export const notificationStatusSchema = z.enum(NOTIFICATION_STATUSES);
 
+export const notificationDeliveryInputSchema = z.discriminatedUnion('channel', [
+  z.object({ channel: z.literal('dashboard') }),
+  z.object({
+    channel: z.literal('email'),
+    templateName: z
+      .string({ error: 'Email notifications require a template name' })
+      .trim()
+      .min(1, 'Email notifications require a template name')
+      .max(100),
+  }),
+]);
+
 export const createNotificationSchema = z
   .object({
     organizationId: z.uuid(),
     recipientUserId: z.uuid(),
     actorUserId: z.uuid().optional(),
-    channel: notificationChannelSchema,
     eventType: z.string().trim().min(1).max(100),
-    templateName: z.string().trim().min(1).max(100).optional(),
     title: z.string().trim().min(1).max(200),
     body: z.string().trim().min(1).max(2000).optional(),
     payload: z.record(z.string(), z.unknown()).default({}),
     deduplicationKey: z.string().trim().min(1).max(200).optional(),
+    deliveries: z.array(notificationDeliveryInputSchema).min(1),
   })
   .superRefine((value, ctx) => {
-    if (value.channel === 'email' && !value.templateName) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['templateName'],
-        message: 'Email notifications require a template name',
-      });
+    const channels = new Set<NotificationChannel>();
+    for (const [index, delivery] of value.deliveries.entries()) {
+      if (channels.has(delivery.channel)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['deliveries', index, 'channel'],
+          message: `Duplicate ${delivery.channel} delivery`,
+        });
+      }
+      channels.add(delivery.channel);
     }
   });
 
@@ -45,9 +61,9 @@ export const notificationResponseSchema = z.object({
   title: z.string(),
   body: z.string().nullable(),
   payload: z.record(z.string(), z.unknown()),
-  read_at: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  read_at: z.iso.datetime().nullable(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 });
 
 export const notificationListResponseSchema = z.object({
@@ -66,6 +82,7 @@ export const deliveryOutcomeSchema = z.discriminatedUnion('status', [
 ]);
 
 export type CreateNotificationInput = z.infer<typeof createNotificationSchema>;
+export type NotificationDeliveryInput = z.infer<typeof notificationDeliveryInputSchema>;
 export type ListNotificationsQuery = z.infer<typeof listNotificationsQuerySchema>;
 export type NotificationResponse = z.infer<typeof notificationResponseSchema>;
 export type DeliveryOutcome = z.infer<typeof deliveryOutcomeSchema>;

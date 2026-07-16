@@ -131,7 +131,7 @@ export const emailAction = (label: string, url: string): string => {
   if (safeUrl === '#') {
     throw new Error('Email action requires a safe absolute URL');
   }
-  return `<mj-button href="${safeUrl}">${escapeHtml(label)}</mj-button>`;
+  return `<mj-button href="${escapeHtml(safeUrl)}">${escapeHtml(label)}</mj-button>`;
 };
 
 export const emailCallout = (content: string, tone: 'info' | 'success' | 'warning' = 'info'): string => {

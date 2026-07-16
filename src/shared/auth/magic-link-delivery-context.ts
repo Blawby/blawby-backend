@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 interface IntakeAcceptedMagicLinkContext {
   kind: 'intake_accepted';
+  intakeId: string;
   practiceName: string;
   recipientName: string;
 }

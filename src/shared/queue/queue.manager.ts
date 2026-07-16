@@ -11,9 +11,10 @@
 
 import { db } from '@/shared/database';
 import { e2eEmailCaptureService } from '@/shared/services/email/e2e-email-capture.service';
+import type { EmailJobPayload, EmailTemplateName, TemplateDataMap } from '@/shared/services/email/email.types';
 import { getLogger } from '@logtape/logtape';
-import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { closeWorkerUtils, getWorkerUtils } from './graphile-worker.client';
 import { TASK_NAMES, graphileWorkerConfig } from './queue.config';
 
@@ -75,20 +76,25 @@ const addOnboardingWebhookJob = async (webhookId: string, eventId: string, event
 
 /**
  * Add an email job to the queue
+ *
+ * Callers that can retry the same logical delivery (event listeners, service
+ * retries) should pass a deterministic `idempotencyKey` so re-enqueues reuse
+ * the same job and provider send. Without one, each call is a distinct send.
  */
-const addEmailJob = async (
-  template: string,
+const addEmailJob = async <T extends EmailTemplateName>(
+  template: T,
   to: string,
   subject: string,
-  data: Record<string, unknown>
+  data: TemplateDataMap[T],
+  options: { idempotencyKey?: string } = {}
 ): Promise<void> => {
   const workerUtils = await getWorkerUtils();
-  const payload = {
+  const payload: EmailJobPayload<T> = {
     template,
     to,
     subject,
     data,
-    idempotencyKey: randomUUID(),
+    idempotencyKey: options.idempotencyKey ?? randomUUID(),
   };
 
   try {
@@ -288,18 +294,20 @@ const getQueueStats = async (
     `)
   );
 
-  const row = stats.rows[0] as {
-    waiting: string | number;
-    active: string | number;
-    completed: string | number;
-    failed: string | number;
+  const row: Record<string, unknown> = stats.rows[0] ?? {};
+  const toCount = (value: unknown): number => {
+    if (typeof value === 'number') {
+      return value;
+    }
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
   };
 
   return {
-    waiting: typeof row.waiting === 'number' ? row.waiting : Number.parseInt(String(row.waiting), 10),
-    active: typeof row.active === 'number' ? row.active : Number.parseInt(String(row.active), 10),
-    completed: typeof row.completed === 'number' ? row.completed : Number.parseInt(String(row.completed), 10),
-    failed: typeof row.failed === 'number' ? row.failed : Number.parseInt(String(row.failed), 10),
+    waiting: toCount(row.waiting),
+    active: toCount(row.active),
+    completed: toCount(row.completed),
+    failed: toCount(row.failed),
   };
 };
 

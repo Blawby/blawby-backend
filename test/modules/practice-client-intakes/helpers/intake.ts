@@ -24,6 +24,16 @@ const { signInMagicLinkMock, intakePaymentCreatedDispatchMock } = vi.hoisted(() 
   intakePaymentCreatedDispatchMock: vi.fn(),
 }));
 
+export const createTestUser = (id: string, email: string, name = 'Test User'): User => ({
+  id,
+  email,
+  name,
+  emailVerified: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  image: null,
+});
+
 const createStripeResponse = <T extends object>(data: T): Stripe.Response<T> => ({
   ...data,
   lastResponse: {
@@ -82,7 +92,7 @@ const createPaymentLinkFixture = (overrides?: Partial<Stripe.PaymentLink>): Stri
       url: '/v1/payment_links/plink_test_default/line_items',
     },
     ...overrides,
-  }) as Stripe.PaymentLink;
+  });
 
 // Mock events to prevent side effects
 vi.mock('@/shared/events/definitions', () => ({
@@ -185,7 +195,7 @@ export const createServiceContext = (
   const ability = defineAbilityFor(role ?? 'member');
   return {
     userId,
-    user: { id: userId, email: userEmail, name: 'Test User' } as User,
+    user: createTestUser(userId, userEmail),
     organizationId,
     userEmail,
     activeOrganizationId: organizationId,
@@ -227,7 +237,7 @@ export const mockConnectedAccount = (overrides?: Partial<StripeConnectedAccount>
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,
-  }) as StripeConnectedAccount;
+  });
 
 export const mockStripe = (): void => {
   const m = vi.mocked(stripe, true);

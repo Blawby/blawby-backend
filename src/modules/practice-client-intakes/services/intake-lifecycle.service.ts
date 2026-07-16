@@ -244,16 +244,12 @@ const toMatterResponse = (
   matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>
 ): MatterResponse => ({
   ...matter,
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  status: matter.status as MatterResponse['status'],
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  payment_frequency: (matter.payment_frequency as 'project' | 'milestone' | null) ?? null,
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  urgency: (matter.urgency as MatterResponse['urgency']) ?? null,
+  payment_frequency: matter.payment_frequency ?? null,
+  urgency: matter.urgency ?? null,
   deleted_at: matter.deleted_at ?? null,
   open_date: matter.open_date ?? null,
   close_date: matter.close_date ?? null,
-  last_conflict_check_result: (matter.last_conflict_check_result as Record<string, unknown> | null) ?? null,
+  last_conflict_check_result: matter.last_conflict_check_result ?? null,
 });
 
 const convertIntake = async (
@@ -372,6 +368,7 @@ const triggerInvitation = async (
       await withMagicLinkDeliveryContext(
         {
           kind: 'intake_accepted',
+          intakeId: params.uuid,
           practiceName: params.acceptedEmail.practiceName,
           recipientName: params.acceptedEmail.recipientName,
         },

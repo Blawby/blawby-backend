@@ -26,6 +26,15 @@ describe('intake triage email templates', () => {
         magicLinkUrl: ['javascript', 'alert(1)'].join(':'),
       })
     ).rejects.toThrow('A valid magic link URL is required');
+
+    await expect(
+      intakeAccepted({
+        recipientEmail: 'jane@example.com',
+        recipientName: 'Jane Client',
+        practiceName: 'Smith Legal',
+        magicLinkUrl: '',
+      })
+    ).rejects.toThrow('A valid magic link URL is required');
   });
 
   it('renders a decline reason only when staff supplied one', async () => {

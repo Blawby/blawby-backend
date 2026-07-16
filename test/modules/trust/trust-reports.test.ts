@@ -71,7 +71,7 @@ describe('Trust reports endpoints', () => {
     const ctx = await createTestContext('owner');
     org = ctx.org;
     sessionToken = ctx.sessionToken;
-    session = ctx.session as { user: { id: string } } | null;
+    session = ctx.session;
     const userId = session!.user.id;
 
     const clientA = await insertClient(org.id, 'Client A');

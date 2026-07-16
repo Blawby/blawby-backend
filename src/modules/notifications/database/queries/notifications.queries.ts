@@ -1,11 +1,14 @@
 import {
+  notificationDeliveries,
   notifications,
   type InsertNotification,
+  type InsertNotificationDelivery,
   type SelectNotification,
+  type SelectNotificationDelivery,
 } from '@/modules/notifications/database/schema/notifications.schema';
 import type { DeliveryOutcome, ListNotificationsQuery } from '@/modules/notifications/types/notifications.types';
 import { getActiveTx } from '@/shared/database/uow';
-import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, exists, inArray, isNull, sql } from 'drizzle-orm';
 
 interface NotificationScope {
   organizationId: string;
@@ -13,7 +16,7 @@ interface NotificationScope {
 }
 
 const findByDedupeKey = async (
-  data: Pick<InsertNotification, 'organization_id' | 'recipient_user_id' | 'channel' | 'deduplication_key'>
+  data: Pick<InsertNotification, 'organization_id' | 'recipient_user_id' | 'deduplication_key'>
 ): Promise<SelectNotification | undefined> => {
   if (!data.deduplication_key) {
     return undefined;
@@ -26,7 +29,6 @@ const findByDedupeKey = async (
       and(
         eq(notifications.organization_id, data.organization_id),
         eq(notifications.recipient_user_id, data.recipient_user_id),
-        eq(notifications.channel, data.channel),
         eq(notifications.deduplication_key, data.deduplication_key)
       )
     )
@@ -34,7 +36,9 @@ const findByDedupeKey = async (
   return row;
 };
 
-const create = async (data: InsertNotification): Promise<{ record: SelectNotification; created: boolean }> => {
+const createNotification = async (
+  data: InsertNotification
+): Promise<{ record: SelectNotification; created: boolean }> => {
   const [record] = await getActiveTx().insert(notifications).values(data).onConflictDoNothing().returning();
   if (record) {
     return { record, created: true };
@@ -47,6 +51,26 @@ const create = async (data: InsertNotification): Promise<{ record: SelectNotific
   return { record: existing, created: false };
 };
 
+const createDeliveries = async (rows: InsertNotificationDelivery[]): Promise<SelectNotificationDelivery[]> => {
+  if (rows.length === 0) {
+    return [];
+  }
+  return getActiveTx().insert(notificationDeliveries).values(rows).returning();
+};
+
+const hasDashboardDelivery = () =>
+  exists(
+    getActiveTx()
+      .select({ one: sql`1` })
+      .from(notificationDeliveries)
+      .where(
+        and(
+          eq(notificationDeliveries.notification_id, notifications.id),
+          eq(notificationDeliveries.channel, 'dashboard')
+        )
+      )
+  );
+
 const listForRecipient = async (
   scope: NotificationScope,
   query: ListNotificationsQuery
@@ -54,7 +78,7 @@ const listForRecipient = async (
   const conditions = [
     eq(notifications.organization_id, scope.organizationId),
     eq(notifications.recipient_user_id, scope.recipientUserId),
-    eq(notifications.channel, 'dashboard'),
+    hasDashboardDelivery(),
   ];
   if (query.unread_only) {
     conditions.push(isNull(notifications.read_at));
@@ -88,7 +112,7 @@ const findDashboardForRecipient = async (
         eq(notifications.id, id),
         eq(notifications.organization_id, scope.organizationId),
         eq(notifications.recipient_user_id, scope.recipientUserId),
-        eq(notifications.channel, 'dashboard')
+        hasDashboardDelivery()
       )
     )
     .limit(1);
@@ -105,7 +129,8 @@ const markRead = async (id: string, scope: NotificationScope): Promise<SelectNot
         eq(notifications.id, id),
         eq(notifications.organization_id, scope.organizationId),
         eq(notifications.recipient_user_id, scope.recipientUserId),
-        eq(notifications.channel, 'dashboard')
+        hasDashboardDelivery(),
+        isNull(notifications.read_at)
       )
     )
     .returning();
@@ -113,47 +138,54 @@ const markRead = async (id: string, scope: NotificationScope): Promise<SelectNot
 };
 
 const recordDeliveryOutcome = async (
-  id: string,
+  deliveryId: string,
   organizationId: string,
   outcome: DeliveryOutcome
-): Promise<SelectNotification | undefined> => {
+): Promise<SelectNotificationDelivery | undefined> => {
   const now = new Date();
   const [row] = await getActiveTx()
-    .update(notifications)
+    .update(notificationDeliveries)
     .set({
       status: outcome.status,
       provider_message_id: outcome.status === 'sent' ? (outcome.providerMessageId ?? null) : null,
       failure_code: outcome.status === 'sent' ? null : (outcome.failureCode ?? null),
-      attempt_count: sql`${notifications.attempt_count} + 1`,
+      attempt_count: sql`${notificationDeliveries.attempt_count} + 1`,
       last_attempt_at: now,
       delivered_at: outcome.status === 'sent' ? now : null,
       updated_at: now,
     })
+    .from(notifications)
     .where(
       and(
-        eq(notifications.id, id),
+        eq(notificationDeliveries.id, deliveryId),
+        eq(notificationDeliveries.notification_id, notifications.id),
         eq(notifications.organization_id, organizationId),
-        inArray(notifications.status, ['pending', 'failed'])
+        inArray(notificationDeliveries.status, ['pending', 'failed'])
       )
     )
     .returning();
   return row;
 };
 
-const findByIdAndOrg = async (id: string, organizationId: string): Promise<SelectNotification | undefined> => {
+const findDeliveryByIdAndOrg = async (
+  deliveryId: string,
+  organizationId: string
+): Promise<SelectNotificationDelivery | undefined> => {
   const [row] = await getActiveTx()
-    .select()
-    .from(notifications)
-    .where(and(eq(notifications.id, id), eq(notifications.organization_id, organizationId)))
+    .select({ delivery: notificationDeliveries })
+    .from(notificationDeliveries)
+    .innerJoin(notifications, eq(notificationDeliveries.notification_id, notifications.id))
+    .where(and(eq(notificationDeliveries.id, deliveryId), eq(notifications.organization_id, organizationId)))
     .limit(1);
-  return row;
+  return row?.delivery;
 };
 
 export const notificationsQueries = {
-  create,
+  createNotification,
+  createDeliveries,
   listForRecipient,
   findDashboardForRecipient,
   markRead,
   recordDeliveryOutcome,
-  findByIdAndOrg,
+  findDeliveryByIdAndOrg,
 };

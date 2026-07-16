@@ -1,5 +1,6 @@
 import { and, count, desc, eq, isNotNull, isNull, lte } from 'drizzle-orm';
 import { uploads, type InsertUpload, type SelectUpload } from '@/shared/uploads/schema/uploads.schema';
+import type { UploadScopeType, UploadStatus } from '@/shared/uploads/types/uploads.validation';
 import { getActiveTx } from '@/shared/database/uow';
 
 export const uploadsRepository = {
@@ -21,9 +22,9 @@ export const uploadsRepository = {
   listByOrganization: async (
     organizationId: string,
     options: {
-      scopeType?: string;
+      scopeType?: UploadScopeType;
       scopeId?: string;
-      status?: string;
+      status?: UploadStatus;
       includeDeleted?: boolean;
       userId?: string;
       limit?: number;
@@ -67,9 +68,9 @@ export const uploadsRepository = {
   countByOrganization: async (
     organizationId: string,
     options: {
-      scopeType?: string;
+      scopeType?: UploadScopeType;
       scopeId?: string;
-      status?: string;
+      status?: UploadStatus;
       includeDeleted?: boolean;
       userId?: string;
     } = {}

@@ -1,4 +1,5 @@
 import { clients } from '@/modules/clients/database/schema/clients.schema';
+import type { MatterStatus } from '@/modules/matters/validations/matters.validation';
 import { practiceServices } from '@/modules/practice/database/schema/practice.schema';
 import { organizations, users } from '@/schema/better-auth-schema';
 import { sql } from 'drizzle-orm';
@@ -39,13 +40,13 @@ export const matters = pgTable(
     attorney_hourly_rate: integer('attorney_hourly_rate'), // In cents, nullable
 
     // Payment settings
-    payment_frequency: varchar('payment_frequency', { length: 20 }), // 'project', 'milestone', nullable
+    payment_frequency: varchar('payment_frequency', { length: 20 }).$type<'project' | 'milestone'>(),
 
     retainer_balance: integer('retainer_balance').notNull().default(0), // In cents
 
     // Status
-    status: varchar('status', { length: 40 }).notNull().default('first_contact'),
-    urgency: varchar('urgency', { length: 20 }), // 'routine', 'time_sensitive', 'emergency'
+    status: varchar('status', { length: 40 }).$type<MatterStatus>().notNull().default('first_contact'),
+    urgency: varchar('urgency', { length: 20 }).$type<'routine' | 'time_sensitive' | 'emergency'>(),
 
     // Attorney assignments
     responsible_attorney_id: uuid('responsible_attorney_id').references(() => users.id, {
@@ -82,7 +83,7 @@ export const matters = pgTable(
 
     // Conflict check
     last_conflict_check_at: timestamp('last_conflict_check_at', { withTimezone: true, mode: 'date' }),
-    last_conflict_check_result: jsonb('last_conflict_check_result'),
+    last_conflict_check_result: jsonb('last_conflict_check_result').$type<Record<string, unknown>>(),
 
     // Timestamps
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),

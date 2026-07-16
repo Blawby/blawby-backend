@@ -1,6 +1,7 @@
 import { and, eq, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
+import type { MatterStatus } from '@/modules/matters/validations/matters.validation';
 import {
   practiceMemberProfiles,
   type InsertPracticeMemberProfile,
@@ -16,7 +17,7 @@ export type UpsertMemberProfileData = Partial<
  * Matter statuses that do NOT count toward an attorney's active caseload. A
  * matter is "active work" until it is closed, declined, or referred away.
  */
-const INACTIVE_MATTER_STATUSES = ['closed', 'declined', 'referred'];
+const INACTIVE_MATTER_STATUSES: MatterStatus[] = ['closed', 'declined', 'referred'];
 
 const findByMemberId = async (memberId: string): Promise<SelectPracticeMemberProfile | undefined> => {
   const [row] = await db

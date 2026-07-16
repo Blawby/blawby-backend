@@ -3,6 +3,7 @@ import { pgTable, uuid, varchar, text, timestamp, jsonb, index } from 'drizzle-o
 
 import { organizations, users } from '@/schema/better-auth-schema';
 import { uploads } from '@/shared/uploads/schema/uploads.schema';
+import type { UploadAuditAction } from '@/shared/uploads/types/uploads.validation';
 
 export const uploadAuditLogs = pgTable(
   'upload_audit_logs',
@@ -14,7 +15,7 @@ export const uploadAuditLogs = pgTable(
     organization_id: uuid('organization_id').references(() => organizations.id, {
       onDelete: 'cascade',
     }),
-    action: varchar('action', { length: 50 }).notNull(),
+    action: varchar('action', { length: 50 }).$type<UploadAuditAction>().notNull(),
     user_id: uuid('user_id').references(() => users.id),
     ip_address: varchar('ip_address', { length: 45 }),
     user_agent: text('user_agent'),

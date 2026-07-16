@@ -1,13 +1,20 @@
 import { notificationsQueries } from '@/modules/notifications/database/queries/notifications.queries';
-import type { SelectNotification } from '@/modules/notifications/database/schema/notifications.schema';
+import type {
+  InsertNotificationDelivery,
+  SelectNotification,
+  SelectNotificationDelivery,
+} from '@/modules/notifications/database/schema/notifications.schema';
 import {
   createNotificationSchema,
   deliveryOutcomeSchema,
   type CreateNotificationInput,
   type DeliveryOutcome,
   type ListNotificationsQuery,
+  type NotificationDeliveryInput,
   type NotificationResponse,
 } from '@/modules/notifications/types/notifications.types';
+import { uow } from '@/shared/database/uow';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { HTTPException } from 'hono/http-exception';
@@ -26,33 +33,64 @@ const toResponse = (row: SelectNotification): NotificationResponse => ({
   updated_at: row.updated_at.toISOString(),
 });
 
+const toDeliveryInsert = (
+  notificationId: string,
+  delivery: NotificationDeliveryInput,
+  createdAt: Date
+): InsertNotificationDelivery => {
+  if (delivery.channel === 'dashboard') {
+    return {
+      notification_id: notificationId,
+      channel: delivery.channel,
+      status: 'sent',
+      delivered_at: createdAt,
+    };
+  }
+
+  return {
+    notification_id: notificationId,
+    channel: delivery.channel,
+    status: 'pending',
+    template_name: delivery.templateName,
+  };
+};
+
 const createNotification = async (
   input: CreateNotificationInput
-): Promise<{ notification: SelectNotification; created: boolean }> => {
+): Promise<{
+  notification: SelectNotification;
+  createdDeliveries: SelectNotificationDelivery[];
+  created: boolean;
+}> => {
   const parsed = createNotificationSchema.parse(input);
   const createdAt = new Date();
-  const result = await notificationsQueries.create({
-    organization_id: parsed.organizationId,
-    recipient_user_id: parsed.recipientUserId,
-    actor_user_id: parsed.actorUserId,
-    channel: parsed.channel,
-    status: parsed.channel === 'dashboard' ? 'sent' : 'pending',
-    event_type: parsed.eventType,
-    template_name: parsed.templateName,
-    title: parsed.title,
-    body: parsed.body,
-    payload: parsed.payload,
-    deduplication_key: parsed.deduplicationKey,
-    delivered_at: parsed.channel === 'dashboard' ? createdAt : undefined,
-  });
+  return uow.transaction(async () => {
+    const { record, created } = await notificationsQueries.createNotification({
+      organization_id: parsed.organizationId,
+      recipient_user_id: parsed.recipientUserId,
+      actor_user_id: parsed.actorUserId,
+      event_type: parsed.eventType,
+      title: parsed.title,
+      body: parsed.body,
+      payload: parsed.payload,
+      deduplication_key: parsed.deduplicationKey,
+    });
 
-  return { notification: result.record, created: result.created };
+    // A deduplicated notification already owns its original delivery set.
+    const createdDeliveries = created
+      ? await notificationsQueries.createDeliveries(
+          parsed.deliveries.map((delivery) => toDeliveryInsert(record.id, delivery, createdAt))
+        )
+      : [];
+
+    return { notification: record, createdDeliveries, created };
+  });
 };
 
 const listMyNotifications = async (
   query: ListNotificationsQuery,
   ctx: ServiceContext
-): Promise<{ data: NotificationResponse[]; pagination: { total: number; page: number; limit: number } }> => {
+): Promise<OffsetPaginatedResponse<NotificationResponse>> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Notification');
   const result = await notificationsQueries.listForRecipient(
     { organizationId: ctx.organizationId, recipientUserId: ctx.userId },
@@ -67,35 +105,32 @@ const listMyNotifications = async (
 const markRead = async (id: string, ctx: ServiceContext): Promise<NotificationResponse> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Notification');
   const scope = { organizationId: ctx.organizationId, recipientUserId: ctx.userId };
+  const updated = await notificationsQueries.markRead(id, scope);
+  if (updated) {
+    return toResponse(updated);
+  }
+
   const existing = await notificationsQueries.findDashboardForRecipient(id, scope);
   if (!existing) {
     throw new HTTPException(404, { message: 'Notification not found' });
   }
-  if (existing.read_at) {
-    return toResponse(existing);
-  }
-
-  const updated = await notificationsQueries.markRead(id, scope);
-  if (!updated) {
-    throw new HTTPException(404, { message: 'Notification not found' });
-  }
-  return toResponse(updated);
+  return toResponse(existing);
 };
 
 const recordDeliveryOutcome = async (
-  id: string,
+  deliveryId: string,
   organizationId: string,
   outcome: DeliveryOutcome
-): Promise<SelectNotification> => {
+): Promise<SelectNotificationDelivery> => {
   const parsed = deliveryOutcomeSchema.parse(outcome);
-  const updated = await notificationsQueries.recordDeliveryOutcome(id, organizationId, parsed);
+  const updated = await notificationsQueries.recordDeliveryOutcome(deliveryId, organizationId, parsed);
   if (updated) {
     return updated;
   }
 
-  const existing = await notificationsQueries.findByIdAndOrg(id, organizationId);
+  const existing = await notificationsQueries.findDeliveryByIdAndOrg(deliveryId, organizationId);
   if (!existing) {
-    throw new HTTPException(404, { message: 'Notification not found' });
+    throw new HTTPException(404, { message: 'Notification delivery not found' });
   }
   if (existing.status === parsed.status) {
     return existing;
@@ -108,5 +143,4 @@ export const notificationsService = {
   listMyNotifications,
   markRead,
   recordDeliveryOutcome,
-  toResponse,
 };

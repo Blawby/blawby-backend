@@ -23,6 +23,7 @@ describe('magicLinkDeliveryService', () => {
     await withMagicLinkDeliveryContext(
       {
         kind: 'intake_accepted',
+        intakeId: 'intake-uuid-1',
         practiceName: 'Smith Legal',
         recipientName: 'Jane Client',
       },
@@ -43,7 +44,8 @@ describe('magicLinkDeliveryService', () => {
         recipientName: 'Jane Client',
         practiceName: 'Smith Legal',
         magicLinkUrl: 'https://api.blawby.com/api/auth/magic-link/verify?token=secure',
-      }
+      },
+      { idempotencyKey: 'intake-accepted:intake-uuid-1' }
     );
   });
 

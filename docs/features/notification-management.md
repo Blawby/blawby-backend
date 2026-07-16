@@ -1,20 +1,22 @@
 # Notification management
 
-Blawby has two durable records with different responsibilities:
+Blawby separates the product notification from its delivery evidence:
 
-- `notifications` records a product event, its intended user and organization, its channel, and its delivery lifecycle.
+- `notifications` records a product event, its intended user and organization, safe display content, and dashboard read state.
+- `notification_deliveries` records how that notification is delivered through each channel and tracks the channel lifecycle.
 - `email_logs` records an individual rendered email/provider attempt. It is delivery evidence, not the user's notification inbox.
 
 ## Invariants
 
 - Every notification belongs to one organization and one recipient user.
 - Public API reads and read-state updates are scoped by both the active organization and authenticated user.
-- Dashboard notifications are available immediately (`sent`); email notifications begin `pending`.
-- Delivery status (`pending`, `sent`, `failed`, `skipped`) is independent from dashboard `read_at` state.
-- A non-null deduplication key is unique per organization, recipient, and channel.
+- Each notification has at most one delivery per channel.
+- Dashboard deliveries are available immediately (`sent`); email deliveries begin `pending`.
+- Delivery status (`pending`, `sent`, `failed`, `skipped`) is independent from notification `read_at` state.
+- A non-null notification deduplication key is unique per organization and recipient, regardless of channel.
 - Failed email notifications may transition to `sent` after a retry. `sent` and `skipped` are terminal.
 - The product record stores user IDs, not recipient email addresses. Titles, bodies, and payloads must not contain legal facts or other sensitive case content; payloads should carry opaque resource IDs and safe routes.
-- Email records require a registered template name. Provider message IDs and stable failure codes belong on the product record; raw provider errors remain in provider-attempt logging.
+- Email deliveries require a registered template name. Provider message IDs and stable failure codes belong on the delivery record; raw provider errors remain in provider-attempt logging.
 
 ## API
 

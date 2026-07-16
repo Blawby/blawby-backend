@@ -3,9 +3,11 @@
  * Extracted from inline definitions for better reusability.
  */
 
+import type { MatterStatus } from '@/modules/matters/validations/matters.validation';
+
 /** Filters for listMattersByOrganization */
 export interface MatterListFilters {
-  status?: string;
+  status?: MatterStatus;
   practiceServiceId?: string;
   clientId?: string;
   matterId?: string;

@@ -40,7 +40,7 @@ export const intakeAccepted = async (data: IntakeAcceptedData): Promise<string> 
           Your next step is to create or access your secure account and speak with your legal team.
         </mj-text>
 
-        <mj-button href="${magicLinkUrl}">
+        <mj-button href="${escapeHtml(magicLinkUrl)}">
           Create Account &amp; Speak With Your Lawyer
         </mj-button>
 

@@ -1,5 +1,5 @@
 {
-  "id": "dd726a5c-7674-48f9-b82f-3890907d405d",
+  "id": "177538eb-b1f3-4ac0-a1cf-8946c1c5b721",
   "prevId": "c4191fcf-51b3-4d12-a2c5-23c4aeab494f",
   "version": "7",
   "dialect": "postgresql",
@@ -6338,8 +6338,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.notifications": {
-      "name": "notifications",
+    "public.notification_deliveries": {
+      "name": "notification_deliveries",
       "schema": "",
       "columns": {
         "id": {
@@ -6349,23 +6349,11 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "organization_id": {
-          "name": "organization_id",
+        "notification_id": {
+          "name": "notification_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "recipient_user_id": {
-          "name": "recipient_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         },
         "channel": {
           "name": "channel",
@@ -6379,40 +6367,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "event_type": {
-          "name": "event_type",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
         "template_name": {
           "name": "template_name",
           "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "deduplication_key": {
-          "name": "deduplication_key",
-          "type": "varchar(200)",
           "primaryKey": false,
           "notNull": false
         },
@@ -6444,6 +6401,159 @@
         "delivered_at": {
           "name": "delivered_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "notification_deliveries_notification_channel_unique_idx": {
+          "name": "notification_deliveries_notification_channel_unique_idx",
+          "columns": [
+            {
+              "expression": "notification_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notification_deliveries_status_idx": {
+          "name": "notification_deliveries_status_idx",
+          "columns": [
+            {
+              "expression": "channel",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notification_deliveries_notification_id_notifications_id_fk": {
+          "name": "notification_deliveries_notification_id_notifications_id_fk",
+          "tableFrom": "notification_deliveries",
+          "tableTo": "notifications",
+          "columnsFrom": [
+            "notification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "notification_deliveries_channel_check": {
+          "name": "notification_deliveries_channel_check",
+          "value": "\"notification_deliveries\".\"channel\" IN ('dashboard', 'email')"
+        },
+        "notification_deliveries_status_check": {
+          "name": "notification_deliveries_status_check",
+          "value": "\"notification_deliveries\".\"status\" IN ('pending', 'sent', 'failed', 'skipped')"
+        },
+        "notification_deliveries_email_template_check": {
+          "name": "notification_deliveries_email_template_check",
+          "value": "\"notification_deliveries\".\"channel\" <> 'email' OR \"notification_deliveries\".\"template_name\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.notifications": {
+      "name": "notifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipient_user_id": {
+          "name": "recipient_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "deduplication_key": {
+          "name": "deduplication_key",
+          "type": "varchar(200)",
           "primaryKey": false,
           "notNull": false
         },
@@ -6519,34 +6629,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\"notifications\".\"channel\" = 'dashboard' AND \"notifications\".\"read_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "notifications_delivery_status_idx": {
-          "name": "notifications_delivery_status_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "channel",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
+          "where": "\"notifications\".\"read_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -6562,12 +6645,6 @@
             },
             {
               "expression": "recipient_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "channel",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -6630,20 +6707,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "notifications_channel_check": {
-          "name": "notifications_channel_check",
-          "value": "\"notifications\".\"channel\" IN ('dashboard', 'email')"
-        },
-        "notifications_status_check": {
-          "name": "notifications_status_check",
-          "value": "\"notifications\".\"status\" IN ('pending', 'sent', 'failed', 'skipped')"
-        },
-        "notifications_email_template_check": {
-          "name": "notifications_email_template_check",
-          "value": "\"notifications\".\"channel\" <> 'email' OR \"notifications\".\"template_name\" IS NOT NULL"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.stripe_connected_accounts": {

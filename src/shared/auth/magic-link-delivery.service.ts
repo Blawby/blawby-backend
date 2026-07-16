@@ -14,7 +14,9 @@ const deliverMagicLink = async ({ email, url }: { email: string; url: string }):
         recipientName: context.recipientName,
         practiceName: context.practiceName,
         magicLinkUrl: url,
-      }
+      },
+      // One acceptance per intake: retried deliveries reuse the same job and provider send.
+      { idempotencyKey: `intake-accepted:${context.intakeId}` }
     );
     return;
   }

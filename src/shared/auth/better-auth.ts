@@ -37,9 +37,14 @@ import { getMatchingFrontendUrl, isDevelopment, isProductionLike } from '@/share
 import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['shared', 'auth', 'better-auth']);
-const authSessionAdditionalFields =
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  (AUTH_CONFIG.session as { additionalFields?: Record<string, unknown> }).additionalFields ?? {};
+
+const getActiveOrganizationId = (session: unknown): string | undefined => {
+  if (typeof session !== 'object' || session === null || !('activeOrganizationId' in session)) {
+    return undefined;
+  }
+  const { activeOrganizationId } = session;
+  return typeof activeOrganizationId === 'string' ? activeOrganizationId : undefined;
+};
 
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
   betterAuth({
@@ -134,17 +139,11 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
         validAudiences: [`${config.app.baseUrl}/mcp`],
-        clientReference: ({ session }) => {
-          const orgId = (session as Record<string, unknown> | undefined)?.activeOrganizationId;
-          return typeof orgId === 'string' ? orgId : undefined;
-        },
+        clientReference: ({ session }) => getActiveOrganizationId(session),
         postLogin: {
           page: `${getMatchingFrontendUrl()}/oauth/select-org`,
           shouldRedirect: () => false,
-          consentReferenceId: ({ session }) => {
-            const orgId = (session as Record<string, unknown> | undefined)?.activeOrganizationId;
-            return typeof orgId === 'string' ? orgId : undefined;
-          },
+          consentReferenceId: ({ session }) => getActiveOrganizationId(session),
         },
         clientPrivileges: checkClientIsOwner,
         customAccessTokenClaims: ({ referenceId }) => ({
@@ -264,7 +263,6 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       ...AUTH_CONFIG.session,
       storeSessionInDatabase: true,
       additionalFields: {
-        ...authSessionAdditionalFields,
         previousAnonUserId: {
           type: 'string',
           required: false,

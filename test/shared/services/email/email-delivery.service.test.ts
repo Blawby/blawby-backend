@@ -1,15 +1,24 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { sendEmail as SendEmail } from '@/shared/services/email/email.service';
+import type { EmailJobPayload } from '@/shared/services/email/email.types';
 
-const mocks = vi.hoisted(() => ({
-  appConfigGet: vi.fn(),
-  configEmail: {
-    deliveryMode: 'log_only' as 'log_only' | 'provider',
-    resendApiKey: 're_valid_test_key' as string | undefined,
-  },
-  insertValues: vi.fn(),
-  resendSend: vi.fn(),
-}));
+interface MockEmailConfig {
+  deliveryMode: 'log_only' | 'provider';
+  resendApiKey: string | undefined;
+}
+
+const mocks = vi.hoisted(() => {
+  const configEmail: MockEmailConfig = {
+    deliveryMode: 'log_only',
+    resendApiKey: 're_valid_test_key',
+  };
+  return {
+    appConfigGet: vi.fn(),
+    configEmail,
+    insertValues: vi.fn(),
+    resendSend: vi.fn(),
+  };
+});
 
 vi.mock('@/shared/config', () => ({
   config: { email: mocks.configEmail },
@@ -45,8 +54,8 @@ beforeAll(async () => {
   ({ sendEmail } = await import('@/shared/services/email/email.service'));
 });
 
-const payload = {
-  template: 'magic-link' as const,
+const payload: EmailJobPayload<'magic-link'> = {
+  template: 'magic-link',
   to: 'client@example.com',
   subject: 'Secure sign in',
   data: { url: 'https://app.blawby.com/sign-in', year: 2026 },

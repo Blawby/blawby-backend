@@ -30,19 +30,11 @@ export const notifications = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     actor_user_id: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
-    channel: varchar('channel', { length: 20 }).notNull().$type<NotificationChannel>(),
-    status: varchar('status', { length: 20 }).notNull().$type<NotificationStatus>(),
     event_type: varchar('event_type', { length: 100 }).notNull(),
-    template_name: varchar('template_name', { length: 100 }),
     title: varchar('title', { length: 200 }).notNull(),
     body: text('body'),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     deduplication_key: varchar('deduplication_key', { length: 200 }),
-    provider_message_id: varchar('provider_message_id', { length: 255 }),
-    failure_code: varchar('failure_code', { length: 100 }),
-    attempt_count: integer('attempt_count').notNull().default(0),
-    last_attempt_at: timestamp('last_attempt_at', { withTimezone: true, mode: 'date' }),
-    delivered_at: timestamp('delivered_at', { withTimezone: true, mode: 'date' }),
     read_at: timestamp('read_at', { withTimezone: true, mode: 'date' }),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -51,16 +43,44 @@ export const notifications = pgTable(
     index('notifications_recipient_created_idx').on(table.organization_id, table.recipient_user_id, table.created_at),
     index('notifications_recipient_unread_idx')
       .on(table.organization_id, table.recipient_user_id, table.created_at)
-      .where(sql`${table.channel} = 'dashboard' AND ${table.read_at} IS NULL`),
-    index('notifications_delivery_status_idx').on(table.organization_id, table.channel, table.status),
+      .where(sql`${table.read_at} IS NULL`),
     uniqueIndex('notifications_deduplication_unique_idx')
-      .on(table.organization_id, table.recipient_user_id, table.channel, table.deduplication_key)
+      .on(table.organization_id, table.recipient_user_id, table.deduplication_key)
       .where(sql`${table.deduplication_key} IS NOT NULL`),
-    check('notifications_channel_check', sql`${table.channel} IN ('dashboard', 'email')`),
-    check('notifications_status_check', sql`${table.status} IN ('pending', 'sent', 'failed', 'skipped')`),
-    check('notifications_email_template_check', sql`${table.channel} <> 'email' OR ${table.template_name} IS NOT NULL`),
+  ]
+);
+
+export const notificationDeliveries = pgTable(
+  'notification_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    notification_id: uuid('notification_id')
+      .notNull()
+      .references(() => notifications.id, { onDelete: 'cascade' }),
+    channel: varchar('channel', { length: 20 }).notNull().$type<NotificationChannel>(),
+    status: varchar('status', { length: 20 }).notNull().$type<NotificationStatus>(),
+    template_name: varchar('template_name', { length: 100 }),
+    provider_message_id: varchar('provider_message_id', { length: 255 }),
+    failure_code: varchar('failure_code', { length: 100 }),
+    attempt_count: integer('attempt_count').notNull().default(0),
+    last_attempt_at: timestamp('last_attempt_at', { withTimezone: true, mode: 'date' }),
+    delivered_at: timestamp('delivered_at', { withTimezone: true, mode: 'date' }),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('notification_deliveries_notification_channel_unique_idx').on(table.notification_id, table.channel),
+    index('notification_deliveries_status_idx').on(table.channel, table.status),
+    check('notification_deliveries_channel_check', sql`${table.channel} IN ('dashboard', 'email')`),
+    check('notification_deliveries_status_check', sql`${table.status} IN ('pending', 'sent', 'failed', 'skipped')`),
+    check(
+      'notification_deliveries_email_template_check',
+      sql`${table.channel} <> 'email' OR ${table.template_name} IS NOT NULL`
+    ),
   ]
 );
 
 export type InsertNotification = typeof notifications.$inferInsert;
 export type SelectNotification = typeof notifications.$inferSelect;
+export type InsertNotificationDelivery = typeof notificationDeliveries.$inferInsert;
+export type SelectNotificationDelivery = typeof notificationDeliveries.$inferSelect;
