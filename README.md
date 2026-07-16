@@ -53,6 +53,12 @@ BETTER_AUTH_URL="http://localhost:3000"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 
+# Engagement draft generation through Workers AI + AI Gateway
+CLOUDFLARE_ACCOUNT_ID="your-account-id"
+CLOUDFLARE_AI_API_TOKEN="configured-outside-source-control"
+CLOUDFLARE_AI_GATEWAY_ID="blawby-ai"  # Optional - defaults to blawby-ai
+CLOUDFLARE_AI_MODEL="@cf/zai-org/glm-4.7-flash"  # Optional
+
 # Graphile Worker (Background Jobs)
 GRAPHILE_WORKER_SCHEMA="graphile_worker"  # Optional - defaults to 'graphile_worker'
 WEBHOOK_WORKER_CONCURRENCY=5  # Optional - concurrent job processing

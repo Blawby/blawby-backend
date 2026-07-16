@@ -12,6 +12,7 @@ app.openapi(routes.listEngagementTemplatesRoute, handlers.listEngagementTemplate
 app.openapi(routes.createEngagementTemplateRoute, handlers.createEngagementTemplateHandler);
 app.openapi(routes.updateEngagementTemplateRoute, handlers.updateEngagementTemplateHandler);
 app.openapi(routes.deleteEngagementTemplateRoute, handlers.deleteEngagementTemplateHandler);
+app.openapi(routes.generateEngagementDraftRoute, handlers.generateEngagementDraftHandler);
 
 registerOpenApiRoutes(app, routes);
 
