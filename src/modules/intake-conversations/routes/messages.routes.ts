@@ -1,7 +1,9 @@
 import {
   intakeConversationMessageResponseSchema,
   listMessagesQuerySchema,
+  type ListMessagesQuery,
 } from '@/modules/intake-conversations/types/intake-conversations.types';
+import { intakeConversationMessagesService } from '@/modules/intake-conversations/services/intake-conversation-messages.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { z } from '@hono/zod-openapi';
 
@@ -12,6 +14,15 @@ export const listIntakeConversationMessagesRoute = routeBuilder.build({
   path: '/{practice_id}/{id}/messages',
   tags,
   summary: 'List messages for an intake conversation',
+  mcp: {
+    name: 'list_conversation_messages',
+    scope: 'intakes:read',
+    schema: { id: z.uuid(), ...listMessagesQuerySchema.shape },
+    handler: async (args, ctx) => {
+      const { id, ...query } = args;
+      return intakeConversationMessagesService.listMessages(id as string, query as ListMessagesQuery, ctx);
+    },
+  },
   request: {
     params: z.object({ practice_id: z.uuid(), id: z.uuid() }),
     query: listMessagesQuerySchema,
