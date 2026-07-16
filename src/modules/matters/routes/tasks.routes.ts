@@ -27,8 +27,11 @@ const practiceIdOnlyParamSchema = z.object({
 });
 
 const listOrganizationTasksQuerySchema = z.object({
+  task_id: uuidValidator.optional(),
   assignee_id: uuidValidator.optional(),
   status: matterTaskValidations.taskStatusEnum.optional(),
+  priority: matterTaskValidations.taskPriorityEnum.optional(),
+  stage: z.string().trim().min(1).max(100).optional(),
   due_before: z.iso.date().optional(),
   ...paginationQuerySchema.shape,
 });
@@ -195,8 +198,11 @@ export const listOrganizationTasksRoute = routeBuilder.build({
       matterTasksService.listOrganizationTasks(
         {
           filters: {
+            taskId: args.task_id as string | undefined,
             assigneeId: args.assignee_id as string | undefined,
             status: args.status as OrgTaskListFilters['status'],
+            priority: args.priority as OrgTaskListFilters['priority'],
+            stage: args.stage as string | undefined,
             dueBefore: args.due_before as string | undefined,
             page: args.page as number | undefined,
             limit: args.limit as number | undefined,

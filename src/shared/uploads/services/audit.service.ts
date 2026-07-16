@@ -1,5 +1,5 @@
-import { db } from '@/shared/database';
-import { uploadAuditLogs, type InsertUploadAuditLog } from '@/shared/uploads/schema/upload-audit-logs.schema';
+import { auditLogsRepository } from '@/shared/uploads/queries/audit-logs.repository';
+import type { InsertUploadAuditLog } from '@/shared/uploads/schema/upload-audit-logs.schema';
 import type { AuditAction } from '@/shared/uploads/types/uploads.types';
 
 export const auditService = {
@@ -22,14 +22,6 @@ export const auditService = {
       metadata: params.metadata ?? null,
     };
 
-    try {
-      // Intentionally uses global db (not getActiveTx) so audit entries persist
-      // even if the caller's transaction rolls back.
-      await db.insert(uploadAuditLogs).values(auditLog);
-    } catch (err) {
-      // Audit failures must not break the primary flow
-      const { getLogger } = await import('@logtape/logtape');
-      getLogger(['uploads', 'audit-service']).error('Failed to write audit log: {err}', { err, ...params });
-    }
+    await auditLogsRepository.create(auditLog);
   },
 };

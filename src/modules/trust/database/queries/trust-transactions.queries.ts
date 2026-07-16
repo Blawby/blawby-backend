@@ -122,6 +122,23 @@ const getLatestBalancePerClient = async (
   return rows.map((r) => ({ client_id: r.client_id, balance: Number(r.balance), as_of_date: r.as_of_date }));
 };
 
+const getLatestBalancePerClientMatter = async (
+  organizationId: string
+): Promise<{ client_id: string; matter_id: string | null; balance: number; as_of_date: Date }[]> => {
+  const rows = await getActiveTx()
+    .selectDistinctOn([trustTransactions.client_id, trustTransactions.matter_id], {
+      client_id: trustTransactions.client_id,
+      matter_id: trustTransactions.matter_id,
+      balance: trustTransactions.balance_after,
+      as_of_date: trustTransactions.created_at,
+    })
+    .from(trustTransactions)
+    .where(eq(trustTransactions.organization_id, organizationId))
+    .orderBy(trustTransactions.client_id, trustTransactions.matter_id, desc(trustTransactions.created_at));
+
+  return rows;
+};
+
 /**
  * Get the latest balance_after for a specific client/matter and lock the row.
  * MUST be called inside uow.transaction() (e.g. via withTrustLock) so that
@@ -160,5 +177,6 @@ export const trustTransactionsRepository = {
   listByOrg,
   getLatestBalanceByClient,
   getLatestBalancePerClient,
+  getLatestBalancePerClientMatter,
   getLatestBalanceForMatter,
 };

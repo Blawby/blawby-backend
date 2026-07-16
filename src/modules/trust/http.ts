@@ -15,6 +15,9 @@ app.openapi(routes.getTrustTransactionsRoute, handlers.getTrustTransactionsHandl
 app.openapi(routes.getTrustBalanceRoute, handlers.getTrustBalanceHandler);
 app.openapi(routes.getTrustReportRoute, handlers.getTrustReportHandler);
 app.openapi(routes.getTrustClientBalancesRoute, handlers.getTrustClientBalancesHandler);
+app.openapi(routes.createTrustReconciliationRoute, handlers.createTrustReconciliationHandler);
+app.openapi(routes.listTrustReconciliationsRoute, handlers.listTrustReconciliationsHandler);
+app.openapi(routes.getTrustReadinessRoute, handlers.getTrustReadinessHandler);
 
 registerOpenApiRoutes(app, { ...routes });
 

@@ -61,7 +61,7 @@ const withTrustLock = async <T>(
 /**
  * Record a trust deposit (e.g., retainer payment received).
  */
-const recordDeposit = async (params: RecordDepositParams): Promise<SelectTrustTransaction> => {
+const recordDeposit = async (params: RecordDepositParams, ctx: ServiceContext): Promise<SelectTrustTransaction> => {
   if (params.amount <= 0) {
     throw new HTTPException(400, { message: 'Amount must be positive' });
   }
@@ -75,7 +75,7 @@ const recordDeposit = async (params: RecordDepositParams): Promise<SelectTrustTr
     const currentBalance = balanceRow?.balance ?? 0;
     const newBalance = currentBalance + params.amount;
 
-    return trustTransactionsRepository.createTransaction({
+    const transaction = await trustTransactionsRepository.createTransaction({
       organization_id: params.organizationId,
       client_id: params.clientId,
       matter_id: params.matterId ?? null,
@@ -88,13 +88,22 @@ const recordDeposit = async (params: RecordDepositParams): Promise<SelectTrustTr
       stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
       created_by: params.createdBy,
     });
+
+    if (params.matterId) {
+      await syncBalanceAndCheckThreshold(params.matterId, params.organizationId, params.clientId, ctx);
+    }
+
+    return transaction;
   });
 };
 
 /**
  * Record a trust withdrawal (e.g., invoice paid from retainer).
  */
-const recordWithdrawal = async (params: RecordWithdrawalParams): Promise<SelectTrustTransaction> => {
+const recordWithdrawal = async (
+  params: RecordWithdrawalParams,
+  ctx: ServiceContext
+): Promise<SelectTrustTransaction> => {
   if (params.amount <= 0) {
     throw new HTTPException(400, { message: 'Amount must be positive' });
   }
@@ -113,7 +122,7 @@ const recordWithdrawal = async (params: RecordWithdrawalParams): Promise<SelectT
 
     const newBalance = currentBalance - params.amount;
 
-    return trustTransactionsRepository.createTransaction({
+    const transaction = await trustTransactionsRepository.createTransaction({
       organization_id: params.organizationId,
       client_id: params.clientId,
       matter_id: params.matterId ?? null,
@@ -126,6 +135,12 @@ const recordWithdrawal = async (params: RecordWithdrawalParams): Promise<SelectT
       stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
       created_by: params.createdBy,
     });
+
+    if (params.matterId) {
+      await syncBalanceAndCheckThreshold(params.matterId, params.organizationId, params.clientId, ctx);
+    }
+
+    return transaction;
   });
 };
 
@@ -220,8 +235,8 @@ const manualDeposit = async (
 ): Promise<SelectTrustTransaction> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
 
-  return uow.transaction(async () => {
-    const record = await recordDeposit({
+  return recordDeposit(
+    {
       organizationId: ctx.organizationId,
       clientId: data.client_id,
       matterId: data.matter_id,
@@ -229,11 +244,9 @@ const manualDeposit = async (
       description: data.description ?? 'Manual trust deposit',
       source: 'manual',
       createdBy: ctx.userId,
-    });
-
-    await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx);
-    return record;
-  });
+    },
+    ctx
+  );
 };
 
 /**
@@ -246,8 +259,8 @@ const manualWithdrawal = async (
 ): Promise<SelectTrustTransaction> => {
   ForbiddenError.from(ctx.ability).throwUnlessCan('manage', 'Trust');
 
-  return uow.transaction(async () => {
-    const record = await recordWithdrawal({
+  return recordWithdrawal(
+    {
       organizationId: ctx.organizationId,
       clientId: data.client_id,
       matterId: data.matter_id,
@@ -255,11 +268,9 @@ const manualWithdrawal = async (
       description: data.description ?? 'Manual trust withdrawal',
       source: 'manual',
       createdBy: ctx.userId,
-    });
-
-    await syncBalanceAndCheckThreshold(data.matter_id, ctx.organizationId, data.client_id, ctx);
-    return record;
-  });
+    },
+    ctx
+  );
 };
 
 export const trustService = {
@@ -269,7 +280,6 @@ export const trustService = {
   manualWithdrawal,
   getTransactions,
   getBalance,
-  getBalanceWithTx,
   getReport,
   getClientBalances,
 };

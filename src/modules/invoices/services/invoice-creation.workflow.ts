@@ -77,7 +77,7 @@ export const syncLineItems = async ({
   });
 };
 
-export const validateInvoiceCreation = async (
+const validateInvoiceCreation = async (
   data: CreateInvoiceRequest,
   ctx: ServiceContext
 ): Promise<{ clientId: string }> => {
@@ -124,7 +124,7 @@ export const validateInvoiceCreation = async (
   return { clientId };
 };
 
-export const persistInvoiceStructure = async (
+const persistInvoiceStructure = async (
   { data, clientId }: { data: CreateInvoiceRequest; clientId: string },
   ctx: ServiceContext
 ): Promise<InvoiceWithRelations | undefined> =>
@@ -189,3 +189,17 @@ export const persistInvoiceStructure = async (
 
     return invoice;
   });
+
+const createInvoice = async (data: CreateInvoiceRequest, ctx: ServiceContext): Promise<InvoiceWithRelations> => {
+  const { clientId } = await validateInvoiceCreation(data, ctx);
+  const invoice = await persistInvoiceStructure({ data, clientId }, ctx);
+  if (!invoice) {
+    throw new Error('Failed to retrieve created invoice');
+  }
+
+  return invoice;
+};
+
+export const invoiceCreationWorkflow = {
+  createInvoice,
+} as const;

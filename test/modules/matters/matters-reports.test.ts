@@ -8,6 +8,7 @@ import { createAuthenticatedRequest, createRequest } from '@/test/helpers/reques
 import type { TestOrganization } from '@/test/types/shared';
 import { toTypedResponse } from '@/test/helpers/response';
 import mattersApp from '@/modules/matters/http';
+import tasksApp from '@/modules/tasks/http';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
 import { matterTasks } from '@/modules/matters/database/schema/matter-tasks.schema';
 import { matterTimeEntries } from '@/modules/matters/database/schema/matter-time-entries.schema';
@@ -23,6 +24,7 @@ const orgProtectedApp = new Hono();
 orgProtectedApp.use('/api/*', requireAuth());
 orgProtectedApp.use('/api/*', requireOrgMembership());
 orgProtectedApp.route('/api/matters', mattersApp);
+orgProtectedApp.route('/api/tasks', tasksApp);
 
 const orgProtectedRequest = createRequest(orgProtectedApp.fetch);
 
@@ -89,6 +91,8 @@ interface InsertTaskParams {
   assigneeId?: string | null;
   dueDate?: string | null;
   status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  stage?: string;
 }
 
 const insertTask = async (params: InsertTaskParams): Promise<SelectMatterTask> => {
@@ -98,10 +102,11 @@ const insertTask = async (params: InsertTaskParams): Promise<SelectMatterTask> =
     .values({
       matter_id: params.matterId,
       name: params.name,
-      stage: 'discovery',
+      stage: params.stage ?? 'discovery',
       assignee_id: params.assigneeId ?? null,
       due_date: params.dueDate ?? null,
       status: params.status ?? 'pending',
+      priority: params.priority ?? 'normal',
     })
     .returning();
   return row;
@@ -122,6 +127,11 @@ interface SummaryRow {
   closed_matters: number;
 }
 
+interface PracticeTasksResponseBody {
+  data: SelectMatterTask[];
+  pagination: { page: number; limit: number; total: number };
+}
+
 describe('Matters reports endpoints', () => {
   let sessionToken = '';
   let org: TestOrganization = { id: '', name: '', slug: '' };
@@ -133,6 +143,7 @@ describe('Matters reports endpoints', () => {
   let matterAttorneyB: SelectMatter;
   let matterOriginatingAClosed: SelectMatter;
   let matterOriginatingANoResponsible: SelectMatter;
+  let taskAttorneyAId = '';
 
   beforeAll(async () => {
     const ctx = await createTestContext('owner');
@@ -142,8 +153,14 @@ describe('Matters reports endpoints', () => {
     ownerId = session!.user.id;
 
     // Create two other users to use as attorneys and add them to the org as members
-    const attorneyA = await createTestUser({ email: `attorney-a-${randomUUID().slice(0, 8)}@test.example`, name: 'Attorney A' });
-    const attorneyB = await createTestUser({ email: `attorney-b-${randomUUID().slice(0, 8)}@test.example`, name: 'Attorney B' });
+    const attorneyA = await createTestUser({
+      email: `attorney-a-${randomUUID().slice(0, 8)}@test.example`,
+      name: 'Attorney A',
+    });
+    const attorneyB = await createTestUser({
+      email: `attorney-b-${randomUUID().slice(0, 8)}@test.example`,
+      name: 'Attorney B',
+    });
     await addUserToOrganization(attorneyA.id, org.id, 'admin');
     await addUserToOrganization(attorneyB.id, org.id, 'admin');
     attorneyAId = attorneyA.id;
@@ -190,19 +207,24 @@ describe('Matters reports endpoints', () => {
       endTime: new Date('2026-04-02T10:00:00Z'),
     });
     // Tasks
-    await insertTask({
+    const taskAttorneyA = await insertTask({
       matterId: matterAttorneyA.id,
       name: 'Task — assignee A, due 2026-06-01, pending',
       assigneeId: attorneyAId,
       dueDate: '2026-06-01',
       status: 'pending',
+      priority: 'high',
+      stage: 'discovery',
     });
+    taskAttorneyAId = taskAttorneyA.id;
     await insertTask({
       matterId: matterAttorneyA.id,
       name: 'Task — assignee B, due 2026-12-01, in_progress',
       assigneeId: attorneyBId,
       dueDate: '2026-12-01',
       status: 'in_progress',
+      priority: 'urgent',
+      stage: 'litigation',
     });
     await insertTask({
       matterId: matterAttorneyB.id,
@@ -361,6 +383,38 @@ describe('Matters reports endpoints', () => {
     expect(names).toContain('Task — assignee A, due 2026-06-01, pending');
     expect(names).not.toContain('Task — assignee B, due 2026-12-01, in_progress');
     expect(names).not.toContain('Task — no due date, assignee A');
+  });
+
+  it('GET /api/tasks/{practice_id} exposes the canonical practice-wide contract', async () => {
+    const res = await toTypedResponse<PracticeTasksResponseBody>(
+      authedRequest(sessionToken).get(`/api/tasks/${org.id}?page=1&limit=2`)
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(2);
+    expect(res.body.pagination).toMatchObject({ page: 1, limit: 2 });
+  });
+
+  it('GET /api/tasks/{practice_id} validates and applies task, priority, and stage filters', async () => {
+    const res = await toTypedResponse<PracticeTasksResponseBody>(
+      authedRequest(sessionToken).get(`/api/tasks/${org.id}?task_id=${taskAttorneyAId}&priority=high&stage=discovery`)
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((task) => task.id)).toEqual([taskAttorneyAId]);
+  });
+
+  it('GET /api/tasks/{practice_id} rejects invalid and cross-practice identifiers', async () => {
+    const invalid = await authedRequest(sessionToken).get('/api/tasks/not-a-uuid');
+    expect(invalid.status).toBe(400);
+
+    const crossPractice = await authedRequest(sessionToken).get(`/api/tasks/${randomUUID()}`);
+    expect(crossPractice.status).toBe(403);
+  });
+
+  it('GET /api/tasks/{practice_id} returns 401 for an unauthenticated request', async () => {
+    const res = await orgProtectedRequest.get(`/api/tasks/${org.id}`);
+    expect(res.status).toBe(401);
   });
 
   it('GET /{practice_id}/tasks is NOT caught by requireMatterAccess() (literal path wins)', async () => {
