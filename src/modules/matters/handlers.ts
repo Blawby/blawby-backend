@@ -446,8 +446,11 @@ const listOrganizationTasksHandler: AppRouteHandler<typeof matterRoutes.listOrga
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
   const filters: OrgTaskListFilters = {
+    taskId: query.task_id,
     assigneeId: query.assignee_id,
     status: query.status,
+    priority: query.priority,
+    stage: query.stage,
     dueBefore: query.due_before,
     page: query.page,
     limit: query.limit,

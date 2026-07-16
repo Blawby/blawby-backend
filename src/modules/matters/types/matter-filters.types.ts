@@ -55,8 +55,11 @@ export interface MatterTaskListFilters {
 
 /** Filters for listTasksByOrganization (org-wide tasks) */
 export interface OrgTaskListFilters {
+  taskId?: string;
   assigneeId?: string;
   status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  stage?: string;
   dueBefore?: string;
   page?: number;
   limit?: number;
