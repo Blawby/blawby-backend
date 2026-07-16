@@ -49,6 +49,25 @@ export const getStaffAccessibleIntake = async (
   return getActorAccessibleIntake(uuid, ctx, action);
 };
 
+export const getStaffAccessibleIntakeForUpdate = async (
+  uuid: string,
+  ctx: ServiceContext
+): Promise<SelectPracticeClientIntake> => {
+  if (!ctx.memberRole) {
+    throw new HTTPException(403, { message: 'You do not have permission to access this intake' });
+  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'PracticeClientIntake');
+
+  const intake = await practiceClientIntakesRepository.findByIdForUpdate(uuid);
+  if (!intake) {
+    throw new HTTPException(404, { message: 'Practice client intake not found' });
+  }
+  if (!ctx.organizationId || intake.organization_id !== ctx.organizationId) {
+    throw new HTTPException(403, { message: 'Access denied' });
+  }
+  return intake;
+};
+
 export const ensureStaffOrganizationAccess = (organizationId: string, ctx: ServiceContext): void => {
   if (!ctx.memberRole) {
     throw new HTTPException(403, { message: 'You do not have permission to access these intakes' });

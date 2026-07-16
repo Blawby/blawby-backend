@@ -8,8 +8,10 @@ import { organizationRepository } from '@/modules/practice/database/queries/orga
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import {
   getStaffAccessibleIntake,
+  getStaffAccessibleIntakeForUpdate,
   ensureStaffOrganizationAccess,
 } from '@/modules/practice-client-intakes/services/intake-access.helpers';
+import { intakePrefillTokenService } from '@/modules/practice-client-intakes/services/intake-prefill-token.service';
 import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import type {
   UpdateIntakeTriageStatusRequest,
@@ -22,7 +24,6 @@ import { db } from '@/shared/database';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
-import type { PrefillData } from '@/shared/types/prefill';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { getLogger } from '@logtape/logtape';
@@ -263,46 +264,35 @@ const convertIntake = async (
   ctx: ServiceContext
 ): Promise<{ matter_id: string; matter: MatterResponse }> => {
   try {
-    const intake = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
-    if (intake.status === 'converted') {
-      const existingMatter = await mattersQueries.findByIntakeUuid(params.uuid);
-      if (existingMatter) {
-        const existingMatterWithRelations = await mattersQueries.findMatterByIdWithRelations(existingMatter.id);
-        if (!existingMatterWithRelations) {
+    const matterId = await uow.transaction(async () => {
+      const intake = await getStaffAccessibleIntakeForUpdate(params.uuid, ctx);
+      if (intake.status === 'converted') {
+        const existingMatter = await mattersQueries.findByIntakeUuid(params.uuid);
+        if (!existingMatter) {
           throw new HTTPException(409, { message: 'Intake is marked as converted but no associated matter was found' });
         }
-
-        return {
-          matter_id: existingMatter.id,
-          matter: toMatterResponse(existingMatterWithRelations),
-        };
+        return existingMatter.id;
+      }
+      if (intake.status !== 'succeeded') {
+        throw new HTTPException(400, { message: 'Only successful intakes can be converted to matters' });
+      }
+      if (intake.triage_status !== 'accepted') {
+        throw new HTTPException(400, { message: 'Intake must be accepted before converting to a matter' });
       }
 
-      throw new HTTPException(409, { message: 'Intake is marked as converted but no associated matter was found' });
-    }
+      const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
+      if (!metadata) {
+        throw new HTTPException(400, { message: 'Intake metadata is missing' });
+      }
 
-    if (intake.status !== 'succeeded') {
-      throw new HTTPException(400, { message: 'Only successful intakes can be converted to matters' });
-    }
-
-    if (intake.triage_status !== 'accepted') {
-      throw new HTTPException(400, { message: 'Intake must be accepted before converting to a matter' });
-    }
-
-    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
-    if (!metadata) {
-      throw new HTTPException(400, { message: 'Intake metadata is missing' });
-    }
-
-    const matterId = await uow.transaction(async () =>
-      createMatterFromIntake({
+      return createMatterFromIntake({
         uuid: params.uuid,
         data: params.data,
         intake,
         metadata,
         userId: ctx.userId,
-      })
-    );
+      });
+    });
 
     const matter = await mattersQueries.findMatterByIdWithRelations(matterId);
     if (!matter) {
@@ -332,22 +322,19 @@ const triggerInvitation = async (
     if (!metadata?.email) {
       throw new HTTPException(400, { message: 'No email address found in intake data' });
     }
+    if (!intake.conversation_id) {
+      throw new HTTPException(409, { message: 'Intake conversation is missing' });
+    }
 
     const organization = await organizationRepository.findById(intake.organization_id);
     if (!organization) {
       throw new HTTPException(404, { message: 'Organization not found' });
     }
 
-    const prefillData: PrefillData = {
-      type: 'intake',
+    const token = await intakePrefillTokenService.issue({
       intakeId: params.uuid,
-      conversationId: intake.conversation_id ?? '',
-      email: metadata.email,
-      orgName: organization.name,
-      orgSlug: organization.slug,
-    };
-
-    const encodedData = Buffer.from(JSON.stringify(prefillData)).toString('base64url');
+      organizationId: intake.organization_id,
+    });
     const auth = createBetterAuthInstance(db);
     const intakeRedirectUrl = await appConfigService.get<string>('intake_redirect_url');
     const redirectPath = intakeRedirectUrl ?? 'auth/accept-invitation';
@@ -356,7 +343,7 @@ const triggerInvitation = async (
     await auth.api.signInMagicLink({
       body: {
         email: metadata.email,
-        callbackURL: `${getMatchingFrontendUrl(params.origin)}/${redirectPath}${separator}data=${encodedData}`,
+        callbackURL: `${getMatchingFrontendUrl(params.origin)}/${redirectPath}${separator}intakeToken=${encodeURIComponent(token)}`,
       },
       headers: params.origin ? { origin: params.origin } : {},
     });
