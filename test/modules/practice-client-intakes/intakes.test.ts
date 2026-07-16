@@ -336,11 +336,8 @@ describe('Practice Client Intakes API', () => {
 
   it('GET /{practice_id} returns 200 with paginated intakes for staff', async () => {
     interface ListIntakesResponseBody {
-      intakes: ListIntakeItem[];
-      total: number;
-      page: number;
-      limit: number;
-      total_pages: number;
+      data: ListIntakeItem[];
+      pagination: { page: number; limit: number; total: number };
     }
 
     const res = await toTypedResponse<ListIntakesResponseBody>(
@@ -348,14 +345,12 @@ describe('Practice Client Intakes API', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.intakes).toBeInstanceOf(Array);
-    expect(res.body.intakes.length).toBeGreaterThanOrEqual(1);
-    expect(typeof res.body.total).toBe('number');
-    expect(res.body.total).toBeGreaterThanOrEqual(1);
-    expect(res.body.page).toBe(1);
-    expect(typeof res.body.limit).toBe('number');
-    expect(typeof res.body.total_pages).toBe('number');
-    const [firstIntake] = res.body.intakes;
+    expect(res.body.data).toBeInstanceOf(Array);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.pagination.page).toBe(1);
+    expect(typeof res.body.pagination.limit).toBe('number');
+    expect(res.body.pagination.total).toBeGreaterThanOrEqual(1);
+    const [firstIntake] = res.body.data;
     expect(firstIntake.uuid).toMatch(/^[0-9a-f-]{36}$/);
     expect(firstIntake.organization_id).toBe(org.id);
     expect(typeof firstIntake.status).toBe('string');

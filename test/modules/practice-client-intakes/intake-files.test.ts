@@ -301,8 +301,8 @@ describe('Intake File Uploads API', () => {
         .delete(`/api/practice-client-intakes/${intakeId}/files/${uploadId}`)
         .send({ reason: 'Test cleanup' });
 
-      expect(deleteRes.status).toBe(200);
-      expect(deleteRes.body).toMatchObject({ id: uploadId, status: 'deleted' });
+      expect(deleteRes.status).toBe(204);
+      expect(deleteRes.text).toBe('');
     });
 
     it('unauthenticated request returns 401', async () => {

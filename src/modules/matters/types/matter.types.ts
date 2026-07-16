@@ -10,6 +10,7 @@ import { matterNoteValidations } from '@/modules/matters/validations/matter-note
 import { matterTaskValidations } from '@/modules/matters/validations/matter-tasks.validation';
 import { matterTimeEntryValidations } from '@/modules/matters/validations/matter-time-entries.validation';
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 // Export schemas
 export const createMatterRequestSchema = matterValidations.createMatterSchema;
 export const updateMatterRequestSchema = matterValidations.updateMatterSchema;
@@ -110,13 +111,7 @@ export type ClientMatterRecord = Omit<
 /**
  * Matter list response
  */
-export interface MatterListResponse {
-  matters: SelectMatter[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
+export type MatterListResponse = OffsetPaginatedResponse<SelectMatter>;
 
 /**
  * Matter activity response
