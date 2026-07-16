@@ -12,6 +12,7 @@ type SubjectName =
   | 'all'
   | 'InternalConsole'
   | 'AuditLog'
+  | 'DataExport'
   | 'OrganizationPreferences'
   | 'UserPreferences'
   | 'UserDetails'

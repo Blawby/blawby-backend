@@ -50,6 +50,7 @@ const defineAbilityFor = (
     can('read', 'Payout');
     can('read', 'Subscription');
     cannot('read', 'AuditLog');
+    cannot('manage', 'DataExport');
     can('read', 'Trust');
     can('read', 'RefundRequest');
     can('update', 'RefundRequest');
