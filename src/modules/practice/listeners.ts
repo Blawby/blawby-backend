@@ -98,6 +98,8 @@ const registerPracticeListeners = (): void => {
     const items = [
       {
         description: 'Legal Consultation / Service Intake',
+        quantity: 1,
+        unitPrice: payload.amount,
         amount: payload.amount,
       },
     ];

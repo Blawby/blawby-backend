@@ -4,6 +4,7 @@ import {
   type InsertUploadAuditLog,
   type SelectUploadAuditLog,
 } from '@/shared/uploads/schema/upload-audit-logs.schema';
+import type { UploadAuditAction } from '@/shared/uploads/types/uploads.validation';
 import { getActiveTx } from '@/shared/database/uow';
 
 export const auditLogsRepository = {
@@ -37,7 +38,7 @@ export const auditLogsRepository = {
 
   findByOrganization: async (
     organizationId: string,
-    options: { uploadId?: string; action?: string; userId?: string; limit?: number; offset?: number } = {}
+    options: { uploadId?: string; action?: UploadAuditAction; userId?: string; limit?: number; offset?: number } = {}
   ): Promise<SelectUploadAuditLog[]> => {
     const conditions = [eq(uploadAuditLogs.organization_id, organizationId)];
 

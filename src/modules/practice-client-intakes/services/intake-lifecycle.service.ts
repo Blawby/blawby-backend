@@ -18,6 +18,7 @@ import type {
 import type { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { clientsRepository } from '@/modules/clients/database/queries/clients.queries';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
+import { withMagicLinkDeliveryContext } from '@/shared/auth/magic-link-delivery-context';
 import { db } from '@/shared/database';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { IntakeTriaged } from '@/shared/events/definitions';
@@ -243,16 +244,12 @@ const toMatterResponse = (
   matter: NonNullable<Awaited<ReturnType<typeof mattersQueries.findMatterByIdWithRelations>>>
 ): MatterResponse => ({
   ...matter,
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  status: matter.status as MatterResponse['status'],
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  payment_frequency: (matter.payment_frequency as 'project' | 'milestone' | null) ?? null,
-  // oxlint-disable-next-line no-unsafe-type-assertion
-  urgency: (matter.urgency as MatterResponse['urgency']) ?? null,
+  payment_frequency: matter.payment_frequency ?? null,
+  urgency: matter.urgency ?? null,
   deleted_at: matter.deleted_at ?? null,
   open_date: matter.open_date ?? null,
   close_date: matter.close_date ?? null,
-  last_conflict_check_result: (matter.last_conflict_check_result as Record<string, unknown> | null) ?? null,
+  last_conflict_check_result: matter.last_conflict_check_result ?? null,
 });
 
 const convertIntake = async (
@@ -323,7 +320,11 @@ const convertIntake = async (
 };
 
 const triggerInvitation = async (
-  params: { uuid: string; origin?: string | null },
+  params: {
+    uuid: string;
+    origin?: string | null;
+    acceptedEmail?: { practiceName: string; recipientName: string };
+  },
   ctx: ServiceContext
 ): Promise<{ message: string }> => {
   try {
@@ -353,15 +354,31 @@ const triggerInvitation = async (
     const redirectPath = intakeRedirectUrl ?? 'auth/accept-invitation';
     const separator = redirectPath.includes('?') ? '&' : '?';
 
-    await auth.api.signInMagicLink({
-      body: {
-        email: metadata.email,
-        callbackURL: `${getMatchingFrontendUrl(params.origin)}/${redirectPath}${separator}data=${encodedData}`,
-      },
-      headers: params.origin ? { origin: params.origin } : {},
-    });
+    const sendMagicLink = async (): Promise<void> => {
+      await auth.api.signInMagicLink({
+        body: {
+          email: metadata.email,
+          callbackURL: `${getMatchingFrontendUrl(params.origin)}/${redirectPath}${separator}data=${encodedData}`,
+        },
+        headers: params.origin ? { origin: params.origin } : {},
+      });
+    };
 
-    return { message: 'Magic link sent to client email' };
+    if (params.acceptedEmail) {
+      await withMagicLinkDeliveryContext(
+        {
+          kind: 'intake_accepted',
+          intakeId: params.uuid,
+          practiceName: params.acceptedEmail.practiceName,
+          recipientName: params.acceptedEmail.recipientName,
+        },
+        sendMagicLink
+      );
+    } else {
+      await sendMagicLink();
+    }
+
+    return { message: params.acceptedEmail ? 'Acceptance email sent to client' : 'Magic link sent to client email' };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const safeDetails: Record<string, unknown> = { message: errorMessage };

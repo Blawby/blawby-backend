@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm';
 import { pgTable, uuid, varchar, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from '@/schema/better-auth-schema';
+import type { UploadScopeType, UploadStatus } from '@/shared/uploads/types/uploads.validation';
 
 export const uploads = pgTable(
   'uploads',
@@ -17,14 +18,14 @@ export const uploads = pgTable(
     file_size: integer('file_size').notNull(),
     mime_type: varchar('mime_type', { length: 100 }).notNull(),
 
-    storage_provider: varchar('storage_provider', { length: 20 }).notNull(),
+    storage_provider: varchar('storage_provider', { length: 20 }).$type<'r2' | 'images'>().notNull(),
     storage_key: varchar('storage_key', { length: 500 }).notNull(),
     public_url: varchar('public_url', { length: 1000 }),
 
-    scope_type: varchar('scope_type', { length: 50 }),
+    scope_type: varchar('scope_type', { length: 50 }).$type<UploadScopeType>(),
     scope_id: uuid('scope_id'),
 
-    status: varchar('status', { length: 20 }).default('pending').notNull(),
+    status: varchar('status', { length: 20 }).$type<UploadStatus>().default('pending').notNull(),
 
     is_privileged: boolean('is_privileged').default(true).notNull(),
     retention_until: timestamp('retention_until', { withTimezone: true, mode: 'date' }),

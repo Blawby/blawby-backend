@@ -1,5 +1,5 @@
-import { z } from '@hono/zod-openapi';
 import { uuidValidator } from '@/shared/validations/common';
+import { z } from '@hono/zod-openapi';
 
 const matterStatusEnum = z.enum([
   'first_contact',
@@ -240,6 +240,8 @@ const activityLogSchema = z
     created_at: z.date(),
   })
   .openapi('ActivityLog');
+
+export type MatterStatus = z.infer<typeof matterStatusEnum>;
 
 export const matterValidations = {
   matterStatusEnum,

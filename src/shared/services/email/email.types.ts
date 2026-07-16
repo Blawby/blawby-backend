@@ -88,7 +88,8 @@ export interface BaseEmailData {
 // Customer payment receipt data
 export interface CustomerPaymentReceiptData extends BaseEmailData {
   businessName: string;
-  teamPhotoUrl: string;
+  // Optional: baseLayout falls back to the Blawby logo when absent
+  teamPhotoUrl?: string;
   invoiceNumber: string;
   amountPaid: number; // In cents
   amountDue: number; // In cents
@@ -212,6 +213,7 @@ export interface IntakeNewNotificationData extends BaseEmailData {
 // Intake accepted data (prospect-facing)
 export interface IntakeAcceptedData extends BaseEmailData {
   practiceName: string;
+  magicLinkUrl: string;
 }
 
 // Intake declined data (prospect-facing)
@@ -270,13 +272,56 @@ export interface ConflictCheckReviewRequiredData extends BaseEmailData {
   reviewUrl: string;
 }
 
-// Email job payload (what gets queued)
-export interface EmailJobPayload {
-  template: EmailTemplateName;
+/**
+ * Mapping of email templates to their specific data types
+ */
+export interface TemplateDataMap {
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: CustomerPaymentRequestData;
+  [EMAIL_TEMPLATES.CUSTOMER_CUSTOM_RECEIPT]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_REQUEST]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_APPROVED]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.CUSTOMER_REFUND_REJECTED]: CustomerPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_PAYMENT_RECEIPT]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_CUSTOM_RECEIPT]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_REFUND_REQUEST]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.TEAM_REFUND_PROCESSED]: TeamPaymentReceiptData;
+  [EMAIL_TEMPLATES.PRACTICE_INVITATION]: PracticeInvitationData;
+  [EMAIL_TEMPLATES.WELCOME]: WelcomeEmailData;
+  [EMAIL_TEMPLATES.STRIPE_CONNECT_WELCOME]: StripeConnectWelcomeData;
+  [EMAIL_TEMPLATES.STRIPE_CONNECT_STATUS]: StripeConnectStatusData;
+  [EMAIL_TEMPLATES.PAYOUT_SENT]: PayoutSentData;
+  [EMAIL_TEMPLATES.MAGIC_LINK]: MagicLinkData;
+  [EMAIL_TEMPLATES.PASSWORD_RESET]: PasswordResetData;
+  [EMAIL_TEMPLATES.EMAIL_VERIFICATION]: EmailVerificationData;
+  [EMAIL_TEMPLATES.CHANGE_EMAIL_CONFIRMATION]: ChangeEmailConfirmationData;
+  [EMAIL_TEMPLATES.INTAKE_SUBMISSION_RECEIVED]: IntakeSubmissionReceivedData;
+  [EMAIL_TEMPLATES.INTAKE_NEW_NOTIFICATION]: IntakeNewNotificationData;
+  [EMAIL_TEMPLATES.INTAKE_ACCEPTED]: IntakeAcceptedData;
+  [EMAIL_TEMPLATES.INTAKE_DECLINED]: IntakeDeclinedData;
+  [EMAIL_TEMPLATES.MATTER_OPENED]: MatterOpenedData;
+  [EMAIL_TEMPLATES.MATTER_CLOSED]: MatterClosedData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SENT]: EngagementContractSentData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_ACCEPTED]: EngagementContractAcceptedData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY]: EngagementContractSignedCopyData;
+  [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_DECLINED]: EngagementContractDeclinedData;
+  [EMAIL_TEMPLATES.CONFLICT_CHECK_REVIEW_REQUIRED]: ConflictCheckReviewRequiredData;
+}
+
+// Email job payload (what gets queued); data is typed by the selected template
+export interface EmailJobPayloadFor<T extends EmailTemplateName> {
+  template: T;
   to: string;
   subject: string;
-  data: Record<string, unknown>;
+  data: TemplateDataMap[T];
+  idempotencyKey?: string;
 }
+
+// Distributive union: the unparameterized form pairs template and data per member,
+// So mismatched template/data combinations are rejected at construction sites.
+export type EmailJobPayload<T extends EmailTemplateName = EmailTemplateName> = {
+  [K in T]: EmailJobPayloadFor<K>;
+}[T];
 
 // Email send options
 export interface EmailSendOptions {

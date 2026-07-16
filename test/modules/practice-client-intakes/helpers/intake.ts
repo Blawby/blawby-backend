@@ -14,7 +14,8 @@ import { defineAbilityFor } from '@/shared/auth/abilities';
 import type { User } from '@/shared/types/BetterAuth';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { stripeConnectedAccounts, type StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
-import { organizations, subscriptions } from '@/schema/better-auth-schema';
+import { organizations } from '@/schema/better-auth-schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { MemberRole } from '@/modules/practice/types/members.types';
 
@@ -22,6 +23,16 @@ const { signInMagicLinkMock, intakePaymentCreatedDispatchMock } = vi.hoisted(() 
   signInMagicLinkMock: vi.fn().mockResolvedValue(undefined),
   intakePaymentCreatedDispatchMock: vi.fn(),
 }));
+
+export const createTestUser = (id: string, email: string, name = 'Test User'): User => ({
+  id,
+  email,
+  name,
+  emailVerified: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  image: null,
+});
 
 const createStripeResponse = <T extends object>(data: T): Stripe.Response<T> => ({
   ...data,
@@ -81,7 +92,7 @@ const createPaymentLinkFixture = (overrides?: Partial<Stripe.PaymentLink>): Stri
       url: '/v1/payment_links/plink_test_default/line_items',
     },
     ...overrides,
-  }) as Stripe.PaymentLink;
+  });
 
 // Mock events to prevent side effects
 vi.mock('@/shared/events/definitions', () => ({
@@ -184,7 +195,7 @@ export const createServiceContext = (
   const ability = defineAbilityFor(role ?? 'member');
   return {
     userId,
-    user: { id: userId, email: userEmail, name: 'Test User' } as User,
+    user: createTestUser(userId, userEmail),
     organizationId,
     userEmail,
     activeOrganizationId: organizationId,
@@ -226,7 +237,7 @@ export const mockConnectedAccount = (overrides?: Partial<StripeConnectedAccount>
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,
-  }) as StripeConnectedAccount;
+  });
 
 export const mockStripe = (): void => {
   const m = vi.mocked(stripe, true);

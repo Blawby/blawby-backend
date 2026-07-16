@@ -32,6 +32,7 @@ declare namespace NodeJS {
 
     // Resend Configuration
     RESEND_API_KEY: string;
+    EMAIL_DELIVERY_MODE?: 'provider' | 'log_only';
 
     // Cloudflare Turnstile Configuration
     CLOUDFLARE_TURNSTILE_SECRET_KEY: string;

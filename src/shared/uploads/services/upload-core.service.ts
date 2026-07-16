@@ -164,12 +164,12 @@ const toUploadDetails = (
     file_type: upload.file_type,
     file_size: upload.file_size,
     mime_type: upload.mime_type,
-    storage_provider: upload.storage_provider as 'r2' | 'images',
+    storage_provider: upload.storage_provider,
     storage_key: upload.storage_key,
     public_url: upload.public_url,
-    scope_type: (upload.scope_type as UploadDetails['scope_type']) ?? null,
+    scope_type: upload.scope_type ?? null,
     scope_id: upload.scope_id,
-    status: upload.status as UploadDetails['status'],
+    status: upload.status,
     is_privileged: upload.is_privileged ?? true,
     retention_until: upload.retention_until ?? null,
     created_at: upload.created_at,
@@ -189,7 +189,7 @@ const toAuditLogEntry = (
 ): AuditLogEntry => ({
   id: log.id,
   upload_id: log.upload_id,
-  action: log.action as AuditLogEntry['action'],
+  action: log.action,
   user_id: log.user_id,
   user_name: null,
   ip_address: log.ip_address,
@@ -198,11 +198,7 @@ const toAuditLogEntry = (
   created_at: log.created_at,
 });
 
-const getUploadOrThrow = async (
-  uploadId: string,
-  ctx: ServiceContext,
-  includeDeleted = false
-): Promise<SelectUpload> => {
+const getUploadOrThrow = async (uploadId: string, includeDeleted = false): Promise<SelectUpload> => {
   const upload = await uploadsRepository.findById(uploadId);
   if (!upload) {
     throw new HTTPException(404, { message: 'Upload not found' });
@@ -326,7 +322,7 @@ const uploadCoreService = {
   async prepareConfirm({ id }: { id: string }, ctx: ServiceContext): Promise<ConfirmPreparation> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id);
     assertUploadAccess(upload, ctx, 'update');
 
     if (upload.status !== 'pending') {
@@ -382,7 +378,7 @@ const uploadCoreService = {
   ): Promise<DownloadUrlResponse> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id);
     assertUploadAccess(upload, ctx, 'read');
 
     if (upload.status !== 'verified') {
@@ -434,7 +430,7 @@ const uploadCoreService = {
   ): Promise<ThumbnailUrlResponse> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id);
     assertUploadAccess(upload, ctx, 'read');
 
     if (upload.status !== 'verified') {
@@ -509,7 +505,7 @@ const uploadCoreService = {
   async getUpload({ id }: { id: string }, ctx: ServiceContext): Promise<UploadDetails> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id);
     assertUploadAccess(upload, ctx, 'read');
 
     const organizationId = upload.organization_id ?? ctx.organizationId;
@@ -580,7 +576,7 @@ const uploadCoreService = {
   ): Promise<{ id: string; status: string }> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx, true);
+    const upload = await getUploadOrThrow(id, true);
     assertUploadAccess(upload, ctx, 'delete');
 
     if (upload.deleted_at) {
@@ -602,7 +598,7 @@ const uploadCoreService = {
   async restoreUpload({ id }: { id: string }, ctx: ServiceContext): Promise<{ id: string; status: string }> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx, true);
+    const upload = await getUploadOrThrow(id, true);
     assertUploadAccess(upload, ctx, 'delete');
 
     if (!upload.deleted_at) {
@@ -626,7 +622,7 @@ const uploadCoreService = {
   ): Promise<AuditLogResponse> {
     requireAuth(ctx);
 
-    const upload = await getUploadOrThrow(id, ctx);
+    const upload = await getUploadOrThrow(id);
     assertUploadAccess(upload, ctx, 'read');
 
     const cappedLimit = Math.min(limit, 100);

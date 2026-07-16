@@ -51,7 +51,7 @@ export const practiceClientIntakes = pgTable(
     user_agent: text('user_agent'),
 
     // AI & Triage Fields
-    urgency: varchar('urgency', { length: 20 }), // 'routine', 'time_sensitive', 'emergency'
+    urgency: varchar('urgency', { length: 20 }).$type<'routine' | 'time_sensitive' | 'emergency'>(),
     desired_outcome: text('desired_outcome'),
     court_date: timestamp('court_date', { withTimezone: true, mode: 'date' }),
     has_documents: boolean('has_documents'),

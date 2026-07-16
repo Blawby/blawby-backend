@@ -1,4 +1,4 @@
-import type { Action, AppAbility, SubjectName } from '@/shared/auth/abilities.types';
+import type { Action, AppAbility } from '@/shared/auth/abilities.types';
 import { getStaffRoles, type StaffRole } from '@/shared/auth/permissions';
 import { ADMIN_ROLES, MEMBER_ROLES, OrgRole } from '@/shared/enums/org-roles';
 import { AbilityBuilder, createMongoAbility } from '@casl/ability';
@@ -20,21 +20,22 @@ const defineAbilityFor = (
   metadata: { userId?: string; organizationId?: string; globalRole?: string | null; isVerifiedStaff?: boolean } = {}
 ): AppAbility => {
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
-  const canWithConditions = can as (action: Action, subject: SubjectName, conditions: Record<string, unknown>) => void;
 
   const orgRole = role ?? null;
   const staffRoles = metadata.isVerifiedStaff ? getStaffRoles(metadata.globalRole) : [];
 
   // User-scoped preferences: authenticated users can only read/update their own row.
   if (metadata.userId) {
-    canWithConditions('read', 'UserPreferences', { user_id: metadata.userId });
-    canWithConditions('update', 'UserPreferences', { user_id: metadata.userId });
+    can('read', 'UserPreferences', { user_id: metadata.userId });
+    can('update', 'UserPreferences', { user_id: metadata.userId });
+    can('read', 'Notification', { recipient_user_id: metadata.userId });
+    can('update', 'Notification', { recipient_user_id: metadata.userId });
   }
 
   // Global admin fallback
-  if (orgRole && (ADMIN_ROLES as readonly string[]).includes(orgRole)) {
+  if (orgRole && ADMIN_ROLES.some((role) => role === orgRole)) {
     can('manage', 'all');
-  } else if (orgRole && (MEMBER_ROLES as readonly string[]).includes(orgRole)) {
+  } else if (orgRole && MEMBER_ROLES.some((role) => role === orgRole)) {
     // Member roles have broad read access with explicit restrictions for select subjects
     can('read', 'all');
     can('create', 'Upload');
@@ -57,23 +58,23 @@ const defineAbilityFor = (
     can('manage', 'ClientIntakeProfile');
     cannot('read', 'UserDetails');
     if (metadata.userId) {
-      canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
+      can('read', 'UserDetails', { user_id: metadata.userId });
     }
   } else if (orgRole === OrgRole.CLIENT) {
     // Clients have restricted permissions
     can('read', 'Organization');
     // They can manage their own intake data
     if (metadata.userId) {
-      canWithConditions('manage', 'PracticeClientIntake', { userId: metadata.userId });
-      canWithConditions('read', 'Client', { user_id: metadata.userId });
-      canWithConditions('update', 'Client', { user_id: metadata.userId });
-      canWithConditions('read', 'ClientMemo', { client_user_id: metadata.userId });
+      can('manage', 'PracticeClientIntake', { userId: metadata.userId });
+      can('read', 'Client', { user_id: metadata.userId });
+      can('update', 'Client', { user_id: metadata.userId });
+      can('read', 'ClientMemo', { client_user_id: metadata.userId });
       can('create', 'RefundRequest');
       can('read', 'RefundRequest');
       can('update', 'RefundRequest');
-      canWithConditions('read', 'Invoice', { client_user_id: metadata.userId });
-      canWithConditions('read', 'Upload', { user_id: metadata.userId });
-      canWithConditions('read', 'UserDetails', { user_id: metadata.userId });
+      can('read', 'Invoice', { client_user_id: metadata.userId });
+      can('read', 'Upload', { user_id: metadata.userId });
+      can('read', 'UserDetails', { user_id: metadata.userId });
     }
   }
 

@@ -400,6 +400,7 @@ const sampleIntakeAcceptedData: IntakeAcceptedData = {
   recipientEmail: 'prospect@example.com',
   recipientName: 'Jane Smith',
   practiceName: 'Smith & Associates Law Firm',
+  magicLinkUrl: 'https://app.blawby.com/api/auth/magic-link/verify?token=preview-token',
 };
 
 const sampleIntakeDeclinedData: IntakeDeclinedData = {
@@ -785,214 +786,214 @@ http.get('/email-templates', (c) => {
 /**
  * Individual email template previews
  */
-http.get('/email-templates/magic-link', (c) => {
+http.get('/email-templates/magic-link', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = magicLinkTemplate(sampleMagicLinkData);
+  const html = await magicLinkTemplate(sampleMagicLinkData);
   return c.html(html);
 });
 
-http.get('/email-templates/password-reset', (c) => {
+http.get('/email-templates/password-reset', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = passwordResetTemplate(samplePasswordResetData);
+  const html = await passwordResetTemplate(samplePasswordResetData);
   return c.html(html);
 });
 
-http.get('/email-templates/email-verification', (c) => {
+http.get('/email-templates/email-verification', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = emailVerificationTemplate(sampleEmailVerificationData);
+  const html = await emailVerificationTemplate(sampleEmailVerificationData);
   return c.html(html);
 });
 
-http.get('/email-templates/change-email-confirmation', (c) => {
+http.get('/email-templates/change-email-confirmation', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = changeEmailConfirmationTemplate(sampleChangeEmailConfirmationData);
+  const html = await changeEmailConfirmationTemplate(sampleChangeEmailConfirmationData);
   return c.html(html);
 });
 
-http.get('/email-templates/payment-receipt', (c) => {
+http.get('/email-templates/payment-receipt', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = customerPaymentReceipt(samplePaymentReceiptData);
+  const html = await customerPaymentReceipt(samplePaymentReceiptData);
   return c.html(html);
 });
 
-http.get('/email-templates/welcome', (c) => {
+http.get('/email-templates/welcome', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = welcomeEmail(sampleWelcomeData);
+  const html = await welcomeEmail(sampleWelcomeData);
   return c.html(html);
 });
 
-http.get('/email-templates/stripe-connect-welcome', (c) => {
+http.get('/email-templates/stripe-connect-welcome', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = stripeConnectWelcome(sampleStripeConnectData);
+  const html = await stripeConnectWelcome(sampleStripeConnectData);
   return c.html(html);
 });
 
-http.get('/email-templates/practice-invitation', (c) => {
+http.get('/email-templates/practice-invitation', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = practiceInvitation(samplePracticeInvitationData);
+  const html = await practiceInvitation(samplePracticeInvitationData);
   return c.html(html);
 });
 
-http.get('/email-templates/payment-request', (c) => {
+http.get('/email-templates/payment-request', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = customerPaymentRequest(samplePaymentRequestData);
+  const html = await customerPaymentRequest(samplePaymentRequestData);
   return c.html(html);
 });
 
-http.get('/email-templates/team-payment-receipt', (c) => {
+http.get('/email-templates/team-payment-receipt', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = teamPaymentReceipt(sampleTeamPaymentReceiptData);
+  const html = await teamPaymentReceipt(sampleTeamPaymentReceiptData);
   return c.html(html);
 });
 
 // Customer refund templates
-http.get('/email-templates/customer-refund-request', (c) => {
+http.get('/email-templates/customer-refund-request', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = customerPaymentRefundRequest(sampleRefundData);
+  const html = await customerPaymentRefundRequest(sampleRefundData);
   return c.html(html);
 });
 
-http.get('/email-templates/customer-refunded', (c) => {
+http.get('/email-templates/customer-refunded', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = customerPaymentRefunded(sampleRefundData);
+  const html = await customerPaymentRefunded(sampleRefundData);
   return c.html(html);
 });
 
-http.get('/email-templates/customer-refund-rejected', (c) => {
+http.get('/email-templates/customer-refund-rejected', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = customerPaymentRefundRejected(sampleRefundData);
+  const html = await customerPaymentRefundRejected(sampleRefundData);
   return c.html(html);
 });
 
 // Team refund templates
-http.get('/email-templates/team-refund-request', (c) => {
+http.get('/email-templates/team-refund-request', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = teamPaymentRefundRequest(sampleTeamRefundData);
+  const html = await teamPaymentRefundRequest(sampleTeamRefundData);
   return c.html(html);
 });
 
-http.get('/email-templates/team-refunded', (c) => {
+http.get('/email-templates/team-refunded', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = teamPaymentRefunded(sampleTeamRefundData);
+  const html = await teamPaymentRefunded(sampleTeamRefundData);
   return c.html(html);
 });
 
-http.get('/email-templates/payout-sent', (c) => {
+http.get('/email-templates/payout-sent', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = payoutSent(samplePayoutSentData);
+  const html = await payoutSent(samplePayoutSentData);
   return c.html(html);
 });
 
-http.get('/email-templates/stripe-connect-status', (c) => {
+http.get('/email-templates/stripe-connect-status', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = stripeConnectStatus(sampleStripeConnectStatusData);
+  const html = await stripeConnectStatus(sampleStripeConnectStatusData);
   return c.html(html);
 });
 
 // Intake template routes
-http.get('/email-templates/intake-submission-received', (c) => {
+http.get('/email-templates/intake-submission-received', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = intakeSubmissionReceived(sampleIntakeSubmissionReceivedData);
+  const html = await intakeSubmissionReceived(sampleIntakeSubmissionReceivedData);
   return c.html(html);
 });
 
-http.get('/email-templates/intake-new-notification', (c) => {
+http.get('/email-templates/intake-new-notification', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = intakeNewNotification(sampleIntakeNewNotificationData);
+  const html = await intakeNewNotification(sampleIntakeNewNotificationData);
   return c.html(html);
 });
 
-http.get('/email-templates/intake-accepted', (c) => {
+http.get('/email-templates/intake-accepted', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = intakeAccepted(sampleIntakeAcceptedData);
+  const html = await intakeAccepted(sampleIntakeAcceptedData);
   return c.html(html);
 });
 
-http.get('/email-templates/intake-declined', (c) => {
+http.get('/email-templates/intake-declined', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = intakeDeclined(sampleIntakeDeclinedData);
+  const html = await intakeDeclined(sampleIntakeDeclinedData);
   return c.html(html);
 });
 
 // Matter template routes
-http.get('/email-templates/matter-opened', (c) => {
+http.get('/email-templates/matter-opened', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = matterOpened(sampleMatterOpenedData);
+  const html = await matterOpened(sampleMatterOpenedData);
   return c.html(html);
 });
 
-http.get('/email-templates/matter-closed', (c) => {
+http.get('/email-templates/matter-closed', async (c) => {
   const devOnlyError = guardDevelopmentOnly(c);
   if (devOnlyError) {
     return devOnlyError;
   }
-  const html = matterClosed(sampleMatterClosedData);
+  const html = await matterClosed(sampleMatterClosedData);
   return c.html(html);
 });
 

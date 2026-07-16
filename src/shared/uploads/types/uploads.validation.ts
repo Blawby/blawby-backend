@@ -4,6 +4,10 @@ const uploadScopeTypeSchema = z.enum(['matter', 'intake', 'conversation', 'profi
 const uploadStatusSchema = z.enum(['pending', 'verified', 'rejected']);
 const uploadAuditActionSchema = z.enum(['created', 'viewed', 'downloaded', 'deleted', 'restored', 'confirmed']);
 
+export type UploadScopeType = z.infer<typeof uploadScopeTypeSchema>;
+export type UploadStatus = z.infer<typeof uploadStatusSchema>;
+export type UploadAuditAction = z.infer<typeof uploadAuditActionSchema>;
+
 const presignUploadSchema = z.object({
   file_name: z.string().min(1).max(255),
   mime_type: z.string().min(1).max(100),

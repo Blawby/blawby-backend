@@ -14,7 +14,7 @@ import {
   INVOICE_ILLUSTRATION_URL,
 } from '../base.template';
 
-export const customerPaymentRequest = (data: CustomerPaymentRequestData): string => {
+export const customerPaymentRequest = async (data: CustomerPaymentRequestData): Promise<string> => {
   const lineItemsHtml = data.lineItems
     .map(
       (item) => `

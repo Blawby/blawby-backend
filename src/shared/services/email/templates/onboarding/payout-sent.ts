@@ -18,7 +18,7 @@ const FRONTEND_URLS = {
   PAYOUTS: `${config.app.appUrl}/payouts`,
 };
 
-export const payoutSent = (data: PayoutSentData): string => {
+export const payoutSent = async (data: PayoutSentData): Promise<string> => {
   const mjmlContent = baseLayout(
     `
     ${cardSection(`

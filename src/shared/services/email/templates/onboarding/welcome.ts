@@ -18,7 +18,7 @@ const FRONTEND_URLS = {
   HELP: `${config.app.appUrl}/help`,
 };
 
-export const welcomeEmail = (data: WelcomeEmailData): string => {
+export const welcomeEmail = async (data: WelcomeEmailData): Promise<string> => {
   const mjmlContent = baseLayout(
     `
     ${cardSection(`

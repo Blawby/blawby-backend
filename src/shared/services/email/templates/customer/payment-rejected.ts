@@ -14,7 +14,7 @@ import {
   INVOICE_ILLUSTRATION_URL,
 } from '@/shared/services/email/templates/base.template';
 
-export const customerPaymentRefundRejected = (data: CustomerPaymentReceiptData): string => {
+export const customerPaymentRefundRejected = async (data: CustomerPaymentReceiptData): Promise<string> => {
   const mjmlContent = baseLayout(
     `
     ${cardSection(`
