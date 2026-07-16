@@ -170,7 +170,7 @@ const createStaffRoleHooks = (db: NodePgDatabase<typeof schema>) => ({
     const userId = getSetRoleUserId(ctx.body);
 
     if (userId) {
-      await ctx.context.internalAdapter.deleteSessions(userId);
+      await ctx.context.internalAdapter.deleteSessions([userId]);
     }
   }),
 });

@@ -133,7 +133,7 @@ The current error result contains a human-readable message. Internal secrets, to
 ## Security and compliance
 
 - JWT signature validation uses the configured Better Auth JWKS endpoint.
-- Issuer and audience are validated.
+- Issuer is restricted to `${baseUrl}/api/auth`, and audience is restricted to the single configured `${baseUrl}/mcp` resource in both token issuance (`validAudiences`) and MCP request verification (`verifyOptions.audience`).
 - Tool scopes are enforced before service-context construction and handler execution.
 - Practice identifiers are not accepted as caller-controlled MCP inputs when they are organization-scoping route parameters.
 - Sensitive mutations may require explicit MCP approval.
@@ -147,6 +147,7 @@ The current error result contains a human-readable message. Internal secrets, to
 - The transport is currently stateless.
 - Tool success output is serialized JSON inside MCP text content rather than richer typed MCP content.
 - Approval behavior depends on the connected MCP client supporting elicitation.
+- Stable `@better-auth/oauth-provider` 1.6.23 retains the moderate resource-indicator advisory GHSA-p2fr-6hmx-4528. Until a stable release contains the upstream fix, Blawby does not trust a caller-supplied resource indicator: issuance and request verification both enforce the one canonical MCP audience described above.
 - There is no manually maintained tool catalogue in this document because the registry is generated and can change with route annotations.
 
 ## Acceptance criteria
