@@ -11,7 +11,7 @@ import {
 /**
  * Client-facing: "Your matter has been closed"
  */
-export const matterClosed = (data: MatterClosedData): string => {
+export const matterClosed = async (data: MatterClosedData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const matterTitle = escapeHtml(data.matterTitle);
   const practiceName = escapeHtml(data.practiceName);

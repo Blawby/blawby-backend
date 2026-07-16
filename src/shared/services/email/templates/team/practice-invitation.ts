@@ -13,7 +13,7 @@ import {
  * Renders an invitation email for a user to join an organization.
  * Uses the PracticeInvitationData structure: { recipientEmail, recipientName, inviterName, practiceName, inviteLink }
  */
-export const practiceInvitation = (data: PracticeInvitationData): string => {
+export const practiceInvitation = async (data: PracticeInvitationData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const inviterName = escapeHtml(data.inviterName);
   const practiceName = escapeHtml(data.practiceName);

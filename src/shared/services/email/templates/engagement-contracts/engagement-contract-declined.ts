@@ -8,7 +8,7 @@ import {
   renderMjml,
 } from '@/shared/services/email/templates/base.template';
 
-export const engagementContractDeclined = (data: EngagementContractDeclinedData): string => {
+export const engagementContractDeclined = async (data: EngagementContractDeclinedData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const matterTitle = escapeHtml(data.matterTitle);
   const practiceName = escapeHtml(data.practiceName);

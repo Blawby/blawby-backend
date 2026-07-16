@@ -109,7 +109,11 @@ export interface TemplateDataMap {
 }
 
 // Template registry with explicit mapping
-const templateRegistry = {
+type TemplateRegistry = {
+  [T in EmailTemplateName]: (data: TemplateDataMap[T]) => string | Promise<string>;
+};
+
+const templateRegistry: TemplateRegistry = {
   // Customer templates
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_RECEIPT]: customerPaymentReceipt,
   [EMAIL_TEMPLATES.CUSTOMER_PAYMENT_REQUEST]: customerPaymentRequest,
@@ -151,19 +155,20 @@ const templateRegistry = {
   [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_SIGNED_COPY]: engagementContractSignedCopy,
   [EMAIL_TEMPLATES.ENGAGEMENT_CONTRACT_DECLINED]: engagementContractDeclined,
   [EMAIL_TEMPLATES.CONFLICT_CHECK_REVIEW_REQUIRED]: conflictCheckReviewRequired,
-} as const;
+};
 
 /**
  * Render an email template by name in a type-safe way
  */
-export const renderTemplate = <T extends EmailTemplateName>(templateName: T, data: TemplateDataMap[T]): string => {
-  const templateFn = (templateRegistry as Record<string, Function>)[templateName];
-
-  if (!templateFn) {
+export const renderTemplate = async <T extends EmailTemplateName>(
+  templateName: T,
+  data: TemplateDataMap[T]
+): Promise<string> => {
+  const template = templateRegistry[templateName];
+  if (!template) {
     throw new Error(`Unknown email template: ${templateName}`);
   }
-
-  return templateFn(data);
+  return template(data);
 };
 
 // Re-export individual templates for direct use

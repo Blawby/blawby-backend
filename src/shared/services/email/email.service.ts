@@ -84,7 +84,7 @@ export const sendEmail = async (
   try {
     // TemplateDataMap is the registry boundary; queue payloads are keyed by the same template name.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const html = renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
+    const html = await renderTemplate(payload.template, payload.data as unknown as TemplateDataMap[EmailTemplateName]);
 
     if (!isProduction()) {
       saveEmailToFile(payload.to, payload.subject, html);

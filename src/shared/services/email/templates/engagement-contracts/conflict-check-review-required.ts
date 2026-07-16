@@ -9,7 +9,7 @@ import {
   sanitizeUrl,
 } from '@/shared/services/email/templates/base.template';
 
-export const conflictCheckReviewRequired = (data: ConflictCheckReviewRequiredData): string => {
+export const conflictCheckReviewRequired = async (data: ConflictCheckReviewRequiredData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const practiceName = escapeHtml(data.practiceName);
   const matterId = escapeHtml(data.matterId);

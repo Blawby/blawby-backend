@@ -160,8 +160,8 @@ export const emailLegalNotice = (content: string): string =>
 /**
  * Render MJML to HTML
  */
-export const renderMjml = (mjmlContent: string): string => {
-  const result = mjml2html(mjmlContent, {
+export const renderMjml = async (mjmlContent: string): Promise<string> => {
+  const result = await mjml2html(mjmlContent, {
     validationLevel: 'soft',
   });
 

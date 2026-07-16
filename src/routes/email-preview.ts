@@ -115,47 +115,47 @@ const samplePracticeInvitationData: PracticeInvitationData = {
 };
 
 // Magic Link Preview
-app.get('/magic-link', (c) => {
-  const html = magicLinkTemplate(sampleMagicLinkData);
+app.get('/magic-link', async (c) => {
+  const html = await magicLinkTemplate(sampleMagicLinkData);
   return c.html(html);
 });
 
-app.get('/password-reset', (c) => {
-  const html = passwordResetTemplate(samplePasswordResetData);
+app.get('/password-reset', async (c) => {
+  const html = await passwordResetTemplate(samplePasswordResetData);
   return c.html(html);
 });
 
-app.get('/email-verification', (c) => {
-  const html = emailVerificationTemplate(sampleEmailVerificationData);
+app.get('/email-verification', async (c) => {
+  const html = await emailVerificationTemplate(sampleEmailVerificationData);
   return c.html(html);
 });
 
-app.get('/change-email-confirmation', (c) => {
-  const html = changeEmailConfirmationTemplate(sampleChangeEmailConfirmationData);
+app.get('/change-email-confirmation', async (c) => {
+  const html = await changeEmailConfirmationTemplate(sampleChangeEmailConfirmationData);
   return c.html(html);
 });
 
 // Payment Receipt Preview
-app.get('/payment-receipt', (c) => {
-  const html = customerPaymentReceipt(samplePaymentReceiptData);
+app.get('/payment-receipt', async (c) => {
+  const html = await customerPaymentReceipt(samplePaymentReceiptData);
   return c.html(html);
 });
 
 // Welcome Email Preview
-app.get('/welcome', (c) => {
-  const html = welcomeEmail(sampleWelcomeData);
+app.get('/welcome', async (c) => {
+  const html = await welcomeEmail(sampleWelcomeData);
   return c.html(html);
 });
 
 // Stripe Connect Welcome Preview
-app.get('/stripe-connect-welcome', (c) => {
-  const html = stripeConnectWelcome(sampleStripeConnectData);
+app.get('/stripe-connect-welcome', async (c) => {
+  const html = await stripeConnectWelcome(sampleStripeConnectData);
   return c.html(html);
 });
 
 // Practice Invitation Preview
-app.get('/practice-invitation', (c) => {
-  const html = practiceInvitation(samplePracticeInvitationData);
+app.get('/practice-invitation', async (c) => {
+  const html = await practiceInvitation(samplePracticeInvitationData);
   return c.html(html);
 });
 
