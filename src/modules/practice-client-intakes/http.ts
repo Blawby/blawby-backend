@@ -47,6 +47,7 @@ staffApp.use('*', requireAuth(), requireOrgMembership(), injectAbility());
 staffApp.openapi(staffRoutes.triggerIntakeInvitationRoute, handlers.triggerIntakeInvitationHandler);
 staffApp.openapi(staffRoutes.listIntakesRoute, handlers.listIntakesHandler);
 staffApp.openapi(staffRoutes.getIntakeRoute, handlers.getIntakeHandler);
+staffApp.openapi(staffRoutes.getIntakePreflightRoute, handlers.getIntakePreflightHandler);
 staffApp.openapi(staffRoutes.updateIntakeTriageStatusRoute, handlers.updateIntakeTriageStatusHandler);
 staffApp.openapi(staffRoutes.convertIntakeRoute, handlers.convertIntakeHandler);
 
