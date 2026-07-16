@@ -24,6 +24,7 @@ type SubjectName =
   | 'Subscription'
   | 'Matter'
   | 'IntakeConversation'
+  | 'Notification'
   | 'Invoice'
   | 'Payout'
   | 'RefundRequest'
