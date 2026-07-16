@@ -83,6 +83,7 @@ staffApp.openapi(routes.deletePracticeDetailsRoute, handlers.deletePracticeDetai
  * Run fuzzy conflict check against existing matters and clients
  */
 staffApp.openapi(routes.conflictCheckRoute, handlers.conflictCheckHandler);
+staffApp.openapi(routes.getPracticeInsightsRoute, handlers.getPracticeInsightsHandler);
 
 // ==================== INTAKE TEMPLATES ====================
 staffApp.openapi(routes.listIntakeTemplatesRoute, handlers.listIntakeTemplatesHandler);
