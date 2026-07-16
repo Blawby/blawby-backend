@@ -1,9 +1,7 @@
 import { getLogger } from '@logtape/logtape';
 import type { Stripe } from 'stripe';
-import { HTTPException } from 'hono/http-exception';
 import type { InvoiceWithRelations } from '@/modules/invoices/types/invoices.types';
 import { stripe } from '@/shared/utils/stripe-client';
-import { wrapStripeError } from '@/shared/utils/stripe-error';
 
 const logger = getLogger(['engines', 'stripe', 'stripe-api-adapter']);
 
