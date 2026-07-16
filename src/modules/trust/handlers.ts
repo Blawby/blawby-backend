@@ -1,5 +1,6 @@
 import { trustRoutes } from '@/modules/trust/routes';
 import { trustService } from '@/modules/trust/services/trust.service';
+import { trustReadinessService } from '@/modules/trust/services/trust-readiness.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 
@@ -10,6 +11,9 @@ const {
   createDepositRoute,
   createWithdrawalRoute,
   getTrustClientBalancesRoute,
+  createTrustReconciliationRoute,
+  listTrustReconciliationsRoute,
+  getTrustReadinessRoute,
 } = trustRoutes;
 
 const createDepositHandler: AppRouteHandler<typeof createDepositRoute> = async (c) => {
@@ -81,6 +85,26 @@ const getTrustClientBalancesHandler: AppRouteHandler<typeof getTrustClientBalanc
   return c.json(balances, 200);
 };
 
+const createTrustReconciliationHandler: AppRouteHandler<typeof createTrustReconciliationRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const data = c.req.valid('json');
+  const reconciliation = await trustReadinessService.reconcile({ data }, ctx);
+  return c.json(reconciliation, 201);
+};
+
+const listTrustReconciliationsHandler: AppRouteHandler<typeof listTrustReconciliationsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { limit } = c.req.valid('query');
+  const reconciliations = await trustReadinessService.listReconciliations({ limit }, ctx);
+  return c.json(reconciliations, 200);
+};
+
+const getTrustReadinessHandler: AppRouteHandler<typeof getTrustReadinessRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const readiness = await trustReadinessService.getReadiness({}, ctx);
+  return c.json(readiness, 200);
+};
+
 export const handlers = {
   createDepositHandler,
   createWithdrawalHandler,
@@ -88,4 +112,7 @@ export const handlers = {
   getTrustBalanceHandler,
   getTrustReportHandler,
   getTrustClientBalancesHandler,
+  createTrustReconciliationHandler,
+  listTrustReconciliationsHandler,
+  getTrustReadinessHandler,
 };

@@ -1,5 +1,11 @@
 import { z } from '@hono/zod-openapi';
 import { trustService } from '@/modules/trust/services/trust.service';
+import { trustReadinessService } from '@/modules/trust/services/trust-readiness.service';
+import {
+  trustReadinessSchema,
+  trustReconciliationInputSchema,
+  trustReconciliationSchema,
+} from '@/modules/trust/types/trust-readiness.types';
 import { routeBuilder } from '@/shared/router/route-builder';
 import { practiceIdParamSchema } from '@/shared/validations/openapi';
 
@@ -230,6 +236,91 @@ const getTrustClientBalancesRoute = routeBuilder.build({
   },
 });
 
+const createTrustReconciliationRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{practice_id}/reconciliations',
+  tags: ['Trust'],
+  summary: 'Record a three-way trust reconciliation',
+  description:
+    'Snapshots the client-ledger total and compares it with manually supplied trust-book and bank-statement balances. This does not include operating revenue or invoice receivables.',
+  mcp: {
+    name: 'reconcile_trust_account',
+    scope: 'trust:write',
+    approval: {
+      required: true,
+      message: 'Record this trust reconciliation snapshot? The record is immutable compliance evidence.',
+      confirm_title: 'Record reconciliation',
+    },
+    schema: trustReconciliationInputSchema.shape,
+    handler: async (args, ctx) => {
+      const data = trustReconciliationInputSchema.parse(args);
+      return trustReadinessService.reconcile({ data }, ctx);
+    },
+  },
+  request: {
+    params: practiceIdParamSchema,
+    body: { content: { 'application/json': { schema: trustReconciliationInputSchema } } },
+  },
+  responses: {
+    201: {
+      content: { 'application/json': { schema: trustReconciliationSchema } },
+      description: 'Immutable reconciliation snapshot recorded.',
+    },
+    409: {
+      content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+      description: 'Idempotency key was already used for different reconciliation inputs.',
+    },
+  },
+});
+
+const listTrustReconciliationsRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/reconciliations',
+  tags: ['Trust'],
+  summary: 'List trust reconciliation history',
+  description: 'Returns immutable reconciliation snapshots newest first.',
+  mcp: {
+    name: 'list_trust_reconciliations',
+    scope: 'trust:read',
+    schema: { limit: z.coerce.number().int().min(1).max(100).default(25) },
+    handler: async (args, ctx) => {
+      const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(100).default(25) }).parse(args);
+      return trustReadinessService.listReconciliations({ limit }, ctx);
+    },
+  },
+  request: {
+    params: practiceIdParamSchema,
+    query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(25) }),
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.array(trustReconciliationSchema) } },
+      description: 'Reconciliation history retrieved.',
+    },
+  },
+});
+
+const getTrustReadinessRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/readiness',
+  tags: ['Trust'],
+  summary: 'Get trust readiness and reconciliation metadata',
+  description:
+    'Returns the client-ledger snapshot, latest reconciliation, matter retainer targets, and explicit bank/operating/invoice boundaries.',
+  mcp: {
+    name: 'get_trust_readiness',
+    scope: 'trust:read',
+    handler: async (_args, ctx) => trustReadinessService.getReadiness({}, ctx),
+  },
+  request: { params: practiceIdParamSchema },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: trustReadinessSchema } },
+      description: 'Trust readiness metadata retrieved.',
+    },
+  },
+});
+
 export const trustRoutes = {
   createDepositRoute,
   createWithdrawalRoute,
@@ -237,4 +328,7 @@ export const trustRoutes = {
   getTrustBalanceRoute,
   getTrustReportRoute,
   getTrustClientBalancesRoute,
+  createTrustReconciliationRoute,
+  listTrustReconciliationsRoute,
+  getTrustReadinessRoute,
 };
