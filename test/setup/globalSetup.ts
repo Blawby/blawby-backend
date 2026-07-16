@@ -1,5 +1,5 @@
 import { config } from '@dotenvx/dotenvx';
-import { execSync } from 'child_process';
+import { spawn } from 'node:child_process';
 import { Client } from 'pg';
 
 // Load test environment variables from .env.test first
@@ -47,9 +47,20 @@ export default async function globalSetup() {
   console.log('  → Syncing database schema...');
 
   try {
-    execSync(`yes | DATABASE_URL="${dbUrl}" pnpm drizzle-kit migrate`, {
-      stdio: 'inherit',
-      shell: '/bin/bash',
+    const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+    await new Promise<void>((resolve, reject) => {
+      const migration = spawn(pnpmCommand, ['drizzle-kit', 'migrate'], {
+        env: { ...process.env, DATABASE_URL: dbUrl },
+        stdio: 'inherit',
+      });
+      migration.once('error', reject);
+      migration.once('exit', (code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(`Drizzle migration exited with code ${String(code)}`));
+      });
     });
 
     console.log('✅ Test database setup complete!\n');
