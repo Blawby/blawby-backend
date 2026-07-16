@@ -9,7 +9,7 @@ import type {
   ConflictCheckWarning,
 } from '@/modules/practice/types/conflict-check.types';
 import { getActiveTx, uow } from '@/shared/database/uow';
-import { ConflictCheckCompleted } from '@/shared/events/definitions/engagement-contracts';
+import { ConflictCheckCompleted } from '@/shared/events/definitions';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';

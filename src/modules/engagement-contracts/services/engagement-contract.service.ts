@@ -22,7 +22,7 @@ import {
   EngagementContractCreated,
   EngagementContractDeclined,
   EngagementContractSent,
-} from '@/shared/events/definitions/engagement-contracts';
+} from '@/shared/events/definitions';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { config } from '@/shared/config';
 import type { OffsetPaginatedResponse } from '@/shared/types/pagination';

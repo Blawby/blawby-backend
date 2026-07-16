@@ -20,6 +20,13 @@ import * as stripe from './definitions/stripe';
 import * as subscriptions from './definitions/subscriptions';
 import * as system from './definitions/system';
 import * as client from './definitions/client';
+import {
+  ConflictCheckCompleted,
+  EngagementContractAccepted,
+  EngagementContractCreated,
+  EngagementContractDeclined,
+  EngagementContractSent,
+} from './definitions/engagement-contracts';
 import * as users from './definitions/users';
 
 // Re-export everything for backward compatibility
@@ -35,6 +42,7 @@ export * from './definitions/stripe';
 export * from './definitions/subscriptions';
 export * from './definitions/system';
 export * from './definitions/client';
+export * from './definitions/engagement-contracts';
 export * from './definitions/users';
 
 /**
@@ -132,6 +140,13 @@ export const EventClasses = {
   'client.updated': client.ClientUpdated,
   'client.deleted': client.ClientDeleted,
   'client.status_changed': client.ClientStatusChanged,
+
+  // Engagement contract
+  'engagement_contract.created': EngagementContractCreated,
+  'engagement_contract.sent': EngagementContractSent,
+  'engagement_contract.accepted': EngagementContractAccepted,
+  'engagement_contract.declined': EngagementContractDeclined,
+  'conflict_check.completed': ConflictCheckCompleted,
 
   // System
   'system.health_check_performed': system.SystemHealthCheckPerformed,
