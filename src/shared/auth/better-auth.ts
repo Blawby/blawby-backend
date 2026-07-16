@@ -1,5 +1,6 @@
 import { apiKey } from '@better-auth/api-key';
 import { oauthProvider } from '@better-auth/oauth-provider';
+import { buildPracticeSkillClaims } from '@/modules/mcp/skills/claims';
 import { getLogger } from '@logtape/logtape';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -146,8 +147,9 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
           },
         },
         clientPrivileges: checkClientIsOwner,
-        customAccessTokenClaims: ({ referenceId }) => ({
+        customAccessTokenClaims: async ({ referenceId }) => ({
           organization_id: referenceId,
+          ...(referenceId ? await buildPracticeSkillClaims(referenceId) : { enabled_skills: [], skill_scopes: [] }),
         }),
       }),
       anonymous({

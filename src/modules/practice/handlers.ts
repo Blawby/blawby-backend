@@ -9,6 +9,7 @@ import { practiceInsightsService } from '@/modules/practice/services/practice-in
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
+import { practiceSkillsService } from '@/modules/mcp/skills/practice-skills.service';
 
 export const listPracticesHandler: AppRouteHandler<typeof routes.listPracticesRoute> = async (c) => {
   const ctx = getServiceContext(c);
@@ -117,6 +118,23 @@ export const getPracticeInsightsHandler: AppRouteHandler<typeof routes.getPracti
   const { topic } = c.req.valid('query');
   const result = await practiceInsightsService.getInsights({ topic }, ctx);
   return c.json(result);
+};
+
+export const getPracticeSkillsHandler: AppRouteHandler<typeof routes.getPracticeSkillsRoute> = async (c) =>
+  c.json(await practiceSkillsService.getPracticeSkills(getServiceContext(c)), 200);
+
+export const updatePracticeSkillsHandler: AppRouteHandler<typeof routes.updatePracticeSkillsRoute> = async (c) => {
+  const body = c.req.valid('json');
+  return c.json(await practiceSkillsService.updatePracticeSkills(body.enabled_skills, getServiceContext(c)), 200);
+};
+
+export const getPublicPracticeSkillPromptHandler: AppRouteHandler<
+  typeof routes.getPublicPracticeSkillPromptRoute
+> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { slug } = c.req.valid('param');
+  const practice = await practiceQueriesService.getPracticeBySlug({ slug }, ctx);
+  return c.json(await practiceSkillsService.getPublicPracticeSkillPrompt(practice.id), 200);
 };
 
 export const getPracticeDetailsBySlugHandler: AppRouteHandler<typeof routes.getPracticeDetailsBySlugRoute> = async (

@@ -11,6 +11,12 @@ vi.mock('@/modules/mcp/mcp-context', () => ({
       const { scope } = jwt;
       return typeof scope === 'string' ? scope.split(/\s+/).filter(Boolean) : [];
     }),
+    getMcpSkillScopes: vi.fn((jwt: McpJwt) => {
+      const skillScopes = jwt.skill_scopes;
+      return Array.isArray(skillScopes)
+        ? skillScopes.filter((scope): scope is string => typeof scope === 'string')
+        : [];
+    }),
     buildMcpServiceContext: vi.fn(async () => ({
       organizationId: 'org_1',
       userId: 'user_1',
@@ -86,7 +92,9 @@ describe('toolRegistry.registerTools', () => {
     const handler = vi.fn(async () => ({ ok: true }));
     const { callbacks, server } = createFakeServer(action);
 
-    toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
+    toolRegistry.registerTools(server, { scope: 'things:write', skill_scopes: ['things:write'] }, [
+      createTool(handler),
+    ]);
     const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
 
     expect(result?.isError).toBe(true);
@@ -100,7 +108,9 @@ describe('toolRegistry.registerTools', () => {
     const { callbacks, server } = createFakeServer('accept');
     server.server.elicitInput = vi.fn(async () => ({ action: 'accept', content: { confirm: false } }));
 
-    toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
+    toolRegistry.registerTools(server, { scope: 'things:write', skill_scopes: ['things:write'] }, [
+      createTool(handler),
+    ]);
     const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
 
     expect(result?.isError).toBe(true);
@@ -115,7 +125,9 @@ describe('toolRegistry.registerTools', () => {
       throw new Error('transport error');
     });
 
-    toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
+    toolRegistry.registerTools(server, { scope: 'things:write', skill_scopes: ['things:write'] }, [
+      createTool(handler),
+    ]);
     const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
 
     expect(result?.isError).toBe(true);
@@ -127,13 +139,28 @@ describe('toolRegistry.registerTools', () => {
     const handler = vi.fn(async () => ({ ok: true }));
     const { callbacks, server } = createFakeServer('accept');
 
-    toolRegistry.registerTools(server, { scope: 'things:write' }, [createTool(handler)]);
+    toolRegistry.registerTools(server, { scope: 'things:write', skill_scopes: ['things:write'] }, [
+      createTool(handler),
+    ]);
     const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
 
     expect(result?.isError).toBeUndefined();
     expect(result?.content[0]?.text).toBe(JSON.stringify({ ok: true }));
     expect(mcpContext.buildMcpServiceContext).toHaveBeenCalledOnce();
     expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it('returns an MCP tool error when OAuth granted the scope but the practice skill did not', async () => {
+    const handler = vi.fn(async () => ({ ok: true }));
+    const { callbacks, elicitInput, server } = createFakeServer();
+
+    toolRegistry.registerTools(server, { scope: 'things:write', skill_scopes: ['things:read'] }, [createTool(handler)]);
+    const result = await callbacks.get('dangerous_tool')?.({ value: 'x' });
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content[0]?.text).toContain('Practice AI skills do not enable MCP scope');
+    expect(elicitInput).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
   });
 });
 

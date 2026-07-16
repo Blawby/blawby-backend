@@ -31,7 +31,11 @@ const toolSuccessResult = (result: unknown): CallToolResult => ({
 const requireToolScope = (jwt: McpJwt, tool: AnyToolDef): CallToolResult | null => {
   const scopes = mcpContext.getMcpScopes(jwt);
   if (scopes.includes(tool.scope)) {
-    return null;
+    const skillScopes = mcpContext.getMcpSkillScopes(jwt);
+    if (skillScopes.includes(tool.scope)) {
+      return null;
+    }
+    return toolErrorResult(`Practice AI skills do not enable MCP scope "${tool.scope}" for tool "${tool.name}"`);
   }
 
   return toolErrorResult(`Missing required MCP scope "${tool.scope}" for tool "${tool.name}"`);
