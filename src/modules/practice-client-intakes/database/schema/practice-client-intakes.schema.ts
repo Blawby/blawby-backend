@@ -1,6 +1,18 @@
 import { z } from '@hono/zod-openapi';
-import { relations } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp, index, varchar, boolean, real } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
 import { addresses } from '@/modules/practice/database/schema/addresses.schema';
@@ -9,6 +21,9 @@ import { organizations } from '@/schema/better-auth-schema';
 import { intakeConversations } from '@/modules/intake-conversations/database/schema/intake-conversations.schema';
 
 import { addressSchema } from '@/shared/validations/address';
+
+export const INTAKE_ENRICHMENT_STATUSES = ['not_requested', 'pending', 'processing', 'succeeded', 'failed'] as const;
+export type IntakeEnrichmentStatus = (typeof INTAKE_ENRICHMENT_STATUSES)[number];
 
 export const practiceClientIntakes = pgTable(
   'practice_client_intakes',
@@ -66,6 +81,16 @@ export const practiceClientIntakes = pgTable(
 
     // Transcript and Jurisdiction
     transcript_summary: text('transcript_summary'),
+    enrichment_status: varchar('enrichment_status', { length: 20 })
+      .notNull()
+      .default('not_requested')
+      .$type<IntakeEnrichmentStatus>(),
+    enrichment_version: integer('enrichment_version').notNull().default(0),
+    enrichment_attempt_count: integer('enrichment_attempt_count').notNull().default(0),
+    enrichment_model: varchar('enrichment_model', { length: 200 }),
+    enrichment_error_code: varchar('enrichment_error_code', { length: 100 }),
+    enrichment_requested_at: timestamp('enrichment_requested_at', { withTimezone: true, mode: 'date' }),
+    enriched_at: timestamp('enriched_at', { withTimezone: true, mode: 'date' }),
     jurisdiction_status: varchar('jurisdiction_status', { length: 20 }).$type<
       'supported' | 'unsupported' | 'unknown' | 'review_required'
     >(),
@@ -88,6 +113,11 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_court_date_idx').on(table.court_date),
     index('practice_client_intakes_jurisdiction_status_idx').on(table.jurisdiction_status),
     index('practice_client_intakes_invitation_prefill_token_idx').on(table.invitation_prefill_token_hash),
+    index('practice_client_intakes_enrichment_status_idx').on(table.organization_id, table.enrichment_status),
+    check(
+      'practice_client_intakes_enrichment_status_check',
+      sql`${table.enrichment_status} IN ('not_requested', 'pending', 'processing', 'succeeded', 'failed')`
+    ),
   ]
 );
 

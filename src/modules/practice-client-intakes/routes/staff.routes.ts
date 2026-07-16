@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { practiceIdParamOpenAPISchema, uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
+import { intakeEnrichmentService } from '@/modules/practice-client-intakes/services/intake-enrichment.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
 import { intakePreflightService } from '@/modules/practice-client-intakes/services/intake-preflight.service';
 import { intakePreflightResponseSchema } from '@/modules/practice-client-intakes/types/intake-preflight.types';
@@ -58,6 +59,33 @@ const triggerIntakeInvitationRoute = routeBuilder.build({
         },
       },
       description: 'Internal server error',
+    },
+  },
+});
+
+const requestIntakeEnrichmentRoute = routeBuilder.build({
+  method: 'post',
+  path: '/{uuid}/enrichment',
+  tags: ['Practice Client Intakes'],
+  summary: 'Request intake enrichment',
+  description: 'Queues a new versioned AI enrichment job for a completed intake.',
+  mcp: {
+    name: 'request_intake_enrichment',
+    scope: 'intakes:write',
+    approval: {
+      required: true,
+      message: 'Run AI enrichment for this completed intake?',
+      confirm_title: 'Run enrichment',
+    },
+    schema: { uuid: z.uuid() },
+    handler: async (args, ctx) =>
+      intakeEnrichmentService.requestEnrichment({ intakeId: z.uuid().parse(args.uuid) }, ctx),
+  },
+  request: { params: uuidParamOpenAPISchema },
+  responses: {
+    202: {
+      content: { 'application/json': { schema: intakeValidations.requestIntakeEnrichmentResponseSchema } },
+      description: 'Enrichment job queued.',
     },
   },
 });
@@ -372,6 +400,7 @@ const convertIntakeRoute = routeBuilder.build({
 
 export const staffRoutes = {
   triggerIntakeInvitationRoute,
+  requestIntakeEnrichmentRoute,
   listIntakesRoute,
   getIntakeRoute,
   getIntakePreflightRoute,
