@@ -91,7 +91,7 @@ const listForRecipient = async (
       .select()
       .from(notifications)
       .where(where)
-      .orderBy(desc(notifications.created_at))
+      .orderBy(desc(notifications.created_at), desc(notifications.id))
       .limit(query.limit)
       .offset(offset),
     getActiveTx().select({ total: count() }).from(notifications).where(where),

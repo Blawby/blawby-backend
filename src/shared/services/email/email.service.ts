@@ -4,6 +4,7 @@ import { appConfigService } from '@/shared/services/app-config.service';
 import {
   EMAIL_TEMPLATES,
   type EmailJobPayload,
+  type EmailJobPayloadFor,
   type EmailSendOptions,
   type EmailTemplateName,
 } from '@/shared/services/email/email.types';
@@ -51,7 +52,7 @@ const redactTemplateData = (template: EmailTemplateName, data: object): Record<s
 };
 
 const recordEmailLog = async (
-  payload: EmailJobPayload,
+  payload: EmailJobPayloadFor<EmailTemplateName>,
   result: { status: 'sent' | 'failed'; messageId?: string; errorMessage?: string }
 ): Promise<void> => {
   await db.insert(emailLogs).values({
@@ -95,7 +96,7 @@ const saveEmailToFile = async (to: string, subject: string, html: string): Promi
 };
 
 export const sendEmail = async <T extends EmailTemplateName>(
-  payload: EmailJobPayload<T>,
+  payload: EmailJobPayloadFor<T>,
   options: EmailSendOptions = {}
 ): Promise<{ success: boolean; messageId?: string; error?: string }> => {
   // Queued payloads always carry a durable key from enqueue time; the fallback

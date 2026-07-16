@@ -309,13 +309,19 @@ export interface TemplateDataMap {
 }
 
 // Email job payload (what gets queued); data is typed by the selected template
-export interface EmailJobPayload<T extends EmailTemplateName = EmailTemplateName> {
+export interface EmailJobPayloadFor<T extends EmailTemplateName> {
   template: T;
   to: string;
   subject: string;
   data: TemplateDataMap[T];
   idempotencyKey?: string;
 }
+
+// Distributive union: the unparameterized form pairs template and data per member,
+// So mismatched template/data combinations are rejected at construction sites.
+export type EmailJobPayload<T extends EmailTemplateName = EmailTemplateName> = {
+  [K in T]: EmailJobPayloadFor<K>;
+}[T];
 
 // Email send options
 export interface EmailSendOptions {

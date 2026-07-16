@@ -11,7 +11,7 @@
 
 import { db } from '@/shared/database';
 import { e2eEmailCaptureService } from '@/shared/services/email/e2e-email-capture.service';
-import type { EmailJobPayload, EmailTemplateName, TemplateDataMap } from '@/shared/services/email/email.types';
+import type { EmailJobPayloadFor, EmailTemplateName, TemplateDataMap } from '@/shared/services/email/email.types';
 import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -89,7 +89,7 @@ const addEmailJob = async <T extends EmailTemplateName>(
   options: { idempotencyKey?: string } = {}
 ): Promise<void> => {
   const workerUtils = await getWorkerUtils();
-  const payload: EmailJobPayload<T> = {
+  const payload: EmailJobPayloadFor<T> = {
     template,
     to,
     subject,
