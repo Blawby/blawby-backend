@@ -14,7 +14,8 @@ import { defineAbilityFor } from '@/shared/auth/abilities';
 import type { User } from '@/shared/types/BetterAuth';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
 import { stripeConnectedAccounts, type StripeConnectedAccount } from '@/modules/onboarding/schemas/onboarding.schema';
-import { organizations, subscriptions } from '@/schema/better-auth-schema';
+import { organizations } from '@/schema/better-auth-schema';
+import { subscriptions } from '@/modules/subscriptions/database/schema/subscriptions.schema';
 import type { ServiceContext } from '@/shared/types/service-context';
 import type { MemberRole } from '@/modules/practice/types/members.types';
 
