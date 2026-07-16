@@ -4,6 +4,7 @@ import {
   cardSection,
   renderMjml,
   escapeHtml,
+  sanitizeUrl,
   COLORS,
   BLAWBY_LOGO_URL,
 } from '@/shared/services/email/templates/base.template';
@@ -14,6 +15,10 @@ import {
 export const intakeAccepted = async (data: IntakeAcceptedData): Promise<string> => {
   const recipientName = escapeHtml(data.recipientName || 'there');
   const practiceName = escapeHtml(data.practiceName);
+  const magicLinkUrl = sanitizeUrl(data.magicLinkUrl);
+  if (magicLinkUrl === '#') {
+    throw new Error('A valid magic link URL is required for an accepted intake email');
+  }
 
   const mjmlContent = baseLayout(
     `
@@ -32,7 +37,15 @@ export const intakeAccepted = async (data: IntakeAcceptedData): Promise<string> 
         </mj-text>
 
         <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
-          A member of the team will be in touch with you soon to discuss next steps.
+          Your next step is to create or access your secure account and speak with your legal team.
+        </mj-text>
+
+        <mj-button href="${magicLinkUrl}">
+          Create Account &amp; Speak With Your Lawyer
+        </mj-button>
+
+        <mj-text color="${COLORS.text}" font-size="16px" line-height="24px">
+          Your account lets you securely communicate with your legal team, share files, and follow the progress of your matter.
         </mj-text>
 
         <mj-divider border-color="${COLORS.border}" padding="30px 0" />

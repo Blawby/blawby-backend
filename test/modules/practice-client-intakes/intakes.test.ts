@@ -449,7 +449,13 @@ describe('Practice Client Intakes API', () => {
 
     await retryAssert(() => {
       expect(triggerInvitationSpy).toHaveBeenCalledWith(
-        { uuid: paymentIntake.id },
+        {
+          uuid: paymentIntake.id,
+          acceptedEmail: {
+            practiceName: org.name,
+            recipientName: 'Accepted Payment',
+          },
+        },
         expect.objectContaining({ organizationId: org.id, userId: 'system' })
       );
       expect(linkClientSpy).toHaveBeenCalledWith(
@@ -517,7 +523,13 @@ describe('Practice Client Intakes API', () => {
 
     await retryAssert(() => {
       expect(triggerInvitationSpy).toHaveBeenCalledWith(
-        { uuid: nonPaymentIntake.id },
+        {
+          uuid: nonPaymentIntake.id,
+          acceptedEmail: {
+            practiceName: org.name,
+            recipientName: 'Accepted Non Payment',
+          },
+        },
         expect.objectContaining({ organizationId: org.id, userId: 'system' })
       );
       expect(linkClientSpy).toHaveBeenCalledWith(
