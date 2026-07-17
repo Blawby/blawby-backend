@@ -1,6 +1,8 @@
 import { z } from '@hono/zod-openapi';
 import { practiceIdParamOpenAPISchema, uuidParamOpenAPISchema } from '@/modules/practice-client-intakes/routes/shared';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
+import { intakePreflightService } from '@/modules/practice-client-intakes/services/intake-preflight.service';
+import { intakePreflightResponseSchema } from '@/modules/practice-client-intakes/types/intake-preflight.types';
 import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
 
@@ -158,6 +160,64 @@ const getIntakeRoute = routeBuilder.build({
         },
       },
       description: 'Internal server error',
+    },
+  },
+});
+
+const getIntakePreflightRoute = routeBuilder.build({
+  method: 'get',
+  path: '/{practice_id}/{id}/preflight',
+  tags: ['Practice Client Intakes'],
+  summary: 'Get advisory intake readiness checks',
+  description:
+    'Composes advisory conflict, jurisdiction, practice fit, capacity, document, and identity signals for staff triage.',
+  mcp: {
+    name: 'get_intake_preflight',
+    scope: 'intakes:read',
+    schema: { id: z.uuid() },
+    handler: async (args, ctx) => {
+      const { id } = z.object({ id: z.uuid() }).parse(args);
+      return intakePreflightService.getPreflight({ intakeId: id }, ctx);
+    },
+  },
+  request: {
+    params: z.object({
+      practice_id: z.uuid(),
+      id: z.uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: intakePreflightResponseSchema,
+        },
+      },
+      description: 'Current advisory intake readiness checks.',
+    },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - practice_id does not match your active organization.',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.notFoundResponseSchema,
+        },
+      },
+      description: 'Intake not found.',
+    },
+    422: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Intake metadata is missing or malformed.',
     },
   },
 });
@@ -323,6 +383,7 @@ export const staffRoutes = {
   triggerIntakeInvitationRoute,
   listIntakesRoute,
   getIntakeRoute,
+  getIntakePreflightRoute,
   updateIntakeTriageStatusRoute,
   convertIntakeRoute,
 };

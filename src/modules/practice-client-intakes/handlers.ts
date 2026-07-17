@@ -7,6 +7,7 @@ import { intakeCheckoutService } from '@/modules/practice-client-intakes/service
 import { intakeCreationService } from '@/modules/practice-client-intakes/services/intake-creation.service';
 import { intakeFilesService } from '@/modules/practice-client-intakes/services/intake-files.service';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
+import { intakePreflightService } from '@/modules/practice-client-intakes/services/intake-preflight.service';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { db } from '@/shared/database';
 import { getLogger } from '@logtape/logtape';
@@ -122,6 +123,13 @@ const getIntakeHandler: AppRouteHandler<typeof staffRoutes.getIntakeRoute> = asy
   return c.json(data, 200);
 };
 
+const getIntakePreflightHandler: AppRouteHandler<typeof staffRoutes.getIntakePreflightRoute> = async (c) => {
+  const { id } = c.req.valid('param');
+  const ctx = getServiceContext(c);
+  const data = await intakePreflightService.getPreflight({ intakeId: id }, ctx);
+  return c.json(data, 200);
+};
+
 const convertIntakeHandler: AppRouteHandler<typeof staffRoutes.convertIntakeRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const { uuid } = c.req.valid('param');
@@ -181,6 +189,7 @@ export const handlers = {
   triggerIntakeInvitationHandler,
   listIntakesHandler,
   getIntakeHandler,
+  getIntakePreflightHandler,
   updateIntakeTriageStatusHandler,
   convertIntakeHandler,
   presignIntakeFileHandler,
