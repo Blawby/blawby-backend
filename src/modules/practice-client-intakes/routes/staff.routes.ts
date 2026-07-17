@@ -195,6 +195,14 @@ const getIntakePreflightRoute = routeBuilder.build({
       },
       description: 'Current advisory intake readiness checks.',
     },
+    400: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.errorResponseSchema,
+        },
+      },
+      description: 'Bad request - practice_id does not match your active organization.',
+    },
     404: {
       content: {
         'application/json': {

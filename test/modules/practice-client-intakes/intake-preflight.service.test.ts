@@ -1,3 +1,37 @@
+// oxlint-disable typescript/no-unsafe-type-assertion
+import { randomUUID } from 'node:crypto';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServiceContext } from './helpers/intake';
+import type {
+  InsertPracticeClientIntake,
+  SelectPracticeClientIntake,
+} from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import type { PracticeDetails, PracticeService } from '@/modules/practice/database/schema/practice.schema';
+import type { ConflictCheckResult } from '@/modules/practice/types/conflict-check.types';
+
+vi.mock('@/modules/practice-client-intakes/services/intake-access.helpers', () => ({
+  getStaffAccessibleIntake: vi.fn(),
+}));
+vi.mock('@/modules/practice/database/queries/practice-details.repository', () => ({
+  findPracticeDetailsByOrganization: vi.fn(),
+}));
+vi.mock('@/modules/practice-client-intakes/database/queries/intake-preflight.queries', () => ({
+  intakePreflightQueries: {
+    listRoutingProfiles: vi.fn(),
+    listActiveMatterAssignments: vi.fn(),
+  },
+}));
+vi.mock('@/shared/uploads/queries/uploads.repository', () => ({
+  uploadsRepository: {
+    countByOrganization: vi.fn(),
+  },
+}));
+vi.mock('@/modules/practice/services/conflict-check.service', () => ({
+  conflictCheckService: {
+    runConflictCheck: vi.fn(),
+  },
+}));
+
 import {
   buildActiveMatterCounts,
   deriveCapacityCheck,
@@ -7,10 +41,93 @@ import {
   deriveJurisdictionCheck,
   deriveOverallStatus,
   derivePracticeFitCheck,
+  intakePreflightService,
 } from '@/modules/practice-client-intakes/services/intake-preflight.service';
-import { describe, expect, it } from 'vitest';
+import { getStaffAccessibleIntake } from '@/modules/practice-client-intakes/services/intake-access.helpers';
+import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
+import { intakePreflightQueries } from '@/modules/practice-client-intakes/database/queries/intake-preflight.queries';
+import { uploadsRepository } from '@/shared/uploads/queries/uploads.repository';
+import { conflictCheckService } from '@/modules/practice/services/conflict-check.service';
 
 const service = { id: 'service-1', name: 'Family Law', key: 'family-law' };
+
+const orgId = randomUUID();
+
+const buildIntake = (overrides: Partial<InsertPracticeClientIntake> = {}): SelectPracticeClientIntake => {
+  const now = new Date();
+  return {
+    id: randomUUID(),
+    organization_id: orgId,
+    connected_account_id: null,
+    practice_service_id: null,
+    stripe_payment_link_id: null,
+    stripe_payment_intent_id: null,
+    stripe_charge_id: null,
+    stripe_checkout_session_id: null,
+    amount: 0,
+    application_fee: null,
+    currency: 'usd',
+    status: 'succeeded',
+    triage_status: 'pending_review',
+    triage_reason: null,
+    triage_decided_at: null,
+    metadata: { email: 'client@example.com', name: 'Jane Client' },
+    address_id: null,
+    conversation_id: null,
+    client_ip: null,
+    user_agent: null,
+    urgency: null,
+    desired_outcome: null,
+    court_date: null,
+    has_documents: null,
+    income: null,
+    household_size: null,
+    case_strength: null,
+    transcript_summary: null,
+    jurisdiction_status: null,
+    jurisdiction_match: null,
+    succeeded_at: null,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  } as unknown as SelectPracticeClientIntake;
+};
+
+const buildPracticeDetails = (
+  overrides: Partial<PracticeDetails> & { services?: PracticeService[]; supported_states?: unknown[] } = {}
+) => {
+  const now = new Date();
+  return {
+    id: randomUUID(),
+    organization_id: orgId,
+    user_id: randomUUID(),
+    address_id: null,
+    business_phone: null,
+    business_email: null,
+    website: null,
+    consultation_fee: null,
+    payment_url: null,
+    calendly_url: null,
+    intro_message: null,
+    overview: null,
+    accent_color: null,
+    is_public: false,
+    billing_increment_minutes: 1,
+    created_at: now,
+    updated_at: now,
+    supported_states: [],
+    services: [],
+    ...overrides,
+  } as unknown as PracticeDetails & { services: PracticeService[] };
+};
+
+const clearConflictResult: ConflictCheckResult = {
+  status: 'clear',
+  conflicting_matters: [],
+  conflicting_contacts: [],
+  warnings: [],
+  suggested_next_action: 'No conflicts found.',
+};
 
 describe('intake preflight rules', () => {
   it('flags a likely conflict for staff review and exposes match counts', () => {
@@ -133,5 +250,115 @@ describe('intake preflight rules', () => {
         identity,
       ])
     ).toBe('blocked');
+  });
+});
+
+describe('intake preflight orchestration', () => {
+  const ctx = createServiceContext(randomUUID(), orgId);
+
+  beforeEach(() => {
+    vi.mocked(getStaffAccessibleIntake).mockReset();
+    vi.mocked(findPracticeDetailsByOrganization).mockReset();
+    vi.mocked(intakePreflightQueries.listRoutingProfiles).mockReset();
+    vi.mocked(intakePreflightQueries.listActiveMatterAssignments).mockReset();
+    vi.mocked(uploadsRepository.countByOrganization).mockReset();
+    vi.mocked(conflictCheckService.runConflictCheck).mockReset();
+  });
+
+  it('fails fast on malformed metadata without querying any dependency', async () => {
+    const intake = buildIntake({ metadata: { name: 'Missing Email' } as unknown as InsertPracticeClientIntake['metadata'] });
+    vi.mocked(getStaffAccessibleIntake).mockResolvedValue(intake);
+
+    await expect(intakePreflightService.getPreflight({ intakeId: intake.id }, ctx)).rejects.toMatchObject({
+      status: 422,
+      message: 'Intake metadata is missing or malformed',
+    });
+
+    expect(findPracticeDetailsByOrganization).not.toHaveBeenCalled();
+    expect(intakePreflightQueries.listRoutingProfiles).not.toHaveBeenCalled();
+    expect(intakePreflightQueries.listActiveMatterAssignments).not.toHaveBeenCalled();
+    expect(uploadsRepository.countByOrganization).not.toHaveBeenCalled();
+    expect(conflictCheckService.runConflictCheck).not.toHaveBeenCalled();
+  });
+
+  it('scopes every dependency query to the intake organization', async () => {
+    const intake = buildIntake({
+      practice_service_id: service.id,
+      metadata: { email: 'client@example.com', name: 'Jane Client', opposing_party: 'Acme Corp' },
+    });
+    vi.mocked(getStaffAccessibleIntake).mockResolvedValue(intake);
+    vi.mocked(findPracticeDetailsByOrganization).mockResolvedValue(buildPracticeDetails());
+    vi.mocked(intakePreflightQueries.listRoutingProfiles).mockResolvedValue([]);
+    vi.mocked(intakePreflightQueries.listActiveMatterAssignments).mockResolvedValue([]);
+    vi.mocked(uploadsRepository.countByOrganization).mockResolvedValue(0);
+    vi.mocked(conflictCheckService.runConflictCheck).mockResolvedValue(clearConflictResult);
+
+    await intakePreflightService.getPreflight({ intakeId: intake.id }, ctx);
+
+    expect(findPracticeDetailsByOrganization).toHaveBeenCalledWith(orgId);
+    expect(intakePreflightQueries.listRoutingProfiles).toHaveBeenCalledWith(orgId);
+    expect(intakePreflightQueries.listActiveMatterAssignments).toHaveBeenCalledWith(orgId);
+    expect(uploadsRepository.countByOrganization).toHaveBeenCalledWith(orgId, {
+      scopeType: 'intake',
+      scopeId: intake.id,
+      status: 'verified',
+    });
+    expect(conflictCheckService.runConflictCheck).toHaveBeenCalledWith(
+      { data: { name: 'Jane Client', opposing_party: 'Acme Corp' } },
+      ctx
+    );
+  });
+
+  it('assembles the full six-check advisory response', async () => {
+    const intake = buildIntake({
+      practice_service_id: service.id,
+      has_documents: true,
+      jurisdiction_status: null,
+      jurisdiction_match: null,
+      metadata: {
+        email: 'client@example.com',
+        name: 'Jane Client',
+        phone: '+15555550100',
+        address: {
+          line1: '1 Main St',
+          city: 'Charlotte',
+          state: 'NC',
+          postal_code: '28202',
+          country: 'US',
+        },
+      },
+    });
+    vi.mocked(getStaffAccessibleIntake).mockResolvedValue(intake);
+    vi.mocked(findPracticeDetailsByOrganization).mockResolvedValue(
+      buildPracticeDetails({ services: [service], supported_states: [{ country: 'US', states: ['NC'] }] })
+    );
+    vi.mocked(intakePreflightQueries.listRoutingProfiles).mockResolvedValue([
+      { user_id: 'user-1', practice_areas: ['Family Law'], max_capacity: 3, accepting_clients: true },
+    ]);
+    vi.mocked(intakePreflightQueries.listActiveMatterAssignments).mockResolvedValue([]);
+    vi.mocked(uploadsRepository.countByOrganization).mockResolvedValue(1);
+    vi.mocked(conflictCheckService.runConflictCheck).mockResolvedValue(clearConflictResult);
+
+    const response = await intakePreflightService.getPreflight({ intakeId: intake.id }, ctx);
+
+    expect(response.intake_id).toBe(intake.id);
+    expect(response.overall_status).toBe('ready');
+    expect(new Date(response.generated_at).toString()).not.toBe('Invalid Date');
+    expect(response.checks.map((check) => check.key)).toEqual([
+      'conflict',
+      'jurisdiction',
+      'practice-fit',
+      'capacity',
+      'documents',
+      'identity-verification',
+    ]);
+    expect(response.checks.map((check) => check.status)).toEqual([
+      'pass',
+      'pass',
+      'pass',
+      'pass',
+      'pass',
+      'not_available',
+    ]);
   });
 });
