@@ -162,6 +162,28 @@ Gets full detail of a single intake.
 
 ---
 
+### GET `/:practice_id/:id/preflight` — Intake Readiness
+
+Returns six live readiness signals for staff triage: conflict, jurisdiction, practice fit, attorney capacity, documents,
+and identity verification. These checks are advisory and do not accept, decline, or otherwise mutate the intake.
+
+- `pass` means the available data supports proceeding.
+- `review` means staff judgment is required.
+- `not_available` means the practice has not configured the relevant capability or integration.
+- `block` is reserved for a future confirmed blocking decision; current automated checks do not emit it.
+
+The document check passes when a verified upload exists or when the client explicitly reports having no documents. It
+requires review when documents were reported but no verified upload exists, or when document availability was not
+answered. No practice-level required-document policy exists today.
+
+The overall result ignores `not_available` checks when at least one available check passes. It is `review` when an
+available check needs review or when no checks are available. Staff remains responsible for the final triage decision.
+
+The caller must be a member of the practice identified by `practice_id`. The endpoint performs no writes and calculates
+the result from current intake and practice data on every request.
+
+---
+
 ### PATCH `/:uuid/status` — Triage (Accept / Decline)
 
 This is the accept/deny button in the practice dashboard.

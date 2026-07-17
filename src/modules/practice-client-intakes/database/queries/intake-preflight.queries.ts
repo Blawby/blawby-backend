@@ -1,11 +1,12 @@
 import { matterAssignees } from '@/modules/matters/database/schema/matter-assignees.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
+import type { MatterStatus } from '@/modules/matters/validations/matters.validation';
 import { practiceMemberProfiles } from '@/modules/practice/database/schema/practice-member-profiles.schema';
 import { members } from '@/schema/better-auth-schema';
 import { getActiveTx } from '@/shared/database/uow';
 import { and, asc, eq, isNull, notInArray } from 'drizzle-orm';
 
-const TERMINAL_MATTER_STATUSES = ['closed', 'declined', 'referred'];
+const TERMINAL_MATTER_STATUSES: MatterStatus[] = ['closed', 'declined', 'referred'];
 
 const listRoutingProfiles = async (organizationId: string) =>
   getActiveTx()

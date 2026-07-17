@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 const service = { id: 'service-1', name: 'Family Law', key: 'family-law' };
 
 describe('intake preflight rules', () => {
-  it('blocks a likely conflict and exposes match counts', () => {
+  it('flags a likely conflict for staff review and exposes match counts', () => {
     const check = deriveConflictCheck({
       status: 'conflicted',
       conflicting_matters: [
@@ -26,13 +26,13 @@ describe('intake preflight rules', () => {
 
     expect(check).toEqual({
       key: 'conflict',
-      status: 'block',
+      status: 'review',
       summary: 'Do not proceed without attorney review.',
       evidence: ['1 matching matter(s)', '0 matching contact(s)'],
     });
   });
 
-  it('derives configured jurisdiction pass and unsupported-state block', () => {
+  it('passes configured jurisdiction and flags unsupported locations for review', () => {
     const supported = [{ country: 'US', states: ['NC', 'SC'] }];
     expect(
       deriveJurisdictionCheck({
@@ -49,10 +49,18 @@ describe('intake preflight rules', () => {
         intakeLocation: { country: 'US', state: 'VA' },
         supported,
       })
-    ).toMatchObject({ status: 'block' });
+    ).toMatchObject({ status: 'review' });
+    expect(
+      deriveJurisdictionCheck({
+        persistedStatus: 'unsupported',
+        matchedLocation: { country: 'US', state: 'VA' },
+        intakeLocation: null,
+        supported,
+      })
+    ).toMatchObject({ status: 'review' });
   });
 
-  it('matches practice services and calculates distinct attorney capacity', () => {
+  it('matches practice services and treats catalog or capacity mismatches as advisory', () => {
     const fit = derivePracticeFitCheck({
       requestedServiceId: service.id,
       requestedServiceName: null,
@@ -64,6 +72,13 @@ describe('intake preflight rules', () => {
     ];
 
     expect(buildActiveMatterCounts(assignments).get('user-1')).toBe(2);
+    expect(
+      derivePracticeFitCheck({
+        requestedServiceId: 'unlisted-service',
+        requestedServiceName: null,
+        offeredServices: [service],
+      }).check
+    ).toMatchObject({ status: 'review' });
     expect(
       deriveCapacityCheck({
         service: fit.service,
@@ -91,14 +106,32 @@ describe('intake preflight rules', () => {
         ],
         assignments,
       })
-    ).toMatchObject({ status: 'block' });
+    ).toMatchObject({ status: 'review' });
   });
 
-  it('distinguishes verified documents from reported documents and missing KYC integration', () => {
+  it('passes when documents are verified or not reported and reviews unresolved document claims', () => {
     expect(deriveDocumentCheck(true, 1)).toMatchObject({ status: 'pass' });
     expect(deriveDocumentCheck(true, 0)).toMatchObject({ status: 'review' });
+    expect(deriveDocumentCheck(false, 0)).toMatchObject({ status: 'pass' });
+    expect(deriveDocumentCheck(null, 0)).toMatchObject({ status: 'review' });
+  });
+
+  it('ignores unavailable checks when deriving readiness but retains explicit review and block states', () => {
     const identity = deriveIdentityCheck({ hasName: true, hasEmail: true, hasPhone: true, hasAddress: true });
     expect(identity).toMatchObject({ status: 'not_available' });
-    expect(deriveOverallStatus([deriveDocumentCheck(true, 1), identity])).toBe('review');
+    expect(deriveOverallStatus([deriveDocumentCheck(true, 1), identity])).toBe('ready');
+    expect(deriveOverallStatus([identity])).toBe('review');
+    expect(deriveOverallStatus([deriveDocumentCheck(null, 0), identity])).toBe('review');
+    expect(
+      deriveOverallStatus([
+        {
+          key: 'conflict',
+          status: 'block',
+          summary: 'A confirmed blocking decision exists.',
+          evidence: [],
+        },
+        identity,
+      ])
+    ).toBe('blocked');
   });
 });

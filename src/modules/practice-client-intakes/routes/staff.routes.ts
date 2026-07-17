@@ -168,8 +168,9 @@ const getIntakePreflightRoute = routeBuilder.build({
   method: 'get',
   path: '/{practice_id}/{id}/preflight',
   tags: ['Practice Client Intakes'],
-  summary: 'Get deterministic intake preflight checks',
-  description: 'Composes conflict, jurisdiction, practice fit, capacity, document, and identity readiness signals.',
+  summary: 'Get advisory intake readiness checks',
+  description:
+    'Composes advisory conflict, jurisdiction, practice fit, capacity, document, and identity signals for staff triage.',
   mcp: {
     name: 'get_intake_preflight',
     scope: 'intakes:read',
@@ -192,7 +193,7 @@ const getIntakePreflightRoute = routeBuilder.build({
           schema: intakePreflightResponseSchema,
         },
       },
-      description: 'Current deterministic intake preflight checks.',
+      description: 'Current advisory intake readiness checks.',
     },
     404: {
       content: {

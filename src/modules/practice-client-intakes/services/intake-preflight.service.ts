@@ -43,24 +43,15 @@ const normalize = (value: string): string =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
-const deriveConflictCheck = (result: ConflictCheckResult): IntakePreflightCheck => {
-  let status: IntakePreflightCheck['status'] = 'review';
-  if (result.status === 'clear') {
-    status = 'pass';
-  } else if (result.status === 'conflicted') {
-    status = 'block';
-  }
-
-  return {
-    key: 'conflict',
-    status,
-    summary: result.suggested_next_action,
-    evidence: [
-      `${result.conflicting_matters.length} matching matter(s)`,
-      `${result.conflicting_contacts.length} matching contact(s)`,
-    ],
-  };
-};
+const deriveConflictCheck = (result: ConflictCheckResult): IntakePreflightCheck => ({
+  key: 'conflict',
+  status: result.status === 'clear' ? 'pass' : 'review',
+  summary: result.suggested_next_action,
+  evidence: [
+    `${result.conflicting_matters.length} matching matter(s)`,
+    `${result.conflicting_contacts.length} matching contact(s)`,
+  ],
+});
 
 const deriveJurisdictionCheck = ({
   persistedStatus,
@@ -79,15 +70,9 @@ const deriveJurisdictionCheck = ({
   const locationEvidence = country ? `${country}${state ? `-${state}` : ''}` : 'no intake jurisdiction recorded';
 
   if (persistedStatus) {
-    let status: IntakePreflightCheck['status'] = 'review';
-    if (persistedStatus === 'supported') {
-      status = 'pass';
-    } else if (persistedStatus === 'unsupported') {
-      status = 'block';
-    }
     return {
       key: 'jurisdiction',
-      status,
+      status: persistedStatus === 'supported' ? 'pass' : 'review',
       summary: `Stored jurisdiction result is ${persistedStatus.replace('_', ' ')}.`,
       evidence: [locationEvidence, 'persisted intake jurisdiction result'],
     };
@@ -115,7 +100,7 @@ const deriveJurisdictionCheck = ({
   if (!countryCoverage) {
     return {
       key: 'jurisdiction',
-      status: 'block',
+      status: 'review',
       summary: `Practice does not list ${country} as a supported country.`,
       evidence: [locationEvidence],
     };
@@ -142,7 +127,7 @@ const deriveJurisdictionCheck = ({
   const stateSupported = countryCoverage.states.some((value) => value.toUpperCase() === state);
   return {
     key: 'jurisdiction',
-    status: stateSupported ? 'pass' : 'block',
+    status: stateSupported ? 'pass' : 'review',
     summary: stateSupported
       ? `Practice supports intakes from ${country}-${state}.`
       : `Practice does not list ${country}-${state} as supported.`,
@@ -183,7 +168,7 @@ const derivePracticeFitCheck = ({
       service: null,
       check: {
         key: 'practice-fit',
-        status: 'block',
+        status: 'review',
         summary: 'The requested service is not in this practice service catalog.',
         evidence: [requestedServiceName ?? requestedServiceId ?? 'unknown service'],
       },
@@ -264,7 +249,7 @@ const deriveCapacityCheck = ({
 
   return {
     key: 'capacity',
-    status: availableProfiles.length > 0 ? 'pass' : 'block',
+    status: availableProfiles.length > 0 ? 'pass' : 'review',
     summary:
       availableProfiles.length > 0
         ? `${availableProfiles.length} matching attorney(s) have capacity.`
@@ -286,17 +271,22 @@ const deriveDocumentCheck = (hasDocuments: boolean | null, verifiedDocumentCount
     };
   }
 
-  let summary = 'Document availability was not answered.';
-  if (hasDocuments === true) {
-    summary = 'Client reported having documents, but no verified upload is attached.';
-  } else if (hasDocuments === false) {
-    summary = 'Client reported having no documents.';
+  if (hasDocuments === false) {
+    return {
+      key: 'documents',
+      status: 'pass',
+      summary: 'Client reported having no documents to provide.',
+      evidence: ['0 verified intake documents'],
+    };
   }
 
   return {
     key: 'documents',
     status: 'review',
-    summary,
+    summary:
+      hasDocuments === true
+        ? 'Client reported having documents, but no verified upload is attached.'
+        : 'Document availability was not answered.',
     evidence: ['0 verified intake documents'],
   };
 };
@@ -327,10 +317,10 @@ const deriveOverallStatus = (checks: readonly IntakePreflightCheck[]): IntakePre
   if (checks.some((check) => check.status === 'block')) {
     return 'blocked';
   }
-  if (checks.some((check) => check.status !== 'pass')) {
+  if (checks.some((check) => check.status === 'review')) {
     return 'review';
   }
-  return 'ready';
+  return checks.some((check) => check.status === 'pass') ? 'ready' : 'review';
 };
 
 const getPreflight = async (
