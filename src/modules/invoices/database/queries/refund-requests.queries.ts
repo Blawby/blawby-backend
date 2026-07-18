@@ -74,7 +74,7 @@ const countByOrganization = async (
   filters?: { status?: string; invoice_id?: string; client_user_details_id?: string }
 ): Promise<number> => {
   const [countResult] = await getActiveTx()
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(refundRequests)
     .where(organizationListConditions(organizationId, filters));
   return countResult?.count ?? 0;
@@ -101,7 +101,7 @@ const listByClient = async (
 
 const countByClient = async (organizationId: string, clientUserDetailsId: string): Promise<number> => {
   const [countResult] = await getActiveTx()
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(refundRequests)
     .where(
       and(
