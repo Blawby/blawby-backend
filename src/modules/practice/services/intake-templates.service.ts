@@ -28,6 +28,7 @@ const toResponse = (
     legal_disclaimer: template.legal_disclaimer ?? null,
     consultation_fee: template.consultation_fee ?? null,
     archived_at: template.archived_at ? template.archived_at.toISOString() : null,
+    published_at: template.published_at ? template.published_at.toISOString() : null,
     created_at: template.created_at.toISOString(),
     updated_at: template.updated_at.toISOString(),
     fields: template.fields.map((f) => ({
@@ -98,6 +99,7 @@ const createTemplate = async (
           name: data.name,
           description: data.description,
           status: data.status,
+          published_at: data.status === 'published' ? new Date() : null,
           is_default: data.is_default,
           intro_message: data.intro_message,
           legal_disclaimer: data.legal_disclaimer,
@@ -140,31 +142,46 @@ const updateTemplate = async (
     template_id: id,
   }));
 
-  const template = await uow.transaction(async () => {
-    if (data.is_default) {
-      await intakeTemplatesRepository.clearDefaultForOrganization(organizationId);
+  if (data.expected_revision !== existing.revision) {
+    throw new HTTPException(409, { message: 'Intake template revision conflict' });
+  }
+
+  const statusTimestamps: { published_at?: Date | null; archived_at?: Date | null } = {};
+  if (data.status !== undefined && data.status !== existing.status) {
+    statusTimestamps.published_at = data.status === 'published' ? new Date() : null;
+    statusTimestamps.archived_at = data.status === 'archived' ? new Date() : null;
+  }
+
+  let template: Awaited<ReturnType<typeof intakeTemplatesRepository.update>> | undefined = undefined;
+  try {
+    template = await uow.transaction(async () => {
+      if (data.is_default) {
+        await intakeTemplatesRepository.clearDefaultForOrganization(organizationId);
+      }
+      return intakeTemplatesRepository.update(
+        id,
+        {
+          slug: data.slug,
+          name: data.name,
+          description: data.description,
+          status: data.status,
+          ...statusTimestamps,
+          is_default: data.is_default,
+          intro_message: data.intro_message,
+          legal_disclaimer: data.legal_disclaimer,
+          payment_link_enabled: data.payment_link_enabled,
+          consultation_fee: data.consultation_fee,
+        },
+        fields,
+        data.expected_revision
+      );
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'INTAKE_TEMPLATE_REVISION_CONFLICT') {
+      throw new HTTPException(409, { message: 'Intake template revision conflict', cause: error });
     }
-    return intakeTemplatesRepository.update(
-      id,
-      {
-        slug: data.slug,
-        name: data.name,
-        description: data.description,
-        status: data.status,
-        is_default: data.is_default,
-        intro_message: data.intro_message,
-        legal_disclaimer: data.legal_disclaimer,
-        payment_link_enabled: data.payment_link_enabled,
-        consultation_fee: data.consultation_fee,
-        ...(data.status === 'archived'
-          ? { archived_at: new Date() }
-          : data.status !== undefined
-            ? { archived_at: null }
-            : {}),
-      },
-      fields
-    );
-  });
+    throw error;
+  }
 
   return toResponse(template);
 };
@@ -211,6 +228,7 @@ const seedDefaultTemplate = async (organizationId: string): Promise<void> => {
         name: 'General Consultation Intake',
         description: 'Default intake form for new client consultations',
         status: 'published',
+        published_at: new Date(),
         is_default: true,
         payment_link_enabled: false,
       },
