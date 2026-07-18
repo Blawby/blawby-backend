@@ -1,5 +1,10 @@
 import { z } from '@hono/zod-openapi';
-import { errorResponseSchema, notFoundResponseSchema, practiceIdParamSchema } from '@/shared/validations/openapi';
+import {
+  errorResponseSchema,
+  notFoundResponseSchema,
+  paginationSchema,
+  practiceIdParamSchema,
+} from '@/shared/validations/openapi';
 import { refundRequestsService } from '@/modules/invoices/services/refund-requests.service';
 import { routeBuilder } from '@/shared/router/route-builder';
 
@@ -8,6 +13,11 @@ const refundRequestIdParam = practiceIdParamSchema.extend({
 });
 
 const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing']);
+
+const refundRequestsQueryPaginationSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
 
 const refundRequestSchema = z
   .object({
@@ -35,6 +45,13 @@ const refundRequestSchema = z
   })
   .openapi('RefundRequest', { description: 'A client refund request' });
 
+const createRefundRequestBodySchema = z.object({
+  invoice_id: z.uuid(),
+  requested_amount: z.number().int().min(1),
+  reason: z.string().min(1).max(2000),
+  notes: z.string().max(5000).optional(),
+});
+
 const createRefundRequestRoute = routeBuilder.build({
   method: 'post',
   path: '/{practice_id}/client/refund-requests',
@@ -49,28 +66,26 @@ const createRefundRequestRoute = routeBuilder.build({
       message: 'Create a refund request for this invoice?',
       confirm_title: 'Create refund request',
     },
-    handler: async (args, ctx) =>
-      refundRequestsService.createRequest(
+    schema: createRefundRequestBodySchema.shape,
+    handler: async (args, ctx) => {
+      const parsed = createRefundRequestBodySchema.parse(args);
+      return refundRequestsService.createRequest(
         {
-          invoiceId: args.invoice_id as string,
-          requestedAmount: args.requested_amount as number,
-          reason: args.reason as string,
-          notes: args.notes as string | undefined,
+          invoiceId: parsed.invoice_id,
+          requestedAmount: parsed.requested_amount,
+          reason: parsed.reason,
+          notes: parsed.notes,
         },
         ctx
-      ),
+      );
+    },
   },
   request: {
     params: practiceIdParamSchema,
     body: {
       content: {
         'application/json': {
-          schema: z.object({
-            invoice_id: z.uuid(),
-            requested_amount: z.number().int().min(1),
-            reason: z.string().min(1).max(2000),
-            notes: z.string().max(5000).optional(),
-          }),
+          schema: createRefundRequestBodySchema,
         },
       },
     },
@@ -94,12 +109,15 @@ const listClientRefundRequestsRoute = routeBuilder.build({
   mcp: {
     name: 'list_client_refund_requests',
     scope: 'invoices:read',
-    handler: async (_args, ctx) => refundRequestsService.listClientRequests(ctx),
+    schema: refundRequestsQueryPaginationSchema.shape,
+    handler: async (args, ctx) => refundRequestsService.listClientRequests(ctx, args),
   },
-  request: { params: practiceIdParamSchema },
+  request: { params: practiceIdParamSchema, query: refundRequestsQueryPaginationSchema },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ refundRequests: z.array(refundRequestSchema) }) } },
+      content: {
+        'application/json': { schema: z.object({ data: z.array(refundRequestSchema), pagination: paginationSchema }) },
+      },
       description: 'Refund requests retrieved',
     },
   },
@@ -142,24 +160,29 @@ const listPracticeRefundRequestsRoute = routeBuilder.build({
   mcp: {
     name: 'list_refund_requests',
     scope: 'invoices:read',
-    handler: async (args, ctx) =>
-      refundRequestsService.listPracticeRequests(ctx, {
-        status: args.status as NonNullable<Parameters<typeof refundRequestsService.listPracticeRequests>[1]>['status'],
-        invoice_id: args.invoice_id as string | undefined,
-        client_user_details_id: args.client_user_details_id as string | undefined,
-      }),
-  },
-  request: {
-    params: practiceIdParamSchema,
-    query: z.object({
+    schema: {
       status: refundStatusEnum.optional(),
       invoice_id: z.uuid().optional(),
       client_user_details_id: z.uuid().optional(),
-    }),
+      ...refundRequestsQueryPaginationSchema.shape,
+    },
+    handler: async (args, ctx) => refundRequestsService.listPracticeRequests(ctx, args),
+  },
+  request: {
+    params: practiceIdParamSchema,
+    query: z
+      .object({
+        status: refundStatusEnum.optional(),
+        invoice_id: z.uuid().optional(),
+        client_user_details_id: z.uuid().optional(),
+      })
+      .extend(refundRequestsQueryPaginationSchema.shape),
   },
   responses: {
     200: {
-      content: { 'application/json': { schema: z.object({ refundRequests: z.array(refundRequestSchema) }) } },
+      content: {
+        'application/json': { schema: z.object({ data: z.array(refundRequestSchema), pagination: paginationSchema }) },
+      },
       description: 'Refund requests retrieved',
     },
   },

@@ -4,7 +4,7 @@ import type { SelectBillingTransaction } from '@/modules/invoices/database/schem
 import type { SelectInvoiceLineItem } from '@/modules/invoices/database/schema/invoice-line-items.schema';
 import type { SelectInvoice } from '@/modules/invoices/database/schema/invoices.schema';
 import type { SelectPaymentLink } from '@/modules/invoices/database/schema/payment-links.schema';
-import type { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import type { invoiceValidations } from '@/modules/invoices/validations/invoices.validation';
 // oxlint-disable-next-line import/no-namespace
 import type * as schema from '@/schema';
 import type { SelectMatter } from '@/modules/matters/database/schema/matters.schema';

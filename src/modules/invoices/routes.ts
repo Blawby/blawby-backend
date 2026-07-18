@@ -1,4 +1,4 @@
-import { invoiceValidations } from '@/modules/invoices/schemas/invoices.validation';
+import { invoiceValidations } from '@/modules/invoices/validations/invoices.validation';
 import { invoiceService } from '@/modules/invoices/services/invoice.service';
 import type { ListInvoicesQuery } from '@/modules/invoices/types/invoices.types';
 import { routeBuilder } from '@/shared/router/route-builder';
