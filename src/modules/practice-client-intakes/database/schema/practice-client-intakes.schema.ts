@@ -49,6 +49,7 @@ export const practiceClientIntakes = pgTable(
     // Security & Tracking
     client_ip: text('client_ip'),
     user_agent: text('user_agent'),
+    invitation_prefill_token_hash: varchar('invitation_prefill_token_hash', { length: 64 }),
 
     // AI & Triage Fields
     urgency: varchar('urgency', { length: 20 }).$type<'routine' | 'time_sensitive' | 'emergency'>(),
@@ -82,6 +83,7 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_urgency_idx').on(table.urgency),
     index('practice_client_intakes_court_date_idx').on(table.court_date),
     index('practice_client_intakes_jurisdiction_status_idx').on(table.jurisdiction_status),
+    index('practice_client_intakes_invitation_prefill_token_idx').on(table.invitation_prefill_token_hash),
   ]
 );
 

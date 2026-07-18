@@ -69,6 +69,25 @@ const findById = async (id: string): Promise<SelectPracticeClientIntake | undefi
   return row;
 };
 
+const findByIdForUpdate = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {
+  const [row] = await getActiveTx()
+    .select()
+    .from(practiceClientIntakes)
+    .where(eq(practiceClientIntakes.id, id))
+    .for('update')
+    .limit(1);
+  return row;
+};
+
+const findByInvitationPrefillTokenHash = async (tokenHash: string): Promise<SelectPracticeClientIntake | undefined> => {
+  const [row] = await getActiveTx()
+    .select()
+    .from(practiceClientIntakes)
+    .where(eq(practiceClientIntakes.invitation_prefill_token_hash, tokenHash))
+    .limit(1);
+  return row;
+};
+
 const findByStripePaymentLinkId = async (linkId: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [row] = await getActiveTx()
     .select()
@@ -116,6 +135,21 @@ const updateStatus = async (id: string, status: string): Promise<SelectPracticeC
     throw new Error(`PracticeClientIntake not found for id: ${id}`);
   }
   return updated;
+};
+
+const setInvitationPrefillToken = async (
+  id: string,
+  organizationId: string,
+  tokenHash: string
+): Promise<boolean> => {
+  const result = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({
+      invitation_prefill_token_hash: tokenHash,
+      updated_at: new Date(),
+    })
+    .where(and(eq(practiceClientIntakes.id, id), eq(practiceClientIntakes.organization_id, organizationId)));
+  return result.rowCount === 1;
 };
 
 const findByOrganizationId = async ({
@@ -181,11 +215,14 @@ const getStats = async (
 export const practiceClientIntakesRepository = {
   create,
   findById,
+  findByIdForUpdate,
+  findByInvitationPrefillTokenHash,
   findByStripePaymentLinkId,
   findByStripePaymentIntentId,
   findByStripeCheckoutSessionId,
   update,
   updateStatus,
+  setInvitationPrefillToken,
   findByOrganizationId,
   getStats,
 };

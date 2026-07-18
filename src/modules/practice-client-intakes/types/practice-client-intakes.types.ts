@@ -67,3 +67,4 @@ export type ListIntakesResponse = z.infer<typeof intakeValidations.listIntakesRe
 export type ListIntakeItem = ListIntakesResponse['intakes'][number];
 export type TriggerIntakeInvitationResponse = z.infer<typeof intakeValidations.triggerIntakeInvitationResponseSchema>;
 export type ConvertIntakeResponse = z.infer<typeof intakeValidations.convertIntakeResponseSchema>;
+export type InvitationPrefillResponse = z.infer<typeof intakeValidations.invitationPrefillResponseSchema>;

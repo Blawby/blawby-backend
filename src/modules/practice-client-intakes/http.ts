@@ -23,6 +23,7 @@ publicApp.openapi(publicRoutes.getIntakeSettingsRoute, handlers.getIntakeSetting
 
 // Client routes — authenticated but no org membership required
 const clientApp = createHonoApp();
+clientApp.use('/invitation-prefill', requireAuth(), injectAbility());
 clientApp.use(`/${uuidPath}`, requireAuth(), injectAbility());
 clientApp.use(`/${uuidPath}/checkout-session`, requireAuth(), injectAbility());
 clientApp.use(`/${uuidPath}/status`, requireAuth(), injectAbility());
@@ -32,6 +33,7 @@ clientApp.openapi(
   clientRoutes.createPracticeClientIntakeCheckoutSessionRoute,
   handlers.createPracticeClientIntakeCheckoutSessionHandler
 );
+clientApp.openapi(clientRoutes.getInvitationPrefillRoute, handlers.getInvitationPrefillHandler);
 clientApp.openapi(clientRoutes.updatePracticeClientIntakeRoute, handlers.updatePracticeClientIntakeHandler);
 clientApp.openapi(clientRoutes.getPracticeClientIntakeStatusRoute, handlers.getPracticeClientIntakeStatusHandler);
 clientApp.openapi(intakeFileRoutes.presignIntakeFileRoute, handlers.presignIntakeFileHandler);
