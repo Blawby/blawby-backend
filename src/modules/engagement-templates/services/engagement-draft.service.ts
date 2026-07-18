@@ -1,5 +1,6 @@
 import { ForbiddenError } from '@casl/ability';
 import { z } from '@hono/zod-openapi';
+import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
 import { engagementTemplatesQueries } from '@/modules/engagement-templates/database/queries/engagement-templates.queries';
 import type { EngagementTemplateRecord } from '@/modules/engagement-templates/types/engagement-template.types';
@@ -8,6 +9,10 @@ import { practiceClientIntakesRepository } from '@/modules/practice-client-intak
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { config } from '@/shared/config';
 import type { ServiceContext } from '@/shared/types/service-context';
+
+const logger = getLogger(['engagement-templates', 'draft-service']);
+
+const AI_REQUEST_TIMEOUT_MS = 15_000;
 
 type GenerateText = (messages: readonly AiMessage[]) => Promise<string>;
 
@@ -56,7 +61,7 @@ const resolveStaticPlaceholders = ({
   intake: SelectPracticeClientIntake;
   practiceName: string;
   now: Date;
-}): string => {
+}): { body: string; requiredTerms: string[] } => {
   const {
     court_date: courtDate,
     jurisdiction_match: jurisdictionMatch,
@@ -75,6 +80,7 @@ const resolveStaticPlaceholders = ({
   }
 
   const fee = feeText(template);
+  const retainer = formatCentsAsDollars(retainerCents);
   const practiceArea =
     templatePracticeArea.trim().length > 0 ? templatePracticeArea : (metadata.practice_service_name ?? '');
   const replacements = new Map<string, string>([
@@ -90,7 +96,7 @@ const resolveStaticPlaceholders = ({
     ['{{scope}}', scopeTemplate],
     ['{{hourlyRate}}', feeType === 'hourly' ? fee : ''],
     ['{{flatFee}}', feeType === 'flat' ? fee : ''],
-    ['{{retainer}}', formatCentsAsDollars(retainerCents)],
+    ['{{retainer}}', retainer],
     ['{{contingencyPct}}', feeType === 'contingency' ? fee : ''],
   ]);
 
@@ -98,7 +104,11 @@ const resolveStaticPlaceholders = ({
   for (const [placeholder, value] of replacements) {
     body = body.replaceAll(placeholder, value);
   }
-  return body;
+
+  // Authoritative terms the AI must preserve verbatim; a dropped term means an incomplete draft.
+  const requiredTerms = [metadata.name, scopeTemplate, fee, retainer].filter((term) => term.trim().length > 0);
+
+  return { body, requiredTerms };
 };
 
 const requestWorkersAi: GenerateText = async (messages) => {
@@ -107,34 +117,50 @@ const requestWorkersAi: GenerateText = async (messages) => {
     throw new HTTPException(503, { message: 'Engagement AI generation is not configured' });
   }
 
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1/chat/completions`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        'Content-Type': 'application/json',
-        'cf-aig-gateway-id': aiGatewayId,
-      },
-      body: JSON.stringify({
-        model: aiModel,
-        temperature: 0.3,
-        max_tokens: 1_200,
-        messages,
-      }),
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+          'cf-aig-gateway-id': aiGatewayId,
+        },
+        body: JSON.stringify({
+          model: aiModel,
+          temperature: 0.3,
+          max_tokens: 1_200,
+          messages,
+        }),
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      throw new HTTPException(502, {
+        message: `Engagement AI generation failed with status ${String(response.status)}`,
+      });
     }
-  );
 
-  if (!response.ok) {
-    throw new HTTPException(502, { message: `Engagement AI generation failed with status ${String(response.status)}` });
+    const parsed = workersAiResponseSchema.safeParse(await response.json());
+    const content = parsed.success ? parsed.data.choices[0]?.message.content.trim() : undefined;
+    if (!content) {
+      throw new HTTPException(502, { message: 'Engagement AI returned a malformed response' });
+    }
+    return content;
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    logger.error('Engagement AI request failed: {error}', { error });
+    throw new HTTPException(502, { message: 'Engagement AI request failed' });
+  } finally {
+    clearTimeout(timer);
   }
-
-  const parsed = workersAiResponseSchema.safeParse(await response.json());
-  const content = parsed.success ? parsed.data.choices[0]?.message.content.trim() : undefined;
-  if (!content) {
-    throw new HTTPException(502, { message: 'Engagement AI returned a malformed response' });
-  }
-  return content;
 };
 
 const generateEngagementDraft = async (
@@ -172,7 +198,12 @@ const generateEngagementDraft = async (
     throw new HTTPException(404, { message: 'Practice not found' });
   }
 
-  const partialBody = resolveStaticPlaceholders({ template, intake, practiceName: organization.name, now });
+  const { body: partialBody, requiredTerms } = resolveStaticPlaceholders({
+    template,
+    intake,
+    practiceName: organization.name,
+    now,
+  });
   const practiceArea =
     template.practice_area.trim().length > 0 ? template.practice_area : (intake.metadata?.practice_service_name ?? '');
   const context = [
@@ -199,7 +230,8 @@ const generateEngagementDraft = async (
     ])
   ).trim();
 
-  if (!contractBody || /{{[^}]+}}/.test(contractBody)) {
+  const isMissingRequiredTerm = requiredTerms.some((term) => !contractBody.includes(term));
+  if (!contractBody || /{{[^}]+}}/.test(contractBody) || isMissingRequiredTerm) {
     throw new HTTPException(502, { message: 'Engagement AI returned an incomplete draft' });
   }
 

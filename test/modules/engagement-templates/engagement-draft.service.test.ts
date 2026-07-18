@@ -96,7 +96,10 @@ beforeEach(() => {
 
 describe('engagementDraftService.generateEngagementDraft', () => {
   it('resolves authoritative template and intake data before calling AI', async () => {
-    const generateText = vi.fn().mockResolvedValue('Final engagement letter.');
+    const faithfulDraft =
+      'Dear Jordan Client,\n\nBlawby Legal will Represent the client in the custody matter. ' +
+      'Rate: $350.00. Retainer: $2,500.00.';
+    const generateText = vi.fn().mockResolvedValue(faithfulDraft);
 
     await expect(
       engagementDraftService.generateEngagementDraft(
@@ -109,7 +112,7 @@ describe('engagementDraftService.generateEngagementDraft', () => {
         createSystemContext(template.practice_id)
       )
     ).resolves.toEqual({
-      contract_body: 'Final engagement letter.',
+      contract_body: faithfulDraft,
       intake_id: intake.id,
       template_id: template.id,
     });
@@ -158,6 +161,20 @@ describe('engagementDraftService.generateEngagementDraft', () => {
           intakeId: intake.id,
           templateId: template.id,
           generateText: vi.fn().mockResolvedValue('Dear {{unknown}},'),
+        },
+        createSystemContext(template.practice_id)
+      )
+    ).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('rejects a generated draft that drops a required authoritative term', async () => {
+    await expect(
+      engagementDraftService.generateEngagementDraft(
+        {
+          intakeId: intake.id,
+          templateId: template.id,
+          // Omits the required fee amount ($350.00) that must be preserved verbatim.
+          generateText: vi.fn().mockResolvedValue('Dear Jordan Client, Blawby Legal will represent you.'),
         },
         createSystemContext(template.practice_id)
       )
