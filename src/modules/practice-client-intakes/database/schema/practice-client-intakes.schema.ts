@@ -83,6 +83,7 @@ export const practiceClientIntakes = pgTable(
       .$type<IntakeEnrichmentStatus>(),
     enrichment_version: integer('enrichment_version').notNull().default(0),
     enrichment_attempt_count: integer('enrichment_attempt_count').notNull().default(0),
+    enrichment_claim_token: uuid('enrichment_claim_token'),
     enrichment_model: varchar('enrichment_model', { length: 200 }),
     enrichment_error_code: varchar('enrichment_error_code', { length: 100 }),
     enrichment_requested_at: timestamp('enrichment_requested_at', { withTimezone: true, mode: 'date' }),

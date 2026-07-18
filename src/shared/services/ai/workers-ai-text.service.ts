@@ -71,7 +71,7 @@ const generateText = async ({
       throw error;
     }
     logger.error('{purpose} request failed: {error}', { purpose, error });
-    throw new HTTPException(502, { message: `${purpose} request failed` });
+    throw new HTTPException(502, { message: `${purpose} request failed`, cause: error });
   } finally {
     clearTimeout(timer);
   }

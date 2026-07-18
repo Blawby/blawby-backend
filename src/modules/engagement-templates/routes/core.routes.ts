@@ -196,6 +196,10 @@ const generateEngagementDraftRoute = routeBuilder.build({
     401: { content: { 'application/json': { schema: unauthorizedResponseSchema } }, description: 'Unauthorized' },
     403: { content: { 'application/json': { schema: forbiddenResponseSchema } }, description: 'Forbidden' },
     404: { content: { 'application/json': { schema: notFoundResponseSchema } }, description: 'Not found' },
+    422: {
+      content: { 'application/json': { schema: errorResponseSchema } },
+      description: 'Intake or template data failed validation',
+    },
     502: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'AI generation failed' },
     503: { content: { 'application/json': { schema: errorResponseSchema } }, description: 'AI is not configured' },
   },

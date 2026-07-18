@@ -23,6 +23,15 @@ vi.mock('@/shared/queue/queue.manager', () => ({
   queueManager: { addIntakeEnrichmentJob: vi.fn() },
 }));
 
+vi.mock('@/shared/database/uow', () => ({
+  uow: {
+    transaction: vi.fn(async (fn: (ctx: { tx: unknown }) => unknown) => fn({ tx: {} })),
+    afterCommit: vi.fn(async (callback: () => Promise<void> | void) => {
+      await callback();
+    }),
+  },
+}));
+
 const repository = vi.mocked(practiceClientIntakesRepository);
 const addJob = vi.mocked(queueManager.addIntakeEnrichmentJob);
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
@@ -66,6 +75,7 @@ const makeIntake = (overrides: Partial<SelectPracticeClientIntake> = {}): Select
   enrichment_status: 'pending',
   enrichment_version: 1,
   enrichment_attempt_count: 0,
+  enrichment_claim_token: null,
   enrichment_model: null,
   enrichment_error_code: null,
   enrichment_requested_at: new Date('2026-07-14T12:00:00.000Z'),
@@ -104,11 +114,25 @@ describe('intakeEnrichmentService.requestEnrichment', () => {
     ).rejects.toMatchObject({ status: 403 });
     expect(repository.requestEnrichment).not.toHaveBeenCalled();
   });
+
+  it('never enqueues a job when the version bump fails inside the transaction', async () => {
+    repository.findById.mockResolvedValue(makeIntake());
+    repository.requestEnrichment.mockResolvedValue(undefined);
+
+    await expect(
+      intakeEnrichmentService.requestEnrichment({ intakeId: INTAKE_ID }, createSystemContext(ORGANIZATION_ID))
+    ).rejects.toMatchObject({ status: 404 });
+    expect(addJob).not.toHaveBeenCalled();
+  });
 });
 
 describe('intakeEnrichmentService.runEnrichmentJob', () => {
   it('persists strict output while preserving client-entered fields', async () => {
-    const processing = makeIntake({ enrichment_status: 'processing', enrichment_attempt_count: 1 });
+    const processing = makeIntake({
+      enrichment_status: 'processing',
+      enrichment_attempt_count: 1,
+      enrichment_claim_token: 'claim-token-1',
+    });
     const completed = makeIntake({ enrichment_status: 'succeeded', transcript_summary: 'Staff summary' });
     repository.claimEnrichment.mockResolvedValue(processing);
     repository.completeEnrichment.mockResolvedValue(completed);
@@ -128,6 +152,7 @@ describe('intakeEnrichmentService.runEnrichmentJob', () => {
       INTAKE_ID,
       ORGANIZATION_ID,
       1,
+      'claim-token-1',
       expect.objectContaining({
         transcriptSummary: 'Staff summary',
         urgency: 'time_sensitive',
@@ -137,7 +162,9 @@ describe('intakeEnrichmentService.runEnrichmentJob', () => {
   });
 
   it('persists a stable code and rethrows malformed output for Graphile retry', async () => {
-    repository.claimEnrichment.mockResolvedValue(makeIntake({ enrichment_status: 'processing' }));
+    repository.claimEnrichment.mockResolvedValue(
+      makeIntake({ enrichment_status: 'processing', enrichment_claim_token: 'claim-token-2' })
+    );
     repository.failEnrichment.mockResolvedValue(true);
 
     await expect(
@@ -146,7 +173,13 @@ describe('intakeEnrichmentService.runEnrichmentJob', () => {
         vi.fn().mockResolvedValue('not json')
       )
     ).rejects.toMatchObject({ status: 502 });
-    expect(repository.failEnrichment).toHaveBeenCalledWith(INTAKE_ID, ORGANIZATION_ID, 1, 'malformed_response');
+    expect(repository.failEnrichment).toHaveBeenCalledWith(
+      INTAKE_ID,
+      ORGANIZATION_ID,
+      1,
+      'claim-token-2',
+      'malformed_response'
+    );
     expect(repository.completeEnrichment).not.toHaveBeenCalled();
   });
 

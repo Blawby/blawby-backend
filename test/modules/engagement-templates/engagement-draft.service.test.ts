@@ -187,4 +187,40 @@ describe('engagementDraftService.generateEngagementDraft', () => {
       )
     ).rejects.toMatchObject({ status: 502 });
   });
+
+  it('rejects a generated draft that alters the authoritative fee amount', async () => {
+    await expect(
+      engagementDraftService.generateEngagementDraft(
+        {
+          intakeId: intake.id,
+          templateId: template.id,
+          // Substitutes a different dollar figure for the authoritative $350.00 rate.
+          generateText: vi
+            .fn()
+            .mockResolvedValue(
+              'Dear Jordan Client, Blawby Legal will Represent the client in the custody matter. Rate: $450.00.'
+            ),
+        },
+        createSystemContext(template.practice_id)
+      )
+    ).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('rejects a generated draft that alters the authoritative scope', async () => {
+    await expect(
+      engagementDraftService.generateEngagementDraft(
+        {
+          intakeId: intake.id,
+          templateId: template.id,
+          // Rewrites the supplied scope instead of preserving it verbatim.
+          generateText: vi
+            .fn()
+            .mockResolvedValue(
+              'Dear Jordan Client, Blawby Legal will provide general litigation support. Rate: $350.00. Retainer: $2,500.00.'
+            ),
+        },
+        createSystemContext(template.practice_id)
+      )
+    ).rejects.toMatchObject({ status: 502 });
+  });
 });

@@ -232,11 +232,13 @@ const claimEnrichment = async (
   organizationId: string,
   version: number
 ): Promise<SelectPracticeClientIntake | undefined> => {
+  const claimToken = crypto.randomUUID();
   const [updated] = await getActiveTx()
     .update(practiceClientIntakes)
     .set({
       enrichment_status: 'processing',
       enrichment_attempt_count: sql`${practiceClientIntakes.enrichment_attempt_count} + 1`,
+      enrichment_claim_token: claimToken,
       enrichment_error_code: null,
       updated_at: new Date(),
     })
@@ -256,6 +258,7 @@ const completeEnrichment = async (
   id: string,
   organizationId: string,
   version: number,
+  claimToken: string,
   data: {
     transcriptSummary: string;
     urgency: 'routine' | 'time_sensitive' | 'emergency';
@@ -281,7 +284,8 @@ const completeEnrichment = async (
         eq(practiceClientIntakes.id, id),
         eq(practiceClientIntakes.organization_id, organizationId),
         eq(practiceClientIntakes.enrichment_version, version),
-        eq(practiceClientIntakes.enrichment_status, 'processing')
+        eq(practiceClientIntakes.enrichment_status, 'processing'),
+        eq(practiceClientIntakes.enrichment_claim_token, claimToken)
       )
     )
     .returning();
@@ -292,6 +296,7 @@ const failEnrichment = async (
   id: string,
   organizationId: string,
   version: number,
+  claimToken: string,
   errorCode: string
 ): Promise<boolean> => {
   const result = await getActiveTx()
@@ -302,7 +307,8 @@ const failEnrichment = async (
         eq(practiceClientIntakes.id, id),
         eq(practiceClientIntakes.organization_id, organizationId),
         eq(practiceClientIntakes.enrichment_version, version),
-        eq(practiceClientIntakes.enrichment_status, 'processing')
+        eq(practiceClientIntakes.enrichment_status, 'processing'),
+        eq(practiceClientIntakes.enrichment_claim_token, claimToken)
       )
     );
   return result.rowCount === 1;

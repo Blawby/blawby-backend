@@ -2,6 +2,7 @@ import { intakeConversationMessagesQueries } from '@/modules/intake-conversation
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { config } from '@/shared/config';
+import { uow } from '@/shared/database/uow';
 import { queueManager } from '@/shared/queue/queue.manager';
 import { workersAiTextService, type AiMessage } from '@/shared/services/ai/workers-ai-text.service';
 import type { ServiceContext } from '@/shared/types/service-context';
@@ -52,15 +53,22 @@ const requestEnrichment = async (
     throw new HTTPException(409, { message: 'Only completed intakes can be enriched' });
   }
 
-  const requested = await practiceClientIntakesRepository.requestEnrichment(intakeId, ctx.organizationId);
-  if (!requested) {
-    throw new HTTPException(404, { message: 'Practice client intake not found' });
-  }
+  // Enqueue only after the version bump durably commits, so a crash between the two never leaves an intake stuck pending with no job behind it.
+  const requested = await uow.transaction(async () => {
+    const updated = await practiceClientIntakesRepository.requestEnrichment(intakeId, ctx.organizationId);
+    if (!updated) {
+      throw new HTTPException(404, { message: 'Practice client intake not found' });
+    }
 
-  await queueManager.addIntakeEnrichmentJob({
-    intakeId,
-    organizationId: ctx.organizationId,
-    version: requested.enrichment_version,
+    await uow.afterCommit(() =>
+      queueManager.addIntakeEnrichmentJob({
+        intakeId,
+        organizationId: ctx.organizationId,
+        version: updated.enrichment_version,
+      })
+    );
+
+    return updated;
   });
 
   return {
@@ -133,6 +141,9 @@ const runEnrichmentJob = async (
     throw new Error('Intake enrichment job could not claim its current version');
   }
 
+  // The claim always carries a fresh ownership token on the row it hands back.
+  const claimToken = intake.enrichment_claim_token as string;
+
   try {
     const content = await generateText(await buildPrompt(intake));
     let rawResult: unknown = undefined;
@@ -151,6 +162,7 @@ const runEnrichmentJob = async (
       job.intakeId,
       job.organizationId,
       job.version,
+      claimToken,
       {
         transcriptSummary: parsed.data.summary,
         urgency: clientUrgency.success ? clientUrgency.data : parsed.data.urgency,
@@ -164,6 +176,7 @@ const runEnrichmentJob = async (
       job.intakeId,
       job.organizationId,
       job.version,
+      claimToken,
       failureCode(error)
     );
     if (!failed) {

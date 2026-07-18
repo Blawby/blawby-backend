@@ -65,7 +65,7 @@ const triggerIntakeInvitationRoute = routeBuilder.build({
 
 const requestIntakeEnrichmentRoute = routeBuilder.build({
   method: 'post',
-  path: '/{uuid}/enrichment',
+  path: '/{practice_id}/{uuid}/enrichment',
   tags: ['Practice Client Intakes'],
   summary: 'Request intake enrichment',
   description: 'Queues a new versioned AI enrichment job for a completed intake.',
@@ -77,11 +77,11 @@ const requestIntakeEnrichmentRoute = routeBuilder.build({
       message: 'Run AI enrichment for this completed intake?',
       confirm_title: 'Run enrichment',
     },
-    schema: { uuid: z.uuid() },
+    schema: { practice_id: z.uuid(), uuid: z.uuid() },
     handler: async (args, ctx) =>
       intakeEnrichmentService.requestEnrichment({ intakeId: z.uuid().parse(args.uuid) }, ctx),
   },
-  request: { params: uuidParamOpenAPISchema },
+  request: { params: practiceIdParamOpenAPISchema.extend(uuidParamOpenAPISchema.shape) },
   responses: {
     202: {
       content: { 'application/json': { schema: intakeValidations.requestIntakeEnrichmentResponseSchema } },

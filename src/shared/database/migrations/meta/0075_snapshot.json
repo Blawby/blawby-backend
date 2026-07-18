@@ -1,5 +1,5 @@
 {
-  "id": "a9f2934b-5f9e-4604-9c1d-ad84e3fb4f45",
+  "id": "b79464f7-c507-40f3-b96f-4781658b3a04",
   "prevId": "0b5e305d-215a-4622-8458-770bb3c9b620",
   "version": "7",
   "dialect": "postgresql",
@@ -7401,6 +7401,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "enrichment_claim_token": {
+          "name": "enrichment_claim_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "enrichment_model": {
           "name": "enrichment_model",
