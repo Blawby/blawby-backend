@@ -600,15 +600,21 @@ describe('Practice Client Intakes API', () => {
       metadata: { email: 'rollback@test-blawby.com', name: 'Rollback Target' },
     });
 
+    const realUpdateStatus = practiceClientIntakesRepository.updateStatus.bind(practiceClientIntakesRepository);
     const updateStatusSpy = vi
       .spyOn(practiceClientIntakesRepository, 'updateStatus')
-      .mockRejectedValueOnce(new Error('simulated transaction failure'));
+      .mockImplementationOnce(async (...args: Parameters<typeof realUpdateStatus>) => {
+        // Let the real status write execute inside the transaction, then fail so we can prove that write rolls back too, not just the matter insert.
+        await realUpdateStatus(...args);
+        throw new Error('simulated transaction failure');
+      });
 
     const res = await authenticatedClientRequest(sessionToken)
       .patch(`/api/practice-client-intakes/${rollbackIntake.id}/convert`)
       .send({ title: 'Should Not Persist', billing_type: 'fixed' });
 
     expect(res.status).toBe(500);
+    expect(updateStatusSpy).toHaveBeenCalledWith(rollbackIntake.id, 'converted');
 
     const [persistedIntake] = await getTestDb()
       .select()
