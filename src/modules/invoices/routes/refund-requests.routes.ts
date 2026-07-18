@@ -9,7 +9,9 @@ import { refundRequestsService } from '@/modules/invoices/services/refund-reques
 import { routeBuilder } from '@/shared/router/route-builder';
 
 const refundRequestIdParam = practiceIdParamSchema.extend({
-  id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, description: 'Refund request ID' }),
+  refund_request_id: z
+    .uuid()
+    .openapi({ param: { name: 'refund_request_id', in: 'path' }, description: 'Refund request ID' }),
 });
 
 const refundStatusEnum = z.enum(['requested', 'approved', 'rejected', 'executed', 'failed', 'cancelled', 'executing']);
@@ -125,7 +127,7 @@ const listClientRefundRequestsRoute = routeBuilder.build({
 
 const cancelRefundRequestRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}/client/refund-requests/{id}/cancel',
+  path: '/{practice_id}/client/refund-requests/{refund_request_id}/cancel',
   tags: ['Client Refund Requests'],
   summary: 'Cancel a refund request',
   description: 'Client cancels a pending refund request.',
@@ -190,7 +192,7 @@ const listPracticeRefundRequestsRoute = routeBuilder.build({
 
 const reviewRefundRequestRoute = routeBuilder.build({
   method: 'patch',
-  path: '/{practice_id}/refund-requests/{id}',
+  path: '/{practice_id}/refund-requests/{refund_request_id}',
   tags: ['Practice Refund Requests'],
   summary: 'Approve or reject a refund request',
   description: 'Practice approves or rejects a pending refund request.',
@@ -201,6 +203,11 @@ const reviewRefundRequestRoute = routeBuilder.build({
       required: true,
       message: 'Approve or reject this refund request?',
       confirm_title: 'Review refund request',
+    },
+    schema: {
+      id: z.uuid(),
+      action: z.enum(['approved', 'rejected']),
+      review_notes: z.string().max(5000).optional(),
     },
     handler: async (args, ctx) =>
       refundRequestsService.reviewRequest(
@@ -237,7 +244,7 @@ const reviewRefundRequestRoute = routeBuilder.build({
 
 const executeRefundRoute = routeBuilder.build({
   method: 'post',
-  path: '/{practice_id}/refund-requests/{id}/execute',
+  path: '/{practice_id}/refund-requests/{refund_request_id}/execute',
   tags: ['Practice Refund Requests'],
   summary: 'Execute a Stripe refund',
   description: 'Practice executes an approved refund via Stripe.',
