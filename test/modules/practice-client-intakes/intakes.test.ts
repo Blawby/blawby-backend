@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
@@ -7,6 +8,8 @@ import { createAuthenticatedRequest, createRequest } from '@/test/helpers/reques
 import type { SuccessResponse, TestOrganization } from '@/test/types/shared';
 import { toTypedResponse } from '@/test/helpers/response';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
+import { intakeConversations } from '@/modules/intake-conversations/database/schema/intake-conversations.schema';
+import { intakePrefillTokenService } from '@/modules/practice-client-intakes/services/intake-prefill-token.service';
 import practiceClientIntakesApp from '@/modules/practice-client-intakes/http';
 import { registerPracticeClientIntakesListeners } from '@/modules/practice-client-intakes/listeners';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
@@ -24,6 +27,7 @@ import type {
   IntakePostPayStatusResponse,
   IntakeSettingsResponse,
   IntakeStatusResponse,
+  InvitationPrefillResponse,
   ListIntakeItem,
   TriggerIntakeInvitationResponse,
   UpdateIntakeTriageStatusResponse,
@@ -585,13 +589,83 @@ describe('Practice Client Intakes API', () => {
     expect(res.body.matter.organization_id).toBe(org.id);
   });
 
-  it('POST /{uuid}/invite returns 200 for valid intake', async () => {
+  it('POST /{uuid}/invite returns 200 for valid intake with a linked conversation', async () => {
+    const [conversation] = await getTestDb()
+      .insert(intakeConversations)
+      .values({
+        id: randomUUID(),
+        organization_id: org.id,
+        client_user_id: session!.user.id,
+        is_anonymous: true,
+      })
+      .returning();
+
+    const invitableIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 0,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      triage_status: intakeHelpers.TriageStatus.pending,
+      metadata: { email: 'invite-target@test-blawby.com', name: 'Invite Target' },
+      conversation_id: conversation.id,
+    });
+
     const res = await toTypedResponse<TriggerIntakeInvitationResponse>(
-      authenticatedClientRequest(sessionToken).post(`/api/practice-client-intakes/${intakeId}/invite`)
+      authenticatedClientRequest(sessionToken).post(`/api/practice-client-intakes/${invitableIntake.id}/invite`)
     );
 
     expect(res.status).toBe(200);
     expect(typeof res.body.message).toBe('string');
     expect(res.body.message.length).toBeGreaterThan(0);
+  });
+
+  it('POST /{uuid}/invite returns 409 when the intake has no linked conversation', async () => {
+    const unlinkedIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 0,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      triage_status: intakeHelpers.TriageStatus.pending,
+      metadata: { email: 'no-conversation@test-blawby.com', name: 'No Conversation' },
+    });
+
+    const res = await authenticatedClientRequest(sessionToken).post(
+      `/api/practice-client-intakes/${unlinkedIntake.id}/invite`
+    );
+
+    expect(res.status).toBe(409);
+  });
+
+  it('GET /invitation-prefill returns 200 with a no-store cache header for the invited email', async () => {
+    const { user, sessionToken: prefillSessionToken } = await authHelpers.createNonOrgUserSession();
+    const [conversation] = await getTestDb()
+      .insert(intakeConversations)
+      .values({
+        id: randomUUID(),
+        organization_id: org.id,
+        client_user_id: session!.user.id,
+        is_anonymous: true,
+      })
+      .returning();
+
+    const prefillIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 0,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      triage_status: intakeHelpers.TriageStatus.pending,
+      metadata: { email: user.email, name: 'Prefill Target' },
+      conversation_id: conversation.id,
+    });
+
+    const token = await intakePrefillTokenService.issue({
+      intakeId: prefillIntake.id,
+      organizationId: org.id,
+    });
+
+    const res = await toTypedResponse<InvitationPrefillResponse>(
+      authenticatedClientRequest(prefillSessionToken).get(
+        `/api/practice-client-intakes/invitation-prefill?token=${encodeURIComponent(token)}`
+      )
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body.intakeId).toBe(prefillIntake.id);
+    expect(res.body.conversationId).toBe(conversation.id);
   });
 });

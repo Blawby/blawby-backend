@@ -1,4 +1,6 @@
-import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
+// oxlint-disable typescript/no-unsafe-type-assertion
+import { mattersQueries, type MatterWithRelations } from '@/modules/matters/database/queries/matters.queries';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { getStaffAccessibleIntakeForUpdate } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import { intakeLifecycleService } from '@/modules/practice-client-intakes/services/intake-lifecycle.service';
@@ -64,6 +66,27 @@ vi.mock('@/shared/events/definitions', () => ({ IntakeTriaged: { dispatch: vi.fn
 const getLockedIntake = vi.mocked(getStaffAccessibleIntakeForUpdate);
 const findMatterByIntake = vi.mocked(mattersQueries.findByIntakeUuid);
 const createMatter = vi.mocked(mattersQueries.createMatter);
+const findMatterWithRelations = vi.mocked(mattersQueries.findMatterByIdWithRelations);
+const updateIntakeStatus = vi.mocked(practiceClientIntakesRepository.updateStatus);
+const MATTER_ID = '10000000-0000-4000-8000-000000000003';
+
+const makeMatter = (): MatterWithRelations =>
+  ({
+    id: MATTER_ID,
+    organization_id: ORGANIZATION_ID,
+    intake_uuid: INTAKE_ID,
+    title: 'Existing Matter',
+    status: 'engagement_pending',
+    billing_type: 'fixed',
+    payment_frequency: null,
+    urgency: null,
+    deleted_at: null,
+    open_date: null,
+    close_date: null,
+    last_conflict_check_result: null,
+    assignees: [],
+    milestones: [],
+  }) as unknown as MatterWithRelations;
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
 const INTAKE_ID = '10000000-0000-4000-8000-000000000002';
 
@@ -89,7 +112,6 @@ const makeIntake = (status: string): SelectPracticeClientIntake => ({
   client_ip: null,
   user_agent: null,
   invitation_prefill_token_hash: null,
-  invitation_prefill_token_expires_at: null,
   urgency: null,
   desired_outcome: null,
   court_date: null,
@@ -134,5 +156,33 @@ describe('intakeLifecycleService.convertIntake', () => {
     ).rejects.toMatchObject({ status: 409 });
     expect(findMatterByIntake).toHaveBeenCalledWith(INTAKE_ID);
     expect(createMatter).not.toHaveBeenCalled();
+  });
+
+  it('returns the existing matter idempotently when a concurrent request already converted the intake', async () => {
+    getLockedIntake.mockResolvedValue(makeIntake('converted'));
+    findMatterByIntake.mockResolvedValue(makeMatter());
+    findMatterWithRelations.mockResolvedValue(makeMatter());
+
+    const result = await intakeLifecycleService.convertIntake(
+      { uuid: INTAKE_ID, data: {} },
+      createSystemContext(ORGANIZATION_ID)
+    );
+
+    expect(result.matter_id).toBe(MATTER_ID);
+    expect(createMatter).not.toHaveBeenCalled();
+  });
+
+  it('rolls back without creating a matter or flipping status when a later step in the transaction throws', async () => {
+    getLockedIntake.mockResolvedValue(makeIntake('succeeded'));
+    createMatter.mockRejectedValue(new Error('matter creation failed'));
+
+    await expect(
+      intakeLifecycleService.convertIntake({ uuid: INTAKE_ID, data: {} }, createSystemContext(ORGANIZATION_ID))
+    ).rejects.toThrow('matter creation failed');
+
+    expect(transactionState.calls).toBe(1);
+    expect(transactionState.active).toBe(false);
+    expect(updateIntakeStatus).not.toHaveBeenCalled();
+    expect(findMatterWithRelations).not.toHaveBeenCalled();
   });
 });

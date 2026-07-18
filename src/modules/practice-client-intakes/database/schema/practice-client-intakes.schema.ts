@@ -50,10 +50,6 @@ export const practiceClientIntakes = pgTable(
     client_ip: text('client_ip'),
     user_agent: text('user_agent'),
     invitation_prefill_token_hash: varchar('invitation_prefill_token_hash', { length: 64 }),
-    invitation_prefill_token_expires_at: timestamp('invitation_prefill_token_expires_at', {
-      withTimezone: true,
-      mode: 'date',
-    }),
 
     // AI & Triage Fields
     urgency: varchar('urgency', { length: 20 }).$type<'routine' | 'time_sensitive' | 'emergency'>(),

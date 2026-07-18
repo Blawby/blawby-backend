@@ -5,8 +5,6 @@ import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/
 import type { ServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
 
-const TOKEN_TTL_MS = 10 * 60 * 1_000;
-
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 const issue = async ({ intakeId, organizationId }: { intakeId: string; organizationId: string }): Promise<string> => {
@@ -14,8 +12,7 @@ const issue = async ({ intakeId, organizationId }: { intakeId: string; organizat
   const stored = await practiceClientIntakesRepository.setInvitationPrefillToken(
     intakeId,
     organizationId,
-    hashToken(token),
-    new Date(Date.now() + TOKEN_TTL_MS)
+    hashToken(token)
   );
   if (!stored) {
     throw new HTTPException(404, { message: 'Practice client intake not found' });
@@ -34,7 +31,7 @@ const resolve = async (
   orgName: string;
   orgSlug: string;
 }> => {
-  const intake = await practiceClientIntakesRepository.findByInvitationPrefillTokenHash(hashToken(token), new Date());
+  const intake = await practiceClientIntakesRepository.findByInvitationPrefillTokenHash(hashToken(token));
   const metadata = intake ? intakeSharedHelpers.parseMetadata(intake.metadata) : null;
   if (!intake || !metadata?.email || !intake.conversation_id) {
     throw new HTTPException(404, { message: 'Invitation link is invalid or expired' });

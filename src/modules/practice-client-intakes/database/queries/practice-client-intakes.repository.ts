@@ -1,4 +1,4 @@
-import { eq, desc, and, gt, gte, lte, or, ilike, sql } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, or, ilike, sql } from 'drizzle-orm';
 import {
   practiceClientIntakesSchema,
   type InsertPracticeClientIntake,
@@ -79,19 +79,11 @@ const findByIdForUpdate = async (id: string): Promise<SelectPracticeClientIntake
   return row;
 };
 
-const findByInvitationPrefillTokenHash = async (
-  tokenHash: string,
-  now: Date
-): Promise<SelectPracticeClientIntake | undefined> => {
+const findByInvitationPrefillTokenHash = async (tokenHash: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [row] = await getActiveTx()
     .select()
     .from(practiceClientIntakes)
-    .where(
-      and(
-        eq(practiceClientIntakes.invitation_prefill_token_hash, tokenHash),
-        gt(practiceClientIntakes.invitation_prefill_token_expires_at, now)
-      )
-    )
+    .where(eq(practiceClientIntakes.invitation_prefill_token_hash, tokenHash))
     .limit(1);
   return row;
 };
@@ -148,14 +140,12 @@ const updateStatus = async (id: string, status: string): Promise<SelectPracticeC
 const setInvitationPrefillToken = async (
   id: string,
   organizationId: string,
-  tokenHash: string,
-  expiresAt: Date
+  tokenHash: string
 ): Promise<boolean> => {
   const result = await getActiveTx()
     .update(practiceClientIntakes)
     .set({
       invitation_prefill_token_hash: tokenHash,
-      invitation_prefill_token_expires_at: expiresAt,
       updated_at: new Date(),
     })
     .where(and(eq(practiceClientIntakes.id, id), eq(practiceClientIntakes.organization_id, organizationId)));

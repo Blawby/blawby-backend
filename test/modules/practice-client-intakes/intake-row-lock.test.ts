@@ -34,7 +34,6 @@ const intake: SelectPracticeClientIntake = {
   client_ip: null,
   user_agent: null,
   invitation_prefill_token_hash: null,
-  invitation_prefill_token_expires_at: null,
   urgency: null,
   desired_outcome: null,
   court_date: null,

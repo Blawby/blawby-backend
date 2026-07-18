@@ -45,7 +45,6 @@ const makeIntake = (): SelectPracticeClientIntake => ({
   client_ip: null,
   user_agent: null,
   invitation_prefill_token_hash: null,
-  invitation_prefill_token_expires_at: null,
   urgency: null,
   desired_outcome: null,
   court_date: null,
@@ -71,20 +70,29 @@ beforeEach(() => {
 });
 
 describe('intakePrefillTokenService', () => {
-  it('stores only a short-lived SHA-256 token hash', async () => {
+  it('stores only the SHA-256 token hash, never the raw token', async () => {
     repository.setInvitationPrefillToken.mockResolvedValue(true);
-    const before = Date.now();
 
     const token = await intakePrefillTokenService.issue({ intakeId: INTAKE_ID, organizationId: ORGANIZATION_ID });
 
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    const [intakeId, organizationId, tokenHash, expiresAt] = repository.setInvitationPrefillToken.mock.calls[0] ?? [];
+    const [intakeId, organizationId, tokenHash] = repository.setInvitationPrefillToken.mock.calls[0] ?? [];
     expect(intakeId).toBe(INTAKE_ID);
     expect(organizationId).toBe(ORGANIZATION_ID);
     expect(tokenHash).toBe(createHash('sha256').update(token).digest('hex'));
     expect(tokenHash).not.toContain(token);
-    expect(expiresAt?.getTime()).toBeGreaterThanOrEqual(before + 10 * 60 * 1_000);
-    expect(expiresAt?.getTime()).toBeLessThanOrEqual(Date.now() + 10 * 60 * 1_000);
+  });
+
+  it('rotates the token on repeated issuance so the previous token no longer resolves', async () => {
+    repository.setInvitationPrefillToken.mockResolvedValue(true);
+
+    const first = await intakePrefillTokenService.issue({ intakeId: INTAKE_ID, organizationId: ORGANIZATION_ID });
+    const second = await intakePrefillTokenService.issue({ intakeId: INTAKE_ID, organizationId: ORGANIZATION_ID });
+
+    expect(first).not.toBe(second);
+    const [, , firstHash] = repository.setInvitationPrefillToken.mock.calls[0] ?? [];
+    const [, , secondHash] = repository.setInvitationPrefillToken.mock.calls[1] ?? [];
+    expect(firstHash).not.toBe(secondHash);
   });
 
   it('resolves current server-side intake data for the invited email', async () => {
@@ -113,7 +121,7 @@ describe('intakePrefillTokenService', () => {
     expect(findOrganization).not.toHaveBeenCalled();
   });
 
-  it('returns one generic error for unknown and expired token hashes', async () => {
+  it('returns one generic error for unknown or superseded token hashes', async () => {
     repository.findByInvitationPrefillTokenHash.mockResolvedValue(undefined);
 
     await expect(intakePrefillTokenService.resolve({ token: 'a'.repeat(43) }, clientContext())).rejects.toMatchObject({
