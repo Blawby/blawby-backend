@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { matterValidations } from '@/modules/matters/validations/matters.validation';
 import { uuidValidator } from '@/shared/validations/common';
 
 const invoiceLineItemTypeValues = ['service', 'time_entry', 'expense', 'flat_fee', 'retainer', 'other'] as const;
@@ -116,7 +117,7 @@ const invoiceSchema = z
         email: z.string(),
       })
       .optional(),
-    matter: z.any().optional(),
+    matter: matterValidations.matterSchema.optional(),
   })
   .openapi('Invoice');
 

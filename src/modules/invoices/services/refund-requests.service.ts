@@ -15,6 +15,7 @@ import type { Action, Subject } from '@/shared/auth/abilities.types';
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { InvoiceRefunded, SystemErrorOccurred } from '@/shared/events/definitions';
 import { addRefundReconciliationJob } from '@/shared/queue/queue.manager';
+import type { PaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { stripe } from '@/shared/utils/stripe-client';
 
@@ -176,14 +177,24 @@ const createRequest = async (
   });
 };
 
-const listClientRequests = async (ctx: ServiceContext): Promise<SelectRefundRequest[]> => {
+const listClientRequests = async (
+  ctx: ServiceContext,
+  pagination?: { page?: number; limit?: number }
+): Promise<PaginatedResponse<SelectRefundRequest>> => {
   checkAuthorization(ctx, 'read', 'RefundRequest');
 
   const clientResult = await invoiceClientResolver.resolveUserDetailId(ctx.organizationId, ctx.userId);
   if (!clientResult) {
     throw new HTTPException(404, { message: 'Client user details not found' });
   }
-  return await refundRequestsQueries.listByClient(ctx.organizationId, clientResult);
+  const [data, total] = await Promise.all([
+    refundRequestsQueries.listByClient(ctx.organizationId, clientResult, pagination),
+    refundRequestsQueries.countByClient(ctx.organizationId, clientResult),
+  ]);
+  return {
+    data,
+    pagination: { page: pagination?.page ?? 1, limit: pagination?.limit ?? 20, total },
+  };
 };
 
 const cancelRequest = async (
@@ -214,10 +225,23 @@ const cancelRequest = async (
 
 const listPracticeRequests = async (
   ctx: ServiceContext,
-  filters?: { status?: string; invoice_id?: string; client_user_details_id?: string }
-): Promise<SelectRefundRequest[]> => {
+  filters?: {
+    status?: string;
+    invoice_id?: string;
+    client_user_details_id?: string;
+    page?: number;
+    limit?: number;
+  }
+): Promise<PaginatedResponse<SelectRefundRequest>> => {
   checkAuthorization(ctx, 'read', 'RefundRequest');
-  return await refundRequestsQueries.listByOrganization(ctx.organizationId, filters);
+  const [data, total] = await Promise.all([
+    refundRequestsQueries.listByOrganization(ctx.organizationId, filters),
+    refundRequestsQueries.countByOrganization(ctx.organizationId, filters),
+  ]);
+  return {
+    data,
+    pagination: { page: filters?.page ?? 1, limit: filters?.limit ?? 20, total },
+  };
 };
 
 const reviewRequest = async (

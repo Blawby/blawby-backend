@@ -8,26 +8,26 @@
  *   import { ClientCreated } from '@/shared/events/definitions';
  */
 
-import * as auth from './definitions/auth';
-import * as intakes from './definitions/intakes';
-import * as invoices from './definitions/invoices';
-import * as matters from './definitions/matters';
-import * as onboarding from './definitions/onboarding';
-import * as payments from './definitions/payments';
-import * as practice from './definitions/practice';
-import * as settings from './definitions/settings';
-import * as stripe from './definitions/stripe';
-import * as subscriptions from './definitions/subscriptions';
-import * as system from './definitions/system';
-import * as client from './definitions/client';
+import * as auth from '@/shared/events/definitions/auth';
+import * as intakes from '@/shared/events/definitions/intakes';
+import * as invoices from '@/shared/events/definitions/invoices';
+import * as matters from '@/shared/events/definitions/matters';
+import * as onboarding from '@/shared/events/definitions/onboarding';
+import * as payments from '@/shared/events/definitions/payments';
+import * as practice from '@/shared/events/definitions/practice';
+import * as settings from '@/shared/events/definitions/settings';
+import * as stripe from '@/shared/events/definitions/stripe';
+import * as subscriptions from '@/shared/events/definitions/subscriptions';
+import * as system from '@/shared/events/definitions/system';
+import * as client from '@/shared/events/definitions/client';
 import {
   ConflictCheckCompleted,
   EngagementContractAccepted,
   EngagementContractCreated,
   EngagementContractDeclined,
   EngagementContractSent,
-} from './definitions/engagement-contracts';
-import * as users from './definitions/users';
+} from '@/shared/events/definitions/engagement-contracts';
+import * as users from '@/shared/events/definitions/users';
 
 // Re-export everything for backward compatibility
 export * from './definitions/auth';

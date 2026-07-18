@@ -111,7 +111,7 @@ const createRefundRequestHandler: AppRouteHandler<typeof refundRequestRoutes.cre
     },
     ctx
   );
-  return c.json(refundRequest, 201);
+  return c.json({ refundRequest }, 201);
 };
 
 const listClientRefundRequestsHandler: AppRouteHandler<
@@ -119,15 +119,16 @@ const listClientRefundRequestsHandler: AppRouteHandler<
 > = async (c) => {
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
-  const refundRequests = await refundRequestsService.listClientRequests(ctx);
-  return c.json(refundRequests, 200);
+  const query = c.req.valid('query');
+  const result = await refundRequestsService.listClientRequests(ctx, query);
+  return c.json(result, 200);
 };
 
 const cancelRefundRequestHandler: AppRouteHandler<typeof refundRequestRoutes.cancelRefundRequestRoute> = async (c) => {
   const { practice_id: organizationId, id } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const refundRequest = await refundRequestsService.cancelRequest({ requestId: id }, ctx);
-  return c.json(refundRequest, 200);
+  return c.json({ refundRequest }, 200);
 };
 
 const listPracticeRefundRequestsHandler: AppRouteHandler<
@@ -136,12 +137,14 @@ const listPracticeRefundRequestsHandler: AppRouteHandler<
   const { practice_id: organizationId } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const query = c.req.valid('query');
-  const refundRequests = await refundRequestsService.listPracticeRequests(ctx, {
+  const result = await refundRequestsService.listPracticeRequests(ctx, {
     status: query.status,
     invoice_id: query.invoice_id,
     client_user_details_id: query.client_user_details_id,
+    page: query.page,
+    limit: query.limit,
   });
-  return c.json(refundRequests, 200);
+  return c.json(result, 200);
 };
 
 const reviewRefundRequestHandler: AppRouteHandler<typeof refundRequestRoutes.reviewRefundRequestRoute> = async (c) => {
@@ -152,14 +155,14 @@ const reviewRefundRequestHandler: AppRouteHandler<typeof refundRequestRoutes.rev
     { requestId: id, action: body.action, reviewNotes: body.review_notes },
     ctx
   );
-  return c.json(refundRequest, 200);
+  return c.json({ refundRequest }, 200);
 };
 
 const executeRefundHandler: AppRouteHandler<typeof refundRequestRoutes.executeRefundRoute> = async (c) => {
   const { practice_id: organizationId, id } = c.req.valid('param');
   const ctx = { ...getServiceContext(c), organizationId };
   const refundRequest = await refundRequestsService.executeRefund({ requestId: id }, ctx);
-  return c.json(refundRequest, 200);
+  return c.json({ refundRequest }, 200);
 };
 
 export const handlers = {
