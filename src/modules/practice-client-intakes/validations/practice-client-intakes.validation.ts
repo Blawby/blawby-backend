@@ -1,6 +1,9 @@
 import { matterValidations } from '@/modules/matters/validations/matters.validation';
+import { INTAKE_ENRICHMENT_STATUSES } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { addressSchema } from '@/shared/validations/address';
 import { z } from '@hono/zod-openapi';
+
+const enrichmentStatusSchema = z.enum(INTAKE_ENRICHMENT_STATUSES);
 
 const createPracticeClientIntakeSchema = z.object({
   slug: z.string().min(1).max(100),
@@ -228,6 +231,14 @@ const practiceClientIntakeStatusResponseSchema = z.object({
   income: z.number().int().nullable(),
   household_size: z.number().int().nullable(),
   case_strength: z.number().optional(),
+  transcript_summary: z.string().nullable().optional(),
+  enrichment_status: enrichmentStatusSchema.optional(),
+  enrichment_version: z.number().int().nonnegative().optional(),
+  enrichment_attempt_count: z.number().int().nonnegative().optional(),
+  enrichment_model: z.string().nullable().optional(),
+  enrichment_error_code: z.string().nullable().optional(),
+  enrichment_requested_at: z.date().nullable().optional(),
+  enriched_at: z.date().nullable().optional(),
 });
 
 const practiceClientIntakePostPayStatusResponseSchema = z.object({
@@ -284,6 +295,12 @@ const invitationPrefillResponseSchema = z.object({
   orgSlug: z.string().min(1),
 });
 
+const requestIntakeEnrichmentResponseSchema = z.object({
+  intake_id: z.uuid(),
+  enrichment_status: z.literal('pending'),
+  enrichment_version: z.number().int().positive(),
+});
+
 const listIntakesQuerySchema = z.object({
   status: z
     .enum(['open', 'succeeded', 'expired', 'canceled', 'failed', 'converted', 'pending_review', 'accepted', 'declined'])
@@ -315,6 +332,14 @@ const listIntakesResponseSchema = z.object({
       has_documents: z.boolean().nullable(),
       income: z.number().int().nullable(),
       household_size: z.number().int().nullable(),
+      transcript_summary: z.string().nullable().optional(),
+      enrichment_status: enrichmentStatusSchema.optional(),
+      enrichment_version: z.number().int().nonnegative().optional(),
+      enrichment_attempt_count: z.number().int().nonnegative().optional(),
+      enrichment_model: z.string().nullable().optional(),
+      enrichment_error_code: z.string().nullable().optional(),
+      enrichment_requested_at: z.date().nullable().optional(),
+      enriched_at: z.date().nullable().optional(),
       metadata: z.object({
         email: z.string(),
         name: z.string(),
@@ -389,6 +414,7 @@ export const intakeValidations = {
   triggerIntakeInvitationResponseSchema,
   invitationPrefillQuerySchema,
   invitationPrefillResponseSchema,
+  requestIntakeEnrichmentResponseSchema,
   listIntakesQuerySchema,
   listIntakesResponseSchema,
   convertIntakeSchema,

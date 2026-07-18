@@ -117,6 +117,23 @@ const addEmailJob = async <T extends EmailTemplateName>(
   }
 };
 
+const addIntakeEnrichmentJob = async (payload: {
+  intakeId: string;
+  organizationId: string;
+  version: number;
+}): Promise<void> => {
+  const workerUtils = await getWorkerUtils();
+  await workerUtils.addJob(TASK_NAMES.ENRICH_INTAKE, payload, {
+    jobKey: `intake-enrichment:${payload.organizationId}:${payload.intakeId}:v${String(payload.version)}`,
+    maxAttempts: graphileWorkerConfig.maxAttempts,
+  });
+  logger.info('Intake enrichment job queued: {intakeId} v{version}', {
+    intakeId: payload.intakeId,
+    organizationId: payload.organizationId,
+    version: payload.version,
+  });
+};
+
 const addMeteredUsageJob = async (payload: {
   organizationId: string;
   meteredType: string;
@@ -347,6 +364,7 @@ const queueManager = {
   addWebhookJob,
   addOnboardingWebhookJob,
   addEmailJob,
+  addIntakeEnrichmentJob,
   getQueueStats,
   getWebhookQueueStats,
   closeQueues,

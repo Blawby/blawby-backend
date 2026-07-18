@@ -80,6 +80,13 @@ const intake = {
   household_size: null,
   case_strength: null,
   transcript_summary: null,
+  enrichment_status: 'not_requested',
+  enrichment_version: 0,
+  enrichment_attempt_count: 0,
+  enrichment_model: null,
+  enrichment_error_code: null,
+  enrichment_requested_at: null,
+  enriched_at: null,
   jurisdiction_status: 'supported',
   jurisdiction_match: { country: 'US', state: 'NC' },
   succeeded_at: null,
@@ -175,6 +182,42 @@ describe('engagementDraftService.generateEngagementDraft', () => {
           templateId: template.id,
           // Omits the required fee amount ($350.00) that must be preserved verbatim.
           generateText: vi.fn().mockResolvedValue('Dear Jordan Client, Blawby Legal will represent you.'),
+        },
+        createSystemContext(template.practice_id)
+      )
+    ).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('rejects a generated draft that alters the authoritative fee amount', async () => {
+    await expect(
+      engagementDraftService.generateEngagementDraft(
+        {
+          intakeId: intake.id,
+          templateId: template.id,
+          // Substitutes a different dollar figure for the authoritative $350.00 rate.
+          generateText: vi
+            .fn()
+            .mockResolvedValue(
+              'Dear Jordan Client, Blawby Legal will Represent the client in the custody matter. Rate: $450.00.'
+            ),
+        },
+        createSystemContext(template.practice_id)
+      )
+    ).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('rejects a generated draft that alters the authoritative scope', async () => {
+    await expect(
+      engagementDraftService.generateEngagementDraft(
+        {
+          intakeId: intake.id,
+          templateId: template.id,
+          // Rewrites the supplied scope instead of preserving it verbatim.
+          generateText: vi
+            .fn()
+            .mockResolvedValue(
+              'Dear Jordan Client, Blawby Legal will provide general litigation support. Rate: $350.00. Retainer: $2,500.00.'
+            ),
         },
         createSystemContext(template.practice_id)
       )
