@@ -9,6 +9,8 @@ import type { SuccessResponse, TestOrganization } from '@/test/types/shared';
 import { toTypedResponse } from '@/test/helpers/response';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { intakeConversations } from '@/modules/intake-conversations/database/schema/intake-conversations.schema';
+import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { intakePrefillTokenService } from '@/modules/practice-client-intakes/services/intake-prefill-token.service';
 import practiceClientIntakesApp from '@/modules/practice-client-intakes/http';
 import { registerPracticeClientIntakesListeners } from '@/modules/practice-client-intakes/listeners';
@@ -587,6 +589,37 @@ describe('Practice Client Intakes API', () => {
     expect(res.body.matter.title).toBe('Test Matter from Intake');
     expect(res.body.matter.billing_type).toBe('fixed');
     expect(res.body.matter.organization_id).toBe(org.id);
+  });
+
+  it('PATCH /{uuid}/convert rolls back the matter and status when a later transaction step fails', async () => {
+    const rollbackIntake = await intakeHelpers.createTestIntake(org.id, {
+      amount: 0,
+      status: intakeHelpers.IntakeStatus.succeeded,
+      triage_status: intakeHelpers.TriageStatus.accepted,
+      triage_decided_at: new Date(),
+      metadata: { email: 'rollback@test-blawby.com', name: 'Rollback Target' },
+    });
+
+    const updateStatusSpy = vi
+      .spyOn(practiceClientIntakesRepository, 'updateStatus')
+      .mockRejectedValueOnce(new Error('simulated transaction failure'));
+
+    const res = await authenticatedClientRequest(sessionToken)
+      .patch(`/api/practice-client-intakes/${rollbackIntake.id}/convert`)
+      .send({ title: 'Should Not Persist', billing_type: 'fixed' });
+
+    expect(res.status).toBe(500);
+
+    const [persistedIntake] = await getTestDb()
+      .select()
+      .from(practiceClientIntakes)
+      .where(eq(practiceClientIntakes.id, rollbackIntake.id));
+    expect(persistedIntake.status).toBe('succeeded');
+
+    const [persistedMatter] = await getTestDb().select().from(matters).where(eq(matters.intake_uuid, rollbackIntake.id));
+    expect(persistedMatter).toBeUndefined();
+
+    updateStatusSpy.mockRestore();
   });
 
   it('POST /{uuid}/invite returns 200 for valid intake with a linked conversation', async () => {

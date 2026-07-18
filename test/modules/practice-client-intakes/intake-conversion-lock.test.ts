@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unsafe-type-assertion
 import { mattersQueries, type MatterWithRelations } from '@/modules/matters/database/queries/matters.queries';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
@@ -69,26 +68,54 @@ const createMatter = vi.mocked(mattersQueries.createMatter);
 const findMatterWithRelations = vi.mocked(mattersQueries.findMatterByIdWithRelations);
 const updateIntakeStatus = vi.mocked(practiceClientIntakesRepository.updateStatus);
 const MATTER_ID = '10000000-0000-4000-8000-000000000003';
-
-const makeMatter = (): MatterWithRelations =>
-  ({
-    id: MATTER_ID,
-    organization_id: ORGANIZATION_ID,
-    intake_uuid: INTAKE_ID,
-    title: 'Existing Matter',
-    status: 'engagement_pending',
-    billing_type: 'fixed',
-    payment_frequency: null,
-    urgency: null,
-    deleted_at: null,
-    open_date: null,
-    close_date: null,
-    last_conflict_check_result: null,
-    assignees: [],
-    milestones: [],
-  }) as unknown as MatterWithRelations;
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
 const INTAKE_ID = '10000000-0000-4000-8000-000000000002';
+
+const makeMatter = () => {
+  const now = new Date();
+  return {
+    id: MATTER_ID,
+    organization_id: ORGANIZATION_ID,
+    client_id: null,
+    title: 'Existing Matter',
+    description: null,
+    case_number: null,
+    matter_type: null,
+    billing_type: 'fixed',
+    total_fixed_price: null,
+    contingency_percentage: null,
+    settlement_amount: null,
+    practice_service_id: null,
+    admin_hourly_rate: null,
+    attorney_hourly_rate: null,
+    payment_frequency: null,
+    retainer_balance: 0,
+    status: 'engagement_pending',
+    urgency: null,
+    responsible_attorney_id: null,
+    originating_attorney_id: null,
+    court: null,
+    judge: null,
+    opposing_party: null,
+    opposing_counsel: null,
+    open_date: null,
+    close_date: null,
+    deleted_at: null,
+    deleted_by: null,
+    conversation_id: null,
+    intake_uuid: INTAKE_ID,
+    on_behalf_of: null,
+    retainer_cap: null,
+    retainer_low_balance_threshold: null,
+    last_conflict_check_at: null,
+    last_conflict_check_result: null,
+    created_at: now,
+    updated_at: now,
+    assignees: [],
+    milestones: [],
+    client: null,
+  } satisfies MatterWithRelations;
+};
 
 const makeIntake = (status: string): SelectPracticeClientIntake => ({
   id: INTAKE_ID,
