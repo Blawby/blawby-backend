@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
-import { routes } from '@/modules/engagement-templates/routes';
+import type { routes } from '@/modules/engagement-templates/routes';
 import { engagementTemplateService } from '@/modules/engagement-templates/services/engagement-template.service';
+import { engagementDraftService } from '@/modules/engagement-templates/services/engagement-draft.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 
@@ -50,9 +51,20 @@ const deleteEngagementTemplateHandler: AppRouteHandler<typeof routes.deleteEngag
   return c.body(null, 204);
 };
 
+const generateEngagementDraftHandler: AppRouteHandler<typeof routes.generateEngagementDraftRoute> = async (c) => {
+  const { practice_id: practiceId, template_id: templateId } = c.req.valid('param');
+  assertPracticeMatchesActiveOrg(c.get('activeOrganizationId'), practiceId);
+  const { intake_id: intakeId } = c.req.valid('json');
+  const ctx = getServiceContext(c);
+
+  const draft = await engagementDraftService.generateEngagementDraft({ intakeId, templateId }, ctx);
+  return c.json(draft, 200);
+};
+
 export const handlers = {
   listEngagementTemplatesHandler,
   createEngagementTemplateHandler,
   updateEngagementTemplateHandler,
   deleteEngagementTemplateHandler,
+  generateEngagementDraftHandler,
 };

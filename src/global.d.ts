@@ -46,6 +46,9 @@ declare namespace NodeJS {
     CLOUDFLARE_IMAGES_API_TOKEN?: string;
     CLOUDFLARE_R2_BUCKET_NAME?: string;
     CLOUDFLARE_R2_PUBLIC_URL?: string;
+    CLOUDFLARE_AI_API_TOKEN?: string;
+    CLOUDFLARE_AI_GATEWAY_ID?: string;
+    CLOUDFLARE_AI_MODEL?: string;
 
     [key: string]: string | undefined;
   }

@@ -62,6 +62,9 @@ const envSchema = z
     CLOUDFLARE_IMAGES_ACCOUNT_HASH: z.string().optional(),
     CLOUDFLARE_IMAGES_API_TOKEN: z.string().optional(),
     CLOUDFLARE_TURNSTILE_SECRET_KEY: z.string().optional(),
+    CLOUDFLARE_AI_API_TOKEN: z.string().optional(),
+    CLOUDFLARE_AI_GATEWAY_ID: z.string().default('blawby-ai'),
+    CLOUDFLARE_AI_MODEL: z.string().default('@cf/zai-org/glm-4.7-flash'),
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
     SYSTEM_USER_EMAIL: z.email().optional(),
   })
@@ -152,6 +155,9 @@ export const config = {
     imagesAccountHash: raw.CLOUDFLARE_IMAGES_ACCOUNT_HASH,
     imagesApiToken: raw.CLOUDFLARE_IMAGES_API_TOKEN,
     turnstileSecretKey: raw.CLOUDFLARE_TURNSTILE_SECRET_KEY,
+    aiApiToken: raw.CLOUDFLARE_AI_API_TOKEN,
+    aiGatewayId: raw.CLOUDFLARE_AI_GATEWAY_ID,
+    aiModel: raw.CLOUDFLARE_AI_MODEL,
   },
   captcha: {
     skip: raw.SKIP_CAPTCHA === 'true',
