@@ -2,7 +2,6 @@ import {
   intakeConversationResponseSchema,
   listIntakeConversationsQuerySchema,
   updateIntakeConversationSchema,
-  type ListIntakeConversationsQuery,
 } from '@/modules/intake-conversations/types/intake-conversations.types';
 import { intakeConversationsService } from '@/modules/intake-conversations/services/intake-conversations.service';
 import { routeBuilder } from '@/shared/router/route-builder';
@@ -18,11 +17,13 @@ export const listIntakeConversationsRoute = routeBuilder.build({
   mcp: {
     name: 'list_intake_conversations',
     scope: 'intakes:read',
-    handler: async (args, ctx) =>
-      intakeConversationsService.listIntakeConversations(
-        { ...args, practice_id: ctx.organizationId } as ListIntakeConversationsQuery,
+    handler: async (args, ctx) => {
+      const query = listIntakeConversationsQuerySchema.omit({ practice_id: true }).parse(args);
+      return intakeConversationsService.listIntakeConversations(
+        { ...query, practice_id: ctx.organizationId },
         ctx
-      ),
+      );
+    },
   },
   request: {
     params: z.object({ practice_id: z.uuid() }),
@@ -52,7 +53,10 @@ export const getIntakeConversationRoute = routeBuilder.build({
     name: 'get_intake_conversation',
     scope: 'intakes:read',
     schema: { id: z.uuid() },
-    handler: async (args, ctx) => intakeConversationsService.getIntakeConversation(args.id as string, ctx),
+    handler: async (args, ctx) => {
+      const { id } = z.object({ id: z.uuid() }).parse(args);
+      return intakeConversationsService.getIntakeConversation(id, ctx);
+    },
   },
   request: {
     params: z.object({ practice_id: z.uuid(), id: z.uuid() }),
