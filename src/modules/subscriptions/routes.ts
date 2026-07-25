@@ -249,7 +249,7 @@ const listSubscriptionsRoute = routeBuilder.build({
   responses: {
     200: {
       content: {
-        'application/json': { schema: subscriptionValidations.listSubscriptionsResponseSchema },
+        'application/json': { schema: subscriptionValidations.listSubscriptionsPaginatedResponseSchema },
       },
       description: 'Subscriptions listed',
     },

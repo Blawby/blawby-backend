@@ -13,6 +13,7 @@ import type {
 } from '@/modules/subscriptions/types/subscription.types';
 import { organizations } from '@/schema/better-auth-schema';
 import { getActiveTx } from '@/shared/database/uow';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
@@ -268,7 +269,7 @@ const getCurrentSubscription = async (
 const listSubscriptions = async (
   _params: Record<string, never>,
   ctx: ServiceContext
-): Promise<{ subscriptions: (typeof subscriptions.$inferSelect)[] }> => {
+): Promise<OffsetPaginatedResponse<typeof subscriptions.$inferSelect>> => {
   assertSubscriptionReadAccess(ctx);
 
   const rows = await getActiveTx()
@@ -276,7 +277,7 @@ const listSubscriptions = async (
     .from(subscriptions)
     .where(eq(subscriptions.referenceId, ctx.organizationId));
 
-  return { subscriptions: rows };
+  return { data: rows, pagination: { page: 1, limit: Math.max(rows.length, 1), total: rows.length } };
 };
 
 /**

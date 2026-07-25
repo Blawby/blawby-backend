@@ -65,8 +65,8 @@ const listSubscriptionsHandler: AppRouteHandler<typeof routes.listSubscriptionsR
 
 const listSubscriptionsLegacyHandler: AppRouteHandler<typeof routes.listSubscriptionsLegacyRoute> = async (c) => {
   const ctx = getServiceContext(c);
-  const data = await subscriptionService.listSubscriptions({}, ctx);
-  return c.json(data, 200);
+  const { data } = await subscriptionService.listSubscriptions({}, ctx);
+  return c.json({ subscriptions: data }, 200);
 };
 
 const webhookHandler: AppRouteHandler<typeof routes.webhookRoute> = async (c) => {
