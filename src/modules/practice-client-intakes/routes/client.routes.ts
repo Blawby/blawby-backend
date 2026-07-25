@@ -81,7 +81,7 @@ const createPracticeClientIntakeCheckoutSessionRoute = routeBuilder.build({
 });
 
 const updatePracticeClientIntakeRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{uuid}',
   tags: ['Practice Client Intakes'],
   summary: 'Update practice client intake',
@@ -144,6 +144,43 @@ const updatePracticeClientIntakeRoute = routeBuilder.build({
   },
 });
 
+const updatePracticeClientIntakeLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{uuid}',
+  tags: ['Practice Client Intakes'],
+  summary: 'Update practice client intake (deprecated)',
+  description: 'Deprecated: use `PATCH /api/practice-client-intakes/{uuid}` instead.',
+  deprecated: true,
+  request: {
+    params: uuidParamOpenAPISchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: intakeValidations.updatePracticeClientIntakeSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: intakeValidations.updatePracticeClientIntakeResponseSchema } },
+      description: 'Intake updated successfully.',
+    },
+    400: {
+      content: { 'application/json': { schema: intakeValidations.errorResponseSchema } },
+      description: 'Bad request - validation failed or payment already processed',
+    },
+    404: {
+      content: { 'application/json': { schema: intakeValidations.notFoundResponseSchema } },
+      description: 'Practice client intake not found',
+    },
+    500: {
+      content: { 'application/json': { schema: intakeValidations.internalServerErrorResponseSchema } },
+      description: 'Internal server error',
+    },
+  },
+});
+
 const getPracticeClientIntakeStatusRoute = routeBuilder.build({
   method: 'get',
   path: '/{uuid}/status',
@@ -190,6 +227,7 @@ const getPracticeClientIntakeStatusRoute = routeBuilder.build({
 export const clientRoutes = {
   getInvitationPrefillRoute,
   updatePracticeClientIntakeRoute,
+  updatePracticeClientIntakeLegacyRoute,
   getPracticeClientIntakeStatusRoute,
   createPracticeClientIntakeCheckoutSessionRoute,
 };

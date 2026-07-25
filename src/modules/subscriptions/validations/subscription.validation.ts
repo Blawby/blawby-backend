@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { paginationSchema } from '@/shared/validations/openapi';
 
 /**
  * Subscription ID parameter schema
@@ -249,7 +250,15 @@ const billingPortalRequestSchema = z.object({
 });
 
 /**
- * GET /list response schema
+ * GET / response schema (canonical, paginated)
+ */
+const listSubscriptionsPaginatedResponseSchema = z.object({
+  data: z.array(subscriptionResponseSchema),
+  pagination: paginationSchema,
+});
+
+/**
+ * GET /list response schema (deprecated)
  */
 const listSubscriptionsResponseSchema = z.object({
   subscriptions: z.array(subscriptionResponseSchema),
@@ -312,6 +321,7 @@ export const subscriptionValidations = {
   checkoutRequestSchema,
   checkoutResponseSchema,
   billingPortalRequestSchema,
+  listSubscriptionsPaginatedResponseSchema,
   listSubscriptionsResponseSchema,
   webhookResponseSchema,
   errorResponseSchema,

@@ -37,6 +37,7 @@ app.openapi(matterRoutes.listOrganizationTasksRoute, matterHandlers.listOrganiza
 
 app.openapi(matterRoutes.getMatterRoute, matterHandlers.getMatterHandler);
 app.openapi(matterRoutes.updateMatterRoute, matterHandlers.updateMatterHandler);
+app.openapi(matterRoutes.updateMatterLegacyRoute, matterHandlers.updateMatterLegacyHandler);
 app.openapi(matterRoutes.deleteMatterRoute, matterHandlers.deleteMatterHandler);
 
 // Sub-router for matter sub-resources
@@ -54,6 +55,7 @@ matterSubResources.openapi(matterRoutes.getMatterActivityCountRoute, matterHandl
 matterSubResources.openapi(matterRoutes.listMatterTasksRoute, matterHandlers.listMatterTasksHandler);
 matterSubResources.openapi(matterRoutes.createMatterTaskRoute, matterHandlers.createMatterTaskHandler);
 matterSubResources.openapi(matterRoutes.updateMatterTaskRoute, matterHandlers.updateMatterTaskHandler);
+matterSubResources.openapi(matterRoutes.updateMatterTaskLegacyRoute, matterHandlers.updateMatterTaskLegacyHandler);
 matterSubResources.openapi(matterRoutes.deleteMatterTaskRoute, matterHandlers.deleteMatterTaskHandler);
 
 // Unbilled
@@ -63,6 +65,7 @@ matterSubResources.openapi(matterRoutes.getMatterUnbilledRoute, matterHandlers.g
 matterSubResources.openapi(matterRoutes.listMatterNotesRoute, matterHandlers.listMatterNotesHandler);
 matterSubResources.openapi(matterRoutes.createMatterNoteRoute, matterHandlers.createMatterNoteHandler);
 matterSubResources.openapi(matterRoutes.updateMatterNoteRoute, matterHandlers.updateMatterNoteHandler);
+matterSubResources.openapi(matterRoutes.updateMatterNoteLegacyRoute, matterHandlers.updateMatterNoteLegacyHandler);
 matterSubResources.openapi(matterRoutes.deleteMatterNoteRoute, matterHandlers.deleteMatterNoteHandler);
 
 // Time Entries
@@ -70,18 +73,21 @@ matterSubResources.openapi(matterRoutes.listTimeEntriesRoute, matterHandlers.lis
 matterSubResources.openapi(matterRoutes.getTimeEntryStatsRoute, matterHandlers.getTimeEntryStatsHandler);
 matterSubResources.openapi(matterRoutes.createTimeEntryRoute, matterHandlers.createTimeEntryHandler);
 matterSubResources.openapi(matterRoutes.updateTimeEntryRoute, matterHandlers.updateTimeEntryHandler);
+matterSubResources.openapi(matterRoutes.updateTimeEntryLegacyRoute, matterHandlers.updateTimeEntryLegacyHandler);
 matterSubResources.openapi(matterRoutes.deleteTimeEntryRoute, matterHandlers.deleteTimeEntryHandler);
 
 // Expenses
 matterSubResources.openapi(matterRoutes.listExpensesRoute, matterHandlers.listExpensesHandler);
 matterSubResources.openapi(matterRoutes.createExpenseRoute, matterHandlers.createExpenseHandler);
 matterSubResources.openapi(matterRoutes.updateExpenseRoute, matterHandlers.updateExpenseHandler);
+matterSubResources.openapi(matterRoutes.updateExpenseLegacyRoute, matterHandlers.updateExpenseLegacyHandler);
 matterSubResources.openapi(matterRoutes.deleteExpenseRoute, matterHandlers.deleteExpenseHandler);
 
 // Milestones
 matterSubResources.openapi(matterRoutes.listMilestonesRoute, matterHandlers.listMilestonesHandler);
 matterSubResources.openapi(matterRoutes.createMilestoneRoute, matterHandlers.createMilestoneHandler);
 matterSubResources.openapi(matterRoutes.updateMilestoneRoute, matterHandlers.updateMilestoneHandler);
+matterSubResources.openapi(matterRoutes.updateMilestoneLegacyRoute, matterHandlers.updateMilestoneLegacyHandler);
 matterSubResources.openapi(matterRoutes.deleteMilestoneRoute, matterHandlers.deleteMilestoneHandler);
 matterSubResources.openapi(matterRoutes.reorderMilestonesRoute, matterHandlers.reorderMilestonesHandler);
 

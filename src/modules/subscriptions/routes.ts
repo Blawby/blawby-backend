@@ -67,8 +67,8 @@ const getCurrentSubscriptionRoute = routeBuilder.build({
  * Cancel subscription
  */
 const cancelSubscriptionRoute = routeBuilder.build({
-  method: 'post',
-  path: '/cancel',
+  method: 'delete',
+  path: '/',
   tags: ['Subscriptions'],
   summary: 'Cancel subscription',
   description:
@@ -87,6 +87,35 @@ const cancelSubscriptionRoute = routeBuilder.build({
         ctx
       ),
   },
+  security: [{ Bearer: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: subscriptionValidations.cancelSubscriptionSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: subscriptionValidations.cancelSubscriptionResponseSchema,
+        },
+      },
+      description: 'Cancellation portal URL returned successfully',
+    },
+  },
+});
+
+const cancelSubscriptionLegacyRoute = routeBuilder.build({
+  method: 'post',
+  path: '/cancel',
+  tags: ['Subscriptions'],
+  summary: 'Cancel subscription (deprecated)',
+  description: 'Deprecated: use `DELETE /api/subscriptions` instead.',
+  deprecated: true,
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -207,7 +236,7 @@ const billingPortalRoute = routeBuilder.build({
  */
 const listSubscriptionsRoute = routeBuilder.build({
   method: 'get',
-  path: '/list',
+  path: '/',
   tags: ['Subscriptions'],
   summary: 'List subscriptions',
   description: "List active organization's subscriptions.",
@@ -216,6 +245,24 @@ const listSubscriptionsRoute = routeBuilder.build({
     scope: 'subscriptions:read',
     handler: async (_args, ctx) => subscriptionService.listSubscriptions({}, ctx),
   },
+  security: [{ Bearer: [] }],
+  responses: {
+    200: {
+      content: {
+        'application/json': { schema: subscriptionValidations.listSubscriptionsPaginatedResponseSchema },
+      },
+      description: 'Subscriptions listed',
+    },
+  },
+});
+
+const listSubscriptionsLegacyRoute = routeBuilder.build({
+  method: 'get',
+  path: '/list',
+  tags: ['Subscriptions'],
+  summary: 'List subscriptions (deprecated)',
+  description: 'Deprecated: use `GET /api/subscriptions` instead.',
+  deprecated: true,
   security: [{ Bearer: [] }],
   responses: {
     200: {
@@ -251,8 +298,10 @@ export const routes = {
   listPlansRoute,
   getCurrentSubscriptionRoute,
   cancelSubscriptionRoute,
+  cancelSubscriptionLegacyRoute,
   checkoutRoute,
   billingPortalRoute,
   listSubscriptionsRoute,
+  listSubscriptionsLegacyRoute,
   webhookRoute,
 };

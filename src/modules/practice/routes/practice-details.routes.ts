@@ -85,7 +85,7 @@ export const createPracticeDetailsRoute = routeBuilder.build({
 });
 
 export const updatePracticeDetailsRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{practice_id}/details',
   tags: ['Practice'],
   summary: 'Update practice details',
@@ -112,6 +112,35 @@ export const updatePracticeDetailsRoute = routeBuilder.build({
         },
       },
       description: 'Practice details update data',
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: practiceValidations.practiceDetailsUpdateResponseSchema,
+        },
+      },
+      description: 'Practice details updated successfully',
+    },
+  },
+});
+
+export const updatePracticeDetailsLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{practice_id}/details',
+  tags: ['Practice'],
+  summary: 'Update practice details (deprecated)',
+  description: 'Deprecated: use `PATCH /api/practice/{practice_id}/details` instead.',
+  deprecated: true,
+  request: {
+    params: practiceIdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: practiceValidations.updatePracticeDetailsSchema,
+        },
+      },
     },
   },
   responses: {

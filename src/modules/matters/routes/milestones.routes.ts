@@ -88,7 +88,7 @@ export const createMilestoneRoute = routeBuilder.build({
 });
 
 export const updateMilestoneRoute = routeBuilder.build({
-  method: 'put',
+  method: 'patch',
   path: '/{matter_id}/milestones/{milestone_id}',
   tags,
   summary: 'Update a milestone',
@@ -128,6 +128,25 @@ export const updateMilestoneRoute = routeBuilder.build({
           schema: matterMilestoneResponseSchema,
         },
       },
+    },
+  },
+});
+
+export const updateMilestoneLegacyRoute = routeBuilder.build({
+  method: 'put',
+  path: '/{matter_id}/milestones/{milestone_id}',
+  tags,
+  summary: 'Update a milestone (deprecated)',
+  description: 'Deprecated: use `PATCH` on this resource instead.',
+  deprecated: true,
+  request: {
+    params: z.object({ matter_id: z.uuid(), milestone_id: z.uuid() }),
+    body: { content: { 'application/json': { schema: updateMatterMilestoneRequestSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Milestone updated successfully',
+      content: { 'application/json': { schema: matterMilestoneResponseSchema } },
     },
   },
 });

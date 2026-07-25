@@ -20,6 +20,7 @@ authApp.use('*', requireAuth(), injectAbility());
  * List all practices for the authenticated user
  */
 authApp.openapi(routes.listPracticesRoute, handlers.listPracticesHandler);
+authApp.openapi(routes.listPracticesLegacyRoute, handlers.listPracticesLegacyHandler);
 
 /**
  * POST /api/practice
@@ -41,6 +42,7 @@ staffApp.openapi(routes.getPracticeByIdRoute, handlers.getPracticeHandler);
  * Update practice
  */
 staffApp.openapi(routes.updatePracticeRoute, handlers.updatePracticeHandler);
+staffApp.openapi(routes.updatePracticeLegacyRoute, handlers.updatePracticeLegacyHandler);
 
 /**
  * DELETE /api/practice/:uuid
@@ -71,6 +73,7 @@ staffApp.openapi(routes.createPracticeDetailsRoute, handlers.createPracticeDetai
  * Update practice details
  */
 staffApp.openapi(routes.updatePracticeDetailsRoute, handlers.updatePracticeDetailsHandler);
+staffApp.openapi(routes.updatePracticeDetailsLegacyRoute, handlers.updatePracticeDetailsLegacyHandler);
 
 /**
  * DELETE /api/practice/:uuid/details
@@ -102,6 +105,7 @@ staffApp.openapi(routes.getMemberProfileRoute, handlers.getMemberProfileHandler)
  * Upsert a member's routing/capacity metadata
  */
 staffApp.openapi(routes.updateMemberProfileRoute, handlers.updateMemberProfileHandler);
+staffApp.openapi(routes.updateMemberProfileLegacyRoute, handlers.updateMemberProfileLegacyHandler);
 
 practiceApp.route('/', publicApp);
 practiceApp.route('/', authApp);

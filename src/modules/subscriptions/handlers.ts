@@ -27,6 +27,13 @@ const cancelSubscriptionHandler: AppRouteHandler<typeof routes.cancelSubscriptio
   return c.json(data, 200);
 };
 
+const cancelSubscriptionLegacyHandler: AppRouteHandler<typeof routes.cancelSubscriptionLegacyRoute> = async (c) => {
+  const validatedBody = c.req.valid('json');
+  const ctx = getServiceContext(c);
+  const data = await subscriptionService.cancelSubscription({ data: validatedBody }, ctx);
+  return c.json(data, 200);
+};
+
 const checkoutHandler: AppRouteHandler<typeof routes.checkoutRoute> = async (c) => {
   const body = c.req.valid('json');
   const ctx = getServiceContext(c);
@@ -56,6 +63,12 @@ const listSubscriptionsHandler: AppRouteHandler<typeof routes.listSubscriptionsR
   return c.json(data, 200);
 };
 
+const listSubscriptionsLegacyHandler: AppRouteHandler<typeof routes.listSubscriptionsLegacyRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { data } = await subscriptionService.listSubscriptions({}, ctx);
+  return c.json({ subscriptions: data }, 200);
+};
+
 const webhookHandler: AppRouteHandler<typeof routes.webhookRoute> = async (c) => {
   const rawBody = await c.req.raw.text();
   const signature = c.req.header('stripe-signature') ?? null;
@@ -67,8 +80,10 @@ export const handlers = {
   listPlansHandler,
   getCurrentSubscriptionHandler,
   cancelSubscriptionHandler,
+  cancelSubscriptionLegacyHandler,
   checkoutHandler,
   billingPortalHandler,
   listSubscriptionsHandler,
+  listSubscriptionsLegacyHandler,
   webhookHandler,
 };
