@@ -167,6 +167,9 @@ const validateMcpWorkflowRegistry = (knownToolNames: ReadonlySet<string>): void 
     if (workflow.guardrails.length === 0) {
       throw new Error(`MCP workflow "${workflow.id}" must define at least one guardrail.`);
     }
+    if (workflow.guardrails.some((guardrail) => !guardrail.trim())) {
+      throw new Error(`MCP workflow "${workflow.id}" has a blank guardrail.`);
+    }
 
     const argumentNames = new Set<string>();
     const argumentDescriptions = new Set<string>();

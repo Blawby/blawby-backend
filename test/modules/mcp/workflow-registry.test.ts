@@ -33,6 +33,11 @@ const malformedWorkflowCases: MalformedWorkflowCase[] = [
     expectedError: 'must define at least one guardrail',
   },
   {
+    label: 'a whitespace-only guardrail',
+    override: { guardrails: ['Valid guardrail.', '   '] },
+    expectedError: 'has a blank guardrail',
+  },
+  {
     label: 'a blank argument name',
     override: {
       arguments: [{ name: ' ', description: 'Client name.', required: true }],
