@@ -8,7 +8,7 @@ The Model Context Protocol endpoint exposes authorized Blawby backend operations
 
 **Implemented.**
 
-The current implementation provides an authenticated Streamable HTTP MCP endpoint, generated tool registration from annotated routes, per-tool scope enforcement, and explicit approval for tools configured as requiring confirmation.
+The current implementation provides an authenticated Streamable HTTP MCP endpoint, generated tool registration from annotated routes, a canonical workflow prompt registry, per-tool scope enforcement, and explicit approval for tools configured as requiring confirmation.
 
 This status does not imply that every Blawby feature or every natural-language intelligence workflow is available as an MCP tool.
 
@@ -37,10 +37,11 @@ This status does not imply that every Blawby feature or every natural-language i
 5. A new MCP server instance is created for the request.
 6. Generated tool definitions are registered.
 7. The client lists or invokes an available tool.
-8. The server verifies the tool scope.
-9. When the tool requires approval, the server asks the MCP client to elicit explicit confirmation.
-10. The server builds the authenticated service context and invokes the tool handler.
-11. The result is returned as MCP text content containing serialized JSON.
+8. The client may list or render a canonical workflow prompt such as `new_client_intake` or `conflict_check`.
+9. The server verifies the tool scope.
+10. When the tool requires approval, the server asks the MCP client to elicit explicit confirmation.
+11. The server builds the authenticated service context and invokes the tool handler.
+12. The result is returned as MCP text content containing serialized JSON.
 
 ## Business rules
 
@@ -95,6 +96,7 @@ MCP-specific code owns:
 - scope checks;
 - approval elicitation;
 - MCP result formatting;
+- workflow prompt definitions, validation, rendering, and docs derivation;
 - HTTP transport handling.
 
 ## API surface
@@ -108,6 +110,8 @@ MCP-specific code owns:
 - **Transport:** MCP Streamable HTTP using the web-standard transport
 
 The exact tool inventory is generated from annotated backend routes and should be inspected through MCP tool discovery or the generated registry rather than duplicated manually in this document.
+
+Canonical workflow prompts are defined in `workflow-registry.ts`. MCP prompt registration and public documentation helpers consume those same definitions; operational database fields such as intake-template `prompt_hint` remain field-level guidance rather than a second workflow source of truth.
 
 ## Side effects
 
@@ -149,6 +153,7 @@ The current error result contains a human-readable message. Internal secrets, to
 - Approval behavior depends on the connected MCP client supporting elicitation.
 - Stable `@better-auth/oauth-provider` 1.6.23 retains the moderate resource-indicator advisory GHSA-p2fr-6hmx-4528. Until a stable release contains the upstream fix, Blawby does not trust a caller-supplied resource indicator: issuance and request verification both enforce the one canonical MCP audience described above.
 - There is no manually maintained tool catalogue in this document because the registry is generated and can change with route annotations.
+- The initial workflow prompt set covers new-client intake and conflict checks; additional workflows should be added only when their referenced tools and guardrails are real.
 
 ## Acceptance criteria
 
@@ -161,6 +166,7 @@ The current error result contains a human-readable message. Internal secrets, to
 - Annotated route query, non-organization path, and JSON-body schemas are represented in the generated input schema.
 - Handler failures are returned as MCP error results.
 - Tool discovery reflects the generated tool registry.
+- Prompt discovery exposes the canonical workflow registry, rejects unknown tools during server creation, and renders required arguments explicitly.
 
 ## Code ownership
 
@@ -169,6 +175,8 @@ Primary implementation:
 - `src/modules/mcp/index.ts` — authenticated HTTP mounting and JWT validation configuration.
 - `src/modules/mcp/server.ts` — MCP server and Streamable HTTP transport creation.
 - `src/modules/mcp/tool-registry.ts` — tool generation, registration, scope checks, approval, and result formatting.
+- `src/modules/mcp/workflow-registry.ts` — canonical agent-facing workflow definitions, validation, rendering, and docs output.
+- `src/modules/mcp/workflow-prompts.ts` — MCP prompt registration.
 - `src/modules/mcp/mcp-context.ts` — MCP scope and service-context handling.
 - `src/modules/mcp/mcp.tools.generated.ts` — generated current tool registry.
 - `src/modules/mcp/types.ts` — MCP-specific types.
