@@ -23,7 +23,7 @@ const createMatterHandler: AppRouteHandler<typeof matterRoutes.createMatterRoute
 const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> = async (c) => {
   const ctx = getServiceContext(c);
   const query = c.req.valid('query');
-  const data = await mattersService.listMatters(
+  const result = await mattersService.listMatters(
     {
       status: query.status,
       practiceServiceId: query.practice_service_id,
@@ -37,16 +37,7 @@ const listMattersHandler: AppRouteHandler<typeof matterRoutes.listMattersRoute> 
     },
     ctx
   );
-  return c.json(
-    {
-      matters: data.matters,
-      total: data.total,
-      page: query.page,
-      limit: query.limit,
-      totalPages: Math.ceil(data.total / query.limit),
-    },
-    200
-  );
+  return c.json(result, 200);
 };
 
 const listClientMattersHandler: AppRouteHandler<typeof clientMatterRoutes.listClientMattersRoute> = async (c) => {

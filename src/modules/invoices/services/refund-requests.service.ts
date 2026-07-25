@@ -187,13 +187,15 @@ const listClientRequests = async (
   if (!clientResult) {
     throw new HTTPException(404, { message: 'Client user details not found' });
   }
+  const page = pagination?.page ?? 1;
+  const limit = pagination?.limit ?? 20;
   const [data, total] = await Promise.all([
-    refundRequestsQueries.listByClient(ctx.organizationId, clientResult, pagination),
+    refundRequestsQueries.listByClient(ctx.organizationId, clientResult, { page, limit }),
     refundRequestsQueries.countByClient(ctx.organizationId, clientResult),
   ]);
   return {
     data,
-    pagination: { page: pagination?.page ?? 1, limit: pagination?.limit ?? 20, total },
+    pagination: { page, limit, total },
   };
 };
 
@@ -234,13 +236,15 @@ const listPracticeRequests = async (
   }
 ): Promise<PaginatedResponse<SelectRefundRequest>> => {
   checkAuthorization(ctx, 'read', 'RefundRequest');
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
   const [data, total] = await Promise.all([
-    refundRequestsQueries.listByOrganization(ctx.organizationId, filters),
+    refundRequestsQueries.listByOrganization(ctx.organizationId, { ...filters, page, limit }),
     refundRequestsQueries.countByOrganization(ctx.organizationId, filters),
   ]);
   return {
     data,
-    pagination: { page: filters?.page ?? 1, limit: filters?.limit ?? 20, total },
+    pagination: { page, limit, total },
   };
 };
 

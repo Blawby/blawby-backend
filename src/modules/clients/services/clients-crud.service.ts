@@ -12,6 +12,7 @@ import { getActiveTx, uow } from '@/shared/database/uow';
 import { ClientCreated, ClientDeleted, ClientUpdated } from '@/shared/events/definitions';
 import { membersRepository } from '@/shared/repositories/members.repository';
 import usersRepository from '@/shared/repositories/users.repository';
+import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { ForbiddenError } from '@casl/ability';
 import { getLogger } from '@logtape/logtape';
@@ -301,13 +302,14 @@ const listClients = async (
     offset?: number;
   },
   ctx: ServiceContext
-): Promise<{
-  data: (SelectClient & {
-    user: typeof users.$inferSelect | null;
-    address: Address | null;
-  })[];
-  total: number;
-}> => {
+): Promise<
+  OffsetPaginatedResponse<
+    SelectClient & {
+      user: typeof users.$inferSelect | null;
+      address: Address | null;
+    }
+  >
+> => {
   let effectiveClientId: string | undefined = params.clientId;
 
   if (ctx.ability.can('read', 'Client')) {
@@ -323,12 +325,21 @@ const listClients = async (
   }
 
   try {
-    const data = await clientsRepository.listClients({
+    const result = await clientsRepository.listClients({
       ...params,
       clientId: effectiveClientId,
       organizationId: ctx.organizationId,
     });
-    return data;
+    const limit = params.limit ?? 20;
+    const offset = params.offset ?? 0;
+    return {
+      data: result.data,
+      pagination: {
+        page: Math.floor(offset / limit) + 1,
+        limit,
+        total: result.total,
+      },
+    };
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
