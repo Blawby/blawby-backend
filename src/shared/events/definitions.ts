@@ -42,7 +42,7 @@ export * from './definitions/stripe';
 export * from './definitions/subscriptions';
 export * from './definitions/system';
 export * from './definitions/client';
-export * from './definitions/engagement-contracts';
+export * from '@/shared/events/definitions/engagement-contracts';
 export * from './definitions/users';
 
 /**

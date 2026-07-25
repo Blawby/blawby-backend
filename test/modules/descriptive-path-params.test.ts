@@ -12,7 +12,14 @@ describe('descriptive path parameters', () => {
     expect(refundRequestRoutes.reviewRefundRequestRoute.path).toContain('{refund_request_id}');
     expect(refundRequestRoutes.executeRefundRoute.path).toContain('{refund_request_id}');
     expect(Object.values(refundRequestRoutes).every((route) => !route.path.includes('{id}'))).toBe(true);
-    expect(Object.keys(refundRequestRoutes.reviewRefundRequestRoute.mcp.schema ?? {})).toContain('id');
+  });
+
+  it.each([
+    ['cancelRefundRequestRoute', refundRequestRoutes.cancelRefundRequestRoute],
+    ['reviewRefundRequestRoute', refundRequestRoutes.reviewRefundRequestRoute],
+    ['executeRefundRoute', refundRequestRoutes.executeRefundRoute],
+  ])('%s preserves the id key in its MCP schema', (_name, route) => {
+    expect(Object.keys(route.mcp.schema ?? {})).toContain('id');
   });
 
   it('names intake template path parameters after the resource', () => {
@@ -22,6 +29,13 @@ describe('descriptive path parameters', () => {
     expect([getIntakeTemplateRoute, updateIntakeTemplateRoute, deleteIntakeTemplateRoute]).not.toContainEqual(
       expect.objectContaining({ path: expect.stringContaining('{id}') })
     );
-    expect(Object.keys(getIntakeTemplateRoute.mcp.schema ?? {})).toEqual(['id']);
+  });
+
+  it.each([
+    ['getIntakeTemplateRoute', getIntakeTemplateRoute],
+    ['updateIntakeTemplateRoute', updateIntakeTemplateRoute],
+    ['deleteIntakeTemplateRoute', deleteIntakeTemplateRoute],
+  ])('%s preserves the id key in its MCP schema', (_name, route) => {
+    expect(Object.keys(route.mcp.schema ?? {})).toContain('id');
   });
 });
