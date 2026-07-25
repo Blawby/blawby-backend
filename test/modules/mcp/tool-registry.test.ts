@@ -154,8 +154,8 @@ describe('MCP generated tool inventory', () => {
     expect(names).toContain('run_conflict_check');
     expect(names).toContain('list_payouts');
     expect(names).toContain('get_current_subscription');
-    expect(names).toContain('list_conversations');
-    expect(names).toContain('get_conversation');
-    expect(names).toContain('list_conversation_messages');
+    expect(names).toContain('list_intake_conversations');
+    expect(names).toContain('get_intake_conversation');
+    expect(names).toContain('list_intake_conversation_messages');
   });
 });

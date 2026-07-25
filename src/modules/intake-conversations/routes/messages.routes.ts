@@ -15,7 +15,7 @@ export const listIntakeConversationMessagesRoute = routeBuilder.build({
   tags,
   summary: 'List messages for an intake conversation',
   mcp: {
-    name: 'list_conversation_messages',
+    name: 'list_intake_conversation_messages',
     scope: 'intakes:read',
     schema: { id: z.uuid(), ...listMessagesQuerySchema.shape },
     handler: async (args, ctx) => {

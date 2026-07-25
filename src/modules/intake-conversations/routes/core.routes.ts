@@ -16,7 +16,7 @@ export const listIntakeConversationsRoute = routeBuilder.build({
   tags,
   summary: 'List intake conversations',
   mcp: {
-    name: 'list_conversations',
+    name: 'list_intake_conversations',
     scope: 'intakes:read',
     handler: async (args, ctx) =>
       intakeConversationsService.listIntakeConversations(
@@ -49,7 +49,7 @@ export const getIntakeConversationRoute = routeBuilder.build({
   tags,
   summary: 'Get intake conversation by ID',
   mcp: {
-    name: 'get_conversation',
+    name: 'get_intake_conversation',
     scope: 'intakes:read',
     schema: { id: z.uuid() },
     handler: async (args, ctx) => intakeConversationsService.getIntakeConversation(args.id as string, ctx),
