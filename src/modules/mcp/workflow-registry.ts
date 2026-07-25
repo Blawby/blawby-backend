@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 
 type McpWorkflowDomain = 'practice' | 'intake' | 'matters' | 'billing' | 'trust' | 'documents';
 type McpWorkflowAudience = 'mcp' | 'public_docs' | 'internal_agent';
@@ -161,6 +161,31 @@ const validateMcpWorkflowRegistry = (knownToolNames: ReadonlySet<string>): void 
     if (!workflow.id || !workflow.title || !workflow.description || workflow.audience.length === 0) {
       throw new Error(`MCP workflow "${workflow.id}" is missing required metadata.`);
     }
+    if (workflow.tools.length === 0) {
+      throw new Error(`MCP workflow "${workflow.id}" must reference at least one tool.`);
+    }
+    if (workflow.guardrails.length === 0) {
+      throw new Error(`MCP workflow "${workflow.id}" must define at least one guardrail.`);
+    }
+
+    const argumentNames = new Set<string>();
+    const argumentDescriptions = new Set<string>();
+    for (const argument of workflow.arguments) {
+      const argumentName = argument.name.trim();
+      const argumentDescription = argument.description.trim();
+      if (!argumentName || !argumentDescription) {
+        throw new Error(`MCP workflow "${workflow.id}" has an argument with a blank name or description.`);
+      }
+      if (argumentNames.has(argumentName)) {
+        throw new Error(`MCP workflow "${workflow.id}" has duplicate argument name "${argumentName}".`);
+      }
+      if (argumentDescriptions.has(argumentDescription)) {
+        throw new Error(`MCP workflow "${workflow.id}" has duplicate argument description "${argumentDescription}".`);
+      }
+      argumentNames.add(argumentName);
+      argumentDescriptions.add(argumentDescription);
+    }
+
     for (const toolName of workflow.tools) {
       if (!knownToolNames.has(toolName)) {
         throw new Error(`MCP workflow "${workflow.id}" references unknown tool "${toolName}".`);

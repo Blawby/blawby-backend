@@ -3,6 +3,7 @@ import {
   MCP_WORKFLOWS,
   renderMcpWorkflow,
   renderMcpWorkflowDocs,
+  type McpWorkflowDefinition,
   validateMcpWorkflowRegistry,
 } from '@/modules/mcp/workflow-registry';
 
@@ -14,6 +15,74 @@ const knownTools = new Set([
   'run_conflict_check',
 ]);
 
+interface MalformedWorkflowCase {
+  label: string;
+  override: Partial<McpWorkflowDefinition>;
+  expectedError: string;
+}
+
+const malformedWorkflowCases: MalformedWorkflowCase[] = [
+  {
+    label: 'an empty tool list',
+    override: { tools: [] },
+    expectedError: 'must reference at least one tool',
+  },
+  {
+    label: 'an empty guardrail list',
+    override: { guardrails: [] },
+    expectedError: 'must define at least one guardrail',
+  },
+  {
+    label: 'a blank argument name',
+    override: {
+      arguments: [{ name: ' ', description: 'Client name.', required: true }],
+    },
+    expectedError: 'blank name or description',
+  },
+  {
+    label: 'a blank argument description',
+    override: {
+      arguments: [{ name: 'client_name', description: ' ', required: true }],
+    },
+    expectedError: 'blank name or description',
+  },
+  {
+    label: 'duplicate argument names',
+    override: {
+      arguments: [
+        { name: 'client_name', description: 'Prospective client name.', required: true },
+        { name: 'client_name', description: 'Current client name.', required: false },
+      ],
+    },
+    expectedError: 'duplicate argument name "client_name"',
+  },
+  {
+    label: 'duplicate argument descriptions',
+    override: {
+      arguments: [
+        { name: 'client_name', description: 'Client name.', required: true },
+        { name: 'other_name', description: 'Client name.', required: false },
+      ],
+    },
+    expectedError: 'duplicate argument description "Client name."',
+  },
+];
+
+const expectMalformedWorkflowToFail = (override: Partial<McpWorkflowDefinition>, expectedError: string): void => {
+  const [workflow] = MCP_WORKFLOWS;
+  if (!workflow) {
+    throw new Error('Expected at least one MCP workflow fixture.');
+  }
+
+  const originalWorkflow = { ...workflow };
+  Object.assign(workflow, override);
+  try {
+    expect(() => validateMcpWorkflowRegistry(knownTools)).toThrow(expectedError);
+  } finally {
+    Object.assign(workflow, originalWorkflow);
+  }
+};
+
 describe('MCP workflow registry', () => {
   it('validates complete metadata, rendering, and real tool references', () => {
     expect(() => validateMcpWorkflowRegistry(knownTools)).not.toThrow();
@@ -24,6 +93,10 @@ describe('MCP workflow registry', () => {
     expect(() => validateMcpWorkflowRegistry(new Set(['run_conflict_check']))).toThrow(
       'references unknown tool "list_intake_templates"'
     );
+  });
+
+  it.each(malformedWorkflowCases)('rejects $label', ({ override, expectedError }) => {
+    expectMalformedWorkflowToFail(override, expectedError);
   });
 
   it('returns explicit missing-argument and unknown-prompt errors', () => {
