@@ -83,10 +83,7 @@ const resolveOrganizationAnchor = async (
   });
 };
 
-const resolveUserAnchor = async (
-  externalUserId: string,
-  directory: KrabiClawUserDirectoryRecord
-): Promise<string> => {
+const resolveUserAnchor = async (externalUserId: string, directory: KrabiClawUserDirectoryRecord): Promise<string> => {
   const existing = await krabiclawUserLinksRepository.findByExternalId(externalUserId);
   if (existing) {
     return existing.user_id;
