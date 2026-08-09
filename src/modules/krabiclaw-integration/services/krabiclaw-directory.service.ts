@@ -61,7 +61,7 @@ const runFixedQuery = async (sql: string, params: string[], deadlineAt: number):
     if (!queryResult?.success) {
       throw new Error('D1 query did not report success');
     }
-    assertNoUnexpectedWrite(queryResult.meta as D1RowMeta | undefined);
+    assertNoUnexpectedWrite(queryResult.meta);
     return queryResult.results ?? [];
   };
 
@@ -86,7 +86,11 @@ const getOrganizationDirectoryRecord = async (
   organizationId: string
 ): Promise<KrabiClawOrganizationDirectoryRecord> => {
   const deadlineAt = Date.now() + REQUEST_BUDGET_MS;
-  const rows = await runFixedQuery('SELECT id, name, slug FROM organization WHERE id = ?', [organizationId], deadlineAt);
+  const rows = await runFixedQuery(
+    'SELECT id, name, slug FROM organization WHERE id = ?',
+    [organizationId],
+    deadlineAt
+  );
   if (rows.length !== 1) {
     throw new Error(`Expected exactly one organization row for id ${organizationId}, got ${rows.length}`);
   }

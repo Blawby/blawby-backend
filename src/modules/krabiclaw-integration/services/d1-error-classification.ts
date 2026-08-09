@@ -1,7 +1,7 @@
-import Cloudflare from 'cloudflare';
+import { APIConnectionError, APIConnectionTimeoutError, InternalServerError, RateLimitError } from 'cloudflare';
 
 export const isRetryableD1Error = (error: unknown): boolean =>
-  error instanceof Cloudflare.RateLimitError ||
-  error instanceof Cloudflare.InternalServerError ||
-  error instanceof Cloudflare.APIConnectionTimeoutError ||
-  error instanceof Cloudflare.APIConnectionError;
+  error instanceof RateLimitError ||
+  error instanceof InternalServerError ||
+  error instanceof APIConnectionTimeoutError ||
+  error instanceof APIConnectionError;
