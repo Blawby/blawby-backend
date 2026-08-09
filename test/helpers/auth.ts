@@ -1,4 +1,6 @@
 import type { TestHelpers } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
+import { users } from '@/schema/better-auth-schema';
 import { auth } from '@/shared/auth/better-auth';
 import { getTestDb } from '@/test/helpers/db';
 import type { MemberRole } from '@/modules/practice/types/members.types';
@@ -110,6 +112,14 @@ const createNonOrgUserSession = async (): Promise<{ user: TestUser; sessionToken
   return { user, sessionToken: headers.get('cookie') ?? '' };
 };
 
+const createSuperAdminSession = async (): Promise<{ user: TestUser; sessionToken: string }> => {
+  const test = await getTest();
+  const user = await createTestUser();
+  await getTestDb().update(users).set({ role: 'super_admin' }).where(eq(users.id, user.id));
+  const headers = await test.getAuthHeaders({ userId: user.id });
+  return { user, sessionToken: headers.get('cookie') ?? '' };
+};
+
 export const authHelpers = {
   createTestUser,
   createAnonymousUser,
@@ -117,4 +127,5 @@ export const authHelpers = {
   addUserToOrganization,
   createTestContext,
   createNonOrgUserSession,
+  createSuperAdminSession,
 };
