@@ -56,6 +56,7 @@
     "@scalar/openapi-to-markdown": "^0.4.12",
     "better-auth": "1.6.23",
     "close-with-grace": "2.5.0",
+    "cloudflare": "^7.0.0",
     "drizzle-orm": "0.45.2",
     "drizzle-zod": "0.8.3",
     "es-toolkit": "^1.45.1",
