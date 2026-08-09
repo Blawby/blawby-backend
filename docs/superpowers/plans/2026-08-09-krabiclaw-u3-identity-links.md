@@ -239,7 +239,7 @@ describe('krabiclawOrganizationLinksRepository', () => {
         external_organization_id: randomUUID(),
         organization_id: org.id,
       })
-    ).rejects.toMatchObject({ code: '23505' });
+    ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 
   it('returns undefined for an unknown external id', async () => {
@@ -381,7 +381,7 @@ describe('krabiclawUserLinksRepository', () => {
         external_user_id: randomUUID(),
         user_id: user.id,
       })
-    ).rejects.toMatchObject({ code: '23505' });
+    ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 
   it('returns undefined for an unknown external id', async () => {
