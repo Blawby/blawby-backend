@@ -540,6 +540,13 @@
       "when": 1784371888821,
       "tag": "0076_famous_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1786289574210,
+      "tag": "0077_lumpy_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }
