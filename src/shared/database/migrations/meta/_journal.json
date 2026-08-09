@@ -554,6 +554,13 @@
       "when": 1786290231743,
       "tag": "0078_slippery_black_tom",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1786290398046,
+      "tag": "0079_stale_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }
