@@ -132,4 +132,38 @@ describe('krabiclaw machine OAuth', () => {
     });
     expect(dynamicClient.scope).toBe('openid profile email offline_access');
   });
+
+  it('lets a DIFFERENT staff super_admin rotate a client they did not create, and invalidates the old secret', async () => {
+    const admin1 = await authHelpers.createSuperAdminSession();
+    const admin2 = await authHelpers.createSuperAdminSession();
+    const client = await createLegalClient(admin1.sessionToken);
+    const oldSecret = client.client_secret;
+
+    const rotated = await auth.api.rotateClientSecret({
+      headers: new Headers({ cookie: admin2.sessionToken }),
+      body: { client_id: client.client_id },
+    });
+    expect(rotated.client_secret).not.toBe(oldSecret);
+
+    await expect(
+      auth.api.oauth2Token({
+        body: {
+          grant_type: 'client_credentials',
+          client_id: client.client_id,
+          client_secret: oldSecret,
+          scope: 'legal:practice',
+        },
+      })
+    ).rejects.toThrow();
+
+    const tokenWithNewSecret = await auth.api.oauth2Token({
+      body: {
+        grant_type: 'client_credentials',
+        client_id: client.client_id,
+        client_secret: rotated.client_secret,
+        scope: 'legal:practice',
+      },
+    });
+    expect(tokenWithNewSecret.access_token).toBeTruthy();
+  });
 });
