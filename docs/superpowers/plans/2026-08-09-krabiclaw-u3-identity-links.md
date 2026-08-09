@@ -675,16 +675,23 @@ const logger = getLogger(['modules', 'krabiclaw-integration', 'identity-resolver
 
 const LOCK_TIMEOUT = '2s';
 
+const readCode = (error: unknown): unknown =>
+  error && typeof error === 'object' && 'code' in error ? (error as { code?: unknown }).code : null;
+
 const isLockTimeout = (error: unknown): boolean => {
-  const code = error && typeof error === 'object' && 'code' in error ? (error as { code?: unknown }).code : null;
-  return code === '55P03';
+  if (readCode(error) === '55P03') {
+    return true;
+  }
+  const cause = error && typeof error === 'object' && 'cause' in error ? (error as { cause?: unknown }).cause : null;
+  return readCode(cause) === '55P03';
 };
 
 const withAnchorLock = async <T>(lockKey: string, execute: () => Promise<T>): Promise<T> => {
   try {
     return await uow.transaction(async () => {
       const trx = getActiveTx();
-      await trx.execute(sql`SET LOCAL lock_timeout = ${LOCK_TIMEOUT}`);
+      // SET LOCAL does not accept a bind parameter — the value must be a literal.
+      await trx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`));
       await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
       return execute();
     });
