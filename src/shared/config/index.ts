@@ -67,6 +67,7 @@ const envSchema = z
     CLOUDFLARE_AI_MODEL: z.string().trim().min(1).default('@cf/zai-org/glm-4.7-flash'),
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
     SYSTEM_USER_EMAIL: z.email().optional(),
+    KRABICLAW_OAUTH_CLIENT_ID: z.string().optional(),
   })
   .loose();
 
@@ -161,6 +162,9 @@ export const config = {
   },
   captcha: {
     skip: raw.SKIP_CAPTCHA === 'true',
+  },
+  krabiclaw: {
+    oauthClientId: raw.KRABICLAW_OAUTH_CLIENT_ID,
   },
   database: {
     url: raw.DATABASE_URL,
