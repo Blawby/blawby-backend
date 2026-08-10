@@ -39,12 +39,13 @@ import { describe, expect, it } from 'vitest';
 
 import { KrabiClawActorAttributed } from '@/shared/events/definitions/krabiclaw';
 import { events } from '@/shared/events/schemas/events.schema';
+import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb } from '@/test/helpers/db';
 
 describe('KrabiClawActorAttributed', () => {
   it('persists an immutable audit row for a human actor', async () => {
     const userId = '10000000-0000-4000-8000-000000000001';
-    const organizationId = '10000000-0000-4000-8000-000000000002';
+    const { id: organizationId } = await authHelpers.createTestOrganization();
 
     const eventId = await KrabiClawActorAttributed.dispatch(
       {
@@ -57,7 +58,7 @@ describe('KrabiClawActorAttributed', () => {
         method: 'GET',
         path: '/practice/details',
       },
-      { actorId: userId, organizationId }
+      { actorId: userId, organizationId, critical: true }
     );
 
     const [row] = await getTestDb().select().from(events).where(eq(events.eventId, eventId));
@@ -72,7 +73,7 @@ describe('KrabiClawActorAttributed', () => {
   });
 
   it('persists an audit row for an anonymous actor using the api actor sentinel', async () => {
-    const organizationId = '10000000-0000-4000-8000-000000000003';
+    const { id: organizationId } = await authHelpers.createTestOrganization();
 
     const eventId = await KrabiClawActorAttributed.dispatch(
       {
@@ -85,7 +86,7 @@ describe('KrabiClawActorAttributed', () => {
         method: 'POST',
         path: '/intakes',
       },
-      { actorId: 'api', organizationId }
+      { actorId: 'api', organizationId, critical: true }
     );
 
     const [row] = await getTestDb().select().from(events).where(eq(events.eventId, eventId));
@@ -823,7 +824,7 @@ export const krabiclawFacadeMiddleware = (): MiddlewareHandler<AppContext> => {
         method: c.req.method,
         path: c.req.path,
       },
-      { actorId: identity.userId ?? 'api', organizationId: identity.organizationId }
+      { actorId: identity.userId ?? 'api', organizationId: identity.organizationId, critical: true }
     );
 
     c.set('legalOperationContext', { organizationId: identity.organizationId, userId: identity.userId });
