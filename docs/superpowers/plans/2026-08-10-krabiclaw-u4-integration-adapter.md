@@ -863,6 +863,8 @@ git commit -m "feat(krabiclaw-integration): add composed facade middleware"
 // test/modules/krabiclaw-integration/http.test.ts
 import { describe, expect, it, vi } from 'vitest';
 
+import krabiclawIntegrationApp, { mountPath } from '@/modules/krabiclaw-integration/http';
+
 const configState = vi.hoisted(() => ({ facadeEnabled: false }));
 
 vi.mock('@/shared/config', async (importOriginal) => {
@@ -879,8 +881,6 @@ vi.mock('@/shared/config', async (importOriginal) => {
     },
   };
 });
-
-const { default: krabiclawIntegrationApp, mountPath } = await import('@/modules/krabiclaw-integration/http');
 
 describe('krabiclaw-integration http.ts', () => {
   it('exports the route scope table\'s base path as its mount path', () => {
