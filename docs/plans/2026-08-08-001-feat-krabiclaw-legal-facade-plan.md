@@ -112,7 +112,7 @@ See `docs/adr/0001-keep-legal-operations-independent-of-auth.md` for the durable
 ### Key Risks
 
 - **OAuth claim confusion:** reject every client except the configured KrabiClaw `azp`, even if another token has the legal audience/scope.
-- **D1 REST limits:** measure account-token-wide load and keep projected peak plus retry amplification below 50% of the Cloudflare limit.
+- **D1 REST limits:** each D1 database is single-threaded and serializes queries, returning an overloaded error under saturation — measure per-database queueing and overloaded/deadline failures under projected load, not just Cloudflare's documented account-wide API rate limit (1,200 requests/5 minutes), and keep projected peak plus retry amplification well under both.
 - **Cross-system response loss:** persist intake request keys and Connect operation IDs before retryable side effects.
 - **Service credential compromise:** isolate credentials by environment, alert on anomalous use, and document emergency revocation and bounded replacement-client overlap.
 - **Placeholder leakage:** never use technical anchor names/emails as customer-facing facts.
