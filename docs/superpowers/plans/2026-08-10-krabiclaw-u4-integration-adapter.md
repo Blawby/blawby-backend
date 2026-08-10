@@ -380,7 +380,7 @@ const { verifyFacadeToken } = await import('@/modules/krabiclaw-integration/midd
 
 const auth = createBetterAuthInstance(getTestDb());
 
-const issueToken = async (scope = KRABICLAW_LEGAL_SCOPES.join(' ')) => {
+const issueToken = async (clientScope = KRABICLAW_LEGAL_SCOPES.join(' ')) => {
   const { sessionToken } = await authHelpers.createSuperAdminSession();
   const client = await auth.api.adminCreateOAuthClient({
     headers: new Headers({ cookie: sessionToken }),
@@ -389,17 +389,19 @@ const issueToken = async (scope = KRABICLAW_LEGAL_SCOPES.join(' ')) => {
       grant_types: ['client_credentials'],
       token_endpoint_auth_method: 'client_secret_basic',
       type: 'web',
-      scope,
+      scope: clientScope,
       client_name: `verify-facade-token-test-${Math.random()}`,
       require_pkce: false,
     },
   });
+  // Omitting `scope` on the token request makes better-auth default to the
+  // client's full registered scope (oauth-provider's handleClientCredentialsGrant),
+  // instead of re-validating against the grant-type's scope allowlist.
   const token = await auth.api.oauth2Token({
     body: {
       grant_type: 'client_credentials',
       client_id: client.client_id,
       client_secret: client.client_secret,
-      scope,
       resource: KRABICLAW_LEGAL_API_AUDIENCE,
     },
   });
@@ -430,7 +432,9 @@ describe('verifyFacadeToken', () => {
   });
 
   it('rejects a token missing every legal scope', async () => {
-    const { client, accessToken } = await issueToken('legal:not-a-real-scope');
+    // Register the client with only non-legal (OIDC) scopes, so the resulting
+    // client_credentials token's `scope` claim contains no `legal:*` entry.
+    const { client, accessToken } = await issueToken('openid profile');
     configState.oauthClientId = client.client_id;
 
     await expect(verifyFacadeToken(accessToken, auth)).rejects.toMatchObject({ status: 403 });
