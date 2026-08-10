@@ -68,6 +68,7 @@ const envSchema = z
     SKIP_CAPTCHA: z.enum(['true', 'false']).optional(),
     SYSTEM_USER_EMAIL: z.email().optional(),
     KRABICLAW_OAUTH_CLIENT_ID: z.string().optional(),
+    KRABICLAW_FACADE_ENABLED: z.enum(['true', 'false']).optional(),
     CLOUDFLARE_D1_ACCOUNT_ID: z.string().optional(),
     CLOUDFLARE_D1_DATABASE_ID: z.string().optional(),
     CLOUDFLARE_D1_API_TOKEN: z.string().optional(),
@@ -168,6 +169,7 @@ export const config = {
   },
   krabiclaw: {
     oauthClientId: raw.KRABICLAW_OAUTH_CLIENT_ID,
+    facadeEnabled: raw.KRABICLAW_FACADE_ENABLED === 'true',
     d1AccountId: raw.CLOUDFLARE_D1_ACCOUNT_ID,
     d1DatabaseId: raw.CLOUDFLARE_D1_DATABASE_ID,
     d1ApiToken: raw.CLOUDFLARE_D1_API_TOKEN,
