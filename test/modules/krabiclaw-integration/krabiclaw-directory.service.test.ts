@@ -55,7 +55,7 @@ describe('krabiclawDirectoryService', () => {
         sql: expect.stringContaining('FROM organization'),
         params: ['org-1'],
       }),
-      expect.objectContaining({ maxRetries: 0 })
+      expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) })
     );
   });
 
@@ -80,6 +80,23 @@ describe('krabiclawDirectoryService', () => {
     );
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('missing-org')).rejects.toThrow();
+  });
+
+  it('never includes the raw external id in a thrown error message', async () => {
+    const distinctiveOrgId = 'org-should-never-appear-in-logs-or-errors';
+    mocks.query.mockResolvedValueOnce(pageWith([]));
+    const { krabiclawDirectoryService } = await import(
+      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
+    );
+
+    let caught: unknown;
+    try {
+      await krabiclawDirectoryService.getOrganizationDirectoryRecord(distinctiveOrgId);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).not.toContain(distinctiveOrgId);
   });
 
   it('rejects when D1 unexpectedly returns duplicate rows for one id', async () => {

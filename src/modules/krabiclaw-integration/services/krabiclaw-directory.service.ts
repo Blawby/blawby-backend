@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
-import Cloudflare from 'cloudflare';
+import Cloudflare, { APIError } from 'cloudflare';
 import { isRetryableD1Error } from '@/modules/krabiclaw-integration/services/d1-error-classification';
 import type {
   KrabiClawOrganizationDirectoryRecord,
@@ -10,11 +11,12 @@ import {
   userDirectoryRowSchema,
 } from '@/modules/krabiclaw-integration/validations/directory.validation';
 import { config } from '@/shared/config';
-import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['modules', 'krabiclaw-integration', 'directory']);
 
 const REQUEST_BUDGET_MS = 3000;
+
+type D1Lookup = 'organization' | 'user';
 
 interface D1RowMeta {
   rows_written?: number;
@@ -43,7 +45,33 @@ const assertNoUnexpectedWrite = (meta: D1RowMeta | undefined): void => {
   }
 };
 
-const runFixedQuery = async (sql: string, params: string[], deadlineAt: number): Promise<unknown[]> => {
+/**
+ * Never log a raw KrabiClaw external ID or the full Cloudflare API error payload
+ * (message/stack/headers/response body) — only an allowlisted, hashed-ID summary.
+ */
+const hashExternalId = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 16);
+
+const sanitizeD1Error = (error: unknown, lookup: D1Lookup, externalId: string): Record<string, unknown> => {
+  const safe: Record<string, unknown> = { lookup, externalIdHash: hashExternalId(externalId) };
+  if (error instanceof APIError) {
+    safe.errorType = error.constructor.name;
+    safe.status = error.status;
+    return safe;
+  }
+  if (error instanceof Error) {
+    safe.errorType = error.name;
+    return safe;
+  }
+  safe.errorType = 'unknown';
+  return safe;
+};
+
+const runFixedQuery = async (
+  sql: string,
+  params: string[],
+  deadlineAt: number,
+  logContext: { lookup: D1Lookup; externalId: string }
+): Promise<unknown[]> => {
   const { accountId, databaseId } = requireD1Config();
   const client = getClient();
 
@@ -52,10 +80,14 @@ const runFixedQuery = async (sql: string, params: string[], deadlineAt: number):
     if (remaining <= 0) {
       throw new Error('D1 query exceeded its 3-second budget');
     }
+    // Cloudflare SDK 7's `timeout` option only covers the wait for response
+    // Headers — it clears its timer as soon as fetch() resolves, before the
+    // Response body is parsed. An AbortSignal we control stays armed through
+    // Body parsing too, so it's what actually enforces the full budget.
     const page = await client.d1.database.query(
       databaseId,
       { account_id: accountId, sql, params },
-      { maxRetries: 0, timeout: remaining }
+      { maxRetries: 0, signal: AbortSignal.timeout(remaining) }
     );
     const [queryResult] = page.result;
     if (!queryResult?.success) {
@@ -69,14 +101,20 @@ const runFixedQuery = async (sql: string, params: string[], deadlineAt: number):
     return await attempt();
   } catch (error) {
     if (!isRetryableD1Error(error) || Date.now() >= deadlineAt) {
-      logger.error('krabiclaw D1 query failed: {error}', { error: sanitizeError(error) });
+      logger.error('krabiclaw D1 query failed: {error}', {
+        error: sanitizeD1Error(error, logContext.lookup, logContext.externalId),
+      });
       throw error;
     }
-    logger.warn('krabiclaw D1 query failed once, retrying within budget: {error}', { error: sanitizeError(error) });
+    logger.warn('krabiclaw D1 query failed once, retrying within budget: {error}', {
+      error: sanitizeD1Error(error, logContext.lookup, logContext.externalId),
+    });
     try {
       return await attempt();
     } catch (retryError) {
-      logger.error('krabiclaw D1 query failed after retry: {error}', { error: sanitizeError(retryError) });
+      logger.error('krabiclaw D1 query failed after retry: {error}', {
+        error: sanitizeD1Error(retryError, logContext.lookup, logContext.externalId),
+      });
       throw retryError;
     }
   }
@@ -89,19 +127,23 @@ const getOrganizationDirectoryRecord = async (
   const rows = await runFixedQuery(
     'SELECT id, name, slug FROM organization WHERE id = ?',
     [organizationId],
-    deadlineAt
+    deadlineAt,
+    { lookup: 'organization', externalId: organizationId }
   );
   if (rows.length !== 1) {
-    throw new Error(`Expected exactly one organization row for id ${organizationId}, got ${rows.length}`);
+    throw new Error(`Expected exactly one organization row, got ${rows.length}`);
   }
   return organizationDirectoryRowSchema.parse(rows[0]);
 };
 
 const getUserDirectoryRecord = async (userId: string): Promise<KrabiClawUserDirectoryRecord> => {
   const deadlineAt = Date.now() + REQUEST_BUDGET_MS;
-  const rows = await runFixedQuery('SELECT id, name, email FROM user WHERE id = ?', [userId], deadlineAt);
+  const rows = await runFixedQuery('SELECT id, name, email FROM user WHERE id = ?', [userId], deadlineAt, {
+    lookup: 'user',
+    externalId: userId,
+  });
   if (rows.length !== 1) {
-    throw new Error(`Expected exactly one user row for id ${userId}, got ${rows.length}`);
+    throw new Error(`Expected exactly one user row, got ${rows.length}`);
   }
   return userDirectoryRowSchema.parse(rows[0]);
 };
