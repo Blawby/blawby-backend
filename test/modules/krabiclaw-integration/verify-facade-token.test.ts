@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { KRABICLAW_LEGAL_API_AUDIENCE, KRABICLAW_LEGAL_SCOPES } from '@/shared/auth/krabiclaw-oauth';
+import { verifyFacadeToken } from '@/modules/krabiclaw-integration/middleware/verify-facade-token';
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb } from '@/test/helpers/db';
 
@@ -21,9 +22,6 @@ vi.mock('@/shared/config', async (importOriginal) => {
     },
   };
 });
-
-// Imported after the mock so the module under test picks up the mocked config.
-const { verifyFacadeToken } = await import('@/modules/krabiclaw-integration/middleware/verify-facade-token');
 
 const auth = createBetterAuthInstance(getTestDb());
 

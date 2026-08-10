@@ -355,11 +355,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { KRABICLAW_LEGAL_API_AUDIENCE, KRABICLAW_LEGAL_SCOPES } from '@/shared/auth/krabiclaw-oauth';
+import { verifyFacadeToken } from '@/modules/krabiclaw-integration/middleware/verify-facade-token';
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb } from '@/test/helpers/db';
 
 const configState = vi.hoisted(() => ({ oauthClientId: undefined as string | undefined }));
 
+// vi.mock calls are hoisted above every import in this file (including the
+// static `verifyFacadeToken` import above), so the module under test always
+// picks up this mocked config — no dynamic import needed.
 vi.mock('@/shared/config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/shared/config')>();
   return {
@@ -374,9 +378,6 @@ vi.mock('@/shared/config', async (importOriginal) => {
     },
   };
 });
-
-// Imported after the mock so the module under test picks up the mocked config.
-const { verifyFacadeToken } = await import('@/modules/krabiclaw-integration/middleware/verify-facade-token');
 
 const auth = createBetterAuthInstance(getTestDb());
 
@@ -477,20 +478,17 @@ export const verifyFacadeToken = async (
     throw new HTTPException(401, { message: 'Missing access token' });
   }
 
-  let payload;
-  try {
-    payload = await verifyJwsAccessToken(token, {
-      jwksFetch: () => authInstance.api.getJwks(),
-      jwksCacheKey: JWKS_CACHE_KEY,
-      verifyOptions: {
-        audience: KRABICLAW_LEGAL_API_AUDIENCE,
-        issuer: `${config.app.baseUrl}/api/auth`,
-      },
-    });
-  } catch (error) {
+  const payload = await verifyJwsAccessToken(token, {
+    jwksFetch: () => authInstance.api.getJwks(),
+    jwksCacheKey: JWKS_CACHE_KEY,
+    verifyOptions: {
+      audience: KRABICLAW_LEGAL_API_AUDIENCE,
+      issuer: `${config.app.baseUrl}/api/auth`,
+    },
+  }).catch((error: unknown) => {
     logger.warn('krabiclaw facade token verification failed: {error}', { error });
     throw new HTTPException(401, { message: 'Invalid access token' });
-  }
+  });
 
   if (payload.sub) {
     throw new HTTPException(401, { message: 'Unexpected subject claim on a machine token' });
@@ -588,6 +586,10 @@ git commit -m "feat(krabiclaw-integration): add default-off facade kill switch"
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
+import { krabiclawFacadeMiddleware } from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
+import { krabiclawDirectoryService } from '@/modules/krabiclaw-integration/services/krabiclaw-directory.service';
+import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
+
 const configState = vi.hoisted(() => ({ facadeEnabled: true, oauthClientId: 'fixed-client' }));
 
 vi.mock('@/shared/config', async (importOriginal) => {
@@ -633,13 +635,6 @@ vi.mock('@/shared/events/definitions/krabiclaw', () => ({
   KrabiClawActorAttributed: { dispatch: dispatchMock },
 }));
 
-const { krabiclawFacadeMiddleware } = await import(
-  '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware'
-);
-const { krabiclawIdentityResolverService } = await import(
-  '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service'
-);
-
 const buildApp = () => {
   const app = new Hono();
   app.use('*', krabiclawFacadeMiddleware());
@@ -674,9 +669,6 @@ describe('krabiclawFacadeMiddleware', () => {
   });
 
   it('sets a null userId for an anonymous actor and never asks the directory for a user record', async () => {
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
     vi.mocked(krabiclawDirectoryService.getUserDirectoryRecord).mockClear();
 
     const res = await buildApp().request('/', {
@@ -705,7 +697,7 @@ describe('krabiclawFacadeMiddleware', () => {
     expect(body.context).toBeNull();
   });
 
-  it('propagates a wrong actor kind resolved by the identity resolver as a distinct anonymous/human path', async () => {
+  it('passes actor kind through to the identity resolver rather than re-deriving it', async () => {
     vi.mocked(krabiclawIdentityResolverService.resolveIdentity).mockResolvedValueOnce({
       organizationId: 'local-org-2',
       userId: null,
@@ -768,6 +760,8 @@ import { parseFacadeHeaders } from '@/modules/krabiclaw-integration/middleware/p
 import { verifyFacadeToken } from '@/modules/krabiclaw-integration/middleware/verify-facade-token';
 import { krabiclawDirectoryService } from '@/modules/krabiclaw-integration/services/krabiclaw-directory.service';
 import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
+import type { KrabiClawFacadeHeaders } from '@/modules/krabiclaw-integration/types/facade-headers.types';
+import type { KrabiClawResolvedIdentity } from '@/modules/krabiclaw-integration/types/identity.types';
 import { KrabiClawActorAttributed } from '@/shared/events/definitions/krabiclaw';
 import { config } from '@/shared/config';
 import { db } from '@/shared/database';
@@ -775,6 +769,29 @@ import type { AppContext } from '@/shared/types/hono';
 import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['modules', 'krabiclaw-integration', 'facade-middleware']);
+
+const resolveIdentityOrFail = async (headers: KrabiClawFacadeHeaders): Promise<KrabiClawResolvedIdentity> => {
+  try {
+    const organizationDirectory = await krabiclawDirectoryService.getOrganizationDirectoryRecord(
+      headers.externalOrganizationId
+    );
+    const userDirectory =
+      headers.actorKind === 'human' && headers.externalActorId
+        ? await krabiclawDirectoryService.getUserDirectoryRecord(headers.externalActorId)
+        : undefined;
+
+    return await krabiclawIdentityResolverService.resolveIdentity({
+      externalOrganizationId: headers.externalOrganizationId,
+      organizationDirectory,
+      actorKind: headers.actorKind,
+      externalUserId: headers.externalActorId ?? undefined,
+      userDirectory,
+    });
+  } catch (error) {
+    logger.error('krabiclaw facade identity resolution failed: {error}', { error: sanitizeError(error) });
+    throw new HTTPException(502, { message: 'Failed to resolve KrabiClaw identity' });
+  }
+};
 
 const extractBearerToken = (authorizationHeader: string | undefined): string | undefined => {
   if (!authorizationHeader?.startsWith('Bearer ')) {
@@ -794,28 +811,7 @@ export const krabiclawFacadeMiddleware = (): MiddlewareHandler<AppContext> => {
     const headers = parseFacadeHeaders(c);
     const token = extractBearerToken(c.req.header('authorization'));
     const { clientId } = await verifyFacadeToken(token, authInstance);
-
-    let identity;
-    try {
-      const organizationDirectory = await krabiclawDirectoryService.getOrganizationDirectoryRecord(
-        headers.externalOrganizationId
-      );
-      const userDirectory =
-        headers.actorKind === 'human' && headers.externalActorId
-          ? await krabiclawDirectoryService.getUserDirectoryRecord(headers.externalActorId)
-          : undefined;
-
-      identity = await krabiclawIdentityResolverService.resolveIdentity({
-        externalOrganizationId: headers.externalOrganizationId,
-        organizationDirectory,
-        actorKind: headers.actorKind,
-        externalUserId: headers.externalActorId ?? undefined,
-        userDirectory,
-      });
-    } catch (error) {
-      logger.error('krabiclaw facade identity resolution failed: {error}', { error: sanitizeError(error) });
-      throw new HTTPException(502, { message: 'Failed to resolve KrabiClaw identity' });
-    }
+    const identity = await resolveIdentityOrFail(headers);
 
     await KrabiClawActorAttributed.dispatch(
       {

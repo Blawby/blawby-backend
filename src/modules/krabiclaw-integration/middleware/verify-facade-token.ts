@@ -24,20 +24,17 @@ export const verifyFacadeToken = async (
     throw new HTTPException(401, { message: 'Missing access token' });
   }
 
-  let payload;
-  try {
-    payload = await verifyJwsAccessToken(token, {
-      jwksFetch: () => authInstance.api.getJwks(),
-      jwksCacheKey: JWKS_CACHE_KEY,
-      verifyOptions: {
-        audience: KRABICLAW_LEGAL_API_AUDIENCE,
-        issuer: `${config.app.baseUrl}/api/auth`,
-      },
-    });
-  } catch (error) {
+  const payload = await verifyJwsAccessToken(token, {
+    jwksFetch: () => authInstance.api.getJwks(),
+    jwksCacheKey: JWKS_CACHE_KEY,
+    verifyOptions: {
+      audience: KRABICLAW_LEGAL_API_AUDIENCE,
+      issuer: `${config.app.baseUrl}/api/auth`,
+    },
+  }).catch((error: unknown) => {
     logger.warn('krabiclaw facade token verification failed: {error}', { error });
     throw new HTTPException(401, { message: 'Invalid access token' });
-  }
+  });
 
   if (payload.sub) {
     throw new HTTPException(401, { message: 'Unexpected subject claim on a machine token' });
