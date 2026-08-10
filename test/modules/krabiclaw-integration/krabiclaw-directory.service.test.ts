@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('cloudflare', async () => {
   const actual = await vi.importActual<typeof import('cloudflare')>('cloudflare');
+  // Must be a plain function expression, not an arrow function — `new MockedCloudflare()`
+  // Requires a real [[Construct]], which arrow functions don't have.
   const MockedCloudflare = vi.fn().mockImplementation(function MockedCloudflare() {
     return { d1: { database: { query: mocks.query } } };
   });
   // Preserve the real static error-class properties (Cloudflare.RateLimitError, etc.)
-  // on the mocked constructor so `instanceof` checks in the code under test still work.
+  // On the mocked constructor so `instanceof` checks in the code under test still work.
   Object.assign(MockedCloudflare, actual.default);
   return {
     ...actual,
@@ -43,9 +45,8 @@ beforeEach(() => {
 describe('krabiclawDirectoryService', () => {
   it('returns the organization directory record for a valid single-row response', async () => {
     mocks.query.mockResolvedValueOnce(pageWith([okOrgRow]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).resolves.toEqual(okOrgRow);
     expect(mocks.query).toHaveBeenCalledWith(
@@ -61,9 +62,8 @@ describe('krabiclawDirectoryService', () => {
 
   it('returns the user directory record for a valid single-row response', async () => {
     mocks.query.mockResolvedValueOnce(pageWith([okUserRow]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getUserDirectoryRecord('user-1')).resolves.toEqual(okUserRow);
     expect(mocks.query).toHaveBeenCalledWith(
@@ -75,9 +75,8 @@ describe('krabiclawDirectoryService', () => {
 
   it('rejects when the organization is missing (zero rows)', async () => {
     mocks.query.mockResolvedValueOnce(pageWith([]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('missing-org')).rejects.toThrow();
   });
@@ -85,9 +84,8 @@ describe('krabiclawDirectoryService', () => {
   it('never includes the raw external id in a thrown error message', async () => {
     const distinctiveOrgId = 'org-should-never-appear-in-logs-or-errors';
     mocks.query.mockResolvedValueOnce(pageWith([]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     let caught: unknown;
     try {
@@ -101,36 +99,49 @@ describe('krabiclawDirectoryService', () => {
 
   it('rejects when D1 unexpectedly returns duplicate rows for one id', async () => {
     mocks.query.mockResolvedValueOnce(pageWith([okOrgRow, { ...okOrgRow, id: 'org-1-dupe' }]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
   });
 
   it('rejects a malformed row (fails Zod validation)', async () => {
     mocks.query.mockResolvedValueOnce(pageWith([{ id: 'org-1', name: 'Acme Legal' }]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
   });
 
   it('rejects a response with unexpected-write metadata even if the row is otherwise valid', async () => {
     mocks.query.mockResolvedValueOnce(pageWith([okOrgRow], { rows_written: 1, changed_db: true }));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
   });
 
+  it('wraps a D1 failure in a stable public error, preserving the original SDK error as its cause', async () => {
+    const sdkError = new Cloudflare.AuthenticationError(401, {}, 'unauthorized', new Headers());
+    mocks.query.mockRejectedValueOnce(sdkError);
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
+
+    let caught: unknown;
+    try {
+      await krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('D1 organization lookup failed');
+    expect((caught as Error).cause).toBe(sdkError);
+  });
+
   it('does not retry an unauthorized (401) error', async () => {
     mocks.query.mockRejectedValueOnce(new Cloudflare.AuthenticationError(401, {}, 'unauthorized', new Headers()));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
     expect(mocks.query).toHaveBeenCalledTimes(1);
@@ -140,9 +151,8 @@ describe('krabiclawDirectoryService', () => {
     mocks.query
       .mockRejectedValueOnce(new Cloudflare.RateLimitError(429, {}, 'rate limited', new Headers()))
       .mockResolvedValueOnce(pageWith([okOrgRow]));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).resolves.toEqual(okOrgRow);
     expect(mocks.query).toHaveBeenCalledTimes(2);
@@ -150,9 +160,8 @@ describe('krabiclawDirectoryService', () => {
 
   it('retries at most once on repeated 5xx errors, then rejects', async () => {
     mocks.query.mockRejectedValue(new Cloudflare.InternalServerError(500, {}, 'server error', new Headers()));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
     expect(mocks.query).toHaveBeenCalledTimes(2);
@@ -161,9 +170,8 @@ describe('krabiclawDirectoryService', () => {
   it('rejects when D1 credentials are not configured', async () => {
     vi.doMock('@/shared/config', () => ({ config: { krabiclaw: {} } }));
     vi.resetModules();
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
     expect(mocks.query).not.toHaveBeenCalled();
@@ -180,9 +188,8 @@ describe('krabiclawDirectoryService', () => {
         vi.advanceTimersByTime(3001);
         throw new Cloudflare.RateLimitError(429, {}, 'rate limited', new Headers());
       });
-      const { krabiclawDirectoryService } = await import(
-        '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-      );
+      const { krabiclawDirectoryService } =
+        await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
       await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).rejects.toThrow();
       expect(mocks.query).toHaveBeenCalledTimes(1);
@@ -198,9 +205,8 @@ describe('krabiclawDirectoryService', () => {
     }));
     vi.resetModules();
     mocks.query.mockRejectedValue(new Cloudflare.InternalServerError(500, {}, 'server error', new Headers()));
-    const { krabiclawDirectoryService } = await import(
-      '@/modules/krabiclaw-integration/services/krabiclaw-directory.service'
-    );
+    const { krabiclawDirectoryService } =
+      await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     let caught: unknown;
     try {

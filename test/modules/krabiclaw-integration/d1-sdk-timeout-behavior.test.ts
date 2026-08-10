@@ -1,6 +1,5 @@
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import Cloudflare from 'cloudflare';
+import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /**
@@ -11,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
  * `runFixedQuery` closes by passing `signal: AbortSignal.timeout(remaining)`.
  */
 
-let server: Server | undefined;
+let server: Server | undefined = undefined;
 
 afterEach(async () => {
   if (server) {
@@ -28,8 +27,11 @@ const startStalledBodyServer = (): Promise<string> =>
       // Intentionally no res.end() — the connection stays open with a pending body.
     });
     server.listen(0, '127.0.0.1', () => {
-      const { port } = server?.address() as AddressInfo;
-      resolve(`http://127.0.0.1:${port}`);
+      const address = server?.address();
+      if (typeof address !== 'object' || address === null) {
+        throw new Error(`Expected server.address() to return AddressInfo, got: ${String(address)}`);
+      }
+      resolve(`http://127.0.0.1:${address.port}`);
     });
   });
 

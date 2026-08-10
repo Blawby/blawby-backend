@@ -1,6 +1,3 @@
-import { createHash } from 'node:crypto';
-import { getLogger } from '@logtape/logtape';
-import Cloudflare, { APIError } from 'cloudflare';
 import { isRetryableD1Error } from '@/modules/krabiclaw-integration/services/d1-error-classification';
 import type {
   KrabiClawOrganizationDirectoryRecord,
@@ -11,6 +8,9 @@ import {
   userDirectoryRowSchema,
 } from '@/modules/krabiclaw-integration/validations/directory.validation';
 import { config } from '@/shared/config';
+import { getLogger } from '@logtape/logtape';
+import Cloudflare, { APIError } from 'cloudflare';
+import { createHash } from 'node:crypto';
 
 const logger = getLogger(['modules', 'krabiclaw-integration', 'directory']);
 
@@ -50,6 +50,16 @@ const assertNoUnexpectedWrite = (meta: D1RowMeta | undefined): void => {
  * (message/stack/headers/response body) — only an allowlisted, hashed-ID summary.
  */
 const hashExternalId = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 16);
+
+/**
+ * Callers must never receive the raw Cloudflare SDK error directly — it can
+ * carry response headers/body that sanitizeD1Error deliberately keeps out of
+ * our own log lines. Wrapping with a stable message keeps that guarantee at
+ * the module boundary too, while `cause` still preserves the original for
+ * anyone deliberately inspecting it (e.g. a debugger).
+ */
+const wrapD1Failure = (error: unknown, lookup: D1Lookup): Error =>
+  new Error(`D1 ${lookup} lookup failed`, { cause: error });
 
 const sanitizeD1Error = (error: unknown, lookup: D1Lookup, externalId: string): Record<string, unknown> => {
   const safe: Record<string, unknown> = { lookup, externalIdHash: hashExternalId(externalId) };
@@ -104,7 +114,7 @@ const runFixedQuery = async (
       logger.error('krabiclaw D1 query failed: {error}', {
         error: sanitizeD1Error(error, logContext.lookup, logContext.externalId),
       });
-      throw error;
+      throw wrapD1Failure(error, logContext.lookup);
     }
     logger.warn('krabiclaw D1 query failed once, retrying within budget: {error}', {
       error: sanitizeD1Error(error, logContext.lookup, logContext.externalId),
@@ -115,7 +125,7 @@ const runFixedQuery = async (
       logger.error('krabiclaw D1 query failed after retry: {error}', {
         error: sanitizeD1Error(retryError, logContext.lookup, logContext.externalId),
       });
-      throw retryError;
+      throw wrapD1Failure(retryError, logContext.lookup);
     }
   }
 };
