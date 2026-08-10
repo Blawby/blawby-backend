@@ -27,12 +27,14 @@ import { config as loadEnv } from '@dotenvx/dotenvx';
 loadEnv();
 
 import { users } from '@/schema/better-auth-schema';
+import { oauthClients } from '@/schema/oauth.schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
-import { KRABICLAW_LEGAL_SCOPES } from '@/shared/auth/krabiclaw-oauth';
+import { KRABICLAW_LEGAL_SCOPES, KRABICLAW_OAUTH_CLIENT_REFERENCE } from '@/shared/auth/krabiclaw-oauth';
 import { getStaffRoles } from '@/shared/auth/permissions';
 import { config } from '@/shared/config';
 import { db } from '@/shared/database';
-import { eq } from 'drizzle-orm';
+import { getActiveTx, uow } from '@/shared/database/uow';
+import { eq, sql } from 'drizzle-orm';
 
 const getArg = (name: string): string | undefined => {
   const index = process.argv.indexOf(`--${name}`);
@@ -55,6 +57,34 @@ export const checkCreateAllowed = (configuredClientId: string | undefined): stri
   }
   return null;
 };
+
+/**
+ * KRABICLAW_OAUTH_CLIENT_ID is only a fast, process-local pre-check — it can be
+ * unset in this shell while a client already exists in the database (wrong
+ * machine, forgot to export it, config drift). The database row is the
+ * authoritative source of truth for "does a KrabiClaw client already exist",
+ * so this is what actually gates creation, inside the advisory lock below.
+ */
+const findExistingKrabiClawClient = async (): Promise<{ clientId: string } | undefined> => {
+  const [existing] = await getActiveTx()
+    .select({ clientId: oauthClients.clientId })
+    .from(oauthClients)
+    .where(eq(oauthClients.referenceId, KRABICLAW_OAUTH_CLIENT_REFERENCE));
+  return existing;
+};
+
+/**
+ * Serializes concurrent `create` runs so two processes can't both pass the
+ * "no existing client" check before either has written one. Mirrors the
+ * pg_advisory_xact_lock pattern in trust.service.ts's withTrustLock.
+ */
+const withKrabiClawProvisioningLock = async <T>(execute: () => Promise<T>): Promise<T> =>
+  uow.transaction(async () => {
+    const trx = getActiveTx();
+    await trx.execute(sql`SET LOCAL lock_timeout = '5s'`);
+    await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('krabiclaw-oauth-client-provision'))`);
+    return execute();
+  });
 
 export const checkRotateAllowed = (clientId: string, configuredClientId: string | undefined): string | null => {
   if (!configuredClientId) {
@@ -108,17 +138,26 @@ const main = async (): Promise<void> => {
       exitWithError('--redirect-uri is required for create (the real KrabiClaw callback URL for this environment).');
     }
 
-    const client = await auth.api.adminCreateOAuthClient({
-      headers,
-      body: {
-        redirect_uris: [redirectUri],
-        grant_types: ['client_credentials'],
-        token_endpoint_auth_method: 'client_secret_basic',
-        type: 'web',
-        scope: KRABICLAW_LEGAL_SCOPES.join(' '),
-        client_name: 'krabiclaw-legal-facade',
-        require_pkce: false,
-      },
+    const client = await withKrabiClawProvisioningLock(async () => {
+      const existing = await findExistingKrabiClawClient();
+      if (existing) {
+        exitWithError(
+          `A KrabiClaw OAuth client already exists in the database (client_id: ${existing.clientId}), even though KRABICLAW_OAUTH_CLIENT_ID wasn't set to it in this process's environment. Exactly one may exist — run "rotate --client-id ${existing.clientId}" instead.`
+        );
+      }
+
+      return auth.api.adminCreateOAuthClient({
+        headers,
+        body: {
+          redirect_uris: [redirectUri],
+          grant_types: ['client_credentials'],
+          token_endpoint_auth_method: 'client_secret_basic',
+          type: 'web',
+          scope: KRABICLAW_LEGAL_SCOPES.join(' '),
+          client_name: 'krabiclaw-legal-facade',
+          require_pkce: false,
+        },
+      });
     });
 
     console.log('\nKrabiClaw OAuth client created. Store these now — the secret is shown only once:\n');
