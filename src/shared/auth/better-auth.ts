@@ -21,10 +21,15 @@ import * as schema from '@/schema';
 import { AUTH_CONFIG } from '@/shared/auth/config/authConfig';
 import { createDatabaseHooks } from '@/shared/auth/hooks/databaseHooks';
 import { organizationAccessController, organizationRoles } from '@/shared/auth/organizationRoles';
-import { ac, staffAccessRoles } from '@/shared/auth/permissions';
+import {
+  KRABICLAW_LEGAL_API_AUDIENCE,
+  KRABICLAW_LEGAL_SCOPES,
+  KRABICLAW_OAUTH_CLIENT_REFERENCE,
+} from '@/shared/auth/krabiclaw-oauth';
+import { ac, getStaffRoles, staffAccessRoles } from '@/shared/auth/permissions';
 import { acceptedInvitationClientLinker } from '@/shared/auth/services/accepted-invitation-client-linker.service';
 import { linkAnonymousUserData } from '@/shared/auth/services/link-user-data.service';
-import { checkClientIsOwner } from '@/shared/auth/services/organization-access.service';
+import { checkOAuthClientPrivileges } from '@/shared/auth/services/organization-access.service';
 import { createStaffRoleHooks } from '@/shared/auth/staff-role-hooks';
 import { getTrustedOrigins } from '@/shared/auth/utils/trustedOrigins';
 import { magicLinkDeliveryService } from '@/shared/auth/magic-link-delivery.service';
@@ -44,6 +49,14 @@ const getActiveOrganizationId = (session: unknown): string | undefined => {
   }
   const { activeOrganizationId } = session;
   return typeof activeOrganizationId === 'string' ? activeOrganizationId : undefined;
+};
+
+const getUserRole = (user: unknown): string | undefined => {
+  if (typeof user !== 'object' || user === null || !('role' in user)) {
+    return undefined;
+  }
+  const { role } = user;
+  return typeof role === 'string' ? role : undefined;
 };
 
 const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?: string) =>
@@ -134,18 +147,24 @@ const betterAuthConfig = (db: NodePgDatabase<typeof schema>, googleRedirectUri?:
       jwt(),
       oauthProvider({
         accessTokenExpiresIn: config.auth.mcpAccessTokenExpiresIn,
+        m2mAccessTokenExpiresIn: 3600,
+        scopes: ['openid', 'profile', 'email', 'offline_access', ...KRABICLAW_LEGAL_SCOPES],
+        clientRegistrationAllowedScopes: ['openid', 'profile', 'email', 'offline_access'],
         loginPage: `${getMatchingFrontendUrl()}/login`,
         consentPage: `${getMatchingFrontendUrl()}/oauth/consent`,
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        validAudiences: [`${config.app.baseUrl}/mcp`],
-        clientReference: ({ session }) => getActiveOrganizationId(session),
+        validAudiences: [`${config.app.baseUrl}/mcp`, KRABICLAW_LEGAL_API_AUDIENCE],
+        clientReference: ({ user, session }) =>
+          getStaffRoles(getUserRole(user)).includes('super_admin')
+            ? KRABICLAW_OAUTH_CLIENT_REFERENCE
+            : getActiveOrganizationId(session),
         postLogin: {
           page: `${getMatchingFrontendUrl()}/oauth/select-org`,
           shouldRedirect: () => false,
           consentReferenceId: ({ session }) => getActiveOrganizationId(session),
         },
-        clientPrivileges: checkClientIsOwner,
+        clientPrivileges: checkOAuthClientPrivileges,
         customAccessTokenClaims: ({ referenceId }) => ({
           organization_id: referenceId,
         }),
