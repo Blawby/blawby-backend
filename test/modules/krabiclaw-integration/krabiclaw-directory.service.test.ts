@@ -1,4 +1,6 @@
-import Cloudflare from 'cloudflare';
+// oxlint-disable-next-line no-namespace
+import type * as CloudflareModule from 'cloudflare';
+import { AuthenticationError, InternalServerError, RateLimitError } from 'cloudflare';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -6,9 +8,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('cloudflare', async () => {
-  const actual = await vi.importActual<typeof import('cloudflare')>('cloudflare');
+  const actual = await vi.importActual<typeof CloudflareModule>('cloudflare');
   // Must be a plain function expression, not an arrow function — `new MockedCloudflare()`
   // Requires a real [[Construct]], which arrow functions don't have.
+  // oxlint-disable-next-line eslint/prefer-arrow-callback
   const MockedCloudflare = vi.fn().mockImplementation(function MockedCloudflare() {
     return { d1: { database: { query: mocks.query } } };
   });
@@ -38,6 +41,14 @@ const pageWith = (results: unknown[], metaOverrides: Record<string, unknown> = {
   result: [{ success: true, results, meta: { rows_written: 0, changed_db: false, ...metaOverrides } }],
 });
 
+// Must be a function declaration, not a const arrow — TypeScript's assertion-function
+// Narrowing (TS2775) only works reliably through a function declaration's stable,
+// Hoisted binding; a const-arrow assertion function fails to narrow at call sites.
+// oxlint-disable-next-line eslint/func-style
+function assertIsError(value: unknown): asserts value is Error {
+  expect(value).toBeInstanceOf(Error);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -49,13 +60,17 @@ describe('krabiclawDirectoryService', () => {
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
     await expect(krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1')).resolves.toEqual(okOrgRow);
+    // Vitest's asymmetric matchers (objectContaining/stringContaining/any) are typed `any`
+    // By design — they must be assignable into any expected shape. Safe here; not a real leak.
     expect(mocks.query).toHaveBeenCalledWith(
       'db-1',
       expect.objectContaining({
         account_id: 'account-1',
+        // oxlint-disable-next-line typescript/no-unsafe-assignment
         sql: expect.stringContaining('FROM organization'),
         params: ['org-1'],
       }),
+      // oxlint-disable-next-line typescript/no-unsafe-assignment
       expect.objectContaining({ maxRetries: 0, signal: expect.any(AbortSignal) })
     );
   });
@@ -68,6 +83,7 @@ describe('krabiclawDirectoryService', () => {
     await expect(krabiclawDirectoryService.getUserDirectoryRecord('user-1')).resolves.toEqual(okUserRow);
     expect(mocks.query).toHaveBeenCalledWith(
       'db-1',
+      // oxlint-disable-next-line typescript/no-unsafe-assignment
       expect.objectContaining({ sql: expect.stringContaining('FROM user'), params: ['user-1'] }),
       expect.anything()
     );
@@ -87,14 +103,14 @@ describe('krabiclawDirectoryService', () => {
     const { krabiclawDirectoryService } =
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
-    let caught: unknown;
+    let caught: unknown = undefined;
     try {
       await krabiclawDirectoryService.getOrganizationDirectoryRecord(distinctiveOrgId);
     } catch (error) {
       caught = error;
     }
-    expect(caught).toBeInstanceOf(Error);
-    expect((caught as Error).message).not.toContain(distinctiveOrgId);
+    assertIsError(caught);
+    expect(caught.message).not.toContain(distinctiveOrgId);
   });
 
   it('rejects when D1 unexpectedly returns duplicate rows for one id', async () => {
@@ -122,24 +138,24 @@ describe('krabiclawDirectoryService', () => {
   });
 
   it('wraps a D1 failure in a stable public error, preserving the original SDK error as its cause', async () => {
-    const sdkError = new Cloudflare.AuthenticationError(401, {}, 'unauthorized', new Headers());
+    const sdkError = new AuthenticationError(401, {}, 'unauthorized', new Headers());
     mocks.query.mockRejectedValueOnce(sdkError);
     const { krabiclawDirectoryService } =
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
-    let caught: unknown;
+    let caught: unknown = undefined;
     try {
       await krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1');
     } catch (error) {
       caught = error;
     }
-    expect(caught).toBeInstanceOf(Error);
-    expect((caught as Error).message).toBe('D1 organization lookup failed');
-    expect((caught as Error).cause).toBe(sdkError);
+    assertIsError(caught);
+    expect(caught.message).toBe('D1 organization lookup failed');
+    expect(caught.cause).toBe(sdkError);
   });
 
   it('does not retry an unauthorized (401) error', async () => {
-    mocks.query.mockRejectedValueOnce(new Cloudflare.AuthenticationError(401, {}, 'unauthorized', new Headers()));
+    mocks.query.mockRejectedValueOnce(new AuthenticationError(401, {}, 'unauthorized', new Headers()));
     const { krabiclawDirectoryService } =
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
@@ -149,7 +165,7 @@ describe('krabiclawDirectoryService', () => {
 
   it('retries exactly once on a 429, then succeeds', async () => {
     mocks.query
-      .mockRejectedValueOnce(new Cloudflare.RateLimitError(429, {}, 'rate limited', new Headers()))
+      .mockRejectedValueOnce(new RateLimitError(429, {}, 'rate limited', new Headers()))
       .mockResolvedValueOnce(pageWith([okOrgRow]));
     const { krabiclawDirectoryService } =
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
@@ -159,7 +175,7 @@ describe('krabiclawDirectoryService', () => {
   });
 
   it('retries at most once on repeated 5xx errors, then rejects', async () => {
-    mocks.query.mockRejectedValue(new Cloudflare.InternalServerError(500, {}, 'server error', new Headers()));
+    mocks.query.mockRejectedValue(new InternalServerError(500, {}, 'server error', new Headers()));
     const { krabiclawDirectoryService } =
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
@@ -186,7 +202,7 @@ describe('krabiclawDirectoryService', () => {
     try {
       mocks.query.mockImplementationOnce(async () => {
         vi.advanceTimersByTime(3001);
-        throw new Cloudflare.RateLimitError(429, {}, 'rate limited', new Headers());
+        throw new RateLimitError(429, {}, 'rate limited', new Headers());
       });
       const { krabiclawDirectoryService } =
         await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
@@ -204,11 +220,11 @@ describe('krabiclawDirectoryService', () => {
       config: { krabiclaw: { d1AccountId: 'account-1', d1DatabaseId: 'db-1', d1ApiToken: secretToken } },
     }));
     vi.resetModules();
-    mocks.query.mockRejectedValue(new Cloudflare.InternalServerError(500, {}, 'server error', new Headers()));
+    mocks.query.mockRejectedValue(new InternalServerError(500, {}, 'server error', new Headers()));
     const { krabiclawDirectoryService } =
       await import('@/modules/krabiclaw-integration/services/krabiclaw-directory.service');
 
-    let caught: unknown;
+    let caught: unknown = undefined;
     try {
       await krabiclawDirectoryService.getOrganizationDirectoryRecord('org-1');
     } catch (error) {
