@@ -27,6 +27,17 @@ The `client_secret` is shown exactly once. Capture both values immediately:
 Store both in the environment's secrets manager, not in any repo, ticket, or
 chat message that outlives the handoff.
 
+**`create` refuses to run a second time.** Per R2 (exactly one fixed
+KrabiClaw client), the script checks `config.krabiclaw.oauthClientId` before
+creating anything: if `KRABICLAW_OAUTH_CLIENT_ID` is already set for this
+environment, `create` exits with an error telling you to use `rotate`
+instead. This only guards against running the script again in an environment
+that already has `KRABICLAW_OAUTH_CLIENT_ID` configured — it can't stop a
+second client from being created in an environment where that variable
+hasn't been set yet (e.g. skipping step 1 above after a prior `create`). Set
+`KRABICLAW_OAUTH_CLIENT_ID` immediately after every successful `create`,
+before anyone can run the script again.
+
 ## Rotation
 
 Rotate on a schedule or immediately after any suspected exposure:
@@ -42,6 +53,12 @@ super_admin can rotate — it doesn't have to be whoever originally
 provisioned it (verified in Task 6 of the U1 plan). Update KrabiClaw's
 config with the new secret before or immediately after rotating, since
 there is no overlap window with the old secret.
+
+**`--client-id` must match `KRABICLAW_OAUTH_CLIENT_ID`.** `rotate` refuses to
+run if `KRABICLAW_OAUTH_CLIENT_ID` isn't configured for this environment
+(nothing to rotate), and refuses if the `--client-id` you passed doesn't
+match it — this exists so a typo or a stale value from another environment
+can't silently rotate the wrong client.
 
 ## Emergency revocation
 

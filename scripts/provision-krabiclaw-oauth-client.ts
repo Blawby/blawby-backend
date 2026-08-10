@@ -30,6 +30,7 @@ import { users } from '@/schema/better-auth-schema';
 import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { KRABICLAW_LEGAL_SCOPES } from '@/shared/auth/krabiclaw-oauth';
 import { getStaffRoles } from '@/shared/auth/permissions';
+import { config } from '@/shared/config';
 import { db } from '@/shared/database';
 import { eq } from 'drizzle-orm';
 
@@ -41,6 +42,28 @@ const getArg = (name: string): string | undefined => {
 const exitWithError = (message: string): never => {
   console.error(message);
   process.exit(1);
+};
+
+/**
+ * Exactly one KrabiClaw OAuth client may exist (R2). config.krabiclaw.oauthClientId
+ * is set once, by hand, after the first successful `create` (see the runbook) — its
+ * presence is what this script uses to tell "not provisioned yet" from "already provisioned".
+ */
+export const checkCreateAllowed = (configuredClientId: string | undefined): string | null => {
+  if (configuredClientId) {
+    return `KRABICLAW_OAUTH_CLIENT_ID is already set to ${configuredClientId}. Exactly one KrabiClaw OAuth client may exist for this environment — run "rotate --client-id ${configuredClientId}" instead of creating a second one.`;
+  }
+  return null;
+};
+
+export const checkRotateAllowed = (clientId: string, configuredClientId: string | undefined): string | null => {
+  if (!configuredClientId) {
+    return 'KRABICLAW_OAUTH_CLIENT_ID is not configured in this environment — nothing to rotate. Run "create" first, then set KRABICLAW_OAUTH_CLIENT_ID.';
+  }
+  if (clientId !== configuredClientId) {
+    return `--client-id ${clientId} does not match the configured KRABICLAW_OAUTH_CLIENT_ID (${configuredClientId}). Refusing to rotate an unrelated client.`;
+  }
+  return null;
 };
 
 const main = async (): Promise<void> => {
@@ -75,6 +98,11 @@ const main = async (): Promise<void> => {
   const headers = new Headers({ cookie });
 
   if (mode === 'create') {
+    const createBlocked = checkCreateAllowed(config.krabiclaw.oauthClientId);
+    if (createBlocked) {
+      exitWithError(createBlocked);
+    }
+
     const redirectUri = getArg('redirect-uri');
     if (!redirectUri) {
       exitWithError('--redirect-uri is required for create (the real KrabiClaw callback URL for this environment).');
@@ -106,6 +134,11 @@ const main = async (): Promise<void> => {
       exitWithError('--client-id is required for rotate.');
     }
 
+    const rotateBlocked = checkRotateAllowed(clientId, config.krabiclaw.oauthClientId);
+    if (rotateBlocked) {
+      exitWithError(rotateBlocked);
+    }
+
     const rotated = await auth.api.rotateClientSecret({ headers, body: { client_id: clientId } });
     console.log('\nKrabiClaw OAuth client secret rotated. Store this now — it is shown only once:\n');
     console.log(`  client_id:     ${rotated.client_id}`);
@@ -116,7 +149,12 @@ const main = async (): Promise<void> => {
   process.exit(0);
 };
 
-main().catch((error) => {
-  console.error('Error:', error);
-  process.exit(1);
-});
+// Only run the CLI when this file is executed directly (tsx), not when imported
+// for its testable exports (checkCreateAllowed, checkRotateAllowed).
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  main().catch((error) => {
+    console.error('Error:', error);
+    process.exit(1);
+  });
+}
