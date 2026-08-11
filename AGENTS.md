@@ -9,7 +9,7 @@ For concrete code examples and known cleanup rules to apply when touching existi
 Blawby is a legal-practice management backend for matters, clients, billing, invoices, subscriptions, trust accounting, and practice administration.
 
 - Runtime: Node.js `>=25.8.1`, ESM, TypeScript
-- Package manager: pnpm `11.3.0`
+- Package manager: pnpm `11.21.0`
 - HTTP: Hono with `@hono/zod-openapi`
 - Database: PostgreSQL with Drizzle ORM
 - Authentication: Better Auth

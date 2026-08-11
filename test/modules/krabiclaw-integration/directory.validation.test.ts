@@ -23,6 +23,12 @@ describe('organizationDirectoryRowSchema', () => {
       organizationDirectoryRowSchema.parse({ id: 'org-1', name: 'Acme Legal', slug: 'acme-legal', metadata: '{}' })
     ).toThrow();
   });
+
+  it('rejects whitespace-only id, name, or slug', () => {
+    expect(() => organizationDirectoryRowSchema.parse({ id: '   ', name: 'Acme Legal', slug: 'acme-legal' })).toThrow();
+    expect(() => organizationDirectoryRowSchema.parse({ id: 'org-1', name: '   ', slug: 'acme-legal' })).toThrow();
+    expect(() => organizationDirectoryRowSchema.parse({ id: 'org-1', name: 'Acme Legal', slug: '   ' })).toThrow();
+  });
 });
 
 describe('userDirectoryRowSchema', () => {
@@ -39,5 +45,10 @@ describe('userDirectoryRowSchema', () => {
 
   it('rejects a row missing name', () => {
     expect(() => userDirectoryRowSchema.parse({ id: 'user-1', email: 'jane@example.com' })).toThrow();
+  });
+
+  it('rejects whitespace-only id or name', () => {
+    expect(() => userDirectoryRowSchema.parse({ id: '   ', name: 'Jane Roe', email: 'jane@example.com' })).toThrow();
+    expect(() => userDirectoryRowSchema.parse({ id: 'user-1', name: '   ', email: 'jane@example.com' })).toThrow();
   });
 });

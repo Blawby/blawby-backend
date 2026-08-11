@@ -14,7 +14,7 @@ execution: code
 
 - **Goal:** Let KrabiClaw use selected Blawby legal operations without changing either product's current human authentication.
 - **Authority:** KrabiClaw owns sessions, organizations, memberships, roles, subscriptions, entitlements, and anonymous identity. Blawby owns legal data, transactions, events, jobs, Stripe operations, and webhooks.
-- **Shape:** KrabiClaw calls a versioned Blawby microservice facade with a fixed machine OAuth token and external organization/actor IDs.
+- **Shape:** KrabiClaw calls a versioned Blawby microservice facade with a client-credentials token issued to the fixed KrabiClaw confidential client and external organization/actor IDs.
 - **Compatibility:** Existing Blawby routes, CASL checks, service signatures, payment behavior, and webhook processing remain unchanged.
 - **Stop conditions:** Do not enable traffic if service-token isolation, identity-link concurrency, D1 capacity, mutation recovery, or both Stripe webhook destinations are unverified.
 
