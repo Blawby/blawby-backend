@@ -8,6 +8,7 @@ The goal is not to rewrite entire modules opportunistically. The goal is: when a
 
 When you touch a file, check for nearby instances of these known issues and fix them if the change is small and directly related:
 
+- Existing lint errors in the touched file; fix them when the correction is reasonably scoped, and never introduce new lint errors.
 - Relative imports in `src/`; use `@/` aliases.
 - Service or handler response wrappers; use throw-based services and direct handler responses.
 - Handler business logic, raw `c.req.param(...)`, or untyped handlers; use route-typed handlers and `c.req.valid(...)`.
@@ -21,6 +22,23 @@ When you touch a file, check for nearby instances of these known issues and fix 
 - Oversized files where the current change clearly belongs in an extracted helper or narrower service.
 
 If cleanup would broaden the task significantly, leave a note in the final response instead of doing a surprise refactor.
+
+Before finishing, run a lint check that covers every lintable file changed by the task. When repository-wide lint has unrelated failures, use a focused lint invocation to prove the touched files are clean and report the unrelated failures separately.
+
+## Anti-Slop Review
+
+For every added line, identify the requirement, defect, or established convention that justifies it. Remove additions without a concrete justification.
+
+Before finishing a changed file, check that:
+
+- Existing functions, types, modules, and utilities were reused where they already fit; the change does not introduce a competing pattern.
+- New abstractions hide meaningful complexity, have a clear owner, and are not merely one-use forwarding layers.
+- Names express the legal or product domain. Generic names such as `data`, `result`, `handle`, `process`, `manager`, and `utils` are used only when they are genuinely the clearest terms.
+- Comments record non-obvious intent, constraints, or tradeoffs rather than translating the implementation into prose.
+- Validation, retries, fallbacks, configuration, and extension points correspond to known requirements or observed failure modes rather than hypothetical future needs.
+- Tests assert observable contracts and relevant failure paths without duplicating the implementation or mocking away the interaction being tested.
+- No dead code, redundant comments, unnecessary indirection, duplicate helpers, unused dependencies, or remnants of abandoned approaches remain in the diff.
+- The final response states only what changed, how it was verified, and what remains unresolved.
 
 ## Handler Pattern
 
