@@ -686,6 +686,8 @@ const PG_SERIALIZATION_FAILURE = '40001';
 
 type AnchorKind = 'organization' | 'user';
 
+class IdentityAnchorInsertError extends Error {}
+
 interface AnchorContext {
   kind: AnchorKind;
   externalId: string;
@@ -739,6 +741,9 @@ const withAnchorLock = async <T>(context: AnchorContext, execute: () => Promise<
       return execute();
     });
   } catch (error) {
+    if (error instanceof IdentityAnchorInsertError) {
+      throw error;
+    }
     if (readPgCode(error) === PG_LOCK_NOT_AVAILABLE) {
       logger.warn('krabiclaw identity anchor lock timed out', anchorLogContext(context, readPgCode(error)));
       throw new HTTPException(409, {
@@ -769,10 +774,14 @@ const resolveOrganizationAnchor = async (
       .insert(organizations)
       .values({
         name: directory.name,
-        slug: `krabiclaw-${externalOrganizationId}`,
+        slug: `kc-anchor-${hashExternalId(externalOrganizationId).slice(0, 32)}`,
         createdAt: new Date(),
       })
       .returning();
+
+    if (!anchorOrganization) {
+      throw new IdentityAnchorInsertError('Identity anchor organization insert returned no row');
+    }
 
     const link = await krabiclawOrganizationLinksRepository.create({
       external_organization_id: externalOrganizationId,
@@ -803,6 +812,10 @@ const resolveUserAnchor = async (externalUserId: string, directory: KrabiClawUse
       })
       .returning();
 
+    if (!anchorUser) {
+      throw new IdentityAnchorInsertError('Identity anchor user insert returned no row');
+    }
+
     const link = await krabiclawUserLinksRepository.create({
       external_user_id: externalUserId,
       user_id: anchorUser.id,
@@ -819,18 +832,23 @@ const resolveIdentity = async (params: {
   externalUserId?: string;
   userDirectory?: KrabiClawUserDirectoryRecord;
 }): Promise<KrabiClawResolvedIdentity> => {
-  const organizationId = await resolveOrganizationAnchor(params.externalOrganizationId, params.organizationDirectory);
-
-  if (params.actorKind === 'anonymous') {
-    return { organizationId, userId: null };
-  }
-
-  if (!params.externalUserId || !params.userDirectory) {
+  const { externalUserId, userDirectory } = params;
+  if (params.actorKind === 'human' && (!externalUserId || !userDirectory)) {
     throw new Error('externalUserId and userDirectory are required to resolve a human actor');
   }
+  const humanIdentity =
+    params.actorKind === 'human' && externalUserId && userDirectory ? { externalUserId, userDirectory } : undefined;
 
-  const userId = await resolveUserAnchor(params.externalUserId, params.userDirectory);
-  return { organizationId, userId };
+  return uow.transaction(async () => {
+    const organizationId = await resolveOrganizationAnchor(params.externalOrganizationId, params.organizationDirectory);
+
+    if (!humanIdentity) {
+      return { organizationId, userId: null };
+    }
+
+    const userId = await resolveUserAnchor(humanIdentity.externalUserId, humanIdentity.userDirectory);
+    return { organizationId, userId };
+  });
 };
 
 export const krabiclawIdentityResolverService = {
@@ -843,7 +861,7 @@ export const krabiclawIdentityResolverService = {
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `pnpm exec vitest run test/modules/krabiclaw-integration/krabiclaw-identity-resolver.service.test.ts`
-Expected: PASS (9 tests). The lock-timeout test takes roughly 2 seconds (the `SET LOCAL lock_timeout = '2s'` wait) — this is expected, not a hang.
+Expected: PASS (14 tests). The lock-timeout test takes roughly 2 seconds (the `SET LOCAL lock_timeout = '2s'` wait) — this is expected, not a hang.
 
 - [ ] **Step 6: Commit**
 

@@ -145,6 +145,24 @@ describe('krabiclawIdentityResolverService', () => {
     expect(anchorUser?.email.endsWith('@blawby.invalid')).toBe(true);
   });
 
+  it('resolves concurrent requests for the same external user to one anchor', async () => {
+    const externalUserId = randomUUID();
+    const directory = userDirectory(externalUserId);
+
+    const [first, second] = await Promise.all([
+      resolveUserAnchor(externalUserId, directory),
+      resolveUserAnchor(externalUserId, directory),
+    ]);
+
+    expect(second).toBe(first);
+
+    const links = await getTestDb()
+      .select()
+      .from(krabiclawUserLinks)
+      .where(eq(krabiclawUserLinks.external_user_id, externalUserId));
+    expect(links).toHaveLength(1);
+  });
+
   it('surfaces an anchor email collision as a sanitized conflict and creates no orphan link', async () => {
     const externalUserId = `sensitive-${randomUUID()}`;
     const directoryEmail = `directory-${randomUUID()}@example.test`;
