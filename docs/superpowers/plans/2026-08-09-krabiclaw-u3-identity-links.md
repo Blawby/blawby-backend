@@ -24,6 +24,7 @@
 ### Task 1: Identity link schema (organization + user tables)
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/database/schema/krabiclaw-organization-links.schema.ts`
 - Create: `src/modules/krabiclaw-integration/database/schema/krabiclaw-user-links.schema.ts`
 - Create: `src/modules/krabiclaw-integration/database/schema/index.ts`
@@ -31,6 +32,7 @@
 - Test: `test/modules/krabiclaw-integration/krabiclaw-identity-links.schema.test.ts`
 
 **Interfaces:**
+
 - Produces: `krabiclawOrganizationLinks` table, `InsertKrabiClawOrganizationLink`, `SelectKrabiClawOrganizationLink` types.
 - Produces: `krabiclawUserLinks` table, `InsertKrabiClawUserLink`, `SelectKrabiClawUserLink` types.
 - Consumed by: Task 2 (org repository), Task 3 (user repository), Task 4 (resolver service).
@@ -175,10 +177,12 @@ git commit -m "feat(krabiclaw-integration): add identity link schema"
 ### Task 2: Organization link repository
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/database/queries/krabiclaw-organization-links.repository.ts`
 - Test: `test/modules/krabiclaw-integration/krabiclaw-organization-links.repository.test.ts`
 
 **Interfaces:**
+
 - Consumes: `krabiclawOrganizationLinks`, `InsertKrabiClawOrganizationLink`, `SelectKrabiClawOrganizationLink` from Task 1.
 - Produces: `krabiclawOrganizationLinksRepository = { findByExternalId, create }` — `findByExternalId(externalOrganizationId: string): Promise<SelectKrabiClawOrganizationLink | undefined>`, `create(data: InsertKrabiClawOrganizationLink): Promise<SelectKrabiClawOrganizationLink>` (idempotent: a second `create` call with the same `external_organization_id` returns the existing row instead of throwing). Consumed by Task 4 (resolver service).
 
@@ -317,10 +321,12 @@ git commit -m "feat(krabiclaw-integration): add organization link repository"
 ### Task 3: User link repository
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/database/queries/krabiclaw-user-links.repository.ts`
 - Test: `test/modules/krabiclaw-integration/krabiclaw-user-links.repository.test.ts`
 
 **Interfaces:**
+
 - Consumes: `krabiclawUserLinks`, `InsertKrabiClawUserLink`, `SelectKrabiClawUserLink` from Task 1.
 - Produces: `krabiclawUserLinksRepository = { findByExternalId, create }` — same shape and idempotency contract as Task 2's repository, keyed on `external_user_id`/`user_id`. Consumed by Task 4.
 
@@ -457,12 +463,14 @@ git commit -m "feat(krabiclaw-integration): add user link repository"
 ### Task 4: Identity resolver service
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/types/identity.types.ts`
 - Create: `src/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service.ts`
 - Test: `test/modules/krabiclaw-integration/krabiclaw-identity-resolver.service.test.ts`
 
 **Interfaces:**
-- Consumes: `krabiclawOrganizationLinksRepository` (Task 2), `krabiclawUserLinksRepository` (Task 3), `KrabiClawOrganizationDirectoryRecord`/`KrabiClawUserDirectoryRecord` from `@/modules/krabiclaw-integration/types/directory.types` (shipped in U2 — `{ id, name, slug }` and `{ id, name, email }` respectively), `organizations`/`users` from `@/schema/better-auth-schema`, `uow`/`getActiveTx` from `@/shared/database/uow`, `wrapDbError` from `@/shared/utils/db-error`.
+
+- Consumes: `krabiclawOrganizationLinksRepository` (Task 2), `krabiclawUserLinksRepository` (Task 3), `KrabiClawOrganizationDirectoryRecord`/`KrabiClawUserDirectoryRecord` from `@/modules/krabiclaw-integration/types/directory.types` (shipped in U2 — `{ id, name, slug }` and `{ id, name, email }` respectively), `organizations`/`users` from `@/schema/better-auth-schema`, and `uow`/`getActiveTx` from `@/shared/database/uow`.
 - Produces: `KrabiClawActorKind = 'human' | 'anonymous'`, `KrabiClawResolvedIdentity = { organizationId: string; userId: string | null }`, and `krabiclawIdentityResolverService = { resolveOrganizationAnchor, resolveUserAnchor, resolveIdentity }` where:
   - `resolveOrganizationAnchor(externalOrganizationId: string, directory: KrabiClawOrganizationDirectoryRecord): Promise<string>` — returns the local `organizations.id`, creating an anchor row + link row on first call.
   - `resolveUserAnchor(externalUserId: string, directory: KrabiClawUserDirectoryRecord): Promise<string>` — returns the local `users.id`, creating an anchor row + link row on first call.
@@ -493,6 +501,7 @@ import { describe, expect, it } from 'vitest';
 import { krabiclawOrganizationLinks } from '@/modules/krabiclaw-integration/database/schema/krabiclaw-organization-links.schema';
 import { krabiclawUserLinks } from '@/modules/krabiclaw-integration/database/schema/krabiclaw-user-links.schema';
 import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
+import { users } from '@/schema/better-auth-schema';
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb, getTestPool } from '@/test/helpers/db';
 
@@ -562,9 +571,7 @@ describe('krabiclawIdentityResolverService', () => {
     await holder.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
 
     try {
-      await expect(resolveOrganizationAnchor(externalOrganizationId, directory)).rejects.toBeInstanceOf(
-        HTTPException
-      );
+      await expect(resolveOrganizationAnchor(externalOrganizationId, directory)).rejects.toBeInstanceOf(HTTPException);
     } finally {
       await holder.query('ROLLBACK');
       holder.release();
@@ -589,19 +596,14 @@ describe('krabiclawIdentityResolverService', () => {
     expect(link?.user_id).toBe(userId);
   });
 
-  it('surfaces an email collision with an existing Blawby user as a conflict and creates no orphan link', async () => {
-    const existingUser = await authHelpers.createTestUser();
+  it('stores a non-deliverable anchor email instead of the directory email', async () => {
     const externalUserId = randomUUID();
+    const directory = userDirectory(externalUserId);
+    const userId = await resolveUserAnchor(externalUserId, directory);
 
-    await expect(
-      resolveUserAnchor(externalUserId, { id: externalUserId, name: 'Collides', email: existingUser.email })
-    ).rejects.toBeInstanceOf(HTTPException);
-
-    const links = await getTestDb()
-      .select()
-      .from(krabiclawUserLinks)
-      .where(eq(krabiclawUserLinks.external_user_id, externalUserId));
-    expect(links).toHaveLength(0);
+    const [anchorUser] = await getTestDb().select().from(users).where(eq(users.id, userId));
+    expect(anchorUser?.email).not.toBe(directory.email);
+    expect(anchorUser?.email.endsWith('@blawby.invalid')).toBe(true);
   });
 
   it('never creates a user anchor for an anonymous actor', async () => {
@@ -656,6 +658,7 @@ Expected: FAIL — cannot find module `@/modules/krabiclaw-integration/services/
 
 ```typescript
 // src/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service.ts
+import { createHash } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -666,43 +669,84 @@ import type {
   KrabiClawOrganizationDirectoryRecord,
   KrabiClawUserDirectoryRecord,
 } from '@/modules/krabiclaw-integration/types/directory.types';
-import type { KrabiClawResolvedIdentity, KrabiClawActorKind } from '@/modules/krabiclaw-integration/types/identity.types';
+import type {
+  KrabiClawResolvedIdentity,
+  KrabiClawActorKind,
+} from '@/modules/krabiclaw-integration/types/identity.types';
 import { organizations, users } from '@/schema/better-auth-schema';
 import { getActiveTx, uow } from '@/shared/database/uow';
-import { wrapDbError } from '@/shared/utils/db-error';
 
 const logger = getLogger(['modules', 'krabiclaw-integration', 'identity-resolver']);
 
 const LOCK_TIMEOUT = '2s';
+const PG_LOCK_NOT_AVAILABLE = '55P03';
+const PG_UNIQUE_VIOLATION = '23505';
+const PG_FOREIGN_KEY_VIOLATION = '23503';
+const PG_SERIALIZATION_FAILURE = '40001';
 
-const readCode = (error: unknown): unknown =>
-  error && typeof error === 'object' && 'code' in error ? (error as { code?: unknown }).code : null;
+type AnchorKind = 'organization' | 'user';
 
-const isLockTimeout = (error: unknown): boolean => {
-  if (readCode(error) === '55P03') {
-    return true;
+interface AnchorContext {
+  kind: AnchorKind;
+  externalId: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const readCode = (value: unknown): unknown => (isRecord(value) ? value.code : undefined);
+
+const readPgCode = (error: unknown): unknown =>
+  readCode(error) ?? (isRecord(error) ? readCode(error.cause) : undefined);
+
+const hashExternalId = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+const anchorLogContext = (context: AnchorContext, errorCode?: unknown): Record<string, unknown> => ({
+  anchorKind: context.kind,
+  externalIdHash: hashExternalId(context.externalId).slice(0, 16),
+  ...(typeof errorCode === 'string' ? { errorCode } : {}),
+});
+
+const createAnchorEmail = (externalUserId: string): string =>
+  `kc-anchor-${hashExternalId(externalUserId).slice(0, 48)}@blawby.invalid`;
+
+const throwAnchorDatabaseError = (error: unknown, context: AnchorContext): never => {
+  const code = readPgCode(error);
+  const logContext = anchorLogContext(context, code);
+  if (code === PG_UNIQUE_VIOLATION) {
+    logger.warn('krabiclaw identity anchor unique constraint violation', logContext);
+    throw new HTTPException(409, { message: 'Resource already exists', cause: error });
   }
-  const cause = error && typeof error === 'object' && 'cause' in error ? (error as { cause?: unknown }).cause : null;
-  return readCode(cause) === '55P03';
+  if (code === PG_FOREIGN_KEY_VIOLATION) {
+    logger.warn('krabiclaw identity anchor foreign key violation', logContext);
+    throw new HTTPException(400, { message: 'Invalid reference — related resource not found', cause: error });
+  }
+  if (code === PG_SERIALIZATION_FAILURE) {
+    logger.error('krabiclaw identity anchor serialization failure', logContext);
+    throw new Error('Identity anchor database serialization failure — retry', { cause: error });
+  }
+  logger.error('krabiclaw identity anchor database operation failed', logContext);
+  throw new Error('Identity anchor database operation failed', { cause: error });
 };
 
-const withAnchorLock = async <T>(lockKey: string, execute: () => Promise<T>): Promise<T> => {
+const withAnchorLock = async <T>(context: AnchorContext, execute: () => Promise<T>): Promise<T> => {
+  const lockNamespace = context.kind === 'organization' ? 'org-link' : 'user-link';
+  const lockKey = `krabiclaw:${lockNamespace}:${context.externalId}`;
   try {
     return await uow.transaction(async () => {
       const trx = getActiveTx();
-      // SET LOCAL does not accept a bind parameter — the value must be a literal.
       await trx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`));
       await trx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
       return execute();
     });
   } catch (error) {
-    if (isLockTimeout(error)) {
-      logger.warn('krabiclaw identity anchor lock timed out: {lockKey}', { lockKey });
+    if (readPgCode(error) === PG_LOCK_NOT_AVAILABLE) {
+      logger.warn('krabiclaw identity anchor lock timed out', anchorLogContext(context, readPgCode(error)));
       throw new HTTPException(409, {
         message: 'Identity resolution timed out due to concurrent activity. Please retry.',
+        cause: error,
       });
     }
-    return wrapDbError(error);
+    return throwAnchorDatabaseError(error, context);
   }
 };
 
@@ -715,7 +759,7 @@ const resolveOrganizationAnchor = async (
     return existing.organization_id;
   }
 
-  return withAnchorLock(`krabiclaw:org-link:${externalOrganizationId}`, async () => {
+  return withAnchorLock({ kind: 'organization', externalId: externalOrganizationId }, async () => {
     const alreadyLinked = await krabiclawOrganizationLinksRepository.findByExternalId(externalOrganizationId);
     if (alreadyLinked) {
       return alreadyLinked.organization_id;
@@ -739,16 +783,13 @@ const resolveOrganizationAnchor = async (
   });
 };
 
-const resolveUserAnchor = async (
-  externalUserId: string,
-  directory: KrabiClawUserDirectoryRecord
-): Promise<string> => {
+const resolveUserAnchor = async (externalUserId: string, directory: KrabiClawUserDirectoryRecord): Promise<string> => {
   const existing = await krabiclawUserLinksRepository.findByExternalId(externalUserId);
   if (existing) {
     return existing.user_id;
   }
 
-  return withAnchorLock(`krabiclaw:user-link:${externalUserId}`, async () => {
+  return withAnchorLock({ kind: 'user', externalId: externalUserId }, async () => {
     const alreadyLinked = await krabiclawUserLinksRepository.findByExternalId(externalUserId);
     if (alreadyLinked) {
       return alreadyLinked.user_id;
@@ -758,7 +799,7 @@ const resolveUserAnchor = async (
       .insert(users)
       .values({
         name: directory.name,
-        email: directory.email,
+        email: createAnchorEmail(externalUserId),
       })
       .returning();
 
@@ -816,12 +857,14 @@ git commit -m "feat(krabiclaw-integration): add identity resolver service"
 ### Task 5: Intake request-key persistence
 
 **Files:**
+
 - Modify: `src/modules/practice-client-intakes/database/schema/practice-client-intakes.schema.ts`
 - Modify: `src/modules/practice-client-intakes/database/queries/practice-client-intakes.repository.ts`
 - Create (generated): a new migration via `pnpm run db:generate`
 - Test: `test/modules/practice-client-intakes/krabiclaw-request-key.repository.test.ts`
 
 **Interfaces:**
+
 - Consumes: `practiceClientIntakes`, `InsertPracticeClientIntake`, `SelectPracticeClientIntake` (existing, being extended).
 - Produces: a nullable `krabiclaw_request_key: uuid` column on `practice_client_intakes` with a partial unique index on `(organization_id, krabiclaw_request_key) WHERE krabiclaw_request_key IS NOT NULL`; two new repository functions added to `practiceClientIntakesRepository`: `findByKrabiClawRequestKey(organizationId: string, requestKey: string): Promise<SelectPracticeClientIntake | undefined>` and `createWithKrabiClawRequestKey(data: InsertPracticeClientIntake & { krabiclaw_request_key: string }): Promise<SelectPracticeClientIntake>` (idempotent create — a second call with the same `organization_id` + `krabiclaw_request_key` returns the first row instead of inserting a duplicate). Consumed by U6 (intake operation extraction), not wired into any route in this unit.
 
@@ -838,7 +881,10 @@ import { authHelpers } from '@/test/helpers/auth';
 
 const { createTestOrganization } = authHelpers;
 
-const baseIntake = (organizationId: string, requestKey: string): InsertPracticeClientIntake & {
+const baseIntake = (
+  organizationId: string,
+  requestKey: string
+): InsertPracticeClientIntake & {
   krabiclaw_request_key: string;
 } => ({
   organization_id: organizationId,
@@ -854,9 +900,7 @@ describe('practiceClientIntakesRepository krabiclaw request key', () => {
     const org = await createTestOrganization();
     const requestKey = randomUUID();
 
-    const created = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
-      baseIntake(org.id, requestKey)
-    );
+    const created = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey));
 
     expect(created.krabiclaw_request_key).toBe(requestKey);
 
@@ -869,9 +913,7 @@ describe('practiceClientIntakesRepository krabiclaw request key', () => {
     const requestKey = randomUUID();
 
     const first = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey));
-    const second = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
-      baseIntake(org.id, requestKey)
-    );
+    const second = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey));
 
     expect(second.id).toBe(first.id);
   });
@@ -1046,6 +1088,7 @@ git commit -m "feat(practice-client-intakes): add krabiclaw request-key idempote
 ### Task 6: Connect operation snapshots
 
 **Files:**
+
 - Create: `src/modules/onboarding/schemas/krabiclaw-connect-operations.schema.ts`
 - Modify: `src/modules/onboarding/schemas/index.ts`
 - Create: `src/modules/onboarding/database/queries/krabiclaw-connect-operations.repository.ts`
@@ -1053,6 +1096,7 @@ git commit -m "feat(practice-client-intakes): add krabiclaw request-key idempote
 - Test: `test/modules/onboarding/krabiclaw-connect-operations.repository.test.ts`
 
 **Interfaces:**
+
 - Consumes: `organizations` from `@/schema/better-auth-schema`, `stripeConnectedAccounts` from `@/modules/onboarding/schemas/onboarding.schema`.
 - Produces: `krabiclawConnectOperations` table (`id`, `organization_id`, `request_key`, `status: 'pending' | 'succeeded' | 'failed'`, `connected_account_id`, `error_message`, timestamps), `KRABICLAW_CONNECT_OPERATION_STATUSES`, `InsertKrabiClawConnectOperation`, `SelectKrabiClawConnectOperation`; `krabiclawConnectOperationsRepository = { findByRequestKey, createPending, markSucceeded, markFailed }` where `createPending` is idempotent per `(organization_id, request_key)`. Consumed by U5 (Connect operation extraction), not wired into any route in this unit.
 
@@ -1174,10 +1218,7 @@ export const krabiclawConnectOperations = pgTable(
   (table) => [
     uniqueIndex('krabiclaw_connect_operations_org_request_idx').on(table.organization_id, table.request_key),
     index('krabiclaw_connect_operations_status_idx').on(table.status),
-    check(
-      'krabiclaw_connect_operations_status_check',
-      sql`${table.status} IN ('pending', 'succeeded', 'failed')`
-    ),
+    check('krabiclaw_connect_operations_status_check', sql`${table.status} IN ('pending', 'succeeded', 'failed')`),
   ]
 );
 
@@ -1255,7 +1296,7 @@ const createPending = async (
 const markSucceeded = async (id: string, connectedAccountId: string): Promise<SelectKrabiClawConnectOperation> => {
   const [operation] = await getActiveTx()
     .update(krabiclawConnectOperations)
-    .set({ status: 'succeeded', connected_account_id: connectedAccountId, error_message: null })
+    .set({ status: 'succeeded', connected_account_id: connectedAccountId, error_message: null, updated_at: new Date() })
     .where(and(eq(krabiclawConnectOperations.id, id), eq(krabiclawConnectOperations.status, 'pending')))
     .returning();
   if (!operation) {
@@ -1267,7 +1308,7 @@ const markSucceeded = async (id: string, connectedAccountId: string): Promise<Se
 const markFailed = async (id: string, errorMessage: string): Promise<SelectKrabiClawConnectOperation> => {
   const [operation] = await getActiveTx()
     .update(krabiclawConnectOperations)
-    .set({ status: 'failed', error_message: errorMessage })
+    .set({ status: 'failed', error_message: errorMessage, updated_at: new Date() })
     .where(and(eq(krabiclawConnectOperations.id, id), eq(krabiclawConnectOperations.status, 'pending')))
     .returning();
   if (!operation) {

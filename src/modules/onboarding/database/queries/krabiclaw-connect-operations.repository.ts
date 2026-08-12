@@ -48,7 +48,12 @@ const createPending = async (
 const markSucceeded = async (id: string, connectedAccountId: string): Promise<SelectKrabiClawConnectOperation> => {
   const [operation] = await getActiveTx()
     .update(krabiclawConnectOperations)
-    .set({ status: 'succeeded', connected_account_id: connectedAccountId, error_message: null })
+    .set({
+      status: 'succeeded',
+      connected_account_id: connectedAccountId,
+      error_message: null,
+      updated_at: new Date(),
+    })
     .where(and(eq(krabiclawConnectOperations.id, id), eq(krabiclawConnectOperations.status, 'pending')))
     .returning();
   if (!operation) {
@@ -60,7 +65,7 @@ const markSucceeded = async (id: string, connectedAccountId: string): Promise<Se
 const markFailed = async (id: string, errorMessage: string): Promise<SelectKrabiClawConnectOperation> => {
   const [operation] = await getActiveTx()
     .update(krabiclawConnectOperations)
-    .set({ status: 'failed', error_message: errorMessage })
+    .set({ status: 'failed', error_message: errorMessage, updated_at: new Date() })
     .where(and(eq(krabiclawConnectOperations.id, id), eq(krabiclawConnectOperations.status, 'pending')))
     .returning();
   if (!operation) {
