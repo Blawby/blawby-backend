@@ -218,6 +218,7 @@ describe('krabiclawIdentityResolverService', () => {
     }
     expect(caught.message).toBe('Identity anchor database serialization failure — retry');
     expect(caught.cause).toBe(databaseFailure);
+    expect(mocks.logger.error).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(externalOrganizationId);
     expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(databaseFailure.detail);
   });
@@ -243,6 +244,7 @@ describe('krabiclawIdentityResolverService', () => {
     }
     expect(caught.message).toBe('Identity anchor database operation failed');
     expect(caught.cause).toBe(databaseFailure);
+    expect(mocks.logger.error).toHaveBeenCalledTimes(1);
     const loggedFailure = JSON.stringify(mocks.logger.error.mock.calls);
     expect(loggedFailure).not.toContain(externalOrganizationId);
     expect(loggedFailure).not.toContain(databaseFailure.message);

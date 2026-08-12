@@ -29,10 +29,13 @@ describe('krabiclaw identity link schema', () => {
 
   it('keeps user links one-to-one in both directions', () => {
     const config = getTableConfig(krabiclawUserLinks);
-    const indexNames = config.indexes.map((index) => index.config.name);
+    const externalIdIndex = config.indexes.find(
+      (index) => index.config.name === 'krabiclaw_user_links_external_id_idx'
+    );
+    const userIdIndex = config.indexes.find((index) => index.config.name === 'krabiclaw_user_links_user_id_idx');
 
-    expect(indexNames).toContain('krabiclaw_user_links_external_id_idx');
-    expect(indexNames).toContain('krabiclaw_user_links_user_id_idx');
+    expect(externalIdIndex?.config.unique).toBe(true);
+    expect(userIdIndex?.config.unique).toBe(true);
   });
 
   it('restricts user anchor deletion', () => {
