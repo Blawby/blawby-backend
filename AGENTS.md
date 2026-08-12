@@ -9,7 +9,7 @@ For concrete code examples and known cleanup rules to apply when touching existi
 Blawby is a legal-practice management backend for matters, clients, billing, invoices, subscriptions, trust accounting, and practice administration.
 
 - Runtime: Node.js `>=25.8.1`, ESM, TypeScript
-- Package manager: pnpm `11.3.0`
+- Package manager: pnpm `11.21.0`
 - HTTP: Hono with `@hono/zod-openapi`
 - Database: PostgreSQL with Drizzle ORM
 - Authentication: Better Auth
@@ -28,6 +28,16 @@ Blawby is a legal-practice management backend for matters, clients, billing, inv
 5. Work with existing uncommitted changes. Never revert unrelated user changes.
 6. Ask only when missing information cannot be discovered and a reasonable assumption would be risky.
 7. Finish with focused validation and review the final diff for dead code and accidental scope expansion.
+8. Do not introduce new lint errors. When practical, capture a focused lint baseline before editing files that already fail lint. Run lint checks that cover every lintable file you touched, and fix existing lint errors in those files when the fixes are reasonably scoped to the task. If a touched-file lint error cannot be fixed safely without broadening the task, report it explicitly in the final response.
+
+## Avoid AI Slop
+
+- Every new file, dependency, abstraction, helper, wrapper, comment, validation, fallback, retry, or configuration option must serve a verified requirement or an established repository pattern. Do not add speculative infrastructure.
+- Prefer extending the existing implementation over creating a parallel pattern. Use domain-specific names instead of generic names such as `data`, `result`, `handler`, `processor`, or `utils` when the domain provides a clearer term.
+- Comments must explain non-obvious intent, constraints, or tradeoffs. Do not narrate code, restate types, or leave tutorial-style commentary.
+- Tests must prove meaningful behavior and failure modes. Do not mirror implementation details, add redundant mocks, or write assertions solely to increase coverage.
+- Before finishing, review every added line and remove dead code, redundant comments, one-use indirection, speculative extensibility, and artifacts from abandoned approaches.
+- Keep final responses factual and concise: summarize changed behavior, validation performed, and unresolved issues without generic filler.
 
 ## Evidence Before Action
 
@@ -165,6 +175,8 @@ pnpm run typecheck
 pnpm run format:check
 pnpm run lint
 ```
+
+At minimum, lint every lintable file changed by the task. The final diff must not introduce new lint errors, and existing lint errors in touched files should be fixed when doing so is reasonably scoped. If a touched file cannot be made lint-clean without broadening the task, compare the focused result with its pre-change baseline and report the remaining errors. If the repository-wide lint command has unrelated failures, also run a focused lint check for the touched files and report the unrelated failures separately.
 
 Also run the smallest relevant Vitest command. If Vitest assertions pass but the process fails because of a worker-pool or teardown problem, report both facts accurately rather than claiming a clean pass.
 

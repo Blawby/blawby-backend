@@ -31,7 +31,21 @@ const MODULE_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/modules.ge
 const MCP_TOOLS_OUTPUT = join(process.cwd(), 'src/modules/mcp/mcp.tools.generated.ts');
 const UOW_OUTPUT = join(process.cwd(), 'src/shared/database/uow.generated.ts');
 
-const EXCLUDED_MODULES = ['auth', 'analytics', 'billing', 'admin', 'customers', 'events', 'health', 'mcp', 'settings'];
+const EXCLUDED_MODULES = [
+  'auth',
+  'analytics',
+  'billing',
+  'admin',
+  'customers',
+  'events',
+  'health',
+  'mcp',
+  'settings',
+  // TODO(U4): krabiclaw-integration has services/schema/validations but no http.ts
+  // Yet (U1-U3 built its identity/directory foundation without exposing routes).
+  // Remove this exclusion once U4 adds src/modules/krabiclaw-integration/http.ts.
+  'krabiclaw-integration',
+];
 
 if (!isDevelopment()) {
   EXCLUDED_MODULES.push('dev');

@@ -5,7 +5,7 @@ const TEST_TIMEOUT = 30000;
 const HOOK_TIMEOUT = 60000;
 
 export default defineConfig({
-  plugins: [tsconfigPaths({ projects: ['./test/tsconfig.json', './tsconfig.json'] })],
+  plugins: [tsconfigPaths({ projects: ['./test/tsconfig.json', './scripts/tsconfig.json', './tsconfig.json'] })],
   test: {
     globals: true,
     environment: 'node',
