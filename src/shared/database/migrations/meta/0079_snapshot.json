@@ -1,5 +1,5 @@
 {
-  "id": "f38b30e9-e463-4d99-a29f-180e0ea039f7",
+  "id": "cbe95076-6f6b-4aa7-b821-fb6d1ad7c17c",
   "prevId": "3ef48c9c-a678-4b50-97fc-4424e60811b7",
   "version": "7",
   "dialect": "postgresql",
@@ -7001,17 +7001,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "krabiclaw_connect_operations_connected_account_id_stripe_connected_accounts_id_fk": {
-          "name": "krabiclaw_connect_operations_connected_account_id_stripe_connected_accounts_id_fk",
+        "krabiclaw_connect_operations_connected_account_org_fk": {
+          "name": "krabiclaw_connect_operations_connected_account_org_fk",
           "tableFrom": "krabiclaw_connect_operations",
           "tableTo": "stripe_connected_accounts",
           "columnsFrom": [
-            "connected_account_id"
+            "connected_account_id",
+            "organization_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "organization_id"
           ],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -7194,6 +7196,14 @@
           "nullsNotDistinct": false,
           "columns": [
             "account_id"
+          ]
+        },
+        "stripe_connected_accounts_id_organization_id_unique": {
+          "name": "stripe_connected_accounts_id_organization_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "organization_id"
           ]
         }
       },

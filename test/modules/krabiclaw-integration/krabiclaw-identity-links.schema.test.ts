@@ -7,10 +7,15 @@ import { krabiclawUserLinks } from '@/modules/krabiclaw-integration/database/sch
 describe('krabiclaw identity link schema', () => {
   it('keeps organization links one-to-one in both directions', () => {
     const config = getTableConfig(krabiclawOrganizationLinks);
-    const indexNames = config.indexes.map((index) => index.config.name);
+    const externalIdIndex = config.indexes.find(
+      (index) => index.config.name === 'krabiclaw_organization_links_external_id_idx'
+    );
+    const organizationIdIndex = config.indexes.find(
+      (index) => index.config.name === 'krabiclaw_organization_links_organization_id_idx'
+    );
 
-    expect(indexNames).toContain('krabiclaw_organization_links_external_id_idx');
-    expect(indexNames).toContain('krabiclaw_organization_links_organization_id_idx');
+    expect(externalIdIndex?.config.unique).toBe(true);
+    expect(organizationIdIndex?.config.unique).toBe(true);
   });
 
   it('restricts organization anchor deletion', () => {

@@ -82,6 +82,33 @@ describe('krabiclawConnectOperationsRepository', () => {
     );
   });
 
+  it('only attaches connected accounts owned by the operation organization', async () => {
+    const operationOrganization = await createTestOrganization();
+    const otherOrganization = await createTestOrganization();
+    const operation = await krabiclawConnectOperationsRepository.createPending({
+      organization_id: operationOrganization.id,
+      request_key: randomUUID(),
+    });
+
+    const otherOrganizationAccountId = await createConnectedAccount(otherOrganization.id);
+    await expect(
+      krabiclawConnectOperationsRepository.markSucceeded(operation.id, otherOrganizationAccountId)
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+        constraint: 'krabiclaw_connect_operations_connected_account_org_fk',
+      },
+    });
+
+    const operationOrganizationAccountId = await createConnectedAccount(operationOrganization.id);
+    const succeeded = await krabiclawConnectOperationsRepository.markSucceeded(
+      operation.id,
+      operationOrganizationAccountId
+    );
+
+    expect(succeeded.connected_account_id).toBe(operationOrganizationAccountId);
+  });
+
   it('marks an operation failed exactly once', async () => {
     const org = await createTestOrganization();
     const requestKey = randomUUID();

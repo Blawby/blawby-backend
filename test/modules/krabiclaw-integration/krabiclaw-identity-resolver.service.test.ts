@@ -7,7 +7,7 @@ import { krabiclawOrganizationLinksRepository } from '@/modules/krabiclaw-integr
 import { krabiclawOrganizationLinks } from '@/modules/krabiclaw-integration/database/schema/krabiclaw-organization-links.schema';
 import { krabiclawUserLinks } from '@/modules/krabiclaw-integration/database/schema/krabiclaw-user-links.schema';
 import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
-import { users } from '@/schema/better-auth-schema';
+import { organizations, users } from '@/schema/better-auth-schema';
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb, getTestPool } from '@/test/helpers/db';
 
@@ -32,6 +32,8 @@ const anchorEmailFor = (externalUserId: string): string => {
   const digest = createHash('sha256').update(externalUserId).digest('hex').slice(0, 48);
   return `kc-anchor-${digest}@blawby.invalid`;
 };
+const anchorSlugFor = (externalOrganizationId: string): string =>
+  `kc-anchor-${createHash('sha256').update(externalOrganizationId).digest('hex').slice(0, 32)}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -55,6 +57,13 @@ describe('krabiclawIdentityResolverService', () => {
       .from(krabiclawOrganizationLinks)
       .where(eq(krabiclawOrganizationLinks.external_organization_id, externalOrganizationId));
     expect(link?.organization_id).toBe(organizationId);
+
+    const [anchorOrganization] = await getTestDb()
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+    expect(anchorOrganization?.slug).toBe(anchorSlugFor(externalOrganizationId));
+    expect(anchorOrganization?.slug).not.toContain(externalOrganizationId);
   });
 
   it('returns the same organization anchor on repeated resolution without creating a duplicate', async () => {
@@ -113,6 +122,7 @@ describe('krabiclawIdentityResolverService', () => {
       .from(krabiclawOrganizationLinks)
       .where(eq(krabiclawOrganizationLinks.external_organization_id, externalOrganizationId));
     expect(links).toHaveLength(0);
+    expect(mocks.logger.warn).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain(externalOrganizationId);
   });
 
@@ -149,6 +159,7 @@ describe('krabiclawIdentityResolverService', () => {
       .from(krabiclawUserLinks)
       .where(eq(krabiclawUserLinks.external_user_id, externalUserId));
     expect(links).toHaveLength(0);
+    expect(mocks.logger.warn).toHaveBeenCalledTimes(1);
     const loggedFailure = JSON.stringify(mocks.logger.warn.mock.calls);
     expect(loggedFailure).not.toContain(externalUserId);
     expect(loggedFailure).not.toContain(directoryEmail);
@@ -178,6 +189,7 @@ describe('krabiclawIdentityResolverService', () => {
     }
     expect(caught.status).toBe(400);
     expect(caught.cause).toBe(databaseFailure);
+    expect(mocks.logger.warn).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain(externalOrganizationId);
     expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain(databaseFailure.detail);
   });
@@ -265,6 +277,28 @@ describe('krabiclawIdentityResolverService', () => {
     expect(identity.userId).toBeTruthy();
   });
 
+  it('rolls back the organization anchor when human user resolution fails', async () => {
+    const externalOrganizationId = randomUUID();
+    const externalUserId = randomUUID();
+    await authHelpers.createTestUser({ email: anchorEmailFor(externalUserId) });
+
+    await expect(
+      resolveIdentity({
+        externalOrganizationId,
+        organizationDirectory: orgDirectory(externalOrganizationId),
+        actorKind: 'human',
+        externalUserId,
+        userDirectory: userDirectory(externalUserId),
+      })
+    ).rejects.toMatchObject({ status: 409 });
+
+    const organizationLinks = await getTestDb()
+      .select()
+      .from(krabiclawOrganizationLinks)
+      .where(eq(krabiclawOrganizationLinks.external_organization_id, externalOrganizationId));
+    expect(organizationLinks).toHaveLength(0);
+  });
+
   it('rejects a human actor request missing user identity', async () => {
     const externalOrganizationId = randomUUID();
 
@@ -275,5 +309,11 @@ describe('krabiclawIdentityResolverService', () => {
         actorKind: 'human',
       })
     ).rejects.toThrow('externalUserId and userDirectory are required to resolve a human actor');
+
+    const organizationLinks = await getTestDb()
+      .select()
+      .from(krabiclawOrganizationLinks)
+      .where(eq(krabiclawOrganizationLinks.external_organization_id, externalOrganizationId));
+    expect(organizationLinks).toHaveLength(0);
   });
 });
