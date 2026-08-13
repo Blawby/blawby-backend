@@ -47,7 +47,13 @@ const extractBearerToken = (authorizationHeader: string | undefined): string | u
   return authorizationHeader.slice('Bearer '.length).trim() || undefined;
 };
 
-export const krabiclawFacadeMiddleware = (): MiddlewareHandler<AppContext> => {
+/**
+ * Kill switch, OAuth verification, and header parsing only. Split from
+ * {@link krabiclawFacadeIdentityMiddleware} so `http.ts` can run
+ * organization-scoped rate limiting between the two — after the caller is
+ * authenticated but before any D1/PostgreSQL/audit work happens.
+ */
+export const krabiclawFacadeAuthMiddleware = (): MiddlewareHandler<AppContext> => {
   const authInstance = createBetterAuthInstance(db);
 
   return async (c, next) => {
@@ -55,26 +61,44 @@ export const krabiclawFacadeMiddleware = (): MiddlewareHandler<AppContext> => {
       throw new HTTPException(404, { message: 'Not found' });
     }
 
-    const headers = parseFacadeHeaders(c);
     const token = extractBearerToken(c.req.header('authorization'));
     const { clientId } = await verifyFacadeToken(token, authInstance);
-    const identity = await resolveIdentityOrFail(headers);
+    const headers = parseFacadeHeaders(c);
 
-    await KrabiClawActorAttributed.dispatch(
-      {
-        external_organization_id: headers.externalOrganizationId,
-        external_actor_id: headers.externalActorId,
-        actor_kind: headers.actorKind,
-        oauth_client_id: clientId,
-        resolved_organization_id: identity.organizationId,
-        resolved_user_id: identity.userId,
-        method: c.req.method,
-        path: c.req.path,
-      },
-      { actorId: identity.userId ?? 'api', organizationId: identity.organizationId, critical: true }
-    );
-
-    c.set('legalOperationContext', { organizationId: identity.organizationId, userId: identity.userId });
+    c.set('krabiclawFacadeAuth', { headers, clientId });
     return next();
   };
+};
+
+/**
+ * D1/PostgreSQL identity resolution, audit dispatch, and LegalOperationContext.
+ * Requires {@link krabiclawFacadeAuthMiddleware} to have run first so the
+ * rate limiter can sit between the two without re-verifying the token or
+ * re-parsing headers.
+ */
+export const krabiclawFacadeIdentityMiddleware = (): MiddlewareHandler<AppContext> => async (c, next) => {
+  const auth = c.get('krabiclawFacadeAuth');
+  if (!auth) {
+    throw new Error('krabiclawFacadeIdentityMiddleware requires krabiclawFacadeAuthMiddleware to run first');
+  }
+  const { headers, clientId } = auth;
+
+  const identity = await resolveIdentityOrFail(headers);
+
+  await KrabiClawActorAttributed.dispatch(
+    {
+      external_organization_id: headers.externalOrganizationId,
+      external_actor_id: headers.externalActorId,
+      actor_kind: headers.actorKind,
+      oauth_client_id: clientId,
+      resolved_organization_id: identity.organizationId,
+      resolved_user_id: identity.userId,
+      method: c.req.method,
+      path: c.req.path,
+    },
+    { actorId: identity.userId ?? 'api', organizationId: identity.organizationId, critical: true }
+  );
+
+  c.set('legalOperationContext', { organizationId: identity.organizationId, userId: identity.userId });
+  return next();
 };

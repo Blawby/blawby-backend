@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { parseFacadeHeaders } from '@/modules/krabiclaw-integration/middleware/parse-facade-headers';
 
 const contextFromHeaders = async (headers: Record<string, string>) => {
-  let captured: unknown;
+  let captured: unknown = undefined;
   const app = new Hono();
   app.get('/', (c) => {
     captured = parseFacadeHeaders(c);
@@ -23,7 +23,11 @@ describe('parseFacadeHeaders', () => {
       'x-krabiclaw-actor-kind': 'human',
     });
     expect(res.status).toBe(200);
-    expect(captured).toEqual({ externalOrganizationId: 'ext-org-1', externalActorId: 'ext-user-1', actorKind: 'human' });
+    expect(captured).toEqual({
+      externalOrganizationId: 'ext-org-1',
+      externalActorId: 'ext-user-1',
+      actorKind: 'human',
+    });
   });
 
   it('parses a valid anonymous actor request with no actor id', async () => {
@@ -72,6 +76,24 @@ describe('parseFacadeHeaders', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects a present but empty actor-id header on an anonymous request', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': '',
+      'x-krabiclaw-actor-kind': 'anonymous',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a whitespace-only actor-id header on a human request', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': '   ',
+      'x-krabiclaw-actor-kind': 'human',
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('propagates HTTPException with a 400 status', async () => {
     const app = new Hono();
     app.get('/', (c) => {
@@ -79,8 +101,10 @@ describe('parseFacadeHeaders', () => {
         parseFacadeHeaders(c);
         return c.text('ok');
       } catch (error) {
-        expect(error).toBeInstanceOf(HTTPException);
-        expect((error as HTTPException).status).toBe(400);
+        if (!(error instanceof HTTPException)) {
+          throw error;
+        }
+        expect(error.status).toBe(400);
         throw error;
       }
     });

@@ -20,8 +20,8 @@ const readOptionalSingleHeader = (c: Context, name: string): string | null => {
   if (value === undefined) {
     return null;
   }
-  if (value.includes(',')) {
-    throw new HTTPException(400, { message: `Duplicated header: ${name}` });
+  if (value.trim() === '' || value.includes(',')) {
+    throw new HTTPException(400, { message: `Malformed or duplicated header: ${name}` });
   }
   return value;
 };

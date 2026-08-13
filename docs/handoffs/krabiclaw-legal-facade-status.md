@@ -5,13 +5,11 @@ updated_at: '2026-08-13T04:05:40Z'
 title: 'KrabiClaw legal facade implementation status'
 summary: 'Living handoff and evidence-based tracker for the short-term KrabiClaw-to-Blawby legal facade.'
 keywords: ['krabiclaw', 'blawby', 'legal-facade', 'oauth', 'd1', 'stripe-connect', 'intakes', 'engagements']
-cwd: '/Users/giteshkhurani/Projects/blawby-ts'
 resume_focus: 'Verify the next incomplete unit against code and GitHub, complete or review it, and update this tracker after its PR merges.'
 repository: 'blawby-backend'
 repo_root_sha: '651a2a0e52f2e61cf8ba44e66a5f96c9921105cc'
 branch: 'feat/krabiclaw-u4-integration-adapter'
 head: '42de7cad8e1a60f96681d5dc39909428a3e28ff7'
-worktree_path: '/Users/giteshkhurani/Projects/blawby-ts'
 ---
 
 # KrabiClaw legal facade: living handoff and status tracker
@@ -349,15 +347,23 @@ This is currently a review-and-merge packet for PR #421.
 - **Required invariants:** verify OAuth before trusting integration identity;
   require correct issuer, audience, expiry, fixed client `azp`, no human `sub`,
   and a relevant `legal:*` scope; reject missing, duplicated, malformed, or
-  inconsistent headers; resolve IDs before mutation; persist immutable actor
-  attribution; keep the facade kill switch default-off.
+  inconsistent headers; apply organization-scoped rate limiting before D1,
+  PostgreSQL, or audit work runs; resolve IDs before mutation; persist
+  immutable actor attribution; keep the facade kill switch default-off.
+- **Rate-limit contract:** routed under the `krabiclaw-facade` rate-limit key,
+  scoped per organization as `org:<externalOrganizationId>` (isolated per
+  external organization, not shared globally); runs after OAuth verification
+  and header parsing but before D1 directory access, PostgreSQL identity
+  resolution, and attribution audit dispatch; a limited request returns 429
+  without touching any of that downstream work.
 - **Authorization dependency:** KrabiClaw owns owner/admin authorization in the
   short term. Blawby must document that trust boundary and must not invent roles
   from D1 fields it does not read.
 - **Validation:** real Better Auth-issued token tests, wrong-client/scope/token
   cases, header spoofing/duplication cases, human/anonymous mapping, audit
-  persistence, kill-switch 404, ordinary-route isolation, typecheck, format,
-  lint, build, and focused shared-auth/integration tests.
+  persistence, kill-switch 404, ordinary-route isolation, organization-scoped
+  rate-limit isolation and pre-D1/PostgreSQL/audit placement, typecheck,
+  format, lint, build, and focused shared-auth/integration tests.
 - **Non-goals:** no practice, Connect, intake, or engagement facade routes and no
   domain workflow extraction.
 - **Exit:** #421 merges with the facade still dormant; update this tracker before

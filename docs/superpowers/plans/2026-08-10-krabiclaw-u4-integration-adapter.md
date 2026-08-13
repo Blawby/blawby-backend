@@ -24,10 +24,12 @@
 ### Task 1: Audit event definition
 
 **Files:**
+
 - Create: `src/shared/events/definitions/krabiclaw.ts`
 - Test: `test/shared/events/krabiclaw-actor-attributed.test.ts`
 
 **Interfaces:**
+
 - Produces: `KrabiClawActorAttributedPayload` (typed payload), `KrabiClawActorAttributed` (event class, `static type = 'krabiclaw.actor_attributed'`). Consumed by Task 4's middleware via `KrabiClawActorAttributed.dispatch(payload, { actorId, organizationId })`.
 
 - [ ] **Step 1: Write the failing test**
@@ -144,15 +146,17 @@ git commit -m "feat(krabiclaw-integration): add actor-attribution audit event"
 ### Task 2: Facade header parsing
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/types/facade-headers.types.ts`
 - Create: `src/modules/krabiclaw-integration/middleware/parse-facade-headers.ts`
 - Test: `test/modules/krabiclaw-integration/parse-facade-headers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `KrabiClawActorKind` from `@/modules/krabiclaw-integration/types/identity.types` (already shipped in U3).
 - Produces: `KrabiClawFacadeHeaders = { externalOrganizationId: string; externalActorId: string | null; actorKind: KrabiClawActorKind }`; `parseFacadeHeaders(c: Context): KrabiClawFacadeHeaders` — throws `HTTPException(400)` on missing/duplicate/malformed/inconsistent headers. Consumed by Task 4's middleware.
 
-Header contract (fixed by this task, not specified elsewhere in the plan): `X-Krabiclaw-Organization-Id`, `X-Krabiclaw-Actor-Id`, `X-Krabiclaw-Actor-Kind` (`human` or `anonymous`). Hono's `Headers.get()` joins repeated headers with `, ` per the Fetch spec, so a duplicated header arrives as a single comma-containing string — reject any header value containing a comma as malformed/duplicated, since none of these three values are ever legitimately comma-containing.
+Header contract (fixed by this task, not specified elsewhere in the plan): `X-Krabiclaw-Organization-Id`, `X-Krabiclaw-Actor-Id`, `X-Krabiclaw-Actor-Kind` (`human` or `anonymous`). Hono's `Headers.get()` joins repeated headers with a comma-space separator per the Fetch spec, so a duplicated header arrives as a single comma-containing string — reject any header value containing a comma as malformed/duplicated, since none of these three values are ever legitimately comma-containing.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -183,7 +187,11 @@ describe('parseFacadeHeaders', () => {
       'x-krabiclaw-actor-kind': 'human',
     });
     expect(res.status).toBe(200);
-    expect(captured).toEqual({ externalOrganizationId: 'ext-org-1', externalActorId: 'ext-user-1', actorKind: 'human' });
+    expect(captured).toEqual({
+      externalOrganizationId: 'ext-org-1',
+      externalActorId: 'ext-user-1',
+      actorKind: 'human',
+    });
   });
 
   it('parses a valid anonymous actor request with no actor id', async () => {
@@ -314,7 +322,9 @@ export const parseFacadeHeaders = (c: Context): KrabiClawFacadeHeaders => {
     throw new HTTPException(400, { message: `${ACTOR_ID_HEADER} is required when ${ACTOR_KIND_HEADER} is human` });
   }
   if (actorKindRaw === 'anonymous' && externalActorId) {
-    throw new HTTPException(400, { message: `${ACTOR_ID_HEADER} must not be sent when ${ACTOR_KIND_HEADER} is anonymous` });
+    throw new HTTPException(400, {
+      message: `${ACTOR_ID_HEADER} must not be sent when ${ACTOR_KIND_HEADER} is anonymous`,
+    });
   }
 
   return { externalOrganizationId, externalActorId, actorKind: actorKindRaw };
@@ -338,10 +348,12 @@ git commit -m "feat(krabiclaw-integration): add strict facade header parsing"
 ### Task 3: OAuth access-token verification
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/middleware/verify-facade-token.ts`
 - Test: `test/modules/krabiclaw-integration/verify-facade-token.test.ts`
 
 **Interfaces:**
+
 - Consumes: `KRABICLAW_LEGAL_API_AUDIENCE`, `KRABICLAW_LEGAL_SCOPES` from `@/shared/auth/krabiclaw-oauth` (U1); `config.krabiclaw.oauthClientId`, `config.app.baseUrl` from `@/shared/config`; `verifyJwsAccessToken` from `better-auth/oauth2`.
 - Produces: `verifyFacadeToken(token: string | undefined, authInstance: ReturnType<typeof createBetterAuthInstance>): Promise<{ clientId: string }>` — throws `HTTPException(401)` for missing/malformed/expired/wrong-audience/wrong-issuer/wrong-client tokens or a present `sub` claim, `HTTPException(403)` for a token missing every `legal:*` scope. Consumed by Task 4's middleware.
 
@@ -526,9 +538,11 @@ git commit -m "feat(krabiclaw-integration): add in-process facade token verifica
 ### Task 4: Kill switch config
 
 **Files:**
+
 - Modify: `src/shared/config/index.ts`
 
 **Interfaces:**
+
 - Produces: `config.krabiclaw.facadeEnabled: boolean` (default `false`). Consumed by Task 5's middleware.
 
 - [ ] **Step 1: Add the env field to the schema**
@@ -570,12 +584,14 @@ git commit -m "feat(krabiclaw-integration): add default-off facade kill switch"
 ### Task 5: Composed facade middleware
 
 **Files:**
+
 - Modify: `src/shared/types/hono.ts`
 - Create: `src/modules/krabiclaw-integration/types/legal-operation-context.types.ts`
 - Create: `src/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware.ts`
 - Test: `test/modules/krabiclaw-integration/krabiclaw-facade.middleware.test.ts`
 
 **Interfaces:**
+
 - Consumes: `parseFacadeHeaders` (Task 2), `verifyFacadeToken` (Task 3), `config.krabiclaw.facadeEnabled` (Task 4), `krabiclawDirectoryService` (U2), `krabiclawIdentityResolverService` (U3), `KrabiClawActorAttributed` (Task 1).
 - Produces: `LegalOperationContext = { organizationId: string; userId: string | null }`; `Variables.legalOperationContext?: LegalOperationContext`; `krabiclawFacadeMiddleware(): MiddlewareHandler<AppContext>` — sets `legalOperationContext` on success, throws `HTTPException` (404 disabled, 401/403 from Task 3, 400 from Task 2, 502 on directory/resolver failure) otherwise. Consumed by Task 6's `http.ts`.
 
@@ -850,10 +866,12 @@ git commit -m "feat(krabiclaw-integration): add composed facade middleware"
 ### Task 6: Mount the (still routeless) module
 
 **Files:**
+
 - Create: `src/modules/krabiclaw-integration/http.ts`
 - Test: `test/modules/krabiclaw-integration/http.test.ts`
 
 **Interfaces:**
+
 - Consumes: `krabiclawFacadeMiddleware` (Task 5), the existing `rateLimit` from `@/shared/middleware/rateLimit`, `createHonoApp` from `@/shared/router/factory`.
 - Produces: default-exported Hono app, `export const mountPath = '/api/integrations/krabiclaw/v1'`. This is what `scripts/codegen.ts` requires to exist for every non-excluded module — it currently fails on this exact `ENOENT` for both the U2 and U3 baselines; this task is what fixes `pnpm run build`.
 
@@ -883,7 +901,7 @@ vi.mock('@/shared/config', async (importOriginal) => {
 });
 
 describe('krabiclaw-integration http.ts', () => {
-  it('exports the route scope table\'s base path as its mount path', () => {
+  it("exports the route scope table's base path as its mount path", () => {
     expect(mountPath).toBe('/api/integrations/krabiclaw/v1');
   });
 

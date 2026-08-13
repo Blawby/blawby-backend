@@ -5,3 +5,8 @@ export interface KrabiClawFacadeHeaders {
   externalActorId: string | null;
   actorKind: KrabiClawActorKind;
 }
+
+export interface KrabiClawFacadeAuthContext {
+  headers: KrabiClawFacadeHeaders;
+  clientId: string;
+}

@@ -1,4 +1,7 @@
-import { krabiclawFacadeMiddleware } from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
+import {
+  krabiclawFacadeAuthMiddleware,
+  krabiclawFacadeIdentityMiddleware,
+} from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
 import { rateLimit } from '@/shared/middleware/rateLimit';
 import { createHonoApp } from '@/shared/router/factory';
 
@@ -6,14 +9,15 @@ const app = createHonoApp();
 
 app.use(
   '*',
-  krabiclawFacadeMiddleware(),
+  krabiclawFacadeAuthMiddleware(),
   rateLimit({
     routeKey: 'krabiclaw-facade',
     scope: (c) => {
-      const context = c.get('legalOperationContext');
-      return context ? `org:${context.organizationId}` : null;
+      const auth = c.get('krabiclawFacadeAuth');
+      return auth ? `org:${auth.headers.externalOrganizationId}` : null;
     },
-  })
+  }),
+  krabiclawFacadeIdentityMiddleware()
 );
 
 // No routes yet — U8 mounts the Route Scope table's handlers here.

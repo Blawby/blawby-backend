@@ -36,7 +36,7 @@ export const verifyFacadeToken = async (
     throw new HTTPException(401, { message: 'Invalid access token' });
   });
 
-  if (payload.sub) {
+  if (payload.sub !== undefined) {
     throw new HTTPException(401, { message: 'Unexpected subject claim on a machine token' });
   }
 
