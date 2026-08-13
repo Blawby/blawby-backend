@@ -10,6 +10,7 @@ import {
   real,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -46,6 +47,9 @@ export const practiceClientIntakes = pgTable(
     stripe_payment_intent_id: text('stripe_payment_intent_id'), // Created by Payment Link, populated via webhook
     stripe_charge_id: text('stripe_charge_id'),
     stripe_checkout_session_id: text('stripe_checkout_session_id').unique(),
+
+    // KrabiClaw facade idempotency (nullable — only facade-created intakes set this)
+    krabiclaw_request_key: uuid('krabiclaw_request_key'),
 
     // Payment Details (amounts in cents)
     amount: integer('amount').notNull(),
@@ -111,6 +115,9 @@ export const practiceClientIntakes = pgTable(
     index('practice_client_intakes_jurisdiction_status_idx').on(table.jurisdiction_status),
     index('practice_client_intakes_invitation_prefill_token_idx').on(table.invitation_prefill_token_hash),
     index('practice_client_intakes_enrichment_status_idx').on(table.organization_id, table.enrichment_status),
+    uniqueIndex('practice_client_intakes_krabiclaw_request_key_idx')
+      .on(table.organization_id, table.krabiclaw_request_key)
+      .where(sql`${table.krabiclaw_request_key} IS NOT NULL`),
     check(
       'practice_client_intakes_enrichment_status_check',
       sql`${table.enrichment_status} IN ('not_requested', 'pending', 'processing', 'succeeded', 'failed')`

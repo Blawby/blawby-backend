@@ -60,6 +60,45 @@ const create = async (data: InsertPracticeClientIntake): Promise<SelectPracticeC
   return row;
 };
 
+const findByKrabiClawRequestKey = async (
+  organizationId: string,
+  requestKey: string
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const [intake] = await getActiveTx()
+    .select()
+    .from(practiceClientIntakes)
+    .where(
+      and(
+        eq(practiceClientIntakes.organization_id, organizationId),
+        eq(practiceClientIntakes.krabiclaw_request_key, requestKey)
+      )
+    )
+    .limit(1);
+  return intake;
+};
+
+const createWithKrabiClawRequestKey = async (
+  data: InsertPracticeClientIntake & { krabiclaw_request_key: string }
+): Promise<SelectPracticeClientIntake> => {
+  const [intake] = await getActiveTx()
+    .insert(practiceClientIntakes)
+    .values(data)
+    .onConflictDoNothing({
+      target: [practiceClientIntakes.organization_id, practiceClientIntakes.krabiclaw_request_key],
+      where: sql`${practiceClientIntakes.krabiclaw_request_key} IS NOT NULL`,
+    })
+    .returning();
+  if (intake) {
+    return intake;
+  }
+
+  const existing = await findByKrabiClawRequestKey(data.organization_id, data.krabiclaw_request_key);
+  if (!existing) {
+    throw new Error('Failed to create idempotent krabiclaw intake');
+  }
+  return existing;
+};
+
 const findById = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {
   const [row] = await getActiveTx()
     .select()
@@ -316,6 +355,8 @@ const failEnrichment = async (
 
 export const practiceClientIntakesRepository = {
   create,
+  findByKrabiClawRequestKey,
+  createWithKrabiClawRequestKey,
   findById,
   findByIdForUpdate,
   findByInvitationPrefillTokenHash,

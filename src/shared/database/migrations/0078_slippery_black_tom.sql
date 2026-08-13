@@ -1,0 +1,2 @@
+ALTER TABLE "practice_client_intakes" ADD COLUMN "krabiclaw_request_key" uuid;--> statement-breakpoint
+CREATE UNIQUE INDEX "practice_client_intakes_krabiclaw_request_key_idx" ON "practice_client_intakes" USING btree ("organization_id","krabiclaw_request_key") WHERE "practice_client_intakes"."krabiclaw_request_key" IS NOT NULL;

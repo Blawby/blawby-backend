@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, uuid, text, jsonb, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import type {
@@ -14,32 +14,36 @@ import type {
 import { organizations } from '@/schema/better-auth-schema';
 
 // Stripe connected accounts table
-export const stripeConnectedAccounts = pgTable('stripe_connected_accounts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  organization_id: uuid('organization_id')
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
-  stripe_account_id: text('account_id').notNull().unique(),
-  account_type: text('account_type').default('custom').notNull(),
-  country: text('country').default('US').notNull(),
-  email: text('email').notNull(),
-  charges_enabled: boolean('charges_enabled').default(false).notNull(),
-  payouts_enabled: boolean('payouts_enabled').default(false).notNull(),
-  details_submitted: boolean('details_submitted').default(false).notNull(),
-  business_type: text('business_type'), // Stripe.Account.BusinessType
-  company: jsonb('company').$type<CompanyInfo>(),
-  individual: jsonb('individual').$type<IndividualInfo>(),
-  requirements: jsonb('requirements').$type<Requirements>(),
-  capabilities: jsonb('capabilities').$type<Capabilities>(),
-  externalAccounts: jsonb('external_accounts').$type<ExternalAccounts>(),
-  futureRequirements: jsonb('future_requirements').$type<FutureRequirements>(),
-  tosAcceptance: jsonb('tos_acceptance').$type<TosAcceptance>(),
-  metadata: jsonb('metadata').$type<Record<string, string>>(),
-  onboarding_completed_at: timestamp('onboarding_completed_at', { withTimezone: true, mode: 'date' }),
-  last_refreshed_at: timestamp('last_refreshed_at', { withTimezone: true, mode: 'date' }),
-  created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-});
+export const stripeConnectedAccounts = pgTable(
+  'stripe_connected_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organization_id: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    stripe_account_id: text('account_id').notNull().unique(),
+    account_type: text('account_type').default('custom').notNull(),
+    country: text('country').default('US').notNull(),
+    email: text('email').notNull(),
+    charges_enabled: boolean('charges_enabled').default(false).notNull(),
+    payouts_enabled: boolean('payouts_enabled').default(false).notNull(),
+    details_submitted: boolean('details_submitted').default(false).notNull(),
+    business_type: text('business_type'), // Stripe.Account.BusinessType
+    company: jsonb('company').$type<CompanyInfo>(),
+    individual: jsonb('individual').$type<IndividualInfo>(),
+    requirements: jsonb('requirements').$type<Requirements>(),
+    capabilities: jsonb('capabilities').$type<Capabilities>(),
+    externalAccounts: jsonb('external_accounts').$type<ExternalAccounts>(),
+    futureRequirements: jsonb('future_requirements').$type<FutureRequirements>(),
+    tosAcceptance: jsonb('tos_acceptance').$type<TosAcceptance>(),
+    metadata: jsonb('metadata').$type<Record<string, string>>(),
+    onboarding_completed_at: timestamp('onboarding_completed_at', { withTimezone: true, mode: 'date' }),
+    last_refreshed_at: timestamp('last_refreshed_at', { withTimezone: true, mode: 'date' }),
+    created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [unique('stripe_connected_accounts_id_organization_id_unique').on(table.id, table.organization_id)]
+);
 
 export const stripeConnectedAccountsRelations = relations(stripeConnectedAccounts, ({ one }) => ({
   organization: one(organizations, {
