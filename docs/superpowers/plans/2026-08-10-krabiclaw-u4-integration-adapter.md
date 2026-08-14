@@ -4,7 +4,7 @@
 
 **Goal:** Build the middleware that verifies KrabiClaw's machine OAuth token, parses its strict single-value identity headers, resolves them to local UUID anchors, and produces an auth-independent `LegalOperationContext` — with no HTTP routes exposed yet (that's U8).
 
-**Architecture:** Two composed Hono middlewares mounted on a new, still-routeless `src/modules/krabiclaw-integration/http.ts`: (1) `krabiclawFacadeMiddleware` — kill switch, in-process JWT verification (JWKS fetched via Better Auth's own in-process API, no network round trip), header parsing, identity resolution (reusing U3's resolver + U2's D1 directory service), immutable audit-event dispatch, and setting `LegalOperationContext` on the Hono context; (2) the existing `rateLimit` middleware, scoped to the resolved organization. `LegalOperationContext` is `{ organizationId, userId }` only — no external ids, no Hono context, no CASL — matching KTD22.
+**Architecture:** Three Hono middlewares mounted in order on a new, still-routeless `src/modules/krabiclaw-integration/http.ts`: (1) `krabiclawFacadeAuthMiddleware` — kill switch, in-process JWT verification (JWKS fetched via Better Auth's own in-process API, no network round trip), then header parsing; (2) the existing `rateLimit` middleware, scoped to the caller's external organization ID, so a rejected request never reaches D1, PostgreSQL, or audit dispatch; (3) `krabiclawFacadeIdentityMiddleware` — identity resolution (reusing U3's resolver + U2's D1 directory service), immutable audit-event dispatch, and setting `LegalOperationContext` on the Hono context. `LegalOperationContext` is `{ organizationId, userId }` only — no external ids, no Hono context, no CASL — matching KTD22.
 
 **Tech Stack:** Hono middleware, Better Auth's `@better-auth/oauth-provider` + `jose` (via `verifyJwsAccessToken` from `better-auth/oauth2`), the existing PostgreSQL-backed `rateLimit` middleware, the repo's event-dispatch system (`BaseEvent`/`events` table).
 
@@ -593,16 +593,20 @@ git commit -m "feat(krabiclaw-integration): add default-off facade kill switch"
 **Interfaces:**
 
 - Consumes: `parseFacadeHeaders` (Task 2), `verifyFacadeToken` (Task 3), `config.krabiclaw.facadeEnabled` (Task 4), `krabiclawDirectoryService` (U2), `krabiclawIdentityResolverService` (U3), `KrabiClawActorAttributed` (Task 1).
-- Produces: `LegalOperationContext = { organizationId: string; userId: string | null }`; `Variables.legalOperationContext?: LegalOperationContext`; `krabiclawFacadeMiddleware(): MiddlewareHandler<AppContext>` — sets `legalOperationContext` on success, throws `HTTPException` (404 disabled, 401/403 from Task 3, 400 from Task 2, 502 on directory/resolver failure) otherwise. Consumed by Task 6's `http.ts`.
+- Produces: `LegalOperationContext = { organizationId: string; userId: string | null }`; `Variables.legalOperationContext?: LegalOperationContext`; `Variables.krabiclawFacadeAuth?: { headers: KrabiClawFacadeHeaders; clientId: string }`; two middlewares — `krabiclawFacadeAuthMiddleware(): MiddlewareHandler<AppContext>` (kill switch, then OAuth verification, then header parsing; sets `krabiclawFacadeAuth`) and `krabiclawFacadeIdentityMiddleware(): MiddlewareHandler<AppContext>` (reads `krabiclawFacadeAuth`, resolves identity, dispatches the audit event, sets `legalOperationContext`). Splitting them lets Task 6's `http.ts` run organization-scoped rate limiting in between, after authentication but before any D1/PostgreSQL/audit work. Both throw `HTTPException` (404 disabled, 401/403 from Task 3, 400 from Task 2, 502 on directory/resolver failure).
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
 // test/modules/krabiclaw-integration/krabiclaw-facade.middleware.test.ts
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { describe, expect, it, vi } from 'vitest';
 
-import { krabiclawFacadeMiddleware } from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
+import {
+  krabiclawFacadeAuthMiddleware,
+  krabiclawFacadeIdentityMiddleware,
+} from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
 import { krabiclawDirectoryService } from '@/modules/krabiclaw-integration/services/krabiclaw-directory.service';
 import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
 
@@ -626,8 +630,15 @@ vi.mock('@/shared/config', async (importOriginal) => {
   };
 });
 
+const VALID_TOKEN = 'token';
+
 vi.mock('@/modules/krabiclaw-integration/middleware/verify-facade-token', () => ({
-  verifyFacadeToken: vi.fn(async () => ({ clientId: 'fixed-client' })),
+  verifyFacadeToken: vi.fn(async (token: string | undefined) => {
+    if (token !== VALID_TOKEN) {
+      throw new HTTPException(401, { message: 'Invalid access token' });
+    }
+    return { clientId: 'fixed-client' };
+  }),
 }));
 
 vi.mock('@/modules/krabiclaw-integration/services/krabiclaw-directory.service', () => ({
@@ -653,7 +664,7 @@ vi.mock('@/shared/events/definitions/krabiclaw', () => ({
 
 const buildApp = () => {
   const app = new Hono();
-  app.use('*', krabiclawFacadeMiddleware());
+  app.use('*', krabiclawFacadeAuthMiddleware(), krabiclawFacadeIdentityMiddleware());
   app.get('/', (c) => c.json({ context: c.get('legalOperationContext') ?? null }));
   return app;
 };
@@ -665,7 +676,7 @@ const humanHeaders = {
   'x-krabiclaw-actor-kind': 'human',
 };
 
-describe('krabiclawFacadeMiddleware', () => {
+describe('krabiclawFacadeAuthMiddleware + krabiclawFacadeIdentityMiddleware', () => {
   it('returns 404 when the facade kill switch is off', async () => {
     configState.facadeEnabled = false;
     const res = await buildApp().request('/', { headers: humanHeaders });
@@ -700,7 +711,12 @@ describe('krabiclawFacadeMiddleware', () => {
     expect(krabiclawDirectoryService.getUserDirectoryRecord).not.toHaveBeenCalled();
   });
 
-  it('rejects malformed headers before ever verifying the token', async () => {
+  it('verifies the OAuth token before parsing headers, so an invalid token returns 401 even with malformed headers', async () => {
+    const res = await buildApp().request('/', { headers: { authorization: 'Bearer not-the-valid-token' } });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects malformed headers once the token has already been verified', async () => {
     const res = await buildApp().request('/', { headers: { authorization: 'Bearer token' } });
     expect(res.status).toBe(400);
   });
@@ -747,6 +763,7 @@ export interface LegalOperationContext {
 In `src/shared/types/hono.ts`, add the import and field:
 
 ```typescript
+import type { KrabiClawFacadeAuthContext } from '@/modules/krabiclaw-integration/types/facade-headers.types';
 import type { LegalOperationContext } from '@/modules/krabiclaw-integration/types/legal-operation-context.types';
 ```
 
@@ -760,6 +777,7 @@ export interface Variables {
   memberRole: string | null;
   ability: AppAbility;
   legalOperationContext?: LegalOperationContext;
+  krabiclawFacadeAuth?: KrabiClawFacadeAuthContext;
 }
 ```
 
@@ -816,7 +834,11 @@ const extractBearerToken = (authorizationHeader: string | undefined): string | u
   return authorizationHeader.slice('Bearer '.length).trim() || undefined;
 };
 
-export const krabiclawFacadeMiddleware = (): MiddlewareHandler<AppContext> => {
+// Kill switch, OAuth verification, and header parsing only. Split from
+// krabiclawFacadeIdentityMiddleware so http.ts can run organization-scoped
+// rate limiting between the two — after the caller is authenticated but
+// before any D1/PostgreSQL/audit work happens.
+export const krabiclawFacadeAuthMiddleware = (): MiddlewareHandler<AppContext> => {
   const authInstance = createBetterAuthInstance(db);
 
   return async (c, next) => {
@@ -824,35 +846,51 @@ export const krabiclawFacadeMiddleware = (): MiddlewareHandler<AppContext> => {
       throw new HTTPException(404, { message: 'Not found' });
     }
 
-    const headers = parseFacadeHeaders(c);
     const token = extractBearerToken(c.req.header('authorization'));
     const { clientId } = await verifyFacadeToken(token, authInstance);
-    const identity = await resolveIdentityOrFail(headers);
+    const headers = parseFacadeHeaders(c);
 
-    await KrabiClawActorAttributed.dispatch(
-      {
-        external_organization_id: headers.externalOrganizationId,
-        external_actor_id: headers.externalActorId,
-        actor_kind: headers.actorKind,
-        oauth_client_id: clientId,
-        resolved_organization_id: identity.organizationId,
-        resolved_user_id: identity.userId,
-        method: c.req.method,
-        path: c.req.path,
-      },
-      { actorId: identity.userId ?? 'api', organizationId: identity.organizationId, critical: true }
-    );
-
-    c.set('legalOperationContext', { organizationId: identity.organizationId, userId: identity.userId });
+    c.set('krabiclawFacadeAuth', { headers, clientId });
     return next();
   };
+};
+
+// D1/PostgreSQL identity resolution, audit dispatch, and LegalOperationContext.
+// Requires krabiclawFacadeAuthMiddleware to have run first so the rate
+// limiter can sit between the two without re-verifying the token or
+// re-parsing headers.
+export const krabiclawFacadeIdentityMiddleware = (): MiddlewareHandler<AppContext> => async (c, next) => {
+  const auth = c.get('krabiclawFacadeAuth');
+  if (!auth) {
+    throw new Error('krabiclawFacadeIdentityMiddleware requires krabiclawFacadeAuthMiddleware to run first');
+  }
+  const { headers, clientId } = auth;
+
+  const identity = await resolveIdentityOrFail(headers);
+
+  await KrabiClawActorAttributed.dispatch(
+    {
+      external_organization_id: headers.externalOrganizationId,
+      external_actor_id: headers.externalActorId,
+      actor_kind: headers.actorKind,
+      oauth_client_id: clientId,
+      resolved_organization_id: identity.organizationId,
+      resolved_user_id: identity.userId,
+      method: c.req.method,
+      path: c.req.path,
+    },
+    { actorId: identity.userId ?? 'api', organizationId: identity.organizationId, critical: true }
+  );
+
+  c.set('legalOperationContext', { organizationId: identity.organizationId, userId: identity.userId });
+  return next();
 };
 ```
 
 - [ ] **Step 6: Run test to verify it passes**
 
 Run: `pnpm exec vitest run test/modules/krabiclaw-integration/krabiclaw-facade.middleware.test.ts`
-Expected: PASS (6 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 7: Commit**
 
@@ -872,7 +910,7 @@ git commit -m "feat(krabiclaw-integration): add composed facade middleware"
 
 **Interfaces:**
 
-- Consumes: `krabiclawFacadeMiddleware` (Task 5), the existing `rateLimit` from `@/shared/middleware/rateLimit`, `createHonoApp` from `@/shared/router/factory`.
+- Consumes: `krabiclawFacadeAuthMiddleware` and `krabiclawFacadeIdentityMiddleware` (Task 5), the existing `rateLimit` from `@/shared/middleware/rateLimit` mounted between them, `createHonoApp` from `@/shared/router/factory`.
 - Produces: default-exported Hono app, `export const mountPath = '/api/integrations/krabiclaw/v1'`. This is what `scripts/codegen.ts` requires to exist for every non-excluded module — it currently fails on this exact `ENOENT` for both the U2 and U3 baselines; this task is what fixes `pnpm run build`.
 
 - [ ] **Step 1: Write the failing test**
@@ -927,22 +965,30 @@ Expected: FAIL — cannot find module `@/modules/krabiclaw-integration/http`.
 
 ```typescript
 // src/modules/krabiclaw-integration/http.ts
-import { krabiclawFacadeMiddleware } from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
+import {
+  krabiclawFacadeAuthMiddleware,
+  krabiclawFacadeIdentityMiddleware,
+} from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
 import { rateLimit } from '@/shared/middleware/rateLimit';
 import { createHonoApp } from '@/shared/router/factory';
 
 const app = createHonoApp();
 
+// Order matters: auth (kill switch -> OAuth -> headers) runs first, then
+// organization-scoped rate limiting, then identity resolution/D1/PostgreSQL/
+// audit dispatch. A rate-limited request never reaches D1, PostgreSQL, or the
+// audit dispatch.
 app.use(
   '*',
-  krabiclawFacadeMiddleware(),
+  krabiclawFacadeAuthMiddleware(),
   rateLimit({
     routeKey: 'krabiclaw-facade',
     scope: (c) => {
-      const context = c.get('legalOperationContext');
-      return context ? `org:${context.organizationId}` : null;
+      const auth = c.get('krabiclawFacadeAuth');
+      return auth ? `org:${auth.headers.externalOrganizationId}` : null;
     },
-  })
+  }),
+  krabiclawFacadeIdentityMiddleware()
 );
 
 // No routes yet — U8 mounts the Route Scope table's handlers here.
@@ -1008,8 +1054,8 @@ gh pr create --base feat/krabiclaw-u3-identity-links --title "feat(krabiclaw-int
 ## Summary
 - Add in-process OAuth access-token verification for KrabiClaw's machine `client_credentials` token (audience, issuer, no-`sub`, fixed-`azp`, `legal:*` scope) — no network round trip, verified via Better Auth's own in-process JWKS API.
 - Add strict single-value facade header parsing (`X-Krabiclaw-Organization-Id`, `X-Krabiclaw-Actor-Id`, `X-Krabiclaw-Actor-Kind`) that rejects duplicated/malformed/inconsistent headers.
-- Compose both into `krabiclawFacadeMiddleware`, which resolves external IDs to local UUID anchors (U3), builds an auth-independent `LegalOperationContext`, persists an immutable audit event, and is gated by a default-off kill switch (`KRABICLAW_FACADE_ENABLED`).
-- Mount the middleware on `src/modules/krabiclaw-integration/http.ts` at `/api/integrations/krabiclaw/v1` — zero real routes yet (U8's job); every path 404s. This also fixes the pre-existing `pnpm run build` `ENOENT` failure that has existed on the U2 and U3 baselines since this module had no `http.ts`.
+- Compose both into `krabiclawFacadeAuthMiddleware`, gated by a default-off kill switch (`KRABICLAW_FACADE_ENABLED`), which verifies the OAuth token before parsing headers. `krabiclawFacadeIdentityMiddleware` then resolves external IDs to local UUID anchors (U3), builds an auth-independent `LegalOperationContext`, and persists an immutable audit event.
+- Mount both middlewares on `src/modules/krabiclaw-integration/http.ts` at `/api/integrations/krabiclaw/v1`, with organization-scoped rate limiting running between them — after authentication but before any D1/PostgreSQL/audit work — zero real routes yet (U8's job); every path 404s. This also fixes the pre-existing `pnpm run build` `ENOENT` failure that has existed on the U2 and U3 baselines since this module had no `http.ts`.
 
 Implements U4 of `docs/plans/2026-08-08-001-feat-krabiclaw-legal-facade-plan.md` (R7, R20, R39, R47; KTD17, KTD22). R39 (owner/admin-only) is enforced on KrabiClaw's side per R1 — Blawby's adapter has no role data to check (KTD22, KTD5). Stacked on #418/#419/#420.
 
@@ -1020,7 +1066,7 @@ Implements U4 of `docs/plans/2026-08-08-001-feat-krabiclaw-legal-facade-plan.md`
 - [x] `pnpm run build` (fixes the pre-existing ENOENT)
 - [x] Focused `vitest run` across every file this PR touches
 - [x] Real-token tests cover: valid token accepted, missing/malformed token rejected, wrong fixed-client `azp` rejected, missing `legal:*` scope rejected (403)
-- [x] Middleware tests cover: kill switch off → 404, human actor → resolved context + audit dispatch, anonymous actor → null userId and no user directory lookup, malformed headers rejected before token verification runs, a route outside this middleware never sees `legalOperationContext`
+- [x] Middleware tests cover: kill switch off → 404 without auth/dependency work, OAuth token verified before headers are parsed (an invalid token returns 401 even with malformed headers), rate-limited requests never reach D1/PostgreSQL/audit dispatch, organization-scoped rate-limit isolation, human actor → resolved context + audit dispatch, anonymous actor → null userId and no user directory lookup, malformed headers rejected once the token is valid, a route outside this middleware never sees `legalOperationContext`
 EOF
 )"
 ```

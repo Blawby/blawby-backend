@@ -12,6 +12,19 @@ const logger = getLogger(['modules', 'krabiclaw-integration', 'verify-facade-tok
 // Across requests instead of calling authInstance.api.getJwks() every time.
 const JWKS_CACHE_KEY = {};
 
+/**
+ * JWT-verification errors from `jose` can carry the decoded (unverified)
+ * claims — e.g. `sub`, email — as extra properties. Log only an allowlisted
+ * classification, never the raw error, so a rejected token can't persist
+ * claim data to application logs.
+ */
+const classifyVerificationError = (error: unknown): { errorName: string; errorCode: string | undefined } => {
+  const errorName = error instanceof Error ? error.name : 'UnknownError';
+  const errorCode =
+    error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : undefined;
+  return { errorName, errorCode };
+};
+
 export interface VerifiedFacadeToken {
   clientId: string;
 }
@@ -32,7 +45,10 @@ export const verifyFacadeToken = async (
       issuer: `${config.app.baseUrl}/api/auth`,
     },
   }).catch((error: unknown) => {
-    logger.warn('krabiclaw facade token verification failed: {error}', { error });
+    logger.warn(
+      'krabiclaw facade token verification failed: {errorName} {errorCode}',
+      classifyVerificationError(error)
+    );
     throw new HTTPException(401, { message: 'Invalid access token' });
   });
 

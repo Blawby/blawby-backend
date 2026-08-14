@@ -1,4 +1,5 @@
 import { bootApplication } from '@/boot';
+import { mountPath as krabiclawFacadeMountPath } from '@/modules/krabiclaw-integration/http';
 import { mcpHttp } from '@/modules/mcp';
 import e2eFixturesHttp from '@/routes/e2e-fixtures';
 import { registerAuthRoutes } from '@/shared/auth/better-auth.http';
@@ -34,7 +35,14 @@ app.use(
 );
 app.use('*', cors());
 app.use('*', responseMiddleware());
-app.use('/api/*', rateLimit({ scope: rateLimiter.getApiRateLimitIdentifier }));
+// The KrabiClaw facade has no Better Auth user or API key, so the outer rate limiter would bucket every organization under the same `anon:global` key, defeating the facade's own organization-scoped limiter. It owns its own rate limiting, so it's excluded here.
+const apiRateLimit = rateLimit({ scope: rateLimiter.getApiRateLimitIdentifier });
+app.use('/api/*', async (c, next) => {
+  if (c.req.path.startsWith(krabiclawFacadeMountPath)) {
+    return next();
+  }
+  return apiRateLimit(c, next);
+});
 
 registerAuthRoutes(app);
 

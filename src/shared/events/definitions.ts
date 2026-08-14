@@ -11,6 +11,7 @@
 import * as auth from '@/shared/events/definitions/auth';
 import * as intakes from '@/shared/events/definitions/intakes';
 import * as invoices from '@/shared/events/definitions/invoices';
+import * as krabiclaw from '@/shared/events/definitions/krabiclaw';
 import * as matters from '@/shared/events/definitions/matters';
 import * as onboarding from '@/shared/events/definitions/onboarding';
 import * as payments from '@/shared/events/definitions/payments';
@@ -33,6 +34,7 @@ import * as users from '@/shared/events/definitions/users';
 export * from './definitions/auth';
 export * from './definitions/intakes';
 export * from './definitions/invoices';
+export * from './definitions/krabiclaw';
 export * from './definitions/matters';
 export * from './definitions/onboarding';
 export * from './definitions/payments';
@@ -175,4 +177,7 @@ export const EventClasses = {
   'invoice.payment_failed': invoices.InvoicePaymentFailed,
   'invoice.voided': invoices.InvoiceVoided,
   'invoice.deleted': invoices.InvoiceDeleted,
+
+  // KrabiClaw
+  'krabiclaw.actor_attributed': krabiclaw.KrabiClawActorAttributed,
 } as const;

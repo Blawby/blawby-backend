@@ -5,6 +5,7 @@ import {
   EngagementContractDeclined,
   EngagementContractSent,
   EventClasses,
+  KrabiClawActorAttributed,
 } from '@/shared/events/definitions';
 import { describe, expect, it } from 'vitest';
 
@@ -15,5 +16,9 @@ describe('event definitions', () => {
     expect(EventClasses['engagement_contract.accepted']).toBe(EngagementContractAccepted);
     expect(EventClasses['engagement_contract.declined']).toBe(EngagementContractDeclined);
     expect(EventClasses['conflict_check.completed']).toBe(ConflictCheckCompleted);
+  });
+
+  it('registers the krabiclaw actor-attribution event in the central event map', () => {
+    expect(EventClasses['krabiclaw.actor_attributed']).toBe(KrabiClawActorAttributed);
   });
 });
