@@ -34,7 +34,7 @@ import * as users from '@/shared/events/definitions/users';
 export * from './definitions/auth';
 export * from './definitions/intakes';
 export * from './definitions/invoices';
-export * from './definitions/krabiclaw';
+export * from '@/shared/events/definitions/krabiclaw';
 export * from './definitions/matters';
 export * from './definitions/onboarding';
 export * from './definitions/payments';
