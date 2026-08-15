@@ -72,6 +72,7 @@ app.get('/llms.txt', async (c) => {
 });
 
 // Scalar API documentation UI - fetches OpenAPI spec from /doc endpoint
+// oxlint-disable-next-line new-cap -- Scalar is a factory function, not a constructor
 app.get('/scalar', Scalar({ url: '/doc' }));
 
 // Boot application (wait for all services to be ready)
