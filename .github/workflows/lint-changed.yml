@@ -1,0 +1,55 @@
+name: Lint Changed Files
+
+on:
+  pull_request:
+    branches: [staging]
+    paths-ignore:
+      - '**.md'
+      - '.github/dependabot.yml'
+
+concurrency:
+  group: lint-changed-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v47
+        with:
+          files: |
+            **/*.ts
+            **/*.tsx
+
+      - name: Lint changed files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: pnpm exec oxlint --ignore-path .oxlintignore ${{ steps.changed-files.outputs.all_changed_files }}

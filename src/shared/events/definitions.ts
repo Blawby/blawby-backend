@@ -8,18 +8,17 @@
  *   import { ClientCreated } from '@/shared/events/definitions';
  */
 
-import * as auth from '@/shared/events/definitions/auth';
-import * as intakes from '@/shared/events/definitions/intakes';
-import * as invoices from '@/shared/events/definitions/invoices';
-import * as matters from '@/shared/events/definitions/matters';
-import * as onboarding from '@/shared/events/definitions/onboarding';
-import * as payments from '@/shared/events/definitions/payments';
-import * as practice from '@/shared/events/definitions/practice';
-import * as settings from '@/shared/events/definitions/settings';
-import * as stripe from '@/shared/events/definitions/stripe';
-import * as subscriptions from '@/shared/events/definitions/subscriptions';
-import * as system from '@/shared/events/definitions/system';
-import * as client from '@/shared/events/definitions/client';
+import {
+  AuthAccountDeleted,
+  AuthEmailVerified,
+  AuthPasswordChanged,
+  AuthPasswordResetRequested,
+  AuthUserLoggedIn,
+  AuthUserLoggedOut,
+  AuthUserSignedUp,
+  InvitationAccepted,
+} from '@/shared/events/definitions/auth';
+import { ClientCreated, ClientDeleted, ClientStatusChanged, ClientUpdated } from '@/shared/events/definitions/client';
 import {
   ConflictCheckCompleted,
   EngagementContractAccepted,
@@ -27,23 +26,115 @@ import {
   EngagementContractDeclined,
   EngagementContractSent,
 } from '@/shared/events/definitions/engagement-contracts';
-import * as users from '@/shared/events/definitions/users';
+import { IntakeSubmitted, IntakeTriaged } from '@/shared/events/definitions/intakes';
+import {
+  InvoiceCreated,
+  InvoiceDeleted,
+  InvoicePaid,
+  InvoicePaymentFailed,
+  InvoiceRefunded,
+  InvoiceSent,
+  InvoiceUpdated,
+  InvoiceVoided,
+} from '@/shared/events/definitions/invoices';
+import { KrabiClawActorAttributed } from '@/shared/events/definitions/krabiclaw';
+import { MatterCreated, MatterDeleted, MatterStatusChanged, MatterUpdated } from '@/shared/events/definitions/matters';
+import {
+  OnboardingAccountCapabilitiesUpdated,
+  OnboardingAccountRequirementsChanged,
+  OnboardingAccountUpdated,
+  OnboardingCompleted,
+  OnboardingCompletedProcessed,
+  OnboardingExternalAccountCreated,
+  OnboardingExternalAccountDeleted,
+  OnboardingExternalAccountUpdated,
+  OnboardingFailed,
+  OnboardingStarted,
+  OnboardingWebhookFailed,
+  OnboardingWebhookProcessed,
+  OnboardingWebhookReceived,
+} from '@/shared/events/definitions/onboarding';
+import {
+  IntakePaymentCanceled,
+  IntakePaymentCreated,
+  IntakePaymentFailed,
+  IntakePaymentSucceeded,
+  PaymentCanceled,
+  PaymentFailed,
+  PaymentReceived,
+  PaymentRefunded,
+  PaymentSessionCreated,
+  PaymentSucceeded,
+} from '@/shared/events/definitions/payments';
+import {
+  PracticeAccessDenied,
+  PracticeCreated,
+  PracticeDeleted,
+  PracticeDetailsCreated,
+  PracticeDetailsDeleted,
+  PracticeDetailsUpdated,
+  PracticeMemberInvited,
+  PracticeMemberJoined,
+  PracticeSwitched,
+  PracticeUpdated,
+} from '@/shared/events/definitions/practice';
+import {
+  PracticeSettingsUpdated,
+  SettingsCategoryUpdated,
+  SettingsCreated,
+  SettingsDeleted,
+  SettingsUpdated,
+  UserSettingsUpdated,
+} from '@/shared/events/definitions/settings';
+import {
+  StripeConnectedAccountCreated,
+  StripeConnectedAccountDeleted,
+  StripeConnectedAccountUpdated,
+  StripeCustomerCreated,
+  StripeCustomerDeleted,
+  StripeCustomerSyncFailed,
+  StripeCustomerUpdated,
+} from '@/shared/events/definitions/stripe';
+import {
+  SubscriptionCancelled,
+  SubscriptionCreated,
+  SubscriptionPaymentFailed,
+  SubscriptionRenewed,
+  SubscriptionUpdated,
+} from '@/shared/events/definitions/subscriptions';
+import {
+  SessionCreated,
+  SessionExpired,
+  SessionInvalidated,
+  SystemErrorOccurred,
+  SystemHealthCheckPerformed,
+  SystemPerformanceDegraded,
+} from '@/shared/events/definitions/system';
+import {
+  UserAvatarUpdated,
+  UserCreated,
+  UserDeleted,
+  UserEmailChanged,
+  UserProfileUpdated,
+  UserUpdated,
+} from '@/shared/events/definitions/users';
 
 // Re-export everything for backward compatibility
-export * from './definitions/auth';
-export * from './definitions/intakes';
-export * from './definitions/invoices';
-export * from './definitions/matters';
-export * from './definitions/onboarding';
-export * from './definitions/payments';
-export * from './definitions/practice';
-export * from './definitions/settings';
-export * from './definitions/stripe';
-export * from './definitions/subscriptions';
-export * from './definitions/system';
-export * from './definitions/client';
+export * from '@/shared/events/definitions/auth';
+export * from '@/shared/events/definitions/intakes';
+export * from '@/shared/events/definitions/invoices';
+export * from '@/shared/events/definitions/krabiclaw';
+export * from '@/shared/events/definitions/matters';
+export * from '@/shared/events/definitions/onboarding';
+export * from '@/shared/events/definitions/payments';
+export * from '@/shared/events/definitions/practice';
+export * from '@/shared/events/definitions/settings';
+export * from '@/shared/events/definitions/stripe';
+export * from '@/shared/events/definitions/subscriptions';
+export * from '@/shared/events/definitions/system';
+export * from '@/shared/events/definitions/client';
 export * from '@/shared/events/definitions/engagement-contracts';
-export * from './definitions/users';
+export * from '@/shared/events/definitions/users';
 
 /**
  * Map of event type strings to event classes
@@ -51,95 +142,95 @@ export * from './definitions/users';
  */
 export const EventClasses = {
   // Stripe Account
-  'stripe.connected_account_created': stripe.StripeConnectedAccountCreated,
-  'stripe.connected_account_updated': stripe.StripeConnectedAccountUpdated,
-  'stripe.connected_account_deleted': stripe.StripeConnectedAccountDeleted,
+  'stripe.connected_account_created': StripeConnectedAccountCreated,
+  'stripe.connected_account_updated': StripeConnectedAccountUpdated,
+  'stripe.connected_account_deleted': StripeConnectedAccountDeleted,
 
   // Stripe Customer
-  'stripe.customer.created': stripe.StripeCustomerCreated,
-  'stripe.customer.updated': stripe.StripeCustomerUpdated,
-  'stripe.customer.deleted': stripe.StripeCustomerDeleted,
-  'stripe.customer.sync_failed': stripe.StripeCustomerSyncFailed,
+  'stripe.customer.created': StripeCustomerCreated,
+  'stripe.customer.updated': StripeCustomerUpdated,
+  'stripe.customer.deleted': StripeCustomerDeleted,
+  'stripe.customer.sync_failed': StripeCustomerSyncFailed,
 
   // Auth
-  'auth.user_signed_up': auth.AuthUserSignedUp,
-  'auth.email_verified': auth.AuthEmailVerified,
-  'auth.user_logged_in': auth.AuthUserLoggedIn,
-  'auth.user_logged_out': auth.AuthUserLoggedOut,
-  'auth.password_reset_requested': auth.AuthPasswordResetRequested,
-  'auth.password_changed': auth.AuthPasswordChanged,
-  'auth.account_deleted': auth.AuthAccountDeleted,
-  'auth.invitation_accepted': auth.InvitationAccepted,
+  'auth.user_signed_up': AuthUserSignedUp,
+  'auth.email_verified': AuthEmailVerified,
+  'auth.user_logged_in': AuthUserLoggedIn,
+  'auth.user_logged_out': AuthUserLoggedOut,
+  'auth.password_reset_requested': AuthPasswordResetRequested,
+  'auth.password_changed': AuthPasswordChanged,
+  'auth.account_deleted': AuthAccountDeleted,
+  'auth.invitation_accepted': InvitationAccepted,
 
   // User
-  'user.created': users.UserCreated,
-  'user.updated': users.UserUpdated,
-  'user.deleted': users.UserDeleted,
-  'user.profile_updated': users.UserProfileUpdated,
-  'user.email_changed': users.UserEmailChanged,
-  'user.avatar_updated': users.UserAvatarUpdated,
+  'user.created': UserCreated,
+  'user.updated': UserUpdated,
+  'user.deleted': UserDeleted,
+  'user.profile_updated': UserProfileUpdated,
+  'user.email_changed': UserEmailChanged,
+  'user.avatar_updated': UserAvatarUpdated,
 
   // Practice
-  'practice.created': practice.PracticeCreated,
-  'practice.updated': practice.PracticeUpdated,
-  'practice.deleted': practice.PracticeDeleted,
-  'practice.details_created': practice.PracticeDetailsCreated,
-  'practice.details_updated': practice.PracticeDetailsUpdated,
-  'practice.details_deleted': practice.PracticeDetailsDeleted,
-  'practice.member_invited': practice.PracticeMemberInvited,
-  'practice.member_joined': practice.PracticeMemberJoined,
-  'practice.switched': practice.PracticeSwitched,
-  'practice.access_denied': practice.PracticeAccessDenied,
+  'practice.created': PracticeCreated,
+  'practice.updated': PracticeUpdated,
+  'practice.deleted': PracticeDeleted,
+  'practice.details_created': PracticeDetailsCreated,
+  'practice.details_updated': PracticeDetailsUpdated,
+  'practice.details_deleted': PracticeDetailsDeleted,
+  'practice.member_invited': PracticeMemberInvited,
+  'practice.member_joined': PracticeMemberJoined,
+  'practice.switched': PracticeSwitched,
+  'practice.access_denied': PracticeAccessDenied,
 
   // Settings
-  'settings.created': settings.SettingsCreated,
-  'settings.updated': settings.SettingsUpdated,
-  'settings.deleted': settings.SettingsDeleted,
-  'settings.user_updated': settings.UserSettingsUpdated,
-  'settings.practice_updated': settings.PracticeSettingsUpdated,
-  'settings.category_updated': settings.SettingsCategoryUpdated,
+  'settings.created': SettingsCreated,
+  'settings.updated': SettingsUpdated,
+  'settings.deleted': SettingsDeleted,
+  'settings.user_updated': UserSettingsUpdated,
+  'settings.practice_updated': PracticeSettingsUpdated,
+  'settings.category_updated': SettingsCategoryUpdated,
 
   // Onboarding
-  'onboarding.started': onboarding.OnboardingStarted,
-  'onboarding.completed': onboarding.OnboardingCompleted,
-  'onboarding.completed_processed': onboarding.OnboardingCompletedProcessed,
-  'onboarding.failed': onboarding.OnboardingFailed,
-  'onboarding.account_updated': onboarding.OnboardingAccountUpdated,
-  'onboarding.account_requirements_changed': onboarding.OnboardingAccountRequirementsChanged,
-  'onboarding.account_capabilities_updated': onboarding.OnboardingAccountCapabilitiesUpdated,
-  'onboarding.external_account_created': onboarding.OnboardingExternalAccountCreated,
-  'onboarding.external_account_updated': onboarding.OnboardingExternalAccountUpdated,
-  'onboarding.external_account_deleted': onboarding.OnboardingExternalAccountDeleted,
-  'onboarding.webhook_received': onboarding.OnboardingWebhookReceived,
-  'onboarding.webhook_processed': onboarding.OnboardingWebhookProcessed,
-  'onboarding.webhook_failed': onboarding.OnboardingWebhookFailed,
+  'onboarding.started': OnboardingStarted,
+  'onboarding.completed': OnboardingCompleted,
+  'onboarding.completed_processed': OnboardingCompletedProcessed,
+  'onboarding.failed': OnboardingFailed,
+  'onboarding.account_updated': OnboardingAccountUpdated,
+  'onboarding.account_requirements_changed': OnboardingAccountRequirementsChanged,
+  'onboarding.account_capabilities_updated': OnboardingAccountCapabilitiesUpdated,
+  'onboarding.external_account_created': OnboardingExternalAccountCreated,
+  'onboarding.external_account_updated': OnboardingExternalAccountUpdated,
+  'onboarding.external_account_deleted': OnboardingExternalAccountDeleted,
+  'onboarding.webhook_received': OnboardingWebhookReceived,
+  'onboarding.webhook_processed': OnboardingWebhookProcessed,
+  'onboarding.webhook_failed': OnboardingWebhookFailed,
 
   // Payment
-  'payment.session_created': payments.PaymentSessionCreated,
-  'payment.received': payments.PaymentReceived,
-  'payment.succeeded': payments.PaymentSucceeded,
-  'payment.failed': payments.PaymentFailed,
-  'payment.canceled': payments.PaymentCanceled,
-  'payment.refunded': payments.PaymentRefunded,
+  'payment.session_created': PaymentSessionCreated,
+  'payment.received': PaymentReceived,
+  'payment.succeeded': PaymentSucceeded,
+  'payment.failed': PaymentFailed,
+  'payment.canceled': PaymentCanceled,
+  'payment.refunded': PaymentRefunded,
 
   // Intake Payment
-  'intake_payment.created': payments.IntakePaymentCreated,
-  'intake_payment.succeeded': payments.IntakePaymentSucceeded,
-  'intake_payment.failed': payments.IntakePaymentFailed,
-  'intake_payment.canceled': payments.IntakePaymentCanceled,
+  'intake_payment.created': IntakePaymentCreated,
+  'intake_payment.succeeded': IntakePaymentSucceeded,
+  'intake_payment.failed': IntakePaymentFailed,
+  'intake_payment.canceled': IntakePaymentCanceled,
 
   // Subscription
-  'subscription.created': subscriptions.SubscriptionCreated,
-  'subscription.updated': subscriptions.SubscriptionUpdated,
-  'subscription.cancelled': subscriptions.SubscriptionCancelled,
-  'subscription.renewed': subscriptions.SubscriptionRenewed,
-  'subscription.payment_failed': subscriptions.SubscriptionPaymentFailed,
+  'subscription.created': SubscriptionCreated,
+  'subscription.updated': SubscriptionUpdated,
+  'subscription.cancelled': SubscriptionCancelled,
+  'subscription.renewed': SubscriptionRenewed,
+  'subscription.payment_failed': SubscriptionPaymentFailed,
 
   // Client
-  'client.created': client.ClientCreated,
-  'client.updated': client.ClientUpdated,
-  'client.deleted': client.ClientDeleted,
-  'client.status_changed': client.ClientStatusChanged,
+  'client.created': ClientCreated,
+  'client.updated': ClientUpdated,
+  'client.deleted': ClientDeleted,
+  'client.status_changed': ClientStatusChanged,
 
   // Engagement contract
   'engagement_contract.created': EngagementContractCreated,
@@ -149,30 +240,33 @@ export const EventClasses = {
   'conflict_check.completed': ConflictCheckCompleted,
 
   // System
-  'system.health_check_performed': system.SystemHealthCheckPerformed,
-  'system.error_occurred': system.SystemErrorOccurred,
-  'system.performance_degraded': system.SystemPerformanceDegraded,
-  'session.created': system.SessionCreated,
-  'session.expired': system.SessionExpired,
-  'session.invalidated': system.SessionInvalidated,
+  'system.health_check_performed': SystemHealthCheckPerformed,
+  'system.error_occurred': SystemErrorOccurred,
+  'system.performance_degraded': SystemPerformanceDegraded,
+  'session.created': SessionCreated,
+  'session.expired': SessionExpired,
+  'session.invalidated': SessionInvalidated,
 
   // Matter
-  'matter.created': matters.MatterCreated,
-  'matter.updated': matters.MatterUpdated,
-  'matter.deleted': matters.MatterDeleted,
-  'matter.status_changed': matters.MatterStatusChanged,
+  'matter.created': MatterCreated,
+  'matter.updated': MatterUpdated,
+  'matter.deleted': MatterDeleted,
+  'matter.status_changed': MatterStatusChanged,
 
   // Intake
-  'intake.submitted': intakes.IntakeSubmitted,
-  'intake.triaged': intakes.IntakeTriaged,
+  'intake.submitted': IntakeSubmitted,
+  'intake.triaged': IntakeTriaged,
 
   // Invoice
-  'invoice.created': invoices.InvoiceCreated,
-  'invoice.updated': invoices.InvoiceUpdated,
-  'invoice.sent': invoices.InvoiceSent,
-  'invoice.paid': invoices.InvoicePaid,
-  'invoice.refunded': invoices.InvoiceRefunded,
-  'invoice.payment_failed': invoices.InvoicePaymentFailed,
-  'invoice.voided': invoices.InvoiceVoided,
-  'invoice.deleted': invoices.InvoiceDeleted,
+  'invoice.created': InvoiceCreated,
+  'invoice.updated': InvoiceUpdated,
+  'invoice.sent': InvoiceSent,
+  'invoice.paid': InvoicePaid,
+  'invoice.refunded': InvoiceRefunded,
+  'invoice.payment_failed': InvoicePaymentFailed,
+  'invoice.voided': InvoiceVoided,
+  'invoice.deleted': InvoiceDeleted,
+
+  // KrabiClaw
+  'krabiclaw.actor_attributed': KrabiClawActorAttributed,
 } as const;

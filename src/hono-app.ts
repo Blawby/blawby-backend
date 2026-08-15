@@ -1,4 +1,5 @@
 import { bootApplication } from '@/boot';
+import { mountPath as krabiclawFacadeMountPath } from '@/modules/krabiclaw-integration/http';
 import { mcpHttp } from '@/modules/mcp';
 import e2eFixturesHttp from '@/routes/e2e-fixtures';
 import { registerAuthRoutes } from '@/shared/auth/better-auth.http';
@@ -34,7 +35,17 @@ app.use(
 );
 app.use('*', cors());
 app.use('*', responseMiddleware());
-app.use('/api/*', rateLimit({ scope: rateLimiter.getApiRateLimitIdentifier }));
+// The KrabiClaw facade has no Better Auth user or API key, so the outer rate limiter would bucket every organization under the same `anon:global` key, defeating the facade's own organization-scoped limiter. It gets an IP-scoped backstop here instead — covering requests with a missing or invalid token, before krabiclawFacadeAuthMiddleware can even run — and its own organization-scoped limiter applies afterward, inside the module's own HTTP flow, once the caller is authenticated.
+const apiRateLimit = rateLimit({ scope: rateLimiter.getApiRateLimitIdentifier });
+const krabiclawFacadePreAuthRateLimit = rateLimit({ routeKey: 'krabiclaw-facade-preauth', scope: 'ip' });
+const isKrabiclawFacadePath = (path: string): boolean =>
+  path === krabiclawFacadeMountPath || path.startsWith(`${krabiclawFacadeMountPath}/`);
+app.use('/api/*', async (c, next) => {
+  if (isKrabiclawFacadePath(c.req.path)) {
+    return krabiclawFacadePreAuthRateLimit(c, next);
+  }
+  return apiRateLimit(c, next);
+});
 
 registerAuthRoutes(app);
 
@@ -61,6 +72,7 @@ app.get('/llms.txt', async (c) => {
 });
 
 // Scalar API documentation UI - fetches OpenAPI spec from /doc endpoint
+// oxlint-disable-next-line new-cap -- Scalar is a factory function, not a constructor
 app.get('/scalar', Scalar({ url: '/doc' }));
 
 // Boot application (wait for all services to be ready)
