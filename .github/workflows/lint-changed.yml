@@ -49,6 +49,12 @@ jobs:
           files: |
             **/*.ts
             **/*.tsx
+          files_ignore: |
+            **/.agent/**
+            **/.agents/**
+            **/.claude/**
+            **/.cursor/**
+            **/.serena/**
 
       - name: Lint changed files
         if: steps.changed-files.outputs.any_changed == 'true'
