@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { ForbiddenError } from '@casl/ability';
 
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
+import { getPracticeDetails as getPracticeDetailsOperation } from '@/modules/practice/operations/get-practice-details.operation';
 import { organizationService } from '@/modules/practice/services/organization.service';
 import {
   loadPracticeResponseById,
@@ -10,6 +11,7 @@ import {
 } from '@/modules/practice/services/practice-response.loader';
 import type { PracticeResponse, OrganizationRequestParams } from '@/modules/practice/types/practice.types';
 import type { ServiceContext } from '@/shared/types/service-context';
+import { toLegalOperationContext } from '@/shared/types/legal-operation-context';
 
 const logger = getLogger(['practice', 'queries-service']);
 
@@ -65,20 +67,7 @@ export const practiceQueriesService = {
   ): Promise<PracticeResponse> {
     ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'Organization');
 
-    try {
-      const practice = await loadPracticeResponseById(organizationId);
-      if (!practice) {
-        throw new HTTPException(404, { message: `Practice not found for '${organizationId}'` });
-      }
-
-      return practice;
-    } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      logger.error('Failed to get practice details for {organizationId}: {error}', { organizationId, error });
-      throw new HTTPException(500, { message: 'Failed to get practice details' });
-    }
+    return getPracticeDetailsOperation({ organizationId }, toLegalOperationContext(ctx));
   },
 
   /**

@@ -25,7 +25,10 @@ const findByRequestKey = async (
 };
 
 const createPending = async (
-  data: Pick<InsertKrabiClawConnectOperation, 'organization_id' | 'request_key'>
+  data: Pick<
+    InsertKrabiClawConnectOperation,
+    'organization_id' | 'request_key' | 'email' | 'refresh_url' | 'return_url'
+  >
 ): Promise<SelectKrabiClawConnectOperation> => {
   const [operation] = await getActiveTx()
     .insert(krabiclawConnectOperations)

@@ -19,6 +19,7 @@ import { ForbiddenError } from '@casl/ability';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { uow } from '@/shared/database/uow';
 import { PracticeCreated, PracticeUpdated } from '@/shared/events/definitions';
+import { toLegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const { getBetterAuthErrorMessage } = betterAuthUtils;
@@ -46,7 +47,7 @@ export const practiceManagementService = {
 
       try {
         practiceDetails = await uow.transaction(async () => {
-          const { details } = await upsertDetailsTransaction(ctx, {
+          const { details } = await upsertDetailsTransaction(toLegalOperationContext(ctx), {
             organizationId: organization.id,
             userId: user.id,
             data: practiceValidations.hasPracticeDetails(data) ? data : {},
@@ -148,7 +149,7 @@ export const practiceManagementService = {
 
         try {
           practiceDetails = await uow.transaction(async () => {
-            const { details } = await upsertDetailsTransaction(ctx, {
+            const { details } = await upsertDetailsTransaction(toLegalOperationContext(ctx), {
               organizationId,
               userId: user.id,
               data,

@@ -57,8 +57,11 @@ export const handleExternalAccountDeleted = async (externalAccount: Stripe.Exter
         .limit(1);
 
       if (!accountRecord) {
-        logger.warn('Account not found for external account deletion: {stripeAccountId}', { stripeAccountId });
-        return;
+        // The local row may not exist yet if this webhook arrived before the creating request committed — throw so the retry pipeline tries again instead of acknowledging a webhook we never applied.
+        logger.warn('Account not found for external account deletion: {stripeAccountId}, will retry.', {
+          stripeAccountId,
+        });
+        throw new Error(`Connected account not found for Stripe ID ${stripeAccountId}`);
       }
 
       const currentExternalAccounts = normalizeExternalAccounts({

@@ -9,6 +9,7 @@ import type {
   CreateSessionResponse,
 } from '@/modules/onboarding/types/onboarding.types';
 import { stripeAccountNormalizers } from '@/modules/onboarding/utils/stripeAccountNormalizers';
+import { uow } from '@/shared/database/uow';
 import { StripeConnectedAccountCreated } from '@/shared/events/definitions';
 import { stripe } from '@/shared/utils/stripe-client';
 
@@ -38,14 +39,16 @@ const rethrowConnectedAccountError = (error: unknown, fallbackMessage: string): 
 };
 
 const isMissingConnectedAccountError = (error: unknown): boolean => {
-  if (!error || typeof error !== 'object') {
+  // RethrowConnectedAccountError wraps Stripe client errors in an HTTPException (which exposes `.status`, not `.statusCode`) before they reach this check — unwrap `.cause` to see the original Stripe error underneath.
+  const candidate = error instanceof HTTPException && error.cause ? error.cause : error;
+  if (!candidate || typeof candidate !== 'object') {
     return false;
   }
 
-  const rawMessage = error instanceof Error ? error.message : (error as { message?: unknown }).message;
+  const rawMessage = candidate instanceof Error ? candidate.message : (candidate as { message?: unknown }).message;
   const message = typeof rawMessage === 'string' ? rawMessage : '';
   return (
-    isStripeClientError(error) &&
+    isStripeClientError(candidate) &&
     (message.includes('not connected to your platform') ||
       message.includes('does not exist') ||
       message.includes('No such account'))
@@ -77,20 +80,23 @@ const toConnectedAccountData = (
   last_refreshed_at: new Date(),
 });
 
-const createStripeConnectedAccount = async (email: string) =>
-  await stripe.accounts.create({
-    country: 'US',
-    email,
-    capabilities: {
-      card_payments: { requested: true },
-      transfers: { requested: true },
-      us_bank_account_ach_payments: { requested: true },
+const createStripeConnectedAccount = async (email: string, idempotencyKey?: string) =>
+  await stripe.accounts.create(
+    {
+      country: 'US',
+      email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+        us_bank_account_ach_payments: { requested: true },
+      },
+      controller: {
+        fees: { payer: 'application' },
+        stripe_dashboard: { type: 'none' },
+      },
     },
-    controller: {
-      fees: { payer: 'application' },
-      stripe_dashboard: { type: 'none' },
-    },
-  });
+    idempotencyKey ? { idempotencyKey } : undefined
+  );
 
 /**
  * Helper to determine readiness status based on requirements and capabilities
@@ -185,24 +191,33 @@ export const connectedAccountsService = {
   /**
    * Create new Stripe connected account
    */
-  async createStripeAccount(organizationId: string, email: string, userId?: string): Promise<StripeConnectedAccount> {
+  async createStripeAccount(
+    organizationId: string,
+    email: string,
+    userId?: string,
+    idempotencyKey?: string
+  ): Promise<StripeConnectedAccount> {
     try {
-      const stripeAccount = await createStripeConnectedAccount(email);
+      const stripeAccount = await createStripeConnectedAccount(email, idempotencyKey);
 
-      // Save to database
-      const createdAccount = await onboardingRepo.create(toConnectedAccountData(organizationId, email, stripeAccount));
+      // Stripe already ran above with no transaction open. The DB write and its event are atomic with each other in a short transaction that never wraps Stripe I/O.
+      const createdAccount = await uow.transaction(async () => {
+        const created = await onboardingRepo.create(toConnectedAccountData(organizationId, email, stripeAccount));
 
-      void StripeConnectedAccountCreated.dispatch(
-        {
-          account_id: stripeAccount.id,
-          email,
-          country: 'US',
-        },
-        {
-          actorId: userId ?? 'system',
-          organizationId,
-        }
-      );
+        await StripeConnectedAccountCreated.dispatch(
+          {
+            account_id: stripeAccount.id,
+            email,
+            country: 'US',
+          },
+          {
+            actorId: userId ?? 'system',
+            organizationId,
+          }
+        );
+
+        return created;
+      });
 
       return createdAccount;
     } catch (error) {
@@ -218,36 +233,49 @@ export const connectedAccountsService = {
   /**
    * Replace a stale local connected account with a new Stripe account while preserving the local row id.
    */
-  async replaceStripeAccount(account: StripeConnectedAccount, userId?: string): Promise<StripeConnectedAccount> {
+  async replaceStripeAccount(
+    account: StripeConnectedAccount,
+    userId?: string,
+    idempotencyKey?: string
+  ): Promise<StripeConnectedAccount> {
     try {
       const oldStripeAccountId = account.stripe_account_id;
-      const stripeAccount = await createStripeConnectedAccount(account.email);
-      const updatedAccount = await onboardingRepo.update(
-        account.id,
-        toConnectedAccountData(account.organization_id, account.email, stripeAccount)
+      const stripeAccount = await createStripeConnectedAccount(
+        account.email,
+        idempotencyKey ? `${idempotencyKey}:replace` : undefined
       );
 
-      if (!updatedAccount) {
-        throw new HTTPException(404, { message: 'Connected account not found' });
-      }
+      // Stripe already ran above with no transaction open. The DB write and its event are atomic with each other in a short transaction that never wraps Stripe I/O.
+      const updatedAccount = await uow.transaction(async () => {
+        const updated = await onboardingRepo.update(
+          account.id,
+          toConnectedAccountData(account.organization_id, account.email, stripeAccount)
+        );
+
+        if (!updated) {
+          throw new HTTPException(404, { message: 'Connected account not found' });
+        }
+
+        await StripeConnectedAccountCreated.dispatch(
+          {
+            account_id: stripeAccount.id,
+            email: account.email,
+            country: 'US',
+          },
+          {
+            actorId: userId ?? 'system',
+            organizationId: account.organization_id,
+          }
+        );
+
+        return updated;
+      });
 
       logger.warn(
         'Replaced stale Stripe connected account {oldStripeAccountId} with {newStripeAccountId} for organization {organizationId}',
         {
           oldStripeAccountId,
           newStripeAccountId: stripeAccount.id,
-          organizationId: account.organization_id,
-        }
-      );
-
-      void StripeConnectedAccountCreated.dispatch(
-        {
-          account_id: stripeAccount.id,
-          email: account.email,
-          country: 'US',
-        },
-        {
-          actorId: userId ?? 'system',
           organizationId: account.organization_id,
         }
       );
@@ -300,14 +328,15 @@ export const connectedAccountsService = {
     email: string,
     refreshUrl: string,
     returnUrl: string,
-    userId?: string
+    userId?: string,
+    idempotencyKey?: string
   ): Promise<CreateAccountResponse> {
     // Check if account exists
     let account = await connectedAccountsService.findAccountByOrganization(organizationId);
 
     if (!account) {
       // Create new account — throws on failure
-      account = await connectedAccountsService.createStripeAccount(organizationId, email, userId);
+      account = await connectedAccountsService.createStripeAccount(organizationId, email, userId, idempotencyKey);
     }
 
     let accountLink: CreateSessionResponse;
@@ -318,7 +347,7 @@ export const connectedAccountsService = {
         throw error;
       }
 
-      account = await connectedAccountsService.replaceStripeAccount(account, userId);
+      account = await connectedAccountsService.replaceStripeAccount(account, userId, idempotencyKey);
       accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
     }
 
@@ -429,3 +458,4 @@ export const connectedAccountsService = {
 };
 
 export default connectedAccountsService;
+export { isStripeClientError };
