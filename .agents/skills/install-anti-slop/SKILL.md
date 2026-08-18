@@ -24,13 +24,41 @@ Install the bundled Oxlint plugin into the current repository and integrate it w
 
    This creates `tools/oxlint/anti-slop/`. Pass another relative destination as the first argument when the repository has an established tooling layout. The script refuses to replace an existing destination; only use `--force` after backing up and reviewing existing files.
 
-3. Install current compatible dependencies rather than trusting versions remembered by the agent:
-   - Query `npm view oxlint version` and `npm view @oxlint/plugins version`.
-   - Install the same current version of both packages with the repository's package manager.
-   - `oxlint` is a development dependency. The copied source imports `@oxlint/plugins`, so install it as a development dependency for a local-only plugin.
+   The copied plugin is TypeScript loaded natively by `jsPlugins`, which requires Node.js `^20.19.0` or `>=22.18.0` (Deno and Bun support it natively too). On an older Node.js runtime, either upgrade Node.js or compile the plugin to JavaScript before wiring it in — do not silently skip this requirement.
+
+3. Install compatible dependencies without disturbing an existing pin:
+   - If the repository already depends on `oxlint`, keep its current pinned version — do not query or install a newer one unless the user explicitly asked for a toolchain upgrade.
+   - If `oxlint` is not yet a dependency, query `npm view oxlint version` and install that version as a development dependency.
+   - Install `@oxlint/plugins` as a development dependency at a current compatible version — it does not need to match the `oxlint` version. The copied source imports it, so it is required for the plugin to load.
    - Do not replace the package manager or rewrite unrelated dependency ranges.
 
-4. Register the plugin, configure ignores, and enable all rules. For `oxlint.config.ts` or `.oxlintrc.json`, merge these fields with the existing configuration:
+4. Register the plugin, configure ignores, and enable all rules. Merge these fields with the existing configuration — use whichever example matches the repository's config file, since `.oxlintrc.json` is strict JSON (no unquoted keys, no trailing commas) while `oxlint.config.ts` accepts TypeScript object-literal syntax.
+
+   For `.oxlintrc.json`:
+
+   ```json
+   {
+     "ignorePatterns": [
+       ".agent/**",
+       ".agents/**",
+       ".claude/**",
+       ".codex/**",
+       ".continue/**",
+       ".cursor/**",
+       ".gemini/**",
+       ".opencode/**",
+       ".pi/**",
+       ".roo/**",
+       ".windsurf/**",
+       "tools/oxlint/anti-slop/**"
+     ],
+     "jsPlugins": [
+       { "name": "anti-slop", "specifier": "./tools/oxlint/anti-slop/index.ts" }
+     ]
+   }
+   ```
+
+   For `oxlint.config.ts`:
 
    ```ts
    ignorePatterns: [
