@@ -76,6 +76,7 @@
     "@cloudflare/containers": "^0.3.4",
     "@faker-js/faker": "^10.4.0",
     "@hono/zod-validator": "^0.8.0",
+    "@oxlint/plugins": "1.78.0",
     "@tapjs/test": "4.4.8",
     "@types/mjml": "^4.7.4",
     "@types/node": "25.8.0",

@@ -53,8 +53,16 @@ jobs:
             **/.agent/**
             **/.agents/**
             **/.claude/**
+            **/.codex/**
+            **/.continue/**
             **/.cursor/**
+            **/.gemini/**
+            **/.opencode/**
+            **/.pi/**
+            **/.roo/**
             **/.serena/**
+            **/.windsurf/**
+            tools/oxlint/anti-slop/**
 
       - name: Lint changed files
         if: steps.changed-files.outputs.any_changed == 'true'
