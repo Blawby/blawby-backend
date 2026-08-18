@@ -14,5 +14,13 @@ yarn.lock
 **/.agent/**
 **/.agents/**
 **/.claude/**
+**/.codex/**
+**/.continue/**
 **/.cursor/**
+**/.gemini/**
+**/.opencode/**
+**/.pi/**
+**/.roo/**
 **/.serena/**
+**/.windsurf/**
+tools/oxlint/anti-slop/**
