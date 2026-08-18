@@ -25,15 +25,12 @@ interface CreateConnectedAccountParams {
   requestKey?: string;
 }
 
+// A permanent, non-retryable failure (bad params, card/account rejected) is terminal — everything else, including rate limits, is ambiguous/transient and must stay retryable under the same key.
 // ConnectedAccountsService wraps Stripe client errors in an HTTPException (which exposes
 // `.status`, not `.statusCode`) before they reach here. Unwrap `.cause` to classify the original
 // Stripe error underneath (mirrors isMissingConnectedAccountError's fix).
-const unwrapStripeError = (error: unknown): unknown =>
-  error instanceof HTTPException && error.cause ? error.cause : error;
-
-// A permanent, non-retryable failure (bad params, card/account rejected) is terminal — everything else, including rate limits, is ambiguous/transient and must stay retryable under the same key.
-const isPermanentStripeFailure = (error: unknown): boolean => {
-  const candidate = unwrapStripeError(error);
+const isPermanentStripeFailure = (error: Error): boolean => {
+  const candidate = error instanceof HTTPException && error.cause ? error.cause : error;
   if (!isStripeClientError(candidate)) {
     return false;
   }
@@ -177,7 +174,7 @@ export const createConnectedAccount = async (
       }
       return response;
     } catch (error) {
-      if (isPermanentStripeFailure(error)) {
+      if (error instanceof Error && isPermanentStripeFailure(error)) {
         const message = error instanceof Error ? error.message : 'Failed to create connected account';
         try {
           await uow.transaction(() => krabiclawConnectOperationsRepository.markFailed(operation.id, message));

@@ -16,7 +16,7 @@ import { handleExternalAccountCreated } from '@/modules/onboarding/handlers/exte
  */
 describe('webhook-before-finalization recovery', () => {
   it('handleAccountUpdated throws (does not silently succeed) when the local account is not found yet', async () => {
-    const account = {
+    const account: Partial<Stripe.Account> = {
       id: `acct_${randomUUID()}`,
       charges_enabled: false,
       payouts_enabled: false,
@@ -30,30 +30,33 @@ describe('webhook-before-finalization recovery', () => {
       future_requirements: null,
       tos_acceptance: null,
       metadata: null,
-    } as unknown as Stripe.Account;
+    };
 
-    await expect(handleAccountUpdated(account)).rejects.toThrow();
+    // SAFETY: handleAccountUpdated only reads `account.id` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.Account.
+    await expect(handleAccountUpdated(account as Stripe.Account)).rejects.toThrow();
   });
 
   it('handleCapabilityUpdated throws (does not silently succeed) when the local account is not found yet', async () => {
-    const capability = {
+    const capability: Partial<Stripe.Capability> = {
       id: 'card_payments',
       account: `acct_${randomUUID()}`,
       status: 'active',
       requested: true,
-    } as unknown as Stripe.Capability;
+    };
 
-    await expect(handleCapabilityUpdated(capability)).rejects.toThrow();
+    // SAFETY: handleCapabilityUpdated only reads `capability.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.Capability.
+    await expect(handleCapabilityUpdated(capability as Stripe.Capability)).rejects.toThrow();
   });
 
   it('handleExternalAccountCreated throws (does not silently succeed) when the local account is not found yet', async () => {
-    const externalAccount = {
+    const externalAccount: Partial<Stripe.ExternalAccount> = {
       id: `ba_${randomUUID()}`,
       object: 'bank_account',
       account: `acct_${randomUUID()}`,
       status: 'new',
-    } as unknown as Stripe.ExternalAccount;
+    };
 
-    await expect(handleExternalAccountCreated(externalAccount)).rejects.toThrow();
+    // SAFETY: handleExternalAccountCreated only reads `externalAccount.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.ExternalAccount.
+    await expect(handleExternalAccountCreated(externalAccount as Stripe.ExternalAccount)).rejects.toThrow();
   });
 });

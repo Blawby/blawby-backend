@@ -116,6 +116,7 @@ export const practiceManagementService = {
     try {
       const orgData = omit(data, DETAILS_FIELD_KEYS);
 
+      // SAFETY: filtering only removes undefined/null entries from orgData, which is already shaped like Pick<UpdatePracticeRequest, ...> minus DETAILS_FIELD_KEYS — the remaining keys and value types are unchanged.
       const filteredOrgData = Object.fromEntries(
         Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null)
       ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
