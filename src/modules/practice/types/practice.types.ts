@@ -30,7 +30,7 @@ export type CheckOrganizationSlugRequest = z.infer<
 export type DeleteOrganizationRequest = z.infer<BetterAuthInstance['api']['deleteOrganization']['options']['body']>;
 
 // Using Better Auth types directly from the instance
-export type OrganizationApiShape = Organization & {
+export type OrganizationApiRecord = Organization & {
   paymentLinkEnabled?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date | null;

@@ -12,7 +12,7 @@ import type { CreatePracticeParams, UpdatePracticeParams } from '@/modules/pract
 import type {
   UpdatePracticeRequest,
   PracticeResponse,
-  OrganizationApiShape,
+  OrganizationApiRecord,
 } from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { ForbiddenError } from '@casl/ability';
@@ -120,9 +120,9 @@ export const practiceManagementService = {
         Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null)
       ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
-      let organization: OrganizationApiShape | undefined = undefined;
+      let organization: OrganizationApiRecord | undefined = undefined;
       const hasOrganizationUpdates = Object.keys(filteredOrgData).length > 0;
-      let previousOrganization: OrganizationApiShape | null = null;
+      let previousOrganization: OrganizationApiRecord | null = null;
 
       if (hasOrganizationUpdates) {
         const previousOrg = await organizationRepository.findById(organizationId);

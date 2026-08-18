@@ -20,15 +20,18 @@ const isStripeClientError = (
 ): error is Error & {
   statusCode?: number;
   type?: string;
-} =>
-  typeof error === 'object' &&
-  error !== null &&
-  typeof (error as { statusCode?: unknown }).statusCode === 'number' &&
-  (error as { statusCode: number }).statusCode >= 400 &&
-  (error as { statusCode: number }).statusCode < 500;
+} => {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  // SAFETY: error is confirmed to be a non-null object above — probing an optional statusCode property to test the Stripe client-error shape cannot throw.
+  const candidate = error as { statusCode?: unknown };
+  return typeof candidate.statusCode === 'number' && candidate.statusCode >= 400 && candidate.statusCode < 500;
+};
 
 const rethrowConnectedAccountError = (error: unknown, fallbackMessage: string): never => {
   if (isStripeClientError(error)) {
+    // SAFETY: isStripeClientError already range-checked statusCode into [400, 499) above, so it is a valid contentful HTTP status code.
     throw new HTTPException(error.statusCode as ContentfulStatusCode, {
       message: error instanceof Error ? error.message : fallbackMessage,
       cause: error,
@@ -45,7 +48,9 @@ const isMissingConnectedAccountError = (error: unknown): boolean => {
     return false;
   }
 
-  const rawMessage = candidate instanceof Error ? candidate.message : (candidate as { message?: unknown }).message;
+  // SAFETY: candidate is confirmed to be a non-null object above — probing an optional message property to build a fallback string cannot throw.
+  const candidateRecord = candidate as { message?: unknown };
+  const rawMessage = candidate instanceof Error ? candidate.message : candidateRecord.message;
   const message = typeof rawMessage === 'string' ? rawMessage : '';
   return (
     isStripeClientError(candidate) &&
@@ -124,18 +129,18 @@ const deriveReadinessStatus = (params: {
   return 'active';
 };
 
-/**
- * Get account readiness status details
- */
-const getAccountReadiness = (input: {
-  account: StripeConnectedAccount;
-}): {
+interface AccountReadiness {
   isActive: boolean;
   readinessStatus: 'active' | 'requirements_due' | 'verification_pending' | 'disabled' | 'inactive';
   missingRequirements: string[];
   disabledReason: string | null;
   currentDeadline: number | null;
-} => {
+}
+
+/**
+ * Get account readiness status details
+ */
+const getAccountReadiness = (input: { account: StripeConnectedAccount }): AccountReadiness => {
   const { account } = input;
   const { requirements } = account;
   const currentDue = requirements?.currently_due ?? [];
@@ -145,8 +150,8 @@ const getAccountReadiness = (input: {
   const currentDeadline = requirements?.current_deadline ?? null;
 
   const capabilities = account.capabilities ?? {};
-  const hasCardPayments = capabilities['card_payments'] === 'active';
-  const hasTransfers = capabilities['transfers'] === 'active';
+  const hasCardPayments = capabilities.card_payments === 'active';
+  const hasTransfers = capabilities.transfers === 'active';
 
   const missingRequirements = [...currentDue, ...pastDue];
   const isBaseEnabled = account.charges_enabled && account.payouts_enabled;
@@ -339,17 +344,18 @@ export const connectedAccountsService = {
       account = await connectedAccountsService.createStripeAccount(organizationId, email, userId, idempotencyKey);
     }
 
-    let accountLink: CreateSessionResponse;
-    try {
-      accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
-    } catch (error) {
-      if (!isMissingConnectedAccountError(error)) {
-        throw error;
-      }
+    const accountLink = await (async (): Promise<CreateSessionResponse> => {
+      try {
+        return await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+      } catch (error) {
+        if (!isMissingConnectedAccountError(error)) {
+          throw error;
+        }
 
-      account = await connectedAccountsService.replaceStripeAccount(account, userId, idempotencyKey);
-      accountLink = await connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
-    }
+        account = await connectedAccountsService.replaceStripeAccount(account, userId, idempotencyKey);
+        return connectedAccountsService.createAccountLinkForAccount(account, refreshUrl, returnUrl);
+      }
+    })();
 
     return {
       account_id: account.stripe_account_id,

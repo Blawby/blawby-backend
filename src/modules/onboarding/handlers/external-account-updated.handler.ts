@@ -93,7 +93,7 @@ export const handleExternalAccountUpdated = async (externalAccount: Stripe.Exter
       await getActiveTx()
         .update(stripeConnectedAccounts)
         .set({
-          externalAccounts: updatedExternalAccounts as unknown as ExternalAccounts,
+          externalAccounts: updatedExternalAccounts,
           last_refreshed_at: new Date(),
         })
         .where(eq(stripeConnectedAccounts.stripe_account_id, stripeAccountId));
