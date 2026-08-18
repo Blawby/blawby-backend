@@ -91,6 +91,14 @@ class StripeRateLimitError extends Error {
   }
 }
 
+class StripeIdempotencyConflictError extends Error {
+  statusCode = 400;
+  type = 'idempotency_error';
+  constructor() {
+    super('Keys for idempotent requests can only be used with the same parameters they were first used with');
+  }
+}
+
 const mockedStripeAccount = (id: string): MockStripeAccount => ({
   id,
   charges_enabled: false,
@@ -195,8 +203,10 @@ describe('createConnectedAccount operation — Connect recovery arm (R42)', () =
     expect(operation?.status).toBe('failed');
     expect(operation?.error_message).toBe('invalid email');
 
-    // A second attempt under the same (now-failed) requestKey surfaces the terminal failure instead of re-attempting Stripe — recovery replays pending/succeeded operations, not failed ones (KrabiClaw must mint a new request key to try again).
-    await expect(createConnectedAccount({ ...params(), requestKey }, ctx)).rejects.toThrow('invalid email');
+    // A second attempt under the same (now-failed) requestKey surfaces the terminal failure as a 4xx client error, not a 500 — recovery replays pending/succeeded operations, not failed ones (KrabiClaw must mint a new request key to try again).
+    const replay = createConnectedAccount({ ...params(), requestKey }, ctx);
+    await expect(replay).rejects.toThrow('invalid email');
+    await expect(replay).rejects.toMatchObject({ status: 422 });
     expect(mockAccountsCreate).toHaveBeenCalledTimes(1);
   });
 
@@ -236,6 +246,26 @@ describe('createConnectedAccount operation — Connect recovery arm (R42)', () =
 
     const retried = await createConnectedAccount({ ...params(), requestKey }, ctx);
     expect(retried.stripe_account_id).toBe('acct_after_rate_limit');
+    expect(mockAccountsCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the operation pending (not permanently failed) on a Stripe idempotency-key conflict, and a retry succeeds', async () => {
+    mockAccountsCreate
+      .mockRejectedValueOnce(new StripeIdempotencyConflictError())
+      .mockResolvedValueOnce(mockedStripeAccount('acct_after_conflict'));
+    mockAccountLinksCreate.mockResolvedValue(mockedAccountLink());
+
+    const requestKey = randomUUID();
+
+    await expect(createConnectedAccount({ ...params(), requestKey }, ctx)).rejects.toThrow(
+      /idempotent requests/
+    );
+
+    const afterFirstAttempt = await krabiclawConnectOperationsRepository.findByRequestKey(org.id, requestKey);
+    expect(afterFirstAttempt?.status).toBe('pending');
+
+    const retried = await createConnectedAccount({ ...params(), requestKey }, ctx);
+    expect(retried.stripe_account_id).toBe('acct_after_conflict');
     expect(mockAccountsCreate).toHaveBeenCalledTimes(2);
   });
 

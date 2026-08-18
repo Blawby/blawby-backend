@@ -28,6 +28,6 @@ export const getPracticeDetails = async (
       throw error;
     }
     logger.error('Failed to get practice details for {organizationId}: {error}', { organizationId, error });
-    throw new HTTPException(500, { message: 'Failed to get practice details' });
+    throw new HTTPException(500, { message: 'Failed to get practice details', cause: error });
   }
 };

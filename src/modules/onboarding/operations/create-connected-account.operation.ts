@@ -34,6 +34,10 @@ const isPermanentStripeFailure = (error: Error): boolean => {
   if (!isStripeClientError(candidate)) {
     return false;
   }
+  // A same-key idempotency conflict means a concurrent caller is already handling this request — not a permanent rejection, so leave the operation pending for that caller (or a later retry) to resolve.
+  if (candidate.type === 'idempotency_error') {
+    return false;
+  }
   return candidate.statusCode !== RATE_LIMIT_STATUS_CODE;
 };
 
@@ -152,7 +156,9 @@ export const createConnectedAccount = async (
 
     // A 'failed' operation is terminal for permanent (client) errors only. Ambiguous/transient failures leave the row 'pending' so a same-key retry can attempt Stripe again instead of being locked out forever.
     if (operation.status === 'failed') {
-      throw new Error(operation.error_message ?? 'Failed to create connected account');
+      throw new HTTPException(422, {
+        message: operation.error_message ?? 'Failed to create connected account',
+      });
     }
 
     const idempotencyKey = `krabiclaw-connect:${operation.id}`;
@@ -169,17 +175,25 @@ export const createConnectedAccount = async (
         await uow.transaction(() =>
           krabiclawConnectOperationsRepository.markSucceeded(operation.id, response.connected_account_id ?? '')
         );
-      } catch {
-        // Another concurrent caller with the same idempotency key already transitioned this operation (Stripe itself guarantees only one of them actually created the account) — the response we just built already reflects that same account, so it's still correct.
+      } catch (transitionError) {
+        // Another concurrent caller with the same idempotency key already transitioned this operation (Stripe itself guarantees only one of them actually created the account) — the response we just built already reflects that same account, so it's still correct. Still logged, since a genuine DB failure here is indistinguishable from that race and would otherwise leave the row stale with no trace.
+        logger.warn('Could not mark connect operation {operationId} succeeded', {
+          operationId: operation.id,
+          error: transitionError,
+        });
       }
       return response;
     } catch (error) {
       if (error instanceof Error && isPermanentStripeFailure(error)) {
-        const message = error instanceof Error ? error.message : 'Failed to create connected account';
+        const { message } = error;
         try {
           await uow.transaction(() => krabiclawConnectOperationsRepository.markFailed(operation.id, message));
-        } catch {
-          // Already transitioned by a concurrent caller — nothing more to record.
+        } catch (transitionError) {
+          // Already transitioned by a concurrent caller — nothing more to record. Still logged, since a genuine DB failure here is indistinguishable from that race.
+          logger.warn('Could not mark connect operation {operationId} failed', {
+            operationId: operation.id,
+            error: transitionError,
+          });
         }
       } else {
         // Ambiguous/transient failure (network error, Stripe 5xx or 429, local DB read-after-write miss) — leave the operation 'pending' so a retry under the same request key can try again.

@@ -33,30 +33,38 @@ describe('webhook-before-finalization recovery', () => {
     };
 
     // SAFETY: handleAccountUpdated only reads `account.id` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.Account.
-    await expect(handleAccountUpdated(account as Stripe.Account)).rejects.toThrow();
+    await expect(handleAccountUpdated(account as Stripe.Account)).rejects.toThrow(
+      `Connected account not found for Stripe ID ${account.id}`
+    );
   });
 
   it('handleCapabilityUpdated throws (does not silently succeed) when the local account is not found yet', async () => {
+    const accountId = `acct_${randomUUID()}`;
     const capability: Partial<Stripe.Capability> = {
       id: 'card_payments',
-      account: `acct_${randomUUID()}`,
+      account: accountId,
       status: 'active',
       requested: true,
     };
 
     // SAFETY: handleCapabilityUpdated only reads `capability.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.Capability.
-    await expect(handleCapabilityUpdated(capability as Stripe.Capability)).rejects.toThrow();
+    await expect(handleCapabilityUpdated(capability as Stripe.Capability)).rejects.toThrow(
+      `Connected account not found for Stripe ID ${accountId}`
+    );
   });
 
   it('handleExternalAccountCreated throws (does not silently succeed) when the local account is not found yet', async () => {
+    const accountId = `acct_${randomUUID()}`;
     const externalAccount: Partial<Stripe.ExternalAccount> = {
       id: `ba_${randomUUID()}`,
       object: 'bank_account',
-      account: `acct_${randomUUID()}`,
+      account: accountId,
       status: 'new',
     };
 
     // SAFETY: handleExternalAccountCreated only reads `externalAccount.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.ExternalAccount.
-    await expect(handleExternalAccountCreated(externalAccount as Stripe.ExternalAccount)).rejects.toThrow();
+    await expect(handleExternalAccountCreated(externalAccount as Stripe.ExternalAccount)).rejects.toThrow(
+      `Connected account not found for Stripe ID ${accountId}`
+    );
   });
 });

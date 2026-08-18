@@ -55,6 +55,6 @@ export const upsertPracticeDetails = async (
       throw error;
     }
     logger.error('Failed to upsert practice details for {organizationId}: {error}', { organizationId, error });
-    throw new HTTPException(500, { message: 'Failed to save practice details' });
+    throw new HTTPException(500, { message: 'Failed to save practice details', cause: error });
   }
 };

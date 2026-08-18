@@ -47,12 +47,15 @@ export const practiceManagementService = {
 
       try {
         practiceDetails = await uow.transaction(async () => {
-          const { details } = await upsertDetailsTransaction(toLegalOperationContext(ctx), {
-            organizationId: organization.id,
-            userId: user.id,
-            data: practiceValidations.hasPracticeDetails(data) ? data : {},
-            isCreate: true,
-          });
+          const { details } = await upsertDetailsTransaction(
+            { organizationId: organization.id, userId: user.id },
+            {
+              organizationId: organization.id,
+              userId: user.id,
+              data: practiceValidations.hasPracticeDetails(data) ? data : {},
+              isCreate: true,
+            }
+          );
           return details;
         });
       } catch (detailsError) {
