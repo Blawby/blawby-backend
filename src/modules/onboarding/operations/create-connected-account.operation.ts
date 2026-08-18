@@ -50,15 +50,20 @@ const toResponse = (
     details_submitted: boolean;
   },
   url?: string
-): OnboardingStatusResponse => ({
-  practice_uuid: organizationId,
-  connected_account_id: account.id,
-  stripe_account_id: account.stripe_account_id,
-  charges_enabled: account.charges_enabled,
-  payouts_enabled: account.payouts_enabled,
-  details_submitted: account.details_submitted,
-  ...(url ? { url } : {}),
-});
+): OnboardingStatusResponse => {
+  const response: OnboardingStatusResponse = {
+    practice_uuid: organizationId,
+    connected_account_id: account.id,
+    stripe_account_id: account.stripe_account_id,
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    details_submitted: account.details_submitted,
+  };
+  if (url) {
+    response.url = url;
+  }
+  return response;
+};
 
 const runCreateOrGet = async (
   organizationId: string,

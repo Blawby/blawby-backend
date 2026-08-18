@@ -13,9 +13,13 @@ interface MockAccountSession {
   expires_at: number;
 }
 
+interface MockCreateAccountSessionParams {
+  account: string;
+}
+
 // `vi.mock` is hoisted above everything, including plain top-level consts — vi.hoisted() defers this mock function's creation to run alongside that hoisting so the factory below can see it.
 const { mockAccountSessionsCreate } = vi.hoisted(() => ({
-  mockAccountSessionsCreate: vi.fn<(params: Record<string, unknown>) => Promise<MockAccountSession>>(),
+  mockAccountSessionsCreate: vi.fn<(params: MockCreateAccountSessionParams) => Promise<MockAccountSession>>(),
 }));
 
 // Mock Stripe to prevent real API calls — vi.mock calls are hoisted above every import automatically.
