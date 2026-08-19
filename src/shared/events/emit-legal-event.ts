@@ -12,6 +12,6 @@ export const emitLegalEvent = <T extends Record<string, unknown>>(
     actorId: ctx.userId ?? 'system',
     organizationId: ctx.organizationId,
   };
-  const result = event.dispatch(payload, dispatchOptions);
-  return result instanceof Promise ? result : Promise.resolve(result);
+  // Deferred so a synchronous throw inside dispatch (before it returns) becomes a rejection instead of throwing out of this call — this function is typed Promise<string>, so callers using .catch()-style handling must never see a sync throw.
+  return Promise.resolve().then(() => event.dispatch(payload, dispatchOptions));
 };

@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConnectedAccount } from '@/modules/onboarding/operations/create-connected-account.operation';
 import { krabiclawConnectOperationsRepository } from '@/modules/onboarding/database/queries/krabiclaw-connect-operations.repository';
 import { onboardingRepository } from '@/modules/onboarding/database/queries/onboarding.repository';
+import { krabiclawConnectOperations } from '@/modules/onboarding/schemas/krabiclaw-connect-operations.schema';
 import { authHelpers } from '@/test/helpers/auth';
+import { getTestDb } from '@/test/helpers/db';
 import { StripeConnectedAccountCreated } from '@/shared/events/definitions';
 import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { TestOrganization } from '@/test/types/shared';
@@ -375,5 +378,11 @@ describe('createConnectedAccount operation — Connect recovery arm (R42)', () =
 
     expect(result.stripe_account_id).toBe('acct_no_key');
     expect(mockAccountsCreate).toHaveBeenCalledWith(expect.objectContaining({ email: 'practice@example.com' }), undefined);
+
+    const operations = await getTestDb()
+      .select()
+      .from(krabiclawConnectOperations)
+      .where(eq(krabiclawConnectOperations.organization_id, org.id));
+    expect(operations).toHaveLength(0);
   });
 });

@@ -12,7 +12,7 @@ import type {
 import { getActiveTx, uow } from '@/shared/database/uow';
 import { emitLegalEvent } from '@/shared/events/emit-legal-event';
 import { PracticeDetailsCreated, PracticeDetailsDeleted, PracticeDetailsUpdated } from '@/shared/events/definitions';
-import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
+import { assertLegalOperationTenant, type LegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { eq } from 'drizzle-orm';
 
@@ -35,11 +35,7 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
 
 export const upsertDetailsTransaction = async (ctx: LegalOperationContext, params: UpsertDetailsTransactionParams) => {
   // Defense-in-depth: the database writes below are scoped to params.organizationId, while emitLegalEvent stamps ctx.organizationId onto the dispatched event — a mismatch here would write one tenant's data and publish the event under another's.
-  if (ctx.organizationId !== params.organizationId) {
-    throw new Error(
-      `upsertDetailsTransaction context organization (${ctx.organizationId}) does not match the requested organization (${params.organizationId})`
-    );
-  }
+  assertLegalOperationTenant(ctx, params.organizationId);
 
   let addressId = params.existingAddressId;
   let addressResult: AddressData | null = null;
