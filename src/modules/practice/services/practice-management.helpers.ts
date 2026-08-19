@@ -34,6 +34,13 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
 ];
 
 export const upsertDetailsTransaction = async (ctx: LegalOperationContext, params: UpsertDetailsTransactionParams) => {
+  // Defense-in-depth: the database writes below are scoped to params.organizationId, while emitLegalEvent stamps ctx.organizationId onto the dispatched event — a mismatch here would write one tenant's data and publish the event under another's.
+  if (ctx.organizationId !== params.organizationId) {
+    throw new Error(
+      `upsertDetailsTransaction context organization (${ctx.organizationId}) does not match the requested organization (${params.organizationId})`
+    );
+  }
+
   let addressId = params.existingAddressId;
   let addressResult: AddressData | null = null;
 

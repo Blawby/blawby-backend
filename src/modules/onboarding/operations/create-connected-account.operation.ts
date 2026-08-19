@@ -15,6 +15,7 @@ import { assertLegalOperationTenant, type LegalOperationContext } from '@/shared
 const logger = getLogger(['onboarding', 'create-connected-account-operation']);
 
 const RATE_LIMIT_STATUS_CODE = 429;
+const IDEMPOTENCY_KEY_IN_USE_STATUS_CODE = 409;
 
 interface CreateConnectedAccountParams {
   organizationId: string;
@@ -34,8 +35,8 @@ const isPermanentStripeFailure = (error: Error): boolean => {
   if (!isStripeClientError(candidate)) {
     return false;
   }
-  // A same-key idempotency conflict means a concurrent caller is already handling this request — not a permanent rejection, so leave the operation pending for that caller (or a later retry) to resolve.
-  if (candidate.type === 'idempotency_error') {
+  // Stripe's `idempotency_error` covers two different cases with different statuses: a 409 means a concurrent caller with the same key is still in flight (transient — the operation stays pending for that caller or a later retry to resolve); a 400 means the key was reused with different parameters, a genuine caller bug that retrying under the same key can never fix, so it stays permanent.
+  if (candidate.type === 'idempotency_error' && candidate.statusCode === IDEMPOTENCY_KEY_IN_USE_STATUS_CODE) {
     return false;
   }
   return candidate.statusCode !== RATE_LIMIT_STATUS_CODE;

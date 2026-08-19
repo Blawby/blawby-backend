@@ -117,7 +117,7 @@
     },
     {
       "files": [
-        "src/shared/events/**/*.ts"
+        "src/shared/events/emit-legal-event.ts"
       ],
       "rules": {
         "anti-slop/no-unsafe-dictionary-type": "warn"

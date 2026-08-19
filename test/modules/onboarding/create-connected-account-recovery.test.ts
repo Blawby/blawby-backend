@@ -91,7 +91,17 @@ class StripeRateLimitError extends Error {
   }
 }
 
-class StripeIdempotencyConflictError extends Error {
+// Stripe returns 409 when a same-key request is still being processed by a different in-flight call — transient, safe to retry.
+class StripeIdempotencyInFlightError extends Error {
+  statusCode = 409;
+  type = 'idempotency_error';
+  constructor() {
+    super('A request with the idempotency key already exists and is currently being processed by a different request');
+  }
+}
+
+// Stripe returns 400 when the same key is reused with different parameters — a caller bug, never resolved by retrying under the same key.
+class StripeIdempotencyParamMismatchError extends Error {
   statusCode = 400;
   type = 'idempotency_error';
   constructor() {
@@ -249,16 +259,16 @@ describe('createConnectedAccount operation — Connect recovery arm (R42)', () =
     expect(mockAccountsCreate).toHaveBeenCalledTimes(2);
   });
 
-  it('leaves the operation pending (not permanently failed) on a Stripe idempotency-key conflict, and a retry succeeds', async () => {
+  it('leaves the operation pending (not permanently failed) on a Stripe 409 in-flight idempotency conflict, and a retry succeeds', async () => {
     mockAccountsCreate
-      .mockRejectedValueOnce(new StripeIdempotencyConflictError())
+      .mockRejectedValueOnce(new StripeIdempotencyInFlightError())
       .mockResolvedValueOnce(mockedStripeAccount('acct_after_conflict'));
     mockAccountLinksCreate.mockResolvedValue(mockedAccountLink());
 
     const requestKey = randomUUID();
 
     await expect(createConnectedAccount({ ...params(), requestKey }, ctx)).rejects.toThrow(
-      /idempotent requests/
+      /currently being processed/
     );
 
     const afterFirstAttempt = await krabiclawConnectOperationsRepository.findByRequestKey(org.id, requestKey);
@@ -267,6 +277,20 @@ describe('createConnectedAccount operation — Connect recovery arm (R42)', () =
     const retried = await createConnectedAccount({ ...params(), requestKey }, ctx);
     expect(retried.stripe_account_id).toBe('acct_after_conflict');
     expect(mockAccountsCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks the operation permanently failed on a Stripe 400 idempotency-key parameter mismatch, and does not retry it', async () => {
+    mockAccountsCreate.mockRejectedValueOnce(new StripeIdempotencyParamMismatchError());
+
+    const requestKey = randomUUID();
+
+    await expect(createConnectedAccount({ ...params(), requestKey }, ctx)).rejects.toThrow(/same parameters/);
+
+    const operation = await krabiclawConnectOperationsRepository.findByRequestKey(org.id, requestKey);
+    expect(operation?.status).toBe('failed');
+
+    await expect(createConnectedAccount({ ...params(), requestKey }, ctx)).rejects.toThrow(/same parameters/);
+    expect(mockAccountsCreate).toHaveBeenCalledTimes(1);
   });
 
   it('creates separate accounts when the same requestKey is used under different organizations', async () => {

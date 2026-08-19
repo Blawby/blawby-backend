@@ -21,10 +21,10 @@ const isStripeClientError = (
   statusCode?: number;
   type?: string;
 } => {
-  if (typeof error !== 'object' || error === null) {
+  if (!(error instanceof Error)) {
     return false;
   }
-  // SAFETY: error is confirmed to be a non-null object above — probing an optional statusCode property to test the Stripe client-error shape cannot throw.
+  // SAFETY: error is confirmed to be an Error above — probing an optional statusCode property to test the Stripe client-error shape cannot throw.
   const candidate = error as { statusCode?: unknown };
   return typeof candidate.statusCode === 'number' && candidate.statusCode >= 400 && candidate.statusCode < 500;
 };

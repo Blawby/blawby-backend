@@ -5,6 +5,8 @@ import type Stripe from 'stripe';
 import { handleAccountUpdated } from '@/modules/onboarding/handlers/account-updated.handler';
 import { handleCapabilityUpdated } from '@/modules/onboarding/handlers/capability-updated.handler';
 import { handleExternalAccountCreated } from '@/modules/onboarding/handlers/external-account-created.handler';
+import { handleExternalAccountUpdated } from '@/modules/onboarding/handlers/external-account-updated.handler';
+import { handleExternalAccountDeleted } from '@/modules/onboarding/handlers/external-account-deleted.handler';
 
 /**
  * Stripe can fire account.updated / capability.updated / account.external_account.created for a
@@ -64,6 +66,36 @@ describe('webhook-before-finalization recovery', () => {
 
     // SAFETY: handleExternalAccountCreated only reads `externalAccount.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.ExternalAccount.
     await expect(handleExternalAccountCreated(externalAccount as Stripe.ExternalAccount)).rejects.toThrow(
+      `Connected account not found for Stripe ID ${accountId}`
+    );
+  });
+
+  it('handleExternalAccountUpdated throws (does not silently succeed) when the local account is not found yet', async () => {
+    const accountId = `acct_${randomUUID()}`;
+    const externalAccount: Partial<Stripe.ExternalAccount> = {
+      id: `ba_${randomUUID()}`,
+      object: 'bank_account',
+      account: accountId,
+      status: 'new',
+    };
+
+    // SAFETY: handleExternalAccountUpdated only reads `externalAccount.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.ExternalAccount.
+    await expect(handleExternalAccountUpdated(externalAccount as Stripe.ExternalAccount)).rejects.toThrow(
+      `Connected account not found for Stripe ID ${accountId}`
+    );
+  });
+
+  it('handleExternalAccountDeleted throws (does not silently succeed) when the local account is not found yet', async () => {
+    const accountId = `acct_${randomUUID()}`;
+    const externalAccount: Partial<Stripe.ExternalAccount> = {
+      id: `ba_${randomUUID()}`,
+      object: 'bank_account',
+      account: accountId,
+      status: 'new',
+    };
+
+    // SAFETY: handleExternalAccountDeleted only reads `externalAccount.account` before the not-found branch throws — this deliberately partial fixture never needs the rest of Stripe.ExternalAccount.
+    await expect(handleExternalAccountDeleted(externalAccount as Stripe.ExternalAccount)).rejects.toThrow(
       `Connected account not found for Stripe ID ${accountId}`
     );
   });
