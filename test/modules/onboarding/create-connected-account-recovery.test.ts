@@ -190,6 +190,22 @@ describe('createConnectedAccount operation — Connect recovery arm (R42)', () =
     expect(operation?.status).toBe('succeeded');
   });
 
+  it('returns the account without a url when regenerating the account link fails on a succeeded replay', async () => {
+    mockAccountsCreate.mockResolvedValueOnce(mockedStripeAccount('acct_recovery_2'));
+    mockAccountLinksCreate.mockResolvedValueOnce(mockedAccountLink()).mockRejectedValueOnce(new StripeServerError());
+
+    const requestKey = randomUUID();
+
+    const first = await createConnectedAccount({ ...params(), requestKey }, ctx);
+    const second = await createConnectedAccount({ ...params(), requestKey }, ctx);
+
+    expect(first.url).toBe('https://connect.stripe.com/setup/s/test');
+    expect(second.connected_account_id).toBe(first.connected_account_id);
+    expect(second.stripe_account_id).toBe('acct_recovery_2');
+    expect(second.url).toBeUndefined();
+    expect(mockAccountsCreate).toHaveBeenCalledTimes(1);
+  });
+
   it('calls Stripe exactly once when the same requestKey is retried concurrently', async () => {
     mockAccountsCreate.mockResolvedValueOnce(mockedStripeAccount('acct_concurrent'));
     mockAccountLinksCreate.mockResolvedValue(mockedAccountLink());

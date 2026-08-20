@@ -103,13 +103,21 @@ const respondFromSucceededOperation = async (
   if (!account) {
     throw new Error('Connect operation succeeded but its connected account could not be loaded');
   }
-  // Account links are short-lived — regenerate a fresh one on every replay so the response stays complete (matches the fresh-create response shape) rather than omitting `url`.
-  const accountLink = await connectedAccountsService.createAccountLinkForAccount(
-    account,
-    operation.refresh_url,
-    operation.return_url
-  );
-  return toResponse(organizationId, account, accountLink.url);
+  // Account links are short-lived — regenerate a fresh one on every replay so the response stays complete (matches the fresh-create response shape) rather than omitting `url`. But the account itself already exists and the operation already succeeded, so a transient Stripe failure generating a NEW link must not fail the whole replay — fall back to a url-less (but otherwise complete) response instead.
+  try {
+    const accountLink = await connectedAccountsService.createAccountLinkForAccount(
+      account,
+      operation.refresh_url,
+      operation.return_url
+    );
+    return toResponse(organizationId, account, accountLink.url);
+  } catch (error) {
+    logger.warn('Could not regenerate account link for succeeded connect operation {operationId}', {
+      operationId: operation.connected_account_id,
+      error,
+    });
+    return toResponse(organizationId, account);
+  }
 };
 
 /**
@@ -172,9 +180,14 @@ export const createConnectedAccount = async (
         ctx,
         idempotencyKey
       );
+      const { connected_account_id: connectedAccountId } = response;
+      if (!connectedAccountId) {
+        // RunCreateOrGet always loads the connected account before returning a response, so this is an invariant violation, not a real "missing id" case — fail loudly instead of writing an empty-string foreign key.
+        throw new Error('Connected account id missing after successful creation');
+      }
       try {
         await uow.transaction(() =>
-          krabiclawConnectOperationsRepository.markSucceeded(operation.id, response.connected_account_id ?? '')
+          krabiclawConnectOperationsRepository.markSucceeded(operation.id, connectedAccountId)
         );
       } catch (transitionError) {
         // Another concurrent caller with the same idempotency key already transitioned this operation (Stripe itself guarantees only one of them actually created the account) — the response we just built already reflects that same account, so it's still correct. Still logged, since a genuine DB failure here is indistinguishable from that race and would otherwise leave the row stale with no trace.

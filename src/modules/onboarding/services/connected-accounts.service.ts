@@ -30,6 +30,9 @@ const isStripeClientError = (
 };
 
 const rethrowConnectedAccountError = (error: unknown, fallbackMessage: string): never => {
+  if (error instanceof HTTPException) {
+    throw error;
+  }
   if (isStripeClientError(error)) {
     // SAFETY: isStripeClientError already range-checked statusCode into [400, 499) above, so it is a valid contentful HTTP status code.
     throw new HTTPException(error.statusCode as ContentfulStatusCode, {
