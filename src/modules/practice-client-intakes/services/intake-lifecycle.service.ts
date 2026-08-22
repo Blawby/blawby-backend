@@ -1,19 +1,22 @@
 import type { z } from '@hono/zod-openapi';
-import { intakeConversationsQueries } from '@/modules/intake-conversations/database/queries/intake-conversations.queries';
+import { ForbiddenError } from '@casl/ability';
 import { mattersQueries } from '@/modules/matters/database/queries/matters.queries';
 import { matterMilestones } from '@/modules/matters/database/schema/matter-milestones.schema';
 import { matterNotes } from '@/modules/matters/database/schema/matter-notes.schema';
 import type { MatterResponse } from '@/modules/matters/types/matter.types';
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
+import { getIntakeById as getIntakeByIdOperation } from '@/modules/practice-client-intakes/operations/get-intake-by-id.operation';
+import { listIntakes as listIntakesOperation } from '@/modules/practice-client-intakes/operations/list-intakes.operation';
+import { updateIntakeTriageStatus as updateIntakeTriageStatusOperation } from '@/modules/practice-client-intakes/operations/update-intake-triage-status.operation';
 import {
   getStaffAccessibleIntake,
   getStaffAccessibleIntakeForUpdate,
-  ensureStaffOrganizationAccess,
 } from '@/modules/practice-client-intakes/services/intake-access.helpers';
 import { intakePrefillTokenService } from '@/modules/practice-client-intakes/services/intake-prefill-token.service';
 import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import type {
+  IntakeStatusResponse,
   UpdateIntakeTriageStatusRequest,
   UpdateIntakeTriageStatusResponse,
 } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
@@ -23,8 +26,8 @@ import { createBetterAuthInstance } from '@/shared/auth/better-auth';
 import { withMagicLinkDeliveryContext } from '@/shared/auth/magic-link-delivery-context';
 import { db } from '@/shared/database';
 import { getActiveTx, uow } from '@/shared/database/uow';
-import { IntakeTriaged } from '@/shared/events/definitions';
 import { appConfigService } from '@/shared/services/app-config.service';
+import { toLegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { OffsetPaginatedResponse } from '@/shared/types/pagination';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { getMatchingFrontendUrl } from '@/shared/utils/env';
@@ -35,6 +38,14 @@ const logger = getLogger(['practice-client-intakes', 'service']);
 
 type ListIntakeItem = z.infer<typeof intakeValidations.listIntakesResponseSchema>['data'][number];
 
+/** Staff-required + CASL authorization for the read-only staff surfaces; the operation only does the tenant/row check. */
+const authorizeStaffRead = (ctx: ServiceContext): void => {
+  if (!ctx.memberRole) {
+    throw new HTTPException(403, { message: 'You do not have permission to access these intakes' });
+  }
+  ForbiddenError.from(ctx.ability).throwUnlessCan('read', 'PracticeClientIntake');
+};
+
 const listIntakes = async (
   params: {
     query: z.infer<typeof intakeValidations.listIntakesQuerySchema>;
@@ -42,31 +53,12 @@ const listIntakes = async (
   ctx: ServiceContext
 ): Promise<OffsetPaginatedResponse<ListIntakeItem>> => {
   try {
-    ensureStaffOrganizationAccess(ctx.organizationId, ctx);
+    authorizeStaffRead(ctx);
 
-    if (params.query.from && !intakeSharedHelpers.parseValidDate(params.query.from)) {
-      throw new HTTPException(400, { message: 'Invalid date: from' });
-    }
-
-    if (params.query.to && !intakeSharedHelpers.parseValidDate(params.query.to)) {
-      throw new HTTPException(400, { message: 'Invalid date: to' });
-    }
-
-    const { intakes, total } = await practiceClientIntakesRepository.findByOrganizationId({
-      organizationId: ctx.organizationId,
-      ...params.query,
-      from: params.query.from ? new Date(params.query.from) : undefined,
-      to: params.query.to ? new Date(params.query.to) : undefined,
-    });
-
-    return {
-      data: intakes.map((intake) => intakeSharedHelpers.formatIntakeListItem(intake, { isAdmin: true })),
-      pagination: {
-        page: params.query.page,
-        limit: params.query.limit,
-        total,
-      },
-    };
+    return await listIntakesOperation(
+      { organizationId: ctx.organizationId, query: params.query },
+      toLegalOperationContext(ctx)
+    );
   } catch (error) {
     logger.error('Failed to list intakes for organization {organizationId}: {error}', {
       organizationId: ctx.organizationId,
@@ -76,14 +68,11 @@ const listIntakes = async (
   }
 };
 
-const getIntakeById = async (
-  id: string,
-  ctx: ServiceContext
-): Promise<z.infer<typeof intakeValidations.practiceClientIntakeStatusResponseSchema>> => {
+const getIntakeById = async (id: string, ctx: ServiceContext): Promise<IntakeStatusResponse> => {
   try {
-    const intake = await getStaffAccessibleIntake(id, ctx, 'read');
+    authorizeStaffRead(ctx);
 
-    return intakeSharedHelpers.formatIntakeStatusResponse(intake, { isAdmin: true });
+    return await getIntakeByIdOperation(id, toLegalOperationContext(ctx));
   } catch (error) {
     logger.error('Failed to get intake {id}: {error}', {
       id,
@@ -98,62 +87,12 @@ const updateTriageStatus = async (
   ctx: ServiceContext
 ): Promise<UpdateIntakeTriageStatusResponse> => {
   try {
-    const intake = await getStaffAccessibleIntake(params.uuid, ctx, 'update');
-
-    const nextTriageStatus = params.data.status;
-    const nextReason = nextTriageStatus === 'declined' ? (params.data.reason?.trim() ?? null) : null;
-
-    const updatedIntake = await uow.transaction(async () => {
-      const result = await practiceClientIntakesRepository.update(params.uuid, {
-        triage_status: nextTriageStatus,
-        triage_reason: nextReason,
-        triage_decided_at: new Date(),
-      });
-      if (nextTriageStatus === 'accepted' && result.conversation_id) {
-        await intakeConversationsQueries.updateLifecycleStatus(result.conversation_id, 'visible', ctx.organizationId);
-      }
-      return result;
-    });
-
-    // Emit triage event for email notifications
-    const metadata = intakeSharedHelpers.parseMetadata(intake.metadata);
-
-    if (metadata?.email) {
-      try {
-        const organization = await organizationRepository.findById(ctx.organizationId);
-
-        if (organization) {
-          void IntakeTriaged.dispatch(
-            {
-              intake_id: params.uuid,
-              organization_id: ctx.organizationId,
-              organization_name: organization.name,
-              triage_status: nextTriageStatus,
-              triage_reason: nextReason,
-              client_email: metadata.email,
-              client_name: metadata.name ?? metadata.email,
-            },
-            {
-              actorId: ctx.userId,
-              organizationId: ctx.organizationId,
-            }
-          );
-        }
-      } catch (enrichmentError) {
-        logger.warn('Failed to enrich IntakeTriaged event for intake {uuid}: {error}', {
-          uuid: params.uuid,
-          error: enrichmentError,
-        });
-      }
+    if (!ctx.memberRole) {
+      throw new HTTPException(403, { message: 'You do not have permission to access this intake' });
     }
+    ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'PracticeClientIntake');
 
-    return {
-      uuid: updatedIntake.id,
-      conversation_id: updatedIntake.conversation_id ?? null,
-      triage_status: intakeSharedHelpers.normalizeTriageStatus(updatedIntake.triage_status),
-      triage_reason: updatedIntake.triage_reason ?? null,
-      triage_decided_at: updatedIntake.triage_decided_at ?? null,
-    };
+    return await updateIntakeTriageStatusOperation(params, toLegalOperationContext(ctx));
   } catch (error) {
     logger.error('Failed to update triage status for intake {uuid}: {error}', {
       uuid: params.uuid,
