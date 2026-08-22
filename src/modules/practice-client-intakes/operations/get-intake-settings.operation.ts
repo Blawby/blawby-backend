@@ -13,11 +13,23 @@ import { assertLegalOperationTenant, type LegalOperationContext } from '@/shared
 const logger = getLogger(['practice-client-intakes', 'get-intake-settings-operation']);
 
 /**
+ * `'enforce'` preserves the existing Blawby subscription requirement. `'bypass'` is for a facade
+ * caller that has already run its own entitlement check (KrabiClaw) and is exempt only from
+ * Blawby's local subscription check (U6/U8) — it is never derived from request input, only set
+ * by the code path that already verified entitlement.
+ */
+export type IntakeSubscriptionPolicy = 'enforce' | 'bypass';
+
+/**
  * Load public intake settings for an organization already resolved by the caller
  * (existing route resolves by slug; the facade resolves organizationId directly).
  */
 export const getIntakeSettings = async (
-  { organizationId, templateSlug }: { organizationId: string; templateSlug?: string },
+  {
+    organizationId,
+    templateSlug,
+    subscriptionPolicy,
+  }: { organizationId: string; templateSlug?: string; subscriptionPolicy: IntakeSubscriptionPolicy },
   ctx: LegalOperationContext
 ): Promise<IntakeSettingsResponse> => {
   assertLegalOperationTenant(ctx, organizationId);
@@ -27,7 +39,7 @@ export const getIntakeSettings = async (
     throw new HTTPException(404, { message: `Organization not found for '${organizationId}'` });
   }
 
-  if (!organization.activeSubscriptionId) {
+  if (subscriptionPolicy === 'enforce' && !organization.activeSubscriptionId) {
     throw new HTTPException(403, { message: 'Organization does not have an active subscription' });
   }
 

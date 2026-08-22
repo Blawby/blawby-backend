@@ -79,14 +79,19 @@ describe('createIntake operation — facade idempotency and tenant isolation', (
     const otherOrg = await authHelpers.createTestOrganization();
     const mismatchedCtx: LegalOperationContext = { organizationId: otherOrg.id, userId: null };
 
-    await expect(createIntake({ organizationId: org.id, data: baseData() }, mismatchedCtx)).rejects.toMatchObject({
+    await expect(
+      createIntake({ organizationId: org.id, data: baseData(), subscriptionPolicy: 'enforce' }, mismatchedCtx)
+    ).rejects.toMatchObject({
       status: 403,
     });
     expect(mockPaymentLinksCreate).not.toHaveBeenCalled();
   });
 
   it('creates a payment-bypassed intake for an anonymous actor with no local user row', async () => {
-    const response = await createIntake({ organizationId: org.id, data: baseData() }, ctx);
+    const response = await createIntake(
+      { organizationId: org.id, data: baseData(), subscriptionPolicy: 'enforce' },
+      ctx
+    );
 
     expect(response.status).toBe('succeeded');
     const stored = await practiceClientIntakesRepository.findById(response.uuid);
@@ -104,8 +109,8 @@ describe('createIntake operation — facade idempotency and tenant isolation', (
     const requestKey = randomUUID();
     const data = baseData();
 
-    const first = await createIntake({ organizationId: org.id, data, requestKey }, ctx);
-    const second = await createIntake({ organizationId: org.id, data, requestKey }, ctx);
+    const first = await createIntake({ organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' }, ctx);
+    const second = await createIntake({ organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' }, ctx);
 
     expect(second.uuid).toBe(first.uuid);
     expect(second.payment_link_url).toBe(first.payment_link_url);
@@ -118,13 +123,62 @@ describe('createIntake operation — facade idempotency and tenant isolation', (
     expect(stored?.id).toBe(first.uuid);
   });
 
+  it('reuses the same intake id and Stripe idempotency key when the DB persist is lost after Stripe already succeeded', async () => {
+    await intakeHelpers.seedPublicIntakeOrganization(org.id);
+    await enablePaidIntake(org.id, 15000);
+    mockPaymentLinksCreate.mockResolvedValue(
+      stripeResponse({ id: 'plink_recovery', url: 'https://buy.stripe.com/test_recovery' })
+    );
+    mockPaymentLinksRetrieve.mockResolvedValue(
+      stripeResponse({ id: 'plink_recovery', url: 'https://buy.stripe.com/test_recovery' })
+    );
+
+    const requestKey = randomUUID();
+    const data = baseData();
+
+    // Simulate a crash between the successful Stripe call and the DB insert on the first attempt.
+    const createSpy = vi
+      .spyOn(practiceClientIntakesRepository, 'createWithKrabiClawRequestKey')
+      .mockRejectedValueOnce(new Error('simulated persist failure'));
+
+    await expect(
+      createIntake({ organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' }, ctx)
+    ).rejects.toThrow('simulated persist failure');
+
+    createSpy.mockRestore();
+
+    const retried = await createIntake(
+      { organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' },
+      ctx
+    );
+
+    expect(mockPaymentLinksCreate).toHaveBeenCalledTimes(2);
+    const [firstCallArgs, secondCallArgs] = mockPaymentLinksCreate.mock.calls;
+    const [firstBody, firstOptions] = firstCallArgs;
+    const [secondBody, secondOptions] = secondCallArgs;
+
+    // Same idempotency key on both attempts (required for Stripe to treat them as one retry)...
+    expect(firstOptions).toEqual(secondOptions);
+    expect(secondOptions).toEqual({ idempotencyKey: `krabiclaw-intake:${org.id}:${requestKey}` });
+    // ...and identical request parameters, since a fresh random intake id on the retry would make
+    // Stripe reject it as an idempotency-key/parameter mismatch instead of returning the cached link.
+    expect(firstBody.payment_intent_data.metadata.intake_uuid).toBe(secondBody.payment_intent_data.metadata.intake_uuid);
+    expect(retried.uuid).toBe(firstBody.payment_intent_data.metadata.intake_uuid);
+  });
+
   it('creates separate intakes when the same request key is reused across organizations', async () => {
     const otherOrg = await authHelpers.createTestOrganization();
     const otherCtx: LegalOperationContext = { organizationId: otherOrg.id, userId: null };
     const requestKey = randomUUID();
 
-    const first = await createIntake({ organizationId: org.id, data: baseData(), requestKey }, ctx);
-    const second = await createIntake({ organizationId: otherOrg.id, data: baseData(), requestKey }, otherCtx);
+    const first = await createIntake(
+      { organizationId: org.id, data: baseData(), requestKey, subscriptionPolicy: 'enforce' },
+      ctx
+    );
+    const second = await createIntake(
+      { organizationId: otherOrg.id, data: baseData(), requestKey, subscriptionPolicy: 'enforce' },
+      otherCtx
+    );
 
     expect(second.uuid).not.toBe(first.uuid);
 

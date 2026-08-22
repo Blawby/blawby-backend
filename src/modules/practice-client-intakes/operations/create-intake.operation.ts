@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
 import type { Stripe } from 'stripe';
@@ -14,7 +14,10 @@ import type {
   InsertPracticeClientIntake,
   SelectPracticeClientIntake,
 } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
-import { getIntakeSettings } from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
+import {
+  getIntakeSettings,
+  type IntakeSubscriptionPolicy,
+} from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
 import { createIntakePaymentLink } from '@/modules/practice-client-intakes/services/intake-stripe.helpers';
 import type {
   CreateIntakeResponse,
@@ -28,6 +31,23 @@ import { stripe } from '@/shared/utils/stripe-client';
 const logger = getLogger(['practice-client-intakes', 'create-intake-operation']);
 
 const MIN_PAYABLE_AMOUNT_CENTS = 50;
+
+/**
+ * Stripe requires identical request parameters on every call that reuses an idempotency key.
+ * `intakeId` is embedded in the Stripe payment-link metadata and redirect URL, so a fresh
+ * `randomUUID()` on every retry would make same-key retries send different parameters and risk
+ * Stripe rejecting the retry as an idempotency-parameter mismatch. Deriving the id from
+ * `(organizationId, requestKey)` keeps it stable across retries while staying unique per
+ * organization even if two different organizations reuse the same request key.
+ */
+const deriveIntakeIdFromRequestKey = (organizationId: string, requestKey: string): string => {
+  const digest = createHash('sha256').update(`${organizationId}:${requestKey}`).digest();
+  const bytes = digest.subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
 
 /** Client-submitted intake payload. `slug` and `user_id` are resolved by the caller (route/facade), not carried in-band. */
 type CreateIntakeData = Omit<CreatePracticeClientIntakeRequest, 'slug' | 'user_id'> & {
@@ -164,7 +184,17 @@ const resolveExistingPaymentLinkUrl = async (
  * Stripe I/O so a retry never creates a second payment link for the same submission.
  */
 export const createIntake = async (
-  { organizationId, data, requestKey }: { organizationId: string; data: CreateIntakeData; requestKey?: string },
+  {
+    organizationId,
+    data,
+    requestKey,
+    subscriptionPolicy,
+  }: {
+    organizationId: string;
+    data: CreateIntakeData;
+    requestKey?: string;
+    subscriptionPolicy: IntakeSubscriptionPolicy;
+  },
   ctx: LegalOperationContext
 ): Promise<CreateIntakeResponse> => {
   assertLegalOperationTenant(ctx, organizationId);
@@ -210,10 +240,10 @@ export const createIntake = async (
 
     let stripePaymentLink: Stripe.Response<Stripe.PaymentLink> | null = null;
     let connectedAccount: Awaited<ReturnType<typeof onboardingRepository.findByOrganizationId>> | null = null;
-    const intakeId = randomUUID();
+    const intakeId = requestKey ? deriveIntakeIdFromRequestKey(organizationId, requestKey) : randomUUID();
 
     if (!shouldBypassPayment) {
-      await getIntakeSettings({ organizationId }, ctx);
+      await getIntakeSettings({ organizationId, subscriptionPolicy }, ctx);
 
       connectedAccount = await onboardingRepository.findByOrganizationId(organization.id);
       if (!connectedAccount) {

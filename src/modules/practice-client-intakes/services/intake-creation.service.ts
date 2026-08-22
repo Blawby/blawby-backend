@@ -36,7 +36,7 @@ const getIntakeSettings = async (params: {
   }
 
   return getIntakeSettingsOperation(
-    { organizationId: organization.id, templateSlug: params.templateSlug },
+    { organizationId: organization.id, templateSlug: params.templateSlug, subscriptionPolicy: 'enforce' },
     { organizationId: organization.id, userId: null }
   );
 };
@@ -54,7 +54,7 @@ const createIntake = async (params: { data: IntakeCreationRequest }): Promise<Cr
     const data: CreateIntakeData = operationData;
 
     return await createIntakeOperation(
-      { organizationId: organization.id, data },
+      { organizationId: organization.id, data, subscriptionPolicy: 'enforce' },
       { organizationId: organization.id, userId: userId ?? null }
     );
   } catch (error) {

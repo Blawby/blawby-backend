@@ -3,15 +3,39 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createCheckoutSession } from '@/modules/practice-client-intakes/operations/create-checkout-session.operation';
 import { getIntakeById } from '@/modules/practice-client-intakes/operations/get-intake-by-id.operation';
+import { getIntakeSettings } from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
 import { getIntakeStatus } from '@/modules/practice-client-intakes/operations/get-intake-status.operation';
 import { getPostPayStatus } from '@/modules/practice-client-intakes/operations/get-post-pay-status.operation';
 import { listIntakes } from '@/modules/practice-client-intakes/operations/list-intakes.operation';
 import { updateIntakeTriageStatus } from '@/modules/practice-client-intakes/operations/update-intake-triage-status.operation';
 import type { IntakeActorContext } from '@/modules/practice-client-intakes/operations/intake-actor-context';
+import { stripeConnectedAccounts } from '@/modules/onboarding/schemas/onboarding.schema';
+import { intakeTemplates } from '@/modules/practice/database/schema/intake-templates.schema';
 import { authHelpers } from '@/test/helpers/auth';
+import { getTestDb } from '@/test/helpers/db';
 import { intakeHelpers } from '@/test/modules/practice-client-intakes/helpers/intake';
 import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { TestOrganization } from '@/test/types/shared';
+
+const seedUnsubscribedIntakeOrganization = async (orgId: string): Promise<void> => {
+  const db = getTestDb();
+  await db.insert(stripeConnectedAccounts).values(
+    intakeHelpers.mockConnectedAccount({
+      organization_id: orgId,
+      stripe_account_id: `acct_unsub_${orgId.replace(/-/g, '').slice(0, 16)}`,
+      charges_enabled: true,
+      payouts_enabled: true,
+      details_submitted: true,
+    })
+  );
+  await db.insert(intakeTemplates).values({
+    organization_id: orgId,
+    slug: 'default',
+    name: 'Default Intake',
+    status: 'published',
+    is_default: true,
+  });
+};
 
 // Mocked at the module boundary — these tests only exercise tenant/actor scoping, never real Stripe I/O.
 vi.mock('@/shared/utils/stripe-client', () => ({
@@ -146,6 +170,25 @@ describe('practice-client-intakes actor-scoped operations — tenant and actor i
       await expect(
         updateIntakeTriageStatus({ uuid: intake.id, data: { status: 'accepted' } }, ctx)
       ).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
+  describe('getIntakeSettings — subscriptionPolicy', () => {
+    it('enforce (existing routes) rejects an organization with no active subscription', async () => {
+      await seedUnsubscribedIntakeOrganization(org.id);
+      const ctx: LegalOperationContext = { organizationId: org.id, userId: null };
+
+      await expect(
+        getIntakeSettings({ organizationId: org.id, subscriptionPolicy: 'enforce' }, ctx)
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('bypass (facade, post-entitlement) succeeds for the same organization with no active subscription', async () => {
+      await seedUnsubscribedIntakeOrganization(org.id);
+      const ctx: LegalOperationContext = { organizationId: org.id, userId: null };
+
+      const settings = await getIntakeSettings({ organizationId: org.id, subscriptionPolicy: 'bypass' }, ctx);
+      expect(settings.organization.id).toBe(org.id);
     });
   });
 });
