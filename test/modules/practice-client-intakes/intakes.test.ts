@@ -5,11 +5,12 @@ import { eq } from 'drizzle-orm';
 import { authHelpers } from '@/test/helpers/auth';
 import { getTestDb } from '@/test/helpers/db';
 import { createAuthenticatedRequest, createRequest } from '@/test/helpers/request';
-import type { SuccessResponse, TestOrganization } from '@/test/types/shared';
+import type { TestOrganization } from '@/test/types/shared';
 import { toTypedResponse } from '@/test/helpers/response';
 import { practiceClientIntakes } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import { intakeConversations } from '@/modules/intake-conversations/database/schema/intake-conversations.schema';
 import { matters } from '@/modules/matters/database/schema/matters.schema';
+import { intakeTemplates } from '@/modules/practice/database/schema/intake-templates.schema';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { intakePrefillTokenService } from '@/modules/practice-client-intakes/services/intake-prefill-token.service';
 import practiceClientIntakesApp from '@/modules/practice-client-intakes/http';
@@ -86,7 +87,7 @@ vi.mock('@/modules/user-details/services/user-details-crud.service', () => ({
 
 // Mock events to prevent side effects
 vi.mock('@/shared/events/definitions', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
+  const actual = await importOriginal();
   return {
     ...actual,
     IntakePaymentCreated: {
@@ -155,6 +156,15 @@ describe('Practice Client Intakes API', () => {
     ({ org, session, sessionToken } = await createTestContext('owner'));
     await intakeHelpers.seedPublicIntakeOrganization(org.id);
 
+    // A published default template is required for GET /{slug}/intake to resolve (503 otherwise).
+    await getTestDb().insert(intakeTemplates).values({
+      organization_id: org.id,
+      slug: 'default',
+      name: 'Default Intake',
+      status: 'published',
+      is_default: true,
+    });
+
     // Seed a succeeded intake with required fields
     const intake = await intakeHelpers.createTestIntake(org.id, {
       amount: 0,
@@ -173,12 +183,11 @@ describe('Practice Client Intakes API', () => {
   // ==================== PUBLIC ENDPOINTS ====================
 
   it('GET /{slug}/intake returns 200 with valid org slug', async () => {
-    const res = await toTypedResponse<SuccessResponse<IntakeSettingsResponse>>(
+    const res = await toTypedResponse<IntakeSettingsResponse>(
       request.get(`/api/practice-client-intakes/${org.slug}/intake`)
     );
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const { data } = res.body;
+    const data = res.body;
     expect(data.organization.id).toBe(org.id);
     expect(data.organization.name).toBe(org.name);
     expect(data.organization.slug).toBe(org.slug);
@@ -191,7 +200,7 @@ describe('Practice Client Intakes API', () => {
   });
 
   it('POST /create creates intake with zero amount (no payment)', async () => {
-    const res = await toTypedResponse<SuccessResponse<CreateIntakeResponse>>(
+    const res = await toTypedResponse<CreateIntakeResponse>(
       request.post('/api/practice-client-intakes/create').send({
         slug: org.slug,
         amount: 0,
@@ -201,8 +210,7 @@ describe('Practice Client Intakes API', () => {
     );
 
     expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-    const { data } = res.body;
+    const data = res.body;
     expect(data.uuid).toMatch(/^[0-9a-f-]{36}$/);
     expect(data.status).toBe(intakeHelpers.IntakeStatus.succeeded);
     expect(data.payment_link_url).toBeNull();
@@ -240,14 +248,13 @@ describe('Practice Client Intakes API', () => {
       metadata: { intake_uuid: intakeId },
     });
 
-    const res = await toTypedResponse<SuccessResponse<IntakePostPayStatusResponse>>(
+    const res = await toTypedResponse<IntakePostPayStatusResponse>(
       request.get('/api/practice-client-intakes/post-pay/status?session_id=cs_test_xxx')
     );
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.paid).toBe(true);
-    expect(res.body.data.intake_uuid).toBe(intakeId);
-    expect(res.body.data.organization_id).toBe(org.id);
+    expect(res.body.paid).toBe(true);
+    expect(res.body.intake_uuid).toBe(intakeId);
+    expect(res.body.organization_id).toBe(org.id);
   });
 
   it('GET /post-pay/status returns 400 for missing session_id', async () => {
@@ -272,14 +279,13 @@ describe('Practice Client Intakes API', () => {
       paymentStatus: 'unpaid',
     });
 
-    const res = await toTypedResponse<SuccessResponse<CreateCheckoutSessionResponse>>(
+    const res = await toTypedResponse<CreateCheckoutSessionResponse>(
       authenticatedClientRequest(sessionToken).post(`/api/practice-client-intakes/${openIntake.id}/checkout-session`)
     );
 
     expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.url).toMatch(/^https?:\/\//);
-    expect(typeof res.body.data.session_id).toBe('string');
+    expect(res.body.url).toMatch(/^https?:\/\//);
+    expect(typeof res.body.session_id).toBe('string');
   });
 
   it('POST /{uuid}/checkout-session returns 401 for unauthenticated user', async () => {
@@ -294,7 +300,7 @@ describe('Practice Client Intakes API', () => {
       metadata: { email: 'update@test-blawby.com', name: 'Update User', user_id: session!.user.id },
     });
 
-    const res = await toTypedResponse<{ success: boolean; message: string }>(
+    const res = await toTypedResponse<{ message: string }>(
       authenticatedClientRequest(sessionToken)
         .put(`/api/practice-client-intakes/${openIntake.id}`)
         .send({
@@ -304,7 +310,6 @@ describe('Practice Client Intakes API', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
     expect(typeof res.body.message).toBe('string');
   });
 
@@ -316,13 +321,12 @@ describe('Practice Client Intakes API', () => {
   });
 
   it('GET /{uuid}/status returns 200 for authenticated owner with full metadata', async () => {
-    const res = await toTypedResponse<SuccessResponse<IntakeStatusResponse>>(
+    const res = await toTypedResponse<IntakeStatusResponse>(
       authenticatedClientRequest(sessionToken).get(`/api/practice-client-intakes/${intakeId}/status`)
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const { data } = res.body;
+    const data = res.body;
     expect(data.uuid).toBe(intakeId);
     expect(data.organization_id).toBe(org.id);
     expect(data.status).toBe(intakeHelpers.IntakeStatus.succeeded);
@@ -377,28 +381,26 @@ describe('Practice Client Intakes API', () => {
   // });
 
   it('GET /{practice_id}/{id} returns 200 for authenticated staff', async () => {
-    const res = await toTypedResponse<SuccessResponse<IntakeStatusResponse>>(
+    const res = await toTypedResponse<IntakeStatusResponse>(
       authenticatedOrgRequest(sessionToken).get(`/api/practice-client-intakes/${org.id}/${intakeId}`)
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.uuid).toBe(intakeId);
-    expect(res.body.data.organization_id).toBe(org.id);
+    expect(res.body.uuid).toBe(intakeId);
+    expect(res.body.organization_id).toBe(org.id);
   });
 
   it('PATCH /{uuid}/status returns 200 for accept action', async () => {
-    const res = await toTypedResponse<SuccessResponse<UpdateIntakeTriageStatusResponse>>(
+    const res = await toTypedResponse<UpdateIntakeTriageStatusResponse>(
       authenticatedClientRequest(sessionToken)
         .patch(`/api/practice-client-intakes/${intakeId}/status`)
         .send({ status: 'accepted' })
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.uuid).toBe(intakeId);
-    expect(res.body.data.triage_status).toBe('accepted');
-    expect(res.body.data.triage_decided_at).not.toBeNull();
+    expect(res.body.uuid).toBe(intakeId);
+    expect(res.body.triage_status).toBe('accepted');
+    expect(res.body.triage_decided_at).not.toBeNull();
   });
 
   it('accepted triage event triggers invite and linkage for payment intake flow', async () => {

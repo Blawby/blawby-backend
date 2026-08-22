@@ -56,7 +56,7 @@ const getIntakeStatus = async (params: { uuid: string }, ctx: ServiceContext): P
 
 const getPostPayStatus = async (params: { sessionId: string }): Promise<IntakePostPayStatusResponse> => {
   try {
-    return await getPostPayStatusOperation(params);
+    return await getPostPayStatusOperation(params, { scope: 'public' });
   } catch (error) {
     logger.error('Failed to get post-pay status for session {sessionId}: {error}', {
       sessionId: params.sessionId,

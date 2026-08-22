@@ -124,5 +124,13 @@ describe('createIntake operation — facade idempotency and tenant isolation', (
     const second = await createIntake({ organizationId: otherOrg.id, data: baseData(), requestKey }, otherCtx);
 
     expect(second.uuid).not.toBe(first.uuid);
+
+    const resolvedForOrg = await practiceClientIntakesRepository.findByKrabiClawRequestKey(org.id, requestKey);
+    const resolvedForOtherOrg = await practiceClientIntakesRepository.findByKrabiClawRequestKey(
+      otherOrg.id,
+      requestKey
+    );
+    expect(resolvedForOrg?.id).toBe(first.uuid);
+    expect(resolvedForOtherOrg?.id).toBe(second.uuid);
   });
 });

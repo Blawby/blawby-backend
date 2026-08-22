@@ -250,6 +250,27 @@ const convertIntake = async (
   }
 };
 
+interface MagicLinkErrorDetails {
+  message: string;
+  name?: string;
+  code?: string;
+  status?: number;
+}
+
+const isErrorWithCode = (value: unknown): value is Error & { code: string } =>
+  value instanceof Error && 'code' in value && typeof value.code === 'string';
+
+const isErrorWithStatus = (value: unknown): value is Error & { status: number } =>
+  value instanceof Error && 'status' in value && typeof value.status === 'number';
+
+/** Stripe and Better Auth errors carry non-Error-standard `code`/`status` fields; surface them without widening the logged shape to an open dictionary. */
+const buildMagicLinkErrorDetails = (error: unknown): MagicLinkErrorDetails => ({
+  message: error instanceof Error ? error.message : String(error),
+  name: error instanceof Error ? error.name : undefined,
+  code: isErrorWithCode(error) ? error.code : undefined,
+  status: isErrorWithStatus(error) ? error.status : undefined,
+});
+
 const triggerInvitation = async (
   params: {
     uuid: string;
@@ -308,23 +329,11 @@ const triggerInvitation = async (
 
     return { message: params.acceptedEmail ? 'Acceptance email sent to client' : 'Magic link sent to client email' };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const safeDetails: Record<string, unknown> = { message: errorMessage };
-    if (error instanceof Error) {
-      safeDetails.name = error.name;
-    }
-    if (typeof error === 'object' && error !== null) {
-      if ('code' in error) {
-        safeDetails.code = error.code;
-      }
-      if ('status' in error) {
-        safeDetails.status = error.status;
-      }
-    }
+    const details = buildMagicLinkErrorDetails(error);
     logger.error('Failed to send magic link for intake {uuid}: {error} {details}', {
       uuid: params.uuid,
-      error: errorMessage,
-      details: JSON.stringify(safeDetails),
+      error: details.message,
+      details: JSON.stringify(details),
     });
     throw error;
   }

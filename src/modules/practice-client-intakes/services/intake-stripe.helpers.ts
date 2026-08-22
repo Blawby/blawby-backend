@@ -4,6 +4,39 @@ import { getMatchingFrontendUrl } from '@/shared/utils/env';
 import { stripe } from '@/shared/utils/stripe-client';
 import type { addressSchema } from '@/shared/validations/address';
 
+interface PaymentLinkMetadataParams {
+  email: string;
+  name: string;
+  phone?: string | null;
+  on_behalf_of?: string | null;
+  opposing_party?: string | null;
+  description?: string;
+  organizationId: string;
+  intakeId: string;
+  address?: z.infer<typeof addressSchema>;
+  userId?: string | null;
+}
+
+const buildPaymentLinkMetadata = (params: PaymentLinkMetadataParams): Stripe.MetadataParam => {
+  const metadata: Stripe.MetadataParam = {
+    email: params.email,
+    name: params.name,
+    phone: params.phone ?? '',
+    on_behalf_of: params.on_behalf_of ?? '',
+    opposing_party: params.opposing_party ?? '',
+    description: params.description ?? '',
+    organization_id: params.organizationId,
+    intake_uuid: params.intakeId,
+  };
+  if (params.address) {
+    metadata.address = JSON.stringify(params.address);
+  }
+  if (params.userId) {
+    metadata.user_id = params.userId;
+  }
+  return metadata;
+};
+
 export interface CreateIntakePaymentLinkParams {
   amount: number;
   currency?: string;
@@ -22,6 +55,8 @@ export interface CreateIntakePaymentLinkParams {
   conversationId?: string | null;
   address?: z.infer<typeof addressSchema>;
   userId?: string | null;
+  /** Stable per-request-key idempotency key so concurrent same-key facade retries resolve to one Stripe payment link. */
+  idempotencyKey?: string;
 }
 
 export const createIntakePaymentLink = async (
@@ -31,45 +66,37 @@ export const createIntakePaymentLink = async (
     ? `&conversation_id=${encodeURIComponent(params.conversationId)}`
     : '';
 
-  return stripe.paymentLinks.create({
-    line_items: [
-      {
-        price_data: {
-          currency: params.currency ?? 'usd',
-          product_data: {
-            name: `Client Intake - ${params.organizationName}`,
-            description: params.description ?? 'Legal consultation payment',
+  return stripe.paymentLinks.create(
+    {
+      line_items: [
+        {
+          price_data: {
+            currency: params.currency ?? 'usd',
+            product_data: {
+              name: `Client Intake - ${params.organizationName}`,
+              description: params.description ?? 'Legal consultation payment',
+            },
+            unit_amount: params.amount,
           },
-          unit_amount: params.amount,
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      on_behalf_of: params.stripeAccountId,
+      transfer_data: {
+        destination: params.stripeAccountId,
       },
-    ],
-    on_behalf_of: params.stripeAccountId,
-    transfer_data: {
-      destination: params.stripeAccountId,
-    },
-    payment_intent_data: {
-      metadata: {
-        email: params.email,
-        name: params.name,
-        phone: params.phone ?? '',
-        on_behalf_of: params.on_behalf_of ?? '',
-        opposing_party: params.opposing_party ?? '',
-        description: params.description ?? '',
-        organization_id: params.organizationId,
-        intake_uuid: params.intakeId,
-        ...(params.address ? { address: JSON.stringify(params.address) } : {}),
-        ...(params.userId ? { user_id: params.userId } : {}),
+      payment_intent_data: {
+        metadata: buildPaymentLinkMetadata(params),
+      },
+      after_completion: {
+        type: 'redirect',
+        redirect: {
+          url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&uuid=${params.intakeId}&return_to=/p/${params.organizationSlug}${conversationParam}`,
+        },
       },
     },
-    after_completion: {
-      type: 'redirect',
-      redirect: {
-        url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&uuid=${params.intakeId}&return_to=/p/${params.organizationSlug}${conversationParam}`,
-      },
-    },
-  });
+    params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+  );
 };
 
 export interface CreateIntakeSessionParams {
@@ -94,7 +121,7 @@ export interface CreateIntakeSessionParams {
 export const createIntakeCheckoutSession = async (
   params: CreateIntakeSessionParams
 ): Promise<Stripe.Response<Stripe.Checkout.Session>> => {
-  const metadata: Record<string, string> = {
+  const metadata: Stripe.MetadataParam = {
     intake_uuid: params.intakeId,
     organization_id: params.organizationId,
   };

@@ -4,23 +4,30 @@ import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/
 import type { IntakePostPayStatusResponse } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
 import { assertLegalOperationTenant, type LegalOperationContext } from '@/shared/types/legal-operation-context';
 
+/** Explicit marker for the existing public Blawby route, which has no caller-scoped organization to assert against. */
+export interface PublicPostPayStatusCaller {
+  scope: 'public';
+}
+
+export type PostPayStatusCaller = LegalOperationContext | PublicPostPayStatusCaller;
+
 /**
- * Looks up post-pay status by the Stripe Checkout Session id. The existing Blawby route is
- * public and has no caller-scoped organization to assert until the session resolves to an
- * intake, so `ctx` is optional: omitted for the existing public route (unchanged behavior),
- * and required once a facade caller with a known organization exists (U8).
+ * Looks up post-pay status by the Stripe Checkout Session id. `caller` must be either a
+ * tenant-scoped `LegalOperationContext` or the explicit `{ scope: 'public' }` marker used by the
+ * existing public route — the tenant assertion can never be skipped by simply omitting an
+ * argument (KTD19).
  */
 export const getPostPayStatus = async (
   params: { sessionId: string },
-  ctx?: LegalOperationContext
+  caller: PostPayStatusCaller
 ): Promise<IntakePostPayStatusResponse> => {
   const { intake } = await intakeSharedHelpers.resolvePracticeClientIntakeByCheckoutSessionId(params.sessionId);
   if (!intake) {
     throw new HTTPException(404, { message: 'Checkout session not found' });
   }
 
-  if (ctx) {
-    assertLegalOperationTenant(ctx, intake.organization_id);
+  if (!('scope' in caller)) {
+    assertLegalOperationTenant(caller, intake.organization_id);
   }
 
   if (intake.status !== 'succeeded') {

@@ -226,6 +226,8 @@ export const createIntake = async (
         conversationId: data.conversation_id,
         address: data.address,
         userId: ctx.userId,
+        // Same-key concurrent facade retries must resolve to one Stripe payment link, not two orphaned ones.
+        idempotencyKey: requestKey ? `krabiclaw-intake:${organizationId}:${requestKey}` : undefined,
       });
     }
 
