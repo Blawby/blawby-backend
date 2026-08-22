@@ -128,8 +128,16 @@ const toCreateIntakeResponse = (
   case_strength: intake.case_strength ?? undefined,
 });
 
-/** Payment links are permanent Stripe objects; refetching the URL on recovery is safe and avoids storing it redundantly. */
-const resolveExistingPaymentLinkUrl = async (paymentLinkId: string | null): Promise<string | null> => {
+/**
+ * Payment links are permanent Stripe objects; refetching the URL on recovery is safe and avoids
+ * storing it redundantly. A refetch failure only degrades to a null URL for an already-succeeded
+ * intake (nothing left to pay); for a still-open intake the caller has no other way to pay, so a
+ * transient Stripe failure must propagate as a retryable error instead of silently returning null.
+ */
+const resolveExistingPaymentLinkUrl = async (
+  paymentLinkId: string | null,
+  intakeStatus: string
+): Promise<string | null> => {
   if (!paymentLinkId) {
     return null;
   }
@@ -141,6 +149,9 @@ const resolveExistingPaymentLinkUrl = async (paymentLinkId: string | null): Prom
       paymentLinkId,
       error,
     });
+    if (intakeStatus !== 'succeeded') {
+      throw new Error('Failed to refetch payment link for pending intake recovery', { cause: error });
+    }
     return null;
   }
 };
@@ -167,7 +178,7 @@ export const createIntake = async (
     if (requestKey) {
       const existing = await practiceClientIntakesRepository.findByKrabiClawRequestKey(organizationId, requestKey);
       if (existing) {
-        const paymentLinkUrl = await resolveExistingPaymentLinkUrl(existing.stripe_payment_link_id);
+        const paymentLinkUrl = await resolveExistingPaymentLinkUrl(existing.stripe_payment_link_id, existing.status);
         return toCreateIntakeResponse(existing, organization, paymentLinkUrl);
       }
     }

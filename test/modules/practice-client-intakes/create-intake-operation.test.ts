@@ -110,6 +110,9 @@ describe('createIntake operation — facade idempotency and tenant isolation', (
     expect(second.uuid).toBe(first.uuid);
     expect(second.payment_link_url).toBe(first.payment_link_url);
     expect(mockPaymentLinksCreate).toHaveBeenCalledTimes(1);
+    expect(mockPaymentLinksCreate).toHaveBeenCalledWith(expect.anything(), {
+      idempotencyKey: `krabiclaw-intake:${org.id}:${requestKey}`,
+    });
 
     const stored = await practiceClientIntakesRepository.findByKrabiClawRequestKey(org.id, requestKey);
     expect(stored?.id).toBe(first.uuid);
