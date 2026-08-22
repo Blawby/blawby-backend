@@ -19,10 +19,7 @@ export const listIntakeConversationsRoute = routeBuilder.build({
     scope: 'intakes:read',
     handler: async (args, ctx) => {
       const query = listIntakeConversationsQuerySchema.omit({ practice_id: true }).parse(args);
-      return intakeConversationsService.listIntakeConversations(
-        { ...query, practice_id: ctx.organizationId },
-        ctx
-      );
+      return intakeConversationsService.listIntakeConversations({ ...query, practice_id: ctx.organizationId }, ctx);
     },
   },
   request: {

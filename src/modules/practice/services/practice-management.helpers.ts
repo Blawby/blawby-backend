@@ -10,7 +10,9 @@ import type {
   UpsertDetailsTransactionParams,
 } from '@/modules/practice/types/practice-management.types';
 import { getActiveTx, uow } from '@/shared/database/uow';
+import { emitLegalEvent } from '@/shared/events/emit-legal-event';
 import { PracticeDetailsCreated, PracticeDetailsDeleted, PracticeDetailsUpdated } from '@/shared/events/definitions';
+import { assertLegalOperationTenant, type LegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { ServiceContext } from '@/shared/types/service-context';
 import { eq } from 'drizzle-orm';
 
@@ -31,7 +33,10 @@ export const DETAILS_FIELD_KEYS: DetailsFieldKeys[] = [
   'accent_color',
 ];
 
-export const upsertDetailsTransaction = async (ctx: ServiceContext, params: UpsertDetailsTransactionParams) => {
+export const upsertDetailsTransaction = async (ctx: LegalOperationContext, params: UpsertDetailsTransactionParams) => {
+  // Defense-in-depth: the database writes below are scoped to params.organizationId, while emitLegalEvent stamps ctx.organizationId onto the dispatched event — a mismatch here would write one tenant's data and publish the event under another's.
+  assertLegalOperationTenant(ctx, params.organizationId);
+
   let addressId = params.existingAddressId;
   let addressResult: AddressData | null = null;
 
@@ -119,7 +124,7 @@ export const upsertDetailsTransaction = async (ctx: ServiceContext, params: Upse
       : await practiceServicesRepository.findServicesByOrganization(params.organizationId);
 
   const EventClass = isCreated ? PracticeDetailsCreated : PracticeDetailsUpdated;
-  await ctx.emit(EventClass, { practice_details_id: details.id, ...params.data });
+  await emitLegalEvent(ctx, EventClass, { practice_details_id: details.id, ...params.data });
 
   return { details, addressResult, syncedServices };
 };

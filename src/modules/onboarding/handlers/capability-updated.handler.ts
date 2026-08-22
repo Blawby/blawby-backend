@@ -48,8 +48,9 @@ export const handleCapabilityUpdated = async (capability: Stripe.Capability): Pr
         .returning({ organization_id: stripeConnectedAccounts.organization_id });
 
       if (!record) {
-        logger.warn('Account not found for capability update: {stripeAccountId}', { stripeAccountId });
-        return;
+        // The local row may not exist yet if this webhook arrived before the creating request committed — throw so the retry pipeline tries again instead of acknowledging a webhook we never applied.
+        logger.warn('Account not found for capability update: {stripeAccountId}, will retry.', { stripeAccountId });
+        throw new Error(`Connected account not found for Stripe ID ${stripeAccountId}`);
       }
 
       // Publish capability updated event within transaction

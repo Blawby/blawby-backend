@@ -1,10 +1,10 @@
 import type { RouteConfig, RouteHandler } from '@hono/zod-openapi';
 import type { Hono } from 'hono';
 
-import type { AppAbility } from '@/shared/auth/abilities.types';
 import type { KrabiClawFacadeAuthContext } from '@/modules/krabiclaw-integration/types/facade-headers.types';
-import type { LegalOperationContext } from '@/modules/krabiclaw-integration/types/legal-operation-context.types';
-import type { User, Session } from '@/shared/types/BetterAuth';
+import type { AppAbility } from '@/shared/auth/abilities.types';
+import type { Session, User } from '@/shared/types/BetterAuth';
+import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
 
 export interface Variables {
   user: User | null;

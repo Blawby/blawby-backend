@@ -10,6 +10,11 @@ import { getTestDb } from '@/test/helpers/db';
 
 const { createTestOrganization } = authHelpers;
 const pendingUpdatedAt = new Date('2000-01-01T00:00:00.000Z');
+const snapshotFields = {
+  email: 'practice@example.test',
+  refresh_url: 'https://app.blawby.com/onboarding/refresh',
+  return_url: 'https://app.blawby.com/onboarding/return',
+};
 
 const backdatePendingOperation = async (operationId: string): Promise<void> => {
   await getTestDb()
@@ -38,6 +43,7 @@ describe('krabiclawConnectOperationsRepository', () => {
     const created = await krabiclawConnectOperationsRepository.createPending({
       organization_id: org.id,
       request_key: requestKey,
+      ...snapshotFields,
     });
 
     expect(created.status).toBe('pending');
@@ -53,10 +59,12 @@ describe('krabiclawConnectOperationsRepository', () => {
     const first = await krabiclawConnectOperationsRepository.createPending({
       organization_id: org.id,
       request_key: requestKey,
+      ...snapshotFields,
     });
     const second = await krabiclawConnectOperationsRepository.createPending({
       organization_id: org.id,
       request_key: requestKey,
+      ...snapshotFields,
     });
 
     expect(second.id).toBe(first.id);
@@ -68,6 +76,7 @@ describe('krabiclawConnectOperationsRepository', () => {
     const operation = await krabiclawConnectOperationsRepository.createPending({
       organization_id: org.id,
       request_key: requestKey,
+      ...snapshotFields,
     });
 
     const connectedAccountId = await createConnectedAccount(org.id);
@@ -88,6 +97,7 @@ describe('krabiclawConnectOperationsRepository', () => {
     const operation = await krabiclawConnectOperationsRepository.createPending({
       organization_id: operationOrganization.id,
       request_key: randomUUID(),
+      ...snapshotFields,
     });
 
     const otherOrganizationAccountId = await createConnectedAccount(otherOrganization.id);
@@ -115,6 +125,7 @@ describe('krabiclawConnectOperationsRepository', () => {
     const operation = await krabiclawConnectOperationsRepository.createPending({
       organization_id: org.id,
       request_key: requestKey,
+      ...snapshotFields,
     });
     await backdatePendingOperation(operation.id);
 

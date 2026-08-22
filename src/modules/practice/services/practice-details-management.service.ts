@@ -4,17 +4,16 @@ import { ForbiddenError } from '@casl/ability';
 
 import { organizationRepository } from '@/modules/practice/database/queries/organization.repository';
 import { findPracticeDetailsByOrganization } from '@/modules/practice/database/queries/practice-details.repository';
+import { upsertPracticeDetails as upsertPracticeDetailsOperation } from '@/modules/practice/operations/upsert-practice-details.operation';
 import { organizationService } from '@/modules/practice/services/organization.service';
-import { loadPracticeResponseById } from '@/modules/practice/services/practice-response.loader';
 import {
   buildPracticeDetailsDeletedPayload,
   findAndDeletePracticeDetails,
-  upsertDetailsTransaction,
 } from '@/modules/practice/services/practice-management.helpers';
 import type { UpsertPracticeDetailsParams } from '@/modules/practice/types/practice-management.types';
 import type { OrganizationRequestParams, PracticeResponse } from '@/modules/practice/types/practice.types';
-import { uow } from '@/shared/database/uow';
 import { PracticeDeleted, PracticeDetailsDeleted, PracticeSwitched } from '@/shared/events/definitions';
+import { toLegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const logger = getLogger(['practice', 'details-management-service']);
@@ -34,38 +33,7 @@ export const practiceDetailsManagementService = {
   ): Promise<PracticeResponse> {
     ForbiddenError.from(ctx.ability).throwUnlessCan('update', 'Organization');
 
-    const { user } = ctx;
-    try {
-      const organization = await organizationRepository.findById(organizationId);
-      if (!organization) {
-        throw new HTTPException(404, { message: `Organization not found for '${organizationId}'` });
-      }
-
-      const existing = await findPracticeDetailsByOrganization(organizationId);
-
-      await uow.transaction(async () =>
-        upsertDetailsTransaction(ctx, {
-          organizationId,
-          userId: user.id,
-          data,
-          existingAddressId: existing?.address_id,
-          isCreate: !existing,
-        })
-      );
-
-      const practice = await loadPracticeResponseById(organizationId);
-      if (!practice) {
-        throw new HTTPException(500, { message: 'Failed to load saved practice details' });
-      }
-
-      return practice;
-    } catch (error) {
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      logger.error('Failed to upsert practice details for {organizationId}: {error}', { organizationId, error });
-      throw new HTTPException(500, { message: 'Failed to save practice details' });
-    }
+    return upsertPracticeDetailsOperation({ organizationId, data }, toLegalOperationContext(ctx));
   },
 
   /**

@@ -46,10 +46,11 @@ export const handleAccountUpdated = async (account: Stripe.Account): Promise<voi
         .returning({ organization_id: stripeConnectedAccounts.organization_id });
 
       if (!updatedRecord) {
-        logger.warn('Account not found for Stripe ID: {stripeAccountId}, skipping update.', {
+        // The local row may not exist yet if this webhook arrived before the creating request committed — throw so the retry pipeline (processEvent -> markFailed -> retry) tries again instead of acknowledging a webhook we never applied.
+        logger.warn('Account not found for Stripe ID: {stripeAccountId}, will retry.', {
           stripeAccountId: account.id,
         });
-        return;
+        throw new Error(`Connected account not found for Stripe ID ${account.id}`);
       }
 
       organizationId = updatedRecord.organization_id;

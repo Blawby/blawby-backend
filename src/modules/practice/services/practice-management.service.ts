@@ -12,13 +12,14 @@ import type { CreatePracticeParams, UpdatePracticeParams } from '@/modules/pract
 import type {
   UpdatePracticeRequest,
   PracticeResponse,
-  OrganizationApiShape,
+  OrganizationApiRecord,
 } from '@/modules/practice/types/practice.types';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { ForbiddenError } from '@casl/ability';
 import betterAuthUtils from '@/shared/auth/utils/betterAuthUtils';
 import { uow } from '@/shared/database/uow';
 import { PracticeCreated, PracticeUpdated } from '@/shared/events/definitions';
+import { toLegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { ServiceContext } from '@/shared/types/service-context';
 
 const { getBetterAuthErrorMessage } = betterAuthUtils;
@@ -46,12 +47,15 @@ export const practiceManagementService = {
 
       try {
         practiceDetails = await uow.transaction(async () => {
-          const { details } = await upsertDetailsTransaction(ctx, {
-            organizationId: organization.id,
-            userId: user.id,
-            data: practiceValidations.hasPracticeDetails(data) ? data : {},
-            isCreate: true,
-          });
+          const { details } = await upsertDetailsTransaction(
+            { organizationId: organization.id, userId: user.id },
+            {
+              organizationId: organization.id,
+              userId: user.id,
+              data: practiceValidations.hasPracticeDetails(data) ? data : {},
+              isCreate: true,
+            }
+          );
           return details;
         });
       } catch (detailsError) {
@@ -115,13 +119,14 @@ export const practiceManagementService = {
     try {
       const orgData = omit(data, DETAILS_FIELD_KEYS);
 
+      // SAFETY: filtering only removes undefined/null entries from orgData, which is already shaped like Pick<UpdatePracticeRequest, ...> minus DETAILS_FIELD_KEYS — the remaining keys and value types are unchanged.
       const filteredOrgData = Object.fromEntries(
         Object.entries(orgData).filter(([_, value]) => value !== undefined && value !== null)
       ) as Partial<Pick<UpdatePracticeRequest, 'name' | 'slug' | 'logo' | 'metadata'>>;
 
-      let organization: OrganizationApiShape | undefined = undefined;
+      let organization: OrganizationApiRecord | undefined = undefined;
       const hasOrganizationUpdates = Object.keys(filteredOrgData).length > 0;
-      let previousOrganization: OrganizationApiShape | null = null;
+      let previousOrganization: OrganizationApiRecord | null = null;
 
       if (hasOrganizationUpdates) {
         const previousOrg = await organizationRepository.findById(organizationId);
@@ -148,7 +153,7 @@ export const practiceManagementService = {
 
         try {
           practiceDetails = await uow.transaction(async () => {
-            const { details } = await upsertDetailsTransaction(ctx, {
+            const { details } = await upsertDetailsTransaction(toLegalOperationContext(ctx), {
               organizationId,
               userId: user.id,
               data,

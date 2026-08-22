@@ -16,6 +16,10 @@ export const krabiclawConnectOperations = pgTable(
       .references(() => organizations.id, { onDelete: 'cascade' }),
     request_key: uuid('request_key').notNull(),
     status: text('status').notNull().default('pending').$type<KrabiClawConnectOperationStatus>(),
+    // Immutable snapshot of the request that created this operation (R24) — a retry under the same request_key replays against these values, not whatever the retry request supplies.
+    email: text('email').notNull(),
+    refresh_url: text('refresh_url').notNull(),
+    return_url: text('return_url').notNull(),
     connected_account_id: uuid('connected_account_id'),
     error_message: text('error_message'),
     created_at: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
