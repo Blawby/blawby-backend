@@ -50,6 +50,10 @@ const createAcceptedIntake = (orgId: string, overrides?: Parameters<typeof intak
 describe('engagement-contract operations', () => {
   let org: TestOrganization = { id: '', name: '', slug: '' };
   let ctx: LegalOperationContext = { organizationId: '', userId: null };
+  const createdEventSpy = vi.spyOn(EngagementContractCreated, 'dispatch');
+  const sentEventSpy = vi.spyOn(EngagementContractSent, 'dispatch');
+  const acceptedEventSpy = vi.spyOn(EngagementContractAccepted, 'dispatch');
+  const declinedEventSpy = vi.spyOn(EngagementContractDeclined, 'dispatch');
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -58,10 +62,10 @@ describe('engagement-contract operations', () => {
       async (params: { organizationId: string; contractId: string }) =>
         `engagement-contracts/${params.organizationId}/${params.contractId}/signed-contract.pdf`
     );
-    vi.spyOn(EngagementContractCreated, 'dispatch').mockResolvedValue('evt-created');
-    vi.spyOn(EngagementContractSent, 'dispatch').mockResolvedValue('evt-sent');
-    vi.spyOn(EngagementContractAccepted, 'dispatch').mockResolvedValue('evt-accepted');
-    vi.spyOn(EngagementContractDeclined, 'dispatch').mockResolvedValue('evt-declined');
+    createdEventSpy.mockResolvedValue('evt-created');
+    sentEventSpy.mockResolvedValue('evt-sent');
+    acceptedEventSpy.mockResolvedValue('evt-accepted');
+    declinedEventSpy.mockResolvedValue('evt-declined');
 
     org = await authHelpers.createTestOrganization();
     const staff = await authHelpers.createTestUser();
@@ -134,7 +138,7 @@ describe('engagement-contract operations', () => {
       expect(contract.proposal_data?.source_snapshot?.intake_uuid).toBe(intake.id);
       expect(contract.proposal_data?.source_snapshot?.urgency).toBe('time_sensitive');
       expect(contract.proposal_data?.source_snapshot?.desired_outcome).toBe('Settle quickly');
-      expect(EngagementContractCreated.dispatch).toHaveBeenCalledWith(
+      expect(createdEventSpy).toHaveBeenCalledWith(
         { contract_id: contract.id, intake_id: intake.id, organization_id: org.id },
         expect.objectContaining({ organizationId: org.id })
       );
@@ -224,8 +228,8 @@ describe('engagement-contract operations', () => {
       expect(sent.status).toBe('sent');
       expect(sent.sent_at).not.toBeNull();
       expect(sent.billing_snapshot).toMatchObject({ billing_type: 'hourly' });
-      expect(EngagementContractSent.dispatch).toHaveBeenCalledTimes(1);
-      expect(EngagementContractSent.dispatch).toHaveBeenCalledWith(
+      expect(sentEventSpy).toHaveBeenCalledTimes(1);
+      expect(sentEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({ contract_id: contract.id, client_email: 'client@example.com' }),
         expect.objectContaining({ organizationId: org.id })
       );
@@ -236,7 +240,7 @@ describe('engagement-contract operations', () => {
       const contract = await createEngagementContract({ organizationId: org.id, data: { intake_id: intake.id } }, ctx);
 
       await expect(sendEngagementContract({ id: contract.id }, ctx)).rejects.toMatchObject({ status: 400 });
-      expect(EngagementContractSent.dispatch).not.toHaveBeenCalled();
+      expect(sentEventSpy).not.toHaveBeenCalled();
     });
 
     it('rejects a cross-tenant send and leaves the contract state unchanged', async () => {
@@ -270,7 +274,7 @@ describe('engagement-contract operations', () => {
 
       expect(declined.status).toBe('declined');
       expect(declined.declined_at).not.toBeNull();
-      expect(EngagementContractDeclined.dispatch).toHaveBeenCalledWith(
+      expect(declinedEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({ contract_id: contract.id }),
         expect.objectContaining({ organizationId: org.id })
       );
@@ -318,7 +322,7 @@ describe('engagement-contract operations', () => {
         expect.arrayContaining([expect.stringContaining('Full settlement'), expect.stringContaining('0.75')])
       );
 
-      expect(EngagementContractAccepted.dispatch).toHaveBeenCalledWith(
+      expect(acceptedEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({ contract_id: contract.id, matter_id: matter.id }),
         expect.objectContaining({ organizationId: org.id })
       );
@@ -339,7 +343,7 @@ describe('engagement-contract operations', () => {
       const reloaded = await engagementContractsQueries.findById(contract.id);
       expect(reloaded?.status).toBe('sent');
       expect(reloaded?.matter_id).toBeNull();
-      expect(EngagementContractAccepted.dispatch).not.toHaveBeenCalled();
+      expect(acceptedEventSpy).not.toHaveBeenCalled();
 
       const { total } = await getTestDb()
         .select()
@@ -388,16 +392,16 @@ describe('engagement-contract operations', () => {
       const matterRows = await db.select().from(matters).where(eq(matters.intake_uuid, intake.id));
       expect(matterRows).toHaveLength(1);
 
-      const noteRows = await db.select().from(matterNotes).where(eq(matterNotes.matter_id, matterRows[0]!.id));
+      const noteRows = await db.select().from(matterNotes).where(eq(matterNotes.matter_id, matterRows[0].id));
       expect(noteRows).toHaveLength(1);
 
-      expect(EngagementContractAccepted.dispatch).toHaveBeenCalledTimes(1);
+      expect(acceptedEventSpy).toHaveBeenCalledTimes(1);
 
       // Repeated acceptance after commit produces no new side effects.
       await expect(acceptEngagementContract({ id: contract.id }, ctx)).rejects.toMatchObject({ status: 409 });
       const matterRowsAfterRetry = await db.select().from(matters).where(eq(matters.intake_uuid, intake.id));
       expect(matterRowsAfterRetry).toHaveLength(1);
-      expect(EngagementContractAccepted.dispatch).toHaveBeenCalledTimes(1);
+      expect(acceptedEventSpy).toHaveBeenCalledTimes(1);
     });
   });
 });
