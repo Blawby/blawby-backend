@@ -24,6 +24,17 @@ const findById = async (id: string): Promise<SelectEngagementContract | undefine
   return record;
 };
 
+/** Row-locking read for use only inside an active UoW transaction (e.g. acceptance's exactly-once guard). */
+const findByIdForUpdate = async (id: string): Promise<SelectEngagementContract | undefined> => {
+  const [record] = await getActiveTx()
+    .select()
+    .from(engagementContracts)
+    .where(eq(engagementContracts.id, id))
+    .for('update')
+    .limit(1);
+  return record;
+};
+
 const findByIntakeAndOrg = async (
   intakeId: string,
   organizationId: string
@@ -122,6 +133,7 @@ const update = async (id: string, data: Partial<InsertEngagementContract>): Prom
 export const engagementContractsQueries = {
   insert,
   findById,
+  findByIdForUpdate,
   findByIntakeAndOrg,
   findAcceptedByIntakeAndOrg,
   findByMatterAndOrg,
