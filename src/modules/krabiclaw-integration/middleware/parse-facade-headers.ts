@@ -50,19 +50,16 @@ export const parseFacadeHeaders = (c: Context): KrabiClawFacadeHeaders => {
     throw new KrabiClawFacadeValidationError(`Invalid ${ACTOR_KIND_HEADER}: ${actorKindRaw}`);
   }
 
-  const externalActorId = readOptionalSingleHeader(c, ACTOR_ID_HEADER);
-  if (externalActorId !== null) {
-    assertBounded(ACTOR_ID_HEADER, externalActorId, krabiclawExternalIdSchema);
-  }
-
-  if (actorKindRaw === 'human' && !externalActorId) {
-    throw new KrabiClawFacadeValidationError(`${ACTOR_ID_HEADER} is required when ${ACTOR_KIND_HEADER} is human`);
-  }
-  if (actorKindRaw === 'anonymous' && externalActorId) {
-    throw new KrabiClawFacadeValidationError(
-      `${ACTOR_ID_HEADER} must not be sent when ${ACTOR_KIND_HEADER} is anonymous`
-    );
-  }
+  /**
+   * R4/R20 — required for both actor kinds. A Better Auth anonymous actor
+   * still has a concrete external ID (A3); it is retained here for
+   * attribution and request-binding, but `createKrabiClawFacadeRouteMiddleware`'s
+   * identity resolution only ever looks it up against D1 when
+   * `actorKind === 'human'` — an anonymous ID never triggers a D1 user
+   * lookup or a local user anchor.
+   */
+  const externalActorId = requireSingleHeader(c, ACTOR_ID_HEADER);
+  assertBounded(ACTOR_ID_HEADER, externalActorId, krabiclawExternalIdSchema);
 
   const requestReference = readOptionalSingleHeader(c, REQUEST_REFERENCE_HEADER);
   if (requestReference !== null) {

@@ -14,8 +14,8 @@ import type { LegalOperationContext } from '@/shared/types/legal-operation-conte
 export interface KrabiClawFacadeRequestContext {
   /** Verified external organization ID from the trusted header contract. */
   readonly externalOrganizationId: string;
-  /** Verified external actor ID; always `null` for an anonymous actor. */
-  readonly externalActorId: string | null;
+  /** Verified external actor ID — present for both actor kinds (R4); never resolved against D1 unless `actorKind === 'human'` (R20). */
+  readonly externalActorId: string;
   readonly actorKind: KrabiClawActorKind;
   /** Trusted request-reference header value, present only when the route's `requestReferencePolicy` allows it. */
   readonly requestReference: string | null;

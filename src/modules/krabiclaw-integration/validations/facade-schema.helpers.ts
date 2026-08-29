@@ -18,7 +18,8 @@ const MAX_CANONICAL_ID_LENGTH = 64;
 const CANONICAL_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 const MAX_TRUSTED_HEADER_LENGTH = 256;
-// eslint-disable-next-line no-control-regex -- deliberately matching C0 control characters, DEL, and comma
+/** Deliberately matches C0 control characters, DEL, and comma. */
+// oxlint-disable-next-line no-control-regex
 const CONTROL_OR_SEPARATOR_PATTERN = /[\x00-\x1F\x7F,]/;
 
 /** Bounded canonical-text KrabiClaw external ID (organization/actor) — never a UUID (R23). */
@@ -72,6 +73,11 @@ export const KRABICLAW_FORBIDDEN_IDENTITY_FIELD_KEYS = [
  * fields above. Prefer this over a bare `z.object(fields).strict()` for any
  * facade request/response body so a future field addition is caught in code
  * review or at module load, not by an integration test alone.
+ *
+ * Known limitation: this checks only the object's own top-level keys. A
+ * forbidden field nested one level deep (e.g. inside a sub-object field)
+ * passes through undetected — reviewers should still eyeball any nested
+ * object shape a future route schema introduces.
  */
 export const krabiclawStrictSchema = <Fields extends z.ZodRawShape>(fields: Fields) => {
   const forbidden = KRABICLAW_FORBIDDEN_IDENTITY_FIELD_KEYS.filter((key) => key in fields);

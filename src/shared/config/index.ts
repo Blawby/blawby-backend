@@ -82,8 +82,18 @@ const envSchema = z
      * account-session callbacks (KTD7). No caller-selected tenant/session
      * data belongs in either.
      */
-    KRABICLAW_CONNECT_RETURN_URL: z.string().optional(),
-    KRABICLAW_CONNECT_REFRESH_URL: z.string().optional(),
+    KRABICLAW_CONNECT_RETURN_URL: z
+      .url()
+      .refine((value) => value.startsWith('https://'), {
+        message: 'KRABICLAW_CONNECT_RETURN_URL must be an https:// URL',
+      })
+      .optional(),
+    KRABICLAW_CONNECT_REFRESH_URL: z
+      .url()
+      .refine((value) => value.startsWith('https://'), {
+        message: 'KRABICLAW_CONNECT_REFRESH_URL must be an https:// URL',
+      })
+      .optional(),
     CLOUDFLARE_D1_ACCOUNT_ID: z.string().optional(),
     CLOUDFLARE_D1_DATABASE_ID: z.string().optional(),
     CLOUDFLARE_D1_API_TOKEN: z.string().optional(),

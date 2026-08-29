@@ -57,9 +57,9 @@ const resolveIdentityOrFail = async (headers: KrabiClawFacadeHeaders): Promise<R
     const organizationDirectory = await krabiclawDirectoryService.getOrganizationDirectoryRecord(
       headers.externalOrganizationId
     );
-    // R20 — an anonymous actor kind never triggers a D1 user lookup.
+    // R20 — an anonymous actor kind never triggers a D1 user lookup, even though `headers.externalActorId` is always present (R4).
     const userDirectory =
-      headers.actorKind === 'human' && headers.externalActorId
+      headers.actorKind === 'human'
         ? await krabiclawDirectoryService.getUserDirectoryRecord(headers.externalActorId)
         : null;
 
@@ -67,7 +67,7 @@ const resolveIdentityOrFail = async (headers: KrabiClawFacadeHeaders): Promise<R
       externalOrganizationId: headers.externalOrganizationId,
       organizationDirectory,
       actorKind: headers.actorKind,
-      externalUserId: headers.externalActorId ?? undefined,
+      externalUserId: headers.actorKind === 'human' ? headers.externalActorId : undefined,
       userDirectory: userDirectory ?? undefined,
     });
 

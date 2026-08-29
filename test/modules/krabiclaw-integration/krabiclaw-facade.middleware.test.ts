@@ -168,9 +168,10 @@ const humanHeaders = (scope: string) => ({
   'x-krabiclaw-actor-kind': 'human',
 });
 
-const anonymousHeaders = (scope: string, organizationId = 'ext-org-1') => ({
+const anonymousHeaders = (scope: string, organizationId = 'ext-org-1', actorId = 'ext-anon-actor-1') => ({
   authorization: `Bearer ${scope}`,
   'x-krabiclaw-organization-id': organizationId,
+  'x-krabiclaw-actor-id': actorId,
   'x-krabiclaw-actor-kind': 'anonymous',
 });
 
@@ -245,7 +246,7 @@ describe('createKrabiClawFacadeRouteMiddleware', () => {
     expect(krabiclawIdentityResolverService.resolveIdentity).not.toHaveBeenCalled();
   });
 
-  it.each(['/practice/details/', '//practice/details', '/Practice/Details'])(
+  it.each(['/practice/details/', '//practice/details', '/Practice/Details', '/practice%2Fdetails'])(
     'never selects the registered route policy for a path variant Hono does not match exactly: %s',
     async (path) => {
       const res = await buildApp().request(path, { headers: humanHeaders('legal:practice') });
@@ -263,20 +264,28 @@ describe('createKrabiClawFacadeRouteMiddleware', () => {
     expect(res.status).toBe(200);
   });
 
-  it('accepts an anonymous actor on a human-or-anonymous route and retains a null external actor ID without a D1 user lookup (R20)', async () => {
+  it('retains the anonymous actor ID for attribution/request-binding without ever resolving it against D1 (R4, R20)', async () => {
     vi.mocked(krabiclawDirectoryService.getUserDirectoryRecord).mockClear();
 
-    const res = await buildApp().request('/intakes/abc/status', { headers: anonymousHeaders('legal:intakes') });
+    const res = await buildApp().request('/intakes/abc/status', {
+      headers: anonymousHeaders('legal:intakes', 'ext-org-1', 'ext-anon-actor-42'),
+    });
 
     expect(res.status).toBe(200);
+    // The anonymous actor ID is never looked up against D1 — this is the negative assertion R20 requires.
     expect(krabiclawDirectoryService.getUserDirectoryRecord).not.toHaveBeenCalled();
+    // ...yet it IS recorded for attribution/request-binding (R4) — never silently dropped.
     expect(dispatchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ actor_kind: 'anonymous', external_actor_id: null, resolved_user_id: null }),
+      expect.objectContaining({
+        actor_kind: 'anonymous',
+        external_actor_id: 'ext-anon-actor-42',
+        resolved_user_id: null,
+      }),
       expect.anything()
     );
     // SAFETY: the fixture handler always responds with `{ context: c.get('krabiclawFacadeRequestContext') }`.
-    const body = (await res.json()) as { context: { externalActorId: string | null; userDirectory: unknown } };
-    expect(body.context.externalActorId).toBeNull();
+    const body = (await res.json()) as { context: { externalActorId: string; userDirectory: unknown } };
+    expect(body.context.externalActorId).toBe('ext-anon-actor-42');
     expect(body.context.userDirectory).toBeNull();
   });
 

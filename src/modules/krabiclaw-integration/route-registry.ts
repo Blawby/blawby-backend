@@ -19,8 +19,7 @@ const routeKey = (definition: Pick<KrabiClawFacadeRouteDefinition, 'method' | 'p
 
 /**
  * Register one route's immutable policy metadata. Call this once per route
- * a route file exposes, and pass the same returned object as that route's
- * entry in `routeBuilder.build({ ..., middleware: [createKrabiClawFacadeRouteMiddleware(definition)] })`.
+ * a route file exposes.
  *
  * @throws if a route with the same method and path is already registered.
  */
@@ -43,4 +42,42 @@ export const listRegisteredFacadeRoutes = (): readonly KrabiClawFacadeRouteDefin
  */
 export const resetFacadeRouteRegistryForTests = (): void => {
   registry.length = 0;
+};
+
+/**
+ * A route's method/path is otherwise declared twice — once on its
+ * `KrabiClawFacadeRouteDefinition`, once on the `routeBuilder.build(...)`
+ * call that actually registers the Hono route — with nothing structurally
+ * forcing the two to agree. Call this immediately after building the route
+ * (module load time, not request time) with the object `routeBuilder.build`
+ * returned and the same `definition` passed to
+ * `createKrabiClawFacadeRouteMiddleware`:
+ *
+ * ```ts
+ * const route = routeBuilder.build({
+ *   method: definition.method,
+ *   path: definition.path,
+ *   middleware: [createKrabiClawFacadeRouteMiddleware(definition)],
+ *   responses: { ... },
+ * });
+ * registerFacadeRoute(route, definition); // throws immediately on mismatch or duplicate
+ * app.openapi(route, handler);
+ * ```
+ *
+ * Fails fast (throws at import time, before the app can serve traffic) if
+ * the built route's method or path disagrees with its own policy
+ * definition — never silently applies the wrong gate to a route.
+ */
+export const registerFacadeRoute = (
+  route: { method: string; path: string },
+  definition: KrabiClawFacadeRouteDefinition
+): void => {
+  if (route.method.toLowerCase() !== definition.method || route.path !== definition.path) {
+    throw new Error(
+      `KrabiClaw facade route registration mismatch: routeBuilder.build was called with ` +
+        `${route.method.toUpperCase()} ${route.path}, but its KrabiClawFacadeRouteDefinition declares ` +
+        `${definition.method.toUpperCase()} ${definition.path}. These must match exactly.`
+    );
+  }
+  defineFacadeRoute(definition);
 };

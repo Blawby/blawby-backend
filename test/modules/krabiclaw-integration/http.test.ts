@@ -1,14 +1,24 @@
-import { z } from '@hono/zod-openapi';
+import { OpenAPIHono, z } from '@hono/zod-openapi';
+import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { describe, expect, it, vi } from 'vitest';
 
-import krabiclawIntegrationApp, { mountPath } from '@/modules/krabiclaw-integration/http';
+import krabiclawIntegrationApp, {
+  mountKrabiClawFacadeGlobalMiddleware,
+  mountKrabiClawFacadeTerminalHandlers,
+  mountPath,
+} from '@/modules/krabiclaw-integration/http';
 import { createKrabiClawFacadeRouteMiddleware } from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
 import { verifyFacadeToken } from '@/modules/krabiclaw-integration/middleware/verify-facade-token';
+import { registerFacadeRoute, resetFacadeRouteRegistryForTests } from '@/modules/krabiclaw-integration/route-registry';
+import { krabiclawFacadeValidationHook } from '@/modules/krabiclaw-integration/router/facade-validation-hook';
 import { krabiclawDirectoryService } from '@/modules/krabiclaw-integration/services/krabiclaw-directory.service';
 import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
 import type { KrabiClawFacadeRouteDefinition } from '@/modules/krabiclaw-integration/types/route-policy.types';
-import { routeBuilder } from '@/shared/router/route-builder';
+import { krabiclawStrictSchema } from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
 import type { config } from '@/shared/config';
+import { routeBuilder } from '@/shared/router/route-builder';
+import type { AppContext } from '@/shared/types/hono';
 
 const configState = vi.hoisted(() => ({
   facadeEnabled: false,
@@ -78,8 +88,16 @@ vi.mock('@/shared/middleware/rateLimit', () => ({
 const anonymousHeaders = (organizationId: string) => ({
   authorization: `Bearer ${VALID_TOKEN}`,
   'x-krabiclaw-organization-id': organizationId,
+  'x-krabiclaw-actor-id': 'ext-anon-actor-1',
   'x-krabiclaw-actor-kind': 'anonymous',
 });
+
+const humanHeaders = {
+  authorization: `Bearer ${VALID_TOKEN}`,
+  'x-krabiclaw-organization-id': 'ext-org-1',
+  'x-krabiclaw-actor-id': 'ext-user-1',
+  'x-krabiclaw-actor-kind': 'human',
+};
 
 describe('krabiclaw-integration http.ts', () => {
   it("exports the route scope table's base path as its mount path", () => {
@@ -126,8 +144,35 @@ describe('krabiclaw-integration http.ts', () => {
     expect(verifyFacadeToken).not.toHaveBeenCalled();
   });
 
+  it('gets the same reviewed facade envelope for an unknown path when mounted under a parent app via .route() (the U6 mounting pattern)', async () => {
+    configState.facadeEnabled = true;
+    try {
+      const parentApp = new Hono();
+      parentApp.route(mountPath, krabiclawIntegrationApp);
+
+      const res = await parentApp.request(`${mountPath}/no-such-path`, { headers: anonymousHeaders('ext-org-1') });
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: { code: 'facade_forbidden', message: 'Not found' }, request_id: null });
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+    } finally {
+      configState.facadeEnabled = false;
+    }
+  });
+
+  /**
+   * This describe block is the worked example: a fresh app assembled the
+   * exact same way `http.ts` assembles its own default export
+   * (`mountKrabiClawFacadeGlobalMiddleware` → routes → `registerFacadeRoute`
+   * → `mountKrabiClawFacadeTerminalHandlers`), rather than mutating the
+   * already-finalized production singleton — its own terminal wildcard
+   * route would shadow anything appended after import (see
+   * `mountKrabiClawFacadeTerminalHandlers`'s doc comment in `http.ts`).
+   */
   describe('a route registered against the policy layer (the U3/U4/U5 integration pattern)', () => {
-    const definition: KrabiClawFacadeRouteDefinition = {
+    resetFacadeRouteRegistryForTests();
+
+    const readDefinition: KrabiClawFacadeRouteDefinition = {
       method: 'get',
       path: '/practice/details',
       scope: 'legal:practice',
@@ -137,32 +182,73 @@ describe('krabiclaw-integration http.ts', () => {
       requestReferencePolicy: 'none',
     };
 
-    krabiclawIntegrationApp.openapi(
-      routeBuilder.build({
-        method: 'get',
-        path: '/practice/details',
-        middleware: [createKrabiClawFacadeRouteMiddleware(definition)],
-        responses: {
-          200: {
-            description: 'OK',
-            content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } },
-          },
-        },
-      }),
-      (c) => c.json({ ok: true })
-    );
+    const mutationDefinition: KrabiClawFacadeRouteDefinition = {
+      method: 'post',
+      path: '/practice/details',
+      scope: 'legal:practice',
+      actorPolicy: 'human',
+      rateFamily: 'practice',
+      rolloutGroup: 'practice-mutation',
+      requestReferencePolicy: 'none',
+    };
+
+    const strayErrorDefinition: KrabiClawFacadeRouteDefinition = {
+      method: 'get',
+      path: '/practice/stray-error',
+      scope: 'legal:practice',
+      actorPolicy: 'human',
+      rateFamily: 'practice',
+      rolloutGroup: 'practice-read',
+      requestReferencePolicy: 'none',
+    };
+
+    const exampleApp = new OpenAPIHono<AppContext>({ defaultHook: krabiclawFacadeValidationHook });
+    mountKrabiClawFacadeGlobalMiddleware(exampleApp);
+
+    const readRoute = routeBuilder.build({
+      method: readDefinition.method,
+      path: readDefinition.path,
+      middleware: [createKrabiClawFacadeRouteMiddleware(readDefinition)],
+      responses: {
+        200: { description: 'OK', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      },
+    });
+    registerFacadeRoute(readRoute, readDefinition); // Throws immediately on a method/path mismatch or duplicate.
+    exampleApp.openapi(readRoute, (c) => c.json({ ok: true }));
+
+    const mutationBodySchema = krabiclawStrictSchema({ name: z.string().min(1).max(50) });
+    const mutationRoute = routeBuilder.build({
+      method: mutationDefinition.method,
+      path: mutationDefinition.path,
+      middleware: [createKrabiClawFacadeRouteMiddleware(mutationDefinition)],
+      request: { body: { content: { 'application/json': { schema: mutationBodySchema } } } },
+      responses: {
+        200: { description: 'OK', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      },
+    });
+    registerFacadeRoute(mutationRoute, mutationDefinition);
+    exampleApp.openapi(mutationRoute, (c) => c.json({ ok: true }));
+
+    const strayErrorRoute = routeBuilder.build({
+      method: strayErrorDefinition.method,
+      path: strayErrorDefinition.path,
+      middleware: [createKrabiClawFacadeRouteMiddleware(strayErrorDefinition)],
+      responses: {
+        200: { description: 'OK', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      },
+    });
+    registerFacadeRoute(strayErrorRoute, strayErrorDefinition);
+    exampleApp.openapi(strayErrorRoute, () => {
+      // Simulates a future unit's route handler letting an unmapped domain error escape instead of reserializing it per its own route family's KTD8 contract.
+      throw new HTTPException(409, { message: 'stray domain conflict — must never reach the client verbatim' });
+    });
+
+    mountKrabiClawFacadeTerminalHandlers(exampleApp);
 
     it('reaches the handler once every policy gate passes, and the response still carries Cache-Control: no-store', async () => {
       configState.facadeEnabled = true;
       try {
-        const res = await krabiclawIntegrationApp.request('/practice/details', {
-          headers: {
-            authorization: `Bearer ${VALID_TOKEN}`,
-            'x-krabiclaw-organization-id': 'ext-org-1',
-            'x-krabiclaw-actor-id': 'ext-user-1',
-            'x-krabiclaw-actor-kind': 'human',
-          },
-        });
+        const res = await exampleApp.request('/practice/details', { headers: humanHeaders });
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ ok: true });
         expect(res.headers.get('Cache-Control')).toBe('no-store');
@@ -177,9 +263,7 @@ describe('krabiclaw-integration http.ts', () => {
       vi.mocked(krabiclawIdentityResolverService.resolveIdentity).mockClear();
 
       try {
-        const res = await krabiclawIntegrationApp.request('/practice/details', {
-          headers: anonymousHeaders('ext-org-1'),
-        });
+        const res = await exampleApp.request('/practice/details', { headers: anonymousHeaders('ext-org-1') });
         // Human-only route, anonymous actor → rejected by the actor-kind gate.
         expect(res.status).toBe(403);
         expect(krabiclawDirectoryService.getOrganizationDirectoryRecord).not.toHaveBeenCalled();
@@ -192,12 +276,71 @@ describe('krabiclaw-integration http.ts', () => {
     it('carries the reviewed WWW-Authenticate challenge on a machine-auth failure (R24)', async () => {
       configState.facadeEnabled = true;
       try {
-        const res = await krabiclawIntegrationApp.request('/practice/details', {
+        const res = await exampleApp.request('/practice/details', {
           headers: { authorization: 'Bearer not-the-valid-token' },
         });
         expect(res.status).toBe(401);
         expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="krabiclaw-facade", error="invalid_token"');
         expect(await res.json()).toMatchObject({ error: { code: 'invalid_token' } });
+      } finally {
+        configState.facadeEnabled = false;
+      }
+    });
+
+    it('returns the reviewed validation_failed envelope — not the raw Zod issue shape — for a malformed request body', async () => {
+      configState.facadeEnabled = true;
+      try {
+        const res = await exampleApp.request('/practice/details', {
+          method: 'POST',
+          headers: { ...humanHeaders, 'content-type': 'application/json' },
+          body: JSON.stringify({}), // Missing required `name`.
+        });
+        expect(res.status).toBe(400);
+        // SAFETY: this route's onError always responds with the reviewed `{ error, request_id }` envelope.
+        const body = (await res.json()) as { error: { code: string; message: string }; request_id: string | null };
+        expect(body).toEqual({
+          error: { code: 'validation_failed', message: 'Request failed facade validation' },
+          request_id: null,
+        });
+        // The shared hasValidationErrors hook would have put a `details` array with raw Zod issue paths here — confirm it's gone.
+        expect(body).not.toHaveProperty('details');
+        expect(res.headers.get('Cache-Control')).toBe('no-store');
+      } finally {
+        configState.facadeEnabled = false;
+      }
+    });
+
+    it('rejects an oversized request body before any route-scoped middleware runs (R23)', async () => {
+      configState.facadeEnabled = true;
+      vi.mocked(verifyFacadeToken).mockClear();
+      try {
+        const oversizedBody = JSON.stringify({ name: 'x'.repeat(200_000) });
+        const res = await exampleApp.request('/practice/details', {
+          method: 'POST',
+          headers: { ...humanHeaders, 'content-type': 'application/json' },
+          body: oversizedBody,
+        });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ error: { code: 'validation_failed' } });
+        // The body-size gate is global middleware, ahead of the route-scoped gate that verifies the token.
+        expect(verifyFacadeToken).not.toHaveBeenCalled();
+      } finally {
+        configState.facadeEnabled = false;
+      }
+    });
+
+    it("sanitizes a stray unmapped HTTPException(409) from a route handler to 502 invalid_upstream_response, never passing its message through", async () => {
+      configState.facadeEnabled = true;
+      try {
+        const res = await exampleApp.request('/practice/stray-error', { headers: humanHeaders });
+        expect(res.status).toBe(502);
+        // SAFETY: this route's onError always responds with the reviewed `{ error, request_id }` envelope.
+        const body = (await res.json()) as { error: { code: string; message: string }; request_id: string | null };
+        expect(body).toEqual({
+          error: { code: 'invalid_upstream_response', message: 'An unexpected error occurred' },
+          request_id: null,
+        });
+        expect(JSON.stringify(body)).not.toContain('stray domain conflict');
       } finally {
         configState.facadeEnabled = false;
       }
