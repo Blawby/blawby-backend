@@ -177,6 +177,28 @@ const resolveExistingPaymentLinkUrl = async (
 };
 
 /**
+ * Look up a prior intake by `(organizationId, requestKey)` and return it in the same shape a
+ * fresh create would (R8). Shared by `createIntake`'s own same-key recovery path and by
+ * `getIntakeByRequestReference`, the read-only recovery operation later units call directly
+ * (e.g. `GET /intakes/requests/{request_id}`) — both must return byte-identical recoverable
+ * results for the same `(organizationId, requestKey)` pair. Returns `null` when no intake has
+ * been recorded under that key for this organization; the lookup is org-scoped, so a request key
+ * reused by a different organization never resolves here (R20).
+ */
+export const findRecoverableIntakeByRequestKey = async (
+  organizationId: string,
+  requestKey: string,
+  organization: Pick<Organization, 'name' | 'logo'>
+): Promise<CreateIntakeResponse | null> => {
+  const existing = await practiceClientIntakesRepository.findByKrabiClawRequestKey(organizationId, requestKey);
+  if (!existing) {
+    return null;
+  }
+  const paymentLinkUrl = await resolveExistingPaymentLinkUrl(existing.stripe_payment_link_id, existing.status);
+  return toCreateIntakeResponse(existing, organization, paymentLinkUrl);
+};
+
+/**
  * Create a practice client intake (with optional Stripe payment link) for an organization
  * already resolved by the caller. When `requestKey` is present (facade-originated requests),
  * a prior request under the same `(organizationId, requestKey)` is recovered without repeating
@@ -206,10 +228,9 @@ export const createIntake = async (
 
   try {
     if (requestKey) {
-      const existing = await practiceClientIntakesRepository.findByKrabiClawRequestKey(organizationId, requestKey);
-      if (existing) {
-        const paymentLinkUrl = await resolveExistingPaymentLinkUrl(existing.stripe_payment_link_id, existing.status);
-        return toCreateIntakeResponse(existing, organization, paymentLinkUrl);
+      const recovered = await findRecoverableIntakeByRequestKey(organizationId, requestKey, organization);
+      if (recovered) {
+        return recovered;
       }
     }
 

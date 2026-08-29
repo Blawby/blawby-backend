@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   practiceClientIntakesSchema,
   type InsertPracticeClientIntake,
@@ -152,6 +152,25 @@ const findByStripeCheckoutSessionId = async (sessionId: string): Promise<SelectP
     .where(eq(practiceClientIntakes.stripe_checkout_session_id, sessionId))
     .limit(1);
   return row;
+};
+
+/**
+ * Conditionally attach a Stripe Checkout Session id to an intake that has none yet. The
+ * `IS NULL` guard makes this a compare-and-set: only the first caller to reach this row wins,
+ * and every other concurrent caller (any `requestKey`/session pairing) gets back `undefined`
+ * instead of overwriting an already-attached session id. Callers must re-read the row to learn
+ * which session id actually won (R10).
+ */
+const attachCheckoutSessionIfAbsent = async (
+  id: string,
+  sessionId: string
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const [updated] = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({ stripe_checkout_session_id: sessionId, updated_at: new Date() })
+    .where(and(eq(practiceClientIntakes.id, id), isNull(practiceClientIntakes.stripe_checkout_session_id)))
+    .returning();
+  return updated;
 };
 
 const update = async (id: string, data: Partial<SelectPracticeClientIntake>): Promise<SelectPracticeClientIntake> => {
@@ -363,6 +382,7 @@ export const practiceClientIntakesRepository = {
   findByStripePaymentLinkId,
   findByStripePaymentIntentId,
   findByStripeCheckoutSessionId,
+  attachCheckoutSessionIfAbsent,
   update,
   updateStatus,
   setInvitationPrefillToken,
