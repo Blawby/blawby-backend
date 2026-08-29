@@ -1,7 +1,7 @@
 import type { RouteConfig, RouteHandler } from '@hono/zod-openapi';
 import type { Hono } from 'hono';
 
-import type { KrabiClawFacadeAuthContext } from '@/modules/krabiclaw-integration/types/facade-headers.types';
+import type { KrabiClawFacadeRequestContext } from '@/modules/krabiclaw-integration/types/facade-context.types';
 import type { AppAbility } from '@/shared/auth/abilities.types';
 import type { Session, User } from '@/shared/types/BetterAuth';
 import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
@@ -15,7 +15,13 @@ export interface Variables {
   memberRole: string | null;
   ability: AppAbility;
   legalOperationContext?: LegalOperationContext;
-  krabiclawFacadeAuth?: KrabiClawFacadeAuthContext;
+  /**
+   * The one Hono-only KrabiClaw facade context (KTD3), set by
+   * `createKrabiClawFacadeRouteMiddleware` after every policy gate passes.
+   * Never forward this whole object to a Legal Operation, job, or webhook —
+   * pass `krabiclawFacadeRequestContext.legalOperationContext` instead.
+   */
+  krabiclawFacadeRequestContext?: KrabiClawFacadeRequestContext;
 }
 
 export interface AppContext {

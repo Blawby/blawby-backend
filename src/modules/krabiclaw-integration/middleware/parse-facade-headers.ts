@@ -1,16 +1,24 @@
 import type { Context } from 'hono';
-import { HTTPException } from 'hono/http-exception';
 
+import { KrabiClawFacadeValidationError } from '@/modules/krabiclaw-integration/errors/facade-errors';
 import type { KrabiClawFacadeHeaders } from '@/modules/krabiclaw-integration/types/facade-headers.types';
+import {
+  krabiclawExternalIdSchema,
+  krabiclawIpAddressSchema,
+  krabiclawRequestReferenceSchema,
+} from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
+import type { z } from '@hono/zod-openapi';
 
 const ORGANIZATION_HEADER = 'x-krabiclaw-organization-id';
 const ACTOR_ID_HEADER = 'x-krabiclaw-actor-id';
 const ACTOR_KIND_HEADER = 'x-krabiclaw-actor-kind';
+const REQUEST_REFERENCE_HEADER = 'x-krabiclaw-request-reference';
+const ORIGINATING_CLIENT_IP_HEADER = 'x-krabiclaw-originating-client-ip';
 
 const requireSingleHeader = (c: Context, name: string): string => {
   const value = c.req.header(name);
   if (!value || value.includes(',')) {
-    throw new HTTPException(400, { message: `Missing or duplicated header: ${name}` });
+    throw new KrabiClawFacadeValidationError(`Missing or duplicated header: ${name}`);
   }
   return value;
 };
@@ -21,29 +29,56 @@ const readOptionalSingleHeader = (c: Context, name: string): string | null => {
     return null;
   }
   if (value.trim() === '' || value.includes(',')) {
-    throw new HTTPException(400, { message: `Malformed or duplicated header: ${name}` });
+    throw new KrabiClawFacadeValidationError(`Malformed or duplicated header: ${name}`);
   }
   return value;
 };
 
+/** Validate an already-extracted header value against a bound (R23) — never re-reads the header, so a caller can't smuggle a second value past `requireSingleHeader`/`readOptionalSingleHeader`. */
+const assertBounded = (name: string, value: string, schema: z.ZodType<string>): void => {
+  if (!schema.safeParse(value).success) {
+    throw new KrabiClawFacadeValidationError(`Malformed header: ${name}`);
+  }
+};
+
 export const parseFacadeHeaders = (c: Context): KrabiClawFacadeHeaders => {
   const externalOrganizationId = requireSingleHeader(c, ORGANIZATION_HEADER);
-  const actorKindRaw = requireSingleHeader(c, ACTOR_KIND_HEADER);
+  assertBounded(ORGANIZATION_HEADER, externalOrganizationId, krabiclawExternalIdSchema);
 
+  const actorKindRaw = requireSingleHeader(c, ACTOR_KIND_HEADER);
   if (actorKindRaw !== 'human' && actorKindRaw !== 'anonymous') {
-    throw new HTTPException(400, { message: `Invalid ${ACTOR_KIND_HEADER}: ${actorKindRaw}` });
+    throw new KrabiClawFacadeValidationError(`Invalid ${ACTOR_KIND_HEADER}: ${actorKindRaw}`);
   }
 
   const externalActorId = readOptionalSingleHeader(c, ACTOR_ID_HEADER);
+  if (externalActorId !== null) {
+    assertBounded(ACTOR_ID_HEADER, externalActorId, krabiclawExternalIdSchema);
+  }
 
   if (actorKindRaw === 'human' && !externalActorId) {
-    throw new HTTPException(400, { message: `${ACTOR_ID_HEADER} is required when ${ACTOR_KIND_HEADER} is human` });
+    throw new KrabiClawFacadeValidationError(`${ACTOR_ID_HEADER} is required when ${ACTOR_KIND_HEADER} is human`);
   }
   if (actorKindRaw === 'anonymous' && externalActorId) {
-    throw new HTTPException(400, {
-      message: `${ACTOR_ID_HEADER} must not be sent when ${ACTOR_KIND_HEADER} is anonymous`,
-    });
+    throw new KrabiClawFacadeValidationError(
+      `${ACTOR_ID_HEADER} must not be sent when ${ACTOR_KIND_HEADER} is anonymous`
+    );
   }
 
-  return { externalOrganizationId, externalActorId, actorKind: actorKindRaw };
+  const requestReference = readOptionalSingleHeader(c, REQUEST_REFERENCE_HEADER);
+  if (requestReference !== null) {
+    assertBounded(REQUEST_REFERENCE_HEADER, requestReference, krabiclawRequestReferenceSchema);
+  }
+
+  const trustedOriginatingClientIp = readOptionalSingleHeader(c, ORIGINATING_CLIENT_IP_HEADER);
+  if (trustedOriginatingClientIp !== null) {
+    assertBounded(ORIGINATING_CLIENT_IP_HEADER, trustedOriginatingClientIp, krabiclawIpAddressSchema);
+  }
+
+  return {
+    externalOrganizationId,
+    externalActorId,
+    actorKind: actorKindRaw,
+    requestReference,
+    trustedOriginatingClientIp,
+  };
 };

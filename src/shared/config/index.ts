@@ -69,6 +69,21 @@ const envSchema = z
     SYSTEM_USER_EMAIL: z.email().optional(),
     KRABICLAW_OAUTH_CLIENT_ID: z.string().optional(),
     KRABICLAW_FACADE_ENABLED: z.enum(['true', 'false']).optional(),
+    // Six default-off rollout-group gates from the Route Contract table (R26).
+    // Each is independent of the global switch and of every other group.
+    KRABICLAW_ROLLOUT_PRACTICE_READ_ENABLED: z.enum(['true', 'false']).optional(),
+    KRABICLAW_ROLLOUT_PRACTICE_MUTATION_ENABLED: z.enum(['true', 'false']).optional(),
+    KRABICLAW_ROLLOUT_CONNECT_ENABLED: z.enum(['true', 'false']).optional(),
+    KRABICLAW_ROLLOUT_INTAKE_WITHOUT_PAYMENT_ENABLED: z.enum(['true', 'false']).optional(),
+    KRABICLAW_ROLLOUT_INTAKE_PAYMENT_ENABLED: z.enum(['true', 'false']).optional(),
+    KRABICLAW_ROLLOUT_ENGAGEMENT_ENABLED: z.enum(['true', 'false']).optional(),
+    /**
+     * Exact per-environment HTTPS return/refresh URLs for Connect
+     * account-session callbacks (KTD7). No caller-selected tenant/session
+     * data belongs in either.
+     */
+    KRABICLAW_CONNECT_RETURN_URL: z.string().optional(),
+    KRABICLAW_CONNECT_REFRESH_URL: z.string().optional(),
     CLOUDFLARE_D1_ACCOUNT_ID: z.string().optional(),
     CLOUDFLARE_D1_DATABASE_ID: z.string().optional(),
     CLOUDFLARE_D1_API_TOKEN: z.string().optional(),
@@ -170,6 +185,18 @@ export const config = {
   krabiclaw: {
     oauthClientId: raw.KRABICLAW_OAUTH_CLIENT_ID,
     facadeEnabled: raw.KRABICLAW_FACADE_ENABLED === 'true',
+    rolloutGroups: {
+      'practice-read': raw.KRABICLAW_ROLLOUT_PRACTICE_READ_ENABLED === 'true',
+      'practice-mutation': raw.KRABICLAW_ROLLOUT_PRACTICE_MUTATION_ENABLED === 'true',
+      connect: raw.KRABICLAW_ROLLOUT_CONNECT_ENABLED === 'true',
+      'intake-without-payment': raw.KRABICLAW_ROLLOUT_INTAKE_WITHOUT_PAYMENT_ENABLED === 'true',
+      'intake-payment': raw.KRABICLAW_ROLLOUT_INTAKE_PAYMENT_ENABLED === 'true',
+      engagement: raw.KRABICLAW_ROLLOUT_ENGAGEMENT_ENABLED === 'true',
+    },
+    connect: {
+      returnUrl: raw.KRABICLAW_CONNECT_RETURN_URL,
+      refreshUrl: raw.KRABICLAW_CONNECT_REFRESH_URL,
+    },
     d1AccountId: raw.CLOUDFLARE_D1_ACCOUNT_ID,
     d1DatabaseId: raw.CLOUDFLARE_D1_DATABASE_ID,
     d1ApiToken: raw.CLOUDFLARE_D1_API_TOKEN,

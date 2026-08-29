@@ -1,0 +1,46 @@
+import { z } from '@hono/zod-openapi';
+
+/**
+ * The Reviewed Error Contract's bounded envelope. Every facade error
+ * response — including the policy-layer ones this unit produces and every
+ * route-family 4xx a later unit reserializes (KTD8) — uses this shape, not
+ * the app-wide `{ error: string, message, request_id }` shape from
+ * `src/shared/validations/openapi.ts`. Route files under this module must
+ * override `routeBuilder.build(...)`'s default 400/401/403/404/500
+ * responses with schemas built from `krabiclawErrorEnvelopeSchema` (or the
+ * exported per-code response objects below) — the shared defaults describe
+ * the wrong body shape for this module.
+ */
+const errorEnvelopeSchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+  }),
+  request_id: z.string().nullable(),
+});
+
+const errorResponse = (description: string) => ({
+  description,
+  content: { 'application/json': { schema: errorEnvelopeSchema } },
+});
+
+export const krabiclawErrorEnvelopeSchema = errorEnvelopeSchema;
+
+/** Codes owned by the policy layer (this unit). Route families add their own codes per KTD8/the Reviewed Error Contract table. */
+export const KRABICLAW_POLICY_ERROR_CODES = [
+  'invalid_token',
+  'facade_forbidden',
+  'rate_limited',
+  'validation_failed',
+  'invalid_upstream_response',
+  'dependency_unavailable',
+] as const;
+
+/** Spread into a route's `responses` to describe the policy-layer 401 (machine auth) contract. */
+export const krabiclawInvalidTokenResponse = errorResponse('Machine-token authentication failed');
+/** Spread into a route's `responses` to describe the policy-layer 403 (scope/actor/rollout-group) contract. */
+export const krabiclawForbiddenResponse = errorResponse('Request is not permitted by facade policy');
+/** Spread into a route's `responses` to describe the policy-layer 429 (rate limit) contract. */
+export const krabiclawRateLimitedResponse = errorResponse('Request exceeded a facade rate limit');
+/** Spread into a route's `responses` to describe a pre-D1 header/body validation failure. */
+export const krabiclawValidationFailedResponse = errorResponse('Request failed facade validation');

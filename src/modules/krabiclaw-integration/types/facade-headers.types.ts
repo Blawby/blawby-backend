@@ -4,9 +4,8 @@ export interface KrabiClawFacadeHeaders {
   externalOrganizationId: string;
   externalActorId: string | null;
   actorKind: KrabiClawActorKind;
-}
-
-export interface KrabiClawFacadeAuthContext {
-  headers: KrabiClawFacadeHeaders;
-  clientId: string;
+  /** `x-krabiclaw-request-reference` — a UUID v4, present only when the caller sent it (KTD6). */
+  requestReference: string | null;
+  /** `x-krabiclaw-originating-client-ip` — present only when the caller sent it (R27). */
+  trustedOriginatingClientIp: string | null;
 }
