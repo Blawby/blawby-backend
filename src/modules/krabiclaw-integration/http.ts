@@ -23,6 +23,13 @@ import {
   postPracticeDetailsHandler,
 } from '@/modules/krabiclaw-integration/handlers';
 import {
+  createEngagementContractHandler,
+  getEngagementContractHandler,
+  listEngagementContractsHandler,
+  updateEngagementContractHandler,
+  updateEngagementContractStatusHandler,
+} from '@/modules/krabiclaw-integration/engagement-contracts.handlers';
+import {
   getIntakeByRequestReferenceHandler,
   getIntakeHandler,
   getIntakeSettingsHandler,
@@ -40,6 +47,13 @@ import {
   postAccountSessionRoute,
   postConnectedAccountsRoute,
 } from '@/modules/krabiclaw-integration/routes/connect.routes';
+import {
+  createEngagementContractRoute,
+  getEngagementContractRoute,
+  listEngagementContractsRoute,
+  updateEngagementContractRoute,
+  updateEngagementContractStatusRoute,
+} from '@/modules/krabiclaw-integration/routes/engagement-contracts.routes';
 import {
   getIntakeByRequestReferenceRoute,
   getIntakeRoute,
@@ -275,6 +289,13 @@ app.openapi(getIntakeRoute, getIntakeHandler);
 app.openapi(patchIntakeTriageRoute, patchIntakeTriageHandler);
 app.openapi(postCheckoutSessionRoute, postCheckoutSessionHandler);
 app.openapi(getPostPayStatusRoute, getPostPayStatusHandler);
+
+/** U5 (this unit): engagement contracts. No route-ordering hazard — every path here is either a distinct literal (`/engagement-contracts`) or has a unique trailing segment (`/{contract_id}`, `/{contract_id}/status`). */
+app.openapi(createEngagementContractRoute, createEngagementContractHandler);
+app.openapi(listEngagementContractsRoute, listEngagementContractsHandler);
+app.openapi(getEngagementContractRoute, getEngagementContractHandler);
+app.openapi(updateEngagementContractRoute, updateEngagementContractHandler);
+app.openapi(updateEngagementContractStatusRoute, updateEngagementContractStatusHandler);
 
 mountKrabiClawFacadeTerminalHandlers(app);
 
