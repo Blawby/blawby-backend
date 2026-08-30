@@ -99,21 +99,55 @@ const humanHeaders = {
   'x-krabiclaw-actor-kind': 'human',
 };
 
+/**
+ * The exact 21-route allowlist from the Product Contract's Route Contract
+ * table (global-context.md), one entry per real, already-mounted U3/U4/U5
+ * route. `path` uses a placeholder UUID/segment for every `{param}` so a
+ * single fetch shape works for every entry — irrelevant while the kill
+ * switch is off, since `mountKrabiClawFacadeGlobalMiddleware`'s disabled
+ * check throws on `app.use('*', ...)` before Hono ever attempts to match a
+ * specific route or validate a param (see `http.ts`).
+ */
+const ALL_ALLOWLISTED_ROUTES: readonly { method: string; path: string }[] = [
+  { method: 'GET', path: '/practice/details' },
+  { method: 'POST', path: '/practice/details' },
+  { method: 'PATCH', path: '/practice/details' },
+  { method: 'POST', path: '/connect/connected-accounts' },
+  { method: 'GET', path: '/connect/status' },
+  { method: 'POST', path: '/connect/account-session' },
+  { method: 'GET', path: '/connect/account' },
+  { method: 'GET', path: '/intakes/settings' },
+  { method: 'POST', path: '/intakes' },
+  { method: 'GET', path: '/intakes/requests/req-ref-1' },
+  { method: 'GET', path: '/intakes/11111111-1111-4111-8111-111111111111/status' },
+  { method: 'GET', path: '/intakes' },
+  { method: 'GET', path: '/intakes/11111111-1111-4111-8111-111111111111' },
+  { method: 'PATCH', path: '/intakes/11111111-1111-4111-8111-111111111111/triage' },
+  { method: 'POST', path: '/intakes/11111111-1111-4111-8111-111111111111/checkout-session' },
+  { method: 'GET', path: '/intakes/11111111-1111-4111-8111-111111111111/post-pay/status' },
+  { method: 'POST', path: '/engagement-contracts' },
+  { method: 'GET', path: '/engagement-contracts' },
+  { method: 'GET', path: '/engagement-contracts/22222222-2222-4222-8222-222222222222' },
+  { method: 'PATCH', path: '/engagement-contracts/22222222-2222-4222-8222-222222222222' },
+  { method: 'PATCH', path: '/engagement-contracts/22222222-2222-4222-8222-222222222222/status' },
+];
+
 describe('krabiclaw-integration http.ts', () => {
   it("exports the route scope table's base path as its mount path", () => {
     expect(mountPath).toBe('/api/integrations/krabiclaw/v1');
   });
 
-  it('404s every path while the kill switch is off, proving no route is reachable yet', async () => {
-    const res = await krabiclawIntegrationApp.request('/practice/details', {
-      headers: {
-        authorization: 'Bearer token',
-        'x-krabiclaw-organization-id': 'ext-org-1',
-        'x-krabiclaw-actor-kind': 'anonymous',
-      },
-    });
-    expect(res.status).toBe(404);
-  });
+  it.each(ALL_ALLOWLISTED_ROUTES)(
+    '404s $method $path while the kill switch is off, proving every allowlisted route is denied (R17, AE5)',
+    async ({ method, path }) => {
+      const res = await krabiclawIntegrationApp.request(path, {
+        method,
+        headers: { ...humanHeaders, 'content-type': 'application/json' },
+        body: method === 'GET' || method === 'DELETE' ? undefined : '{}',
+      });
+      expect(res.status).toBe(404);
+    }
+  );
 
   it('returns the reviewed facade_forbidden envelope, not the raw dependency 404 body, when the switch is off', async () => {
     const res = await krabiclawIntegrationApp.request('/practice/details', { headers: anonymousHeaders('ext-org-1') });
@@ -329,7 +363,7 @@ describe('krabiclaw-integration http.ts', () => {
       }
     });
 
-    it("sanitizes a stray unmapped HTTPException(409) from a route handler to 502 invalid_upstream_response, never passing its message through", async () => {
+    it('sanitizes a stray unmapped HTTPException(409) from a route handler to 502 invalid_upstream_response, never passing its message through', async () => {
       configState.facadeEnabled = true;
       try {
         const res = await exampleApp.request('/practice/stray-error', { headers: humanHeaders });
