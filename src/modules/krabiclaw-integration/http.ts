@@ -13,7 +13,27 @@ import {
   KrabiClawRateLimitedError,
   KrabiClawUpstreamDependencyError,
 } from '@/modules/krabiclaw-integration/errors/facade-errors';
+import {
+  getConnectAccountHandler,
+  getConnectStatusHandler,
+  getPracticeDetailsHandler,
+  patchPracticeDetailsHandler,
+  postAccountSessionHandler,
+  postConnectedAccountsHandler,
+  postPracticeDetailsHandler,
+} from '@/modules/krabiclaw-integration/handlers';
 import { krabiclawFacadeValidationHook } from '@/modules/krabiclaw-integration/router/facade-validation-hook';
+import {
+  getConnectAccountRoute,
+  getConnectStatusRoute,
+  postAccountSessionRoute,
+  postConnectedAccountsRoute,
+} from '@/modules/krabiclaw-integration/routes/connect.routes';
+import {
+  getPracticeDetailsRoute,
+  patchPracticeDetailsRoute,
+  postPracticeDetailsRoute,
+} from '@/modules/krabiclaw-integration/routes/practice.routes';
 import { config } from '@/shared/config';
 import type { AppContext } from '@/shared/types/hono';
 
@@ -46,8 +66,11 @@ const errorEnvelope = (code: string, message: string, requestId: string | null) 
  */
 const mountKrabiClawFacadeGlobalMiddleware = (app: KrabiClawFacadeApp): void => {
   app.use('*', async (c, next) => {
-    await next();
-    c.res.headers.set('Cache-Control', 'no-store');
+    try {
+      return await next();
+    } finally {
+      c.res.headers.set('Cache-Control', 'no-store');
+    }
   });
 
   app.use('*', (_c, next) => {
@@ -195,14 +218,23 @@ const app: KrabiClawFacadeApp = new OpenAPIHono<AppContext>({ defaultHook: krabi
 mountKrabiClawFacadeGlobalMiddleware(app);
 
 /**
- * U3/U4/U5 register the Route Contract table's handlers here — each via
- * `registerFacadeRoute` (route-registry.ts) so a route's method/path can't
- * silently disagree with its own `KrabiClawFacadeRouteDefinition`, guarded
- * by `createKrabiClawFacadeRouteMiddleware`
- * (krabiclaw-facade.middleware.ts). Every `app.openapi(...)` call MUST be
- * added above `mountKrabiClawFacadeTerminalHandlers(app)` below — see that
- * function's own doc comment for why.
+ * U3 (this unit): practice and Connect. Each route object already ran
+ * through `registerFacadeRoute` at import time (in `routes/practice.routes.ts`
+ * / `routes/connect.routes.ts`) so a route's method/path can't silently
+ * disagree with its own `KrabiClawFacadeRouteDefinition`, guarded by
+ * `createKrabiClawFacadeRouteMiddleware` (krabiclaw-facade.middleware.ts).
+ * U4/U5 add their own route files' `app.openapi(...)` calls here too — every
+ * one MUST be added above `mountKrabiClawFacadeTerminalHandlers(app)` below,
+ * see that function's own doc comment for why.
  */
+app.openapi(getPracticeDetailsRoute, getPracticeDetailsHandler);
+app.openapi(postPracticeDetailsRoute, postPracticeDetailsHandler);
+app.openapi(patchPracticeDetailsRoute, patchPracticeDetailsHandler);
+
+app.openapi(postConnectedAccountsRoute, postConnectedAccountsHandler);
+app.openapi(getConnectStatusRoute, getConnectStatusHandler);
+app.openapi(postAccountSessionRoute, postAccountSessionHandler);
+app.openapi(getConnectAccountRoute, getConnectAccountHandler);
 
 mountKrabiClawFacadeTerminalHandlers(app);
 
