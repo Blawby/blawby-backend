@@ -105,7 +105,7 @@ vi.mock('@/modules/practice/operations/get-practice-details.operation', () => ({
 
 interface FakeRateLimitOptions {
   routeKey?: string;
-  scope?: (c: unknown) => string | null | undefined | Promise<string | null | undefined>;
+  scope?: 'ip' | ((c: unknown) => string | null | undefined | Promise<string | null | undefined>);
 }
 
 /** A org id that, if ever used as the rate-limit scope key, is rejected — proving the org-bucket gate runs, and runs before D1, without needing the real Postgres-backed limiter. */
@@ -115,12 +115,19 @@ vi.mock('@/shared/middleware/rateLimit', () => ({
   rateLimit:
     (options?: FakeRateLimitOptions): MiddlewareHandler<AppContext> =>
     async (c, next) => {
-      const scopeKey = await options?.scope?.(c);
+      // `hono-app.ts`'s own outer/pre-auth limiters pass a literal `scope: 'ip'` string
+      // Rather than a function (see `krabiclawFacadePreAuthRateLimit` and `apiRateLimit`'s
+      // Callers) — only a function `scope` is ever meaningful to resolve here.
+      const scopeKey = typeof options?.scope === 'function' ? await options.scope(c) : undefined;
       if (typeof scopeKey === 'string' && scopeKey.includes(RATE_LIMITED_ORG_ID)) {
         return c.json({ retry_after: 5 }, 429);
       }
       return next();
     },
+  // `src/hono-app.ts`'s own outer rate limiter reads this directly at module-load time
+  // (`rateLimiter.getApiRateLimitIdentifier`) — needed only so importing the real root app
+  // (`@/test/helpers/app`, in the "mounted under the real root app" tests below) doesn't throw.
+  rateLimiter: { getApiRateLimitIdentifier: () => 'anon:global', initialize: async () => undefined },
 }));
 
 const humanHeaders = (organizationId: string, token = ALL_SCOPES_TOKEN) => ({
@@ -346,6 +353,113 @@ describe('krabiclaw facade whole-app gate ordering (U6)', () => {
       setup();
       const res = await krabiclawIntegrationApp.request(path, { headers: headers ?? humanHeaders('org-a') });
       expect(res.headers.get('Cache-Control')).toBe('no-store');
+    });
+  });
+
+  describe('the enabled facade accepts only the Route Contract — every unsupported method/path combination 404s (approach step 3)', () => {
+    const UNSUPPORTED_COMBINATIONS: readonly { method: string; path: string }[] = [
+      // Unknown path entirely.
+      { method: 'GET', path: '/no-such-resource' },
+      // Known path, method not in the allowlist for it.
+      { method: 'DELETE', path: '/practice/details' },
+      { method: 'PUT', path: '/connect/status' },
+      { method: 'DELETE', path: '/engagement-contracts' },
+      // Known path prefix, unknown trailing segment.
+      { method: 'GET', path: '/intakes/11111111-1111-4111-8111-111111111111/unknown-action' },
+      // Merely path-prefix-similar to a real mount, not the mount itself.
+      { method: 'GET', path: '/practice-details' },
+    ];
+
+    it.each(UNSUPPORTED_COMBINATIONS)(
+      '$method $path -> reviewed facade_forbidden 404 while the facade is ENABLED (not the disabled-switch 404)',
+      async ({ method, path }) => {
+        // `configState.facadeEnabled` is reset to `true` by this file's own `beforeEach` —
+        // Asserted explicitly here so a future edit that changes that default can't silently
+        // Turn this back into a disabled-switch duplicate.
+        expect(configState.facadeEnabled).toBe(true);
+
+        const res = await krabiclawIntegrationApp.request(path, { method, headers: humanHeaders('org-a') });
+        expect(res.status).toBe(404);
+        expect(await res.json()).toEqual({
+          error: { code: 'facade_forbidden', message: 'Not found' },
+          request_id: null,
+        });
+        expect(res.headers.get('Cache-Control')).toBe('no-store');
+        // None of these ever matched a real route, so none of them should have reached D1 either.
+        expectNoD1Call();
+      }
+    );
+  });
+
+  describe('the facade behaves identically when mounted under the real, fully-assembled root app (@/hono-app), not just the standalone module', () => {
+    it("the disabled-switch 404 keeps the facade's own reviewed envelope, not responseMiddleware's differently-shaped one", async () => {
+      configState.facadeEnabled = false;
+      const { app: rootApp } = await import('@/test/helpers/app');
+
+      const res = await rootApp.request(`${mountPath}/practice/details`, { headers: humanHeaders('org-a') });
+
+      expect(res.status).toBe(404);
+      // SAFETY: this route's onError always responds with the reviewed `{ error, request_id }` envelope.
+      const disabledBody = (await res.json()) as { error: unknown; request_id: unknown };
+      expect(disabledBody.error).toEqual({ code: 'facade_forbidden', message: 'Not found' });
+      // Unlike the standalone module (no requestId() middleware of its own), the real root
+      // App assigns a genuine correlation id here.
+      expect(disabledBody.request_id).toEqual(expect.any(String));
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+    });
+
+    it('an enabled-mode success reaches the real handler and Legal Operation through the full root app, with facade headers intact', async () => {
+      const { app: rootApp } = await import('@/test/helpers/app');
+
+      const res = await rootApp.request(`${mountPath}/practice/details`, { headers: humanHeaders('org-a') });
+
+      // `getPracticeDetails` is mocked (module scope, above) to resolve successfully. This
+      // Proves the request reaches that real handler/operation call site through the FULL
+      // Root app (honoLogger, cors, responseMiddleware, requestId, the outer rate limiter's
+      // Path-detection branch), not just that the standalone module allows it.
+      expect(vi.mocked(getPracticeDetails)).toHaveBeenCalledWith(
+        { organizationId: expect.any(String) },
+        expect.objectContaining({ organizationId: expect.any(String) })
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(await res.json()).toEqual({ id: 'practice-1' });
+    });
+
+    it("an enabled-mode dependency failure keeps the facade's own reviewed envelope through the real root app — not responseMiddleware's differently-shaped one", async () => {
+      vi.mocked(krabiclawIdentityResolverService.resolveIdentity).mockRejectedValueOnce(new Error('boom'));
+      const { app: rootApp } = await import('@/test/helpers/app');
+
+      const res = await rootApp.request(`${mountPath}/practice/details`, { headers: humanHeaders('org-a') });
+
+      expect(res.status).toBe(502);
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      // SAFETY: this route's onError always responds with the reviewed `{ error, request_id }` envelope.
+      const body = (await res.json()) as { error: unknown; request_id: unknown; message?: unknown };
+      expect(body.error).toEqual({
+        code: 'invalid_upstream_response',
+        message: 'A KrabiClaw facade dependency is unavailable',
+      });
+      expect(body.request_id).toEqual(expect.any(String));
+      // ResponseMiddleware's own envelope (src/shared/middleware/responseMiddleware.ts) is
+      // `{ error, message, request_id }` — a *sibling* top-level `message` key, whose absence
+      // Proves the facade's own onError converted this response before responseMiddleware's
+      // Catch block ever saw it, rather than assuming that from reading Hono's route() source.
+      expect(body).not.toHaveProperty('message');
+    });
+
+    it("an enabled-mode policy rejection also keeps the facade's own reviewed envelope through the real root app", async () => {
+      const { app: rootApp } = await import('@/test/helpers/app');
+
+      const res = await rootApp.request(`${mountPath}/practice/details`, { headers: anonymousHeaders('org-a') });
+
+      expect(res.status).toBe(403);
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      // SAFETY: this route's onError always responds with the reviewed `{ error, request_id }` envelope.
+      const body = (await res.json()) as { error: unknown; request_id: unknown; message?: unknown };
+      expect(body.error).toEqual({ code: 'facade_forbidden', message: 'Request is not permitted' });
+      expect(body.request_id).toEqual(expect.any(String));
+      expect(body).not.toHaveProperty('message');
     });
   });
 

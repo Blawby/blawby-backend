@@ -90,33 +90,17 @@ describe('krabiclaw-integration facade registration contract (U6)', () => {
     }
     expect(sorted(openapiKeys)).toEqual(sorted(ROUTE_CONTRACT));
   });
-
-  describe('every method/path combination NOT in the Route Contract returns the reviewed facade 404, never a generic one', () => {
-    const humanHeaders = {
-      authorization: 'Bearer irrelevant-while-switch-is-off',
-      'x-krabiclaw-organization-id': 'ext-org-1',
-      'x-krabiclaw-actor-id': 'ext-user-1',
-      'x-krabiclaw-actor-kind': 'human',
-    };
-
-    const UNSUPPORTED_COMBINATIONS: readonly { method: string; path: string }[] = [
-      // Unknown path entirely.
-      { method: 'GET', path: '/no-such-resource' },
-      // Known path, method not in the allowlist for it.
-      { method: 'DELETE', path: '/practice/details' },
-      { method: 'PUT', path: '/connect/status' },
-      { method: 'DELETE', path: '/engagement-contracts' },
-      // Known path prefix, unknown trailing segment.
-      { method: 'GET', path: '/intakes/11111111-1111-4111-8111-111111111111/unknown-action' },
-      // Merely path-prefix-similar to a real mount, not the mount itself.
-      { method: 'GET', path: '/practice-details' },
-    ];
-
-    it.each(UNSUPPORTED_COMBINATIONS)('$method $path -> reviewed facade_forbidden 404', async ({ method, path }) => {
-      const res = await krabiclawIntegrationApp.request(path, { method, headers: humanHeaders });
-      expect(res.status).toBe(404);
-      expect(await res.json()).toEqual({ error: { code: 'facade_forbidden', message: 'Not found' }, request_id: null });
-      expect(res.headers.get('Cache-Control')).toBe('no-store');
-    });
-  });
 });
+
+/**
+ * The "every method/path combination NOT in the Route Contract returns the
+ * reviewed facade 404" assertion (approach step 3) deliberately does NOT
+ * live in this file: this file runs against the real, unmocked
+ * `config.krabiclaw` (so `facadeEnabled` is whatever the process env says —
+ * off by default), which would make an "unsupported combination -> 404"
+ * assertion here indistinguishable from the disabled-switch 404 every route
+ * already gets (see `http.test.ts`'s `ALL_ALLOWLISTED_ROUTES` loop). Proving
+ * "the enabled facade accepts only the Route Contract" requires the facade
+ * to actually be enabled, which requires mocking `@/shared/config` — done in
+ * `facade-gate-ordering.e2e.test.ts`'s own "unsupported combinations" block.
+ */
