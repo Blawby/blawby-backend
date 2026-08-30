@@ -31,17 +31,7 @@ const MODULE_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/modules.ge
 const MCP_TOOLS_OUTPUT = join(process.cwd(), 'src/modules/mcp/mcp.tools.generated.ts');
 const UOW_OUTPUT = join(process.cwd(), 'src/shared/database/uow.generated.ts');
 
-const EXCLUDED_MODULES = [
-  'auth',
-  'analytics',
-  'billing',
-  'admin',
-  'customers',
-  'events',
-  'health',
-  'mcp',
-  'settings',
-];
+const EXCLUDED_MODULES = ['auth', 'analytics', 'billing', 'admin', 'customers', 'events', 'health', 'mcp', 'settings'];
 
 if (!isDevelopment()) {
   EXCLUDED_MODULES.push('dev');
@@ -49,7 +39,8 @@ if (!isDevelopment()) {
 
 const toCamelCase = (str: string): string => str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 
-const toIdentifier = (str: string): string => toCamelCase(str.replace(/[^a-zA-Z0-9]+(.)?/g, (_, letter) => (letter ? letter.toUpperCase() : '')));
+const toIdentifier = (str: string): string =>
+  toCamelCase(str.replace(/[^a-zA-Z0-9]+(.)?/g, (_, letter) => (letter ? letter.toUpperCase() : '')));
 
 const discoverModules = async (): Promise<string[]> => {
   const allDirs = await readdir(MODULES_DIR, { withFileTypes: true });
@@ -99,9 +90,9 @@ const generateMcpToolsRegistry = async (modules: string[]): Promise<void> => {
 
     if (existsSync(routesIndexPath)) {
       const routeFiles = (await readdir(routesDir)).filter((f) => f.endsWith('.ts'));
-      const hasMcp = (
-        await Promise.all(routeFiles.map((file) => readFile(join(routesDir, file), 'utf-8')))
-      ).some((text) => text.includes('mcp:'));
+      const hasMcp = (await Promise.all(routeFiles.map((file) => readFile(join(routesDir, file), 'utf-8')))).some(
+        (text) => text.includes('mcp:')
+      );
       if (hasMcp) {
         routeModules.push('routes/index');
       }
