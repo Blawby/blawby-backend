@@ -41,10 +41,6 @@ const EXCLUDED_MODULES = [
   'health',
   'mcp',
   'settings',
-  // TODO(U4): krabiclaw-integration has services/schema/validations but no http.ts
-  // Yet (U1-U3 built its identity/directory foundation without exposing routes).
-  // Remove this exclusion once U4 adds src/modules/krabiclaw-integration/http.ts.
-  'krabiclaw-integration',
 ];
 
 if (!isDevelopment()) {
