@@ -33,7 +33,6 @@ import { db } from '@/shared/database';
 import { KrabiClawActorAttributed } from '@/shared/events/definitions/krabiclaw';
 import { rateLimit } from '@/shared/middleware/rateLimit';
 import type { AppContext } from '@/shared/types/hono';
-import { sanitizeError } from '@/shared/utils/logging';
 
 const logger = getLogger(['modules', 'krabiclaw-integration', 'facade-middleware']);
 
@@ -74,7 +73,17 @@ const resolveIdentityOrFail = async (headers: KrabiClawFacadeHeaders): Promise<R
 
     return { identity, organizationDirectory, userDirectory };
   } catch (error) {
-    logger.error('krabiclaw facade identity resolution failed: {error}', { error: sanitizeError(error) });
+    /**
+     * A narrow name/message summary, never `sanitizeError(error)` — the D1
+     * directory/identity services deliberately attach the raw upstream
+     * error as `cause` (see `wrapD1Failure` in
+     * `krabiclaw-directory.service.ts`) so a debugger can inspect it, but
+     * `sanitizeError`'s generic own-properties spread would re-expose that
+     * raw `cause` (which "can carry response headers/body") straight into
+     * this logger, undoing that module's own log-hygiene discipline (R23).
+     */
+    const summary = error instanceof Error ? { name: error.name, message: error.message } : { name: 'UnknownError' };
+    logger.error('krabiclaw facade identity resolution failed: {error}', { error: summary });
     throw new KrabiClawUpstreamDependencyError(502, 'Failed to resolve KrabiClaw identity');
   }
 };

@@ -367,28 +367,22 @@ describe('krabiclaw facade whole-app gate ordering (U6)', () => {
     });
 
     /**
-     * KNOWN GAP — found while writing this whole-app proof, not fixed here
-     * per the dispatcher's instruction to report rather than modify U1-U5
-     * code. `resolveIdentityOrFail` (krabiclaw-facade.middleware.ts) logs
-     * `sanitizeError(error)` on any directory/identity dependency failure.
-     * `sanitizeError` (shared/utils/logging.ts) unconditionally spreads the
-     * caught error's own `cause` (and every other own-enumerable property)
-     * into the logged payload. `krabiclawDirectoryService`'s own
-     * `wrapD1Failure` (krabiclaw-directory.service.ts) deliberately sets
-     * `cause: error` to the RAW, unsanitized Cloudflare SDK error — which
-     * that same file's own doc comment says "can carry response
-     * headers/body" — specifically so `sanitizeD1Error` can keep it out of
-     * ITS OWN log line. `resolveIdentityOrFail` undoes that guarantee one
-     * layer up: this test demonstrates that a raw upstream failure
-     * propagated through `krabiclawDirectoryService`/`krabiclawIdentityResolverService`
-     * with a sensitive `cause` reaches the facade's own logger.error call
-     * verbatim, violating R23 ("Logs exclude ... raw upstream bodies").
-     * This assertion documents the CURRENT (non-conforming) behavior — it
-     * is not the desired contract. See the U6 report for the suggested fix
-     * (branch `resolveIdentityOrFail`'s catch to log a sanitized summary,
-     * not `sanitizeError(error)` directly).
+     * Regression test for a real R23 violation found while writing this
+     * whole-app proof and fixed directly in `resolveIdentityOrFail`
+     * (krabiclaw-facade.middleware.ts): it used to log `sanitizeError(error)`
+     * on any directory/identity dependency failure. `sanitizeError`
+     * (shared/utils/logging.ts) unconditionally spreads the caught error's
+     * own `cause` (and every other own-enumerable property) into the logged
+     * payload. `krabiclawDirectoryService`'s own `wrapD1Failure`
+     * (krabiclaw-directory.service.ts) deliberately sets `cause: error` to
+     * the RAW, unsanitized Cloudflare SDK error — which that same file's own
+     * doc comment says "can carry response headers/body" — specifically so
+     * `sanitizeD1Error` can keep it out of ITS OWN log line. The old
+     * `sanitizeError(error)` call undid that guarantee one layer up. The fix
+     * logs a narrow `{ name, message }` summary instead (mirroring
+     * `sanitizeD1Error`'s own discipline), never the raw `cause`.
      */
-    it('KNOWN GAP: a dependency failure with a sensitive `cause` currently reaches the facade logger verbatim', async () => {
+    it('never logs the raw `cause` of a dependency failure, even when it carries a sensitive upstream body (R23)', async () => {
       const { getLogger } = await import('@logtape/logtape');
       const facadeMiddlewareLogger = getLogger(['modules', 'krabiclaw-integration', 'facade-middleware']);
       const errorSpy = vi.spyOn(facadeMiddlewareLogger, 'error');
@@ -400,9 +394,10 @@ describe('krabiclaw facade whole-app gate ordering (U6)', () => {
 
       await krabiclawIntegrationApp.request('/practice/details', { headers: humanHeaders('org-a') });
 
+      expect(errorSpy).toHaveBeenCalledTimes(1);
       const loggedArgs = JSON.stringify(errorSpy.mock.calls);
-      // Documents the CURRENT leak — see the doc comment above and the U6 report.
-      expect(loggedArgs).toContain(sensitiveMarker);
+      expect(loggedArgs).not.toContain(sensitiveMarker);
+      expect(loggedArgs).toContain('D1 identity lookup failed');
       errorSpy.mockRestore();
     });
   });
