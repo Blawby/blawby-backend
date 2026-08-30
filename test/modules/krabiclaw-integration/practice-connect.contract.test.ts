@@ -286,9 +286,9 @@ describe('krabiclaw practice facade routes', () => {
     });
 
     expect(res.status).toBe(404);
-    // SAFETY: the 404 status assertion above confirms this response came from `http.ts`'s `onError` handler,
-    // Which always emits the reviewed `{ error: { code, message }, request_id }` envelope for every mapped
-    // Error (see `errorEnvelope` in http.ts) — the response body shape is guaranteed, not merely assumed.
+    // SAFETY: the 404 status assertion above confirms this response was built by
+    // `reviewedDomainErrorResponse` (handlers.ts), which always returns the reviewed
+    // `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
     const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe('resource_not_found');
     expect(body.error.message).not.toContain('local-ext-org-1');
@@ -337,9 +337,9 @@ describe('krabiclaw Connect facade routes', () => {
     });
 
     expect(res.status).toBe(404);
-    // SAFETY: the 404 status assertion above confirms this response came from `http.ts`'s `onError` handler,
-    // Which always emits the reviewed `{ error: { code, message }, request_id }` envelope for every mapped
-    // Error (see `errorEnvelope` in http.ts) — the response body shape is guaranteed, not merely assumed.
+    // SAFETY: the 404 status assertion above confirms this response was built by
+    // `reviewedDomainErrorResponse` (handlers.ts), which always returns the reviewed
+    // `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
     const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe('resource_not_found');
     expect(body.error.message).not.toContain('acct_super_secret_123');
@@ -502,9 +502,9 @@ describe('krabiclaw Connect facade routes', () => {
       });
 
       expect(res.status).toBe(409);
-      // SAFETY: the 409 status assertion above confirms this response came from `http.ts`'s `onError` handler,
-      // Which always emits the reviewed `{ error: { code, message }, request_id }` envelope for every mapped
-      // Error (see `errorEnvelope` in http.ts) — the response body shape is guaranteed, not merely assumed.
+      // SAFETY: the 409 status assertion above confirms this response was built by
+      // `reviewedDomainErrorResponse` (handlers.ts), which always returns the reviewed
+      // `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
       const body = (await res.json()) as { error: { code: string; message: string } };
       expect(body.error.code).toBe('state_conflict');
       expect(body.error.message).not.toContain('acct_secret_456');
@@ -522,9 +522,9 @@ describe('krabiclaw Connect facade routes', () => {
       });
 
       expect(res.status).toBe(422);
-      // SAFETY: the 422 status assertion above confirms this response came from `http.ts`'s `onError` handler,
-      // Which always emits the reviewed `{ error: { code, message }, request_id }` envelope for every mapped
-      // Error (see `errorEnvelope` in http.ts) — the response body shape is guaranteed, not merely assumed.
+      // SAFETY: the 422 status assertion above confirms this response was built by
+      // `reviewedDomainErrorResponse` (handlers.ts), which always returns the reviewed
+      // `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
       const body = (await res.json()) as { error: { code: string; message: string } };
       expect(body.error.code).toBe('prerequisite_failed');
       expect(body.error.message).not.toContain('raw dependency detail');
